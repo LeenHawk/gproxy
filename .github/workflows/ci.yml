@@ -64,6 +64,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Validate notifications feed
+        run: node scripts/check-notifications.mjs
+
       - name: Build
         run: npm run build
 
@@ -92,6 +95,32 @@ jobs:
 
       - name: Build docs
         run: npm run build
+
+      - name: Sign notifications feed
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        shell: bash
+        run: |
+          if [ -z "$UPDATE_SIGNING_PRIVATE_KEY_B64" ]; then
+            echo "UPDATE_SIGNING_PRIVATE_KEY_B64 is empty; skipping notifications signature"
+            exit 0
+          fi
+          [ -n "$UPDATE_SIGNING_PUBLIC_KEY_B64" ] || { echo "UPDATE_SIGNING_PUBLIC_KEY_B64 is empty" >&2; exit 1; }
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s' "$UPDATE_SIGNING_PRIVATE_KEY_B64" | base64 -d > "$work/priv.pem"
+          chmod 600 "$work/priv.pem"
+          derived="$(openssl pkey -in "$work/priv.pem" -pubout -outform DER | tail -c 32 | base64 -w0)"
+          [ "$derived" = "$UPDATE_SIGNING_PUBLIC_KEY_B64" ] || {
+            echo "private key does not match UPDATE_SIGNING_PUBLIC_KEY_B64" >&2; exit 1; }
+          openssl pkeyutl -sign -rawin -inkey "$work/priv.pem" \
+            -in dist/notifications.json -out "$work/sig.bin"
+          base64 -w0 "$work/sig.bin" > dist/notifications.json.sig
+          openssl pkey -in "$work/priv.pem" -pubout -out "$work/pub.pem"
+          openssl pkeyutl -verify -rawin -pubin -inkey "$work/pub.pem" \
+            -sigfile "$work/sig.bin" -in dist/notifications.json >/dev/null || {
+            echo "self-verify of notifications signature failed" >&2; exit 1; }
 
       - name: Deploy docs to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4

@@ -70,6 +70,11 @@
     "action": "檢視更新",
     "whatsNew": "更新內容"
   },
+  "notifications": {
+    "label": "通知",
+    "title": "公告",
+    "publishedAt": "發佈於 {{date}}"
+  },
   "proxyTest": {
     "action": "測試連線",
     "testing": "正在測試…",

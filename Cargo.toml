@@ -83,6 +83,9 @@ wreq-util = { version = "3.0.0-rc.14", optional = true }
 # (already in the tree via jsonwebtoken; pinned here as a direct dep). self-replace:
 # atomic Unix/Windows binary swap.
 semver = "1"
+# Announcement feed: RFC3339 `expires_at` parsing. Already in the tree
+# unconditionally via jsonwebtoken → simple_asn1; only `parsing` is enabled.
+time = { version = "0.3", default-features = false, features = ["parsing"] }
 ed25519-dalek = "3"
 self-replace = "1"
 # self-update: extract the `gproxy` executable from the downloaded release `.zip`

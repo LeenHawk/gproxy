@@ -7,6 +7,8 @@
 extern crate self as gproxy;
 
 pub mod admin;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod announce;
 pub mod api;
 pub mod app;
 #[cfg(not(target_arch = "wasm32"))]
@@ -23,6 +25,7 @@ pub mod http;
 pub mod native;
 pub mod pipeline;
 pub mod process;
+pub mod site;
 pub use gproxy_protocol as protocol;
 // Self-update is native-only: edge (wasm) deploys via the platform pipeline (§19).
 #[cfg(not(target_arch = "wasm32"))]

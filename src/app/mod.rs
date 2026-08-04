@@ -135,6 +135,10 @@ pub struct AppState {
     /// §19.10 in-process self-update status. `idle` at boot; `apply` walks it
     /// downloading -> restarting|failed. Soft state — a restart clears it.
     pub update_status: Arc<std::sync::Mutex<crate::app::update_status::UpdateStatus>>,
+    /// Signed maintainer announcements cached for six hours. Native only; edge
+    /// serves the shared Console an empty announcement list.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub notification_cache: Arc<std::sync::Mutex<crate::announce::NotificationCache>>,
     /// Per-user desktop login startup manager. Android delegates to the APK
     /// foreground service; edge builds have no host startup mechanism.
     #[cfg(not(target_arch = "wasm32"))]
@@ -182,6 +186,8 @@ impl AppState {
             #[cfg(feature = "count-local")]
             tokenizers,
             update_status: Arc::new(std::sync::Mutex::new(Default::default())),
+            #[cfg(not(target_arch = "wasm32"))]
+            notification_cache: Arc::new(std::sync::Mutex::new(Default::default())),
             #[cfg(not(target_arch = "wasm32"))]
             autostart,
         }

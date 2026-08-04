@@ -69,5 +69,6 @@ probe-out/
 
 # ── Astro/Starlight docs build metadata ──
 /docs/.astro/
+/docs/public/release-notes/
 
 docs/superpowers

@@ -70,6 +70,11 @@
     "action": "View update",
     "whatsNew": "What's new"
   },
+  "notifications": {
+    "label": "Notifications",
+    "title": "Announcements",
+    "publishedAt": "Published {{date}}"
+  },
   "proxyTest": {
     "action": "Test connection",
     "testing": "Testing…",
