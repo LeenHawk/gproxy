@@ -10,6 +10,7 @@ use crate::channel::shaping::{self, openai_cache};
 const STRIP_KEYS: &[&str] = &[
     "max_output_tokens",
     "metadata",
+    "prompt_cache_options",
     "stream_options",
     "temperature",
     "top_p",
