@@ -6,12 +6,12 @@ use crate::transform::{TransformContext, TransformError};
 use super::super::common::{self, wire_string};
 
 pub fn request(_: (), _: &TransformContext) -> claude::ListModelsQuery {
-    claude::ListModelsQuery {
+    crate::protocol::wire!(claude::ListModelsQuery {
         after_id: None,
         before_id: None,
         limit: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub fn response(
@@ -35,11 +35,11 @@ pub fn response(
         .transpose()?
         .unwrap_or_default();
 
-    Ok(claude::ListModelsResponse {
+    Ok(crate::protocol::wire!(claude::ListModelsResponse {
         data,
         first_id,
         has_more: false,
         last_id,
         extra: Default::default(),
-    })
+    }))
 }

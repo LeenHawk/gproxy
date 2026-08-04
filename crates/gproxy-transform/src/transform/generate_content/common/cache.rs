@@ -19,32 +19,36 @@ enum ClaudeCacheLocation {
 pub(in crate::transform::generate_content) fn openai_breakpoint(
     cache_control: Option<claude::CacheControl>,
 ) -> Option<openai::PromptCacheBreakpoint> {
-    cache_control.map(|_| openai::PromptCacheBreakpoint {
-        mode: openai::PromptCacheBreakpointMode::Explicit,
-        extra: Default::default(),
+    cache_control.map(|_| {
+        crate::protocol::wire!(openai::PromptCacheBreakpoint {
+            mode: openai::PromptCacheBreakpointMode::Explicit,
+            extra: Default::default(),
+        })
     })
 }
 
 pub(in crate::transform::generate_content) fn claude_cache_control(
     breakpoint: Option<openai::PromptCacheBreakpoint>,
 ) -> Option<claude::CacheControl> {
-    breakpoint.map(|_| claude::CacheControl {
-        type_: claude::CacheControlType::Ephemeral,
-        // OpenAI's request-wide 30m TTL has no exact Claude equivalent. Use
-        // Claude's default 5m TTL, as agreed, rather than silently paying for 1h.
-        ttl: None,
-        extra: Default::default(),
+    breakpoint.map(|_| {
+        crate::protocol::wire!(claude::CacheControl {
+            type_: claude::CacheControlType::Ephemeral,
+            // OpenAI's request-wide 30m TTL has no exact Claude equivalent. Use
+            // Claude's default 5m TTL, as agreed, rather than silently paying for 1h.
+            ttl: None,
+            extra: Default::default(),
+        })
     })
 }
 
 pub(crate) fn openai_options_for_claude_root(
     cache_control: Option<claude::CacheControl>,
 ) -> openai::PromptCacheOptions {
-    openai::PromptCacheOptions {
+    crate::protocol::wire!(openai::PromptCacheOptions {
         mode: Some(openai::PromptCacheMode::Implicit),
         ttl: cache_control.map(|_| openai::PromptCacheTtl::ThirtyMinutes),
         extra: Default::default(),
-    }
+    })
 }
 
 /// Derive the stable routing key OpenAI uses to improve prompt-cache affinity.

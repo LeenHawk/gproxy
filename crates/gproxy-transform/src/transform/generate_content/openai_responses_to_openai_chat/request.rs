@@ -18,10 +18,12 @@ pub fn request(
     }
     messages.extend(response_input_to_chat_messages(input.input));
 
-    let stream_options = input.stream_options.map(|options| openai::StreamOptions {
-        include_obfuscation: options.include_obfuscation,
-        include_usage: None,
-        extra: Default::default(),
+    let stream_options = input.stream_options.map(|options| {
+        crate::protocol::wire!(openai::StreamOptions {
+            include_obfuscation: options.include_obfuscation,
+            include_usage: None,
+            extra: Default::default(),
+        })
     });
 
     let reasoning_effort = input.reasoning.and_then(|reasoning| reasoning.effort);
@@ -37,7 +39,7 @@ pub fn request(
         .unwrap_or_default();
     let tools = response_tools_for_chat(input.tools);
 
-    Ok(openai::ChatCompletionRequest {
+    Ok(crate::protocol::wire!(openai::ChatCompletionRequest {
         messages,
         model: input.model.unwrap_or_else(default_model),
         audio: None,
@@ -76,7 +78,7 @@ pub fn request(
         verbosity,
         web_search_options: tools.web_search_options,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn response_format_to_chat_response_format(
@@ -85,18 +87,21 @@ fn response_format_to_chat_response_format(
     Some(match format {
         openai::ResponseFormat::Text(text) => openai::ChatResponseFormat::Text(text),
         openai::ResponseFormat::JsonObject(json) => openai::ChatResponseFormat::JsonObject(json),
-        openai::ResponseFormat::JsonSchema(schema) => {
-            openai::ChatResponseFormat::ChatJsonSchema(openai::ChatJsonSchemaFormat {
+        openai::ResponseFormat::JsonSchema(schema) => openai::ChatResponseFormat::ChatJsonSchema(
+            crate::protocol::wire!(openai::ChatJsonSchemaFormat {
                 type_: schema.type_,
-                json_schema: openai::JsonSchemaFormat {
+                json_schema: crate::protocol::wire!(openai::JsonSchemaFormat {
                     name: schema.name,
                     description: schema.description,
                     schema: Some(schema.schema),
                     strict: schema.strict,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
-            })
+            }),
+        ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     })
 }

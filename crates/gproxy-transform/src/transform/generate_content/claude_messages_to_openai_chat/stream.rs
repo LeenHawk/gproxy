@@ -10,6 +10,9 @@ pub fn stream_event(
     Ok(match input {
         claude::StreamEvent::Known(event) => known_event_to_chat(*event),
         claude::StreamEvent::Unknown(_) => empty_chunk(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
@@ -162,6 +165,9 @@ fn event_delta_to_chat(index: u64, delta: claude::EventDelta) -> openai::ChatCom
             _ => empty_chunk(),
         },
         claude::EventDelta::Unknown(_) => empty_chunk(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

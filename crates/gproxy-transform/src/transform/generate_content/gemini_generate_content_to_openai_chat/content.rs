@@ -30,6 +30,9 @@ pub(super) fn gemini_contents_to_chat_messages(
                     messages.push(message);
                 }
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
     messages
@@ -60,7 +63,7 @@ pub(super) fn gemini_content_to_chat_message(content: gemini::Content) -> openai
         ..
     } = gemini_content_to_assistant_param(content)
     else {
-        return openai::ChatMessage {
+        return crate::protocol::wire!(openai::ChatMessage {
             role: openai::ChatCompletionMessageRole::Assistant,
             content: Some(String::new()),
             refusal: None,
@@ -70,10 +73,10 @@ pub(super) fn gemini_content_to_chat_message(content: gemini::Content) -> openai
             reasoning_content: None,
             tool_calls: None,
             extra: Default::default(),
-        };
+        });
     };
 
-    openai::ChatMessage {
+    crate::protocol::wire!(openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
         content: content.map(chat_assistant_content_to_text),
         refusal: None,
@@ -83,7 +86,7 @@ pub(super) fn gemini_content_to_chat_message(content: gemini::Content) -> openai
         reasoning_content: None,
         tool_calls,
         extra: Default::default(),
-    }
+    })
 }
 
 fn gemini_content_to_assistant_param(
@@ -100,7 +103,7 @@ fn gemini_content_to_assistant_param(
                     id: function_call
                         .id
                         .unwrap_or_else(|| format!("call_{}", function_call.name)),
-                    function: openai::FunctionCall {
+                    function: crate::protocol::wire!(openai::FunctionCall {
                         arguments: function_call
                             .args
                             .map(|args| {
@@ -109,7 +112,7 @@ fn gemini_content_to_assistant_param(
                             .unwrap_or_else(|| "{}".to_owned()),
                         name: function_call.name,
                         extra: Default::default(),
-                    },
+                    }),
                     extra: Default::default(),
                 });
             }
@@ -174,17 +177,17 @@ fn gemini_content_to_tool_messages(
         .parts
         .into_iter()
         .filter_map(|part| match part.data {
-            Some(gemini::PartData::FunctionResponse { function_response }) => {
-                Some(openai::ChatCompletionMessageParam::Tool {
+            Some(gemini::PartData::FunctionResponse { function_response }) => Some(
+                crate::protocol::wire!(openai::ChatCompletionMessageParam::Tool {
                     content: openai::ChatTextContent::Text(function_response_to_text(
                         &function_response,
                     )),
                     tool_call_id: function_response.id.unwrap_or(function_response.name),
                     extra: Default::default(),
-                })
-            }
-            Some(gemini::PartData::ToolResponse { tool_response }) => {
-                Some(openai::ChatCompletionMessageParam::Tool {
+                }),
+            ),
+            Some(gemini::PartData::ToolResponse { tool_response }) => Some(crate::protocol::wire!(
+                openai::ChatCompletionMessageParam::Tool {
                     content: openai::ChatTextContent::Text(
                         tool_response
                             .response
@@ -197,8 +200,8 @@ fn gemini_content_to_tool_messages(
                         .id
                         .unwrap_or_else(|| "tool_response".to_owned()),
                     extra: Default::default(),
-                })
-            }
+                }
+            )),
             _ => None,
         })
         .collect()
@@ -237,42 +240,46 @@ fn gemini_part_to_chat_content_part(part: gemini::Part) -> Option<openai::ChatCo
 
 fn inline_data_to_chat_part(mime_type: String, data: String) -> Option<openai::ChatContentPart> {
     if mime_type.starts_with("image/") {
-        return Some(openai::ChatContentPart::ImageUrl {
-            image_url: openai::ImageUrl {
+        return Some(crate::protocol::wire!(openai::ChatContentPart::ImageUrl {
+            image_url: crate::protocol::wire!(openai::ImageUrl {
                 url: format!("data:{mime_type};base64,{data}"),
                 detail: None,
                 extra: Default::default(),
-            },
+            }),
             prompt_cache_breakpoint: None,
             extra: Default::default(),
-        });
+        }));
     }
     match mime_type.as_str() {
-        "audio/wav" => Some(openai::ChatContentPart::InputAudio {
-            input_audio: openai::InputAudio {
-                data,
-                format: openai::InputAudioFormat::Wav,
+        "audio/wav" => Some(crate::protocol::wire!(
+            openai::ChatContentPart::InputAudio {
+                input_audio: crate::protocol::wire!(openai::InputAudio {
+                    data,
+                    format: openai::InputAudioFormat::Wav,
+                    extra: Default::default(),
+                }),
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
-            },
-            prompt_cache_breakpoint: None,
-            extra: Default::default(),
-        }),
-        "audio/mpeg" | "audio/mp3" => Some(openai::ChatContentPart::InputAudio {
-            input_audio: openai::InputAudio {
-                data,
-                format: openai::InputAudioFormat::Mp3,
+            }
+        )),
+        "audio/mpeg" | "audio/mp3" => Some(crate::protocol::wire!(
+            openai::ChatContentPart::InputAudio {
+                input_audio: crate::protocol::wire!(openai::InputAudio {
+                    data,
+                    format: openai::InputAudioFormat::Mp3,
+                    extra: Default::default(),
+                }),
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
-            },
-            prompt_cache_breakpoint: None,
-            extra: Default::default(),
-        }),
+            }
+        )),
         _ => Some(openai::ChatContentPart::File {
-            file: openai::ChatFileRef {
+            file: crate::protocol::wire!(openai::ChatFileRef {
                 file_data: Some(format!("data:{mime_type};base64,{data}")),
                 file_id: None,
                 filename: None,
                 extra: Default::default(),
-            },
+            }),
             prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
@@ -285,15 +292,15 @@ fn file_data_to_chat_part(file_data: gemini::FileData) -> Option<openai::ChatCon
         .as_ref()
         .is_some_and(|mime| mime.starts_with("image/"))
     {
-        return Some(openai::ChatContentPart::ImageUrl {
-            image_url: openai::ImageUrl {
+        return Some(crate::protocol::wire!(openai::ChatContentPart::ImageUrl {
+            image_url: crate::protocol::wire!(openai::ImageUrl {
                 url: file_data.file_uri,
                 detail: None,
                 extra: Default::default(),
-            },
+            }),
             prompt_cache_breakpoint: None,
             extra: Default::default(),
-        });
+        }));
     }
     Some(openai::ChatContentPart::Text {
         text: format!("Attachment URL: {}", file_data.file_uri),
@@ -319,9 +326,15 @@ fn chat_assistant_content_to_text(content: openai::ChatAssistantContent) -> Stri
             .map(|part| match part {
                 openai::ChatAssistantContentPart::Text { text, .. } => text,
                 openai::ChatAssistantContentPart::Refusal { refusal, .. } => refusal,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             })
             .collect::<Vec<_>>()
             .join(""),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -342,11 +355,11 @@ mod tests {
 
     #[test]
     fn remote_non_image_file_becomes_attachment_text() {
-        let part = super::file_data_to_chat_part(gemini::FileData {
+        let part = super::file_data_to_chat_part(crate::protocol::wire!(gemini::FileData {
             mime_type: Some("application/pdf".into()),
             file_uri: "https://files.example/report.pdf".into(),
             extra: Default::default(),
-        })
+        }))
         .unwrap();
         let value = serde_json::to_value(part).unwrap();
         assert_eq!(

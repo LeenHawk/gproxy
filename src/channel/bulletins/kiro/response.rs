@@ -303,7 +303,7 @@ impl Default for KiroStreamDecoder {
 }
 
 impl ChannelStreamDecoder for KiroStreamDecoder {
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let frames = self.parser.push(chunk);
         let mut out = Vec::new();
         if !frames.is_empty() {
@@ -312,10 +312,10 @@ impl ChannelStreamDecoder for KiroStreamDecoder {
         for frame in frames {
             self.handle_frame(frame, &mut out);
         }
-        out
+        Ok(out)
     }
 
-    fn finish(&mut self) -> Vec<u8> {
+    fn finish(&mut self) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
         self.ensure_started(&mut out);
         if self.reasoning_started {
@@ -390,7 +390,7 @@ impl ChannelStreamDecoder for KiroStreamDecoder {
                 "response": body,
             }),
         );
-        out
+        Ok(out)
     }
 }
 
@@ -400,8 +400,8 @@ mod tests {
     use crate::channel::aws_eventstream::build_frame;
 
     /// Concatenate all `data:` payloads emitted by a decoder run for assertions.
-    fn sse_text(bytes: &[u8]) -> String {
-        String::from_utf8_lossy(bytes).into_owned()
+    fn sse_text(bytes: &Result<Vec<u8>, crate::channel::transport::ClientError>) -> String {
+        String::from_utf8_lossy(bytes.as_ref().unwrap()).into_owned()
     }
 
     #[test]
@@ -443,7 +443,8 @@ mod tests {
         dec.push(&build_frame(
             "assistantResponseEvent",
             br#"{"content":"hi"}"#,
-        ));
+        ))
+        .unwrap();
 
         // Call A: name on the first (partial) fragment, args split across two.
         let a1 = sse_text(&dec.push(&build_frame(
@@ -489,7 +490,8 @@ mod tests {
         dec.push(&build_frame(
             "toolUseEvent",
             br#"{"name":"f","toolUseId":"c1","input":"{\"a\":1}","stop":false}"#,
-        ));
+        ))
+        .unwrap();
         let fin = sse_text(&dec.finish());
         assert!(fin.contains("response.function_call_arguments.done"));
         assert!(fin.contains(r#""arguments":"{\"a\":1}""#));

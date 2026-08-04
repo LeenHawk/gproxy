@@ -159,31 +159,25 @@ impl ConverseStreamDecoder {
 }
 
 impl ChannelStreamDecoder for ConverseStreamDecoder {
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
         for frame in self.parser.push(chunk) {
             self.handle(frame, &mut out);
         }
-        out
+        Ok(out)
     }
 
-    fn finish(&mut self) -> Vec<u8> {
+    fn finish(&mut self) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
         if self.parser.has_pending() {
-            push(
-                &mut out,
-                "error",
-                json!({
-                    "type": "error", "error": {
-                        "type": "truncated_eventstream", "message": "AWS Bedrock stream ended inside a frame"
-                    }
-                }),
-            );
+            return Err(crate::channel::transport::ClientError::Decode(
+                "AWS Bedrock stream ended inside a frame".to_owned(),
+            ));
         } else if self.started && !self.stopped {
             let usage = self.usage.take();
             self.finish_message(usage, &mut out);
         }
-        out
+        Ok(out)
     }
 }
 

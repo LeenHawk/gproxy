@@ -75,6 +75,9 @@ impl ClaudeCollector {
             claude::KnownStreamEvent::Error { .. } => {
                 self.errored = true;
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -107,7 +110,7 @@ impl ClaudeCollector {
                 .unwrap_or(claude::StopReason::Known(claude::StopReasonKnown::EndTurn))
         };
 
-        claude::CreateMessageResponseBody {
+        crate::protocol::wire!(claude::CreateMessageResponseBody {
             id: self.id.unwrap_or_default(),
             type_: self.type_.unwrap_or(claude::MessageObjectType::Known(
                 claude::MessageObjectTypeKnown::Message,
@@ -125,7 +128,7 @@ impl ClaudeCollector {
             diagnostics: None,
             stop_details: self.stop_details,
             extra: Default::default(),
-        }
+        })
     }
 }
 
@@ -143,31 +146,35 @@ impl BlockState {
     }
 
     fn text() -> Self {
-        Self::from_block(claude::ContentBlock::Text(claude::ResponseTextBlock {
-            citations: None,
-            text: String::new(),
-            type_: claude::TextBlockType::Text,
-            extra: Default::default(),
-        }))
+        Self::from_block(claude::ContentBlock::Text(crate::protocol::wire!(
+            claude::ResponseTextBlock {
+                citations: None,
+                text: String::new(),
+                type_: claude::TextBlockType::Text,
+                extra: Default::default(),
+            }
+        )))
     }
 
     fn thinking() -> Self {
-        Self::from_block(claude::ContentBlock::Thinking(claude::ThinkingBlock {
-            signature: String::new(),
-            thinking: String::new(),
-            type_: claude::ThinkingBlockType::Thinking,
-        }))
+        Self::from_block(claude::ContentBlock::Thinking(crate::protocol::wire!(
+            claude::ThinkingBlock {
+                signature: String::new(),
+                thinking: String::new(),
+                type_: claude::ThinkingBlockType::Thinking,
+            }
+        )))
     }
 
     fn compaction(content: String, encrypted_content: String) -> Self {
-        Self::from_block(claude::ContentBlock::Compaction(
+        Self::from_block(claude::ContentBlock::Compaction(crate::protocol::wire!(
             claude::ResponseCompactionBlock {
                 content: Some(content),
                 encrypted_content,
                 type_: claude::CompactionBlockType::Compaction,
                 extra: Default::default(),
-            },
-        ))
+            }
+        )))
     }
 
     fn push_delta(&mut self, delta: claude::EventDelta) {
@@ -194,6 +201,9 @@ impl BlockState {
             } => {
                 self.push_compaction(content, encrypted_content);
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -278,51 +288,51 @@ fn parse_json_object(value: &str) -> claude::JsonObject {
 fn strip_block_extra(block: claude::ContentBlock) -> claude::ContentBlock {
     match block {
         claude::ContentBlock::Text(block) => {
-            claude::ContentBlock::Text(claude::ResponseTextBlock {
+            claude::ContentBlock::Text(crate::protocol::wire!(claude::ResponseTextBlock {
                 citations: block.citations,
                 text: block.text,
                 type_: block.type_,
                 extra: Default::default(),
-            })
+            }))
         }
         claude::ContentBlock::ToolUse(block) => {
-            claude::ContentBlock::ToolUse(claude::ResponseToolUseBlock {
+            claude::ContentBlock::ToolUse(crate::protocol::wire!(claude::ResponseToolUseBlock {
                 id: block.id,
                 input: block.input,
                 name: block.name,
                 type_: block.type_,
                 caller: block.caller,
                 extra: Default::default(),
-            })
+            }))
         }
-        claude::ContentBlock::ServerToolUse(block) => {
-            claude::ContentBlock::ServerToolUse(claude::ResponseServerToolUseBlock {
+        claude::ContentBlock::ServerToolUse(block) => claude::ContentBlock::ServerToolUse(
+            crate::protocol::wire!(claude::ResponseServerToolUseBlock {
                 id: block.id,
                 input: block.input,
                 name: block.name,
                 type_: block.type_,
                 caller: block.caller,
                 extra: Default::default(),
-            })
-        }
-        claude::ContentBlock::McpToolUse(block) => {
-            claude::ContentBlock::McpToolUse(claude::ResponseMcpToolUseBlock {
+            }),
+        ),
+        claude::ContentBlock::McpToolUse(block) => claude::ContentBlock::McpToolUse(
+            crate::protocol::wire!(claude::ResponseMcpToolUseBlock {
                 id: block.id,
                 input: block.input,
                 name: block.name,
                 server_name: block.server_name,
                 type_: block.type_,
                 extra: Default::default(),
-            })
-        }
-        claude::ContentBlock::Compaction(block) => {
-            claude::ContentBlock::Compaction(claude::ResponseCompactionBlock {
+            }),
+        ),
+        claude::ContentBlock::Compaction(block) => claude::ContentBlock::Compaction(
+            crate::protocol::wire!(claude::ResponseCompactionBlock {
                 content: block.content,
                 encrypted_content: block.encrypted_content,
                 type_: block.type_,
                 extra: Default::default(),
-            })
-        }
+            }),
+        ),
         block => block,
     }
 }

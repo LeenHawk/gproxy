@@ -11,7 +11,7 @@ pub(super) fn server_tool_use_item(
     input: claude::JsonObject,
     name: claude::ServerToolUseName,
 ) -> ClaudeRequestBlockItem {
-    ClaudeRequestBlockItem::Item(openai::ResponseItem::Typed(
+    ClaudeRequestBlockItem::Item(openai::ResponseItem::Typed(crate::protocol::wire!(
         openai::TypedResponseItem::FunctionCall {
             arguments: json_object_to_string(&input),
             call_id: id.clone(),
@@ -21,8 +21,8 @@ pub(super) fn server_tool_use_item(
             namespace: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             extra: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn function_call_output_item(
@@ -49,16 +49,18 @@ pub(super) fn compact_server_tool_use_item(
     input: claude::JsonObject,
     name: claude::ServerToolUseName,
 ) -> openai::CompactResponseItem {
-    openai::CompactResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-        arguments: json_object_to_string(&input),
-        call_id: id.clone(),
-        name: server_tool_name_to_string(&name),
-        id: Some(id),
-        caller: None,
-        namespace: None,
-        status: Some(openai::ResponseItemLifecycleStatus::Completed),
-        extra: Default::default(),
-    })
+    openai::CompactResponseItem::Typed(crate::protocol::wire!(
+        openai::TypedResponseItem::FunctionCall {
+            arguments: json_object_to_string(&input),
+            call_id: id.clone(),
+            name: server_tool_name_to_string(&name),
+            id: Some(id),
+            caller: None,
+            namespace: None,
+            status: Some(openai::ResponseItemLifecycleStatus::Completed),
+            extra: Default::default(),
+        }
+    ))
 }
 
 pub(super) fn compact_function_call_output_item(
@@ -94,6 +96,9 @@ pub(super) fn tool_result_content_to_openai(
             openai::ResponseOutput::Text(value.to_string())
         }
         None => openai::ResponseOutput::Text(String::new()),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -112,6 +117,9 @@ pub(super) fn mcp_tool_result_content_to_text(
             join_text(blocks.into_iter().map(|block| block.text))
         }
         None => String::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -122,6 +130,9 @@ pub(super) fn response_mcp_tool_result_content_to_text(
         claude::ResponseMcpToolResultContent::String(text) => text,
         claude::ResponseMcpToolResultContent::Array(blocks) => {
             join_text(blocks.into_iter().map(|block| block.text))
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -159,6 +170,9 @@ fn tool_result_block_to_openai(
         }
         claude::ToolResultContentBlock::ToolReference(_)
         | claude::ToolResultContentBlock::Raw(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -202,5 +216,8 @@ fn input_part_to_tool_output_part(
             extra: Default::default(),
         }),
         openai::ResponseInputContentPart::InputAudio { .. } => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

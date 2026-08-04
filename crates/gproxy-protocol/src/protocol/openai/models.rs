@@ -7,7 +7,8 @@ use super::common::*;
 pub type ModelsWireModel = OpenAiWireModel<(), ModelListResponse>;
 pub type ModelRetrieveWireModel = OpenAiWireModel<(), Model>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModelListResponse {
     pub data: Vec<Model>,
     pub object: ListObjectType,
@@ -15,7 +16,8 @@ pub struct ModelListResponse {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Model {
     pub id: OpenAiModelId,
     // OpenAI-compatible providers (e.g. DeepSeek) omit `created`; keep it

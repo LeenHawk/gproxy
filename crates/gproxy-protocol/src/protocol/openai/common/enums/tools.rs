@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolSearchExecution {
     #[serde(rename = "server")]
     Server,
@@ -25,6 +26,7 @@ strict_string_enum!(ToolCaller {
 });
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ChatToolCallType {
     #[serde(rename = "function")]
     Function,

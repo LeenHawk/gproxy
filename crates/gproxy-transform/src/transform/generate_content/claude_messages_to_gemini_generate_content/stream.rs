@@ -11,6 +11,9 @@ pub fn stream_event(
     Ok(match input {
         claude::StreamEvent::Known(event) => known_event_to_gemini(*event),
         claude::StreamEvent::Unknown(_) => empty_chunk(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
@@ -76,20 +79,23 @@ fn event_delta_to_gemini(delta: claude::EventDelta) -> gemini::GenerateContentRe
             _ => empty_chunk(),
         },
         claude::EventDelta::Unknown(_) => empty_chunk(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 fn text_chunk(text: String, thought: bool) -> gemini::GenerateContentResponse {
     candidate_chunk(
-        Some(gemini::Content {
-            parts: vec![gemini::Part {
+        Some(crate::protocol::wire!(gemini::Content {
+            parts: vec![crate::protocol::wire!(gemini::Part {
                 thought: thought.then_some(true),
                 data: Some(gemini::PartData::Text { text }),
                 ..Default::default()
-            }],
+            })],
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
-        }),
+        })),
         None,
         None,
     )
@@ -101,21 +107,21 @@ fn function_call_chunk(
     args: Option<claude::JsonObject>,
 ) -> gemini::GenerateContentResponse {
     candidate_chunk(
-        Some(gemini::Content {
-            parts: vec![gemini::Part {
+        Some(crate::protocol::wire!(gemini::Content {
+            parts: vec![crate::protocol::wire!(gemini::Part {
                 data: Some(gemini::PartData::FunctionCall {
-                    function_call: gemini::FunctionCall {
+                    function_call: crate::protocol::wire!(gemini::FunctionCall {
                         id,
                         name,
                         args,
                         extra: Default::default(),
-                    },
+                    }),
                 }),
                 ..Default::default()
-            }],
+            })],
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
-        }),
+        })),
         None,
         None,
     )
@@ -126,8 +132,8 @@ fn candidate_chunk(
     finish_reason: Option<gemini::FinishReason>,
     usage_metadata: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
-    gemini::GenerateContentResponse {
-        candidates: vec![gemini::Candidate {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
+        candidates: vec![crate::protocol::wire!(gemini::Candidate {
             content,
             finish_reason,
             safety_ratings: Vec::new(),
@@ -140,20 +146,20 @@ fn candidate_chunk(
             index: Some(0),
             finish_message: None,
             extra: Default::default(),
-        }],
+        })],
         prompt_feedback: None,
         usage_metadata,
         model_version: None,
         response_id: None,
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn empty_chunk_with_usage(
     usage_metadata: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
-    gemini::GenerateContentResponse {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
         candidates: Vec::new(),
         prompt_feedback: None,
         usage_metadata,
@@ -161,7 +167,7 @@ fn empty_chunk_with_usage(
         response_id: None,
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn empty_chunk() -> gemini::GenerateContentResponse {

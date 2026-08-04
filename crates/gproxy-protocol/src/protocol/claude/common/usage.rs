@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{ClaudeModel, InferenceGeo, IterationUsageType, JsonObject, Speed, UsageServiceTier};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Usage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_tokens: Option<u64>,
@@ -32,7 +33,8 @@ pub struct Usage {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CacheCreation {
     pub ephemeral_1h_input_tokens: u64,
     pub ephemeral_5m_input_tokens: u64,
@@ -52,14 +54,16 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct OutputTokensDetails {
     pub thinking_tokens: u64,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ServerToolUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub web_fetch_requests: Option<u64>,
@@ -69,7 +73,8 @@ pub struct ServerToolUsage {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct IterationUsage {
     #[serde(rename = "type")]
     pub type_: IterationUsageType,

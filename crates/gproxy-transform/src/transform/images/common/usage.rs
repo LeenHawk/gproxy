@@ -3,7 +3,7 @@ use crate::protocol::{gemini, openai};
 use super::scalar::{i32_to_u32, i64_to_u32, u32_to_i32};
 
 pub(super) fn openai_usage_to_gemini(input: openai::ImageUsage) -> gemini::UsageMetadata {
-    gemini::UsageMetadata {
+    crate::protocol::wire!(gemini::UsageMetadata {
         prompt_token_count: Some(u32_to_i32(input.input_tokens)),
         cached_content_token_count: None,
         candidates_token_count: Some(u32_to_i32(input.output_tokens)),
@@ -19,7 +19,7 @@ pub(super) fn openai_usage_to_gemini(input: openai::ImageUsage) -> gemini::Usage
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn openai_token_details_to_gemini(
@@ -48,11 +48,11 @@ fn push_modality_tokens(
         return;
     }
 
-    values.push(gemini::ModalityTokenCount {
+    values.push(crate::protocol::wire!(gemini::ModalityTokenCount {
         modality: Some(gemini::Modality::Known(modality)),
         token_count: Some(i64::from(token_count)),
         extra: Default::default(),
-    });
+    }));
 }
 
 pub(super) fn gemini_usage_to_openai(input: gemini::UsageMetadata) -> openai::ImageUsage {
@@ -85,14 +85,14 @@ pub(super) fn gemini_usage_to_openai(input: gemini::UsageMetadata) -> openai::Im
             )
     });
 
-    openai::ImageUsage {
+    crate::protocol::wire!(openai::ImageUsage {
         input_tokens,
         input_tokens_details: prompt_details.into_openai(),
         output_tokens,
         total_tokens,
         output_tokens_details: has_output_details.then(|| output_details.into_openai()),
         extra: Default::default(),
-    }
+    })
 }
 
 #[derive(Default)]
@@ -122,11 +122,11 @@ impl ModalityDetails {
     }
 
     fn into_openai(self) -> openai::ImageTokenDetails {
-        openai::ImageTokenDetails {
+        crate::protocol::wire!(openai::ImageTokenDetails {
             text_tokens: self.text_tokens,
             image_tokens: self.image_tokens,
             extra: Default::default(),
-        }
+        })
     }
 }
 

@@ -21,7 +21,7 @@ pub fn request(
         common::merge_dimensions(&mut dimensions, converted.dimensions);
     }
 
-    Ok(openai::EmbeddingRequest {
+    Ok(crate::protocol::wire!(openai::EmbeddingRequest {
         input: common::strings_to_openai_input(inputs),
         model: model
             .unwrap_or_else(|| common::DEFAULT_OPENAI_EMBEDDING_MODEL.to_owned())
@@ -30,14 +30,14 @@ pub fn request(
         encoding_format: Some(openai::EmbeddingEncodingFormat::Float),
         user: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: gemini::BatchEmbedContentsResponse,
     _: &TransformContext,
 ) -> Result<openai::EmbeddingResponse, TransformError> {
-    Ok(openai::EmbeddingResponse {
+    Ok(crate::protocol::wire!(openai::EmbeddingResponse {
         data: input
             .embeddings
             .into_iter()
@@ -48,5 +48,5 @@ pub fn response(
         object: openai::ListObjectType::List,
         usage: common::gemini_to_openai_usage(input.usage_metadata),
         extra: Default::default(),
-    })
+    }))
 }

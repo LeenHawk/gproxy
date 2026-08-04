@@ -85,11 +85,11 @@ pub fn resolve(
     if let Some(pair) = resolve_image_generation(source, target) {
         return Ok(pair);
     }
-    if source.operation != target.operation {
+    if source.operation() != target.operation() {
         return Err(TransformError::unsupported_pair(source, target));
     }
 
-    match source.operation {
+    match source.operation() {
         Operation::GenerateContent | Operation::StreamGenerateContent => {
             resolve_content_generation(source, target)
         }
@@ -106,6 +106,9 @@ pub fn resolve(
         | Operation::EditImage
         | Operation::CreateConversation
         | Operation::ConnectRealtime => Err(TransformError::unsupported_pair(source, target)),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -113,10 +116,10 @@ fn resolve_content_generation(
     source: OperationKey,
     target: OperationKey,
 ) -> Result<TransformPair, TransformError> {
-    let OperationKind::ContentGeneration(source_kind) = source.kind else {
+    let OperationKind::ContentGeneration(source_kind) = source.kind() else {
         return Err(TransformError::unsupported_pair(source, target));
     };
-    let OperationKind::ContentGeneration(target_kind) = target.kind else {
+    let OperationKind::ContentGeneration(target_kind) = target.kind() else {
         return Err(TransformError::unsupported_pair(source, target));
     };
 
@@ -185,10 +188,10 @@ fn resolve_provider_pair(
     target: OperationKey,
     pair_fn: fn(Provider, Provider) -> Option<TransformPair>,
 ) -> Result<TransformPair, TransformError> {
-    let OperationKind::Provider(source_provider) = source.kind else {
+    let OperationKind::Provider(source_provider) = source.kind() else {
         return Err(TransformError::unsupported_pair(source, target));
     };
-    let OperationKind::Provider(target_provider) = target.kind else {
+    let OperationKind::Provider(target_provider) = target.kind() else {
         return Err(TransformError::unsupported_pair(source, target));
     };
 
@@ -246,20 +249,20 @@ fn resolve_image_generation(source: OperationKey, target: OperationKey) -> Optio
     // tool. Each pair serves both directions (request: images->responses;
     // response: responses->images), so resolve it for the reverse ordering too.
     if let (OK::Provider(Provider::OpenAi), OK::ContentGeneration(Kind::OpenAiResponses)) =
-        (source.kind, target.kind)
-        && target.operation.is_content_generation()
+        (source.kind(), target.kind())
+        && target.operation().is_content_generation()
     {
-        return match source.operation {
+        return match source.operation() {
             Operation::CreateImage => Some(TransformPair::OpenAiCreateImageToOpenAiResponses),
             Operation::EditImage => Some(TransformPair::OpenAiEditImageToOpenAiResponses),
             _ => None,
         };
     }
     if let (OK::ContentGeneration(Kind::OpenAiResponses), OK::Provider(Provider::OpenAi)) =
-        (source.kind, target.kind)
-        && source.operation.is_content_generation()
+        (source.kind(), target.kind())
+        && source.operation().is_content_generation()
     {
-        return match target.operation {
+        return match target.operation() {
             Operation::CreateImage => Some(TransformPair::OpenAiCreateImageToOpenAiResponses),
             Operation::EditImage => Some(TransformPair::OpenAiEditImageToOpenAiResponses),
             _ => None,
@@ -268,10 +271,10 @@ fn resolve_image_generation(source: OperationKey, target: OperationKey) -> Optio
 
     // OpenAI create/edit image -> Gemini generate-content.
     if let (OK::Provider(Provider::OpenAi), OK::ContentGeneration(Kind::GeminiGenerateContent)) =
-        (source.kind, target.kind)
-        && target.operation.is_content_generation()
+        (source.kind(), target.kind())
+        && target.operation().is_content_generation()
     {
-        return match source.operation {
+        return match source.operation() {
             Operation::CreateImage => Some(TransformPair::OpenAiCreateImageToGemini),
             Operation::EditImage => Some(TransformPair::OpenAiEditImageToGemini),
             _ => None,
@@ -280,10 +283,10 @@ fn resolve_image_generation(source: OperationKey, target: OperationKey) -> Optio
 
     // Gemini generate-content -> OpenAI create/edit image.
     if let (OK::ContentGeneration(Kind::GeminiGenerateContent), OK::Provider(Provider::OpenAi)) =
-        (source.kind, target.kind)
-        && source.operation.is_content_generation()
+        (source.kind(), target.kind())
+        && source.operation().is_content_generation()
     {
-        return match target.operation {
+        return match target.operation() {
             Operation::CreateImage => Some(TransformPair::GeminiToOpenAiCreateImage),
             Operation::EditImage => Some(TransformPair::GeminiToOpenAiEditImage),
             _ => None,
@@ -303,8 +306,8 @@ fn resolve_compaction(source: OperationKey, target: OperationKey) -> Option<Tran
 
     // content-generation -> OpenAI compact.
     if let (OK::ContentGeneration(kind), Operation::CompactContent, OK::Provider(Provider::OpenAi)) =
-        (source.kind, target.operation, target.kind)
-        && source.operation.is_content_generation()
+        (source.kind(), target.operation(), target.kind())
+        && source.operation().is_content_generation()
     {
         return match kind {
             Kind::OpenAiResponses => Some(TransformPair::OpenAiResponsesToOpenAiCompact),
@@ -312,14 +315,17 @@ fn resolve_compaction(source: OperationKey, target: OperationKey) -> Option<Tran
             Kind::GeminiGenerateContent => Some(TransformPair::GeminiToOpenAiCompact),
             Kind::OpenAiChatCompletions => Some(TransformPair::OpenAiChatToOpenAiCompact),
             Kind::ClaudeMessages => Some(TransformPair::ClaudeToOpenAiCompact),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         };
     }
 
     // OpenAI compact -> content-generation.
     if let (OK::Provider(Provider::OpenAi), Operation::CompactContent) =
-        (source.kind, source.operation)
-        && let OK::ContentGeneration(kind) = target.kind
-        && target.operation.is_content_generation()
+        (source.kind(), source.operation())
+        && let OK::ContentGeneration(kind) = target.kind()
+        && target.operation().is_content_generation()
     {
         return match kind {
             Kind::GeminiGenerateContent => Some(TransformPair::OpenAiCompactToGemini),
@@ -327,6 +333,9 @@ fn resolve_compaction(source: OperationKey, target: OperationKey) -> Option<Tran
             Kind::ClaudeMessages => Some(TransformPair::OpenAiToClaudeCompact),
             Kind::OpenAiResponses => Some(TransformPair::OpenAiCompactToOpenAiResponses),
             Kind::OpenAiResponsesWebSocket => None,
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         };
     }
 

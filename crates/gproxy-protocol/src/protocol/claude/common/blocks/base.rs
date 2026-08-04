@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use super::super::{CacheControl, Citation, CitationConfig, JsonObject};
 use super::{DocumentSource, ImageSource};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextBlock {
     pub text: String,
     #[serde(rename = "type")]
@@ -19,12 +20,14 @@ pub struct TextBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextBlockType {
     #[serde(rename = "text")]
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageBlock {
     pub source: ImageSource,
     #[serde(rename = "type")]
@@ -34,12 +37,14 @@ pub struct ImageBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ImageBlockType {
     #[serde(rename = "image")]
     Image,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct DocumentBlock {
     pub source: DocumentSource,
     #[serde(rename = "type")]
@@ -55,12 +60,14 @@ pub struct DocumentBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DocumentBlockType {
     #[serde(rename = "document")]
     Document,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SearchResultBlock {
     pub content: Vec<TextBlock>,
     pub source: String,
@@ -74,12 +81,14 @@ pub struct SearchResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum SearchResultBlockType {
     #[serde(rename = "search_result")]
     SearchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ThinkingBlock {
     pub signature: String,
     pub thinking: String,
@@ -88,12 +97,14 @@ pub struct ThinkingBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ThinkingBlockType {
     #[serde(rename = "thinking")]
     Thinking,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct RedactedThinkingBlock {
     pub data: String,
     #[serde(rename = "type")]
@@ -101,6 +112,7 @@ pub struct RedactedThinkingBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum RedactedThinkingBlockType {
     #[serde(rename = "redacted_thinking")]
     RedactedThinking,

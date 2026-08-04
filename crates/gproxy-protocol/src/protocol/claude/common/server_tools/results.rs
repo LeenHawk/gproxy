@@ -13,6 +13,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum WebSearchToolResultContent {
     Error(WebSearchToolResultError),
     Results(Vec<WebSearchResultBlock>),
@@ -20,6 +21,7 @@ pub enum WebSearchToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum WebFetchToolResultContent {
     Error(WebFetchToolResultError),
     Result(WebFetchResultBlock),
@@ -27,6 +29,7 @@ pub enum WebFetchToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum AdvisorToolResultContent {
     Error(AdvisorToolResultError),
     Result(AdvisorResultBlock),
@@ -35,6 +38,7 @@ pub enum AdvisorToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CodeExecutionToolResultContent {
     Error(CodeExecutionToolResultError),
     Result(CodeExecutionResultBlock),
@@ -43,6 +47,7 @@ pub enum CodeExecutionToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum BashCodeExecutionToolResultContent {
     Error(BashCodeExecutionToolResultError),
     Result(BashCodeExecutionResultBlock),
@@ -50,6 +55,7 @@ pub enum BashCodeExecutionToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum TextEditorCodeExecutionToolResultContent {
     Error(TextEditorCodeExecutionToolResultError),
     View(TextEditorCodeExecutionViewResultBlock),
@@ -59,12 +65,14 @@ pub enum TextEditorCodeExecutionToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ToolSearchToolResultContent {
     Error(ToolSearchToolResultError),
     Result(ToolSearchToolSearchResultBlock),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebFetchToolResultBlock {
     pub content: WebFetchToolResultContent,
     pub tool_use_id: String,
@@ -79,6 +87,7 @@ pub struct WebFetchToolResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum WebFetchToolResultBlockType {
     #[serde(rename = "web_fetch_tool_result")]
     WebFetchToolResult,
@@ -86,7 +95,10 @@ pub enum WebFetchToolResultBlockType {
 
 macro_rules! server_tool_result_block {
     ($block:ident, $content:ident, $tag:ident, $wire:literal, $variant:ident) => {
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[derive(
+            Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+        )]
+        #[non_exhaustive]
         pub struct $block {
             pub content: $content,
             pub tool_use_id: String,
@@ -99,6 +111,7 @@ macro_rules! server_tool_result_block {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $tag {
             #[serde(rename = $wire)]
             $variant,

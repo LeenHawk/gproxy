@@ -30,7 +30,7 @@ pub fn request(
         size: None,
         extra: Default::default(),
     };
-    Ok(openai::ResponseCreateRequest {
+    Ok(crate::protocol::wire!(openai::ResponseCreateRequest {
         model: input.model,
         // The images endpoint implies "generate an image"; as a Responses
         // message the bare description may not trigger the tool, so make the
@@ -41,7 +41,7 @@ pub fn request(
         ))),
         tools: Some(vec![tool]),
         ..Default::default()
-    })
+    }))
 }
 
 pub fn response(
@@ -55,16 +55,16 @@ pub fn response(
             openai::ResponseItem::Typed(openai::TypedResponseItem::ImageGenerationCall {
                 result,
                 ..
-            }) => Some(openai::Image {
+            }) => Some(crate::protocol::wire!(openai::Image {
                 b64_json: Some(result),
                 revised_prompt: None,
                 url: None,
                 extra: Default::default(),
-            }),
+            })),
             _ => None,
         })
         .collect();
-    Ok(openai::ImagesResponse {
+    Ok(crate::protocol::wire!(openai::ImagesResponse {
         created: input.created_at,
         background: None,
         data: Some(data),
@@ -73,7 +73,7 @@ pub fn response(
         size: None,
         usage: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 #[cfg(test)]

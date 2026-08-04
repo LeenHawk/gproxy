@@ -7,7 +7,7 @@
 //! the response under `.response`. [`prepare`](AntigravityChannel::prepare)
 //! wraps via [`envelope::wrap_code_assist`]; [`shape_response`] and
 //! [`stream_decoder`] unwrap the non-stream body and each SSE frame — all shared
-//! with `geminicli`. [`auth`] owns the OAuth bearer + refresh + Antigravity's
+//! with `geminicli`. The internal `auth` module owns the OAuth bearer + refresh + Antigravity's
 //! distinct fingerprint (the `antigravity/cli` User-Agent).
 //!
 //! [`shape_response`]: AntigravityChannel::shape_response
@@ -192,7 +192,7 @@ impl Channel for AntigravityChannel {
         // ListModels: reshape the bespoke `fetchAvailableModels` payload into the
         // canonical Gemini `{models:[{name:"models/<id>", ...}]}` shape that
         // parse_models reads (the content unwrap/normalize does not apply).
-        if ctx.op.operation == crate::protocol::Operation::ListModels {
+        if ctx.op.operation() == crate::protocol::Operation::ListModels {
             return model_list::available_models_to_list_response(body);
         }
         // Unwrap the Code Assist `.response` envelope, then normalize the

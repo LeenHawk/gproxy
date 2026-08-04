@@ -7,6 +7,8 @@ use super::ExtraFields;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Status {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<i32>,

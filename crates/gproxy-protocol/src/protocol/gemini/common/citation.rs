@@ -6,6 +6,8 @@ use super::ExtraFields;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CitationMetadata {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub citation_sources: Vec<CitationSource>,
@@ -15,6 +17,8 @@ pub struct CitationMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CitationSource {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_index: Option<i32>,

@@ -54,7 +54,7 @@ fn chat_chunk_to_claude_events(input: openai::ChatCompletionChunk) -> Vec<claude
 
         if is_role_only_delta(&delta) {
             out.push(known(claude::KnownStreamEvent::MessageStart {
-                message: Box::new(claude::CreateMessageStartBody {
+                message: Box::new(crate::protocol::wire!(claude::CreateMessageStartBody {
                     id: id.clone(),
                     type_: claude::MessageObjectType::Known(
                         claude::MessageObjectTypeKnown::Message,
@@ -66,7 +66,7 @@ fn chat_chunk_to_claude_events(input: openai::ChatCompletionChunk) -> Vec<claude
                     stop_sequence: None,
                     usage: common::empty_claude_usage(),
                     extra: Default::default(),
-                }),
+                })),
                 extra: Default::default(),
             }));
         }
@@ -151,7 +151,7 @@ fn chat_tool_delta_to_claude(call: openai::ChatToolCallDelta) -> Vec<claude::Str
 fn tool_block_start(index: u64, id: String, name: String) -> claude::StreamEvent {
     known(claude::KnownStreamEvent::ContentBlockStart {
         index,
-        content_block: Box::new(claude::ContentBlock::ToolUse(
+        content_block: Box::new(claude::ContentBlock::ToolUse(crate::protocol::wire!(
             claude::ResponseToolUseBlock {
                 id,
                 input: Default::default(),
@@ -159,8 +159,8 @@ fn tool_block_start(index: u64, id: String, name: String) -> claude::StreamEvent
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 extra: Default::default(),
-            },
-        )),
+            }
+        ))),
         extra: Default::default(),
     })
 }
@@ -199,18 +199,20 @@ fn message_delta(
     stop_reason: Option<claude::StopReason>,
     usage: Option<Box<claude::Usage>>,
 ) -> claude::StreamEvent {
-    known(claude::KnownStreamEvent::MessageDelta {
-        context_management: None,
-        delta: Box::new(claude::MessageDelta {
-            container: None,
-            stop_reason,
-            stop_sequence: None,
-            stop_details: None,
+    known(crate::protocol::wire!(
+        claude::KnownStreamEvent::MessageDelta {
+            context_management: None,
+            delta: Box::new(crate::protocol::wire!(claude::MessageDelta {
+                container: None,
+                stop_reason,
+                stop_sequence: None,
+                stop_details: None,
+                extra: Default::default(),
+            })),
+            usage,
             extra: Default::default(),
-        }),
-        usage,
-        extra: Default::default(),
-    })
+        }
+    ))
 }
 
 fn known(event: claude::KnownStreamEvent) -> claude::StreamEvent {

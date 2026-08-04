@@ -42,7 +42,7 @@ const SAMPLING_TOLERANT_MODELS: &[&str] = &[
 ///
 /// Behavior depends on the model in the request:
 ///
-/// - **Models in [`SAMPLING_TOLERANT_MODELS`] without extended thinking**:
+/// - **Models in `SAMPLING_TOLERANT_MODELS` without extended thinking**:
 ///   if `temperature` is present, strip `top_p` only (the two interact poorly
 ///   on Claude).
 ///   `temperature` and `top_k` are left untouched.

@@ -280,11 +280,11 @@ impl ResponseCollector {
                 .output_state(output_index)
                 .push_mcp_arguments(item_id, arguments, true),
             openai::KnownResponseStreamEvent::Error { code, message, .. } => {
-                self.error = Some(openai::ResponseError {
+                self.error = Some(crate::protocol::wire!(openai::ResponseError {
                     code: openai::ResponseErrorCode::Unknown(code),
                     message,
                     extra: Default::default(),
-                });
+                }));
             }
             _ => {}
         }

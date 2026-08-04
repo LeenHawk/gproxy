@@ -5,7 +5,8 @@ use serde_json::{Map, Value};
 
 use super::super::common::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageGenerationRequest {
     pub prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,7 +39,8 @@ pub struct ImageGenerationRequest {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageEditRequest {
     pub images: Vec<ImageReference>,
     pub prompt: String,
@@ -105,7 +107,8 @@ impl<'de> Deserialize<'de> for ImageEditRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_id: Option<String>,

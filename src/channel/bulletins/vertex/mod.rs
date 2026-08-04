@@ -1,7 +1,7 @@
 //! Vertex AI channel (Google Cloud): service-account JWT → bearer token.
 //!
 //! Auth is a two-step OAuth2 JWT-bearer grant: sign an RS256 assertion from the
-//! SA key ([`auth`]), exchange it at the token endpoint for a short-lived bearer
+//! SA key (the internal `auth` module), exchange it at the token endpoint for a short-lived bearer
 //! (no `refresh_token` — every refresh re-signs from the key). Gemini requests
 //! use the Google publisher endpoints; native Claude Messages requests use the
 //! Anthropic partner-model `rawPredict` endpoints.
@@ -29,7 +29,7 @@ use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider}
 /// Vertex normalizes; model lists / embeddings / errors pass through untouched).
 fn is_gemini_content(ctx: &ShapeCtx) -> bool {
     matches!(
-        ctx.op.kind,
+        ctx.op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
     )
 }
@@ -226,7 +226,7 @@ impl Channel for VertexChannel {
     /// block-reason fix), and reshape Vertex's `publisherModels` list response
     /// into the canonical Gemini `models` shape. Other ops/kinds pass through.
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
-        if ctx.op.operation == Operation::ListModels {
+        if ctx.op.operation() == Operation::ListModels {
             model_list::normalize_vertex_model_list(body)
         } else if is_gemini_content(ctx) {
             vertex_normalize::normalize_vertex_response(body)

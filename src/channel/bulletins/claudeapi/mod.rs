@@ -18,14 +18,14 @@ use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 /// Whether `op` targets the native Claude Messages content-generation path.
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
-        op.kind,
+        op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     )
 }
 
 fn is_openai_chat(op: crate::protocol::OperationKey) -> bool {
     matches!(
-        op.kind,
+        op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions)
     )
 }
@@ -142,7 +142,7 @@ mod tests {
     use serde_json::Value;
 
     use crate::protocol::{Operation, OperationKey, OperationKind};
-    use crate::transform::routing::RoutingDecision;
+    use crate::routing::RoutingDecision;
 
     fn messages_ctx() -> ShapeCtx<'static> {
         ShapeCtx {
@@ -169,8 +169,8 @@ mod tests {
             .routing_table()
             .into_iter()
             .find(|(source, _)| {
-                source.operation == Operation::GenerateContent
-                    && source.kind
+                source.operation() == Operation::GenerateContent
+                    && source.kind()
                         == crate::channel::routes::cg(
                             ContentGenerationKind::OpenAiResponsesWebSocket,
                         )
@@ -181,9 +181,9 @@ mod tests {
         let RoutingDecision::TransformTo(target) = decision else {
             panic!("websocket route should transform");
         };
-        assert_eq!(target.operation, Operation::StreamGenerateContent);
+        assert_eq!(target.operation(), Operation::StreamGenerateContent);
         assert_eq!(
-            target.kind,
+            target.kind(),
             OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         );
     }

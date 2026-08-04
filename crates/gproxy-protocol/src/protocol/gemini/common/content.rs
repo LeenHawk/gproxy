@@ -9,6 +9,8 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Content {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub parts: Vec<Part>,
@@ -20,6 +22,8 @@ pub struct Content {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Part {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thought: Option<bool>,
@@ -39,6 +43,7 @@ pub struct Part {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum PartData {
     Text {
         text: String,
@@ -79,6 +84,7 @@ pub enum PartData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum PartMetadata {
     VideoMetadata {
         #[serde(rename = "videoMetadata")]
@@ -88,6 +94,8 @@ pub enum PartMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Blob {
     pub mime_type: String,
     pub data: String,
@@ -97,6 +105,8 @@ pub struct Blob {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
@@ -107,6 +117,8 @@ pub struct FileData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionCall {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -119,6 +131,8 @@ pub struct FunctionCall {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -136,6 +150,8 @@ pub struct FunctionResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionResponsePart {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub data: Option<FunctionResponsePartData>,
@@ -145,6 +161,7 @@ pub struct FunctionResponsePart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FunctionResponsePartData {
     InlineData {
         #[serde(rename = "inlineData")]
@@ -154,6 +171,8 @@ pub enum FunctionResponsePartData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionResponseBlob {
     pub mime_type: String,
     pub data: String,
@@ -163,6 +182,8 @@ pub struct FunctionResponseBlob {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ExecutableCode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -174,6 +195,8 @@ pub struct ExecutableCode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeExecutionResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -186,6 +209,8 @@ pub struct CodeExecutionResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolCall {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -198,6 +223,8 @@ pub struct ToolCall {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -210,6 +237,8 @@ pub struct ToolResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct VideoMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_offset: Option<String>,
@@ -223,6 +252,8 @@ pub struct VideoMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct MediaResolution {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub value: Option<MediaResolutionValue>,
@@ -232,6 +263,7 @@ pub struct MediaResolution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum MediaResolutionValue {
     Level { level: MediaResolutionLevel },
 }

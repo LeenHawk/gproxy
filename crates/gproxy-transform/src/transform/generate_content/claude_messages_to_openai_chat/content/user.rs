@@ -42,19 +42,21 @@ pub(in super::super) fn claude_blocks_to_user_messages(
             }
             claude::ContentBlockParam::ToolResult(block) => {
                 flush_user_parts(&mut messages, &mut user_parts);
-                messages.push(openai::ChatCompletionMessageParam::Tool {
-                    content: marked_chat_text_content(
-                        claude_tool_result_to_text(block.content),
-                        block.cache_control,
-                    ),
-                    tool_call_id: block.tool_use_id,
-                    extra: Default::default(),
-                });
+                messages.push(crate::protocol::wire!(
+                    openai::ChatCompletionMessageParam::Tool {
+                        content: marked_chat_text_content(
+                            claude_tool_result_to_text(block.content),
+                            block.cache_control,
+                        ),
+                        tool_call_id: block.tool_use_id,
+                        extra: Default::default(),
+                    }
+                ));
             }
             claude::ContentBlockParam::McpToolResult(block) => {
                 flush_user_parts(&mut messages, &mut user_parts);
                 let cache_control = block.cache_control;
-                messages.push(openai::ChatCompletionMessageParam::Tool {
+                messages.push(crate::protocol::wire!(openai::ChatCompletionMessageParam::Tool {
                     content: marked_chat_text_content(
                         match block.content {
                             Some(claude::StringOrArray::String(text)) => text,
@@ -64,12 +66,15 @@ pub(in super::super) fn claude_blocks_to_user_messages(
                                 .collect::<Vec<_>>()
                                 .join("\n"),
                             None => String::new(),
+                            Some(_) => unreachable!(
+                                "new non-exhaustive protocol variant requires a lockstep transform update"
+                            ),
                         },
                         cache_control,
                     ),
                     tool_call_id: block.tool_use_id,
                     extra: Default::default(),
-                });
+                }));
             }
             other => warn_unrepresentable_cache_control(&other, "OpenAI Chat user message"),
         }
@@ -115,33 +120,39 @@ fn claude_image_to_chat_part(block: claude::ImageBlock) -> Option<openai::ChatCo
                 claude::ImageMediaType::Png => "image/png",
                 claude::ImageMediaType::Gif => "image/gif",
                 claude::ImageMediaType::Webp => "image/webp",
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             };
             format!("data:{mime};base64,{}", source.data)
         }
         claude::ImageSource::Url(source) => source.url,
         claude::ImageSource::File(source) => {
             return Some(openai::ChatContentPart::File {
-                file: openai::ChatFileRef {
+                file: crate::protocol::wire!(openai::ChatFileRef {
                     file_data: None,
                     file_id: Some(source.file_id),
                     filename: None,
                     extra: Default::default(),
-                },
+                }),
                 prompt_cache_breakpoint: breakpoint,
                 extra: Default::default(),
             });
         }
         claude::ImageSource::Raw(_) => return None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
-    Some(openai::ChatContentPart::ImageUrl {
-        image_url: openai::ImageUrl {
+    Some(crate::protocol::wire!(openai::ChatContentPart::ImageUrl {
+        image_url: crate::protocol::wire!(openai::ImageUrl {
             url,
             detail: None,
             extra: Default::default(),
-        },
+        }),
         prompt_cache_breakpoint: breakpoint,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn marked_chat_text_content(

@@ -27,6 +27,9 @@ impl StreamTransform {
         Ok(match input {
             openai::ResponseStreamEvent::Known(event) => self.known_event_to_gemini(event),
             openai::ResponseStreamEvent::Unknown(_) => Vec::new(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
     }
 
@@ -208,15 +211,15 @@ fn text_chunk(
     finish_reason: Option<gemini::FinishReasonKnown>,
 ) -> gemini::GenerateContentResponse {
     candidate_chunk(
-        Some(gemini::Content {
-            parts: vec![gemini::Part {
+        Some(crate::protocol::wire!(gemini::Content {
+            parts: vec![crate::protocol::wire!(gemini::Part {
                 thought: thought.then_some(true),
                 data: Some(gemini::PartData::Text { text }),
                 ..Default::default()
-            }],
+            })],
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
-        }),
+        })),
         finish_reason.map(gemini::FinishReason::Known),
         None,
     )
@@ -228,21 +231,21 @@ fn function_call_chunk(
     args: Option<gemini::JsonMap>,
 ) -> gemini::GenerateContentResponse {
     candidate_chunk(
-        Some(gemini::Content {
-            parts: vec![gemini::Part {
+        Some(crate::protocol::wire!(gemini::Content {
+            parts: vec![crate::protocol::wire!(gemini::Part {
                 data: Some(gemini::PartData::FunctionCall {
-                    function_call: gemini::FunctionCall {
+                    function_call: crate::protocol::wire!(gemini::FunctionCall {
                         id,
                         name,
                         args,
                         extra: Default::default(),
-                    },
+                    }),
                 }),
                 ..Default::default()
-            }],
+            })],
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
-        }),
+        })),
         None,
         None,
     )
@@ -260,8 +263,8 @@ fn candidate_chunk(
     finish_reason: Option<gemini::FinishReason>,
     usage_metadata: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
-    gemini::GenerateContentResponse {
-        candidates: vec![gemini::Candidate {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
+        candidates: vec![crate::protocol::wire!(gemini::Candidate {
             content,
             finish_reason,
             safety_ratings: Vec::new(),
@@ -274,14 +277,14 @@ fn candidate_chunk(
             index: Some(0),
             finish_message: None,
             extra: Default::default(),
-        }],
+        })],
         prompt_feedback: None,
         usage_metadata,
         model_version: None,
         response_id: None,
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn chunk_from_response(
@@ -303,7 +306,7 @@ fn chunk_from_response(
 fn empty_chunk_with_usage(
     usage_metadata: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
-    gemini::GenerateContentResponse {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
         candidates: Vec::new(),
         prompt_feedback: None,
         usage_metadata,
@@ -311,7 +314,7 @@ fn empty_chunk_with_usage(
         response_id: None,
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn response_finish_reason(response: &openai::ResponseObject) -> gemini::FinishReason {
@@ -338,6 +341,9 @@ fn incomplete_reason_to_gemini(reason: &openai::IncompleteReason) -> gemini::Fin
         }
         openai::IncompleteReason::ContentFilter => {
             gemini::FinishReason::Known(gemini::FinishReasonKnown::Safety)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

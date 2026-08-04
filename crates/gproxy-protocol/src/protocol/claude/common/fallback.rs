@@ -6,12 +6,14 @@ use super::{ClaudeModel, JsonObject, OutputConfig, Speed, ThinkingConfig};
 /// or an ordered chain of up to three caller-selected models.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FallbacksParam {
     Default(FallbacksDefault),
     Models(Vec<FallbackParam>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FallbacksDefault {
     #[serde(rename = "default")]
     Default,
@@ -19,12 +21,14 @@ pub enum FallbacksDefault {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FallbackCreditTokenParam {
     Token(String),
     Config(FallbackCreditTokenConfig),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FallbackCreditTokenConfig {
     pub token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -35,6 +39,7 @@ pub struct FallbackCreditTokenConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FallbackCreditMode {
     Known(FallbackCreditModeKnown),
     Unknown(String),
@@ -49,6 +54,7 @@ impl<'de> serde::Deserialize<'de> for FallbackCreditMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FallbackCreditModeKnown {
     #[serde(rename = "strict")]
     Strict,
@@ -57,7 +63,8 @@ pub enum FallbackCreditModeKnown {
 }
 
 /// One ordered entry of the request-level `fallbacks` chain.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FallbackParam {
     pub model: ClaudeModel,
     #[serde(skip_serializing_if = "Option::is_none")]

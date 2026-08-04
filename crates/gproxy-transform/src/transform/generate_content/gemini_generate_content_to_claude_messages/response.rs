@@ -31,7 +31,7 @@ pub fn response(
         )
     };
 
-    Ok(claude::CreateMessageResponseBody {
+    Ok(crate::protocol::wire!(claude::CreateMessageResponseBody {
         id: input.response_id.unwrap_or_default(),
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -48,7 +48,7 @@ pub fn response(
         diagnostics: None,
         stop_details: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn gemini_finish_reason_to_claude(reason: gemini::FinishReason) -> claude::StopReason {
@@ -73,6 +73,9 @@ fn gemini_finish_reason_to_claude(reason: gemini::FinishReason) -> claude::StopR
         gemini::FinishReason::Known(_) | gemini::FinishReason::Unknown(_) => {
             claude::StopReason::Known(claude::StopReasonKnown::EndTurn)
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -81,7 +84,7 @@ fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
     let cached = usage.cached_content_token_count.map(i32_to_u64);
     let thoughts = usage.thoughts_token_count.map(i32_to_u64);
 
-    claude::Usage {
+    crate::protocol::wire!(claude::Usage {
         input_tokens: usage
             .prompt_token_count
             .map(i32_to_u64)
@@ -93,21 +96,23 @@ fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
         cache_creation_input_tokens: None,
         cache_read_input_tokens: cached,
         cache_creation: None,
-        output_tokens_details: thoughts.map(|thinking_tokens| claude::OutputTokensDetails {
-            thinking_tokens,
-            extra: Default::default(),
-        }),
+        output_tokens_details: thoughts.map(|thinking_tokens| crate::protocol::wire!(
+            claude::OutputTokensDetails {
+                thinking_tokens,
+                extra: Default::default(),
+            }
+        )),
         server_tool_use: None,
         iterations: None,
         inference_geo: None,
         service_tier,
         speed: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn empty_usage() -> claude::Usage {
-    claude::Usage {
+    crate::protocol::wire!(claude::Usage {
         input_tokens: Some(0),
         output_tokens: Some(0),
         cache_creation_input_tokens: None,
@@ -120,16 +125,18 @@ fn empty_usage() -> claude::Usage {
         service_tier: None,
         speed: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn empty_text_response() -> Vec<claude::ContentBlock> {
-    vec![claude::ContentBlock::Text(claude::ResponseTextBlock {
-        citations: None,
-        text: String::new(),
-        type_: claude::TextBlockType::Text,
-        extra: Default::default(),
-    })]
+    vec![claude::ContentBlock::Text(crate::protocol::wire!(
+        claude::ResponseTextBlock {
+            citations: None,
+            text: String::new(),
+            type_: claude::TextBlockType::Text,
+            extra: Default::default(),
+        }
+    ))]
 }
 
 fn i32_to_u64(value: i32) -> u64 {
@@ -142,13 +149,13 @@ mod tests {
 
     #[test]
     fn usage_separates_cached_input_and_includes_thinking_in_output() {
-        let usage = gemini_usage_to_claude(gemini::UsageMetadata {
+        let usage = gemini_usage_to_claude(crate::protocol::wire!(gemini::UsageMetadata {
             prompt_token_count: Some(100),
             cached_content_token_count: Some(60),
             candidates_token_count: Some(20),
             thoughts_token_count: Some(5),
             ..Default::default()
-        });
+        }));
         assert_eq!(usage.input_tokens, Some(40));
         assert_eq!(usage.cache_read_input_tokens, Some(60));
         assert_eq!(usage.output_tokens, Some(25));

@@ -7,7 +7,8 @@ use super::{
     ToolUseBlockType, WebSearchResultBlockType, WebSearchToolResultBlockType,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseTextBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<Vec<Citation>>,
@@ -18,7 +19,8 @@ pub struct ResponseTextBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -31,7 +33,8 @@ pub struct ResponseToolUseBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseServerToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -44,7 +47,8 @@ pub struct ResponseServerToolUseBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseWebSearchToolResultBlock {
     pub content: ResponseWebSearchToolResultContent,
     pub tool_use_id: String,
@@ -56,7 +60,8 @@ pub struct ResponseWebSearchToolResultBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseWebSearchResultBlock {
     pub encrypted_content: String,
     pub page_age: Option<String>,
@@ -68,7 +73,8 @@ pub struct ResponseWebSearchResultBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseToolReferenceBlock {
     pub tool_name: String,
     #[serde(rename = "type")]
@@ -78,12 +84,14 @@ pub struct ResponseToolReferenceBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseToolReferenceBlockType {
     #[serde(rename = "tool_reference")]
     ToolReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseMcpToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -96,12 +104,14 @@ pub struct ResponseMcpToolUseBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseMcpToolUseBlockType {
     #[serde(rename = "mcp_tool_use")]
     McpToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseMcpToolResultBlock {
     pub content: ResponseMcpToolResultContent,
     pub is_error: bool,
@@ -113,6 +123,7 @@ pub struct ResponseMcpToolResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseMcpToolResultBlockType {
     #[serde(rename = "mcp_tool_result")]
     McpToolResult,
@@ -120,7 +131,8 @@ pub enum ResponseMcpToolResultBlockType {
 
 pub type ResponseMcpToolResultContent = StringOrArray<ResponseTextBlock>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseContainerUploadBlock {
     pub file_id: String,
     #[serde(rename = "type")]
@@ -129,7 +141,8 @@ pub struct ResponseContainerUploadBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseCompactionBlock {
     pub content: Option<String>,
     pub encrypted_content: String,

@@ -121,6 +121,9 @@ impl OutputState {
                     self.reasoning.content_part(index).push_delta(text);
                 }
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -196,23 +199,25 @@ impl OutputState {
 
     fn finish(self) -> Option<openai::ResponseOutputItem> {
         if let Some(item) = self.final_item {
-            return Some(openai::ResponseOutputItem(sanitize_item(item)));
+            return Some(openai::ResponseOutputItem::new(sanitize_item(item)));
         }
         if self.message.has_content() {
-            return Some(openai::ResponseOutputItem(self.message.finish()));
+            return Some(openai::ResponseOutputItem::new(self.message.finish()));
         }
         if self.reasoning.has_content() {
-            return Some(openai::ResponseOutputItem(self.reasoning.finish()));
+            return Some(openai::ResponseOutputItem::new(self.reasoning.finish()));
         }
         if self.function_call.has_content() {
-            return Some(openai::ResponseOutputItem(self.function_call.finish()));
+            return Some(openai::ResponseOutputItem::new(self.function_call.finish()));
         }
         if self.custom_tool_call.has_content() {
-            return Some(openai::ResponseOutputItem(self.custom_tool_call.finish()));
+            return Some(openai::ResponseOutputItem::new(
+                self.custom_tool_call.finish(),
+            ));
         }
         self.fallback_item
             .map(sanitize_item)
-            .map(openai::ResponseOutputItem)
+            .map(openai::ResponseOutputItem::new)
     }
 }
 
@@ -261,7 +266,7 @@ fn output_text(output: &[openai::ResponseOutputItem]) -> Option<String> {
 }
 
 fn empty_response() -> openai::ResponseObject {
-    openai::ResponseObject {
+    crate::protocol::wire!(openai::ResponseObject {
         id: String::new(),
         created_at: 0,
         background: None,
@@ -300,5 +305,5 @@ fn empty_response() -> openai::ResponseObject {
         usage: None,
         user: None,
         extra: Default::default(),
-    }
+    })
 }

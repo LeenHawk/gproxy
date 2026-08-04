@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{CacheControl, JsonObject, McpServerType};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolset {
     pub mcp_server_name: String,
     #[serde(rename = "type")]
@@ -18,12 +19,14 @@ pub struct McpToolset {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum McpToolsetType {
     #[serde(rename = "mcp_toolset")]
     McpToolset,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub defer_loading: Option<bool>,
@@ -33,7 +36,8 @@ pub struct McpToolConfig {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpServer {
     pub name: String,
     #[serde(rename = "type")]
@@ -47,7 +51,8 @@ pub struct McpServer {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolConfiguration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_tools: Option<Vec<String>>,

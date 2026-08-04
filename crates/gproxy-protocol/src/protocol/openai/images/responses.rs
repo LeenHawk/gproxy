@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::common::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImagesResponse {
     pub created: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -23,7 +24,8 @@ pub struct ImagesResponse {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Image {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub b64_json: Option<String>,
@@ -35,7 +37,8 @@ pub struct Image {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageUsage {
     pub input_tokens: u32,
     pub input_tokens_details: ImageTokenDetails,
@@ -47,7 +50,8 @@ pub struct ImageUsage {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageTokenDetails {
     pub image_tokens: u32,
     pub text_tokens: u32,

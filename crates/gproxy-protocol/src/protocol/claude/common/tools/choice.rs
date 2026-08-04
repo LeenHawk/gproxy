@@ -6,6 +6,7 @@ use super::super::{JsonObject, TypedObject};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ToolChoice {
     Auto(ToolChoiceAuto),
     Any(ToolChoiceAny),
@@ -14,7 +15,8 @@ pub enum ToolChoice {
     Unknown(TypedObject),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolChoiceAuto {
     #[serde(rename = "type")]
     pub type_: ToolChoiceAutoType,
@@ -25,12 +27,14 @@ pub struct ToolChoiceAuto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolChoiceAutoType {
     #[serde(rename = "auto")]
     Auto,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolChoiceAny {
     #[serde(rename = "type")]
     pub type_: ToolChoiceAnyType,
@@ -41,12 +45,14 @@ pub struct ToolChoiceAny {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolChoiceAnyType {
     #[serde(rename = "any")]
     Any,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolChoiceTool {
     pub name: String,
     #[serde(rename = "type")]
@@ -58,12 +64,14 @@ pub struct ToolChoiceTool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolChoiceToolType {
     #[serde(rename = "tool")]
     Tool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolChoiceNone {
     #[serde(rename = "type")]
     pub type_: ToolChoiceNoneType,
@@ -72,6 +80,7 @@ pub struct ToolChoiceNone {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolChoiceNoneType {
     #[serde(rename = "none")]
     None,

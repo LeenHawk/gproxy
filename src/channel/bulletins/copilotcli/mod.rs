@@ -1,13 +1,13 @@
 //! GitHub Copilot channel: a long-lived GitHub token is re-exchanged for a
-//! short-lived Copilot token ([`auth`]), which authorizes an OpenAI
+//! short-lived Copilot token (the internal `auth` module), which authorizes an OpenAI
 //! chat-completions passthrough against the account-typed Copilot host.
 //!
 //! There is no `refresh_token` — `needs_refresh` keys off the cached Copilot
 //! token's expiry and `refresh` always re-exchanges from the GitHub token. The
 //! request is plain OpenAI chat completions (the native format stays
 //! `OpenAiChatCompletions`): NO envelope, NO stream decoder, NO normalize, body
-//! verbatim. Login is the GitHub device flow ([`auth::device_start`] /
-//! [`auth::device_poll`]).
+//! verbatim. Login is the GitHub device flow (`auth::device_start` /
+//! `auth::device_poll`).
 
 mod auth;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]

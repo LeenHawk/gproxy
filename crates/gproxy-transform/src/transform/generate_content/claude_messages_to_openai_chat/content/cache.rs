@@ -18,10 +18,9 @@ pub(super) fn breakpoint_for_text(
 }
 
 pub(super) fn warn_dropped_cache_breakpoint(block_type: &str, target: &str) {
-    tracing::warn!(
-        block_type,
-        conversion_target = target,
-        "cache breakpoint dropped during protocol conversion"
+    crate::transform::context::report_lossy(
+        format!("messages[].content[].{block_type}.cache_control"),
+        format!("{target} cannot represent this Claude cache breakpoint"),
     );
 }
 

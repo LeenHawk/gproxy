@@ -16,7 +16,7 @@ synchronous library: no HTTP client, no runtime, no I/O.
 
 ```toml
 [dependencies]
-gproxy-transform = "2"
+gproxy-transform = "=2.3.0"
 ```
 
 Resolve a pair from the source/target operation keys, then run the bytes-level
@@ -38,7 +38,9 @@ let target = OperationKey::content_generation(
 // Request direction: inbound OpenAI chat body → upstream Claude messages body.
 let pair = resolve(source, target)?;
 let ctx = TransformContext::new(source, target).with_request("/v1/chat/completions", None);
-let upstream_body = dispatch::request_bytes(pair, &ctx, inbound_body)?;
+let converted = dispatch::request_bytes_detailed(pair, &ctx, inbound_body)?;
+let upstream_body = converted.value;
+let semantic_losses = converted.diagnostics;
 
 // Response direction uses the REVERSE pair.
 let back = resolve(target, source)?;
@@ -67,6 +69,10 @@ let final_events = stream.finish()?;
 - The default SSE adapter is strict: malformed/oversized frames and abnormal
   EOF return errors and do not synthesize a successful terminator. Lenient
   skipping is an explicit `StreamOptions` choice.
+- `request_bytes_detailed`, `response_bytes_detailed`, `push_detailed`, and
+  `finish_detailed` return structured non-fatal semantic-loss diagnostics.
+- Routing tables, database rules, and logging policy belong to the host;
+  `gproxy-transform` contains no routing-policy module.
 
 Use `dispatch::is_wired` to check whether a resolved pair has a bytes-level
 implementation before routing traffic through it.
@@ -82,7 +88,6 @@ implementation before routing traffic through it.
 | `embeddings`     | Embedding pairs                                               |
 | `images`         | Image create/edit pairs                                       |
 | `compact`        | Context-compaction pairs                                      |
-| `routing`        | Compiled routing rules → passthrough / transform / unsupported |
 | `stream_adapter` | Runtime SSE adapter (decode → convert → re-encode)            |
 | `common`         | Mechanical helpers only (SSE framing, roles, tool ids, usage) |
 

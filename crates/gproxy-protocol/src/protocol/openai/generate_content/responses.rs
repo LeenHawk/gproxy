@@ -14,7 +14,10 @@ pub type ResponseWireModel = OpenAiWireModel<ResponseCreateRequest, ResponseObje
 pub type ResponseStreamWireModel =
     OpenAiWireModel<ResponseCreateRequest, super::ResponseStreamEvent>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct ResponseCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background: Option<bool>,
@@ -86,12 +89,14 @@ pub struct ResponseCreateRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseConversationRef {
     Id(String),
     Object(ResponseConversationParam),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseConversationParam {
     pub id: String,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
@@ -100,6 +105,7 @@ pub struct ResponseConversationParam {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseInput {
     Text(String),
     Items(Vec<ResponseItem>),

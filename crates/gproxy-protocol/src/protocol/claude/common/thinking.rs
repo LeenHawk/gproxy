@@ -6,6 +6,7 @@ use super::{JsonObject, ThinkingDisplay, TypedObject};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ThinkingConfig {
     Enabled(ThinkingEnabled),
     Disabled(ThinkingDisabled),
@@ -13,7 +14,8 @@ pub enum ThinkingConfig {
     Unknown(TypedObject),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ThinkingEnabled {
     pub budget_tokens: u64,
     #[serde(rename = "type")]
@@ -25,12 +27,14 @@ pub struct ThinkingEnabled {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ThinkingEnabledType {
     #[serde(rename = "enabled")]
     Enabled,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ThinkingDisabled {
     #[serde(rename = "type")]
     pub type_: ThinkingDisabledType,
@@ -39,12 +43,14 @@ pub struct ThinkingDisabled {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ThinkingDisabledType {
     #[serde(rename = "disabled")]
     Disabled,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ThinkingAdaptive {
     #[serde(rename = "type")]
     pub type_: ThinkingAdaptiveType,
@@ -55,6 +61,7 @@ pub struct ThinkingAdaptive {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ThinkingAdaptiveType {
     #[serde(rename = "adaptive")]
     Adaptive,

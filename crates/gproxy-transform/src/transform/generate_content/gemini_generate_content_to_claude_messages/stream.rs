@@ -97,7 +97,7 @@ fn part_to_claude(part: gemini::Part, index: u64) -> Option<claude::StreamEvent>
         gemini::PartData::FunctionCall { function_call } => {
             Some(known(claude::KnownStreamEvent::ContentBlockStart {
                 index,
-                content_block: Box::new(claude::ContentBlock::ToolUse(
+                content_block: Box::new(claude::ContentBlock::ToolUse(crate::protocol::wire!(
                     claude::ResponseToolUseBlock {
                         id: function_call.id.unwrap_or_else(|| format!("call_{index}")),
                         input: function_call.args.unwrap_or_default(),
@@ -105,8 +105,8 @@ fn part_to_claude(part: gemini::Part, index: u64) -> Option<claude::StreamEvent>
                         type_: claude::ToolUseBlockType::ToolUse,
                         caller: None,
                         extra: Default::default(),
-                    },
-                )),
+                    }
+                ))),
                 extra: Default::default(),
             }))
         }
@@ -141,18 +141,20 @@ fn message_delta(
     stop_reason: Option<claude::StopReason>,
     usage: Option<claude::Usage>,
 ) -> claude::StreamEvent {
-    known(claude::KnownStreamEvent::MessageDelta {
-        context_management: None,
-        delta: Box::new(claude::MessageDelta {
-            container: None,
-            stop_reason,
-            stop_sequence: None,
-            stop_details: None,
+    known(crate::protocol::wire!(
+        claude::KnownStreamEvent::MessageDelta {
+            context_management: None,
+            delta: Box::new(crate::protocol::wire!(claude::MessageDelta {
+                container: None,
+                stop_reason,
+                stop_sequence: None,
+                stop_details: None,
+                extra: Default::default(),
+            })),
+            usage: usage.map(Box::new),
             extra: Default::default(),
-        }),
-        usage: usage.map(Box::new),
-        extra: Default::default(),
-    })
+        }
+    ))
 }
 
 fn gemini_finish_to_claude_stop(reason: gemini::FinishReason) -> claude::StopReason {

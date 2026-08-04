@@ -7,7 +7,7 @@ pub(super) fn gemini_tools_to_chat(tools: Vec<gemini::Tool>) -> Vec<openai::Chat
         .into_iter()
         .flat_map(|tool| tool.function_declarations)
         .map(|declaration| openai::ChatTool::Function {
-            function: openai::FunctionDefinition {
+            function: crate::protocol::wire!(openai::FunctionDefinition {
                 name: declaration.name,
                 description: (!declaration.description.is_empty())
                     .then_some(declaration.description),
@@ -17,7 +17,7 @@ pub(super) fn gemini_tools_to_chat(tools: Vec<gemini::Tool>) -> Vec<openai::Chat
                     .or_else(|| declaration.parameters.map(schema_to_json_schema)),
                 strict: None,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
         })
         .collect()
@@ -38,10 +38,10 @@ pub(super) fn gemini_tool_config_to_chat(
                 Some(openai::ChatToolChoice::Named(
                     openai::ChatNamedToolChoice::Function {
                         type_: openai::FunctionToolChoiceType::Function,
-                        function: openai::NamedTool {
+                        function: crate::protocol::wire!(openai::NamedTool {
                             name,
                             extra: Default::default(),
-                        },
+                        }),
                         extra: Default::default(),
                     },
                 ))
@@ -55,6 +55,9 @@ pub(super) fn gemini_tool_config_to_chat(
             Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::None))
         }
         gemini::FunctionCallingMode::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

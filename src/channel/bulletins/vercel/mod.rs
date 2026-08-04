@@ -19,7 +19,7 @@ use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 /// route that carries a Claude request body to shape).
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
-        op.kind,
+        op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     )
 }

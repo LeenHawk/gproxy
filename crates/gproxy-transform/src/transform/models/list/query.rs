@@ -14,7 +14,7 @@ use crate::transform::{TransformContext, TransformPair};
 /// are a no-op.
 pub fn request_query(pair: TransformPair, ctx: &TransformContext) -> Option<String> {
     use TransformPair as P;
-    if ctx.source.operation != crate::protocol::Operation::ListModels {
+    if ctx.source.operation() != crate::protocol::Operation::ListModels {
         return None;
     }
     match pair {
@@ -40,12 +40,12 @@ fn pairs(ctx: &TransformContext) -> impl Iterator<Item = (&str, &str)> {
 }
 
 fn parse_claude(ctx: &TransformContext) -> claude::ListModelsQuery {
-    let mut q = claude::ListModelsQuery {
+    let mut q = crate::protocol::wire!(claude::ListModelsQuery {
         after_id: None,
         before_id: None,
         limit: None,
         extra: Default::default(),
-    };
+    });
     for (k, v) in pairs(ctx) {
         match k {
             "after_id" => q.after_id = Some(v.to_owned()),

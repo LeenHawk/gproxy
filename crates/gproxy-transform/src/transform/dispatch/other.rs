@@ -180,7 +180,7 @@ fn models_response(
 ) -> Result<Vec<u8>, TransformError> {
     use TransformPair as P;
     use models::{get, list};
-    match (ctx.source.operation, pair) {
+    match (ctx.source.operation(), pair) {
         (Operation::ListModels, P::OpenAiToClaudeModels) => {
             run(list::openai_to_claude::response, ctx, body)
         }

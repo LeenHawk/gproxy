@@ -11,7 +11,7 @@ pub fn request(
 ) -> Result<openai::ResponseInputTokensRequest, TransformError> {
     let request = common::split_gemini_count_token_request(input);
 
-    Ok(openai::ResponseInputTokensRequest {
+    Ok(crate::protocol::wire!(openai::ResponseInputTokensRequest {
         conversation: None,
         input: common::text_to_openai_input(common::gemini_contents_to_text(request.contents)),
         instructions: request.system_instruction.map(common::gemini_content_text),
@@ -29,19 +29,19 @@ pub fn request(
         tools: common::gemini_tools_to_openai(request.tools),
         truncation: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: gemini::CountTokensResponse,
     _: &TransformContext,
 ) -> openai::ResponseInputTokensResponse {
-    openai::ResponseInputTokensResponse {
+    crate::protocol::wire!(openai::ResponseInputTokensResponse {
         input_tokens: input
             .total_tokens
             .map(common::i32_to_u32)
             .unwrap_or_default(),
         object: openai::ResponseInputTokensObjectType::ResponseInputTokens,
         extra: Default::default(),
-    }
+    })
 }

@@ -33,7 +33,7 @@ adapter never touches them.
 
 ```toml
 [dependencies]
-gproxy-channel-api = { version = "2", features = ["external-channels"] }
+gproxy-channel-api = { version = "=2.3.0", features = ["external-channels"] }
 linkme = "0.3"
 ```
 
@@ -60,6 +60,10 @@ static REGISTER: gproxy_channel_api::ChannelRegistration = register;
 
 The `external-channels` feature enables the registration slice; it is
 native-only (registration is not available on `wasm32` targets).
+
+`ByteStreamDecoder::push` and `finish` return `Result<Vec<u8>, ClientError>`.
+Provider-specific decoders must return `ClientError::Decode` for malformed,
+truncated, or oversized input so the host can terminate the response as failed.
 
 A complete, runnable setup lives in the
 [`examples/external-channel/`](https://github.com/LeenHawk/gproxy/tree/main/examples/external-channel)

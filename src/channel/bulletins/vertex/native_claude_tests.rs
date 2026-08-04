@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use super::*;
 use crate::protocol::{ContentGenerationKind, OperationKey};
-use crate::transform::routing::RoutingDecision;
+use crate::routing::RoutingDecision;
 
 fn secret() -> Value {
     json!({
@@ -15,10 +15,7 @@ fn secret() -> Value {
 
 fn shape_ctx(op: Operation, kind: OperationKind, stream: bool) -> ShapeCtx<'static> {
     ShapeCtx {
-        op: OperationKey {
-            operation: op,
-            kind,
-        },
+        op: OperationKey::try_new(op, kind).expect("test route must be consistent"),
         stream,
         status: StatusCode::OK,
         settings: &Value::Null,

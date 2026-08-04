@@ -11,6 +11,8 @@ use super::{ExtraFields, FunctionBehavior, FunctionCallingMode, SchemaType};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Tool {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub function_declarations: Vec<FunctionDeclaration>,
@@ -36,6 +38,8 @@ pub struct Tool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
@@ -55,6 +59,8 @@ pub struct FunctionDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Schema {
     pub r#type: SchemaType,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -105,6 +111,8 @@ pub struct Schema {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_calling_config: Option<FunctionCallingConfig>,
@@ -118,6 +126,8 @@ pub struct ToolConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionCallingConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<FunctionCallingMode>,

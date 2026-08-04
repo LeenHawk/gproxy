@@ -39,16 +39,16 @@ pub fn request(
         extra: Default::default(),
     };
 
-    Ok(openai::ResponseCreateRequest {
+    Ok(crate::protocol::wire!(openai::ResponseCreateRequest {
         input: Some(openai::ResponseInput::Items(vec![
             openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
-                openai::ResponseEasyInputMessageItem {
+                crate::protocol::wire!(openai::ResponseEasyInputMessageItem {
                     type_: Some(openai::ResponseMessageItemType::Message),
                     role: openai::ResponseEasyInputMessageRole::User,
                     content: openai::ResponseEasyInputContent::Parts(parts),
                     phase: None,
                     extra: Default::default(),
-                },
+                }),
             )),
         ])),
         model: input.model,
@@ -56,7 +56,7 @@ pub fn request(
         tools: Some(vec![tool]),
         user: input.user,
         ..Default::default()
-    })
+    }))
 }
 
 pub fn response(
@@ -79,11 +79,11 @@ fn image_reference_to_input_image(
 }
 
 fn image_reference_to_mask(reference: openai::ImageReference) -> openai::ImageMask {
-    openai::ImageMask {
+    crate::protocol::wire!(openai::ImageMask {
         file_id: reference.file_id,
         image_url: reference.image_url,
         extra: reference.extra,
-    }
+    })
 }
 
 fn edit_size_to_response_size(
@@ -99,6 +99,9 @@ fn edit_size_to_response_size(
         }
         openai::ImageEditSize::Size1536By1024 => {
             openai::ResponseImageGenerationSizeKnown::Size1536By1024
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     };
     Some(openai::ResponseImageGenerationSize::Known(known))

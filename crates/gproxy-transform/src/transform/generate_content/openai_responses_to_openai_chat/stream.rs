@@ -28,6 +28,9 @@ impl StreamTransform {
         Ok(match input {
             openai::ResponseStreamEvent::Known(event) => self.known_event_to_chat(event),
             openai::ResponseStreamEvent::Unknown(_) => Vec::new(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
     }
 
@@ -398,6 +401,9 @@ fn incomplete_reason_to_chat(reason: &openai::IncompleteReason) -> openai::ChatF
     match reason {
         openai::IncompleteReason::MaxOutputTokens => openai::ChatFinishReason::Length,
         openai::IncompleteReason::ContentFilter => openai::ChatFinishReason::ContentFilter,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

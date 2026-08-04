@@ -29,12 +29,12 @@ pub(super) fn claude_json_schema(schema: BTreeMap<String, Value>) -> claude::Jso
             .collect();
     }
 
-    claude::JsonSchema {
+    crate::protocol::wire!(claude::JsonSchema {
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties,
         required,
         extra,
-    }
+    })
 }
 
 pub(super) fn empty_string_to_none(value: String) -> Option<String> {

@@ -104,8 +104,8 @@ Android APK、Windows MSI、macOS DMG、Linux DEB 和便携 ZIP。Linux GNU 与 
 | `GPROXY_MASTER_KEY` | — | 解封存储的密文（缺省时明文存储） |
 | `GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` | `admin` / 随机 | 首启动管理员 |
 
-**从 v1 升级？** 让 v2 使用现有 SQLite 数据库即可。首次启动时，GPROXY 会导入受支持的
-配置，并把旧数据库保留为 `*.v1.bak` 备份。
+**从 v1 或 v2 升级？** 让 v3 使用现有数据库即可。现有 v2 数据库会直接打开；若从 v1
+首次启动，GPROXY 会导入受支持的配置，并把旧数据库保留为 `*.v1.bak` 备份。
 
 ---
 

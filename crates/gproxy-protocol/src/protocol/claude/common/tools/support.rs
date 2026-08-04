@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use super::super::{CacheControl, JsonObject, JsonSchemaObjectType};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct ToolCommon {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_callers: Option<Vec<ToolCaller>>,
@@ -20,7 +23,10 @@ pub struct ToolCommon {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct ToolCommonWithoutInputExamples {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_callers: Option<Vec<ToolCaller>>,
@@ -34,7 +40,8 @@ pub struct ToolCommonWithoutInputExamples {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct JsonSchema {
     #[serde(rename = "type")]
     pub type_: JsonSchemaObjectType,
@@ -47,12 +54,14 @@ pub struct JsonSchema {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CustomToolType {
     #[serde(rename = "custom")]
     Custom,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolCaller {
     #[serde(rename = "direct")]
     Direct,

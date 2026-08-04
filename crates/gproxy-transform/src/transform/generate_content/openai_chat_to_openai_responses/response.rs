@@ -19,7 +19,7 @@ pub fn response(
             openai::ChatFinishReason::Length | openai::ChatFinishReason::ContentFilter
         ) {
             status = openai::ResponseStatus::Incomplete;
-            incomplete_details = Some(openai::IncompleteDetails {
+            incomplete_details = Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(match choice.finish_reason {
                     openai::ChatFinishReason::Length => openai::IncompleteReason::MaxOutputTokens,
                     openai::ChatFinishReason::ContentFilter => {
@@ -28,7 +28,7 @@ pub fn response(
                     _ => openai::IncompleteReason::MaxOutputTokens,
                 }),
                 extra: Default::default(),
-            });
+            }));
         }
         output_text = choice
             .message
@@ -41,7 +41,7 @@ pub fn response(
         ));
     }
 
-    Ok(openai::ResponseObject {
+    Ok(crate::protocol::wire!(openai::ResponseObject {
         id: input.id,
         created_at: input.created,
         background: None,
@@ -80,5 +80,5 @@ pub fn response(
         usage: chat_usage_to_response(input.usage),
         user: None,
         extra: Default::default(),
-    })
+    }))
 }

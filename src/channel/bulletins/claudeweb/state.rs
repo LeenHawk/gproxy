@@ -71,7 +71,10 @@ impl Default for ToolDetector {
 
 impl ToolDetector {
     fn push(&mut self, bytes: &[u8]) -> Option<String> {
-        for frame in self.decoder.push(bytes) {
+        let Ok(frames) = self.decoder.push(bytes) else {
+            return None;
+        };
+        for frame in frames {
             let Ok(value) = serde_json::from_str::<Value>(&frame.data) else {
                 continue;
             };

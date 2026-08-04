@@ -6,7 +6,8 @@ use super::common::*;
 
 pub type EmbeddingWireModel = OpenAiWireModel<EmbeddingRequest, EmbeddingResponse>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbeddingRequest {
     pub input: EmbeddingInput,
     pub model: OpenAiModelId,
@@ -22,6 +23,7 @@ pub struct EmbeddingRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum EmbeddingInput {
     Text(String),
     TextList(Vec<String>),
@@ -29,7 +31,8 @@ pub enum EmbeddingInput {
     TokenLists(Vec<Vec<i64>>),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbeddingResponse {
     pub data: Vec<Embedding>,
     pub model: OpenAiModelId,
@@ -39,7 +42,8 @@ pub struct EmbeddingResponse {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Embedding {
     pub embedding: Vec<f64>,
     pub index: u32,
@@ -48,7 +52,8 @@ pub struct Embedding {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbeddingUsage {
     pub prompt_tokens: u32,
     pub total_tokens: u32,

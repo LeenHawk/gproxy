@@ -42,6 +42,9 @@ fn gemini_content_to_claude_message(
         Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User))
         | Some(gemini::ContentRole::Unknown(_))
         | None => claude::MessageRole::Known(claude::MessageRoleKnown::User),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
 
     let blocks = content
@@ -49,27 +52,27 @@ fn gemini_content_to_claude_message(
         .into_iter()
         .filter_map(part_to_request_block)
         .collect::<Vec<_>>();
-    (!blocks.is_empty()).then_some(claude::MessageParam {
+    (!blocks.is_empty()).then_some(crate::protocol::wire!(claude::MessageParam {
         role,
         content: claude::StringOrArray::Array(blocks),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam> {
     match part.data? {
-        gemini::PartData::Text { text } if part.thought == Some(true) => {
-            Some(claude::ContentBlockParam::Thinking(claude::ThinkingBlock {
+        gemini::PartData::Text { text } if part.thought == Some(true) => Some(
+            claude::ContentBlockParam::Thinking(crate::protocol::wire!(claude::ThinkingBlock {
                 signature: part.thought_signature.unwrap_or_default(),
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
-            }))
-        }
+            })),
+        ),
         gemini::PartData::Text { text } => Some(text_block(text)),
         gemini::PartData::InlineData { inline_data } => inline_data_to_request_block(inline_data),
         gemini::PartData::FileData { file_data } => file_data_to_request_block(file_data),
-        gemini::PartData::FunctionCall { function_call } => {
-            Some(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
+        gemini::PartData::FunctionCall { function_call } => Some(
+            claude::ContentBlockParam::ToolUse(crate::protocol::wire!(claude::ToolUseBlock {
                 id: function_call
                     .id
                     .unwrap_or_else(|| format!("toolu_{}", function_call.name)),
@@ -78,12 +81,12 @@ fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam
                 type_: claude::ToolUseBlockType::ToolUse,
                 cache_control: None,
                 caller: None,
-            }))
-        }
+            })),
+        ),
         gemini::PartData::FunctionResponse { function_response } => {
             let content = function_response_to_text(&function_response);
             Some(claude::ContentBlockParam::ToolResult(
-                claude::ToolResultBlock {
+                crate::protocol::wire!(claude::ToolResultBlock {
                     tool_use_id: function_response
                         .id
                         .unwrap_or_else(|| function_response.name.clone()),
@@ -91,7 +94,7 @@ fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam
                     cache_control: None,
                     content: Some(claude::ToolResultContent::Text(content)),
                     is_error: None,
-                },
+                }),
             ))
         }
         gemini::PartData::ExecutableCode { executable_code } => {
@@ -100,8 +103,8 @@ fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam
         gemini::PartData::CodeExecutionResult {
             code_execution_result,
         } => code_execution_result.output.map(text_block),
-        gemini::PartData::ToolCall { tool_call } => {
-            Some(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
+        gemini::PartData::ToolCall { tool_call } => Some(claude::ContentBlockParam::ToolUse(
+            crate::protocol::wire!(claude::ToolUseBlock {
                 id: tool_call
                     .id
                     .unwrap_or_else(|| "toolu_server_tool".to_owned()),
@@ -113,44 +116,49 @@ fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam
                 type_: claude::ToolUseBlockType::ToolUse,
                 cache_control: None,
                 caller: None,
-            }))
-        }
-        gemini::PartData::ToolResponse { tool_response } => Some(
-            claude::ContentBlockParam::ToolResult(claude::ToolResultBlock {
-                tool_use_id: tool_response.id.unwrap_or_else(|| "server_tool".to_owned()),
-                type_: claude::ToolResultBlockType::ToolResult,
-                cache_control: None,
-                content: Some(claude::ToolResultContent::Text(
-                    tool_response
-                        .response
-                        .map(|response| serde_json::to_string(&response).unwrap_or_default())
-                        .unwrap_or_default(),
-                )),
-                is_error: None,
             }),
-        ),
+        )),
+        gemini::PartData::ToolResponse { tool_response } => {
+            Some(claude::ContentBlockParam::ToolResult(
+                crate::protocol::wire!(claude::ToolResultBlock {
+                    tool_use_id: tool_response.id.unwrap_or_else(|| "server_tool".to_owned()),
+                    type_: claude::ToolResultBlockType::ToolResult,
+                    cache_control: None,
+                    content: Some(claude::ToolResultContent::Text(
+                        tool_response
+                            .response
+                            .map(|response| serde_json::to_string(&response).unwrap_or_default())
+                            .unwrap_or_default(),
+                    )),
+                    is_error: None,
+                }),
+            ))
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 fn part_to_response_block(part: gemini::Part) -> Option<claude::ContentBlock> {
     match part.data? {
-        gemini::PartData::Text { text } if part.thought == Some(true) => {
-            Some(claude::ContentBlock::Thinking(claude::ThinkingBlock {
+        gemini::PartData::Text { text } if part.thought == Some(true) => Some(
+            claude::ContentBlock::Thinking(crate::protocol::wire!(claude::ThinkingBlock {
                 signature: part.thought_signature.unwrap_or_default(),
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
-            }))
-        }
-        gemini::PartData::Text { text } => {
-            Some(claude::ContentBlock::Text(claude::ResponseTextBlock {
+            })),
+        ),
+        gemini::PartData::Text { text } => Some(claude::ContentBlock::Text(
+            crate::protocol::wire!(claude::ResponseTextBlock {
                 citations: None,
                 text,
                 type_: claude::TextBlockType::Text,
                 extra: Default::default(),
-            }))
-        }
+            }),
+        )),
         gemini::PartData::FunctionCall { function_call } => Some(claude::ContentBlock::ToolUse(
-            claude::ResponseToolUseBlock {
+            crate::protocol::wire!(claude::ResponseToolUseBlock {
                 id: function_call
                     .id
                     .unwrap_or_else(|| format!("toolu_{}", function_call.name)),
@@ -159,7 +167,7 @@ fn part_to_response_block(part: gemini::Part) -> Option<claude::ContentBlock> {
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 extra: Default::default(),
-            },
+            }),
         )),
         gemini::PartData::ExecutableCode { executable_code } => {
             Some(response_text_block(executable_code.code))
@@ -173,31 +181,39 @@ fn part_to_response_block(part: gemini::Part) -> Option<claude::ContentBlock> {
 
 fn inline_data_to_request_block(data: gemini::Blob) -> Option<claude::ContentBlockParam> {
     if data.mime_type.starts_with("image/") {
-        return Some(claude::ContentBlockParam::Image(claude::ImageBlock {
-            source: claude::ImageSource::Base64(claude::Base64ImageSource {
-                data: data.data,
-                media_type: image_media_type(&data.mime_type)?,
-                type_: claude::Base64SourceType::Base64,
-                extra: Default::default(),
-            }),
-            type_: claude::ImageBlockType::Image,
-            cache_control: None,
-        }));
+        return Some(claude::ContentBlockParam::Image(crate::protocol::wire!(
+            claude::ImageBlock {
+                source: claude::ImageSource::Base64(crate::protocol::wire!(
+                    claude::Base64ImageSource {
+                        data: data.data,
+                        media_type: image_media_type(&data.mime_type)?,
+                        type_: claude::Base64SourceType::Base64,
+                        extra: Default::default(),
+                    }
+                )),
+                type_: claude::ImageBlockType::Image,
+                cache_control: None,
+            }
+        )));
     }
     if data.mime_type == "application/pdf" {
-        return Some(claude::ContentBlockParam::Document(claude::DocumentBlock {
-            source: claude::DocumentSource::Base64(claude::Base64PdfSource {
-                data: data.data,
-                media_type: claude::PdfMediaType::ApplicationPdf,
-                type_: claude::Base64SourceType::Base64,
-                extra: Default::default(),
-            }),
-            type_: claude::DocumentBlockType::Document,
-            cache_control: None,
-            citations: None,
-            context: None,
-            title: None,
-        }));
+        return Some(claude::ContentBlockParam::Document(crate::protocol::wire!(
+            claude::DocumentBlock {
+                source: claude::DocumentSource::Base64(crate::protocol::wire!(
+                    claude::Base64PdfSource {
+                        data: data.data,
+                        media_type: claude::PdfMediaType::ApplicationPdf,
+                        type_: claude::Base64SourceType::Base64,
+                        extra: Default::default(),
+                    }
+                )),
+                type_: claude::DocumentBlockType::Document,
+                cache_control: None,
+                citations: None,
+                context: None,
+                title: None,
+            }
+        )));
     }
     Some(text_block(data.data))
 }
@@ -208,28 +224,34 @@ fn file_data_to_request_block(file_data: gemini::FileData) -> Option<claude::Con
         .as_ref()
         .is_some_and(|mime| mime.starts_with("image/"))
     {
-        return Some(claude::ContentBlockParam::Image(claude::ImageBlock {
-            source: claude::ImageSource::Url(claude::UrlImageSource {
-                type_: claude::UrlSourceType::Url,
-                url: file_data.file_uri,
-                extra: Default::default(),
-            }),
-            type_: claude::ImageBlockType::Image,
-            cache_control: None,
-        }));
+        return Some(claude::ContentBlockParam::Image(crate::protocol::wire!(
+            claude::ImageBlock {
+                source: claude::ImageSource::Url(crate::protocol::wire!(claude::UrlImageSource {
+                    type_: claude::UrlSourceType::Url,
+                    url: file_data.file_uri,
+                    extra: Default::default(),
+                })),
+                type_: claude::ImageBlockType::Image,
+                cache_control: None,
+            }
+        )));
     }
-    Some(claude::ContentBlockParam::Document(claude::DocumentBlock {
-        source: claude::DocumentSource::Url(claude::UrlDocumentSource {
-            type_: claude::UrlSourceType::Url,
-            url: file_data.file_uri,
-            extra: Default::default(),
-        }),
-        type_: claude::DocumentBlockType::Document,
-        cache_control: None,
-        citations: None,
-        context: None,
-        title: None,
-    }))
+    Some(claude::ContentBlockParam::Document(crate::protocol::wire!(
+        claude::DocumentBlock {
+            source: claude::DocumentSource::Url(crate::protocol::wire!(
+                claude::UrlDocumentSource {
+                    type_: claude::UrlSourceType::Url,
+                    url: file_data.file_uri,
+                    extra: Default::default(),
+                }
+            )),
+            type_: claude::DocumentBlockType::Document,
+            cache_control: None,
+            citations: None,
+            context: None,
+            title: None,
+        }
+    )))
 }
 
 fn gemini_content_to_text(content: gemini::Content) -> String {
@@ -260,22 +282,22 @@ fn function_response_to_text(response: &gemini::FunctionResponse) -> String {
 }
 
 fn text_block(text: String) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::Text(claude::TextBlock {
+    claude::ContentBlockParam::Text(crate::protocol::wire!(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
         cache_control: None,
         citations: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn response_text_block(text: String) -> claude::ContentBlock {
-    claude::ContentBlock::Text(claude::ResponseTextBlock {
+    claude::ContentBlock::Text(crate::protocol::wire!(claude::ResponseTextBlock {
         citations: None,
         text,
         type_: claude::TextBlockType::Text,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn image_media_type(mime: &str) -> Option<claude::ImageMediaType> {

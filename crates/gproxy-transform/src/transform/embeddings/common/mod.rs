@@ -12,25 +12,27 @@ pub(in crate::transform::embeddings) fn openai_to_gemini_requests(
     input: openai::EmbeddingRequest,
 ) -> Vec<gemini::EmbedContentRequest> {
     let model = model_name(&input.model);
-    let embed_content_config = input
-        .dimensions
-        .map(|dimensions| gemini::EmbedContentConfig {
+    let embed_content_config = input.dimensions.map(|dimensions| {
+        crate::protocol::wire!(gemini::EmbedContentConfig {
             output_dimensionality: Some(u32_to_i32(dimensions)),
             ..Default::default()
-        });
+        })
+    });
 
     input
         .input
         .into_strings()
         .into_iter()
-        .map(|text| gemini::EmbedContentRequest {
-            model: Some(model.clone()),
-            content: Some(text_content(text)),
-            task_type: None,
-            title: None,
-            output_dimensionality: None,
-            embed_content_config: embed_content_config.clone(),
-            extra: Default::default(),
+        .map(|text| {
+            crate::protocol::wire!(gemini::EmbedContentRequest {
+                model: Some(model.clone()),
+                content: Some(text_content(text)),
+                task_type: None,
+                title: None,
+                output_dimensionality: None,
+                embed_content_config: embed_content_config.clone(),
+                extra: Default::default(),
+            })
         })
         .collect()
 }
@@ -38,7 +40,7 @@ pub(in crate::transform::embeddings) fn openai_to_gemini_requests(
 pub(in crate::transform::embeddings) fn openai_to_gemini_embedding(
     input: openai::Embedding,
 ) -> gemini::ContentEmbedding {
-    gemini::ContentEmbedding {
+    crate::protocol::wire!(gemini::ContentEmbedding {
         values: input
             .embedding
             .into_iter()
@@ -46,20 +48,20 @@ pub(in crate::transform::embeddings) fn openai_to_gemini_embedding(
             .collect(),
         shape: Vec::new(),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::embeddings) fn openai_to_gemini_usage(
     input: openai::EmbeddingUsage,
 ) -> gemini::EmbeddingUsageMetadata {
-    gemini::EmbeddingUsageMetadata {
+    crate::protocol::wire!(gemini::EmbeddingUsageMetadata {
         prompt_token_count: Some(u32_to_i32(input.prompt_tokens)),
         total_token_count: Some(u32_to_i32(input.total_tokens)),
         input_token_count: Some(u32_to_i32(input.prompt_tokens)),
         prompt_token_details: Vec::new(),
         prompt_tokens_details: Vec::new(),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::embeddings) fn gemini_request_parts(
@@ -118,33 +120,33 @@ pub(in crate::transform::embeddings) fn gemini_to_openai_embedding(
     input: gemini::ContentEmbedding,
     index: usize,
 ) -> openai::Embedding {
-    openai::Embedding {
+    crate::protocol::wire!(openai::Embedding {
         embedding: input.values.into_iter().map(f64::from).collect(),
         index: u32::try_from(index).unwrap_or(u32::MAX),
         object: openai::EmbeddingObjectType::Embedding,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::embeddings) fn gemini_to_openai_usage(
     input: Option<gemini::EmbeddingUsageMetadata>,
 ) -> openai::EmbeddingUsage {
     let Some(input) = input else {
-        return openai::EmbeddingUsage {
+        return crate::protocol::wire!(openai::EmbeddingUsage {
             prompt_tokens: 0,
             total_tokens: 0,
             extra: Default::default(),
-        };
+        });
     };
 
     let prompt_tokens = input.prompt_token_count.or(input.input_token_count);
     let total_tokens = input.total_token_count.or(prompt_tokens);
 
-    openai::EmbeddingUsage {
+    crate::protocol::wire!(openai::EmbeddingUsage {
         prompt_tokens: prompt_tokens.map(i32_to_u32).unwrap_or_default(),
         total_tokens: total_tokens.map(i32_to_u32).unwrap_or_default(),
         extra: Default::default(),
-    }
+    })
 }
 
 fn i32_to_u32(value: i32) -> u32 {
@@ -163,8 +165,8 @@ fn model_name(model: &openai::OpenAiModelId) -> String {
 }
 
 fn text_content(text: String) -> gemini::Content {
-    gemini::Content {
-        parts: vec![gemini::Part {
+    crate::protocol::wire!(gemini::Content {
+        parts: vec![crate::protocol::wire!(gemini::Part {
             thought: None,
             thought_signature: None,
             part_metadata: None,
@@ -172,10 +174,10 @@ fn text_content(text: String) -> gemini::Content {
             data: Some(gemini::PartData::Text { text }),
             metadata: None,
             extra: Default::default(),
-        }],
+        })],
         role: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn content_text(input: Option<gemini::Content>) -> String {
@@ -204,6 +206,9 @@ impl EmbeddingInputExt for openai::EmbeddingInput {
             Self::TextList(values) => values,
             Self::TokenList(_) => vec![String::new()],
             Self::TokenLists(values) => values.into_iter().map(|_| String::new()).collect(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 }

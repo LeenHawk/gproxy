@@ -25,7 +25,7 @@ const MAX_BREAKPOINTS: usize = 4;
 
 /// Return the OpenAI content-generation kind carried by an existing route.
 pub fn kind_for_operation(op: OperationKey) -> Option<ContentGenerationKind> {
-    match op.kind {
+    match op.kind() {
         OperationKind::ContentGeneration(
             kind @ (ContentGenerationKind::OpenAiChatCompletions
             | ContentGenerationKind::OpenAiResponses

@@ -25,19 +25,26 @@ pub(super) fn chat_tool_choice_to_response_tool_choice(
         openai::ChatToolChoice::Mode(mode) => openai::ResponseToolChoice::Mode(mode),
         openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Function {
             function, ..
-        }) => openai::ResponseToolChoice::Function(openai::ResponseFunctionToolChoice {
-            type_: openai::FunctionToolChoiceType::Function,
-            name: function.name,
-            extra: Default::default(),
-        }),
-        openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Custom { custom, .. }) => {
-            openai::ResponseToolChoice::Custom(openai::ResponseCustomToolChoice {
-                type_: openai::CustomToolChoiceType::Custom,
-                name: custom.name,
+        }) => openai::ResponseToolChoice::Function(crate::protocol::wire!(
+            openai::ResponseFunctionToolChoice {
+                type_: openai::FunctionToolChoiceType::Function,
+                name: function.name,
                 extra: Default::default(),
-            })
+            }
+        )),
+        openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Custom { custom, .. }) => {
+            openai::ResponseToolChoice::Custom(crate::protocol::wire!(
+                openai::ResponseCustomToolChoice {
+                    type_: openai::CustomToolChoiceType::Custom,
+                    name: custom.name,
+                    extra: Default::default(),
+                }
+            ))
         }
         openai::ChatToolChoice::Allowed(_) => return None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
@@ -51,30 +58,37 @@ pub(super) fn chat_tool_call_to_response_item_and_output_kind(
     match call {
         openai::ChatToolCall::Function { id, function, .. } => {
             let call_id = common::response_call_id(&id);
-            let item = openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-                arguments: function.arguments,
-                call_id: call_id.clone(),
-                name: function.name,
-                id: Some(common::response_function_call_item_id(&id)),
-                caller: None,
-                namespace: None,
-                status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                extra: Default::default(),
-            });
+            let item = openai::ResponseItem::Typed(crate::protocol::wire!(
+                openai::TypedResponseItem::FunctionCall {
+                    arguments: function.arguments,
+                    call_id: call_id.clone(),
+                    name: function.name,
+                    id: Some(common::response_function_call_item_id(&id)),
+                    caller: None,
+                    namespace: None,
+                    status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                    extra: Default::default(),
+                }
+            ));
             (item, id, call_id, ResponseToolOutputKind::Function)
         }
         openai::ChatToolCall::Custom { id, custom, .. } => {
             let call_id = common::response_call_id(&id);
-            let item = openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
-                call_id: call_id.clone(),
-                input: custom.input,
-                name: custom.name,
-                id: None,
-                caller: None,
-                namespace: None,
-                extra: Default::default(),
-            });
+            let item = openai::ResponseItem::Typed(crate::protocol::wire!(
+                openai::TypedResponseItem::CustomToolCall {
+                    call_id: call_id.clone(),
+                    input: custom.input,
+                    name: custom.name,
+                    id: None,
+                    caller: None,
+                    namespace: None,
+                    extra: Default::default(),
+                }
+            ));
             (item, id, call_id, ResponseToolOutputKind::Custom)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -116,16 +130,18 @@ pub(super) fn legacy_function_call_to_response_item(
     call: openai::FunctionCall,
 ) -> openai::ResponseItem {
     let call_id = legacy_function_call_id(&call.name);
-    openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-        arguments: call.arguments,
-        call_id: call_id.clone(),
-        name: call.name,
-        id: Some(common::response_function_call_item_id(&call_id)),
-        caller: None,
-        namespace: None,
-        status: Some(openai::ResponseItemLifecycleStatus::Completed),
-        extra: Default::default(),
-    })
+    openai::ResponseItem::Typed(crate::protocol::wire!(
+        openai::TypedResponseItem::FunctionCall {
+            arguments: call.arguments,
+            call_id: call_id.clone(),
+            name: call.name,
+            id: Some(common::response_function_call_item_id(&call_id)),
+            caller: None,
+            namespace: None,
+            status: Some(openai::ResponseItemLifecycleStatus::Completed),
+            extra: Default::default(),
+        }
+    ))
 }
 
 pub(super) fn legacy_function_call_id(name: &str) -> String {
@@ -151,5 +167,8 @@ fn chat_tool_to_response_tool(tool: openai::ChatTool) -> openai::ResponseTool {
             allowed_callers: None,
             extra: Default::default(),
         },
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

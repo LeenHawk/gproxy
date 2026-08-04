@@ -141,20 +141,28 @@ impl CodeAssistStreamDecoder {
 }
 
 impl ChannelStreamDecoder for CodeAssistStreamDecoder {
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
-        for frame in self.decoder.push(chunk) {
+        for frame in self
+            .decoder
+            .push(chunk)
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?
+        {
             Self::emit(&frame.data, &mut out);
         }
-        out
+        Ok(out)
     }
 
-    fn finish(&mut self) -> Vec<u8> {
+    fn finish(&mut self) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
-        if let Some(frame) = self.decoder.finish() {
+        if let Some(frame) = self
+            .decoder
+            .finish()
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?
+        {
             Self::emit(&frame.data, &mut out);
         }
-        out
+        Ok(out)
     }
 }
 
@@ -296,8 +304,8 @@ mod tests {
 
         // stream: per-frame `.response` unwrap.
         let mut dec = CodeAssistStreamDecoder::new();
-        let mut out = dec.push(b"data: {\"response\":{\"t\":\"a\"}}\n\n");
-        out.extend(dec.finish());
+        let mut out = dec.push(b"data: {\"response\":{\"t\":\"a\"}}\n\n").unwrap();
+        out.extend(dec.finish().unwrap());
         assert_eq!(String::from_utf8(out).unwrap(), "data: {\"t\":\"a\"}\n\n");
     }
 
@@ -313,6 +321,16 @@ mod tests {
         assert!(v.get("user_prompt_id").is_none() && v.get("generateContentRequest").is_none());
         assert_eq!(v["request"]["contents"][0]["role"], "user");
         assert_eq!(v["request"]["contents"][0]["parts"][0]["text"], "hi");
+    }
+
+    #[test]
+    fn code_assist_stream_rejects_oversized_sse_frame() {
+        let mut decoder = CodeAssistStreamDecoder::new();
+        let oversized = vec![b'x'; 1024 * 1024 + 1];
+        assert!(matches!(
+            decoder.push(&oversized),
+            Err(crate::channel::transport::ClientError::Decode(_))
+        ));
     }
 
     #[test]

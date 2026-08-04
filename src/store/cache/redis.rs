@@ -231,18 +231,18 @@ impl CacheBackend for RedisCache {
     /// # Reconnection
     ///
     /// The connection is re-established with exponential backoff
-    /// ([`RECONNECT_BASE`] → [`RECONNECT_CAP`]) whenever it fails to open or the
+    /// (`RECONNECT_BASE` → `RECONNECT_CAP`) whenever it fails to open or the
     /// message stream ends (a dropped connection yields `None`). The loop never
     /// terminates on a transient error, so the listener survives Redis
     /// restarts / network blips. Backoff resets after a connection that stayed
-    /// up past [`HEALTHY_AFTER`].
+    /// up past `HEALTHY_AFTER`.
     ///
     /// # Coalescing
     ///
     /// A burst of N invalidation messages collapses into a single `handler`
     /// call: after the first message, the loop drains every message that
-    /// arrives within [`COALESCE_WINDOW`] (extending the window on each new
-    /// message up to [`COALESCE_MAX`]), then invokes `handler` once with the
+    /// arrives within `COALESCE_WINDOW` (extending the window on each new
+    /// message up to `COALESCE_MAX`), then invokes `handler` once with the
     /// most-recent payload. This turns N rapid config writes into one snapshot
     /// rebuild instead of N.
     async fn subscribe(&self, channel: &str, handler: InvalidationHandler) {

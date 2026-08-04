@@ -25,7 +25,7 @@ pub struct OpenRouterChannel;
 /// route that carries a Claude-format body to shape.
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
-        op.kind,
+        op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     )
 }
@@ -138,7 +138,7 @@ impl Channel for OpenRouterChannel {
     /// `error.type` so downstream transforms deserialize error bodies cleanly.
     /// No-op for non-error / already-shaped bodies.
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
-        if ctx.op.operation == Operation::ListModels {
+        if ctx.op.operation() == Operation::ListModels {
             shape::reshape_model_list(body)
         } else {
             shape::reshape_error(body)

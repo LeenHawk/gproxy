@@ -20,7 +20,7 @@ pub(in crate::transform::images) fn openai_images_response_to_gemini(
         })
         .collect();
 
-    gemini::GenerateContentResponse {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
         candidates,
         prompt_feedback: None,
         usage_metadata: usage.map(openai_usage_to_gemini),
@@ -28,7 +28,7 @@ pub(in crate::transform::images) fn openai_images_response_to_gemini(
         response_id: None,
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn openai_image_to_candidate(
@@ -57,12 +57,12 @@ fn openai_image_to_candidate(
         return None;
     }
 
-    Some(gemini::Candidate {
-        content: Some(gemini::Content {
+    Some(crate::protocol::wire!(gemini::Candidate {
+        content: Some(crate::protocol::wire!(gemini::Content {
             parts,
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
-        }),
+        })),
         finish_reason: Some(gemini::FinishReason::Known(gemini::FinishReasonKnown::Stop)),
         safety_ratings: Vec::new(),
         citation_metadata: None,
@@ -74,7 +74,7 @@ fn openai_image_to_candidate(
         index: Some(usize_to_i32(index)),
         finish_message: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::images) fn gemini_response_to_openai_images(
@@ -83,7 +83,7 @@ pub(in crate::transform::images) fn gemini_response_to_openai_images(
     let data = gemini_candidates_to_openai_images(input.candidates);
     let usage = input.usage_metadata.map(gemini_usage_to_openai);
 
-    openai::ImagesResponse {
+    crate::protocol::wire!(openai::ImagesResponse {
         created: 0,
         background: None,
         data: (!data.is_empty()).then_some(data),
@@ -92,7 +92,7 @@ pub(in crate::transform::images) fn gemini_response_to_openai_images(
         size: None,
         usage,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(super) fn gemini_candidates_to_openai_images(
@@ -136,12 +136,12 @@ fn part_to_openai_image(
 ) -> Option<openai::Image> {
     match part.data? {
         gemini::PartData::InlineData { inline_data } if is_image_mime(&inline_data.mime_type) => {
-            Some(openai::Image {
+            Some(crate::protocol::wire!(openai::Image {
                 b64_json: Some(inline_data.data),
                 revised_prompt,
                 url: None,
                 extra: Default::default(),
-            })
+            }))
         }
         gemini::PartData::FileData { file_data }
             if file_data
@@ -150,12 +150,12 @@ fn part_to_openai_image(
                 .map(is_image_mime)
                 .unwrap_or(true) =>
         {
-            Some(openai::Image {
+            Some(crate::protocol::wire!(openai::Image {
                 b64_json: None,
                 revised_prompt,
                 url: Some(file_data.file_uri),
                 extra: Default::default(),
-            })
+            }))
         }
         _ => None,
     }

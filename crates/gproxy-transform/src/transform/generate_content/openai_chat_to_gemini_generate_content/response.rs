@@ -7,11 +7,11 @@ pub fn response(
     input: openai::ChatCompletionResponse,
     _: &TransformContext,
 ) -> Result<gemini::GenerateContentResponse, TransformError> {
-    Ok(gemini::GenerateContentResponse {
+    Ok(crate::protocol::wire!(gemini::GenerateContentResponse {
         candidates: input
             .choices
             .into_iter()
-            .map(|choice| gemini::Candidate {
+            .map(|choice| crate::protocol::wire!(gemini::Candidate {
                 content: Some(chat_message_to_gemini_content(choice.message)),
                 finish_reason: Some(chat_finish_reason_to_gemini(choice.finish_reason)),
                 safety_ratings: Vec::new(),
@@ -24,7 +24,7 @@ pub fn response(
                 index: Some(u32_to_i32(choice.index)),
                 finish_message: None,
                 extra: Default::default(),
-            })
+            }))
             .collect(),
         prompt_feedback: None,
         usage_metadata: completion_usage_to_gemini(input.usage),
@@ -32,7 +32,7 @@ pub fn response(
         response_id: Some(input.id),
         model_status: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn chat_message_to_gemini_content(message: openai::ChatMessage) -> gemini::Content {
@@ -43,7 +43,7 @@ fn completion_usage_to_gemini(
     usage: Option<openai::CompletionUsage>,
 ) -> Option<gemini::UsageMetadata> {
     let usage = usage?;
-    Some(gemini::UsageMetadata {
+    Some(crate::protocol::wire!(gemini::UsageMetadata {
         prompt_token_count: Some(u32_to_i32(usage.prompt_tokens)),
         cached_content_token_count: usage
             .prompt_tokens_details
@@ -62,7 +62,7 @@ fn completion_usage_to_gemini(
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn chat_finish_reason_to_gemini(reason: openai::ChatFinishReason) -> gemini::FinishReason {
@@ -73,6 +73,9 @@ fn chat_finish_reason_to_gemini(reason: openai::ChatFinishReason) -> gemini::Fin
             gemini::FinishReasonKnown::Stop
         }
         openai::ChatFinishReason::ContentFilter => gemini::FinishReasonKnown::Safety,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     gemini::FinishReason::Known(known)
 }
@@ -87,50 +90,57 @@ mod gemini_content_to_chat_message {
     pub(super) fn chat_message_to_gemini_content(message: openai::ChatMessage) -> gemini::Content {
         let mut parts = Vec::new();
         if let Some(content) = message.content.filter(|value| !value.is_empty()) {
-            parts.push(gemini::Part {
+            parts.push(crate::protocol::wire!(gemini::Part {
                 data: Some(gemini::PartData::Text { text: content }),
                 ..Default::default()
-            });
+            }));
         }
         if let Some(refusal) = message.refusal.filter(|value| !value.is_empty()) {
-            parts.push(gemini::Part {
+            parts.push(crate::protocol::wire!(gemini::Part {
                 data: Some(gemini::PartData::Text { text: refusal }),
                 ..Default::default()
-            });
+            }));
         }
         if let Some(tool_calls) = message.tool_calls {
             for call in tool_calls {
                 parts.push(match call {
-                    openai::ChatToolCall::Function { id, function, .. } => gemini::Part {
-                        data: Some(gemini::PartData::FunctionCall {
-                            function_call: gemini::FunctionCall {
-                                id: Some(id),
-                                name: function.name,
-                                args: serde_json::from_str(&function.arguments).ok(),
-                                extra: Default::default(),
-                            },
-                        }),
-                        ..Default::default()
-                    },
-                    openai::ChatToolCall::Custom { id, custom, .. } => gemini::Part {
-                        data: Some(gemini::PartData::FunctionCall {
-                            function_call: gemini::FunctionCall {
-                                id: Some(id),
-                                name: custom.name,
-                                args: serde_json::from_str(&custom.input).ok(),
-                                extra: Default::default(),
-                            },
-                        }),
-                        ..Default::default()
-                    },
+                    openai::ChatToolCall::Function { id, function, .. } => {
+                        crate::protocol::wire!(gemini::Part {
+                            data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
+                                function_call: crate::protocol::wire!(gemini::FunctionCall {
+                                    id: Some(id),
+                                    name: function.name,
+                                    args: serde_json::from_str(&function.arguments).ok(),
+                                    extra: Default::default(),
+                                }),
+                            })),
+                            ..Default::default()
+                        })
+                    }
+                    openai::ChatToolCall::Custom { id, custom, .. } => {
+                        crate::protocol::wire!(gemini::Part {
+                            data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
+                                function_call: crate::protocol::wire!(gemini::FunctionCall {
+                                    id: Some(id),
+                                    name: custom.name,
+                                    args: serde_json::from_str(&custom.input).ok(),
+                                    extra: Default::default(),
+                                }),
+                            })),
+                            ..Default::default()
+                        })
+                    }
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
                 });
             }
         }
 
-        gemini::Content {
+        crate::protocol::wire!(gemini::Content {
             parts,
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
-        }
+        })
     }
 }

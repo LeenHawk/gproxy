@@ -27,6 +27,9 @@ impl StreamTransform {
         Ok(match input {
             claude::StreamEvent::Known(event) => self.known_event_to_response(*event),
             claude::StreamEvent::Unknown(_) => Vec::new(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
     }
 
@@ -176,6 +179,9 @@ impl StreamTransform {
                 _ => Vec::new(),
             },
             claude::EventDelta::Unknown(_) => Vec::new(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -228,7 +234,7 @@ fn reasoning_text_delta(output_index: u32, text: String) -> openai::ResponseStre
 
 fn output_item_added(output_index: u32, item: openai::ResponseItem) -> openai::ResponseStreamEvent {
     known(openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
-        item: Box::new(openai::ResponseOutputItem(item)),
+        item: Box::new(openai::ResponseOutputItem::new(item)),
         output_index,
         sequence_number: None,
         extra: Default::default(),
@@ -281,7 +287,7 @@ fn response_object(
     status: openai::ResponseStatus,
     incomplete_details: Option<openai::IncompleteDetails>,
 ) -> openai::ResponseObject {
-    openai::ResponseObject {
+    crate::protocol::wire!(openai::ResponseObject {
         id,
         created_at: 0,
         background: None,
@@ -320,7 +326,7 @@ fn response_object(
         usage: common::completion_usage_to_response(usage),
         user: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn response_status_from_claude_stop(
@@ -330,17 +336,17 @@ fn response_status_from_claude_stop(
         claude::StopReason::Known(claude::StopReasonKnown::MaxTokens)
         | claude::StopReason::Known(claude::StopReasonKnown::ModelContextWindowExceeded) => (
             openai::ResponseStatus::Incomplete,
-            Some(openai::IncompleteDetails {
+            Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::MaxOutputTokens),
                 extra: Default::default(),
-            }),
+            })),
         ),
         claude::StopReason::Known(claude::StopReasonKnown::Refusal) => (
             openai::ResponseStatus::Incomplete,
-            Some(openai::IncompleteDetails {
+            Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::ContentFilter),
                 extra: Default::default(),
-            }),
+            })),
         ),
         _ => (openai::ResponseStatus::Completed, None),
     }

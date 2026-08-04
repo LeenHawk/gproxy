@@ -11,13 +11,13 @@ use crate::protocol::ContentGenerationKind;
 use crate::transform::common::sse::{SseDecoder, SseFrame};
 
 /// Decode buffered relayed bytes into SSE frames (tail drained).
-pub fn decode(bytes: &[u8]) -> Vec<SseFrame> {
+pub fn decode(bytes: &[u8]) -> Result<Vec<SseFrame>, crate::transform::TransformError> {
     let mut d = SseDecoder::new();
-    let mut frames = d.push(bytes);
-    if let Some(tail) = d.finish() {
+    let mut frames = d.push(bytes)?;
+    if let Some(tail) = d.finish()? {
         frames.push(tail);
     }
-    frames
+    Ok(frames)
 }
 
 /// All produced text across buffered frames, in arrival order.
@@ -79,6 +79,9 @@ fn frame_text(kind: ContentGenerationKind, frame: &SseFrame) -> Option<String> {
             }
             (!out.is_empty()).then_some(out)
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -119,6 +122,9 @@ pub fn error_frame(kind: ContentGenerationKind) -> Bytes {
                 .to_string(),
         )
         .encode(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Bytes::from(encoded)
 }
@@ -132,7 +138,8 @@ mod tests {
         let frames = decode(
             b"data: {\"choices\":[{\"delta\":{\"content\":\"he\"}}]}\n\n\
               data: {\"choices\":[{\"delta\":{\"content\":\"llo\"}}]}\n\ndata: [DONE]\n\n",
-        );
+        )
+        .unwrap();
         assert_eq!(
             produced_text(ContentGenerationKind::OpenAiChatCompletions, &frames),
             "hello"
@@ -141,7 +148,8 @@ mod tests {
         let frames = decode(
             b"event: content_block_delta\n\
               data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n",
-        );
+        )
+        .unwrap();
         assert_eq!(
             produced_text(ContentGenerationKind::ClaudeMessages, &frames),
             "hi"

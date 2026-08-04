@@ -2,6 +2,7 @@ macro_rules! extensible_string_enum {
     ($outer:ident, $known:ident { $($variant:ident => $wire:literal),+ $(,)? }) => {
         #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
         #[serde(untagged)]
+        #[non_exhaustive]
         pub enum $outer {
             Known($known),
             Unknown(String),
@@ -27,6 +28,7 @@ macro_rules! extensible_string_enum {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        #[non_exhaustive]
         pub enum $known {
             $(
                 #[serde(rename = $wire)]
@@ -48,6 +50,7 @@ macro_rules! extensible_string_enum {
 macro_rules! strict_string_enum {
     ($outer:ident { $($variant:ident => $wire:literal),+ $(,)? }) => {
         #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        #[non_exhaustive]
         pub enum $outer {
             $(
                 #[serde(rename = $wire)]

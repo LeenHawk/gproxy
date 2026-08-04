@@ -117,9 +117,9 @@ through `/console`.
 | `GPROXY_MASTER_KEY` | — | unseal stored secrets (absent = plaintext) |
 | `GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` | `admin` / random | first-boot admin |
 
-**Upgrading from v1?** Point v2 at the existing SQLite database. On first boot,
-GPROXY imports the supported configuration and keeps the old database as a
-`*.v1.bak` backup.
+**Upgrading from v1 or v2?** Point v3 at the existing database. Existing v2
+databases open normally; on first boot from v1, GPROXY imports the supported
+configuration and keeps the old database as a `*.v1.bak` backup.
 
 ---
 

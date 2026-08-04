@@ -54,7 +54,7 @@ Important schema characteristics:
   optional dimensions so concurrent first writes collide and retry into
   accumulation.
 
-There is no separate operator command to run migrations in the current v2
+There is no separate operator command to run migrations in the current v3
 binary. Startup creates/stamps/runs pending schema work and fails loudly if
 that cannot complete.
 

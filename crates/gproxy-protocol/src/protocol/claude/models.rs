@@ -8,7 +8,8 @@ use super::common::{AnthropicBetaHeaders, ClaudeModel, JsonObject, ModelObjectTy
 pub type ListModelsRequestHeaders = AnthropicBetaHeaders;
 pub type RetrieveModelRequestHeaders = AnthropicBetaHeaders;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ListModelsQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_id: Option<String>,
@@ -20,12 +21,14 @@ pub struct ListModelsQuery {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct RetrieveModelPath {
     pub model_id: ClaudeModel,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ListModelsResponse {
     pub data: Vec<ModelInfo>,
     pub first_id: String,
@@ -35,7 +38,8 @@ pub struct ListModelsResponse {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModelInfo {
     pub id: ClaudeModel,
     pub allowed_fallback_models: Vec<ClaudeModel>,
@@ -50,7 +54,8 @@ pub struct ModelInfo {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModelCapabilities {
     pub batch: CapabilitySupport,
     pub citations: CapabilitySupport,
@@ -65,14 +70,16 @@ pub struct ModelCapabilities {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CapabilitySupport {
     pub supported: bool,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ContextManagementCapability {
     pub supported: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -85,7 +92,8 @@ pub struct ContextManagementCapability {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EffortCapability {
     pub supported: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -102,7 +110,8 @@ pub struct EffortCapability {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ThinkingCapability {
     pub supported: bool,
     pub types: ThinkingTypes,
@@ -110,7 +119,8 @@ pub struct ThinkingCapability {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ThinkingTypes {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adaptive: Option<CapabilitySupport>,
@@ -120,7 +130,8 @@ pub struct ThinkingTypes {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModelError {
     #[serde(rename = "type")]
     pub type_: String,

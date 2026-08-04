@@ -9,7 +9,7 @@ mod other;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use super::{TransformContext, TransformError, TransformPair};
+use super::{TransformContext, TransformError, TransformOutput, TransformPair};
 
 /// Whether the bytes dispatch has arms for this pair.
 pub fn is_wired(pair: TransformPair) -> bool {
@@ -23,11 +23,24 @@ pub fn request_bytes(
     body: &[u8],
 ) -> Result<Vec<u8>, TransformError> {
     validate_pair(pair, ctx)?;
-    if content::is_content(pair) {
-        content::request_bytes(pair, ctx, body)
-    } else {
-        other::request_bytes(pair, ctx, body)
-    }
+    ctx.scope(|| {
+        if content::is_content(pair) {
+            content::request_bytes(pair, ctx, body)
+        } else {
+            other::request_bytes(pair, ctx, body)
+        }
+    })
+}
+
+/// Convert a request and return non-fatal semantic-loss diagnostics.
+pub fn request_bytes_detailed(
+    pair: TransformPair,
+    ctx: &TransformContext,
+    body: &[u8],
+) -> Result<TransformOutput<Vec<u8>>, TransformError> {
+    let scoped = ctx.isolated();
+    let value = request_bytes(pair, &scoped, body)?;
+    Ok(TransformOutput::new(value, scoped.take_diagnostics()))
 }
 
 /// Convert a response body (upstream wire JSON → inbound wire JSON). The pair
@@ -38,11 +51,24 @@ pub fn response_bytes(
     body: &[u8],
 ) -> Result<Vec<u8>, TransformError> {
     validate_pair(pair, ctx)?;
-    if content::is_content(pair) {
-        content::response_bytes(pair, ctx, body)
-    } else {
-        other::response_bytes(pair, ctx, body)
-    }
+    ctx.scope(|| {
+        if content::is_content(pair) {
+            content::response_bytes(pair, ctx, body)
+        } else {
+            other::response_bytes(pair, ctx, body)
+        }
+    })
+}
+
+/// Convert a response and return non-fatal semantic-loss diagnostics.
+pub fn response_bytes_detailed(
+    pair: TransformPair,
+    ctx: &TransformContext,
+    body: &[u8],
+) -> Result<TransformOutput<Vec<u8>>, TransformError> {
+    let scoped = ctx.isolated();
+    let value = response_bytes(pair, &scoped, body)?;
+    Ok(TransformOutput::new(value, scoped.take_diagnostics()))
 }
 
 /// One converted stream event: pre-encoded inbound frame payload, or the
@@ -72,12 +98,29 @@ impl StreamConverter {
 
     /// Convert one decoded upstream event into zero or more inbound events.
     pub fn push(&mut self, data: &str) -> Result<Vec<StreamEventOut>, TransformError> {
-        self.inner.push(data)
+        Ok(self.push_detailed(data)?.value)
+    }
+
+    /// Convert one event and return semantic-loss diagnostics produced by it.
+    pub fn push_detailed(
+        &mut self,
+        data: &str,
+    ) -> Result<TransformOutput<Vec<StreamEventOut>>, TransformError> {
+        let value = self.inner.push(data)?;
+        Ok(TransformOutput::new(value, self.inner.take_diagnostics()))
     }
 
     /// Flush pair-specific state into zero or more final inbound events.
     pub fn finish(&mut self) -> Result<Vec<StreamEventOut>, TransformError> {
-        self.inner.finish()
+        Ok(self.finish_detailed()?.value)
+    }
+
+    /// Flush state and return any final semantic-loss diagnostics.
+    pub fn finish_detailed(
+        &mut self,
+    ) -> Result<TransformOutput<Vec<StreamEventOut>>, TransformError> {
+        let value = self.inner.finish()?;
+        Ok(TransformOutput::new(value, self.inner.take_diagnostics()))
     }
 }
 
@@ -159,6 +202,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::{ContentGenerationKind, Operation, OperationKey, Provider};
+    use crate::transform::TransformDiagnosticKind;
 
     #[test]
     fn claude_to_openai_chat_request_roundtrip() {
@@ -176,6 +220,41 @@ mod tests {
         let v: Value = serde_json::from_slice(&out).unwrap();
         assert_eq!(v["messages"][0]["role"], "user");
         assert!(v.get("max_tokens").is_some() || v.get("max_completion_tokens").is_some());
+    }
+
+    #[test]
+    fn detailed_request_returns_structured_semantic_loss() {
+        let source = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiChatCompletions,
+        );
+        let target = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        );
+        let pair = crate::transform::resolve(source, target).unwrap();
+        let ctx = TransformContext::new(source, target);
+        let body = br#"{
+            "model":"m",
+            "messages":[{"role":"user","content":[{
+                "type":"text",
+                "text":"",
+                "prompt_cache_breakpoint":{"mode":"explicit"}
+            }]}]
+        }"#;
+
+        let output = request_bytes_detailed(pair, &ctx, body).unwrap();
+
+        assert_eq!(output.diagnostics.len(), 1);
+        assert_eq!(
+            output.diagnostics[0].kind,
+            TransformDiagnosticKind::LossyField
+        );
+        assert_eq!(
+            output.diagnostics[0].field,
+            "messages[].content[].text.prompt_cache_breakpoint"
+        );
+        assert!(ctx.diagnostics().is_empty(), "detailed calls are isolated");
     }
 
     #[test]

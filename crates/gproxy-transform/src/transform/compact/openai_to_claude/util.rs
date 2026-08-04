@@ -5,10 +5,10 @@ use super::DEFAULT_MODEL;
 pub(super) fn openai_previous_response_id_to_claude(
     previous_response_id: Option<String>,
 ) -> Option<claude::DiagnosticsParam> {
-    Some(claude::DiagnosticsParam {
+    Some(crate::protocol::wire!(claude::DiagnosticsParam {
         previous_message_id: Some(Some(previous_response_id?)),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn compact_service_tier_to_claude(
@@ -20,6 +20,9 @@ pub(super) fn compact_service_tier_to_claude(
         openai::CompactServiceTier::Fast
         | openai::CompactServiceTier::Flex
         | openai::CompactServiceTier::Priority => claude::RequestServiceTierKnown::Auto,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(claude::RequestServiceTier::Known(service_tier))
 }

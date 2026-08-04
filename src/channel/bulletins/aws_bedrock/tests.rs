@@ -16,7 +16,7 @@ fn prepare(op: OperationKey, model: &str, body: Bytes, stream: bool) -> http::Re
             op,
             stream,
             upstream_model_id: model,
-            method: if op.operation == Operation::ListModels {
+            method: if op.operation() == Operation::ListModels {
                 Method::GET
             } else {
                 Method::POST

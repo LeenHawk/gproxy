@@ -23,7 +23,7 @@ use crate::util::time::unix_now;
 /// caller skip spawning a settle task for every other buffered success.
 pub(crate) fn billable(op: Option<OperationKey>) -> bool {
     matches!(
-        op.map(|o| o.operation),
+        op.map(|o| o.operation()),
         Some(
             Operation::CompactContent
                 | Operation::CreateEmbedding
@@ -63,9 +63,12 @@ pub(crate) async fn settle(
     usage_family: Family,
 ) {
     let Some(op) = ctx.op else { return };
-    let is_embedding = matches!(op.operation, Operation::CreateEmbedding);
-    let is_compact = matches!(op.operation, Operation::CompactContent);
-    let is_image = matches!(op.operation, Operation::CreateImage | Operation::EditImage);
+    let is_embedding = matches!(op.operation(), Operation::CreateEmbedding);
+    let is_compact = matches!(op.operation(), Operation::CompactContent);
+    let is_image = matches!(
+        op.operation(),
+        Operation::CreateImage | Operation::EditImage
+    );
     if !is_embedding && !is_compact && !is_image {
         return;
     }
@@ -139,8 +142,8 @@ pub(crate) async fn settle(
         )
     };
 
-    let operation = super::enum_str(&op.operation);
-    let kind = super::enum_str(&op.kind);
+    let operation = super::enum_str(&op.operation());
+    let kind = super::enum_str(&op.kind());
     let rec = UsageRecord {
         request_id: &ctx.request_id,
         at: unix_now(),

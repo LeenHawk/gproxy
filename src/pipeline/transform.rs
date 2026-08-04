@@ -1,7 +1,7 @@
 //! M2 transform-dispatch step: per-candidate plan (passthrough vs transform),
 //! effective upstream request parts (path/query/body/headers incl. process
 //! rules + model rewrite), and response-direction conversion. Planning lives
-//! in [`plan`]; this module builds the effective request/response bytes.
+//! in the internal `plan` module; this module builds the effective request/response bytes.
 
 use bytes::Bytes;
 
@@ -31,9 +31,10 @@ pub fn response_body(plan: &TransformPlan, body: Bytes) -> Result<Bytes, Pipelin
             ..
         } => {
             let rev = TransformContext::new(*target, *source);
-            dispatch::response_bytes(*response_pair, &rev, &body)
-                .map(Bytes::from)
-                .map_err(PipelineError::TransformResponse)
+            let output = dispatch::response_bytes_detailed(*response_pair, &rev, &body)
+                .map_err(PipelineError::TransformResponse)?;
+            log_diagnostics(&output.diagnostics);
+            Ok(Bytes::from(output.value))
         }
         TransformPlan::SynthesizeStream {
             response_pair: Some(response_pair),
@@ -41,14 +42,14 @@ pub fn response_body(plan: &TransformPlan, body: Bytes) -> Result<Bytes, Pipelin
             target,
             ..
         } => {
-            let normalized_source = OperationKey {
-                operation: crate::protocol::Operation::GenerateContent,
-                kind: source.kind,
-            };
+            let normalized_source =
+                OperationKey::try_new(crate::protocol::Operation::GenerateContent, source.kind())
+                    .expect("content transform source kind must be content generation");
             let rev = TransformContext::new(*target, normalized_source);
-            dispatch::response_bytes(*response_pair, &rev, &body)
-                .map(Bytes::from)
-                .map_err(PipelineError::TransformResponse)
+            let output = dispatch::response_bytes_detailed(*response_pair, &rev, &body)
+                .map_err(PipelineError::TransformResponse)?;
+            log_diagnostics(&output.diagnostics);
+            Ok(Bytes::from(output.value))
         }
         TransformPlan::SynthesizeStream {
             response_pair: None,
@@ -69,11 +70,23 @@ pub fn aggregate_response_body(plan: &TransformPlan, body: Bytes) -> Result<Byte
             ..
         } => {
             let rev = TransformContext::new(*target, *source);
-            dispatch::response_bytes(*rp, &rev, &body)
-                .map(Bytes::from)
-                .map_err(PipelineError::TransformResponse)
+            let output = dispatch::response_bytes_detailed(*rp, &rev, &body)
+                .map_err(PipelineError::TransformResponse)?;
+            log_diagnostics(&output.diagnostics);
+            Ok(Bytes::from(output.value))
         }
         _ => Ok(body),
+    }
+}
+
+pub(super) fn log_diagnostics(diagnostics: &[crate::transform::TransformDiagnostic]) {
+    for diagnostic in diagnostics {
+        tracing::warn!(
+            kind = ?diagnostic.kind,
+            field = %diagnostic.field,
+            reason = %diagnostic.reason,
+            "provider protocol transform reported semantic loss"
+        );
     }
 }
 

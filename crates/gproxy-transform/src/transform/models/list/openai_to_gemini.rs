@@ -13,7 +13,7 @@ pub fn response(
     input: openai::ModelListResponse,
     ctx: &TransformContext,
 ) -> Result<gemini::ListModelsResponse, TransformError> {
-    Ok(gemini::ListModelsResponse {
+    Ok(crate::protocol::wire!(gemini::ListModelsResponse {
         models: input
             .data
             .into_iter()
@@ -21,5 +21,5 @@ pub fn response(
             .collect::<Result<Vec<_>, _>>()?,
         next_page_token: None,
         extra: Default::default(),
-    })
+    }))
 }

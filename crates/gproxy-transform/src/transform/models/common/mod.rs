@@ -39,18 +39,18 @@ pub(in crate::transform::models) const fn claude_model_object() -> claude::Model
 }
 
 pub(in crate::transform::models) fn default_claude_capabilities() -> claude::ModelCapabilities {
-    claude::ModelCapabilities {
+    crate::protocol::wire!(claude::ModelCapabilities {
         batch: default_capability_support(),
         citations: default_capability_support(),
         code_execution: default_capability_support(),
-        context_management: claude::ContextManagementCapability {
+        context_management: crate::protocol::wire!(claude::ContextManagementCapability {
             supported: false,
             clear_thinking_20251015: None,
             clear_tool_uses_20250919: None,
             compact_20260112: None,
             extra: Default::default(),
-        },
-        effort: claude::EffortCapability {
+        }),
+        effort: crate::protocol::wire!(claude::EffortCapability {
             supported: false,
             low: None,
             medium: None,
@@ -58,28 +58,28 @@ pub(in crate::transform::models) fn default_claude_capabilities() -> claude::Mod
             xhigh: None,
             max: None,
             extra: Default::default(),
-        },
+        }),
         image_input: default_capability_support(),
         pdf_input: default_capability_support(),
         structured_outputs: default_capability_support(),
-        thinking: claude::ThinkingCapability {
+        thinking: crate::protocol::wire!(claude::ThinkingCapability {
             supported: false,
-            types: claude::ThinkingTypes {
+            types: crate::protocol::wire!(claude::ThinkingTypes {
                 adaptive: None,
                 enabled: None,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
-    }
+    })
 }
 
 fn default_capability_support() -> claude::CapabilitySupport {
-    claude::CapabilitySupport {
+    crate::protocol::wire!(claude::CapabilitySupport {
         supported: false,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::models) fn u64_to_i32_default(value: u64) -> i32 {
@@ -97,6 +97,9 @@ pub(in crate::transform::models) fn claude_model_id(input: &claude::ModelInfo) -
             .and_then(|value| value.as_str().map(str::to_owned))
             .unwrap_or_default(),
         claude::ClaudeModel::Unknown(value) => value.clone(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

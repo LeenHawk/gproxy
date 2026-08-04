@@ -18,6 +18,9 @@ pub(in crate::transform::generate_content::openai_responses_to_openai_chat) fn r
         }
         Some(openai::ResponseInput::Items(items)) => response_items_to_chat_messages(items),
         None => Vec::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -74,6 +77,9 @@ fn response_item_to_chat_message(
         }
         openai::ResponseItem::Typed(item) => typed_item_to_chat_message(item),
         openai::ResponseItem::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -114,6 +120,9 @@ fn easy_message_to_chat_message(
                 extra: Default::default(),
             }
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
@@ -127,6 +136,9 @@ fn easy_input_content_to_chat_content(
         }
         openai::ResponseEasyInputContent::OutputParts(parts) => {
             openai::ChatContent::Text(output_parts_text(parts))
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -142,6 +154,9 @@ fn easy_input_content_to_chat_text_content(
         openai::ResponseEasyInputContent::OutputParts(parts) => {
             openai::ChatTextContent::Text(output_parts_text(parts))
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -153,6 +168,9 @@ fn output_parts_text(parts: Vec<openai::ResponseMessageOutputContentPart>) -> St
         .map(|part| match part {
             openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
             openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => refusal,
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
         .collect::<Vec<_>>()
         .join("")
@@ -183,28 +201,32 @@ fn easy_input_content_to_chat_assistant_content(
                 })
                 .collect(),
         ),
-        openai::ResponseEasyInputContent::OutputParts(parts) => {
-            openai::ChatAssistantContent::Parts(
-                parts
-                    .into_iter()
-                    .map(|part| match part {
-                        openai::ResponseMessageOutputContentPart::OutputText { text, .. } => {
-                            openai::ChatAssistantContentPart::Text {
-                                text,
-                                prompt_cache_breakpoint: None,
-                                extra: Default::default(),
-                            }
+        openai::ResponseEasyInputContent::OutputParts(parts) => openai::ChatAssistantContent::Parts(
+            parts
+                .into_iter()
+                .map(|part| match part {
+                    openai::ResponseMessageOutputContentPart::OutputText { text, .. } => {
+                        openai::ChatAssistantContentPart::Text {
+                            text,
+                            prompt_cache_breakpoint: None,
+                            extra: Default::default(),
                         }
-                        openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
-                            openai::ChatAssistantContentPart::Refusal {
-                                refusal,
-                                prompt_cache_breakpoint: None,
-                                extra: Default::default(),
-                            }
+                    }
+                    openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
+                        openai::ChatAssistantContentPart::Refusal {
+                            refusal,
+                            prompt_cache_breakpoint: None,
+                            extra: Default::default(),
                         }
-                    })
-                    .collect(),
-            )
+                    }
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
+                })
+                .collect(),
+        ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -230,6 +252,9 @@ fn input_message_to_chat_message(
             name: None,
             extra: Default::default(),
         },
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
@@ -255,6 +280,9 @@ fn output_message_to_chat_param(
                     extra: Default::default(),
                 });
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -327,18 +355,22 @@ fn typed_item_to_chat_message(
         }
         | openai::TypedResponseItem::CustomToolCallOutput {
             call_id, output, ..
-        } => Some(openai::ChatCompletionMessageParam::Tool {
-            content: response_output_to_chat_content(output),
-            tool_call_id: call_id,
-            extra: Default::default(),
-        }),
+        } => Some(crate::protocol::wire!(
+            openai::ChatCompletionMessageParam::Tool {
+                content: response_output_to_chat_content(output),
+                tool_call_id: call_id,
+                extra: Default::default(),
+            }
+        )),
         openai::TypedResponseItem::ApplyPatchCallOutput {
             call_id, output, ..
-        } => Some(openai::ChatCompletionMessageParam::Tool {
-            content: openai::ChatTextContent::Text(output.unwrap_or_default()),
-            tool_call_id: call_id,
-            extra: Default::default(),
-        }),
+        } => Some(crate::protocol::wire!(
+            openai::ChatCompletionMessageParam::Tool {
+                content: openai::ChatTextContent::Text(output.unwrap_or_default()),
+                tool_call_id: call_id,
+                extra: Default::default(),
+            }
+        )),
         openai::TypedResponseItem::Reasoning { .. } => None,
         _ => None,
     }
@@ -428,48 +460,47 @@ fn response_input_part_to_chat_part(
             ..
         } => {
             if let Some(url) = image_url {
-                Some(openai::ChatContentPart::ImageUrl {
-                    image_url: openai::ImageUrl {
+                Some(crate::protocol::wire!(openai::ChatContentPart::ImageUrl {
+                    image_url: crate::protocol::wire!(openai::ImageUrl {
                         url,
                         detail: detail.and_then(response_detail_to_chat_detail),
                         extra: Default::default(),
-                    },
+                    }),
                     prompt_cache_breakpoint,
                     extra: Default::default(),
-                })
+                }))
             } else if let Some(file_id) = file_id {
                 Some(openai::ChatContentPart::File {
-                    file: openai::ChatFileRef {
+                    file: crate::protocol::wire!(openai::ChatFileRef {
                         file_data: None,
                         file_id: Some(file_id),
                         filename: None,
                         extra: Default::default(),
-                    },
+                    }),
                     prompt_cache_breakpoint,
                     extra: Default::default(),
                 })
             } else {
                 if prompt_cache_breakpoint.is_some() {
-                    tracing::warn!(
-                        block_type = "input_image",
-                        target = "OpenAI Chat",
-                        "cache breakpoint dropped during protocol conversion"
+                    crate::transform::context::report_lossy(
+                        "input[].content[].input_image.prompt_cache_breakpoint",
+                        "OpenAI Chat cannot preserve a breakpoint on an image without a source",
                     );
                 }
                 None
             }
         }
-        openai::ResponseInputContentPart::InputAudio { input_audio, .. } => {
-            Some(openai::ChatContentPart::InputAudio {
-                input_audio: openai::InputAudio {
+        openai::ResponseInputContentPart::InputAudio { input_audio, .. } => Some(
+            crate::protocol::wire!(openai::ChatContentPart::InputAudio {
+                input_audio: crate::protocol::wire!(openai::InputAudio {
                     data: input_audio.data,
                     format: input_audio.format,
                     extra: Default::default(),
-                },
+                }),
                 prompt_cache_breakpoint: None,
                 extra: Default::default(),
-            })
-        }
+            }),
+        ),
         openai::ResponseInputContentPart::InputFile {
             file_data,
             file_id,
@@ -484,6 +515,9 @@ fn response_input_part_to_chat_part(
             filename,
             prompt_cache_breakpoint,
         )),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -527,12 +561,14 @@ fn warn_dropped_response_breakpoint(part: &openai::ResponseInputContentPart, tar
             ..
         } => ("input_file", prompt_cache_breakpoint.is_some()),
         openai::ResponseInputContentPart::InputAudio { .. } => ("input_audio", false),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     if has_breakpoint {
-        tracing::warn!(
-            block_type,
-            conversion_target = target,
-            "cache breakpoint dropped during protocol conversion"
+        crate::transform::context::report_lossy(
+            format!("input[].content[].{block_type}.prompt_cache_breakpoint"),
+            format!("{target} cannot represent this content part or its cache breakpoint"),
         );
     }
 }

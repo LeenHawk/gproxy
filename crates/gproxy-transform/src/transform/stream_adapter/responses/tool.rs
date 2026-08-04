@@ -120,27 +120,31 @@ impl ResponsesToolItemState {
 
     pub(super) fn completed_item(&self) -> ResponseOutputItem {
         let item = match self.kind.expect("tool kind checked by can_finish") {
-            ResponsesToolKind::Function => TypedResponseItem::FunctionCall {
-                arguments: self.input.clone(),
-                call_id: self.call_id().to_owned(),
-                name: self.name().to_owned(),
-                id: Some(self.item_id().to_owned()),
-                caller: None,
-                namespace: None,
-                status: Some(ResponseItemLifecycleStatus::Completed),
-                extra: Extra::new(),
-            },
-            ResponsesToolKind::Custom => TypedResponseItem::CustomToolCall {
-                call_id: self.call_id().to_owned(),
-                input: self.input.clone(),
-                name: self.name().to_owned(),
-                id: Some(self.item_id().to_owned()),
-                caller: None,
-                namespace: None,
-                extra: Extra::new(),
-            },
+            ResponsesToolKind::Function => {
+                crate::protocol::wire!(TypedResponseItem::FunctionCall {
+                    arguments: self.input.clone(),
+                    call_id: self.call_id().to_owned(),
+                    name: self.name().to_owned(),
+                    id: Some(self.item_id().to_owned()),
+                    caller: None,
+                    namespace: None,
+                    status: Some(ResponseItemLifecycleStatus::Completed),
+                    extra: Extra::new(),
+                })
+            }
+            ResponsesToolKind::Custom => {
+                crate::protocol::wire!(TypedResponseItem::CustomToolCall {
+                    call_id: self.call_id().to_owned(),
+                    input: self.input.clone(),
+                    name: self.name().to_owned(),
+                    id: Some(self.item_id().to_owned()),
+                    caller: None,
+                    namespace: None,
+                    extra: Extra::new(),
+                })
+            }
         };
-        ResponseOutputItem(ResponseItem::Typed(item))
+        ResponseOutputItem::new(ResponseItem::Typed(item))
     }
 
     fn item_id(&self) -> &str {

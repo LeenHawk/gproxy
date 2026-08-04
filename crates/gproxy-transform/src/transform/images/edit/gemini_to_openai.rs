@@ -16,7 +16,7 @@ pub fn request(
         });
     }
 
-    Ok(openai::ImageEditRequest {
+    Ok(crate::protocol::wire!(openai::ImageEditRequest {
         images,
         prompt: common::gemini_request_prompt(&input),
         background: None,
@@ -37,7 +37,7 @@ pub fn request(
         stream: None,
         user: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(

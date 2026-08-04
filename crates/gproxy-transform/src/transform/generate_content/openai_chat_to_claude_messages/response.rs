@@ -16,21 +16,25 @@ pub fn response(
     if let Some(choice) = input.choices.into_iter().next() {
         stop_reason = chat_finish_reason_to_claude(choice.finish_reason);
         if let Some(text) = choice.message.content.filter(|value| !value.is_empty()) {
-            content.push(claude::ContentBlock::Text(claude::ResponseTextBlock {
-                citations: None,
-                text,
-                type_: claude::TextBlockType::Text,
-                extra: Default::default(),
-            }));
+            content.push(claude::ContentBlock::Text(crate::protocol::wire!(
+                claude::ResponseTextBlock {
+                    citations: None,
+                    text,
+                    type_: claude::TextBlockType::Text,
+                    extra: Default::default(),
+                }
+            )));
         }
         if let Some(refusal) = choice.message.refusal.filter(|value| !value.is_empty()) {
             has_refusal = true;
-            content.push(claude::ContentBlock::Text(claude::ResponseTextBlock {
-                citations: None,
-                text: refusal,
-                type_: claude::TextBlockType::Text,
-                extra: Default::default(),
-            }));
+            content.push(claude::ContentBlock::Text(crate::protocol::wire!(
+                claude::ResponseTextBlock {
+                    citations: None,
+                    text: refusal,
+                    type_: claude::TextBlockType::Text,
+                    extra: Default::default(),
+                }
+            )));
         }
         if let Some(function_call) = choice.message.function_call {
             has_tool_use = true;
@@ -49,12 +53,14 @@ pub fn response(
     }
 
     if content.is_empty() {
-        content.push(claude::ContentBlock::Text(claude::ResponseTextBlock {
-            citations: None,
-            text: String::new(),
-            type_: claude::TextBlockType::Text,
-            extra: Default::default(),
-        }));
+        content.push(claude::ContentBlock::Text(crate::protocol::wire!(
+            claude::ResponseTextBlock {
+                citations: None,
+                text: String::new(),
+                type_: claude::TextBlockType::Text,
+                extra: Default::default(),
+            }
+        )));
     }
     if matches!(
         stop_reason,
@@ -67,7 +73,7 @@ pub fn response(
         }
     }
 
-    Ok(claude::CreateMessageResponseBody {
+    Ok(crate::protocol::wire!(claude::CreateMessageResponseBody {
         id: input.id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -81,7 +87,7 @@ pub fn response(
         diagnostics: None,
         stop_details: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn chat_finish_reason_to_claude(reason: openai::ChatFinishReason) -> claude::StopReason {
@@ -97,6 +103,9 @@ fn chat_finish_reason_to_claude(reason: openai::ChatFinishReason) -> claude::Sto
         }
         openai::ChatFinishReason::ContentFilter => {
             claude::StopReason::Known(claude::StopReasonKnown::Refusal)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

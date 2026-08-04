@@ -9,12 +9,16 @@ pub type ResponseWebSocketWireModel =
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[allow(clippy::large_enum_variant)]
+#[non_exhaustive]
 pub enum ResponseWebSocketRequest {
     #[serde(rename = "response.create")]
     ResponseCreate(ResponseCreateWebSocketRequest),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct ResponseCreateWebSocketRequest {
     #[serde(flatten)]
     pub response: ResponseCreateRequest,

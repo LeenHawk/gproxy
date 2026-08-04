@@ -4,6 +4,7 @@ macro_rules! extensible_string_enum {
     ($outer:ident, $known:ident { $first_variant:ident => $first_wire:literal $(, $variant:ident => $wire:literal)* $(,)? }) => {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
         #[serde(untagged)]
+        #[non_exhaustive]
         pub enum $outer {
             Known($known),
             Unknown(String),
@@ -19,6 +20,7 @@ macro_rules! extensible_string_enum {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $known {
             #[serde(rename = $first_wire)]
             $first_variant,

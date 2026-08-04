@@ -6,6 +6,8 @@ use super::{ExtraFields, HarmBlockThreshold, HarmCategory, HarmProbability};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SafetySetting {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<HarmCategory>,
@@ -17,6 +19,8 @@ pub struct SafetySetting {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SafetyRating {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<HarmCategory>,

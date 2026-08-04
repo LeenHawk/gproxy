@@ -89,8 +89,13 @@ impl CapturingClient {
 
 fn websocket_response_for_log(body: &Bytes, redact: bool) -> Bytes {
     let mut decoder = crate::transform::common::sse::SseDecoder::new();
-    let mut frames = decoder.push(body);
-    if let Some(frame) = decoder.finish() {
+    let Ok(mut frames) = decoder.push(body) else {
+        return body.clone();
+    };
+    let Ok(tail) = decoder.finish() else {
+        return body.clone();
+    };
+    if let Some(frame) = tail {
         frames.push(frame);
     }
     if frames.is_empty() {

@@ -21,22 +21,24 @@ use crate::protocol::{ContentGenerationKind, Operation, OperationKey, OperationK
 
 fn is_xai_responses(op: OperationKey) -> bool {
     matches!(
-        op.operation,
+        op.operation(),
         Operation::GenerateContent | Operation::StreamGenerateContent
-    ) && op.kind == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses)
+    ) && op.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses)
 }
 
 fn is_xai_responses_websocket(op: OperationKey) -> bool {
     matches!(
-        op.operation,
+        op.operation(),
         Operation::GenerateContent | Operation::StreamGenerateContent
-    ) && op.kind
+    ) && op.kind()
         == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponsesWebSocket)
 }
 
 fn is_xai_image(op: OperationKey) -> bool {
-    matches!(op.operation, Operation::CreateImage | Operation::EditImage)
-        && op.kind == OperationKind::Provider(Provider::OpenAi)
+    matches!(
+        op.operation(),
+        Operation::CreateImage | Operation::EditImage
+    ) && op.kind() == OperationKind::Provider(Provider::OpenAi)
 }
 
 pub struct GrokBuildChannel;

@@ -27,8 +27,8 @@ use crate::pipeline::local_ops::{self, ModelEntry};
 use crate::pipeline::outcome::ExecOutcome;
 use crate::pipeline::preprocess;
 use crate::protocol::{Operation, OperationKey};
+use crate::routing::{self, RoutingDecision};
 use crate::store::persistence::records::{Provider, ProviderModelInput};
-use crate::transform::routing::{self, RoutingDecision};
 
 const MODEL_LIST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -271,7 +271,7 @@ pub(crate) async fn serve_aggregated(
     let family = op.provider_family();
     let identity = ctx.identity.as_ref().expect("auth ran first");
 
-    let body = match op.operation {
+    let body = match op.operation() {
         Operation::ListModels => {
             let providers: Vec<Arc<Provider>> = {
                 let cp = state.cp();

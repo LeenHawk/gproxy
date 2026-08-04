@@ -10,7 +10,7 @@ pub(in crate::transform::images) fn generation_config(
     output_format: Option<openai::ImageOutputFormat>,
     response_format: Option<openai::ImageResponseFormat>,
 ) -> gemini::GenerationConfig {
-    gemini::GenerationConfig {
+    crate::protocol::wire!(gemini::GenerationConfig {
         response_modalities: vec![gemini::ResponseModality::Known(
             gemini::ResponseModalityKnown::Image,
         )],
@@ -18,7 +18,7 @@ pub(in crate::transform::images) fn generation_config(
         image_config: size.and_then(image_config),
         response_format: response_format_config(output_format, response_format),
         ..Default::default()
-    }
+    })
 }
 
 fn image_config(shape: ImageShape) -> Option<gemini::ImageConfig> {
@@ -26,33 +26,33 @@ fn image_config(shape: ImageShape) -> Option<gemini::ImageConfig> {
         return None;
     }
 
-    Some(gemini::ImageConfig {
+    Some(crate::protocol::wire!(gemini::ImageConfig {
         aspect_ratio: shape.aspect_ratio,
         image_size: shape.image_size,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn response_format_config(
     output_format: Option<openai::ImageOutputFormat>,
     response_format: Option<openai::ImageResponseFormat>,
 ) -> Option<gemini::ResponseFormatConfig> {
-    let image = gemini::ImageResponseFormat {
+    let image = crate::protocol::wire!(gemini::ImageResponseFormat {
         mime_type: output_format.and_then(openai_output_format_to_gemini),
         delivery: response_format.map(openai_response_format_to_gemini),
         aspect_ratio: None,
         image_size: None,
         extra: Default::default(),
-    };
+    });
 
     if image == gemini::ImageResponseFormat::default() {
         return None;
     }
 
-    Some(gemini::ResponseFormatConfig {
+    Some(crate::protocol::wire!(gemini::ResponseFormatConfig {
         image: Some(image),
         ..Default::default()
-    })
+    }))
 }
 
 fn openai_output_format_to_gemini(
@@ -63,6 +63,9 @@ fn openai_output_format_to_gemini(
             gemini::ImageResponseFormatMimeTypeKnown::ImageJpeg,
         )),
         openai::ImageOutputFormat::Png | openai::ImageOutputFormat::Webp => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -72,6 +75,9 @@ fn openai_response_format_to_gemini(
     let delivery = match format {
         openai::ImageResponseFormat::B64Json => gemini::ImageResponseDeliveryKnown::Inline,
         openai::ImageResponseFormat::Url => gemini::ImageResponseDeliveryKnown::Uri,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     gemini::ImageResponseDelivery::Known(delivery)
 }
@@ -101,6 +107,9 @@ pub(in crate::transform::images) fn gemini_response_format(
             Some(openai::ImageResponseFormat::Url)
         }
         gemini::ImageResponseDelivery::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -129,5 +138,8 @@ pub(in crate::transform::images) fn gemini_output_format(
             Some(openai::ImageOutputFormat::Jpeg)
         }
         gemini::ImageResponseFormatMimeType::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

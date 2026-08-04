@@ -10,7 +10,8 @@ use super::common::{
 
 pub type CountTokensRequestHeaders = AnthropicBetaHeaders;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CountTokensRequestBody {
     pub model: ClaudeModel,
     pub messages: Vec<MessageParam>,
@@ -44,7 +45,8 @@ pub struct CountTokensRequestBody {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CountTokensResponseBody {
     pub input_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -53,7 +55,8 @@ pub struct CountTokensResponseBody {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CountTokensContextManagement {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub original_input_tokens: Option<u64>,

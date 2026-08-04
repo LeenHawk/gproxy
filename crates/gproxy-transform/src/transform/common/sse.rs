@@ -54,7 +54,9 @@ pub struct SseDecoder {
 /// Bounds for untrusted SSE input. Both limits include framing bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SseLimits {
+    /// Maximum bytes allowed in one blank-line-delimited SSE frame.
     pub max_frame_bytes: usize,
+    /// Maximum bytes retained while waiting for complete SSE frames.
     pub max_buffer_bytes: usize,
 }
 
@@ -68,10 +70,12 @@ impl Default for SseLimits {
 }
 
 impl SseDecoder {
+    /// Create a decoder with the default untrusted-input limits.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create a decoder with explicit frame and buffer limits.
     pub fn with_limits(limits: SseLimits) -> Self {
         Self {
             limits,
@@ -88,33 +92,21 @@ impl SseDecoder {
     /// per-frame `drain(..).collect::<String>()` walked the frame char by char
     /// AND memmoved the buffer tail per frame — the top CPU hotspot of every
     /// streaming profile.)
-    /// Compatibility path for trusted/internally bounded input. Use
-    /// [`try_push`](Self::try_push) for untrusted network streams.
-    pub fn push(&mut self, chunk: &[u8]) -> Vec<SseFrame> {
-        self.push_inner(chunk, false)
-            .expect("unchecked SSE decoding is infallible")
-    }
-
-    pub fn try_push(
+    pub fn push(
         &mut self,
         chunk: &[u8],
     ) -> Result<Vec<SseFrame>, crate::transform::TransformError> {
-        self.push_inner(chunk, true)
+        self.push_inner(chunk)
     }
 
     fn push_inner(
         &mut self,
         chunk: &[u8],
-        enforce_limits: bool,
     ) -> Result<Vec<SseFrame>, crate::transform::TransformError> {
         let pending = self.buf.len().saturating_add(chunk.len());
-        if enforce_limits {
-            self.check_limit("buffer", self.limits.max_buffer_bytes, pending)?;
-        }
+        self.check_limit("buffer", self.limits.max_buffer_bytes, pending)?;
         self.utf8.decode_into(chunk, &mut self.buf);
-        if enforce_limits {
-            self.check_limit("buffer", self.limits.max_buffer_bytes, self.buf.len())?;
-        }
+        self.check_limit("buffer", self.limits.max_buffer_bytes, self.buf.len())?;
         if self.buf.contains('\r') {
             self.buf = self.buf.replace("\r\n", "\n");
         }
@@ -122,9 +114,7 @@ impl SseDecoder {
         let mut cursor = 0;
         while let Some(pos) = self.buf[cursor..].find("\n\n") {
             let end = cursor + pos + 2;
-            if enforce_limits {
-                self.check_limit("frame", self.limits.max_frame_bytes, end - cursor)?;
-            }
+            self.check_limit("frame", self.limits.max_frame_bytes, end - cursor)?;
             if let Some(frame) = parse_frame(&self.buf[cursor..end]) {
                 frames.push(frame);
             }
@@ -133,31 +123,19 @@ impl SseDecoder {
         if cursor > 0 {
             self.buf.drain(..cursor);
         }
-        if enforce_limits {
-            self.check_limit("frame", self.limits.max_frame_bytes, self.buf.len())?;
-        }
+        self.check_limit("frame", self.limits.max_frame_bytes, self.buf.len())?;
         Ok(frames)
     }
 
     /// Drain a trailing, unterminated frame at end of stream (some upstreams
     /// omit the final blank line).
-    pub fn finish(&mut self) -> Option<SseFrame> {
-        self.finish_inner(false)
-            .expect("unchecked SSE decoding is infallible")
+    pub fn finish(&mut self) -> Result<Option<SseFrame>, crate::transform::TransformError> {
+        self.finish_inner()
     }
 
-    pub fn try_finish(&mut self) -> Result<Option<SseFrame>, crate::transform::TransformError> {
-        self.finish_inner(true)
-    }
-
-    fn finish_inner(
-        &mut self,
-        enforce_limits: bool,
-    ) -> Result<Option<SseFrame>, crate::transform::TransformError> {
+    fn finish_inner(&mut self) -> Result<Option<SseFrame>, crate::transform::TransformError> {
         self.utf8.flush(&mut self.buf);
-        if enforce_limits {
-            self.check_limit("frame", self.limits.max_frame_bytes, self.buf.len())?;
-        }
+        self.check_limit("frame", self.limits.max_frame_bytes, self.buf.len())?;
         let raw = std::mem::take(&mut self.buf);
         Ok(parse_frame(&raw))
     }
@@ -206,19 +184,19 @@ mod tests {
     #[test]
     fn frame_split_across_chunks() {
         let mut d = SseDecoder::new();
-        assert!(d.push(b"event: ping\nda").is_empty());
-        let frames = d.push(b"ta: {\"a\":1}\n\n: comment\ndata: x");
+        assert!(d.push(b"event: ping\nda").unwrap().is_empty());
+        let frames = d.push(b"ta: {\"a\":1}\n\n: comment\ndata: x").unwrap();
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].event.as_deref(), Some("ping"));
         assert_eq!(frames[0].data, "{\"a\":1}");
         // trailing unterminated frame surfaces on finish()
-        assert_eq!(d.finish().unwrap().data, "x");
+        assert_eq!(d.finish().unwrap().unwrap().data, "x");
     }
 
     #[test]
     fn crlf_and_multiline_data() {
         let mut d = SseDecoder::new();
-        let frames = d.push(b"data: l1\r\ndata: l2\r\n\r\n");
+        let frames = d.push(b"data: l1\r\ndata: l2\r\n\r\n").unwrap();
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].data, "l1\nl2");
     }
@@ -228,8 +206,8 @@ mod tests {
         // "data: 汉字\n\n" split inside the 3-byte "汉" — must not yield U+FFFD.
         let mut d = SseDecoder::new();
         let bytes = "data: 汉字\n\n".as_bytes();
-        assert!(d.push(&bytes[..7]).is_empty()); // cuts "汉" after 1 byte
-        let frames = d.push(&bytes[7..]);
+        assert!(d.push(&bytes[..7]).unwrap().is_empty()); // cuts "汉" after 1 byte
+        let frames = d.push(&bytes[7..]).unwrap();
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].data, "汉字");
     }
@@ -241,9 +219,9 @@ mod tests {
             max_buffer_bytes: 32,
         };
         let mut d = SseDecoder::with_limits(limits);
-        assert!(d.try_push(b"data: 12345678901\n\n").is_err());
+        assert!(d.push(b"data: 12345678901\n\n").is_err());
 
         let mut d = SseDecoder::with_limits(limits);
-        assert!(d.try_push(&[b'x'; 33]).is_err());
+        assert!(d.push(&[b'x'; 33]).is_err());
     }
 }

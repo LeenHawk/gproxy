@@ -9,7 +9,7 @@ pub(in crate::transform::models) fn model(
 ) -> Result<gemini::Model, TransformError> {
     let id = wire_string(&input.id, "id")?;
 
-    Ok(gemini::Model {
+    Ok(crate::protocol::wire!(gemini::Model {
         name: Some(id.clone()),
         base_model_id: Some(id),
         version: None,
@@ -25,5 +25,5 @@ pub(in crate::transform::models) fn model(
         top_p: None,
         top_k: None,
         extra: Default::default(),
-    })
+    }))
 }

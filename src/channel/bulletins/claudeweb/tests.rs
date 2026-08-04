@@ -10,7 +10,7 @@ use super::{ClaudeWebChannel, auth, default_emulation, models};
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, PreparedRequest};
 use crate::http::client::{ClientError, RespStream, UpstreamClient};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind};
-use crate::transform::routing::RoutingDecision;
+use crate::routing::RoutingDecision;
 
 #[test]
 fn non_stream_messages_force_web_stream() {
@@ -18,8 +18,8 @@ fn non_stream_messages_force_web_stream() {
         .routing_table()
         .into_iter()
         .find(|(source, _)| {
-            source.operation == Operation::GenerateContent
-                && source.kind
+            source.operation() == Operation::GenerateContent
+                && source.kind()
                     == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         })
         .map(|(_, decision)| decision)
@@ -27,9 +27,9 @@ fn non_stream_messages_force_web_stream() {
     let RoutingDecision::TransformTo(target) = decision else {
         panic!("claudeweb non-stream route should aggregate a web stream")
     };
-    assert_eq!(target.operation, Operation::StreamGenerateContent);
+    assert_eq!(target.operation(), Operation::StreamGenerateContent);
     assert_eq!(
-        target.kind,
+        target.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     );
 }

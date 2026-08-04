@@ -270,7 +270,7 @@ async fn persist(state: &AppState, row: Row) {
 
 /// Backfill the captured DOWNSTREAM response body for a streaming response (the
 /// row was appended before the stream settled). Gated by the downstream
-/// log-body toggle; redacted + capped by [`body_string`]. The caller chooses
+/// log-body toggle; redacted + capped by `body_string`. The caller chooses
 /// whether to await or detach this write.
 pub async fn record_downstream_response(state: &AppState, request_id: &str, body: &[u8]) {
     let ls = state.cp().log_settings.clone();

@@ -37,7 +37,17 @@ pub use usage::*;
 
 pub type JsonObject = BTreeMap<String, Value>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct AnthropicBetaHeaders {
     #[serde(
         rename = "anthropic-beta",
@@ -51,6 +61,7 @@ pub struct AnthropicBetaHeaders {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum StringOrArray<T> {
     String(String),
     Array(Vec<T>),
@@ -58,12 +69,14 @@ pub enum StringOrArray<T> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum BoolOrStringArray {
     Bool(bool),
     Array(Vec<String>),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TypedObject {
     #[serde(rename = "type")]
     pub type_: String,
@@ -71,7 +84,8 @@ pub struct TypedObject {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Citation {
     #[serde(rename = "type")]
     pub type_: CitationType,
@@ -109,7 +123,8 @@ pub struct Citation {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CitationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
@@ -117,7 +132,8 @@ pub struct CitationConfig {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
@@ -125,7 +141,8 @@ pub struct Metadata {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct JsonSchemaFormat {
     #[serde(rename = "type")]
     pub type_: JsonSchemaFormatType,

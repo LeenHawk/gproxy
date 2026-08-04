@@ -9,6 +9,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum TypedResponseItem {
     #[serde(rename = "file_search_call")]
     FileSearchCall {

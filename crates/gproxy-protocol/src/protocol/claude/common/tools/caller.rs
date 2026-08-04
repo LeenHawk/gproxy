@@ -4,6 +4,7 @@ use super::super::{JsonObject, TypedObject};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum Caller {
     Direct(DirectCaller),
     ServerTool(ServerToolCaller),
@@ -12,7 +13,8 @@ pub enum Caller {
     Unknown(TypedObject),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct DirectCaller {
     #[serde(rename = "type")]
     pub type_: DirectCallerType,
@@ -21,12 +23,14 @@ pub struct DirectCaller {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DirectCallerType {
     #[serde(rename = "direct")]
     Direct,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ServerToolCaller {
     pub tool_id: String,
     #[serde(rename = "type")]
@@ -36,12 +40,14 @@ pub struct ServerToolCaller {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ServerToolCallerType {
     #[serde(rename = "code_execution_20250825")]
     CodeExecution20250825,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ServerToolCaller20260120 {
     pub tool_id: String,
     #[serde(rename = "type")]
@@ -51,12 +57,14 @@ pub struct ServerToolCaller20260120 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ServerToolCaller20260120Type {
     #[serde(rename = "code_execution_20260120")]
     CodeExecution20260120,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ServerToolCaller20260521 {
     pub tool_id: String,
     #[serde(rename = "type")]
@@ -66,6 +74,7 @@ pub struct ServerToolCaller20260521 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ServerToolCaller20260521Type {
     #[serde(rename = "code_execution_20260521")]
     CodeExecution20260521,

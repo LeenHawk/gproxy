@@ -6,25 +6,28 @@ pub(super) fn claude_thinking_to_gemini(
     thinking: claude::ThinkingConfig,
 ) -> gemini::ThinkingConfig {
     match thinking {
-        claude::ThinkingConfig::Enabled(config) => gemini::ThinkingConfig {
+        claude::ThinkingConfig::Enabled(config) => crate::protocol::wire!(gemini::ThinkingConfig {
             include_thoughts: Some(true),
             thinking_budget: Some(u64_to_i32(config.budget_tokens)),
             thinking_level: None,
             extra: Default::default(),
-        },
-        claude::ThinkingConfig::Disabled(_) => gemini::ThinkingConfig {
+        }),
+        claude::ThinkingConfig::Disabled(_) => crate::protocol::wire!(gemini::ThinkingConfig {
             include_thoughts: Some(false),
             thinking_budget: None,
             thinking_level: None,
             extra: Default::default(),
-        },
-        claude::ThinkingConfig::Adaptive(_) => gemini::ThinkingConfig {
+        }),
+        claude::ThinkingConfig::Adaptive(_) => crate::protocol::wire!(gemini::ThinkingConfig {
             include_thoughts: Some(true),
             thinking_budget: None,
             thinking_level: None,
             extra: Default::default(),
-        },
+        }),
         claude::ThinkingConfig::Unknown(_) => gemini::ThinkingConfig::default(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -33,24 +36,30 @@ pub(in crate::transform::count_tokens) fn gemini_generation_to_claude_thinking(
 ) -> Option<claude::ThinkingConfig> {
     let thinking = generation_config?.thinking_config.as_ref()?;
     if thinking.include_thoughts == Some(false) {
-        return Some(claude::ThinkingConfig::Disabled(claude::ThinkingDisabled {
-            type_: claude::ThinkingDisabledType::Disabled,
-            extra: Default::default(),
-        }));
+        return Some(claude::ThinkingConfig::Disabled(crate::protocol::wire!(
+            claude::ThinkingDisabled {
+                type_: claude::ThinkingDisabledType::Disabled,
+                extra: Default::default(),
+            }
+        )));
     }
     if let Some(budget) = thinking.thinking_budget {
-        return Some(claude::ThinkingConfig::Enabled(claude::ThinkingEnabled {
-            budget_tokens: i32_to_u64(budget),
-            type_: claude::ThinkingEnabledType::Enabled,
+        return Some(claude::ThinkingConfig::Enabled(crate::protocol::wire!(
+            claude::ThinkingEnabled {
+                budget_tokens: i32_to_u64(budget),
+                type_: claude::ThinkingEnabledType::Enabled,
+                display: None,
+                extra: Default::default(),
+            }
+        )));
+    }
+    Some(claude::ThinkingConfig::Adaptive(crate::protocol::wire!(
+        claude::ThinkingAdaptive {
+            type_: claude::ThinkingAdaptiveType::Adaptive,
             display: None,
             extra: Default::default(),
-        }));
-    }
-    Some(claude::ThinkingConfig::Adaptive(claude::ThinkingAdaptive {
-        type_: claude::ThinkingAdaptiveType::Adaptive,
-        display: None,
-        extra: Default::default(),
-    }))
+        }
+    )))
 }
 
 pub(super) fn gemini_thinking_to_claude_output_effort(
@@ -67,6 +76,9 @@ pub(super) fn gemini_thinking_to_claude_output_effort(
         }
         gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High)
         | gemini::ThinkingLevel::Unknown(_) => claude::OutputEffortKnown::High,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(claude::OutputEffort::Known(effort))
 }

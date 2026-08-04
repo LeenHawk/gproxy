@@ -48,11 +48,11 @@ pub(super) fn target_path(
 /// carry their model in the URL, while count_tokens keeps it in the body.
 pub(super) fn shape_request(body: Bytes, ctx: &ShapeCtx) -> Bytes {
     let messages = matches!(
-        ctx.op.kind,
+        ctx.op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     );
-    let count_tokens = ctx.op.operation == Operation::CountTokens
-        && ctx.op.kind == OperationKind::Provider(Provider::Claude);
+    let count_tokens = ctx.op.operation() == Operation::CountTokens
+        && ctx.op.kind() == OperationKind::Provider(Provider::Claude);
     if !messages && !count_tokens {
         return body;
     }

@@ -6,12 +6,14 @@ use super::super::super::common::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CodeInterpreterContainer {
     Id(String),
     Auto(CodeInterpreterAutoContainer),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeInterpreterAutoContainer {
     #[serde(rename = "type")]
     pub type_: CodeInterpreterContainerType,
@@ -27,6 +29,7 @@ pub struct CodeInterpreterAutoContainer {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum CodeInterpreterNetworkPolicy {
     #[serde(rename = "disabled")]
     Disabled {
@@ -43,7 +46,8 @@ pub enum CodeInterpreterNetworkPolicy {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeInterpreterDomainSecret {
     pub domain: String,
     pub name: String,
@@ -52,7 +56,8 @@ pub struct CodeInterpreterDomainSecret {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageMask {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_id: Option<String>,
@@ -64,6 +69,7 @@ pub struct ImageMask {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseShellEnvironment {
     #[serde(rename = "container_auto")]
     ContainerAuto {
@@ -87,12 +93,14 @@ pub enum ResponseShellEnvironment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseShellContainerSkill {
     Reference(ResponseShellSkillReference),
     Inline(ResponseShellInlineSkill),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseShellSkillReference {
     pub skill_id: String,
     #[serde(rename = "type")]
@@ -104,12 +112,14 @@ pub struct ResponseShellSkillReference {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseShellSkillReferenceType {
     #[serde(rename = "skill_reference")]
     SkillReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseShellInlineSkill {
     pub description: String,
     pub name: String,
@@ -121,12 +131,14 @@ pub struct ResponseShellInlineSkill {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseShellInlineSkillType {
     #[serde(rename = "inline")]
     Inline,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseShellInlineSkillSource {
     pub data: String,
     pub media_type: ResponseShellInlineSkillMediaType,
@@ -137,18 +149,21 @@ pub struct ResponseShellInlineSkillSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseShellInlineSkillMediaType {
     #[serde(rename = "application/zip")]
     ApplicationZip,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseShellInlineSkillSourceType {
     #[serde(rename = "base64")]
     Base64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseShellLocalSkill {
     pub description: String,
     pub name: String,
@@ -158,6 +173,7 @@ pub struct ResponseShellLocalSkill {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum SearchContentType {
     #[serde(rename = "text")]
     Text,
@@ -165,7 +181,8 @@ pub enum SearchContentType {
     Image,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchPreviewUserLocation {
     #[serde(rename = "type")]
     pub type_: ApproximateLocationType,

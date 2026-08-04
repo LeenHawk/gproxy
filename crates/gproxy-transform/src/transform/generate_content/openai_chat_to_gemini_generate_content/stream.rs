@@ -11,11 +11,11 @@ pub fn stream_event(
 }
 
 fn chat_chunk_to_gemini(input: openai::ChatCompletionChunk) -> gemini::StreamGenerateContentChunk {
-    gemini::GenerateContentResponse {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
         candidates: input
             .choices
             .into_iter()
-            .map(|choice| gemini::Candidate {
+            .map(|choice| crate::protocol::wire!(gemini::Candidate {
                 content: chat_delta_to_gemini_content(choice.delta),
                 finish_reason: choice
                     .finish_reason
@@ -30,7 +30,7 @@ fn chat_chunk_to_gemini(input: openai::ChatCompletionChunk) -> gemini::StreamGen
                 index: Some(common::chat_index_to_gemini_index(choice.index)),
                 finish_message: None,
                 extra: Default::default(),
-            })
+            }))
             .collect(),
         prompt_feedback: None,
         usage_metadata: common::completion_usage_to_gemini(input.usage),
@@ -38,7 +38,7 @@ fn chat_chunk_to_gemini(input: openai::ChatCompletionChunk) -> gemini::StreamGen
         response_id: Some(input.id),
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn chat_delta_to_gemini_content(delta: openai::ChatDelta) -> Option<gemini::Content> {
@@ -70,11 +70,11 @@ fn chat_delta_to_gemini_content(delta: openai::ChatDelta) -> Option<gemini::Cont
         ));
     }
 
-    (!parts.is_empty()).then_some(gemini::Content {
+    (!parts.is_empty()).then_some(crate::protocol::wire!(gemini::Content {
         parts,
         role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn chat_tool_delta_to_gemini_part(call: openai::ChatToolCallDelta) -> Option<gemini::Part> {
@@ -102,25 +102,25 @@ fn gemini_function_call_part(
     name: String,
     args: Option<gemini::JsonMap>,
 ) -> gemini::Part {
-    gemini::Part {
-        data: Some(gemini::PartData::FunctionCall {
-            function_call: gemini::FunctionCall {
+    crate::protocol::wire!(gemini::Part {
+        data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
+            function_call: crate::protocol::wire!(gemini::FunctionCall {
                 id,
                 name,
                 args,
                 extra: Default::default(),
-            },
-        }),
+            }),
+        })),
         ..Default::default()
-    }
+    })
 }
 
 fn gemini_text_part(text: String, thought: bool) -> gemini::Part {
-    gemini::Part {
+    crate::protocol::wire!(gemini::Part {
         thought: thought.then_some(true),
         data: Some(gemini::PartData::Text { text }),
         ..Default::default()
-    }
+    })
 }
 
 fn arguments_to_json_map(value: String) -> Option<gemini::JsonMap> {

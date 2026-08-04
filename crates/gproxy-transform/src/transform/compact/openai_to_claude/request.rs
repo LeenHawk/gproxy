@@ -8,12 +8,12 @@ use super::util::{
 };
 
 pub fn request_headers(_: &TransformContext) -> claude::CreateMessageRequestHeaders {
-    claude::CreateMessageRequestHeaders {
+    crate::protocol::wire!(claude::CreateMessageRequestHeaders {
         anthropic_beta: Some(vec![claude::AnthropicBeta::Known(
             claude::AnthropicBetaKnown::ContextManagement20250627,
         )]),
         extra: Default::default(),
-    }
+    })
 }
 
 pub fn request(
@@ -29,7 +29,7 @@ pub fn request(
         claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
     };
     #[allow(deprecated)]
-    Ok(claude::CreateMessageRequestBody {
+    Ok(crate::protocol::wire!(claude::CreateMessageRequestBody {
         model: claude::ClaudeModel::Unknown(model),
         messages: openai_input_to_claude_messages(input.input, system_role),
         max_tokens: DEFAULT_COMPACT_MAX_TOKENS,
@@ -57,11 +57,11 @@ pub fn request(
         top_p: None,
         user_profile_id: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn compact_context_management(instructions: Option<&str>) -> claude::ContextManagementConfig {
-    claude::ContextManagementConfig {
+    crate::protocol::wire!(claude::ContextManagementConfig {
         edits: Some(vec![claude::ContextEdit::Known(
             claude::KnownContextEdit::Compact {
                 instructions: instructions.map(str::to_owned),
@@ -71,5 +71,5 @@ fn compact_context_management(instructions: Option<&str>) -> claude::ContextMana
             },
         )]),
         extra: Default::default(),
-    }
+    })
 }

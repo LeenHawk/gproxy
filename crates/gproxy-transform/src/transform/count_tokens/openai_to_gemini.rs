@@ -25,10 +25,10 @@ pub fn request(
     let generation_config = common::openai_generation_config_to_gemini(input.reasoning, input.text);
     let service_tier = common::openai_service_tier_to_gemini(input.service_tier);
 
-    Ok(gemini::CountTokensRequest {
+    Ok(crate::protocol::wire!(gemini::CountTokensRequest {
         model: Some(model.clone()),
         contents: Vec::new(),
-        generate_content_request: Some(gemini::GenerateContentRequest {
+        generate_content_request: Some(crate::protocol::wire!(gemini::GenerateContentRequest {
             model: Some(model),
             contents,
             tools,
@@ -40,20 +40,20 @@ pub fn request(
             service_tier,
             store: None,
             extra: Default::default(),
-        }),
+        })),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: openai::ResponseInputTokensResponse,
     _: &TransformContext,
 ) -> gemini::CountTokensResponse {
-    gemini::CountTokensResponse {
+    crate::protocol::wire!(gemini::CountTokensResponse {
         total_tokens: Some(common::u32_to_i32(input.input_tokens)),
         cached_content_token_count: None,
         prompt_tokens_details: Vec::new(),
         cache_tokens_details: Vec::new(),
         extra: Default::default(),
-    }
+    })
 }

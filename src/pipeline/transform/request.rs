@@ -66,12 +66,12 @@ pub fn request_parts(
             // §17: openai-chat-bound streams must request the final usage
             // chunk, or settlement never sees upstream usage. One body parse
             // per streaming request is the accepted cost.
-            let include_usage = ctx.stream && is_openai_chat(op.kind);
+            let include_usage = ctx.stream && is_openai_chat(op.kind());
             // Aggregated-mode member model rewrite. Scoped mode peeked the
             // same model into upstream_model_id, so this stays a no-op there
             // (single memoized model peek; no transform). Body-less ops
             // (models GETs) carry nothing to peek or patch.
-            let model_rewrite = op.operation.has_request_body()
+            let model_rewrite = op.operation().has_request_body()
                 && !cand.upstream_model_id.is_empty()
                 && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str());
             if model_rewrite {
@@ -79,7 +79,7 @@ pub fn request_parts(
                 // other family carries it in the body — content AND non-content
                 // (embeddings, count_tokens) alike, mirroring the Transform
                 // branch's `body_carries_model` split below.
-                if body_carries_model(op.kind) {
+                if body_carries_model(op.kind()) {
                     // passthrough bodies already carry the correct stream flag;
                     // never inject it here (`include_usage` is false for the
                     // non-openai-chat provider ops, so this is a pure rewrite)
@@ -113,7 +113,7 @@ pub fn request_parts(
         } => {
             // Body-less ops (models GETs): nothing to transform or patch;
             // endpoint synthesis plus the list-models QUERY conversion.
-            if !target.operation.has_request_body() {
+            if !target.operation().has_request_body() {
                 let t = protocol::request_target(*target, &cand.upstream_model_id, ctx.stream)?;
                 let fwd = TransformContext::new(*source, *target)
                     .with_request(&ctx.path, ctx.query.as_deref());
@@ -146,8 +146,8 @@ pub fn request_parts(
                         // accepts one, so injection is safe whenever the
                         // CONVERTED body is a different wire (the transform
                         // consumes it; a gemini upstream never sees it raw).
-                        let source_in_body = body_carries_model(source.kind);
-                        let inbound = if (source_in_body || body_carries_model(target.kind))
+                        let source_in_body = body_carries_model(source.kind());
+                        let inbound = if (source_in_body || body_carries_model(target.kind()))
                             && !cand.upstream_model_id.is_empty()
                             && memo.inbound_model(ctx).as_deref()
                                 != Some(cand.upstream_model_id.as_str())
@@ -158,16 +158,18 @@ pub fn request_parts(
                         };
                         let fwd = TransformContext::new(*source, *target)
                             .with_request(&ctx.path, ctx.query.as_deref());
-                        let converted = dispatch::request_bytes(*request_pair, &fwd, &inbound)
-                            .map_err(PipelineError::TransformRequest)?;
-                        let mut converted = Bytes::from(converted);
-                        if body_carries_model(target.kind) {
+                        let converted =
+                            dispatch::request_bytes_detailed(*request_pair, &fwd, &inbound)
+                                .map_err(PipelineError::TransformRequest)?;
+                        super::log_diagnostics(&converted.diagnostics);
+                        let mut converted = Bytes::from(converted.value);
+                        if body_carries_model(target.kind()) {
                             let model = (!source_in_body && !cand.upstream_model_id.is_empty())
                                 .then_some(cand.upstream_model_id.as_str());
                             // `stream` is a content-generation concept only
-                            let stream = ctx.stream && target.operation.is_content_generation();
+                            let stream = ctx.stream && target.operation().is_content_generation();
                             // §17: openai-chat targets need the usage chunk
-                            let include_usage = ctx.stream && is_openai_chat(target.kind);
+                            let include_usage = ctx.stream && is_openai_chat(target.kind());
                             if model.is_some() || stream || include_usage {
                                 converted = patch_body(
                                     &converted,
@@ -200,8 +202,8 @@ pub fn request_parts(
             target,
             ..
         } => {
-            let source_in_body = body_carries_model(source.kind);
-            let inbound = if (source_in_body || body_carries_model(target.kind))
+            let source_in_body = body_carries_model(source.kind());
+            let inbound = if (source_in_body || body_carries_model(target.kind()))
                 && !cand.upstream_model_id.is_empty()
                 && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str())
             {
@@ -211,20 +213,23 @@ pub fn request_parts(
             };
             let base = match request_pair {
                 Some(rp) => {
-                    let normalized_source = OperationKey {
-                        operation: crate::protocol::Operation::GenerateContent,
-                        kind: source.kind,
-                    };
+                    let normalized_source = OperationKey::try_new(
+                        crate::protocol::Operation::GenerateContent,
+                        source.kind(),
+                    )
+                    .expect("content transform source kind must be content generation");
                     let fwd = TransformContext::new(normalized_source, *target)
                         .with_request(&ctx.path, ctx.query.as_deref());
-                    Bytes::from(
-                        dispatch::request_bytes(*rp, &fwd, &inbound)
-                            .map_err(PipelineError::TransformRequest)?,
-                    )
+                    Bytes::from({
+                        let output = dispatch::request_bytes_detailed(*rp, &fwd, &inbound)
+                            .map_err(PipelineError::TransformRequest)?;
+                        super::log_diagnostics(&output.diagnostics);
+                        output.value
+                    })
                 }
                 None => inbound,
             };
-            let body = if body_carries_model(target.kind) {
+            let body = if body_carries_model(target.kind()) {
                 let model = (!source_in_body && !cand.upstream_model_id.is_empty())
                     .then_some(cand.upstream_model_id.as_str());
                 patch_body(&base, model, Some(false), false)?
@@ -253,8 +258,8 @@ pub fn request_parts(
             // response is collapsed in `materialize`. Model rewrite BEFORE the
             // conversion, as in the Transform branch (incl. the gemini-source
             // injection rationale).
-            let source_in_body = body_carries_model(source.kind);
-            let inbound = if (source_in_body || body_carries_model(target.kind))
+            let source_in_body = body_carries_model(source.kind());
+            let inbound = if (source_in_body || body_carries_model(target.kind()))
                 && !cand.upstream_model_id.is_empty()
                 && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str())
             {
@@ -268,18 +273,20 @@ pub fn request_parts(
                 Some(rp) => {
                     let fwd = TransformContext::new(*source, *target)
                         .with_request(&ctx.path, ctx.query.as_deref());
-                    Bytes::from(
-                        dispatch::request_bytes(*rp, &fwd, &inbound)
-                            .map_err(PipelineError::TransformRequest)?,
-                    )
+                    Bytes::from({
+                        let output = dispatch::request_bytes_detailed(*rp, &fwd, &inbound)
+                            .map_err(PipelineError::TransformRequest)?;
+                        super::log_diagnostics(&output.diagnostics);
+                        output.value
+                    })
                 }
                 None => inbound,
             };
             // Gemini carries model (+ stream) in the URL; other families in body.
-            let body = if body_carries_model(target.kind) {
+            let body = if body_carries_model(target.kind()) {
                 let model = (!source_in_body && !cand.upstream_model_id.is_empty())
                     .then_some(cand.upstream_model_id.as_str());
-                let include_usage = is_openai_chat(target.kind);
+                let include_usage = is_openai_chat(target.kind());
                 patch_body(&base, model, Some(true), include_usage)?
             } else {
                 base
@@ -300,9 +307,12 @@ pub fn request_parts(
 
     // process rules act on the provider-native request
     if let Some(rules) = rules.filter(|r| !r.is_empty()) {
-        let kind = match target_key.kind {
+        let kind = match target_key.kind() {
             OperationKind::ContentGeneration(k) => Some(k),
             OperationKind::Provider(_) => None,
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         };
         // §8-B: rule model filters match the PRE-variant-strip INBOUND name
         // (body model, else path-embedded model — e.g. `*-thinking` patterns

@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{JsonObject, JsonSchemaFormat, OutputEffort, TaskBudgetType};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct OutputConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<OutputEffort>,
@@ -16,7 +17,8 @@ pub struct OutputConfig {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TokenTaskBudget {
     pub total: u64,
     #[serde(rename = "type")]

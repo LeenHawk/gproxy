@@ -158,16 +158,18 @@ impl StreamTransform {
         if let Some(name) = function_call.name.filter(|value| !value.is_empty()) {
             output.push(output_item_added(
                 output_index,
-                openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-                    arguments: String::new(),
-                    call_id: state.call_id.clone(),
-                    name,
-                    id: Some(state.item_id.clone()),
-                    caller: None,
-                    namespace: None,
-                    status: Some(openai::ResponseItemLifecycleStatus::InProgress),
-                    extra: Default::default(),
-                }),
+                openai::ResponseItem::Typed(crate::protocol::wire!(
+                    openai::TypedResponseItem::FunctionCall {
+                        arguments: String::new(),
+                        call_id: state.call_id.clone(),
+                        name,
+                        id: Some(state.item_id.clone()),
+                        caller: None,
+                        namespace: None,
+                        status: Some(openai::ResponseItemLifecycleStatus::InProgress),
+                        extra: Default::default(),
+                    }
+                )),
             ));
         }
 
@@ -198,16 +200,18 @@ impl StreamTransform {
             if let Some(name) = function.name.filter(|value| !value.is_empty()) {
                 output.push(output_item_added(
                     output_index,
-                    openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-                        arguments: String::new(),
-                        call_id: state.call_id.clone(),
-                        name,
-                        id: Some(state.item_id.clone()),
-                        caller: None,
-                        namespace: None,
-                        status: Some(openai::ResponseItemLifecycleStatus::InProgress),
-                        extra: Default::default(),
-                    }),
+                    openai::ResponseItem::Typed(crate::protocol::wire!(
+                        openai::TypedResponseItem::FunctionCall {
+                            arguments: String::new(),
+                            call_id: state.call_id.clone(),
+                            name,
+                            id: Some(state.item_id.clone()),
+                            caller: None,
+                            namespace: None,
+                            status: Some(openai::ResponseItemLifecycleStatus::InProgress),
+                            extra: Default::default(),
+                        }
+                    )),
                 ));
             }
 
@@ -233,15 +237,17 @@ impl StreamTransform {
             if let Some(name) = custom.name.filter(|value| !value.is_empty()) {
                 output.push(output_item_added(
                     output_index,
-                    openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
-                        call_id: state.call_id.clone(),
-                        input: String::new(),
-                        name,
-                        id: None,
-                        caller: None,
-                        namespace: None,
-                        extra: Default::default(),
-                    }),
+                    openai::ResponseItem::Typed(crate::protocol::wire!(
+                        openai::TypedResponseItem::CustomToolCall {
+                            call_id: state.call_id.clone(),
+                            input: String::new(),
+                            name,
+                            id: None,
+                            caller: None,
+                            namespace: None,
+                            extra: Default::default(),
+                        }
+                    )),
                 ));
             }
 
@@ -301,7 +307,7 @@ struct ResponseToolState {
 
 fn output_item_added(output_index: u32, item: openai::ResponseItem) -> openai::ResponseStreamEvent {
     known(openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
-        item: Box::new(openai::ResponseOutputItem(item)),
+        item: Box::new(openai::ResponseOutputItem::new(item)),
         output_index,
         sequence_number: None,
         extra: Default::default(),
@@ -317,7 +323,7 @@ fn response_lifecycle_event(
     incomplete_details: Option<openai::IncompleteDetails>,
 ) -> openai::ResponseStreamEvent {
     let event_status = status.clone();
-    let response = Box::new(openai::ResponseObject {
+    let response = Box::new(crate::protocol::wire!(openai::ResponseObject {
         id,
         created_at,
         background: None,
@@ -356,7 +362,7 @@ fn response_lifecycle_event(
         usage: chat_usage_to_response(usage),
         user: None,
         extra: Default::default(),
-    });
+    }));
 
     match event_status {
         openai::ResponseStatus::Completed => {
@@ -387,17 +393,17 @@ fn response_status_from_finish(
     match reason {
         openai::ChatFinishReason::Length => (
             openai::ResponseStatus::Incomplete,
-            Some(openai::IncompleteDetails {
+            Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::MaxOutputTokens),
                 extra: Default::default(),
-            }),
+            })),
         ),
         openai::ChatFinishReason::ContentFilter => (
             openai::ResponseStatus::Incomplete,
-            Some(openai::IncompleteDetails {
+            Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::ContentFilter),
                 extra: Default::default(),
-            }),
+            })),
         ),
         _ => (openai::ResponseStatus::Completed, None),
     }

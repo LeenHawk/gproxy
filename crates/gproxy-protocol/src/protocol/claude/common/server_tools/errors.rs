@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ServerToolResultError<C, T> {
     pub error_code: C,
     #[serde(rename = "type")]
@@ -17,6 +18,7 @@ macro_rules! error_code {
     ($outer:ident, $known:ident { $($variant:ident => $wire:literal),+ $(,)? }) => {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
         #[serde(untagged)]
+        #[non_exhaustive]
         pub enum $outer {
             Known($known),
             Unknown(String),
@@ -32,6 +34,7 @@ macro_rules! error_code {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $known {
             $(#[serde(rename = $wire)] $variant,)+
         }
@@ -41,6 +44,7 @@ macro_rules! error_code {
 macro_rules! error_type {
     ($name:ident { $variant:ident => $wire:literal }) => {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $name {
             #[serde(rename = $wire)]
             $variant,

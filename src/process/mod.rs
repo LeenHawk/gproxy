@@ -189,20 +189,28 @@ struct ResponseRuleStreamDecoder {
 }
 
 impl ByteStreamDecoder for ResponseRuleStreamDecoder {
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::http::client::ClientError> {
         let mut out = Vec::new();
-        for frame in self.decoder.push(chunk) {
+        for frame in self
+            .decoder
+            .push(chunk)
+            .map_err(|error| crate::http::client::ClientError::Decode(error.to_string()))?
+        {
             out.extend_from_slice(self.apply_frame(frame).encode().as_bytes());
         }
-        out
+        Ok(out)
     }
 
-    fn finish(&mut self) -> Vec<u8> {
+    fn finish(&mut self) -> Result<Vec<u8>, crate::http::client::ClientError> {
         let mut out = Vec::new();
-        if let Some(frame) = self.decoder.finish() {
+        if let Some(frame) = self
+            .decoder
+            .finish()
+            .map_err(|error| crate::http::client::ClientError::Decode(error.to_string()))?
+        {
             out.extend_from_slice(self.apply_frame(frame).encode().as_bytes());
         }
-        out
+        Ok(out)
     }
 }
 

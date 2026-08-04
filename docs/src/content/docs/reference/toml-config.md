@@ -186,7 +186,7 @@ use the console or admin API.
 
 | v1 concept | v2 replacement |
 | --- | --- |
-| `GPROXY_CONFIG=gproxy.toml` | No current v2 equivalent. Use environment variables for process settings and JSON import/export for seeded control-plane data. |
+| `GPROXY_CONFIG=gproxy.toml` | No current v3 equivalent. Use environment variables for process settings and JSON import/export for seeded control-plane data. |
 | TOML provider/model/user arrays | JSON bundle arrays matching v2 persistence input records. |
 | Re-reading TOML after edits | Unsupported. Live rows are edited through the admin API/console and reflected through snapshot invalidation. |
 | `DATABASE_SECRET_KEY` runtime secret encryption | `GPROXY_MASTER_KEY` for v2 sealed secrets; `DATABASE_SECRET_KEY` is only for reading encrypted v1 data during migration. |

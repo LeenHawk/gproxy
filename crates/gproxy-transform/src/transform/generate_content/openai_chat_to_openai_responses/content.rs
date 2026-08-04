@@ -116,6 +116,9 @@ fn chat_message_to_response_items(
                 openai::ResponseOutput::Text(content),
             )]
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -146,13 +149,13 @@ pub(super) fn chat_message_to_response_output_items(
         });
     }
     if !parts.is_empty() {
-        items.push(openai::ResponseOutputItem(output_message_item(
+        items.push(openai::ResponseOutputItem::new(output_message_item(
             format!("msg_{index}"),
             parts,
         )));
     }
     if let Some(function_call) = message.function_call {
-        items.push(openai::ResponseOutputItem(
+        items.push(openai::ResponseOutputItem::new(
             legacy_function_call_to_response_item(function_call),
         ));
     }
@@ -161,7 +164,7 @@ pub(super) fn chat_message_to_response_output_items(
             tool_calls
                 .into_iter()
                 .map(chat_tool_call_to_response_item)
-                .map(openai::ResponseOutputItem),
+                .map(openai::ResponseOutputItem::new),
         );
     }
     items
@@ -172,13 +175,13 @@ fn easy_input(
     content: openai::ResponseEasyInputContent,
 ) -> openai::ResponseItem {
     openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
-        openai::ResponseEasyInputMessageItem {
+        crate::protocol::wire!(openai::ResponseEasyInputMessageItem {
             type_: Some(openai::ResponseMessageItemType::Message),
             role,
             content,
             phase: None,
             extra: Default::default(),
-        },
+        }),
     ))
 }
 
@@ -186,7 +189,7 @@ fn output_message_item(
     id: String,
     content: Vec<openai::ResponseMessageOutputContentPart>,
 ) -> openai::ResponseItem {
-    openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
+    openai::ResponseItem::Message(openai::ResponseMessageItem::Output(crate::protocol::wire!(
         openai::ResponseOutputMessageItem {
             type_: openai::ResponseMessageItemType::Message,
             id,
@@ -195,8 +198,8 @@ fn output_message_item(
             status: openai::ResponseItemLifecycleStatus::Completed,
             phase: None,
             extra: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 fn chat_text_content_to_easy_content(
@@ -217,9 +220,15 @@ fn chat_text_content_to_easy_content(
                         prompt_cache_breakpoint,
                         extra: Default::default(),
                     },
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
                 })
                 .collect(),
         ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -241,9 +250,15 @@ fn chat_text_content_to_response_output(
                         prompt_cache_breakpoint,
                         extra: Default::default(),
                     },
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
                 })
                 .collect(),
         ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -259,7 +274,13 @@ fn assistant_content_has_breakpoint(content: &openai::ChatAssistantContent) -> b
                 prompt_cache_breakpoint,
                 ..
             } => prompt_cache_breakpoint.is_some(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -296,8 +317,14 @@ fn chat_assistant_content_to_easy_content(
                     prompt_cache_breakpoint,
                     extra: Default::default(),
                 },
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             })
             .collect(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     if let Some(refusal) = refusal.filter(|value| !value.is_empty()) {
         parts.push(openai::ResponseInputContentPart::InputText {
@@ -339,8 +366,14 @@ fn chat_assistant_content_to_output_parts(
                         extra: Default::default(),
                     }
                 }
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             })
             .collect(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     if let Some(refusal) = refusal.filter(|value| !value.is_empty()) {
         parts.push(openai::ResponseMessageOutputContentPart::Refusal {
@@ -357,6 +390,9 @@ fn chat_content_to_easy_content(content: openai::ChatContent) -> openai::Respons
         openai::ChatContent::Parts(parts) => openai::ResponseEasyInputContent::Parts(
             parts.into_iter().map(chat_part_to_response_part).collect(),
         ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -388,20 +424,19 @@ fn chat_part_to_response_part(part: openai::ChatContentPart) -> openai::Response
             ..
         } => {
             if prompt_cache_breakpoint.is_some() {
-                tracing::warn!(
-                    block_type = "input_audio",
-                    target = "OpenAI Responses",
-                    "cache breakpoint dropped during protocol conversion"
+                crate::transform::context::report_lossy(
+                    "messages[].content[].input_audio.prompt_cache_breakpoint",
+                    "OpenAI Responses cannot represent this cache breakpoint",
                 );
             }
-            openai::ResponseInputContentPart::InputAudio {
-                input_audio: openai::InputAudioContent {
+            crate::protocol::wire!(openai::ResponseInputContentPart::InputAudio {
+                input_audio: crate::protocol::wire!(openai::InputAudioContent {
                     data: input_audio.data,
                     format: input_audio.format,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
-            }
+            })
         }
         openai::ChatContentPart::File {
             file,
@@ -416,6 +451,9 @@ fn chat_part_to_response_part(part: openai::ChatContentPart) -> openai::Response
             prompt_cache_breakpoint,
             extra: Default::default(),
         },
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -424,17 +462,20 @@ fn chat_detail_to_response_detail(detail: openai::ChatImageDetailLevel) -> opena
         openai::ChatImageDetailLevel::Auto => openai::DetailLevel::Auto,
         openai::ChatImageDetailLevel::Low => openai::DetailLevel::Low,
         openai::ChatImageDetailLevel::High => openai::DetailLevel::High,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 fn chat_annotation_to_response_annotation(
     annotation: openai::ChatAnnotation,
 ) -> openai::ResponseAnnotation {
-    openai::ResponseAnnotation::UrlCitation {
+    crate::protocol::wire!(openai::ResponseAnnotation::UrlCitation {
         end_index: annotation.url_citation.end_index,
         start_index: annotation.url_citation.start_index,
         title: annotation.url_citation.title,
         url: annotation.url_citation.url,
         extra: Default::default(),
-    }
+    })
 }

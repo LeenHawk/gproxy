@@ -1,21 +1,22 @@
 ---
 title: Rust SDK
-description: 当前 v2 Rust library surface、feature flags，以及内部模块和发布 SDK 的边界。
+description: 当前 v3 Rust library surface、feature flags，以及内部模块和发布 SDK 的边界。
 ---
 
-当前 v2 tree 是一个 Rust workspace。根 package `gproxy` 构建：
+当前 v3 tree 是一个 Rust workspace。根 package `gproxy` 构建：
 
 - `src/main.rs` 中的 native binary；
 - `src/lib.rs` 中的 `rlib` library crate。生成 Wasm artifact 时，edge build script 会显式请求
   `cdylib`。
 
-其中四个 workspace member 以 MIT 发布到 crates.io，版本与承载它们的 `gproxy`
+其中五个 workspace member 以 MIT 发布到 crates.io，版本与承载它们的 `gproxy`
 release 保持一致：
 
 | Crate | 内容 |
 | --- | --- |
 | [`gproxy-channel-api`](https://crates.io/crates/gproxy-channel-api) | 稳定 Channel、metadata、login/refresh/usage、stream、host transport 和 native 编译时注册 contract。 |
 | [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) | OpenAI/Claude/Gemini wire types、operation taxonomy、endpoint metadata。仅依赖 `serde` + `http`，可编译到 `wasm32`。 |
+| `gproxy-protocol-macros` | non-exhaustive protocol wire struct 的构造支持；通常通过 `gproxy-protocol` 间接使用。 |
 | [`gproxy-transform`](https://crates.io/crates/gproxy-transform) | 这三套 API 之间的 pairwise 请求/响应/流式转换。纯同步、无 I/O。 |
 | [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize) | 离线 token 计数：tiktoken、Hugging Face 词表、字符估算。 |
 
@@ -103,7 +104,7 @@ HTTP server。完整 package 与 source identity 要求见
 
 ## Protocol 与 operation taxonomy
 
-v2 稳定的概念中心是 operation taxonomy：
+v3 稳定的概念中心是 operation taxonomy：
 
 - `Operation`：`list_models`、`get_model`、`count_tokens`、
   `generate_content`、`stream_generate_content`、`create_image`、

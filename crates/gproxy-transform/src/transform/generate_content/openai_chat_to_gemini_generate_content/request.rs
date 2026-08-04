@@ -29,13 +29,13 @@ pub fn request(
 
     let mut tools = input.tools.map(chat_tools_to_gemini).unwrap_or_default();
     if input.web_search_options.is_some() {
-        tools.push(gemini::Tool {
+        tools.push(crate::protocol::wire!(gemini::Tool {
             google_search: Some(gemini::GoogleSearch::default()),
             ..Default::default()
-        });
+        }));
     }
 
-    Ok(gemini::GenerateContentRequest {
+    Ok(crate::protocol::wire!(gemini::GenerateContentRequest {
         model: Some(common::openai_model_string(input.model)),
         contents,
         tools,
@@ -47,7 +47,7 @@ pub fn request(
         service_tier: common::openai_service_tier_to_gemini(input.service_tier),
         store: input.store,
         extra: Default::default(),
-    })
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -65,7 +65,7 @@ fn generation_config(
     logprobs: Option<bool>,
     top_logprobs: Option<u32>,
 ) -> Option<gemini::GenerationConfig> {
-    let mut config = gemini::GenerationConfig {
+    let mut config = crate::protocol::wire!(gemini::GenerationConfig {
         stop_sequences: common::openai_stop_to_vec(stop).unwrap_or_default(),
         response_mime_type: common::chat_response_format_to_gemini(response_format.clone()),
         response_json_schema: common::response_format_to_gemini_schema(response_format),
@@ -80,7 +80,7 @@ fn generation_config(
         logprobs: top_logprobs.map(u32_to_i32),
         thinking_config: common::openai_reasoning_to_gemini(reasoning_effort),
         ..Default::default()
-    };
+    });
 
     if config.response_mime_type.is_some() && config.response_json_schema.is_some() {
         config.response_mime_type = Some(gemini::ResponseMimeType::Known(

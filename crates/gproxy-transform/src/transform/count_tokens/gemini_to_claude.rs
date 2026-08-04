@@ -13,7 +13,7 @@ pub fn request(
     let tool_parts = common::gemini_tools_to_claude(request.tools);
 
     #[allow(deprecated)]
-    Ok(claude::CountTokensRequestBody {
+    Ok(crate::protocol::wire!(claude::CountTokensRequestBody {
         model: common::gemini_model_string(request.model).into(),
         messages: common::text_to_claude_messages(common::gemini_contents_to_text(
             request.contents,
@@ -37,24 +37,24 @@ pub fn request(
         tool_choice: common::gemini_tool_config_to_claude(request.tool_config),
         tools: tool_parts.tools,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: gemini::CountTokensResponse,
     _: &TransformContext,
 ) -> claude::CountTokensResponseBody {
-    claude::CountTokensResponseBody {
+    crate::protocol::wire!(claude::CountTokensResponseBody {
         input_tokens: input
             .total_tokens
             .map(common::i32_to_u64)
             .unwrap_or_default(),
         context_management: input.cached_content_token_count.map(|cached| {
-            claude::CountTokensContextManagement {
+            crate::protocol::wire!(claude::CountTokensContextManagement {
                 original_input_tokens: Some(common::i32_to_u64(cached)),
                 extra: Default::default(),
-            }
+            })
         }),
         extra: Default::default(),
-    }
+    })
 }

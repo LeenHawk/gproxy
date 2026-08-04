@@ -7,6 +7,7 @@ use super::ResponseAnnotation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseOutput {
     Text(String),
     Parts(Vec<ResponseToolOutputContentPart>),
@@ -14,6 +15,7 @@ pub enum ResponseOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseEasyInputContent {
     Text(String),
     Parts(Vec<ResponseInputContentPart>),
@@ -30,6 +32,7 @@ pub enum ResponseEasyInputContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseInputContentPart {
     #[serde(rename = "input_text")]
     InputText {
@@ -79,6 +82,7 @@ pub enum ResponseInputContentPart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseToolOutputContentPart {
     #[serde(rename = "input_text")]
     InputText {
@@ -122,6 +126,7 @@ pub enum ResponseToolOutputContentPart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseMessageOutputContentPart {
     #[serde(rename = "output_text")]
     OutputText {
@@ -143,6 +148,7 @@ pub enum ResponseMessageOutputContentPart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseOutputContentPart {
     #[serde(rename = "output_text")]
     OutputText {
@@ -170,7 +176,8 @@ pub enum ResponseOutputContentPart {
 
 pub type ResponseContentPart = ResponseOutputContentPart;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InputAudioContent {
     pub data: String,
     pub format: InputAudioFormat,

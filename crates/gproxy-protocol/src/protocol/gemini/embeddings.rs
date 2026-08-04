@@ -6,6 +6,8 @@ use super::common::{Content, ExtraFields, ModalityTokenCount, TaskType};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbedContentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -25,6 +27,8 @@ pub struct EmbedContentRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbedContentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -44,6 +48,8 @@ pub struct EmbedContentConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbedContentResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<ContentEmbedding>,
@@ -55,6 +61,8 @@ pub struct EmbedContentResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct BatchEmbedContentsRequest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requests: Vec<EmbedContentRequest>,
@@ -64,6 +72,8 @@ pub struct BatchEmbedContentsRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct BatchEmbedContentsResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embeddings: Vec<ContentEmbedding>,
@@ -75,6 +85,8 @@ pub struct BatchEmbedContentsResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ContentEmbedding {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub values: Vec<f32>,
@@ -86,6 +98,8 @@ pub struct ContentEmbedding {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbeddingUsageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_token_count: Option<i32>,

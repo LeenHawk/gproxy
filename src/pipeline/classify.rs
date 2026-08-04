@@ -217,7 +217,7 @@ mod tests {
     use crate::protocol::OperationKind;
 
     fn op(c: &Classified) -> (Operation, OperationKind) {
-        (c.op.operation, c.op.kind)
+        (c.op.operation(), c.op.kind())
     }
 
     #[test]
@@ -231,7 +231,7 @@ mod tests {
         )
         .unwrap();
         assert!(c.stream);
-        assert_eq!(c.op.operation, Operation::StreamGenerateContent);
+        assert_eq!(c.op.operation(), Operation::StreamGenerateContent);
     }
 
     #[test]
@@ -244,7 +244,7 @@ mod tests {
                 &Bytes::from_static(b"{\"stream\":true}"),
             )
             .unwrap();
-            assert_eq!(streaming.op.operation, Operation::StreamGenerateContent);
+            assert_eq!(streaming.op.operation(), Operation::StreamGenerateContent);
             assert!(streaming.stream);
 
             let buffered = classify(
@@ -254,7 +254,7 @@ mod tests {
                 &Bytes::from_static(b"{\"stream\":false}"),
             )
             .unwrap();
-            assert_eq!(buffered.op.operation, Operation::GenerateContent);
+            assert_eq!(buffered.op.operation(), Operation::GenerateContent);
             assert!(!buffered.stream);
         }
     }

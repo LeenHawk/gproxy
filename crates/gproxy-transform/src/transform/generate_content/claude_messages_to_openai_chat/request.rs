@@ -39,6 +39,9 @@ pub fn request(
                     claude::StringOrArray::Array(blocks) => {
                         claude_blocks_to_assistant_message(blocks)
                     }
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
                 });
             }
             claude::MessageRole::Known(claude::MessageRoleKnown::System) => {
@@ -58,7 +61,13 @@ pub fn request(
                 claude::StringOrArray::Array(blocks) => {
                     messages.extend(claude_blocks_to_user_messages(blocks));
                 }
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             },
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -73,7 +82,7 @@ pub fn request(
         .and_then(|config| common::claude_effort_to_openai(config.effort.clone()))
         .or_else(|| common::claude_thinking_to_openai(input.thinking));
 
-    Ok(openai::ChatCompletionRequest {
+    Ok(crate::protocol::wire!(openai::ChatCompletionRequest {
         messages,
         model: common::claude_model_string(input.model).into(),
         audio: None,
@@ -118,7 +127,7 @@ pub fn request(
         verbosity: None,
         web_search_options: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn claude_parallel_tool_calls(choice: &claude::ToolChoice) -> Option<bool> {
@@ -127,6 +136,9 @@ fn claude_parallel_tool_calls(choice: &claude::ToolChoice) -> Option<bool> {
         claude::ToolChoice::Any(choice) => choice.disable_parallel_tool_use.map(|value| !value),
         claude::ToolChoice::Tool(choice) => choice.disable_parallel_tool_use.map(|value| !value),
         claude::ToolChoice::None(_) | claude::ToolChoice::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

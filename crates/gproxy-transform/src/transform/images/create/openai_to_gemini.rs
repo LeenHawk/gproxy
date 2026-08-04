@@ -12,7 +12,7 @@ pub fn request(
     let model = common::openai_model_string(input.model);
     let size = common::create_size_to_shape(input.size);
 
-    Ok(gemini::GenerateContentRequest {
+    Ok(crate::protocol::wire!(gemini::GenerateContentRequest {
         model,
         contents: vec![common::prompt_content(input.prompt, Vec::new())],
         tools: Vec::new(),
@@ -29,7 +29,7 @@ pub fn request(
         service_tier: None,
         store: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(

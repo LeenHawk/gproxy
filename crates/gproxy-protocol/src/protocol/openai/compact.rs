@@ -11,7 +11,8 @@ use super::generate_content::{
 pub type CompactResponseWireModel =
     OpenAiWireModel<CompactResponseRequestBody, CompactedResponseObject>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CompactResponseRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<ResponseInput>,
@@ -32,7 +33,8 @@ pub struct CompactResponseRequestBody {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CompactedResponseObject {
     pub id: String,
     pub created_at: u64,
@@ -45,13 +47,15 @@ pub struct CompactedResponseObject {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CompactResponseItem {
     Message(CompactMessageItem),
     Typed(TypedResponseItem),
     Unknown(UnknownResponseItem),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CompactMessageItem {
     pub id: String,
     #[serde(rename = "type")]
@@ -67,6 +71,7 @@ pub struct CompactMessageItem {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CompactMessageContentPart {
     Input(ResponseInputContentPart),
     Output(ResponseOutputContentPart),
@@ -75,7 +80,8 @@ pub enum CompactMessageContentPart {
     ComputerScreenshot(ComputerScreenshot),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CompactTextContent {
     pub text: String,
     #[serde(rename = "type")]
@@ -85,12 +91,14 @@ pub struct CompactTextContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CompactTextContentType {
     #[serde(rename = "text")]
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CompactSummaryTextContent {
     pub text: String,
     #[serde(rename = "type")]
@@ -100,12 +108,14 @@ pub struct CompactSummaryTextContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CompactSummaryTextContentType {
     #[serde(rename = "summary_text")]
     SummaryText,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CompactMessageRole {
     #[serde(rename = "unknown")]
     Unknown,
@@ -126,6 +136,7 @@ pub enum CompactMessageRole {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CompactServiceTier {
     #[serde(rename = "auto")]
     Auto,

@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{CacheTtl, JsonObject};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CacheControl {
     #[serde(rename = "type")]
     pub type_: CacheControlType,
@@ -15,6 +16,7 @@ pub struct CacheControl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CacheControlType {
     #[serde(rename = "ephemeral")]
     Ephemeral,

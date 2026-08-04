@@ -43,8 +43,8 @@ impl UsageContext {
             team_id: identity.user.team_id,
             user_id: Some(identity.user.id),
             user_key_id: Some(identity.user_key.id),
-            operation: crate::pipeline::settle::enum_str(&op.operation),
-            kind: crate::pipeline::settle::enum_str(&op.kind),
+            operation: crate::pipeline::settle::enum_str(&op.operation()),
+            kind: crate::pipeline::settle::enum_str(&op.kind()),
         }
     }
 

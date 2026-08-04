@@ -48,7 +48,7 @@ migration tracker。libSQL 后端使用匹配的 `CREATE TABLE IF NOT EXISTS` SQ
 - quota 对 `(scope, scope_id)` 唯一；
 - usage rollup 对 granularity、bucket 和可选维度使用复合唯一索引，使并发首次写入发生冲突并重试为累加。
 
-当前 v2 二进制没有独立的 operator migration 命令。启动时会创建、stamp
+当前 v3 二进制没有独立的 operator migration 命令。启动时会创建、stamp
 并运行 pending schema work；失败时直接启动失败。
 
 ## 主要表组

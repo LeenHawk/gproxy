@@ -12,6 +12,9 @@ pub(super) fn openai_reasoning_effort_to_gemini(
         openai::ReasoningEffort::High
         | openai::ReasoningEffort::XHigh
         | openai::ReasoningEffort::Max => gemini::ThinkingLevelKnown::High,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     gemini::ThinkingLevel::Known(level)
 }
@@ -25,13 +28,15 @@ pub(in crate::transform::count_tokens) fn claude_generation_to_openai_reasoning(
         .map(claude_output_effort_to_openai)
         .or_else(|| thinking.map(claude_thinking_to_openai_effort));
 
-    effort.map(|effort| openai::ReasoningConfig {
-        context: None,
-        effort: Some(effort),
-        mode: None,
-        summary: None,
-        generate_summary: None,
-        extra: Default::default(),
+    effort.map(|effort| {
+        crate::protocol::wire!(openai::ReasoningConfig {
+            context: None,
+            effort: Some(effort),
+            mode: None,
+            summary: None,
+            generate_summary: None,
+            extra: Default::default(),
+        })
     })
 }
 
@@ -48,31 +53,33 @@ pub(in crate::transform::count_tokens) fn gemini_generation_to_openai_reasoning(
             .map(gemini_thinking_level_to_openai)
             .unwrap_or(openai::ReasoningEffort::Medium)
     };
-    Some(openai::ReasoningConfig {
+    Some(crate::protocol::wire!(openai::ReasoningConfig {
         context: None,
         effort: Some(effort),
         mode: None,
         summary: None,
         generate_summary: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::count_tokens) fn openai_reasoning_to_claude(
     reasoning: Option<openai::ReasoningConfig>,
 ) -> Option<claude::ThinkingConfig> {
     match reasoning?.effort? {
-        openai::ReasoningEffort::None => {
-            Some(claude::ThinkingConfig::Disabled(claude::ThinkingDisabled {
+        openai::ReasoningEffort::None => Some(claude::ThinkingConfig::Disabled(
+            crate::protocol::wire!(claude::ThinkingDisabled {
                 type_: claude::ThinkingDisabledType::Disabled,
                 extra: Default::default(),
-            }))
-        }
-        _ => Some(claude::ThinkingConfig::Adaptive(claude::ThinkingAdaptive {
-            type_: claude::ThinkingAdaptiveType::Adaptive,
-            display: None,
-            extra: Default::default(),
-        })),
+            }),
+        )),
+        _ => Some(claude::ThinkingConfig::Adaptive(crate::protocol::wire!(
+            claude::ThinkingAdaptive {
+                type_: claude::ThinkingAdaptiveType::Adaptive,
+                display: None,
+                extra: Default::default(),
+            }
+        ))),
     }
 }
 
@@ -87,6 +94,9 @@ pub(super) fn openai_reasoning_effort_to_claude_output(
         openai::ReasoningEffort::High => claude::OutputEffortKnown::High,
         openai::ReasoningEffort::XHigh => claude::OutputEffortKnown::XHigh,
         openai::ReasoningEffort::Max => claude::OutputEffortKnown::Max,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     claude::OutputEffort::Known(effort)
 }
@@ -103,6 +113,9 @@ fn claude_output_effort_to_openai(effort: claude::OutputEffort) -> openai::Reaso
         claude::OutputEffort::Known(claude::OutputEffortKnown::XHigh)
         | claude::OutputEffort::Known(claude::OutputEffortKnown::Max)
         | claude::OutputEffort::Unknown(_) => openai::ReasoningEffort::XHigh,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -112,6 +125,9 @@ fn claude_thinking_to_openai_effort(thinking: claude::ThinkingConfig) -> openai:
         claude::ThinkingConfig::Enabled(_) => openai::ReasoningEffort::Medium,
         claude::ThinkingConfig::Adaptive(_) => openai::ReasoningEffort::Medium,
         claude::ThinkingConfig::Unknown(_) => openai::ReasoningEffort::Medium,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -129,5 +145,8 @@ fn gemini_thinking_level_to_openai(level: gemini::ThinkingLevel) -> openai::Reas
         }
         gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High)
         | gemini::ThinkingLevel::Unknown(_) => openai::ReasoningEffort::High,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

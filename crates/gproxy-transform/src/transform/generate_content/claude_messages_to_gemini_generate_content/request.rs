@@ -20,7 +20,7 @@ pub fn request(
         .as_ref()
         .and_then(|config| config.effort.clone());
 
-    Ok(gemini::GenerateContentRequest {
+    Ok(crate::protocol::wire!(gemini::GenerateContentRequest {
         model: Some(common::claude_model_string(input.model)),
         contents: claude_messages_to_gemini_contents(input.messages),
         tools: input.tools.map(claude_tools_to_gemini).unwrap_or_default(),
@@ -40,7 +40,7 @@ pub fn request(
         service_tier: common::claude_service_tier_to_gemini(input.service_tier),
         store: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn generation_config(
@@ -59,7 +59,7 @@ fn generation_config(
             .get_or_insert_with(Default::default)
             .thinking_level = Some(level);
     }
-    let mut config = gemini::GenerationConfig {
+    let mut config = crate::protocol::wire!(gemini::GenerationConfig {
         stop_sequences: stop_sequences.unwrap_or_default(),
         max_output_tokens: Some(u64_to_i32(max_tokens)),
         temperature,
@@ -67,7 +67,7 @@ fn generation_config(
         top_k: top_k.map(i64_to_i32),
         thinking_config,
         ..Default::default()
-    };
+    });
     if let Some(format) = output_format {
         config.response_mime_type = Some(gemini::ResponseMimeType::Known(
             gemini::ResponseMimeTypeKnown::ApplicationJson,

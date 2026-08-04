@@ -12,7 +12,7 @@ pub fn response(
     input: openai::CompactedResponseObject,
     _: &TransformContext,
 ) -> claude::CreateMessageResponseBody {
-    claude::CreateMessageResponseBody {
+    crate::protocol::wire!(claude::CreateMessageResponseBody {
         id: input.id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -26,7 +26,7 @@ pub fn response(
         diagnostics: None,
         stop_details: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn compact_output_to_claude_content(
@@ -44,21 +44,21 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::Compaction {
             encrypted_content,
             ..
-        }) => vec![claude::ContentBlock::Compaction(
+        }) => vec![claude::ContentBlock::Compaction(crate::protocol::wire!(
             claude::ResponseCompactionBlock {
                 content: None,
                 encrypted_content,
                 type_: claude::CompactionBlockType::Compaction,
                 extra: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
             arguments,
             call_id,
             name,
             id,
             ..
-        }) => vec![claude::ContentBlock::ToolUse(
+        }) => vec![claude::ContentBlock::ToolUse(crate::protocol::wire!(
             claude::ResponseToolUseBlock {
                 id: id.unwrap_or(call_id),
                 input: arguments_to_json_object(&arguments),
@@ -66,15 +66,15 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 extra: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
             name,
             id,
             ..
-        }) => vec![claude::ContentBlock::ToolUse(
+        }) => vec![claude::ContentBlock::ToolUse(crate::protocol::wire!(
             claude::ResponseToolUseBlock {
                 id: id.unwrap_or(call_id),
                 input: string_input_json_object(input),
@@ -82,8 +82,8 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 extra: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::WebSearchCall {
             id,
             action,
@@ -151,7 +151,7 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
             error,
             ..
         }) => {
-            let mut blocks = vec![claude::ContentBlock::McpToolUse(
+            let mut blocks = vec![claude::ContentBlock::McpToolUse(crate::protocol::wire!(
                 claude::ResponseMcpToolUseBlock {
                     id: id.clone(),
                     input: arguments_to_json_object(&arguments),
@@ -159,8 +159,8 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
                     server_name: server_label,
                     type_: claude::ResponseMcpToolUseBlockType::McpToolUse,
                     extra: Default::default(),
-                },
-            )];
+                }
+            ))];
             if let Some(result) = response_mcp_result_block(id, output, error) {
                 blocks.push(claude::ContentBlock::McpToolResult(result));
             }
@@ -213,12 +213,14 @@ fn compact_content_part_to_claude(
         _ => return None,
     };
 
-    Some(claude::ContentBlock::Text(claude::ResponseTextBlock {
-        citations: None,
-        text,
-        type_: claude::TextBlockType::Text,
-        extra: Default::default(),
-    }))
+    Some(claude::ContentBlock::Text(crate::protocol::wire!(
+        claude::ResponseTextBlock {
+            citations: None,
+            text,
+            type_: claude::TextBlockType::Text,
+            extra: Default::default(),
+        }
+    )))
 }
 
 fn response_mcp_result_block(
@@ -228,13 +230,13 @@ fn response_mcp_result_block(
 ) -> Option<claude::ResponseMcpToolResultBlock> {
     let is_error = error.is_some();
     let content = error.or(output)?;
-    Some(claude::ResponseMcpToolResultBlock {
+    Some(crate::protocol::wire!(claude::ResponseMcpToolResultBlock {
         content: claude::ResponseMcpToolResultContent::String(content),
         is_error,
         tool_use_id,
         type_: claude::ResponseMcpToolResultBlockType::McpToolResult,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn reasoning_to_claude_content(
@@ -246,38 +248,42 @@ fn reasoning_to_claude_content(
     let mut blocks = Vec::new();
     if let Some(encrypted_content) = encrypted_content {
         blocks.push(claude::ContentBlock::RedactedThinking(
-            claude::RedactedThinkingBlock {
+            crate::protocol::wire!(claude::RedactedThinkingBlock {
                 data: encrypted_content,
                 type_: claude::RedactedThinkingBlockType::RedactedThinking,
-            },
+            }),
         ));
     }
 
     let thinking = join_text(content.into_iter().flatten().map(|part| part.text));
     if !thinking.is_empty() {
         if let Some(signature) = id.filter(|signature| !signature.is_empty()) {
-            blocks.push(claude::ContentBlock::Thinking(claude::ThinkingBlock {
-                signature,
-                thinking,
-                type_: claude::ThinkingBlockType::Thinking,
-            }));
+            blocks.push(claude::ContentBlock::Thinking(crate::protocol::wire!(
+                claude::ThinkingBlock {
+                    signature,
+                    thinking,
+                    type_: claude::ThinkingBlockType::Thinking,
+                }
+            )));
         } else {
-            blocks.push(claude::ContentBlock::Text(claude::ResponseTextBlock {
-                citations: None,
-                text: thinking,
-                type_: claude::TextBlockType::Text,
-                extra: Default::default(),
-            }));
+            blocks.push(claude::ContentBlock::Text(crate::protocol::wire!(
+                claude::ResponseTextBlock {
+                    citations: None,
+                    text: thinking,
+                    type_: claude::TextBlockType::Text,
+                    extra: Default::default(),
+                }
+            )));
         }
     }
 
     blocks.extend(summary.into_iter().map(|part| {
-        claude::ContentBlock::Text(claude::ResponseTextBlock {
+        claude::ContentBlock::Text(crate::protocol::wire!(claude::ResponseTextBlock {
             citations: None,
             text: part.text,
             type_: claude::TextBlockType::Text,
             extra: Default::default(),
-        })
+        }))
     }));
     blocks
 }
@@ -288,7 +294,7 @@ fn openai_usage_to_claude(usage: openai::ResponseUsage) -> claude::Usage {
     let cache_write = details
         .as_ref()
         .map_or(0, |details| details.cache_write_tokens);
-    claude::Usage {
+    crate::protocol::wire!(claude::Usage {
         input_tokens: Some(u64::from(
             usage
                 .input_tokens
@@ -302,17 +308,17 @@ fn openai_usage_to_claude(usage: openai::ResponseUsage) -> claude::Usage {
             .map(|details| u64::from(details.cache_write_tokens)),
         cache_read_input_tokens: details.map(|details| u64::from(details.cached_tokens)),
         cache_creation: None,
-        output_tokens_details: Some(claude::OutputTokensDetails {
+        output_tokens_details: Some(crate::protocol::wire!(claude::OutputTokensDetails {
             thinking_tokens: u64::from(usage.output_tokens_details.reasoning_tokens),
             extra: Default::default(),
-        }),
+        })),
         server_tool_use: None,
         iterations: None,
         inference_geo: None,
         service_tier: None,
         speed: None,
         extra: Default::default(),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -321,21 +327,23 @@ mod tests {
 
     #[test]
     fn compact_usage_subtracts_cache_from_openai_input_total() {
-        let usage = openai_usage_to_claude(openai::ResponseUsage {
+        let usage = openai_usage_to_claude(crate::protocol::wire!(openai::ResponseUsage {
             input_tokens: 100,
             output_tokens: 20,
             total_tokens: 120,
-            input_tokens_details: Some(openai::ResponseInputTokensDetails {
-                cached_tokens: 60,
-                cache_write_tokens: 10,
-                extra: Default::default(),
-            }),
-            output_tokens_details: openai::ResponseOutputTokensDetails {
+            input_tokens_details: Some(crate::protocol::wire!(
+                openai::ResponseInputTokensDetails {
+                    cached_tokens: 60,
+                    cache_write_tokens: 10,
+                    extra: Default::default(),
+                }
+            )),
+            output_tokens_details: crate::protocol::wire!(openai::ResponseOutputTokensDetails {
                 reasoning_tokens: 5,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
-        });
+        }));
         assert_eq!(usage.input_tokens, Some(30));
         assert_eq!(usage.cache_read_input_tokens, Some(60));
         assert_eq!(usage.cache_creation_input_tokens, Some(10));

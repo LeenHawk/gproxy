@@ -6,6 +6,8 @@ use super::{ExtraFields, UrlRetrievalStatus};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GroundingMetadata {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grounding_chunks: Vec<GroundingChunk>,
@@ -27,6 +29,8 @@ pub struct GroundingMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SearchEntryPoint {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rendered_content: Option<String>,
@@ -38,6 +42,8 @@ pub struct SearchEntryPoint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GroundingChunk {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub source: Option<GroundingChunkSource>,
@@ -47,6 +53,7 @@ pub struct GroundingChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum GroundingChunkSource {
     Web {
         web: WebChunk,
@@ -65,6 +72,8 @@ pub enum GroundingChunkSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebChunk {
     pub uri: Option<String>,
     pub title: Option<String>,
@@ -74,6 +83,8 @@ pub struct WebChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ImageChunk {
     pub source_uri: Option<String>,
     pub image_uri: Option<String>,
@@ -85,6 +96,8 @@ pub struct ImageChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct RetrievedContext {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_metadata: Vec<CustomMetadata>,
@@ -100,6 +113,8 @@ pub struct RetrievedContext {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CustomMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
@@ -111,6 +126,7 @@ pub struct CustomMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CustomMetadataValue {
     StringValue {
         #[serde(rename = "stringValue")]
@@ -126,7 +142,10 @@ pub enum CustomMetadataValue {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct StringList {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub values: Vec<String>,
@@ -134,6 +153,8 @@ pub struct StringList {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct MapsChunk {
     pub uri: Option<String>,
     pub title: Option<String>,
@@ -146,6 +167,8 @@ pub struct MapsChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PlaceAnswerSources {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub review_snippets: Vec<ReviewSnippet>,
@@ -155,6 +178,8 @@ pub struct PlaceAnswerSources {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ReviewSnippet {
     pub review_id: Option<String>,
     pub google_maps_uri: Option<String>,
@@ -165,6 +190,8 @@ pub struct ReviewSnippet {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GroundingSupport {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grounding_chunk_indices: Vec<i32>,
@@ -179,6 +206,8 @@ pub struct GroundingSupport {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Segment {
     pub part_index: Option<i32>,
     pub start_index: Option<i32>,
@@ -190,6 +219,8 @@ pub struct Segment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct RetrievalMetadata {
     pub google_search_dynamic_retrieval_score: Option<f64>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty", flatten)]
@@ -198,6 +229,8 @@ pub struct RetrievalMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UrlContextMetadata {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub url_metadata: Vec<UrlMetadata>,
@@ -207,6 +240,8 @@ pub struct UrlContextMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UrlMetadata {
     pub retrieved_url: Option<String>,
     pub url_retrieval_status: Option<UrlRetrievalStatus>,

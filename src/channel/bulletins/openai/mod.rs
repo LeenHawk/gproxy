@@ -153,13 +153,13 @@ mod tests {
     use super::*;
     use crate::channel::routes::cg;
     use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind};
-    use crate::transform::routing::RoutingDecision;
+    use crate::routing::RoutingDecision;
 
     fn route(operation: Operation, kind: Kind) -> RoutingDecision {
         OpenAiChannel
             .routing_table()
             .into_iter()
-            .find(|(source, _)| source.operation == operation && source.kind == cg(kind))
+            .find(|(source, _)| source.operation() == operation && source.kind() == cg(kind))
             .map(|(_, decision)| decision)
             .expect("missing route")
     }
@@ -236,13 +236,13 @@ mod tests {
             let RoutingDecision::TransformTo(target) = route(operation, kind) else {
                 panic!("route should transform");
             };
-            assert_eq!(target.operation, target_operation);
+            assert_eq!(target.operation(), target_operation);
             let target_kind = if kind == Kind::OpenAiResponsesWebSocket {
                 Kind::OpenAiResponsesWebSocket
             } else {
                 Kind::OpenAiChatCompletions
             };
-            assert_eq!(target.kind, OperationKind::ContentGeneration(target_kind));
+            assert_eq!(target.kind(), OperationKind::ContentGeneration(target_kind));
         }
     }
 

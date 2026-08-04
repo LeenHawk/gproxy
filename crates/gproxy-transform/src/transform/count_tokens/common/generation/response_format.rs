@@ -23,6 +23,9 @@ pub(super) fn apply_openai_response_format(
             ));
             config.response_json_schema = Some(json_value(format.schema));
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -33,8 +36,8 @@ pub(in crate::transform::count_tokens) fn claude_generation_to_openai_text(
     let format = output_config
         .and_then(|config| config.format.clone())
         .or(output_format)?;
-    Some(openai::TextConfig {
-        format: Some(openai::ResponseFormat::JsonSchema(
+    Some(crate::protocol::wire!(openai::TextConfig {
+        format: Some(openai::ResponseFormat::JsonSchema(crate::protocol::wire!(
             openai::JsonSchemaResponseFormat {
                 type_: openai::JsonSchemaResponseFormatType::JsonSchema,
                 name: "response".to_owned(),
@@ -42,11 +45,11 @@ pub(in crate::transform::count_tokens) fn claude_generation_to_openai_text(
                 description: None,
                 strict: None,
                 extra: Default::default(),
-            },
-        )),
+            }
+        ),)),
         verbosity: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::count_tokens) fn gemini_generation_to_openai_text(
@@ -58,43 +61,47 @@ pub(in crate::transform::count_tokens) fn gemini_generation_to_openai_text(
         .clone()
         .or_else(|| config.response_schema.clone().map(json_value))
     {
-        openai::ResponseFormat::JsonSchema(openai::JsonSchemaResponseFormat {
-            type_: openai::JsonSchemaResponseFormatType::JsonSchema,
-            name: "response".to_owned(),
-            schema: json_object(schema),
-            description: None,
-            strict: None,
-            extra: Default::default(),
-        })
+        openai::ResponseFormat::JsonSchema(crate::protocol::wire!(
+            openai::JsonSchemaResponseFormat {
+                type_: openai::JsonSchemaResponseFormatType::JsonSchema,
+                name: "response".to_owned(),
+                schema: json_object(schema),
+                description: None,
+                strict: None,
+                extra: Default::default(),
+            }
+        ))
     } else if matches!(
         config.response_mime_type,
         Some(gemini::ResponseMimeType::Known(
             gemini::ResponseMimeTypeKnown::ApplicationJson
         ))
     ) {
-        openai::ResponseFormat::JsonObject(openai::JsonObjectResponseFormat {
-            type_: openai::JsonObjectResponseFormatType::JsonObject,
-            extra: Default::default(),
-        })
+        openai::ResponseFormat::JsonObject(crate::protocol::wire!(
+            openai::JsonObjectResponseFormat {
+                type_: openai::JsonObjectResponseFormatType::JsonObject,
+                extra: Default::default(),
+            }
+        ))
     } else if matches!(
         config.response_mime_type,
         Some(gemini::ResponseMimeType::Known(
             gemini::ResponseMimeTypeKnown::TextPlain
         ))
     ) {
-        openai::ResponseFormat::Text(openai::TextResponseFormat {
+        openai::ResponseFormat::Text(crate::protocol::wire!(openai::TextResponseFormat {
             type_: openai::TextResponseFormatType::Text,
             extra: Default::default(),
-        })
+        }))
     } else {
         return None;
     };
 
-    Some(openai::TextConfig {
+    Some(crate::protocol::wire!(openai::TextConfig {
         format: Some(format),
         verbosity: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::count_tokens) fn gemini_generation_to_claude_output_format(
@@ -114,11 +121,11 @@ pub(in crate::transform::count_tokens) fn gemini_generation_to_claude_output_for
         })
         .or_else(|| config.response_schema.clone().map(json_value))?;
 
-    Some(claude::JsonSchemaFormat {
+    Some(crate::protocol::wire!(claude::JsonSchemaFormat {
         type_: claude::JsonSchemaFormatType::Known(claude::JsonSchemaFormatTypeKnown::JsonSchema),
         schema: json_object(schema),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::count_tokens) fn openai_text_to_claude_output_format(
@@ -133,9 +140,9 @@ pub(super) fn openai_response_format_to_claude(
     let openai::ResponseFormat::JsonSchema(format) = format else {
         return None;
     };
-    Some(claude::JsonSchemaFormat {
+    Some(crate::protocol::wire!(claude::JsonSchemaFormat {
         type_: claude::JsonSchemaFormatType::Known(claude::JsonSchemaFormatTypeKnown::JsonSchema),
         schema: format.schema.clone(),
         extra: Default::default(),
-    })
+    }))
 }

@@ -5,8 +5,8 @@ use crate::app::snapshot::ControlPlaneSnapshot;
 use crate::pipeline::context::RequestCtx;
 use crate::pipeline::error::PipelineError;
 use crate::protocol::{ContentGenerationKind, Operation, OperationKey, OperationKind};
-use crate::transform::routing::RoutingDecision;
-use crate::transform::{self, TransformError, TransformPair, dispatch, routing};
+use crate::routing::{self, RoutingDecision};
+use crate::transform::{self, TransformError, TransformPair, dispatch};
 
 /// Per-candidate transform plan. `Unsupported` decisions surface as errors
 /// from [`plan_for`], not as variants — the loop treats them per-policy.
@@ -95,9 +95,12 @@ impl TransformPlan {
         match self {
             Self::AggregateStream { target, .. }
             | Self::Transform { target, .. }
-            | Self::SynthesizeStream { target, .. } => match target.kind {
+            | Self::SynthesizeStream { target, .. } => match target.kind() {
                 OperationKind::ContentGeneration(k) => Some(k),
                 OperationKind::Provider(_) => None,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             },
             _ => None,
         }
@@ -124,16 +127,14 @@ pub fn plan_for(
         // route deliberately targets the non-stream operation. Fetch one full
         // object, then synthesize the inbound protocol's stream events.
         RoutingDecision::TransformTo(target)
-            if source.operation == Operation::StreamGenerateContent
-                && target.operation == Operation::GenerateContent =>
+            if source.operation() == Operation::StreamGenerateContent
+                && target.operation() == Operation::GenerateContent =>
         {
-            let (request_pair, response_pair) = if source.kind == target.kind {
+            let (request_pair, response_pair) = if source.kind() == target.kind() {
                 (None, None)
             } else {
-                let src = OperationKey {
-                    operation: Operation::GenerateContent,
-                    kind: source.kind,
-                };
+                let src = OperationKey::try_new(Operation::GenerateContent, source.kind())
+                    .expect("content transform source kind must be content generation");
                 let rp =
                     transform::resolve(src, target).map_err(PipelineError::TransformRequest)?;
                 let sp =
@@ -161,20 +162,16 @@ pub fn plan_for(
         // transform here is purely the wire-KIND change (operations normalized to
         // `GenerateContent` for pairing).
         RoutingDecision::TransformTo(target)
-            if source.operation == Operation::GenerateContent
-                && target.operation == Operation::StreamGenerateContent =>
+            if source.operation() == Operation::GenerateContent
+                && target.operation() == Operation::StreamGenerateContent =>
         {
-            let (request_pair, response_pair) = if source.kind == target.kind {
+            let (request_pair, response_pair) = if source.kind() == target.kind() {
                 (None, None)
             } else {
-                let src = OperationKey {
-                    operation: Operation::GenerateContent,
-                    kind: source.kind,
-                };
-                let tgt = OperationKey {
-                    operation: Operation::GenerateContent,
-                    kind: target.kind,
-                };
+                let src = OperationKey::try_new(Operation::GenerateContent, source.kind())
+                    .expect("content transform source kind must be content generation");
+                let tgt = OperationKey::try_new(Operation::GenerateContent, target.kind())
+                    .expect("content transform target kind must be content generation");
                 let rp = transform::resolve(src, tgt).map_err(PipelineError::TransformRequest)?;
                 let sp = transform::resolve(tgt, src).map_err(PipelineError::TransformRequest)?;
                 if !dispatch::is_wired(rp) || !dispatch::is_wired(sp) {
@@ -204,9 +201,9 @@ pub fn plan_for(
         // the same symmetric pair serves both directions.
         RoutingDecision::TransformTo(target)
             if matches!(
-                source.operation,
+                source.operation(),
                 Operation::CreateImage | Operation::EditImage
-            ) && target.operation == Operation::StreamGenerateContent =>
+            ) && target.operation() == Operation::StreamGenerateContent =>
         {
             let request_pair =
                 transform::resolve(source, target).map_err(PipelineError::TransformRequest)?;
@@ -255,7 +252,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::ContentGenerationKind as Kind;
-    use crate::transform::routing::{CompiledRoutingRule, RuleImpl};
+    use crate::routing::{CompiledRoutingRule, RuleImpl};
 
     fn plan(source_kind: Kind, target_kind: Kind) -> TransformPlan {
         let mut cp = ControlPlaneSnapshot::empty(1);
