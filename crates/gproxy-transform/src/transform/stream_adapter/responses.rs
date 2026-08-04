@@ -19,6 +19,7 @@ use text::ResponsesTextItemState;
 use tool::{ResponsesToolItemState, ResponsesToolKind};
 
 /// Stateful normalizer for an upstream that already speaks Responses SSE.
+/// Frames outside the currently modeled typed schema are forwarded unchanged.
 #[derive(Default)]
 pub struct ResponsesStreamNormalizer {
     decoder: SseDecoder,
@@ -76,11 +77,21 @@ impl ResponsesStreamNormalizer {
             self.done_seen = true;
             return Ok(());
         }
-        let event = serde_json::from_str::<ResponseStreamEvent>(&frame.data).map_err(|error| {
-            TransformError::InvalidInput {
-                reason: format!("decode Responses stream event: {error}"),
+        let event = match serde_json::from_str::<ResponseStreamEvent>(&frame.data) {
+            Ok(event) => event,
+            Err(error) => {
+                // Responses evolves faster than the typed protocol model. An
+                // SSE data frame this crate cannot decode must still reach the
+                // client unchanged; the normalizer simply cannot add lifecycle
+                // events for it.
+                tracing::warn!(
+                    error = %error,
+                    "Responses stream event typed decode failed; forwarding original SSE frame"
+                );
+                out.extend_from_slice(frame.encode().as_bytes());
+                return Ok(());
             }
-        })?;
+        };
         for event in self.responses.push(event) {
             encode_responses_event(&event, out)?;
         }
