@@ -68,7 +68,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gproxy-channel-api = { version = "=2.3.0", features = ["external-channels"] }
+gproxy-channel-api = { version = "=2.3.1", features = ["external-channels"] }
 http = "1"
 linkme = "0.3"
 ```
