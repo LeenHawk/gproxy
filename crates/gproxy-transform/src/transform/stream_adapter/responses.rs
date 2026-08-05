@@ -187,7 +187,7 @@ impl ResponsesStreamState {
                     *output_index,
                     item_id,
                     arguments,
-                    Some(name),
+                    (!name.is_empty()).then_some(name.as_str()),
                 );
                 Vec::new()
             }

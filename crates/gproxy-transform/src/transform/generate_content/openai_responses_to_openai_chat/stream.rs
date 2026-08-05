@@ -291,6 +291,7 @@ impl StreamTransform {
             .as_ref()
             .and_then(|state| state.name.as_ref())
             .is_none()
+            && let Some(name) = non_empty(name)
         {
             chunks.push(chat_tool_delta(
                 call_id.clone(),
