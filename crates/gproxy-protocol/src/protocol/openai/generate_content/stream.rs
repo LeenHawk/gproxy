@@ -208,6 +208,10 @@ pub enum KnownResponseStreamEvent {
     ResponseFunctionCallArgumentsDone {
         arguments: String,
         item_id: String,
+        // The ChatGPT Codex backend can omit this field. Keep the public wire
+        // type stable and let stateful consumers recover it from the matching
+        // output item.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
         name: String,
         output_index: u32,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -701,5 +705,21 @@ mod tests {
                 "{value}"
             );
         }
+    }
+
+    #[test]
+    fn function_call_arguments_done_accepts_missing_name() {
+        let raw = r#"{"type":"response.function_call_arguments.done","arguments":"{}","item_id":"fc_1","output_index":0}"#;
+        let event: ResponseStreamEvent = serde_json::from_str(raw).unwrap();
+        let ResponseStreamEvent::Known(
+            KnownResponseStreamEvent::ResponseFunctionCallArgumentsDone { name, .. },
+        ) = &event
+        else {
+            panic!("expected function-call arguments done event");
+        };
+        assert!(name.is_empty());
+
+        let value = serde_json::to_value(event).unwrap();
+        assert!(value.get("name").is_none());
     }
 }

@@ -224,7 +224,9 @@ impl ResponseCollector {
             } => {
                 let state = self.output_state(output_index);
                 state.function_call.item_id.get_or_insert(item_id);
-                state.function_call.name = Some(name);
+                if !name.is_empty() {
+                    state.function_call.name = Some(name);
+                }
                 state.function_call.done_arguments = Some(arguments);
             }
             openai::KnownResponseStreamEvent::ResponseCustomToolCallInputDelta {
