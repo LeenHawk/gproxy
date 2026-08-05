@@ -155,6 +155,53 @@ fn preserves_non_text_blocks() {
 }
 
 #[test]
+fn drops_thinking_blocks_from_non_assistant_messages() {
+    let mut body = json!({
+        "messages": [
+            {"role": "assistant", "content": [
+                {"type": "thinking", "thinking": "kept", "signature": "sig"},
+                {"type": "redacted_thinking", "data": "kept-redacted"},
+                {"type": "text", "text": "answer"}
+            ]},
+            {"role": "user", "content": [
+                {"type": "thinking", "thinking": "invalid", "signature": "sig"},
+                {"type": "redacted_thinking", "data": "invalid-redacted"},
+                {"type": "tool_result", "tool_use_id": "toolu_1", "content": "ok"}
+            ]}
+        ]
+    });
+
+    sanitize_claude_body(&mut body);
+
+    let assistant = body["messages"][0]["content"].as_array().unwrap();
+    assert_eq!(assistant.len(), 3);
+    assert_eq!(assistant[0]["type"], "thinking");
+    assert_eq!(assistant[1]["type"], "redacted_thinking");
+
+    let user = body["messages"][1]["content"].as_array().unwrap();
+    assert_eq!(user.len(), 1);
+    assert_eq!(user[0]["type"], "tool_result");
+}
+
+#[test]
+fn drops_message_when_invalid_thinking_was_its_only_content() {
+    let mut body = json!({
+        "messages": [
+            {"role": "user", "content": [
+                {"type": "thinking", "thinking": "invalid", "signature": "sig"}
+            ]},
+            {"role": "user", "content": "hello"}
+        ]
+    });
+
+    sanitize_claude_body(&mut body);
+
+    let messages = body["messages"].as_array().unwrap();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0]["content"][0]["text"], "hello");
+}
+
+#[test]
 fn does_not_shift_cache_control_to_assistant_image() {
     let mut body = json!({
         "messages": [

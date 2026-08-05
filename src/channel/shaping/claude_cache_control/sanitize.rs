@@ -76,7 +76,19 @@ fn block_array(
             out.push(block);
             continue;
         };
-        let is_text = map.get("type").and_then(Value::as_str) == Some("text");
+        let block_type = map.get("type").and_then(Value::as_str);
+        if matches!(block_type, Some("thinking" | "redacted_thinking"))
+            && !matches!(scope, CacheScope::Message(Some("assistant")))
+        {
+            // Anthropic only accepts thinking blocks when replayed as part of
+            // an assistant turn. Some clients can mis-attach a prior response's
+            // thinking block to the following user/tool-result turn in long
+            // conversations. Forwarding that block makes the entire request
+            // fail validation, while dropping it preserves all user-visible
+            // and tool-result content in the turn.
+            continue;
+        }
+        let is_text = block_type == Some("text");
         if is_text {
             let trimmed = map
                 .get("text")

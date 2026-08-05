@@ -40,8 +40,9 @@ pub(super) fn existing_cache_breakpoint_count(root: &Map<String, Value>) -> usiz
     helpers::existing_cache_breakpoint_count(root)
 }
 
-/// Remove whitespace-only text blocks, empty content arrays, and empty
-/// messages, migrating orphaned markers to prior cacheable blocks.
+/// Remove whitespace-only text blocks, thinking blocks on non-assistant
+/// messages, empty content arrays, and empty messages, migrating orphaned
+/// markers to prior cacheable blocks.
 pub fn sanitize_claude_body(body: &mut Value) {
     sanitize::body(body);
 }
