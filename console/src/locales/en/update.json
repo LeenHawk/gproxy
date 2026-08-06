@@ -4,6 +4,7 @@
   "check": {
     "button": "Check for updates",
     "current": "Current version",
+    "target": "Build target (architecture, OS and C library)",
     "latest": "Latest version",
     "available": "Update available",
     "availableYes": "Yes",

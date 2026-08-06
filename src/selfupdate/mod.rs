@@ -200,6 +200,10 @@ pub enum UpdateError {
 pub struct CheckReport {
     /// Current identity (semver for `releases`, sha256 prefix for `staging`).
     pub current: String,
+    /// Target triple this installation resolves for itself — the key used to
+    /// pick an artifact from the manifest. Reported because UPX-packed release
+    /// artifacts hide arch/OS/libc from `file` and `ldd`.
+    pub target: String,
     /// Latest identity from the manifest.
     pub latest: String,
     /// Whether an update is available.
@@ -258,6 +262,7 @@ impl UpdateAudit {
 /// 500 (§19.10).
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
+    let triple = current_target_triple();
     let manifest = match download::fetch_manifest(ctx).await {
         Ok(m) => m,
         Err(UpdateError::ManifestNotFound) => {
@@ -269,6 +274,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
             return Ok(CheckReport {
                 latest: current.clone(),
                 current,
+                target: triple,
                 available: false,
                 notes_url: None,
                 notes: None,
@@ -278,7 +284,6 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
         }
         Err(e) => return Err(e),
     };
-    let triple = current_target_triple();
     let artifact = manifest
         .artifact_for(&triple)
         .ok_or_else(|| UpdateError::NoArtifact(triple.clone()))?;
@@ -303,6 +308,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
 
     Ok(CheckReport {
         current: decision.current,
+        target: triple,
         latest: decision.latest,
         available: decision.available,
         notes_url: manifest.notes_url.clone(),

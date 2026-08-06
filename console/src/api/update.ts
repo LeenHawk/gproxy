@@ -3,6 +3,10 @@ import { api } from "./http";
 
 export interface CheckReport {
   current: string;
+  /** Target triple of the running binary (arch-vendor-os-libc). Shown next to
+   *  the current identity because UPX-packed release artifacts make every Linux
+   *  build look identical to `file`/`ldd`. */
+  target: string;
   latest: string;
   available: boolean;
   notes_url: string | null;
