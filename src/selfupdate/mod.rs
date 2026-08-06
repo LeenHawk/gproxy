@@ -27,6 +27,8 @@ mod applied;
 #[cfg(not(target_arch = "wasm32"))]
 mod apply;
 #[cfg(not(target_arch = "wasm32"))]
+mod build_info;
+#[cfg(not(target_arch = "wasm32"))]
 mod download;
 #[cfg(not(target_arch = "wasm32"))]
 mod extract;
@@ -43,6 +45,8 @@ mod version;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use apply::{apply, apply_with_options};
+#[cfg(not(target_arch = "wasm32"))]
+pub use build_info::version_line;
 #[cfg(not(target_arch = "wasm32"))]
 pub use manifest::{Artifact, Manifest};
 #[cfg(not(target_arch = "wasm32"))]
@@ -325,14 +329,10 @@ fn current_identity(ctx: &UpdateContext) -> Result<String, UpdateError> {
 /// them take one update into the new identity scheme.
 #[cfg(not(target_arch = "wasm32"))]
 fn staging_current_identity() -> Result<String, UpdateError> {
-    if let Some(identity) = normalized_build_identity(option_env!("GPROXY_BUILD_VERSION")) {
+    if let Some(identity) = build_info::build_identity() {
         return Ok(identity.to_string());
     }
     swap::current_exe_sha256()
-}
-
-fn normalized_build_identity(identity: Option<&str>) -> Option<&str> {
-    identity.map(str::trim).filter(|value| !value.is_empty())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -391,7 +391,7 @@ fn restart_now(restart: Restart) -> ! {
 
 #[cfg(test)]
 mod build_channel_tests {
-    use super::{Channel, channel_from_build_label, normalized_build_identity};
+    use super::{Channel, channel_from_build_label};
 
     #[test]
     fn build_label_selects_expected_channel() {
@@ -401,15 +401,5 @@ mod build_channel_tests {
             Channel::Releases
         );
         assert_eq!(channel_from_build_label(None), Channel::Releases);
-    }
-
-    #[test]
-    fn build_identity_is_trimmed_and_must_not_be_empty() {
-        assert_eq!(
-            normalized_build_identity(Some("  deadbeef  ")),
-            Some("deadbeef")
-        );
-        assert_eq!(normalized_build_identity(Some("  ")), None);
-        assert_eq!(normalized_build_identity(None), None);
     }
 }
