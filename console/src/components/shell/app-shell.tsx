@@ -75,7 +75,7 @@ export function AppShell({
       {/* md+: collapsible sidebar (icon rail when collapsed, labelled when expanded) */}
       <aside
         style={{ width: collapsed ? 56 : sidebar.width }}
-        className="sticky top-0 hidden h-svh shrink-0 flex-col border-r bg-background md:flex"
+        className="sticky top-0 hidden h-svh shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
       >
         <Brand compact={collapsed} />
         <div className="flex-1 overflow-y-auto py-2">
