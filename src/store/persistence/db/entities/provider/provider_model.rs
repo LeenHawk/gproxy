@@ -12,6 +12,9 @@ pub struct Model {
     pub display_name: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub variants_json: Option<String>,
+    pub context_window: Option<i64>,
+    pub max_input_tokens: Option<i64>,
+    pub max_output_tokens: Option<i64>,
     pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,

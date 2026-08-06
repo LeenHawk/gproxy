@@ -181,6 +181,12 @@ pub struct ProviderModel {
     /// Suffix-variant config (§8-B): `["-x"]` or `{expose_base, suffixes}`.
     #[serde(default)]
     pub variants_json: Option<Value>,
+    #[serde(default)]
+    pub context_window: Option<i64>,
+    #[serde(default)]
+    pub max_input_tokens: Option<i64>,
+    #[serde(default)]
+    pub max_output_tokens: Option<i64>,
     pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -196,5 +202,11 @@ pub struct ProviderModelInput {
     /// Suffix-variant config (§8-B): `["-x"]` or `{expose_base, suffixes}`.
     #[serde(default)]
     pub variants_json: Option<Value>,
+    #[serde(default)]
+    pub context_window: Option<i64>,
+    #[serde(default)]
+    pub max_input_tokens: Option<i64>,
+    #[serde(default)]
+    pub max_output_tokens: Option<i64>,
     pub enabled: bool,
 }

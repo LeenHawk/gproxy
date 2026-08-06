@@ -99,6 +99,9 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             model_id: m.model_id.clone(),
             display_name: m.display_name.clone(),
             variants_json: None,
+            context_window: None,
+            max_input_tokens: None,
+            max_output_tokens: None,
             enabled: m.enabled,
         });
     }

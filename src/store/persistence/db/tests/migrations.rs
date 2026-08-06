@@ -35,6 +35,35 @@ async fn connect_stamps_latest_and_leaves_nothing_pending() {
 }
 
 #[tokio::test]
+async fn repairs_provider_model_limit_columns_without_migration_stamp() {
+    use sea_orm::{ConnectionTrait, Database};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-provider-models.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE provider_models (            id INTEGER PRIMARY KEY, provider_id INTEGER NOT NULL, model_id TEXT NOT NULL,             display_name TEXT, variants_json TEXT, enabled INTEGER NOT NULL,             created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old provider_models table");
+    conn.execute_unprepared(
+        "INSERT INTO provider_models          (id, provider_id, model_id, display_name, variants_json, enabled, created_at, updated_at)          VALUES (1, 7, 'legacy-model', NULL, NULL, 1, 0, 0)",
+    )
+    .await
+    .expect("old provider model row");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("repair");
+    let models = db.list_provider_models(7).await.expect("models readable");
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].model_id, "legacy-model");
+    assert_eq!(models[0].context_window, None);
+    assert_eq!(models[0].max_input_tokens, None);
+    assert_eq!(models[0].max_output_tokens, None);
+}
+
+#[tokio::test]
 async fn migrates_instance_settings_size_limit_column() {
     use sea_orm::{ConnectionTrait, Database};
 

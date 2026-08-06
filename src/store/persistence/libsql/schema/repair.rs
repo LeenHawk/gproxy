@@ -25,6 +25,33 @@ pub(super) async fn instance_settings(client: &LibsqlClient) -> anyhow::Result<(
     Ok(())
 }
 
+pub(super) async fn provider_models(client: &LibsqlClient) -> anyhow::Result<()> {
+    let qr = client
+        .execute("PRAGMA table_info(provider_models)", &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql inspect provider_models columns failed: {e}"))?;
+    let cols = qr
+        .rows
+        .iter()
+        .map(|row| col_str(row, 1))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    if cols.is_empty() {
+        return Ok(());
+    }
+    for column in ["context_window", "max_input_tokens", "max_output_tokens"] {
+        if !cols.contains(column) {
+            client
+                .execute(
+                    &format!("ALTER TABLE provider_models ADD COLUMN {column} INTEGER"),
+                    &[],
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("libsql repair provider_models add {column}: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 pub(super) async fn usage(client: &LibsqlClient) -> anyhow::Result<()> {
     let qr = client
         .execute("PRAGMA table_info(usages)", &[])

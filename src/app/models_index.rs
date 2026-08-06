@@ -19,6 +19,9 @@ pub struct ExposedModel {
     /// upstream id; `== full_id` for base entries.
     pub base_id: String,
     pub display_name: Option<String>,
+    pub context_window: Option<i64>,
+    pub max_input_tokens: Option<i64>,
+    pub max_output_tokens: Option<i64>,
 }
 
 /// Output of [`compile`]: list-side expansion + request-side strip index.
@@ -40,6 +43,9 @@ pub fn compile(rows: &[Arc<ProviderModel>]) -> CompiledModels {
                 full_id: row.model_id.clone(),
                 base_id: row.model_id.clone(),
                 display_name: row.display_name.clone(),
+                context_window: row.context_window,
+                max_input_tokens: row.max_input_tokens,
+                max_output_tokens: row.max_output_tokens,
             });
         }
         for name in names {
@@ -53,6 +59,9 @@ pub fn compile(rows: &[Arc<ProviderModel>]) -> CompiledModels {
                 full_id: name,
                 base_id: row.model_id.clone(),
                 display_name: row.display_name.clone(),
+                context_window: row.context_window,
+                max_input_tokens: row.max_input_tokens,
+                max_output_tokens: row.max_output_tokens,
             });
         }
     }
@@ -118,6 +127,9 @@ mod tests {
             model_id: model_id.into(),
             display_name: Some(format!("{model_id} (display)")),
             variants_json: variants,
+            context_window: Some(131_072),
+            max_input_tokens: Some(122_880),
+            max_output_tokens: Some(8_192),
             enabled: true,
             created_at: 0,
             updated_at: 0,

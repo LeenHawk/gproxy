@@ -19,6 +19,9 @@ export function useProviderModelToggle(providerId: number) {
         model_id: model.model_id,
         display_name: model.display_name,
         ...(model.variants_json != null ? { variants_json: model.variants_json } : {}),
+        context_window: model.context_window,
+        max_input_tokens: model.max_input_tokens,
+        max_output_tokens: model.max_output_tokens,
         enabled,
       }),
     onMutate: async ({ model, enabled }) => {

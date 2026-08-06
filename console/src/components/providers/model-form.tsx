@@ -28,6 +28,16 @@ function buildVariantsJson(rows: VariantRow[], exposeBase: boolean): unknown {
   return exposeBase ? names : { expose_base: false, variants: names };
 }
 
+function positiveInteger(value: string, message: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new ApiError(0, "bad_request", message);
+  }
+  return parsed;
+}
+
 export function ModelForm({ providerId, providerName, channel, model, onSaved }: { providerId: number; providerName: string; channel: string; model?: ProviderModel; onSaved: () => void }) {
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
@@ -35,6 +45,9 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
 
   const [modelId, setModelId] = useState(model?.model_id ?? "");
   const [displayName, setDisplayName] = useState(model?.display_name ?? "");
+  const [contextWindow, setContextWindow] = useState(String(model?.context_window ?? ""));
+  const [maxInputTokens, setMaxInputTokens] = useState(String(model?.max_input_tokens ?? ""));
+  const [maxOutputTokens, setMaxOutputTokens] = useState(String(model?.max_output_tokens ?? ""));
   const [enabled, setEnabled] = useState(model?.enabled ?? true);
   const initVariants = readVariantRows(model?.variants_json);
   const [variantRows, setVariantRows] = useState<VariantRow[]>(initVariants.rows);
@@ -61,6 +74,10 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
     mutationFn: async () => {
       if (!modelId.trim()) throw new ApiError(0, "bad_request", t("form.required"));
       const variants = buildVariantsJson(variantRows, exposeBase);
+      const invalidLimit = t("models.limitInvalid");
+      const parsedContextWindow = positiveInteger(contextWindow, invalidLimit);
+      const parsedMaxInputTokens = positiveInteger(maxInputTokens, invalidLimit);
+      const parsedMaxOutputTokens = positiveInteger(maxOutputTokens, invalidLimit);
       const newNames = variantRows.map((r) => r.name.trim()).filter((n) => n !== "");
       const presetActions = new Map<string, SuffixAction[]>();
       for (const r of variantRows) {
@@ -73,6 +90,9 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         model_id: modelId.trim(),
         display_name: displayName.trim() === "" ? null : displayName.trim(),
         ...(variants !== null ? { variants_json: variants } : {}),
+        context_window: parsedContextWindow,
+        max_input_tokens: parsedMaxInputTokens,
+        max_output_tokens: parsedMaxOutputTokens,
         enabled,
       });
       await syncModelVariants({
@@ -105,6 +125,22 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         <Label htmlFor="md-name">{t("models.displayName")}</Label>
         <Input id="md-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-2">
+          <Label htmlFor="md-context-window">{t("models.contextWindow")}</Label>
+          <Input id="md-context-window" type="number" min={1} step={1} value={contextWindow} onChange={(e) => setContextWindow(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="md-max-input">{t("models.maxInputTokens")}</Label>
+          <Input id="md-max-input" type="number" min={1} step={1} value={maxInputTokens} onChange={(e) => setMaxInputTokens(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="md-max-output">{t("models.maxOutputTokens")}</Label>
+          <Input id="md-max-output" type="number" min={1} step={1} value={maxOutputTokens} onChange={(e) => setMaxOutputTokens(e.target.value)} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">{t("models.limitsHint")}</p>
 
       <VariantEditor
         rows={variantRows}

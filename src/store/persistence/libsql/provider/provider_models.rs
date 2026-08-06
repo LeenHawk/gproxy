@@ -10,7 +10,7 @@ use crate::store::persistence::libsql::util::{
 use crate::store::persistence::records::{ProviderModel, ProviderModelInput};
 
 const COLS: &str = "id, provider_id, model_id, display_name, variants_json, \
-     enabled, created_at, updated_at";
+     context_window, max_input_tokens, max_output_tokens, enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
     Ok(ProviderModel {
@@ -19,9 +19,12 @@ fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
         model_id: col_str(row, 2)?,
         display_name: col_opt_str(row, 3)?,
         variants_json: col_opt_json(row, 4)?,
-        enabled: col_bool(row, 5)?,
-        created_at: col_i64(row, 6)?,
-        updated_at: col_i64(row, 7)?,
+        context_window: crate::store::persistence::libsql::row::col_opt_i64(row, 5)?,
+        max_input_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 6)?,
+        max_output_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 7)?,
+        enabled: col_bool(row, 8)?,
+        created_at: col_i64(row, 9)?,
+        updated_at: col_i64(row, 10)?,
     })
 }
 
@@ -73,12 +76,16 @@ pub async fn upsert(
             exec(
                 client,
                 "UPDATE provider_models SET provider_id=?, model_id=?, display_name=?, \
-                 variants_json=?, enabled=?, updated_at=? WHERE id=?",
+                 variants_json=?, context_window=?, max_input_tokens=?, max_output_tokens=?, \
+                 enabled=?, updated_at=? WHERE id=?",
                 &[
                     arg_integer(input.provider_id),
                     arg_text(&input.model_id),
                     arg_opt_text(input.display_name.as_deref()),
                     arg_opt_text(variants.as_deref()),
+                    arg_opt_i64(input.context_window),
+                    arg_opt_i64(input.max_input_tokens),
+                    arg_opt_i64(input.max_output_tokens),
                     arg_bool(input.enabled),
                     arg_integer(now),
                     arg_integer(id),
@@ -92,13 +99,17 @@ pub async fn upsert(
                 .execute(
                     "INSERT INTO provider_models \
                      (id, provider_id, model_id, display_name, variants_json, \
-                      enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                      context_window, max_input_tokens, max_output_tokens, enabled, created_at, updated_at) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_integer(input.provider_id),
                         arg_text(&input.model_id),
                         arg_opt_text(input.display_name.as_deref()),
                         arg_opt_text(variants.as_deref()),
+                        arg_opt_i64(input.context_window),
+                        arg_opt_i64(input.max_input_tokens),
+                        arg_opt_i64(input.max_output_tokens),
                         arg_bool(input.enabled),
                         arg_integer(now),
                         arg_integer(now),

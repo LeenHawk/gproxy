@@ -7,6 +7,9 @@ export interface ProviderModel {
   model_id: string;
   display_name: string | null;
   variants_json: unknown;
+  context_window: number | null;
+  max_input_tokens: number | null;
+  max_output_tokens: number | null;
   enabled: boolean;
   created_at: number;
   updated_at: number;
@@ -20,6 +23,9 @@ export interface ProviderModelInput {
   /** OMIT when none — variants_json HAS serde(default); sending JSON null round-trips as
    *  Some(Value::Null), so omit the key rather than send null. */
   variants_json?: unknown;
+  context_window?: number | null;
+  max_input_tokens?: number | null;
+  max_output_tokens?: number | null;
   enabled: boolean;
 }
 
@@ -40,7 +46,13 @@ export function deleteProviderModel(id: number): Promise<void> {
   return api<void>(`/admin/provider-models/${id}`, { method: "DELETE" });
 }
 
-export interface UpstreamModel { id: string; display_name: string | null; }
+export interface UpstreamModel {
+  id: string;
+  display_name: string | null;
+  context_window: number | null;
+  max_input_tokens: number | null;
+  max_output_tokens: number | null;
+}
 
 /** LIVE upstream pull — keep enabled:false and refetch manually (it calls the provider's API). */
 export const upstreamModelsQuery = (providerId: number) =>

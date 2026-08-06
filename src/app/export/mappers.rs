@@ -96,6 +96,9 @@ pub(super) fn provider_model_to_input(r: ProviderModel) -> ProviderModelInput {
         model_id: r.model_id,
         display_name: r.display_name,
         variants_json: r.variants_json,
+        context_window: r.context_window,
+        max_input_tokens: r.max_input_tokens,
+        max_output_tokens: r.max_output_tokens,
         enabled: r.enabled,
     }
 }

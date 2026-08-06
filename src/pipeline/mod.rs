@@ -15,6 +15,7 @@ pub(crate) mod health_hooks;
 pub mod ingress;
 pub mod local_ops;
 pub mod model_catalog;
+pub(crate) mod model_limits;
 pub mod outcome;
 pub mod preprocess;
 #[cfg(not(target_arch = "wasm32"))]

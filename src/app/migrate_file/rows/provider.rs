@@ -86,6 +86,12 @@ pub(crate) struct LegacyProviderModel {
     pub display_name: Option<String>,
     #[serde(default)]
     pub variants_json: Option<Value>,
+    #[serde(default)]
+    pub context_window: Option<i64>,
+    #[serde(default)]
+    pub max_input_tokens: Option<i64>,
+    #[serde(default)]
+    pub max_output_tokens: Option<i64>,
     #[serde(default = "default_true")]
     pub enabled: bool,
 }
@@ -98,6 +104,9 @@ impl From<LegacyProviderModel> for ProviderModelInput {
             model_id: x.model_id,
             display_name: x.display_name,
             variants_json: x.variants_json,
+            context_window: x.context_window,
+            max_input_tokens: x.max_input_tokens,
+            max_output_tokens: x.max_output_tokens,
             enabled: x.enabled,
         }
     }

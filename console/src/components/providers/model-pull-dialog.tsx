@@ -81,6 +81,9 @@ export function ModelPullDialog({
           provider_id: providerId,
           model_id: m.id,
           display_name: m.display_name,
+          context_window: m.context_window,
+          max_input_tokens: m.max_input_tokens,
+          max_output_tokens: m.max_output_tokens,
           enabled: true,
         });
       }

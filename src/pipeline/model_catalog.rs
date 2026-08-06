@@ -2,9 +2,9 @@
 //!
 //! Aggregated and scoped model-list requests use the same per-provider policy:
 //! refresh live unless disabled in settings or routed `local`. Successful
-//! responses add previously unseen ids to `provider_models`; skipped, timed-out
-//! or failed refreshes use that persisted list. Existing rows and variants are
-//! never changed or removed.
+//! responses add previously unseen ids to `provider_models` and fill missing
+//! metadata; skipped, timed-out or failed refreshes use that persisted list.
+//! Existing non-null model metadata, variants and enabled state are preserved.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -24,6 +24,7 @@ use crate::pipeline::classify;
 use crate::pipeline::context::RequestCtx;
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::local_ops::{self, ModelEntry};
+use crate::pipeline::model_limits::{self, ModelLimits};
 use crate::pipeline::outcome::ExecOutcome;
 use crate::pipeline::preprocess;
 use crate::protocol::{Operation, OperationKey};
@@ -51,10 +52,9 @@ fn persistence_sync_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-/// Add newly discovered upstream ids to `provider_models`. This is deliberately
-/// monotonic: existing rows (including disabled rows, custom display names and
-/// variants) are untouched, and models absent from a later upstream response
-/// are never deleted.
+/// Add newly discovered upstream ids to `provider_models` and fill metadata
+/// gaps on matching rows. Existing non-null limits, enabled state, display names
+/// and variants are preserved; models absent from a later response are never deleted.
 async fn persist_additions(state: &AppState, provider: &Provider, models: &[ModelEntry]) {
     let _local_guard = persistence_sync_lock().lock().await;
     let lock_key = format!("gproxy:model-catalog:persist-lock:{}", provider.id);
@@ -83,7 +83,36 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
 
         for model in models {
             let id = model.id.trim();
-            if id.is_empty() || !existing.insert(id.to_owned()) {
+            if id.is_empty() {
+                continue;
+            }
+            if let Some(saved) = current.iter().find(|saved| saved.model_id == id) {
+                let context_window = saved.context_window.or(model.limits.context_window);
+                let max_input_tokens = saved.max_input_tokens.or(model.limits.max_input_tokens);
+                let max_output_tokens = saved.max_output_tokens.or(model.limits.max_output_tokens);
+                if context_window != saved.context_window
+                    || max_input_tokens != saved.max_input_tokens
+                    || max_output_tokens != saved.max_output_tokens
+                {
+                    state
+                        .persistence
+                        .upsert_provider_model(ProviderModelInput {
+                            id: Some(saved.id),
+                            provider_id: saved.provider_id,
+                            model_id: saved.model_id.clone(),
+                            display_name: saved.display_name.clone(),
+                            variants_json: saved.variants_json.clone(),
+                            context_window,
+                            max_input_tokens,
+                            max_output_tokens,
+                            enabled: saved.enabled,
+                        })
+                        .await?;
+                    changed = true;
+                }
+                continue;
+            }
+            if !existing.insert(id.to_owned()) {
                 continue;
             }
             state
@@ -94,6 +123,9 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                     model_id: id.to_owned(),
                     display_name: model.display_name.clone(),
                     variants_json: None,
+                    context_window: model.limits.context_window,
+                    max_input_tokens: model.limits.max_input_tokens,
+                    max_output_tokens: model.limits.max_output_tokens,
                     enabled: true,
                 })
                 .await?;
@@ -130,17 +162,27 @@ fn manual_entries(cp: &ControlPlaneSnapshot, provider_id: i64) -> Vec<ModelEntry
         .unwrap_or_default()
 }
 
-fn merge_and_filter(
+fn merge_catalogue(
     cp: &ControlPlaneSnapshot,
-    identity: &KeyIdentity,
-    provider: &Provider,
+    provider_id: i64,
     remote: Vec<ModelEntry>,
 ) -> Vec<ModelEntry> {
     let mut seen = HashSet::new();
-    remote
+    manual_entries(cp, provider_id)
         .into_iter()
-        .chain(manual_entries(cp, provider.id))
+        .chain(remote)
         .filter(|model| seen.insert(model.id.clone()))
+        .collect()
+}
+
+fn filter_permitted(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &Provider,
+    models: Vec<ModelEntry>,
+) -> Vec<ModelEntry> {
+    models
+        .into_iter()
         .filter(|model| authz::provider_model_permitted(cp, identity, &provider.name, &model.id))
         .collect()
 }
@@ -191,6 +233,11 @@ async fn fetch_live(state: &AppState, provider: &Provider) -> Option<Vec<ModelEn
                 .map(|model| ModelEntry {
                     id: model.id,
                     display_name: model.display_name,
+                    limits: ModelLimits::new(
+                        model.context_window,
+                        model.max_input_tokens,
+                        model.max_output_tokens,
+                    ),
                 })
                 .collect(),
         ),
@@ -231,9 +278,9 @@ pub async fn serve_scoped(
     identity: Arc<KeyIdentity>,
     source: OperationKey,
 ) -> ExecOutcome {
-    let remote = models_for_request(state, &provider, source).await;
+    let models = models_for_request(state, &provider, source).await;
     let cp = state.cp();
-    let entries = merge_and_filter(&cp, &identity, &provider, remote);
+    let entries = filter_permitted(&cp, &identity, &provider, models);
     local_ops::json_outcome(
         http::StatusCode::OK,
         local_ops::render_model_list(source.provider_family(), &entries),
@@ -255,7 +302,7 @@ pub async fn models_for_request(
     match fetch_live(state, provider).await {
         Some(models) => {
             persist_additions(state, provider, &models).await;
-            models
+            merge_catalogue(&state.cp(), provider.id, models)
         }
         None => manual_entries(&state.cp(), provider.id),
     }
@@ -292,58 +339,52 @@ pub(crate) async fn serve_aggregated(
             .await;
 
             let cp = state.cp();
-            let mut ids: Vec<String> = cp
+            let mut entries: Vec<ModelEntry> = cp
                 .routes_by_name
                 .keys()
                 .filter(|id| authz::permitted(&cp, identity, id))
-                .cloned()
+                .map(|id| ModelEntry {
+                    id: id.clone(),
+                    display_name: None,
+                    limits: model_limits::for_target(&cp, id),
+                })
                 .collect();
             if let Some(global_aliases) = cp.aliases_by_provider.get("*") {
-                ids.extend(
+                entries.extend(
                     global_aliases
                         .iter()
                         .filter(|alias| target_permitted(&cp, identity, &alias.target))
-                        .map(|alias| alias.alias.clone()),
+                        .map(|alias| ModelEntry {
+                            id: alias.alias.clone(),
+                            display_name: None,
+                            limits: model_limits::for_target(&cp, &alias.target),
+                        }),
                 );
             }
-            for (provider, mut provider_models) in providers.iter().zip(catalogues) {
-                if let Some(models) = cp.exposed_models_by_provider.get(&provider.id) {
-                    provider_models.extend(local_ops::entries_from(models));
-                }
-                ids.extend(provider_models.into_iter().filter_map(|model| {
-                    authz::provider_model_permitted(&cp, identity, &provider.name, &model.id)
-                        .then(|| format!("{}/{}", provider.name, model.id))
+            for (provider, provider_models) in providers.iter().zip(catalogues) {
+                entries.extend(provider_models.into_iter().filter_map(|mut model| {
+                    authz::provider_model_permitted(&cp, identity, &provider.name, &model.id).then(
+                        || {
+                            model.id = format!("{}/{}", provider.name, model.id);
+                            model
+                        },
+                    )
                 }));
                 if let Some(aliases) = cp.aliases_by_provider.get(&provider.name) {
-                    ids.extend(
-                        aliases
-                            .iter()
-                            .filter(|alias| {
-                                let target = preprocess::apply_provider_alias(
-                                    &cp,
-                                    &provider.name,
-                                    &alias.alias,
-                                );
-                                authz::provider_model_permitted(
-                                    &cp,
-                                    identity,
-                                    &provider.name,
-                                    &target,
-                                )
+                    entries.extend(aliases.iter().filter_map(|alias| {
+                        let target =
+                            preprocess::apply_provider_alias(&cp, &provider.name, &alias.alias);
+                        authz::provider_model_permitted(&cp, identity, &provider.name, &target)
+                            .then(|| ModelEntry {
+                                id: format!("{}/{}", provider.name, alias.alias),
+                                display_name: None,
+                                limits: model_limits::for_provider_model(&cp, provider.id, &target),
                             })
-                            .map(|alias| format!("{}/{}", provider.name, alias.alias)),
-                    );
+                    }));
                 }
             }
-            ids.sort();
-            ids.dedup();
-            let entries: Vec<ModelEntry> = ids
-                .into_iter()
-                .map(|id| ModelEntry {
-                    id,
-                    display_name: None,
-                })
-                .collect();
+            entries.sort_by(|left, right| left.id.cmp(&right.id));
+            entries.dedup_by(|left, right| left.id == right.id);
             local_ops::render_model_list(family, &entries)
         }
         _ => {
@@ -352,11 +393,13 @@ pub(crate) async fn serve_aggregated(
             if !resolved_target_permitted(&cp, identity, &id) {
                 return Err(PipelineError::UnknownRoute(id));
             }
+            let target = preprocess::apply_global_alias(&cp, &id);
             local_ops::render_model(
                 family,
                 &ModelEntry {
                     id,
                     display_name: None,
+                    limits: model_limits::for_target(&cp, &target),
                 },
             )
         }
