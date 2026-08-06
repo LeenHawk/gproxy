@@ -168,6 +168,15 @@ fn merge_models(
             if models[index].display_name.is_none() && model.display_name.is_some() {
                 models[index].display_name = model.display_name;
             }
+            if models[index].context_window.is_none() {
+                models[index].context_window = model.context_window;
+            }
+            if models[index].max_input_tokens.is_none() {
+                models[index].max_input_tokens = model.max_input_tokens;
+            }
+            if models[index].max_output_tokens.is_none() {
+                models[index].max_output_tokens = model.max_output_tokens;
+            }
             continue;
         }
         indexes.insert(model.id.clone(), models.len());

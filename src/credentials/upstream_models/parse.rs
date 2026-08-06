@@ -8,9 +8,12 @@ use crate::protocol::Provider;
 pub struct UpstreamModel {
     pub id: String,
     pub display_name: Option<String>,
+    pub context_window: Option<i64>,
+    pub max_input_tokens: Option<i64>,
+    pub max_output_tokens: Option<i64>,
 }
 
-/// Parse an upstream native model-list response into `(id, display_name)` rows.
+/// Parse an upstream native model-list response into model metadata rows.
 /// openai/claude → `data[]` (`id`); gemini → `models[]` (`name`, `models/` stripped).
 pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> {
     let Ok(v) = serde_json::from_slice::<Value>(body) else {
@@ -42,7 +45,38 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
             }
             .and_then(Value::as_str)
             .map(str::to_owned);
-            Some(UpstreamModel { id, display_name })
+            let int = |key: &str| m.get(key).and_then(Value::as_i64).filter(|v| *v > 0);
+            let meta_int = |key: &str| {
+                m.get("meta")
+                    .and_then(Value::as_object)
+                    .and_then(|meta| meta.get(key))
+                    .and_then(Value::as_i64)
+                    .filter(|v| *v > 0)
+            };
+            let (context_window, max_input_tokens, max_output_tokens) = match family {
+                Provider::OpenAi => (
+                    int("context_length")
+                        .or_else(|| int("context_window"))
+                        .or_else(|| int("max_context_length"))
+                        .or_else(|| int("max_model_len"))
+                        .or_else(|| int("n_ctx"))
+                        .or_else(|| meta_int("n_ctx")),
+                    None,
+                    int("max_completion_tokens").or_else(|| int("max_output_tokens")),
+                ),
+                Provider::Claude => (None, int("max_input_tokens"), int("max_tokens")),
+                Provider::Gemini => (None, int("inputTokenLimit"), int("outputTokenLimit")),
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
+            };
+            Some(UpstreamModel {
+                id,
+                display_name,
+                context_window,
+                max_input_tokens,
+                max_output_tokens,
+            })
         })
         .collect()
 }

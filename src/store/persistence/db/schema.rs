@@ -23,6 +23,7 @@ use super::entities::tokenize::tokenizer_vocab;
 use super::entities::transform::{provider_rule_set, routing_rule, rule, rule_set};
 use super::entities::usage::{usage, usage_rollup};
 
+mod repair_provider_models;
 mod repair_quota;
 
 pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> {
@@ -208,6 +209,7 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
     repair_price_rules_schema(conn, dialect).await?;
     repair_usage_schema(conn, dialect).await?;
     repair_instance_settings_schema(conn, dialect).await?;
+    repair_provider_models::run(conn, dialect).await?;
     repair_quota::run(conn, dialect).await?;
     Ok(())
 }

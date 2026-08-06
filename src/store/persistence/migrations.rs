@@ -433,6 +433,15 @@ pub const MIGRATIONS: &[Migration] = &[
             mysql: QUOTA_MYSQL_SQL,
         },
     },
+    Migration {
+        version: 18,
+        description: "provider_models: context and token limits",
+        sql: MigrationSql::Shared(&[
+            "ALTER TABLE provider_models ADD COLUMN context_window BIGINT",
+            "ALTER TABLE provider_models ADD COLUMN max_input_tokens BIGINT",
+            "ALTER TABLE provider_models ADD COLUMN max_output_tokens BIGINT",
+        ]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

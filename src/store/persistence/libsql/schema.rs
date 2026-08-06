@@ -69,6 +69,9 @@ const TABLES: &[&str] = &[
         model_id TEXT NOT NULL, \
         display_name TEXT, \
         variants_json TEXT, \
+        context_window INTEGER, \
+        max_input_tokens INTEGER, \
+        max_output_tokens INTEGER, \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
@@ -397,6 +400,7 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
     repair::price_rules(client).await?;
     repair::usage(client).await?;
     repair::instance_settings(client).await?;
+    repair::provider_models(client).await?;
     repair::quotas(client).await?;
     Ok(())
 }
