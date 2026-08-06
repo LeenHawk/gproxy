@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn parse_openai_and_gemini() {
-    let oa = br#"{"object":"list","data":[{"id":"gpt-4o","context_length":128000,"max_completion_tokens":16384},{"id":"llama-local","meta":{"n_ctx":95232,"n_ctx_train":262144}},{"id":"gpt-4o-mini"}]}"#;
+    let oa = br#"{"object":"list","data":[{"id":"gpt-4o","context_length":128000,"max_completion_tokens":16384,"supported_parameters":["reasoning","tools"]},{"id":"llama-local","meta":{"n_ctx":95232,"n_ctx_train":262144},"supported_parameters":[]},{"id":"gpt-4o-mini"}]}"#;
     let ids: Vec<_> = parse_models(Provider::OpenAi, oa)
         .into_iter()
         .map(|m| m.id)
@@ -12,13 +12,23 @@ fn parse_openai_and_gemini() {
     assert_eq!(oa[0].context_window, Some(128_000));
     assert_eq!(oa[0].max_output_tokens, Some(16_384));
     assert_eq!(oa[1].context_window, Some(95_232));
+    assert_eq!(oa[0].thinking_supported, Some(true));
+    assert_eq!(oa[1].thinking_supported, Some(false));
+    assert_eq!(oa[2].thinking_supported, None);
 
-    let gm = br#"{"models":[{"name":"models/gemini-1.5-pro","displayName":"Gemini 1.5 Pro","inputTokenLimit":1048576,"outputTokenLimit":8192}]}"#;
+    let gm = br#"{"models":[{"name":"models/gemini-1.5-pro","displayName":"Gemini 1.5 Pro","inputTokenLimit":1048576,"outputTokenLimit":8192,"thinking":true}]}"#;
     let g = parse_models(Provider::Gemini, gm);
     assert_eq!(g[0].id, "gemini-1.5-pro");
     assert_eq!(g[0].display_name.as_deref(), Some("Gemini 1.5 Pro"));
     assert_eq!(g[0].max_input_tokens, Some(1_048_576));
     assert_eq!(g[0].max_output_tokens, Some(8_192));
+    assert_eq!(g[0].thinking_supported, Some(true));
+
+    let cl = br#"{"data":[{"id":"claude-test","display_name":"Claude Test","max_input_tokens":200000,"max_tokens":32000,"capabilities":{"thinking":{"supported":true,"types":{"adaptive":{"supported":true},"enabled":{"supported":false}}}}}]}"#;
+    let c = parse_models(Provider::Claude, cl);
+    assert_eq!(c[0].thinking_supported, Some(true));
+    assert_eq!(c[0].thinking_adaptive_supported, Some(true));
+    assert_eq!(c[0].thinking_enabled_supported, Some(false));
 }
 
 #[test]
@@ -29,6 +39,9 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
         context_window: None,
         max_input_tokens: None,
         max_output_tokens: None,
+        thinking_supported: None,
+        thinking_adaptive_supported: None,
+        thinking_enabled_supported: None,
     }];
     let mut indexes = std::collections::HashMap::from([("shared".to_string(), 0)]);
 
@@ -42,6 +55,9 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
                 context_window: Some(100_000),
                 max_input_tokens: None,
                 max_output_tokens: Some(8_000),
+                thinking_supported: Some(true),
+                thinking_adaptive_supported: Some(false),
+                thinking_enabled_supported: Some(true),
             },
             UpstreamModel {
                 id: "new".into(),
@@ -49,6 +65,9 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
                 context_window: None,
                 max_input_tokens: Some(64_000),
                 max_output_tokens: None,
+                thinking_supported: None,
+                thinking_adaptive_supported: None,
+                thinking_enabled_supported: None,
             },
         ],
     );
@@ -63,6 +82,9 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
     assert_eq!(models[0].display_name.as_deref(), Some("Shared model"));
     assert_eq!(models[0].context_window, Some(100_000));
     assert_eq!(models[0].max_output_tokens, Some(8_000));
+    assert_eq!(models[0].thinking_supported, Some(true));
+    assert_eq!(models[0].thinking_adaptive_supported, Some(false));
+    assert_eq!(models[0].thinking_enabled_supported, Some(true));
 }
 
 #[cfg(all(

@@ -187,6 +187,12 @@ pub struct ProviderModel {
     pub max_input_tokens: Option<i64>,
     #[serde(default)]
     pub max_output_tokens: Option<i64>,
+    #[serde(default)]
+    pub thinking_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_adaptive_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -208,5 +214,11 @@ pub struct ProviderModelInput {
     pub max_input_tokens: Option<i64>,
     #[serde(default)]
     pub max_output_tokens: Option<i64>,
+    #[serde(default)]
+    pub thinking_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_adaptive_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
 }

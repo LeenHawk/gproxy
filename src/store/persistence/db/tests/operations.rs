@@ -121,6 +121,9 @@ async fn cascade_deletes() {
         context_window: Some(128_000),
         max_input_tokens: Some(120_000),
         max_output_tokens: Some(8_000),
+        thinking_supported: Some(true),
+        thinking_adaptive_supported: Some(false),
+        thinking_enabled_supported: Some(true),
         enabled: true,
     })
     .await

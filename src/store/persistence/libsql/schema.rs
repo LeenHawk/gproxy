@@ -72,6 +72,9 @@ const TABLES: &[&str] = &[
         context_window INTEGER, \
         max_input_tokens INTEGER, \
         max_output_tokens INTEGER, \
+        thinking_supported INTEGER, \
+        thinking_adaptive_supported INTEGER, \
+        thinking_enabled_supported INTEGER, \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",

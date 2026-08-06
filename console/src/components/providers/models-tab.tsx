@@ -29,6 +29,17 @@ function limitsText(model: ProviderModel): string {
     : values.map((value) => value?.toLocaleString() ?? "—").join(" / ");
 }
 
+function thinkingText(model: ProviderModel): string {
+  const values = [
+    model.thinking_supported,
+    model.thinking_adaptive_supported,
+    model.thinking_enabled_supported,
+  ];
+  return values.every((value) => value == null)
+    ? "—"
+    : values.map((value) => value == null ? "?" : value ? "✓" : "✕").join(" / ");
+}
+
 interface PriceTarget {
   model: ProviderModel;
   modelMatch: string;
@@ -109,6 +120,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
     { key: "model", header: t("models.modelId"), cell: (m) => <span className="font-mono text-xs">{m.model_id}</span> },
     { key: "name", header: t("models.displayName"), cell: (m) => m.display_name ?? "—" },
     { key: "limits", header: t("models.limits"), cell: (m) => <span className="font-mono text-xs">{limitsText(m)}</span> },
+    { key: "thinking", header: t("models.thinking"), cell: (m) => <span className="font-mono text-xs" title={t("models.thinkingHint")}>{thinkingText(m)}</span> },
     { key: "pricing", header: t("models.pricing"), cell: (m) => exactPriceRule(m.model_id) ? <Badge variant="secondary">{t("models.priced")}</Badge> : <span className="text-muted-foreground">—</span> },
     { key: "variants", header: t("models.variants"), cell: (m) => {
       const n = variantCount(m.variants_json);
@@ -157,6 +169,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {m.display_name ? <span>{m.display_name}</span> : null}
                 {limitsText(m) !== "—" ? <span className="font-mono">{limitsText(m)}</span> : null}
+                {thinkingText(m) !== "—" ? <span className="font-mono">{thinkingText(m)}</span> : null}
                 {exactPriceRule(m.model_id) ? <Badge variant="secondary">{t("models.priced")}</Badge> : null}
                 {variantCount(m.variants_json) > 0 ? <Badge variant="outline">+{variantCount(m.variants_json)}</Badge> : null}
               </div>

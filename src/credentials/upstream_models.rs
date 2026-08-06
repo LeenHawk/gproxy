@@ -177,6 +177,15 @@ fn merge_models(
             if models[index].max_output_tokens.is_none() {
                 models[index].max_output_tokens = model.max_output_tokens;
             }
+            if models[index].thinking_supported.is_none() {
+                models[index].thinking_supported = model.thinking_supported;
+            }
+            if models[index].thinking_adaptive_supported.is_none() {
+                models[index].thinking_adaptive_supported = model.thinking_adaptive_supported;
+            }
+            if models[index].thinking_enabled_supported.is_none() {
+                models[index].thinking_enabled_supported = model.thinking_enabled_supported;
+            }
             continue;
         }
         indexes.insert(model.id.clone(), models.len());

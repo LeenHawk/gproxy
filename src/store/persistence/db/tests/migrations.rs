@@ -61,6 +61,9 @@ async fn repairs_provider_model_limit_columns_without_migration_stamp() {
     assert_eq!(models[0].context_window, None);
     assert_eq!(models[0].max_input_tokens, None);
     assert_eq!(models[0].max_output_tokens, None);
+    assert_eq!(models[0].thinking_supported, None);
+    assert_eq!(models[0].thinking_adaptive_supported, None);
+    assert_eq!(models[0].thinking_enabled_supported, None);
 }
 
 #[tokio::test]

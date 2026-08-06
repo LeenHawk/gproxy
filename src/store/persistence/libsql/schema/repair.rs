@@ -49,6 +49,21 @@ pub(super) async fn provider_models(client: &LibsqlClient) -> anyhow::Result<()>
                 .map_err(|e| anyhow::anyhow!("libsql repair provider_models add {column}: {e}"))?;
         }
     }
+    for column in [
+        "thinking_supported",
+        "thinking_adaptive_supported",
+        "thinking_enabled_supported",
+    ] {
+        if !cols.contains(column) {
+            client
+                .execute(
+                    &format!("ALTER TABLE provider_models ADD COLUMN {column} INTEGER"),
+                    &[],
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("libsql repair provider_models add {column}: {e}"))?;
+        }
+    }
     Ok(())
 }
 

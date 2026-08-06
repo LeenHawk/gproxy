@@ -92,6 +92,12 @@ pub(crate) struct LegacyProviderModel {
     pub max_input_tokens: Option<i64>,
     #[serde(default)]
     pub max_output_tokens: Option<i64>,
+    #[serde(default)]
+    pub thinking_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_adaptive_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_enabled_supported: Option<bool>,
     #[serde(default = "default_true")]
     pub enabled: bool,
 }
@@ -107,6 +113,9 @@ impl From<LegacyProviderModel> for ProviderModelInput {
             context_window: x.context_window,
             max_input_tokens: x.max_input_tokens,
             max_output_tokens: x.max_output_tokens,
+            thinking_supported: x.thinking_supported,
+            thinking_adaptive_supported: x.thinking_adaptive_supported,
+            thinking_enabled_supported: x.thinking_enabled_supported,
             enabled: x.enabled,
         }
     }

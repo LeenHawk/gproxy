@@ -22,6 +22,9 @@ pub struct ExposedModel {
     pub context_window: Option<i64>,
     pub max_input_tokens: Option<i64>,
     pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
 }
 
 /// Output of [`compile`]: list-side expansion + request-side strip index.
@@ -46,6 +49,9 @@ pub fn compile(rows: &[Arc<ProviderModel>]) -> CompiledModels {
                 context_window: row.context_window,
                 max_input_tokens: row.max_input_tokens,
                 max_output_tokens: row.max_output_tokens,
+                thinking_supported: row.thinking_supported,
+                thinking_adaptive_supported: row.thinking_adaptive_supported,
+                thinking_enabled_supported: row.thinking_enabled_supported,
             });
         }
         for name in names {
@@ -62,6 +68,9 @@ pub fn compile(rows: &[Arc<ProviderModel>]) -> CompiledModels {
                 context_window: row.context_window,
                 max_input_tokens: row.max_input_tokens,
                 max_output_tokens: row.max_output_tokens,
+                thinking_supported: row.thinking_supported,
+                thinking_adaptive_supported: row.thinking_adaptive_supported,
+                thinking_enabled_supported: row.thinking_enabled_supported,
             });
         }
     }
@@ -130,6 +139,9 @@ mod tests {
             context_window: Some(131_072),
             max_input_tokens: Some(122_880),
             max_output_tokens: Some(8_192),
+            thinking_supported: Some(true),
+            thinking_adaptive_supported: Some(true),
+            thinking_enabled_supported: Some(true),
             enabled: true,
             created_at: 0,
             updated_at: 0,

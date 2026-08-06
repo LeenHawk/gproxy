@@ -22,6 +22,9 @@ export function useProviderModelToggle(providerId: number) {
         context_window: model.context_window,
         max_input_tokens: model.max_input_tokens,
         max_output_tokens: model.max_output_tokens,
+        thinking_supported: model.thinking_supported,
+        thinking_adaptive_supported: model.thinking_adaptive_supported,
+        thinking_enabled_supported: model.thinking_enabled_supported,
         enabled,
       }),
     onMutate: async ({ model, enabled }) => {

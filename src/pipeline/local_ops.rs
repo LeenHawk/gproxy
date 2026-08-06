@@ -15,7 +15,7 @@ use crate::app::snapshot::ControlPlaneSnapshot;
 use crate::channel::disposition::Disposition;
 use crate::pipeline::classify;
 use crate::pipeline::context::{Candidate, RequestCtx};
-use crate::pipeline::model_limits::ModelLimits;
+use crate::pipeline::model_limits::{ModelLimits, ModelThinking};
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::protocol::{Operation, Provider};
 
@@ -25,6 +25,7 @@ pub struct ModelEntry {
     pub id: String,
     pub display_name: Option<String>,
     pub limits: ModelLimits,
+    pub thinking: ModelThinking,
 }
 
 /// Serve a `Local`-plan candidate without an upstream call (§6.3). `None` =
@@ -108,6 +109,11 @@ pub fn entries_from(models: &[ExposedModel]) -> Vec<ModelEntry> {
             id: m.full_id.clone(),
             display_name: m.display_name.clone(),
             limits: ModelLimits::new(m.context_window, m.max_input_tokens, m.max_output_tokens),
+            thinking: ModelThinking::new(
+                m.thinking_supported,
+                m.thinking_adaptive_supported,
+                m.thinking_enabled_supported,
+            ),
         })
         .collect()
 }
@@ -173,6 +179,9 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
             if let Some(limit) = e.limits.max_output_tokens {
                 model["max_completion_tokens"] = json!(limit);
             }
+            if e.thinking.supported == Some(true) {
+                model["supported_parameters"] = json!(["reasoning"]);
+            }
             model
         }
         Provider::Claude => {
@@ -188,6 +197,24 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
             if let Some(limit) = e.limits.max_output_tokens {
                 model["max_tokens"] = json!(limit);
             }
+            if e.thinking.supported.is_some()
+                || e.thinking.adaptive_supported.is_some()
+                || e.thinking.enabled_supported.is_some()
+            {
+                let mut thinking = json!({});
+                if let Some(supported) = e.thinking.supported {
+                    thinking["supported"] = json!(supported);
+                }
+                let mut types = json!({});
+                if let Some(supported) = e.thinking.adaptive_supported {
+                    types["adaptive"] = json!({ "supported": supported });
+                }
+                if let Some(supported) = e.thinking.enabled_supported {
+                    types["enabled"] = json!({ "supported": supported });
+                }
+                thinking["types"] = types;
+                model["capabilities"] = json!({ "thinking": thinking });
+            }
             model
         }
         Provider::Gemini => {
@@ -200,6 +227,9 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
             }
             if let Some(limit) = e.limits.max_output_tokens {
                 model["outputTokenLimit"] = json!(limit);
+            }
+            if let Some(supported) = e.thinking.supported {
+                model["thinking"] = json!(supported);
             }
             model
         }
@@ -224,13 +254,14 @@ fn to_bytes(v: &Value) -> Bytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pipeline::model_limits::ModelLimits;
+    use crate::pipeline::model_limits::{ModelLimits, ModelThinking};
 
     fn entry() -> ModelEntry {
         ModelEntry {
             id: "test-model".into(),
             display_name: Some("Test Model".into()),
             limits: ModelLimits::new(Some(128_000), Some(120_000), Some(8_000)),
+            thinking: ModelThinking::new(Some(true), Some(true), Some(false)),
         }
     }
 
@@ -242,17 +273,34 @@ mod tests {
         assert_eq!(openai["context_window"], 128_000);
         assert_eq!(openai["max_completion_tokens"], 8_000);
         assert!(openai.get("max_input_tokens").is_none());
+        assert_eq!(openai["supported_parameters"], json!(["reasoning"]));
+
+        let mut unsupported = entry();
+        unsupported.thinking.supported = Some(false);
+        let openai_unsupported: Value =
+            serde_json::from_slice(&render_model(Provider::OpenAi, &unsupported)).unwrap();
+        assert!(openai_unsupported.get("supported_parameters").is_none());
 
         let claude: Value =
             serde_json::from_slice(&render_model(Provider::Claude, &entry())).unwrap();
         assert_eq!(claude["max_input_tokens"], 120_000);
         assert_eq!(claude["max_tokens"], 8_000);
         assert!(claude.get("context_window").is_none());
+        assert_eq!(claude["capabilities"]["thinking"]["supported"], true);
+        assert_eq!(
+            claude["capabilities"]["thinking"]["types"]["adaptive"]["supported"],
+            true
+        );
+        assert_eq!(
+            claude["capabilities"]["thinking"]["types"]["enabled"]["supported"],
+            false
+        );
 
         let gemini: Value =
             serde_json::from_slice(&render_model(Provider::Gemini, &entry())).unwrap();
         assert_eq!(gemini["inputTokenLimit"], 120_000);
         assert_eq!(gemini["outputTokenLimit"], 8_000);
         assert!(gemini.get("context_window").is_none());
+        assert_eq!(gemini["thinking"], true);
     }
 }

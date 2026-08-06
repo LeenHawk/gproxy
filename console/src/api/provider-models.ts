@@ -10,6 +10,9 @@ export interface ProviderModel {
   context_window: number | null;
   max_input_tokens: number | null;
   max_output_tokens: number | null;
+  thinking_supported: boolean | null;
+  thinking_adaptive_supported: boolean | null;
+  thinking_enabled_supported: boolean | null;
   enabled: boolean;
   created_at: number;
   updated_at: number;
@@ -26,6 +29,9 @@ export interface ProviderModelInput {
   context_window?: number | null;
   max_input_tokens?: number | null;
   max_output_tokens?: number | null;
+  thinking_supported?: boolean | null;
+  thinking_adaptive_supported?: boolean | null;
+  thinking_enabled_supported?: boolean | null;
   enabled: boolean;
 }
 
@@ -52,6 +58,9 @@ export interface UpstreamModel {
   context_window: number | null;
   max_input_tokens: number | null;
   max_output_tokens: number | null;
+  thinking_supported: boolean | null;
+  thinking_adaptive_supported: boolean | null;
+  thinking_enabled_supported: boolean | null;
 }
 
 /** LIVE upstream pull — keep enabled:false and refetch manually (it calls the provider's API). */

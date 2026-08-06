@@ -20,6 +20,9 @@ fn to_record(m: provider_model::Model) -> anyhow::Result<ProviderModel> {
         context_window: m.context_window,
         max_input_tokens: m.max_input_tokens,
         max_output_tokens: m.max_output_tokens,
+        thinking_supported: m.thinking_supported,
+        thinking_adaptive_supported: m.thinking_adaptive_supported,
+        thinking_enabled_supported: m.thinking_enabled_supported,
         enabled: m.enabled,
         created_at: m.created_at,
         updated_at: m.updated_at,
@@ -69,6 +72,9 @@ pub async fn upsert(
                 am.context_window = Set(input.context_window);
                 am.max_input_tokens = Set(input.max_input_tokens);
                 am.max_output_tokens = Set(input.max_output_tokens);
+                am.thinking_supported = Set(input.thinking_supported);
+                am.thinking_adaptive_supported = Set(input.thinking_adaptive_supported);
+                am.thinking_enabled_supported = Set(input.thinking_enabled_supported);
                 am.enabled = Set(input.enabled);
                 am.updated_at = Set(now);
                 am.update(conn).await?
@@ -85,6 +91,9 @@ pub async fn upsert(
                     context_window: Set(input.context_window),
                     max_input_tokens: Set(input.max_input_tokens),
                     max_output_tokens: Set(input.max_output_tokens),
+                    thinking_supported: Set(input.thinking_supported),
+                    thinking_adaptive_supported: Set(input.thinking_adaptive_supported),
+                    thinking_enabled_supported: Set(input.thinking_enabled_supported),
                     enabled: Set(input.enabled),
                     created_at: Set(now),
                     updated_at: Set(now),
@@ -103,6 +112,9 @@ pub async fn upsert(
                 context_window: Set(input.context_window),
                 max_input_tokens: Set(input.max_input_tokens),
                 max_output_tokens: Set(input.max_output_tokens),
+                thinking_supported: Set(input.thinking_supported),
+                thinking_adaptive_supported: Set(input.thinking_adaptive_supported),
+                thinking_enabled_supported: Set(input.thinking_enabled_supported),
                 enabled: Set(input.enabled),
                 created_at: Set(now),
                 updated_at: Set(now),
