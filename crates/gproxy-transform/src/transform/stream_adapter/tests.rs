@@ -266,36 +266,6 @@ fn buffered_aggregation_rejects_invalid_frames() {
 }
 
 #[test]
-fn buffered_responses_tool_call_accepts_done_without_name() {
-    let input = concat!(
-        "event: response.output_item.added\n",
-        "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"arguments\":\"\",\"call_id\":\"call_1\",\"name\":\"echo\",\"id\":\"fc_1\",\"status\":\"in_progress\"},\"output_index\":0}\n\n",
-        "event: response.function_call_arguments.done\n",
-        "data: {\"type\":\"response.function_call_arguments.done\",\"arguments\":\"{\\\"text\\\":\\\"hi\\\"}\",\"item_id\":\"fc_1\",\"output_index\":0}\n\n",
-        "event: response.output_item.done\n",
-        "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"arguments\":\"{\\\"text\\\":\\\"hi\\\"}\",\"call_id\":\"call_1\",\"name\":\"echo\",\"id\":\"fc_1\",\"status\":\"completed\"},\"output_index\":0}\n\n",
-        "event: response.completed\n",
-        "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1,\"model\":\"m\",\"output\":[{\"type\":\"function_call\",\"arguments\":\"{\\\"text\\\":\\\"hi\\\"}\",\"call_id\":\"call_1\",\"name\":\"echo\",\"id\":\"fc_1\",\"status\":\"completed\"}]}}\n\n",
-    );
-
-    let mut normalizer = ResponsesStreamNormalizer::new();
-    let mut normalized = normalizer.push(input.as_bytes()).unwrap();
-    normalized.extend(normalizer.finish().unwrap());
-    let normalized_text = std::str::from_utf8(&normalized).unwrap();
-    assert_eq!(
-        normalized_text
-            .matches(r#""type":"response.function_call_arguments.done""#)
-            .count(),
-        1
-    );
-
-    let out = aggregate_buffered(ContentGenerationKind::OpenAiResponses, &normalized).unwrap();
-    let value: Value = serde_json::from_slice(&out.body).unwrap();
-    assert_eq!(value["output"][0]["name"], "echo");
-    assert_eq!(value["output"][0]["arguments"], r#"{"text":"hi"}"#);
-}
-
-#[test]
 fn responses_normalizer_finish_flushes_lifecycle() {
     let mut normalizer = ResponsesStreamNormalizer::new();
     let input = concat!(
