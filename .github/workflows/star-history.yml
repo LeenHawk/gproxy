@@ -1,0 +1,93 @@
+name: Star History
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: star-history
+  cancel-in-progress: true
+
+jobs:
+  render:
+    name: Render chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      # Scheduled workflows must live on the default branch. The generated
+      # files themselves live on the orphan `star-history` branch so their
+      # daily updates never push to main or trigger release/CI/staging jobs.
+      - name: Restore previous generated files
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="assets/star-history"
+          mkdir -p "$output"
+
+          if git fetch --no-tags origin \
+            "star-history:refs/remotes/origin/star-history" 2>/dev/null; then
+            for file in \
+              .star-history.sig \
+              star-history-light.svg \
+              star-history-dark.svg \
+              star-history.png
+            do
+              git show "refs/remotes/origin/star-history:$file" \
+                > "$output/$file" 2>/dev/null || rm -f "$output/$file"
+            done
+          fi
+
+      - name: Render star history
+        id: render
+        uses: narayann7/star-history-action@c2061675dacbf6f35d116e556015b8905843387f
+        with:
+          repos: ${{ github.repository }}
+          output-dir: assets/star-history
+          token: ${{ github.token }}
+          type: Date
+          themes: light,dark
+          width: "800"
+          update-readme: "false"
+          commit: "false"
+
+      - name: Publish generated branch
+        if: ${{ steps.render.outputs.changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="star-history"
+          output="$GITHUB_WORKSPACE/assets/star-history"
+          work="$(mktemp -d)"
+          trap 'git worktree remove --force "$work" 2>/dev/null || true' EXIT
+
+          if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+            git worktree add -B "$branch" "$work" "refs/remotes/origin/$branch"
+          else
+            git worktree add --detach "$work" HEAD
+            git -C "$work" switch --orphan "$branch"
+          fi
+
+          git -C "$work" rm -rf --ignore-unmatch .
+          git -C "$work" clean -fdx
+          cp "$output/.star-history.sig" "$work/"
+          cp "$output/star-history-light.svg" "$work/"
+          cp "$output/star-history-dark.svg" "$work/"
+          cp "$output/star-history.png" "$work/"
+
+          git -C "$work" add -A
+          if git -C "$work" diff --cached --quiet; then
+            echo "Generated files are unchanged."
+            exit 0
+          fi
+
+          git -C "$work" config user.name "github-actions[bot]"
+          git -C "$work" config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$work" commit -m "chore: update star history [skip ci]"
+          git -C "$work" push origin "HEAD:$branch"
