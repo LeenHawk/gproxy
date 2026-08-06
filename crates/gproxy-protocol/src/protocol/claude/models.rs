@@ -42,14 +42,14 @@ pub struct ListModelsResponse {
 #[non_exhaustive]
 pub struct ModelInfo {
     pub id: ClaudeModel,
-    pub allowed_fallback_models: Vec<ClaudeModel>,
+    pub allowed_fallback_models: Option<Vec<ClaudeModel>>,
     #[serde(rename = "type")]
     pub type_: ModelObjectType,
     pub created_at: String,
     pub display_name: String,
-    pub max_input_tokens: u64,
-    pub max_tokens: u64,
-    pub capabilities: ModelCapabilities,
+    pub max_input_tokens: Option<u64>,
+    pub max_tokens: Option<u64>,
+    pub capabilities: Option<ModelCapabilities>,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: JsonObject,
 }
@@ -138,4 +138,31 @@ pub struct ModelError {
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: BTreeMap<String, Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn beta_model_info_decodes_nullable_metadata() {
+        let model: ModelInfo = serde_json::from_str(
+            r#"{
+                "id": "claude-test",
+                "allowed_fallback_models": null,
+                "type": "model",
+                "created_at": "2026-01-01T00:00:00Z",
+                "display_name": "Claude Test",
+                "max_input_tokens": null,
+                "max_tokens": null,
+                "capabilities": null
+            }"#,
+        )
+        .expect("decode nullable beta model metadata");
+
+        assert!(model.allowed_fallback_models.is_none());
+        assert!(model.max_input_tokens.is_none());
+        assert!(model.max_tokens.is_none());
+        assert!(model.capabilities.is_none());
+    }
 }
