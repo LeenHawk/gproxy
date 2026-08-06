@@ -253,17 +253,14 @@ pub async fn run_failover(
         } else {
             outcome
         };
-        // §3.2/§16.3 disposition → health (+ edge-persisted credential edges),
-        // recorded EXACTLY ONCE per logical candidate on the FINAL disposition.
-        // A still-AuthDead final cools the credential 600s (health_hooks).
         health_hooks::record_attempt(
             state,
             &ctx.request_id,
             cand,
             &outcome.disposition,
             outcome.send_ms,
-        );
-
+        )
+        .await;
         if !outcome.disposition.should_failover() {
             telemetry::selected(
                 ctx,

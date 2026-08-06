@@ -46,6 +46,10 @@
     "threshold": "错误率阈值（%）",
     "minRequests": "最小请求数"
   },
+  "affinity": {
+    "title": "会话粘性",
+    "hint": "同一 API Key 优先使用同一成员；提供 X-Gproxy-Session-Id 时以该会话为准，空闲 1 小时后过期。"
+  },
   "delete": {
     "route": "删除负载均衡",
     "routeConfirm": "将删除负载均衡「{{name}}」及其成员与别名;调用该逻辑模型的客户端会失败。",

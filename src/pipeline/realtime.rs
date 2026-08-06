@@ -13,7 +13,7 @@ use crate::health::config::breaker_config;
 use crate::http::client::ConduitSocket;
 use crate::pipeline::context::RequestCtx;
 use crate::pipeline::error::PipelineError;
-use crate::pipeline::{auth, candidate, classify, health_hooks, ingress, transform};
+use crate::pipeline::{auth, balance, candidate, classify, health_hooks, ingress, transform};
 
 pub(crate) struct RealtimeSession {
     pub socket: Box<dyn ConduitSocket>,
@@ -31,12 +31,13 @@ pub(crate) async fn open(
     let prepared = {
         let cp = state.cp();
         ctx.identity = Some(auth::authenticate(&cp, &ctx.headers, ctx.query.as_deref())?);
+        let affinity_session_id = balance::take_session_id(&mut ctx.headers);
         ingress::apply_global_blacklist(&mut ctx);
         let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
         ctx.op = Some(classified.op);
         ctx.stream = true;
         ctx.body_model = crate::channel::realtime_websocket::query_model(ctx.query.as_deref());
-        candidate::prepare(&cp, &ctx, classified.op)?
+        candidate::prepare(&cp, &ctx, classified.op, affinity_session_id)?
     };
     let request = match prepared {
         candidate::Prepared::Candidates(request) => *request,
@@ -132,7 +133,8 @@ async fn open_candidates(
                     &candidate,
                     &crate::channel::Disposition::Success,
                     None,
-                );
+                )
+                .await;
                 let usage = usage::UsageContext::capture(state, ctx, &candidate);
                 return Ok(RealtimeSession {
                     socket,

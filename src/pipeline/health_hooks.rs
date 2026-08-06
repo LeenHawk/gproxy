@@ -13,7 +13,7 @@ use crate::health::breaker::Transition;
 use crate::health::config::breaker_config;
 use crate::health::persist::persist_credential_transition;
 use crate::health::persist::{CredentialModelTransition, CredentialTransition};
-use crate::pipeline::context::Candidate;
+use crate::pipeline::{balance, context::Candidate};
 use crate::store::persistence::records::{Credential, Provider};
 use crate::util::time::unix_now;
 
@@ -36,7 +36,20 @@ const AUTH_DEAD_SECS: i64 = 600;
 ///
 /// Breaker outcomes stay model-scoped. `send_ms` is the measured send latency
 /// (native only; `None` on failures).
-pub fn record_attempt(
+pub async fn record_attempt(
+    state: &AppState,
+    request_id: &str,
+    cand: &Candidate,
+    disposition: &Disposition,
+    send_ms: Option<f64>,
+) {
+    record_health_attempt(state, request_id, cand, disposition, send_ms);
+    if *disposition == Disposition::Success {
+        balance::record_member_affinity(state.cache.as_ref(), cand).await;
+    }
+}
+
+fn record_health_attempt(
     state: &AppState,
     request_id: &str,
     cand: &Candidate,
@@ -174,7 +187,7 @@ pub fn record_credential_attempt(
 
 /// Transport (`send_once` Err) and prepare failures count as `Transient`.
 pub fn record_failure(state: &AppState, request_id: &str, cand: &Candidate) {
-    record_attempt(state, request_id, cand, &Disposition::Transient, None);
+    record_health_attempt(state, request_id, cand, &Disposition::Transient, None);
 }
 
 /// §16.3: persist a credential breaker transition edge (Opened/Reopened →

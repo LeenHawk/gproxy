@@ -46,6 +46,10 @@
     "threshold": "Threshold (%)",
     "minRequests": "Minimum requests"
   },
+  "affinity": {
+    "title": "Session affinity",
+    "hint": "Keep the same API key on one member. X-Gproxy-Session-Id takes priority when supplied; pins expire after 1 hour of inactivity."
+  },
   "delete": {
     "route": "Delete load balancer",
     "routeConfirm": "This deletes load balancer \"{{name}}\" with its members and aliases. Clients calling this logical model will fail.",

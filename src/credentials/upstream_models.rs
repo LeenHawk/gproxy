@@ -124,12 +124,11 @@ pub async fn fetch_models(
         }
         admitted = true;
         let credential = Arc::new(credential);
-        let cand = Candidate {
-            provider: Arc::clone(&provider),
-            credential: Arc::clone(&credential),
-            upstream_model_id: String::new(),
-            member_id: None,
-        };
+        let cand = Candidate::for_provider(
+            Arc::clone(&provider),
+            Arc::clone(&credential),
+            String::new(),
+        );
         match fetch_models_for_credential(state, &channel, family, &cand).await {
             CredentialPull::Success(pulled) => {
                 succeeded = true;

@@ -12,9 +12,8 @@ pub struct Route {
     pub strategy: String,
     pub enabled: bool,
     pub description: Option<String>,
-    /// Free-form route settings; the only key today is `circuit_breaker`, whose
-    /// fields override the member providers' breaker thresholds (§3.2). `None` =
-    /// inherit the provider config wholesale.
+    /// Free-form route settings. `circuit_breaker` overrides member-provider
+    /// thresholds (§3.2); `affinity.enabled` pins a user/session to one member.
     #[serde(default)]
     pub settings_json: Option<Value>,
     pub created_at: i64,

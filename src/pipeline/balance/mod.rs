@@ -3,11 +3,11 @@
 //! health and ordered per the provider's credential strategy (round_robin
 //! rotation or sticky cache affinity).
 
+mod affinity;
 mod strategy;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::app::snapshot::{ControlPlaneSnapshot, ResolvedRoute};
 use crate::health::config::breaker_config;
@@ -18,8 +18,7 @@ use crate::store::cache::CacheBackend;
 use crate::store::persistence::records::{Credential, Provider, Route, RouteMember};
 use crate::util::time::unix_now;
 
-/// Sticky-affinity pin TTL — rolling: refreshed on every pick.
-const AFFINITY_TTL: Duration = Duration::from_secs(3600);
+pub(crate) use affinity::take_session_id;
 
 /// Snapshot-owned input for route balancing. Only providers and credential
 /// pools referenced by this route are retained.
@@ -114,11 +113,12 @@ impl PreparedProvider {
         }
         Ok(credentials
             .into_iter()
-            .map(|credential| Candidate {
-                provider: Arc::clone(&self.provider),
-                credential,
-                upstream_model_id: self.upstream_model_id.clone(),
-                member_id: None,
+            .map(|credential| {
+                Candidate::for_provider(
+                    Arc::clone(&self.provider),
+                    credential,
+                    self.upstream_model_id.clone(),
+                )
             })
             .collect())
     }
@@ -132,9 +132,12 @@ pub(crate) async fn candidates(
     health: &HealthState,
     cache: &dyn CacheBackend,
     user_key_id: Option<i64>,
+    session_id: Option<&str>,
 ) -> Result<Vec<Candidate>, PipelineError> {
     let now = unix_now();
-    let ordered = strategy::order_members(
+    let affinity_key = affinity::member_key(&prepared.route, user_key_id, session_id);
+    let pinned_member = affinity::read_pin(cache, affinity_key.as_deref()).await;
+    let mut ordered = strategy::order_members(
         &prepared.route.strategy,
         &prepared.members,
         |m| {
@@ -148,6 +151,7 @@ pub(crate) async fn candidates(
         || health.next_route_rotation(prepared.route.id),
         now,
     );
+    affinity::prefer_member(&mut ordered, pinned_member);
     if ordered.is_empty() {
         return Err(PipelineError::NoMembers);
     }
@@ -179,6 +183,7 @@ pub(crate) async fn candidates(
                 credential: cred,
                 upstream_model_id: member.upstream_model_id.clone(),
                 member_id: Some(member.id),
+                member_affinity_key: affinity_key.clone(),
             });
         }
     }
@@ -218,14 +223,7 @@ async fn credential_pool(
         ("sticky", Some(uk)) => Some(format!("aff:{}:{uk}", provider.id)),
         _ => None,
     };
-    let pinned = match &sticky_key {
-        Some(key) => cache
-            .get(key)
-            .await
-            .and_then(|v| String::from_utf8(v).ok())
-            .and_then(|s| s.parse::<i64>().ok()),
-        None => None,
-    };
+    let pinned = affinity::read_pin(cache, sticky_key.as_deref()).await;
 
     let ordered = strategy::order_credentials(&filtered, rotation, pinned);
     if let Some(key) = sticky_key
@@ -233,9 +231,17 @@ async fn credential_pool(
     {
         // Affinity is a best-effort hint: a failed write just loses
         // stickiness for this window.
-        let _ = cache
-            .set(&key, first.id.to_string().into_bytes(), Some(AFFINITY_TTL))
-            .await;
+        affinity::write_pin(cache, &key, first.id).await;
     }
     ordered
+}
+
+/// Refresh a route-member pin only after that member actually served a 2xx.
+pub(crate) async fn record_member_affinity(cache: &dyn CacheBackend, candidate: &Candidate) {
+    if let (Some(key), Some(member_id)) = (
+        candidate.member_affinity_key.as_deref(),
+        candidate.member_id,
+    ) {
+        affinity::write_pin(cache, key, member_id).await;
+    }
 }

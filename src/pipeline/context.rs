@@ -54,6 +54,25 @@ pub struct Candidate {
     /// Route member behind this attempt; `None` in scoped mode (no member —
     /// the member breaker is skipped).
     pub member_id: Option<i64>,
+    /// Cache key for optional route-member affinity. Set only for routed
+    /// requests whose route enables affinity.
+    pub(crate) member_affinity_key: Option<Arc<str>>,
+}
+
+impl Candidate {
+    pub(crate) fn for_provider(
+        provider: Arc<Provider>,
+        credential: Arc<Credential>,
+        upstream_model_id: String,
+    ) -> Self {
+        Self {
+            provider,
+            credential,
+            upstream_model_id,
+            member_id: None,
+            member_affinity_key: None,
+        }
+    }
 }
 
 /// Output of [`classify`](crate::pipeline::classify::classify).
