@@ -1,7 +1,7 @@
 use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
-use super::{DEFAULT_CREATED_AT, claude_model_object, default_claude_capabilities, wire_string};
+use super::{DEFAULT_CREATED_AT, claude_model_object, wire_string};
 
 pub(in crate::transform::models) fn model(
     input: openai::Model,
@@ -11,13 +11,13 @@ pub(in crate::transform::models) fn model(
 
     Ok(crate::protocol::wire!(claude::ModelInfo {
         id: id.clone().into(),
-        allowed_fallback_models: Vec::new(),
+        allowed_fallback_models: None,
         type_: claude_model_object(),
         created_at: DEFAULT_CREATED_AT.to_owned(),
         display_name: id,
-        max_input_tokens: 0,
-        max_tokens: 0,
-        capabilities: default_claude_capabilities(),
+        max_input_tokens: None,
+        max_tokens: None,
+        capabilities: None,
         extra: Default::default(),
     }))
 }
