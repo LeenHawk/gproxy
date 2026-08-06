@@ -6,7 +6,14 @@ use gproxy::config::PersistenceKind;
 use gproxy::http::client::UpstreamClient;
 
 #[derive(Parser)]
-#[command(name = "gproxy", version, about = "GPROXY v2 LLM proxy")]
+// `version` is computed rather than derived from CARGO_PKG_VERSION alone: it
+// also names the self-update target triple, which UPX-packed release artifacts
+// otherwise hide from `file`/`ldd` (§19.3).
+#[command(
+    name = "gproxy",
+    version = gproxy::selfupdate::version_line(),
+    about = "GPROXY v2 LLM proxy"
+)]
 pub(crate) struct Cli {
     /// Internal self-update hand-off: wait for the old process before booting.
     #[cfg(windows)]
@@ -201,7 +208,8 @@ pub(crate) async fn run_update(
             UpdateAction::Check => {
                 let report = gproxy::selfupdate::check(&ctx).await?;
                 println!(
-                    "channel={channel:?} current={} latest={} available={}{}",
+                    "channel={channel:?} target={} current={} latest={} available={}{}",
+                    gproxy::selfupdate::current_target_triple(),
                     report.current,
                     report.latest,
                     report.available,
