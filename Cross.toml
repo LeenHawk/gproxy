@@ -1,5 +1,14 @@
+# Compile-time inputs the release workflow exports on the host; `cross` runs the
+# build inside a container and forwards nothing unless it is listed here. Any
+# omission silently degrades self-update: a missing GPROXY_BUILD_VERSION makes
+# cross-built targets (musl, riscv64) fall back to hashing their own executable
+# for the staging identity instead of carrying the commit (§19.3).
 [build.env]
-passthrough = ["GPROXY_BUILD_CHANNEL", "GPROXY_UPDATE_PUBKEY"]
+passthrough = [
+    "GPROXY_BUILD_CHANNEL",
+    "GPROXY_BUILD_VERSION",
+    "GPROXY_UPDATE_PUBKEY",
+]
 
 [target.riscv64gc-unknown-linux-gnu]
 pre-build = [
