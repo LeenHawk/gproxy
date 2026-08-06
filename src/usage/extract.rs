@@ -48,7 +48,8 @@ pub fn from_response(family: Provider, body: &Value) -> Option<NormalizedUsage> 
 /// `message_start` (input side, frame ~1, found by a forward scan) with the
 /// LAST `message_delta` carrying usage. Native Claude deltas normally contain
 /// only cumulative output; channel-normalized providers such as Bedrock can
-/// report the final input/cache side there as well.
+/// report the final input/cache side there as well. An aggregate-only delta
+/// must not erase a TTL breakdown already present in `message_start`.
 pub fn from_stream_frames(
     kind: ContentGenerationKind,
     frames: &[SseFrame],
@@ -211,7 +212,11 @@ fn claude_stream(frames: &[SseFrame]) -> Option<NormalizedUsage> {
             .get("message")?
             .get("usage")
             .filter(|u| u.is_object())?;
-        numeric(usage, "input_tokens").then(|| claude_usage(usage))
+        numeric(usage, "input_tokens").then(|| ClaudeStreamStart {
+            usage: claude_usage(usage),
+            has_cache_creation: numeric(usage, "cache_creation_input_tokens")
+                || usage.get("cache_creation").is_some(),
+        })
     });
     let delta = frames.iter().rev().find_map(|frame| {
         let json = frame_json(frame)?;
@@ -225,22 +230,25 @@ fn claude_stream(frames: &[SseFrame]) -> Option<NormalizedUsage> {
             has_cache_read: numeric(usage, "cache_read_input_tokens"),
             has_cache_creation: numeric(usage, "cache_creation_input_tokens")
                 || usage.get("cache_creation").is_some(),
+            has_cache_creation_breakdown: usage.get("cache_creation").is_some(),
         })
     });
     match (start, delta) {
         (Some(mut start), Some(delta)) => {
-            start.output = delta.usage.output;
+            start.usage.output = delta.usage.output;
             if delta.has_input {
-                start.input = delta.usage.input;
+                start.usage.input = delta.usage.input;
             }
             if delta.has_cache_read {
-                start.cache_read = delta.usage.cache_read;
+                start.usage.cache_read = delta.usage.cache_read;
             }
-            if delta.has_cache_creation {
-                start.cache_creation_5m = delta.usage.cache_creation_5m;
-                start.cache_creation_1h = delta.usage.cache_creation_1h;
+            if delta.has_cache_creation_breakdown
+                || (delta.has_cache_creation && !start.has_cache_creation)
+            {
+                start.usage.cache_creation_5m = delta.usage.cache_creation_5m;
+                start.usage.cache_creation_1h = delta.usage.cache_creation_1h;
             }
-            Some(start)
+            Some(start.usage)
         }
         (Some(_), None) => None,
         (None, Some(only)) => only.has_input.then_some(only.usage),
@@ -248,11 +256,17 @@ fn claude_stream(frames: &[SseFrame]) -> Option<NormalizedUsage> {
     }
 }
 
+struct ClaudeStreamStart {
+    usage: NormalizedUsage,
+    has_cache_creation: bool,
+}
+
 struct ClaudeStreamDelta {
     usage: NormalizedUsage,
     has_input: bool,
     has_cache_read: bool,
     has_cache_creation: bool,
+    has_cache_creation_breakdown: bool,
 }
 
 #[cfg(test)]
@@ -413,7 +427,12 @@ mod tests {
                 "message_start",
                 json!({"type": "message_start", "message": {"usage": {
                     "input_tokens": 25, "output_tokens": 1,
-                    "cache_read_input_tokens": 10
+                    "cache_read_input_tokens": 10,
+                    "cache_creation_input_tokens": 20,
+                    "cache_creation": {
+                        "ephemeral_5m_input_tokens": 0,
+                        "ephemeral_1h_input_tokens": 20
+                    }
                 }}})
                 .to_string(),
             ),
@@ -423,12 +442,18 @@ mod tests {
             ),
             SseFrame::event(
                 "message_delta",
-                json!({"type": "message_delta", "usage": {"output_tokens": 12}}).to_string(),
+                json!({"type": "message_delta", "usage": {
+                    "output_tokens": 12,
+                    "cache_creation_input_tokens": 20
+                }})
+                .to_string(),
             ),
         ];
         let u = from_stream_frames(ContentGenerationKind::ClaudeMessages, &frames).unwrap();
         assert_eq!(u.input, 25);
         assert_eq!(u.cache_read, 10);
+        assert_eq!(u.cache_creation_5m, 0);
+        assert_eq!(u.cache_creation_1h, 20);
         assert_eq!(u.output, 12);
 
         // OpenAI chat: only the final chunk carries usage (include_usage).
