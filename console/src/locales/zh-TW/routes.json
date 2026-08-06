@@ -46,6 +46,10 @@
     "threshold": "錯誤率閾值（%）",
     "minRequests": "最小請求數"
   },
+  "affinity": {
+    "title": "工作階段黏性",
+    "hint": "同一 API Key 優先使用同一成員；提供 X-Gproxy-Session-Id 時以該工作階段為準，閒置 1 小時後到期。"
+  },
   "delete": {
     "route": "刪除負載均衡",
     "routeConfirm": "將刪除負載均衡「{{name}}」及其成員與別名;呼叫該邏輯模型的用戶端會失敗。",

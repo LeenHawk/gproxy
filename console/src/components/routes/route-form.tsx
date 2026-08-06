@@ -58,6 +58,9 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
   const [strategy, setStrategy] = useState(route?.strategy ?? "failover");
   const [description, setDescription] = useState(route?.description ?? "");
   const [enabled, setEnabled] = useState(route?.enabled ?? true);
+  const [affinityEnabled, setAffinityEnabled] = useState(
+    objectValue(objectValue(route?.settings_json).affinity).enabled === true,
+  );
   const [breaker, setBreaker] = useState<BreakerState>(() => initialBreaker(route?.settings_json));
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -100,6 +103,11 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
 
       if (Object.keys(circuitBreaker).length > 0) settings.circuit_breaker = circuitBreaker;
       else delete settings.circuit_breaker;
+      const affinity = { ...objectValue(settings.affinity) };
+      if (affinityEnabled) affinity.enabled = true;
+      else delete affinity.enabled;
+      if (Object.keys(affinity).length > 0) settings.affinity = affinity;
+      else delete settings.affinity;
       return upsertRoute({
         id: route?.id ?? null,
         name: name.trim(),
@@ -137,6 +145,13 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
       <div className="grid gap-2">
         <Label htmlFor="r-desc">{t("fields.description")}</Label>
         <Input id="r-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+        <div>
+          <Label htmlFor="r-affinity">{t("affinity.title")}</Label>
+          <p className="text-xs text-muted-foreground">{t("affinity.hint")}</p>
+        </div>
+        <Switch id="r-affinity" checked={affinityEnabled} onCheckedChange={setAffinityEnabled} />
       </div>
       <div className="grid gap-3 rounded-md border p-3">
         <div>

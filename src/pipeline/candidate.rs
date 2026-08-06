@@ -33,6 +33,7 @@ pub(crate) struct CandidateRequest {
     synthetic_providers: HashSet<i64>,
     route_name: Option<String>,
     provider_name: Option<String>,
+    affinity_session_id: Option<String>,
 }
 
 pub(crate) struct ScopedModels {
@@ -58,11 +59,14 @@ pub(crate) fn prepare(
     cp: &ControlPlaneSnapshot,
     ctx: &RequestCtx,
     op: OperationKey,
+    affinity_session_id: Option<String>,
 ) -> Result<Prepared, PipelineError> {
     let identity = ctx.identity.as_ref().expect("auth ran first");
     match &ctx.mode {
-        RoutingMode::Aggregated => prepare_aggregated(cp, ctx, identity),
-        RoutingMode::Scoped { provider } => prepare_scoped(cp, ctx, op, identity, provider),
+        RoutingMode::Aggregated => prepare_aggregated(cp, ctx, identity, affinity_session_id),
+        RoutingMode::Scoped { provider } => {
+            prepare_scoped(cp, ctx, op, identity, provider, affinity_session_id)
+        }
     }
 }
 
@@ -70,6 +74,7 @@ fn prepare_aggregated(
     cp: &ControlPlaneSnapshot,
     ctx: &RequestCtx,
     identity: &Arc<KeyIdentity>,
+    affinity_session_id: Option<String>,
 ) -> Result<Prepared, PipelineError> {
     let model = preprocess::preprocess(cp, ctx)?;
     if cp.routes_by_name.contains_key(&model) {
@@ -83,6 +88,7 @@ fn prepare_aggregated(
             source,
             Some(model),
             None,
+            affinity_session_id,
         ))));
     }
 
@@ -101,6 +107,7 @@ fn prepare_aggregated(
         source,
         None,
         Some(provider.name.clone()),
+        affinity_session_id,
     ))))
 }
 
@@ -110,6 +117,7 @@ fn prepare_scoped(
     op: OperationKey,
     identity: &Arc<KeyIdentity>,
     provider_name: &str,
+    affinity_session_id: Option<String>,
 ) -> Result<Prepared, PipelineError> {
     let provider = enabled_provider(cp, provider_name)?;
     if op.operation() == Operation::ListModels {
@@ -138,6 +146,7 @@ fn prepare_scoped(
         source,
         None,
         Some(provider.name.clone()),
+        affinity_session_id,
     ))))
 }
 
@@ -165,6 +174,7 @@ fn prepare_request(
     source: CandidateSource,
     route_name: Option<String>,
     provider_name: Option<String>,
+    affinity_session_id: Option<String>,
 ) -> CandidateRequest {
     let op = ctx.op.expect("classified");
     let identity = ctx.identity.as_deref().expect("auth ran first");
@@ -199,6 +209,7 @@ fn prepare_request(
         synthetic_providers,
         route_name,
         provider_name,
+        affinity_session_id,
     }
 }
 
@@ -226,6 +237,7 @@ impl CandidateRequest {
                     state.health.as_ref(),
                     state.cache.as_ref(),
                     Some(identity.user_key.id),
+                    self.affinity_session_id.as_deref(),
                 )
                 .await?
             }

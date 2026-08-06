@@ -12,7 +12,7 @@ use crate::pipeline::candidate;
 use crate::pipeline::context::{RequestCtx, RoutingMode};
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
-use crate::pipeline::{auth, capture, classify, failover, ingress, model_catalog};
+use crate::pipeline::{auth, balance, capture, classify, failover, ingress, model_catalog};
 use crate::protocol::Operation;
 
 /// Drive one request to an [`ExecOutcome`], wrapped in a per-request tracing
@@ -86,6 +86,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     let prepared = {
         let cp = state.cp();
         ctx.identity = Some(auth::authenticate(&cp, &ctx.headers, ctx.query.as_deref())?);
+        let affinity_session_id = balance::take_session_id(&mut ctx.headers);
         ingress::apply_global_blacklist(&mut ctx);
         ingress::normalize_multipart_form_body(&mut ctx)?;
         let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
@@ -112,7 +113,12 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         {
             None
         } else {
-            Some(candidate::prepare(&cp, &ctx, classified.op)?)
+            Some(candidate::prepare(
+                &cp,
+                &ctx,
+                classified.op,
+                affinity_session_id,
+            )?)
         }
     };
 
