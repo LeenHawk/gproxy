@@ -442,6 +442,15 @@ pub const MIGRATIONS: &[Migration] = &[
             "ALTER TABLE provider_models ADD COLUMN max_output_tokens BIGINT",
         ]),
     },
+    Migration {
+        version: 19,
+        description: "provider_models: thinking capabilities",
+        sql: MigrationSql::Shared(&[
+            "ALTER TABLE provider_models ADD COLUMN thinking_supported BOOLEAN",
+            "ALTER TABLE provider_models ADD COLUMN thinking_adaptive_supported BOOLEAN",
+            "ALTER TABLE provider_models ADD COLUMN thinking_enabled_supported BOOLEAN",
+        ]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

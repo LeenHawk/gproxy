@@ -285,6 +285,16 @@
     "maxOutputTokens": "Max output tokens",
     "limits": "Context / input / output",
     "limitsHint": "Optional token limits. Leave unknown values blank.",
+    "thinking": "Thinking / adaptive / enabled",
+    "thinkingSupported": "Thinking",
+    "thinkingAdaptive": "Adaptive thinking",
+    "thinkingEnabled": "Enabled thinking",
+    "thinkingHint": "Thinking capabilities are tri-state. Unknown values are omitted from model metadata.",
+    "thinkingStates": {
+      "unknown": "Unknown",
+      "supported": "Supported",
+      "unsupported": "Unsupported"
+    },
     "limitInvalid": "Token limits must be positive whole numbers.",
     "enabled": "Enabled",
     "modelIdHint": "Upstream model id, or an arbitrary id you expose (need not exist upstream).",

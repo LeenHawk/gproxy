@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { VariantEditor, type VariantRow } from "@/components/providers/variant-editor";
+import { ModelThinkingFields } from "@/components/providers/model-thinking-fields";
 import { loadVariantActions, syncModelVariants, parseVariantNames } from "@/lib/variant-sync";
 import type { SuffixAction } from "@/components/providers/suffix-presets";
 
@@ -48,6 +49,9 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
   const [contextWindow, setContextWindow] = useState(String(model?.context_window ?? ""));
   const [maxInputTokens, setMaxInputTokens] = useState(String(model?.max_input_tokens ?? ""));
   const [maxOutputTokens, setMaxOutputTokens] = useState(String(model?.max_output_tokens ?? ""));
+  const [thinkingSupported, setThinkingSupported] = useState<boolean | null>(model?.thinking_supported ?? null);
+  const [thinkingAdaptive, setThinkingAdaptive] = useState<boolean | null>(model?.thinking_adaptive_supported ?? null);
+  const [thinkingEnabled, setThinkingEnabled] = useState<boolean | null>(model?.thinking_enabled_supported ?? null);
   const [enabled, setEnabled] = useState(model?.enabled ?? true);
   const initVariants = readVariantRows(model?.variants_json);
   const [variantRows, setVariantRows] = useState<VariantRow[]>(initVariants.rows);
@@ -93,6 +97,9 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         context_window: parsedContextWindow,
         max_input_tokens: parsedMaxInputTokens,
         max_output_tokens: parsedMaxOutputTokens,
+        thinking_supported: thinkingSupported,
+        thinking_adaptive_supported: thinkingAdaptive,
+        thinking_enabled_supported: thinkingEnabled,
         enabled,
       });
       await syncModelVariants({
@@ -141,6 +148,16 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         </div>
       </div>
       <p className="text-xs text-muted-foreground">{t("models.limitsHint")}</p>
+
+
+      <ModelThinkingFields
+        supported={thinkingSupported}
+        adaptive={thinkingAdaptive}
+        enabled={thinkingEnabled}
+        onSupportedChange={setThinkingSupported}
+        onAdaptiveChange={setThinkingAdaptive}
+        onEnabledChange={setThinkingEnabled}
+      />
 
       <VariantEditor
         rows={variantRows}

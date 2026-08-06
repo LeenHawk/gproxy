@@ -285,6 +285,16 @@
     "maxOutputTokens": "最大输出 Token",
     "limits": "上下文 / 输入 / 输出",
     "limitsHint": "Token 限制均可留空，未知时不要猜测。",
+    "thinking": "推理 / 自适应 / Enabled",
+    "thinkingSupported": "支持推理",
+    "thinkingAdaptive": "支持自适应推理",
+    "thinkingEnabled": "支持 Enabled 推理",
+    "thinkingHint": "推理能力为三态；未知值不会写入模型元数据。",
+    "thinkingStates": {
+      "unknown": "未知",
+      "supported": "支持",
+      "unsupported": "不支持"
+    },
     "limitInvalid": "Token 限制必须是正整数。",
     "enabled": "启用",
     "modelIdHint": "上游模型 id,或你对外暴露的任意 id(不要求上游存在)。",

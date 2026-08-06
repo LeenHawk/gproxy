@@ -11,6 +11,9 @@ pub struct UpstreamModel {
     pub context_window: Option<i64>,
     pub max_input_tokens: Option<i64>,
     pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
 }
 
 /// Parse an upstream native model-list response into model metadata rows.
@@ -53,6 +56,12 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                     .and_then(Value::as_i64)
                     .filter(|v| *v > 0)
             };
+            let bool_at = |value: &Value, key: &str| value.get(key).and_then(Value::as_bool);
+            let supported_parameter = |name: &str| {
+                m.get("supported_parameters")
+                    .and_then(Value::as_array)
+                    .map(|parameters| parameters.iter().any(|value| value.as_str() == Some(name)))
+            };
             let (context_window, max_input_tokens, max_output_tokens) = match family {
                 Provider::OpenAi => (
                     int("context_length")
@@ -70,12 +79,38 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                     "new non-exhaustive protocol variant requires a lockstep transform update"
                 ),
             };
+            let (thinking_supported, thinking_adaptive_supported, thinking_enabled_supported) =
+                match family {
+                    Provider::OpenAi => (supported_parameter("reasoning"), None, None),
+                    Provider::Claude => {
+                        let thinking = m
+                            .get("capabilities")
+                            .and_then(|capabilities| capabilities.get("thinking"));
+                        let types = thinking.and_then(|thinking| thinking.get("types"));
+                        (
+                            thinking.and_then(|thinking| bool_at(thinking, "supported")),
+                            types
+                                .and_then(|types| types.get("adaptive"))
+                                .and_then(|adaptive| bool_at(adaptive, "supported")),
+                            types
+                                .and_then(|types| types.get("enabled"))
+                                .and_then(|enabled| bool_at(enabled, "supported")),
+                        )
+                    }
+                    Provider::Gemini => (bool_at(m, "thinking"), None, None),
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
+                };
             Some(UpstreamModel {
                 id,
                 display_name,
                 context_window,
                 max_input_tokens,
                 max_output_tokens,
+                thinking_supported,
+                thinking_adaptive_supported,
+                thinking_enabled_supported,
             })
         })
         .collect()

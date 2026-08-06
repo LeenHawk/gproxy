@@ -99,6 +99,9 @@ pub(super) fn provider_model_to_input(r: ProviderModel) -> ProviderModelInput {
         context_window: r.context_window,
         max_input_tokens: r.max_input_tokens,
         max_output_tokens: r.max_output_tokens,
+        thinking_supported: r.thinking_supported,
+        thinking_adaptive_supported: r.thinking_adaptive_supported,
+        thinking_enabled_supported: r.thinking_enabled_supported,
         enabled: r.enabled,
     }
 }

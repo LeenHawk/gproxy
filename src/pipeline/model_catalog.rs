@@ -24,7 +24,7 @@ use crate::pipeline::classify;
 use crate::pipeline::context::RequestCtx;
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::local_ops::{self, ModelEntry};
-use crate::pipeline::model_limits::{self, ModelLimits};
+use crate::pipeline::model_limits::{self, ModelLimits, ModelThinking};
 use crate::pipeline::outcome::ExecOutcome;
 use crate::pipeline::preprocess;
 use crate::protocol::{Operation, OperationKey};
@@ -90,9 +90,19 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                 let context_window = saved.context_window.or(model.limits.context_window);
                 let max_input_tokens = saved.max_input_tokens.or(model.limits.max_input_tokens);
                 let max_output_tokens = saved.max_output_tokens.or(model.limits.max_output_tokens);
+                let thinking_supported = saved.thinking_supported.or(model.thinking.supported);
+                let thinking_adaptive_supported = saved
+                    .thinking_adaptive_supported
+                    .or(model.thinking.adaptive_supported);
+                let thinking_enabled_supported = saved
+                    .thinking_enabled_supported
+                    .or(model.thinking.enabled_supported);
                 if context_window != saved.context_window
                     || max_input_tokens != saved.max_input_tokens
                     || max_output_tokens != saved.max_output_tokens
+                    || thinking_supported != saved.thinking_supported
+                    || thinking_adaptive_supported != saved.thinking_adaptive_supported
+                    || thinking_enabled_supported != saved.thinking_enabled_supported
                 {
                     state
                         .persistence
@@ -105,6 +115,9 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                             context_window,
                             max_input_tokens,
                             max_output_tokens,
+                            thinking_supported,
+                            thinking_adaptive_supported,
+                            thinking_enabled_supported,
                             enabled: saved.enabled,
                         })
                         .await?;
@@ -126,6 +139,9 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                     context_window: model.limits.context_window,
                     max_input_tokens: model.limits.max_input_tokens,
                     max_output_tokens: model.limits.max_output_tokens,
+                    thinking_supported: model.thinking.supported,
+                    thinking_adaptive_supported: model.thinking.adaptive_supported,
+                    thinking_enabled_supported: model.thinking.enabled_supported,
                     enabled: true,
                 })
                 .await?;
@@ -238,6 +254,11 @@ async fn fetch_live(state: &AppState, provider: &Provider) -> Option<Vec<ModelEn
                         model.max_input_tokens,
                         model.max_output_tokens,
                     ),
+                    thinking: ModelThinking::new(
+                        model.thinking_supported,
+                        model.thinking_adaptive_supported,
+                        model.thinking_enabled_supported,
+                    ),
                 })
                 .collect(),
         ),
@@ -347,6 +368,7 @@ pub(crate) async fn serve_aggregated(
                     id: id.clone(),
                     display_name: None,
                     limits: model_limits::for_target(&cp, id),
+                    thinking: model_limits::thinking_for_target(&cp, id),
                 })
                 .collect();
             if let Some(global_aliases) = cp.aliases_by_provider.get("*") {
@@ -358,6 +380,7 @@ pub(crate) async fn serve_aggregated(
                             id: alias.alias.clone(),
                             display_name: None,
                             limits: model_limits::for_target(&cp, &alias.target),
+                            thinking: model_limits::thinking_for_target(&cp, &alias.target),
                         }),
                 );
             }
@@ -379,6 +402,11 @@ pub(crate) async fn serve_aggregated(
                                 id: format!("{}/{}", provider.name, alias.alias),
                                 display_name: None,
                                 limits: model_limits::for_provider_model(&cp, provider.id, &target),
+                                thinking: model_limits::thinking_for_provider_model(
+                                    &cp,
+                                    provider.id,
+                                    &target,
+                                ),
                             })
                     }));
                 }
@@ -400,6 +428,7 @@ pub(crate) async fn serve_aggregated(
                     id,
                     display_name: None,
                     limits: model_limits::for_target(&cp, &target),
+                    thinking: model_limits::thinking_for_target(&cp, &target),
                 },
             )
         }

@@ -2,15 +2,16 @@
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
 use crate::store::persistence::libsql::row::{
-    Row, col_bool, col_i64, col_opt_json, col_opt_str, col_str,
+    Row, col_bool, col_i64, col_opt_bool, col_opt_json, col_opt_str, col_str,
 };
 use crate::store::persistence::libsql::util::{
-    arg_bool, arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query, query_one,
+    arg_bool, arg_opt_bool, arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query, query_one,
 };
 use crate::store::persistence::records::{ProviderModel, ProviderModelInput};
 
 const COLS: &str = "id, provider_id, model_id, display_name, variants_json, \
-     context_window, max_input_tokens, max_output_tokens, enabled, created_at, updated_at";
+     context_window, max_input_tokens, max_output_tokens, thinking_supported, \
+     thinking_adaptive_supported, thinking_enabled_supported, enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
     Ok(ProviderModel {
@@ -22,9 +23,12 @@ fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
         context_window: crate::store::persistence::libsql::row::col_opt_i64(row, 5)?,
         max_input_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 6)?,
         max_output_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 7)?,
-        enabled: col_bool(row, 8)?,
-        created_at: col_i64(row, 9)?,
-        updated_at: col_i64(row, 10)?,
+        thinking_supported: col_opt_bool(row, 8)?,
+        thinking_adaptive_supported: col_opt_bool(row, 9)?,
+        thinking_enabled_supported: col_opt_bool(row, 10)?,
+        enabled: col_bool(row, 11)?,
+        created_at: col_i64(row, 12)?,
+        updated_at: col_i64(row, 13)?,
     })
 }
 
@@ -77,6 +81,7 @@ pub async fn upsert(
                 client,
                 "UPDATE provider_models SET provider_id=?, model_id=?, display_name=?, \
                  variants_json=?, context_window=?, max_input_tokens=?, max_output_tokens=?, \
+                 thinking_supported=?, thinking_adaptive_supported=?, thinking_enabled_supported=?, \
                  enabled=?, updated_at=? WHERE id=?",
                 &[
                     arg_integer(input.provider_id),
@@ -86,6 +91,9 @@ pub async fn upsert(
                     arg_opt_i64(input.context_window),
                     arg_opt_i64(input.max_input_tokens),
                     arg_opt_i64(input.max_output_tokens),
+                    arg_opt_bool(input.thinking_supported),
+                    arg_opt_bool(input.thinking_adaptive_supported),
+                    arg_opt_bool(input.thinking_enabled_supported),
                     arg_bool(input.enabled),
                     arg_integer(now),
                     arg_integer(id),
@@ -99,8 +107,9 @@ pub async fn upsert(
                 .execute(
                     "INSERT INTO provider_models \
                      (id, provider_id, model_id, display_name, variants_json, \
-                      context_window, max_input_tokens, max_output_tokens, enabled, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      context_window, max_input_tokens, max_output_tokens, thinking_supported, \
+                      thinking_adaptive_supported, thinking_enabled_supported, enabled, created_at, updated_at) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_integer(input.provider_id),
@@ -110,6 +119,9 @@ pub async fn upsert(
                         arg_opt_i64(input.context_window),
                         arg_opt_i64(input.max_input_tokens),
                         arg_opt_i64(input.max_output_tokens),
+                        arg_opt_bool(input.thinking_supported),
+                        arg_opt_bool(input.thinking_adaptive_supported),
+                        arg_opt_bool(input.thinking_enabled_supported),
                         arg_bool(input.enabled),
                         arg_integer(now),
                         arg_integer(now),

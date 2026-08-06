@@ -84,6 +84,9 @@ export function ModelPullDialog({
           context_window: m.context_window,
           max_input_tokens: m.max_input_tokens,
           max_output_tokens: m.max_output_tokens,
+          thinking_supported: m.thinking_supported,
+          thinking_adaptive_supported: m.thinking_adaptive_supported,
+          thinking_enabled_supported: m.thinking_enabled_supported,
           enabled: true,
         });
       }

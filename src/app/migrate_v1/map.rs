@@ -102,6 +102,9 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             context_window: None,
             max_input_tokens: None,
             max_output_tokens: None,
+            thinking_supported: None,
+            thinking_adaptive_supported: None,
+            thinking_enabled_supported: None,
             enabled: m.enabled,
         });
     }
