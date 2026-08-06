@@ -4,6 +4,7 @@
   "check": {
     "button": "检查更新",
     "current": "当前版本",
+    "target": "构建目标（架构、操作系统与 C 库）",
     "latest": "最新版本",
     "available": "有可用更新",
     "availableYes": "是",

@@ -92,7 +92,18 @@ export function UpdatePanel() {
               <dl className="grid gap-1 text-sm">
                 <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">{t("check.current")}</dt>
-                  <dd className="font-mono">{checkData.current}</dd>
+                  <dd className="flex min-w-0 items-center justify-end gap-1.5">
+                    <span className="truncate font-mono">{checkData.current}</span>
+                    {/* Release artifacts are UPX-packed, so the user cannot tell
+                        a GNU build from a musl one without this. */}
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 font-mono text-[10px] font-normal"
+                      title={t("check.target")}
+                    >
+                      {checkData.target}
+                    </Badge>
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">{t("check.latest")}</dt>
