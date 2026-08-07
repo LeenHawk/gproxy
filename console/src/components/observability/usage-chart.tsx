@@ -75,20 +75,20 @@ export function UsageChart({ data, metric, onMetricChange }: UsageChartProps) {
           <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
             <defs>
               <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="t"
               tickFormatter={fmtDate}
               tick={{ fontSize: 11 }}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
             />
             <YAxis
               tick={{ fontSize: 11 }}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               tickFormatter={(v: number) =>
                 metric === "cost" ? `$${v.toFixed(2)}` : v.toLocaleString()
               }
@@ -96,8 +96,8 @@ export function UsageChart({ data, metric, onMetricChange }: UsageChartProps) {
             />
             <Tooltip
               contentStyle={{
-                background: "hsl(var(--popover))",
-                border: "1px solid hsl(var(--border))",
+                background: "var(--popover)",
+                border: "1px solid var(--border)",
                 borderRadius: "0.5rem",
                 fontSize: 12,
               }}
@@ -107,7 +107,7 @@ export function UsageChart({ data, metric, onMetricChange }: UsageChartProps) {
             <Area
               type="monotone"
               dataKey={metric}
-              stroke="hsl(var(--primary))"
+              stroke="var(--primary)"
               strokeWidth={2}
               fill={`url(#${gid})`}
               isAnimationActive={!reducedMotion}
