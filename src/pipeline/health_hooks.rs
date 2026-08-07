@@ -45,7 +45,7 @@ pub async fn record_attempt(
 ) {
     record_health_attempt(state, request_id, cand, disposition, send_ms);
     if *disposition == Disposition::Success {
-        balance::record_member_affinity(state.cache.as_ref(), cand).await;
+        balance::record_affinity(state.cache.as_ref(), cand).await;
     }
 }
 

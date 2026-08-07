@@ -227,3 +227,81 @@ async fn aggregated_models_failure_falls_back_per_provider() {
         "the second listing must still attempt upstream before fallback"
     );
 }
+
+fn namespace_models_bundle() -> String {
+    let mut bundle: Value = serde_json::from_str(BUNDLE).expect("bundle");
+    bundle["routes"][0]["settings_json"] = json!({ "public_namespace": "openai" });
+    serde_json::to_string(&bundle).expect("serialize namespace bundle")
+}
+
+fn namespace_model_ctx(path: &str) -> RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    RequestCtx {
+        request_id: "namespace-models".into(),
+        method: Method::GET,
+        path: path.into(),
+        query: None,
+        headers,
+        body: Bytes::new(),
+        mode: RoutingMode::Named {
+            name: "openai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    }
+}
+
+#[tokio::test]
+async fn public_namespace_models_hide_provider_catalogue() {
+    let fake = Arc::new(FakeUpstream::new(Bytes::new(), vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &namespace_models_bundle()).await;
+
+    let outcome = crate::pipeline::execute(&state, namespace_model_ctx("/v1/models"))
+        .await
+        .expect("namespace model list");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("expected full model list")
+    };
+    let ids = list_ids(&body);
+    assert!(ids.contains(&"to-openai".to_owned()), "{ids:?}");
+    assert!(
+        ids.contains(&"claude-test".to_owned()),
+        "global alias to namespace route: {ids:?}"
+    );
+    assert!(
+        !ids.contains(&"gpt-test".to_owned()),
+        "provider model leaked: {ids:?}"
+    );
+    assert!(
+        !ids.contains(&"to-claude".to_owned()),
+        "other namespace route leaked: {ids:?}"
+    );
+    assert!(
+        fake.seen.lock().unwrap().is_empty(),
+        "namespace catalogue is local"
+    );
+}
+
+#[tokio::test]
+async fn public_namespace_get_model_is_local_route_lookup() {
+    let fake = Arc::new(FakeUpstream::new(Bytes::new(), vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &namespace_models_bundle()).await;
+
+    let outcome = crate::pipeline::execute(&state, namespace_model_ctx("/v1/models/to-openai"))
+        .await
+        .expect("namespace model get");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("expected full model")
+    };
+    let model: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(model["id"], "to-openai");
+    assert!(
+        fake.seen.lock().unwrap().is_empty(),
+        "must not call upstream /models/{{id}}"
+    );
+}

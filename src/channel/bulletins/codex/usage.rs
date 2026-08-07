@@ -27,7 +27,7 @@ pub(super) fn request(
     let access_token = token::access_token(secret)?;
     let uri = match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
         Some(url) => exact_url(&url, None)?,
-        None => join_url(&usage_base(settings), "/wham/usage", None)?,
+        None => join_url(&backend_base(settings), "/wham/usage", None)?,
     };
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
     apply_headers(&mut req, access_token, secret)?;
@@ -43,7 +43,7 @@ pub(super) fn reset_credit_request(
     let uri = match crate::channel::settings::endpoint_by_key(settings, "rate_limit_reset", "") {
         Some(url) => exact_url(&url, None)?,
         None => join_url(
-            &usage_base(settings),
+            &backend_base(settings),
             "/wham/rate-limit-reset-credits/consume",
             None,
         )?,
@@ -118,7 +118,7 @@ pub(super) fn parse_reset_credit(
     })
 }
 
-fn usage_base(settings: &Value) -> String {
+pub(super) fn backend_base(settings: &Value) -> String {
     let base = settings
         .get("base_url")
         .and_then(Value::as_str)
@@ -131,7 +131,7 @@ fn usage_base(settings: &Value) -> String {
         .to_owned()
 }
 
-fn apply_headers(
+pub(super) fn apply_headers(
     req: &mut Request<Bytes>,
     access_token: &str,
     secret: &Value,

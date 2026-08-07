@@ -23,6 +23,7 @@ use crate::app::AppState;
 use crate::channel::Disposition;
 use crate::health::CredAdmit;
 use crate::health::config::breaker_config;
+use crate::pipeline::balance;
 use crate::pipeline::capture;
 use crate::pipeline::context::{Candidate, RequestCtx};
 use crate::pipeline::error::PipelineError;
@@ -32,6 +33,27 @@ use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::pipeline::settle;
 use crate::pipeline::transform::{self as transform_step, AttemptMemo, TransformPlan};
 use crate::protocol::OperationKind;
+
+fn sanitize_public_upstream_headers(ctx: &RequestCtx, headers: &mut http::HeaderMap) {
+    if !matches!(
+        ctx.mode,
+        crate::pipeline::context::RoutingMode::Aggregated
+            | crate::pipeline::context::RoutingMode::Namespace { .. }
+    ) {
+        return;
+    }
+    let remove: Vec<_> = headers
+        .keys()
+        .filter(|name| {
+            let name = name.as_str();
+            name.starts_with("x-codex-") && name != "x-codex-turn-state"
+        })
+        .cloned()
+        .collect();
+    for name in remove {
+        headers.remove(name);
+    }
+}
 
 /// Iterate candidates until one succeeds or returns a permanent error. The
 /// channel AND the transform plan are resolved PER candidate (a route's members
@@ -289,6 +311,9 @@ pub async fn run_failover(
                 multi_step,
             } = outcome;
             let latency_ms = send_ms.map(|ms| ms as i64).unwrap_or(0);
+            if status.is_success() {
+                balance::record_response_affinity(state.cache.as_ref(), ctx, &headers, cand).await;
+            }
             // A direct successful stream needs its row id before its body is
             // exposed. Custom streams own their exact per-call guards inside
             // `CapturingClient`; buffered responses are folded into the later
@@ -461,6 +486,7 @@ pub async fn run_failover(
             {
                 settle::provider::schedule(state, ctx, cand, provider_body, usage_family).await;
             }
+            sanitize_public_upstream_headers(ctx, &mut headers);
             return Ok(ExecOutcome {
                 status,
                 headers,

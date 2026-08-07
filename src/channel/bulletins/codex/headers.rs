@@ -8,7 +8,7 @@ use crate::channel::ChannelError;
 
 pub(super) const ORIGINATOR: &str = "codex_exec";
 pub(super) const USER_AGENT_VALUE: &str =
-    "codex_exec/0.144.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.144.0)";
+    "codex_exec/0.147.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.147.0)";
 
 /// Inject the OAuth bearer and Codex CLI fingerprint. Client-provided session
 /// identifiers are preserved; otherwise a matching pair is generated.
@@ -25,7 +25,7 @@ pub(super) fn apply(
     let headers = request.headers_mut();
     headers.insert(AUTHORIZATION, bearer);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
+    headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
     headers.insert(
         HeaderName::from_static("originator"),

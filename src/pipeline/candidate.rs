@@ -34,6 +34,7 @@ pub(crate) struct CandidateRequest {
     route_name: Option<String>,
     provider_name: Option<String>,
     affinity_session_id: Option<String>,
+    credential_binding_key: Option<Arc<str>>,
 }
 
 pub(crate) struct ScopedModels {
@@ -64,9 +65,13 @@ pub(crate) fn prepare(
     let identity = ctx.identity.as_ref().expect("auth ran first");
     match &ctx.mode {
         RoutingMode::Aggregated => prepare_aggregated(cp, ctx, identity, affinity_session_id),
+        RoutingMode::Namespace { namespace } => {
+            prepare_namespace(cp, ctx, identity, namespace, affinity_session_id)
+        }
         RoutingMode::Scoped { provider } => {
             prepare_scoped(cp, ctx, op, identity, provider, affinity_session_id)
         }
+        RoutingMode::Named { .. } => unreachable!("named routing mode must be resolved first"),
     }
 }
 
@@ -107,6 +112,28 @@ fn prepare_aggregated(
         source,
         None,
         Some(provider.name.clone()),
+        affinity_session_id,
+    ))))
+}
+
+fn prepare_namespace(
+    cp: &ControlPlaneSnapshot,
+    ctx: &RequestCtx,
+    identity: &Arc<KeyIdentity>,
+    namespace: &str,
+    affinity_session_id: Option<String>,
+) -> Result<Prepared, PipelineError> {
+    let model = preprocess::preprocess(cp, ctx)?;
+    let resolved = route::route_in_namespace(cp, namespace, &model)?;
+    let authorization = authz::prepare(cp, identity, &model)?;
+    let source = CandidateSource::Route(balance::prepare(cp, resolved));
+    Ok(Prepared::Candidates(Box::new(prepare_request(
+        cp,
+        ctx,
+        authorization,
+        source,
+        Some(model),
+        None,
         affinity_session_id,
     ))))
 }
@@ -210,6 +237,7 @@ fn prepare_request(
         route_name,
         provider_name,
         affinity_session_id,
+        credential_binding_key: balance::credential_binding_key(ctx, identity.user_key.id),
     }
 }
 
@@ -230,7 +258,12 @@ impl CandidateRequest {
     ) -> Result<Admitted, PipelineError> {
         let now = unix_now();
         authz::authorize(&self.authorization, state.cache.as_ref(), now).await?;
-        let candidates = match &self.source {
+        let bound_credential = balance::read_credential_binding(
+            state.cache.as_ref(),
+            self.credential_binding_key.as_deref(),
+        )
+        .await;
+        let mut candidates = match &self.source {
             CandidateSource::Route(route) => {
                 balance::candidates(
                     route,
@@ -238,6 +271,7 @@ impl CandidateRequest {
                     state.cache.as_ref(),
                     Some(identity.user_key.id),
                     self.affinity_session_id.as_deref(),
+                    bound_credential,
                 )
                 .await?
             }
@@ -247,10 +281,14 @@ impl CandidateRequest {
                         state.health.as_ref(),
                         state.cache.as_ref(),
                         Some(identity.user_key.id),
+                        bound_credential,
                     )
                     .await?
             }
         };
+        for candidate in &mut candidates {
+            candidate.credential_binding_key = self.credential_binding_key.clone();
+        }
         let est_micros = candidates
             .iter()
             .filter_map(|candidate| {

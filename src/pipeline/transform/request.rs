@@ -10,7 +10,9 @@ use crate::pipeline::classify::peek_model;
 use crate::pipeline::context::{Candidate, RequestCtx};
 use crate::pipeline::error::PipelineError;
 use crate::process;
-use crate::protocol::{self, ContentGenerationKind, OperationKey, OperationKind, Provider};
+use crate::protocol::{
+    self, ContentGenerationKind, Operation, OperationKey, OperationKind, Provider,
+};
 use crate::transform::{self, TransformContext, TransformError, dispatch};
 
 /// Effective upstream request pieces for one attempt.
@@ -74,7 +76,14 @@ pub fn request_parts(
             let model_rewrite = op.operation().has_request_body()
                 && !cand.upstream_model_id.is_empty()
                 && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str());
-            if model_rewrite {
+            if op.operation() == Operation::CreateRealtimeCall && !cand.upstream_model_id.is_empty()
+            {
+                // ChatGPT's backend call-creation shape nests the model under
+                // `session.model`; normalize even when the public route name
+                // already equals the upstream model so a top-level convenience
+                // `model` field never leaks to the backend.
+                body = patch_realtime_call_model(&body, &cand.upstream_model_id)?;
+            } else if model_rewrite {
                 // Gemini carries the model (+ stream flag) in the PATH; every
                 // other family carries it in the body — content AND non-content
                 // (embeddings, count_tokens) alike, mirroring the Transform
@@ -352,6 +361,39 @@ fn body_carries_model(kind: OperationKind) -> bool {
 /// upstream response (gemini sources carry streaming in the URL), and — §17 —
 /// `stream_options.include_usage` for openai-chat-bound streams (merged; other
 /// `stream_options` keys are preserved).
+fn patch_realtime_call_model(body: &Bytes, model: &str) -> Result<Bytes, PipelineError> {
+    let mut value: serde_json::Value = serde_json::from_slice(body).map_err(|error| {
+        PipelineError::TransformRequest(TransformError::InvalidInput {
+            reason: format!("realtime call body is not JSON: {error}"),
+        })
+    })?;
+    let object = value.as_object_mut().ok_or_else(|| {
+        PipelineError::TransformRequest(TransformError::InvalidInput {
+            reason: "realtime call body must be a JSON object".to_owned(),
+        })
+    })?;
+    object.remove("model");
+    let session = object
+        .entry("session")
+        .or_insert_with(|| serde_json::json!({}));
+    let session = session.as_object_mut().ok_or_else(|| {
+        PipelineError::TransformRequest(TransformError::InvalidInput {
+            reason: "realtime call `session` must be a JSON object".to_owned(),
+        })
+    })?;
+    session.insert(
+        "model".to_owned(),
+        serde_json::Value::String(model.to_owned()),
+    );
+    serde_json::to_vec(&value)
+        .map(Bytes::from)
+        .map_err(|error| {
+            PipelineError::TransformRequest(TransformError::Serialization {
+                reason: error.to_string(),
+            })
+        })
+}
+
 fn patch_body(
     body: &Bytes,
     model: Option<&str>,

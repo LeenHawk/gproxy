@@ -48,15 +48,41 @@ pub(super) fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
         | ["admin", "routes", _, "members"]
         | ["admin", "rule-sets", _, "rules"]
         | ["admin", "users", _, "keys"] => Some("GET,HEAD,POST"),
+        ["admin", "credentials", _, "tasks"] => Some("GET,HEAD,POST"),
+        ["admin", "credentials", _, "tasks", _]
+        | [
+            "admin",
+            "credentials",
+            _,
+            "tasks",
+            _,
+            "turns",
+            _,
+            "siblings",
+        ] => Some("GET,HEAD"),
         ["admin", "providers", _, "upstream-models"]
         | [
             "admin",
             "credentials",
             _,
-            "status" | "model-statuses" | "secret" | "usage",
+            "status"
+            | "model-statuses"
+            | "secret"
+            | "usage"
+            | "rate-limit-reset-credits"
+            | "account"
+            | "profile"
+            | "settings",
         ]
         | ["admin", "logs", _, "downstream" | "upstream"] => Some("GET,HEAD"),
         ["admin", "credentials", _, "rate-limit-reset-credit"]
+        | [
+            "admin",
+            "credentials",
+            _,
+            "rate-limit-reset-credits",
+            "consume",
+        ]
         | ["admin", "providers", _, "routing-rules", "reset"] => Some("POST"),
         ["admin", "providers", _, "credentials", "import"] => Some("POST"),
         ["admin", "providers", _, "credentials", _] => Some("GET,HEAD"),

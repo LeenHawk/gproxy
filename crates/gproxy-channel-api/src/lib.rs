@@ -2,6 +2,7 @@
 
 pub mod channel;
 pub mod context;
+pub mod control;
 pub mod disposition;
 pub mod error;
 pub mod login;
@@ -14,6 +15,7 @@ pub mod usage;
 
 pub use channel::{Channel, ModelCatalog};
 pub use context::{PrepareCtx, RefreshCtx, ShapeCtx, TransportKind};
+pub use control::{CredentialControlOperation, CredentialControlResponse};
 pub use disposition::Disposition;
 pub use error::ChannelError;
 pub use gproxy_protocol as protocol;

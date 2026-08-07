@@ -11,7 +11,7 @@ use crate::channel::{PrepareCtx, PreparedRequest};
 use crate::health::CredAdmit;
 use crate::health::config::breaker_config;
 use crate::http::client::ConduitSocket;
-use crate::pipeline::context::RequestCtx;
+use crate::pipeline::context::{RequestCtx, RoutingMode};
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::{auth, balance, candidate, classify, health_hooks, ingress, transform};
 
@@ -28,15 +28,40 @@ pub(crate) async fn open(
     state: &AppState,
     mut ctx: RequestCtx,
 ) -> Result<RealtimeSession, PipelineError> {
-    let prepared = {
+    {
         let cp = state.cp();
         ctx.identity = Some(auth::authenticate(&cp, &ctx.headers, ctx.query.as_deref())?);
-        let affinity_session_id = balance::take_session_id(&mut ctx.headers);
-        ingress::apply_global_blacklist(&mut ctx);
-        let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
-        ctx.op = Some(classified.op);
-        ctx.stream = true;
-        ctx.body_model = crate::channel::realtime_websocket::query_model(ctx.query.as_deref());
+        if let RoutingMode::Named { name } = &ctx.mode {
+            let name = name.clone();
+            let namespace = name.to_ascii_lowercase();
+            ctx.mode = if cp.routes_by_namespace.contains_key(&namespace) {
+                RoutingMode::Namespace { namespace }
+            } else {
+                RoutingMode::Scoped { provider: name }
+            };
+        }
+    }
+
+    let affinity_session_id = balance::take_session_id(&mut ctx.headers);
+    ingress::apply_global_blacklist(&mut ctx);
+    let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
+    ctx.op = Some(classified.op);
+    ctx.stream = true;
+    ctx.body_model = crate::channel::realtime_websocket::query_model(ctx.query.as_deref());
+    if ctx.body_model.is_none() {
+        let user_key_id = ctx
+            .identity
+            .as_ref()
+            .expect("realtime authentication ran")
+            .user_key
+            .id;
+        ctx.body_model =
+            balance::bound_realtime_model(state.cache.as_ref(), user_key_id, ctx.query.as_deref())
+                .await;
+    }
+
+    let prepared = {
+        let cp = state.cp();
         candidate::prepare(&cp, &ctx, classified.op, affinity_session_id)?
     };
     let request = match prepared {

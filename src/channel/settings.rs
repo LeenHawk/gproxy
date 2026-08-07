@@ -41,8 +41,10 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
         (O::CreateEmbedding, P::Gemini) => "gemini_embeddings",
         (O::CreateImage, _) => "image_generations",
         (O::EditImage, _) => "image_edits",
+        (O::WebSearch, _) => "openai_search",
         (O::CompactContent, _) => "openai_compact",
         (O::CreateConversation, _) => "openai_conversations",
+        (O::CreateRealtimeCall, _) => "openai_realtime_call",
         (O::ConnectRealtime, _) => "openai_realtime",
         (O::GenerateContent | O::StreamGenerateContent, _) => {
             unreachable!("content operations must carry a content kind")

@@ -36,8 +36,8 @@ pub(crate) fn build_ctx_with_request_id(
             return Err(PipelineError::UnsupportedPath);
         }
         (
-            RoutingMode::Scoped {
-                provider: provider.to_string(),
+            RoutingMode::Named {
+                name: provider.to_string(),
             },
             format!("/{rest}"),
         )
@@ -87,7 +87,7 @@ mod tests {
             true,
         )
         .unwrap();
-        assert!(matches!(ctx.mode, RoutingMode::Scoped { provider } if provider == "geminicli"));
+        assert!(matches!(ctx.mode, RoutingMode::Named { name } if name == "geminicli"));
         assert_eq!(ctx.path, "/v1beta/models/m:generateContent");
     }
 

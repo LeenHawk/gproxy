@@ -1,8 +1,9 @@
 //! OpenAI edit-image <-> OpenAI Responses transforms.
 //!
-//! Codex-like backends expose image editing through the Responses
-//! `image_generation` tool with `action: "edit"`, not a dedicated images
-//! endpoint. Keep this separate from create-image so edit inputs are not dropped.
+//! Fallback for Responses-only backends: expose image editing through the
+//! Responses `image_generation` tool with `action: "edit"`. Native Codex image
+//! edits bypass this transform when the dedicated endpoint is selected. Keep
+//! this separate from create-image so edit inputs are not dropped.
 
 use crate::protocol::openai;
 use crate::transform::{TransformContext, TransformError};

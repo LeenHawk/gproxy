@@ -3,11 +3,15 @@
 use crate::channel::http_util::{allow_headers, build_request, exact_url, join_url};
 use crate::channel::settings::endpoint_url;
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest};
+use crate::protocol::Operation;
 
 const OPENAI_REALTIME_BASE_URL: &str = "https://api.openai.com";
 const FORWARD_HEADERS: &[&str] = &[
     "x-codex-beta-features",
     "x-codex-turn-metadata",
+    "x-codex-turn-state",
+    "x-codex-installation-id",
+    "x-codex-parent-thread-id",
     "x-codex-window-id",
     "thread-id",
     "session-id",
@@ -79,6 +83,14 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let headers = allow_headers(ctx.headers, forward_headers);
     let mut request = build_request(ctx.method, uri, headers, ctx.body)?;
     super::headers::apply(&mut request, &access_token, account_id.as_deref())?;
+    let accept = match ctx.op.operation() {
+        Operation::GenerateContent | Operation::StreamGenerateContent => "text/event-stream",
+        Operation::CreateRealtimeCall => "application/sdp",
+        _ => "application/json",
+    };
+    request
+        .headers_mut()
+        .insert(http::header::ACCEPT, http::HeaderValue::from_static(accept));
     if responses_ws {
         crate::channel::responses_websocket::apply_beta(request.headers_mut());
         *request.uri_mut() = crate::channel::responses_websocket::websocket_uri(request.uri())?;

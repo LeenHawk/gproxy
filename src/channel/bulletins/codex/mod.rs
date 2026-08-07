@@ -7,9 +7,11 @@
 //! `/v1/responses` path is rewritten to the backend `/responses`.
 
 mod auth;
+mod control;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 mod fingerprint;
 mod headers;
+mod image_shape;
 mod model_metadata;
 mod request;
 mod request_shape;
@@ -25,8 +27,9 @@ use bytes::Bytes;
 use serde_json::Value;
 
 use crate::channel::{
-    AuthCodeStart, Channel, ChannelError, ChannelLogin, ChannelStreamDecoder, DeviceInit,
-    DevicePoll, PrepareCtx, PreparedRequest, ShapeCtx,
+    AuthCodeStart, Channel, ChannelError, ChannelLogin, ChannelStreamDecoder,
+    CredentialControlOperation, CredentialControlResponse, DeviceInit, DevicePoll, PrepareCtx,
+    PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
 use crate::protocol::Operation;
@@ -121,21 +124,13 @@ impl Channel for CodexChannel {
                 StreamGenerateContent,
                 cg(OpenAiResponses),
             ),
-            xform(
-                CreateImage,
-                pv(P::OpenAi),
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-            ),
-            xform(
-                EditImage,
-                pv(P::OpenAi),
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-            ),
+            pass(CreateImage, pv(P::OpenAi)),
+            pass(EditImage, pv(P::OpenAi)),
+            pass(WebSearch, pv(P::OpenAi)),
             unsupported(CreateEmbedding, pv(P::OpenAi)),
             unsupported(CreateEmbedding, pv(P::Gemini)),
             pass(CompactContent, pv(P::OpenAi)),
+            pass(CreateRealtimeCall, pv(P::OpenAi)),
             pass(ConnectRealtime, pv(P::OpenAi)),
         ]
     }
@@ -145,7 +140,17 @@ impl Channel for CodexChannel {
     }
 
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
-        request_shape::shape(body, ctx)
+        match ctx.op.operation() {
+            Operation::CreateImage => image_shape::create(body),
+            Operation::EditImage => image_shape::edit(body),
+            Operation::WebSearch | Operation::CreateRealtimeCall | Operation::CompactContent => {
+                body
+            }
+            Operation::GenerateContent | Operation::StreamGenerateContent => {
+                request_shape::shape(body, ctx)
+            }
+            _ => body,
+        }
     }
 
     fn stream_decoder(&self) -> Option<Box<dyn ChannelStreamDecoder>> {
@@ -162,6 +167,40 @@ impl Channel for CodexChannel {
         ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         token::refresh(client, ctx.secret).await
+    }
+
+    fn prepare_credential_control_request(
+        &self,
+        operation: &CredentialControlOperation,
+        secret: &Value,
+        settings: &Value,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        match operation {
+            CredentialControlOperation::Usage => usage::request(secret, settings),
+            CredentialControlOperation::ConsumeRateLimitResetCredit { idempotency_key } => {
+                usage::reset_credit_request(secret, settings, idempotency_key)
+            }
+            _ => control::request(operation, secret, settings),
+        }
+    }
+
+    fn parse_credential_control_response(
+        &self,
+        operation: &CredentialControlOperation,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &Bytes,
+    ) -> Option<CredentialControlResponse> {
+        match operation {
+            CredentialControlOperation::Usage => {
+                usage::parse(status, body).map(CredentialControlResponse::Usage)
+            }
+            CredentialControlOperation::ConsumeRateLimitResetCredit { .. } => {
+                usage::parse_reset_credit(status, body)
+                    .map(CredentialControlResponse::RateLimitResetCreditConsume)
+            }
+            _ => control::parse(status, body),
+        }
     }
 
     fn prepare_usage_request(

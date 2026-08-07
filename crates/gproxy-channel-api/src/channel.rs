@@ -7,6 +7,7 @@ use http::{HeaderMap, StatusCode};
 use serde_json::Value;
 
 use crate::context::{PrepareCtx, RefreshCtx, ShapeCtx, TransportKind};
+use crate::control::{CredentialControlOperation, CredentialControlResponse};
 use crate::disposition::Disposition;
 use crate::error::ChannelError;
 use crate::metadata::ChannelMetadata;
@@ -137,6 +138,43 @@ pub trait Channel: Send + Sync {
 
     fn transport(&self) -> TransportKind {
         TransportKind::Http
+    }
+
+    /// Build one credential-scoped account/control request. The default bridges
+    /// the two legacy usage/reset hooks so existing channels keep working; new
+    /// account operations opt in explicitly per channel.
+    fn prepare_credential_control_request(
+        &self,
+        operation: &CredentialControlOperation,
+        secret: &Value,
+        settings: &Value,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        match operation {
+            CredentialControlOperation::Usage => self.prepare_usage_request(secret, settings),
+            CredentialControlOperation::ConsumeRateLimitResetCredit { idempotency_key } => {
+                self.prepare_rate_limit_reset_credit_request(secret, settings, idempotency_key)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// Parse a response to [`prepare_credential_control_request`].
+    fn parse_credential_control_response(
+        &self,
+        operation: &CredentialControlOperation,
+        status: StatusCode,
+        headers: &HeaderMap,
+        body: &Bytes,
+    ) -> Option<CredentialControlResponse> {
+        match operation {
+            CredentialControlOperation::Usage => self
+                .parse_usage(status, headers, body)
+                .map(CredentialControlResponse::Usage),
+            CredentialControlOperation::ConsumeRateLimitResetCredit { .. } => self
+                .parse_rate_limit_reset_credit(status, headers, body)
+                .map(CredentialControlResponse::RateLimitResetCreditConsume),
+            _ => None,
+        }
     }
 
     /// Build a request to this channel's per-credential upstream usage / quota
