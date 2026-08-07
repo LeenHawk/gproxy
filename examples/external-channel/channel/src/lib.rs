@@ -21,12 +21,8 @@ impl Channel for ExampleOpenAiChannel {
         "example-openai"
     }
 
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
-    }
-
     fn metadata(&self) -> ChannelMetadata {
-        let mut metadata = ChannelMetadata::new(self.id(), self.provider_family());
+        let mut metadata = ChannelMetadata::new(self.id());
         metadata.display_name = "Example OpenAI".into();
         metadata.settings_fields = vec![ChannelSettingField {
             key: "base_url".into(),

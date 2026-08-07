@@ -91,12 +91,11 @@ cargo tree -p my-gproxy-runner -i gproxy-channel-api
 
 ## 实现 `Channel`
 
-必须实现四个方法：
+必须实现三个方法：
 
 | 方法 | 责任 |
 | --- | --- |
 | `id()` | 稳定 registry id；它会成为 `Provider.channel`。 |
-| `provider_family()` | 已有的 `OpenAi`、`Claude` 或 `Gemini` 协议 family。 |
 | `routing_table()` | 声明 `(Operation, OperationKind) -> RoutingDecision` 能力表。 |
 | `prepare()` | 构建绝对上游请求并注入认证。 |
 
@@ -163,7 +162,6 @@ Channel。
 | `ChannelMetadata` 字段 | 用途 |
 | --- | --- |
 | `id`, `display_name` | registry identity 和面向管理员的名称。 |
-| `provider_family` | OpenAI、Claude 或 Gemini 协议 family。 |
 | `credential_family` | API key、OAuth tokens、service account 或 GitHub token。 |
 | `login_modes` | `ChannelLogin` 提供的 auth-code、device-code 或 cookie flow。 |
 | `settings_fields` | Console 渲染的通用 Provider settings。 |
@@ -172,7 +170,7 @@ Channel。
 | `usage` | 是否支持 credential 实时 usage。 |
 
 setting control 支持 `text`、`url`、`boolean`、`integer` 和 `string_list`。
-`ChannelMetadata::new(id, family)` 提供最小 API-key 默认值；配置更复杂时覆盖对应字段。外部
+`ChannelMetadata::new(id)` 提供最小 API-key 默认值；配置更复杂时覆盖对应字段。外部
 Channel 不应修改 Console 的静态内置 `CHANNELS` 表。
 
 如果 Channel 支持交互式登录，实现 `ChannelLogin`。所有 login context 都包含 Provider
