@@ -5,7 +5,6 @@ use bytes::Bytes;
 use crate::channel::registration::{CHANNEL_REGISTRATIONS, ChannelRegistration, RegisteredChannel};
 use crate::channel::registry::{ChannelRegistry, ChannelRegistryError};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
-use crate::protocol::Provider;
 
 struct TestChannel;
 
@@ -14,10 +13,6 @@ struct TestChannel;
 impl Channel for TestChannel {
     fn id(&self) -> &'static str {
         "registration-test"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

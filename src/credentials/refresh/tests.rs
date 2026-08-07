@@ -45,9 +45,6 @@ impl Channel for FakeRefreshChannel {
     fn id(&self) -> &'static str {
         "fake_refresh"
     }
-    fn provider_family(&self) -> crate::protocol::Provider {
-        crate::protocol::Provider::OpenAi
-    }
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         Vec::new()
     }
@@ -423,9 +420,6 @@ struct AlwaysFreshRotatingChannel {
 impl Channel for AlwaysFreshRotatingChannel {
     fn id(&self) -> &'static str {
         "always_fresh"
-    }
-    fn provider_family(&self) -> crate::protocol::Provider {
-        crate::protocol::Provider::OpenAi
     }
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         Vec::new()

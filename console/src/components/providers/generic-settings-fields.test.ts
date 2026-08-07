@@ -12,7 +12,6 @@ const externalMeta: ChannelMeta = {
   id: "example-openai",
   displayName: "Example OpenAI",
   source: "external",
-  providerFamily: "open_ai",
   family: "api_key",
   loginModes: [],
   settingsFields: [{

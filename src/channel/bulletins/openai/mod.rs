@@ -8,7 +8,6 @@ use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{self, openai_cache};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::Provider;
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.openai.com"),
@@ -34,10 +33,6 @@ pub struct OpenAiChannel;
 impl Channel for OpenAiChannel {
     fn id(&self) -> &'static str {
         "openai"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

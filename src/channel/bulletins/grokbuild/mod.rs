@@ -50,10 +50,6 @@ impl Channel for GrokBuildChannel {
         "grokbuild"
     }
 
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
-    }
-
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         use crate::channel::routes::{cg, local, pass, pv, unsupported, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};

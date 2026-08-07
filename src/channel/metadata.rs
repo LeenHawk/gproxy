@@ -6,7 +6,7 @@ use crate::channel::{Channel, ChannelMetadata, CredentialFamily, LoginMode};
 
 pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
     let id = channel.id();
-    let mut metadata = ChannelMetadata::new(id, channel.provider_family());
+    let mut metadata = ChannelMetadata::new(id);
     metadata.display_name = display_name(id).to_string();
     metadata.endpoint_kinds = endpoint_kinds(id)
         .iter()

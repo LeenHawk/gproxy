@@ -40,7 +40,7 @@ use crate::channel::{
     DevicePoll, PrepareCtx, PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
-use crate::protocol::{Operation, Provider};
+use crate::protocol::Operation;
 
 use response::KiroStreamDecoder;
 
@@ -79,10 +79,6 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for KiroChannel {
     fn id(&self) -> &'static str {
         "kiro"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

@@ -3,7 +3,7 @@ use http::{HeaderMap, HeaderValue, Method, Request, StatusCode};
 use serde_json::{Value, json};
 
 use super::*;
-use crate::protocol::{ContentGenerationKind, OperationKey};
+use crate::protocol::{ContentGenerationKind, OperationKey, Provider};
 use crate::routing::RoutingDecision;
 
 fn secret() -> Value {

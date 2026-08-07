@@ -6,7 +6,6 @@ mod auth;
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::http_util::{allow_headers, allow_query, build_request};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
-use crate::protocol::Provider;
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://generativelanguage.googleapis.com"),
@@ -22,10 +21,6 @@ pub struct AiStudioChannel;
 impl Channel for AiStudioChannel {
     fn id(&self) -> &'static str {
         "aistudio"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Gemini
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

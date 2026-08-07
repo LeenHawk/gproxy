@@ -23,7 +23,6 @@ use crate::channel::{
     Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx, PreparedRequest,
 };
 use crate::http::client::UpstreamClient;
-use crate::protocol::Provider;
 
 /// Re-exchange the Copilot token slightly before it expires to avoid racing a
 /// 401 mid-flight.
@@ -41,10 +40,6 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for CopilotCliChannel {
     fn id(&self) -> &'static str {
         "copilotcli"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

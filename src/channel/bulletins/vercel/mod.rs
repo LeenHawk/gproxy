@@ -13,7 +13,7 @@ use crate::channel::shaping::{
     claude_sampling, openai_cache,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
+use crate::protocol::{ContentGenerationKind, OperationKind};
 
 /// Whether `op` targets the Claude-messages content-generation path (the only
 /// route that carries a Claude request body to shape).
@@ -37,10 +37,6 @@ pub struct VercelChannel;
 impl Channel for VercelChannel {
     fn id(&self) -> &'static str {
         "vercel"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

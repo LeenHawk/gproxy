@@ -25,10 +25,6 @@ impl Channel for RefreshChannel {
         "test_refresh"
     }
 
-    fn provider_family(&self) -> crate::protocol::Provider {
-        crate::protocol::Provider::Claude
-    }
-
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         use crate::channel::routes::{cg, pass};
         use crate::protocol::{ContentGenerationKind::ClaudeMessages, Operation::*};

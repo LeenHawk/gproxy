@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::protocol::Provider;
+
 #[test]
 fn parse_openai_and_gemini() {
     let oa = br#"{"object":"list","data":[{"id":"gpt-4o","context_length":128000,"max_completion_tokens":16384,"supported_parameters":["reasoning","tools"]},{"id":"llama-local","meta":{"n_ctx":95232,"n_ctx_train":262144},"supported_parameters":[]},{"id":"gpt-4o-mini"}]}"#;
@@ -199,12 +201,10 @@ mod fetch {
             "custom-list-test"
         }
 
-        fn provider_family(&self) -> Provider {
-            Provider::OpenAi
-        }
-
         fn routing_table(&self) -> crate::channel::routes::RouteList {
-            Vec::new()
+            use crate::channel::routes::{pass, pv};
+
+            vec![pass(Operation::ListModels, pv(Provider::OpenAi))]
         }
 
         fn prepare(&self, _ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -321,9 +321,15 @@ mod fetch {
         let secret = serde_json::json!({});
         let settings = serde_json::json!({});
 
-        let result = fetch_models_with(&channel, Provider::OpenAi, &secret, &settings, &client)
-            .await
-            .unwrap();
+        let result = fetch_models_with(
+            &channel,
+            OperationKey::provider(Operation::ListModels, Provider::OpenAi),
+            &secret,
+            &settings,
+            &client,
+        )
+        .await
+        .unwrap();
         let ModelPullResult::Success(models) = result else {
             panic!("custom model pull should succeed");
         };

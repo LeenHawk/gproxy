@@ -1,7 +1,6 @@
 import type { ChannelCatalogDto, ChannelSettingFieldDto } from "@/api/channels";
 
 export type SecretFamily = ChannelCatalogDto["credential_family"];
-export type ProviderFamily = ChannelCatalogDto["provider_family"];
 export type LoginMode = ChannelCatalogDto["login_modes"][number];
 export type EndpointKind = string;
 export type ChannelSettingField = ChannelSettingFieldDto;
@@ -59,7 +58,6 @@ export interface ChannelMeta {
   id: string;
   displayName: string;
   source: ChannelCatalogDto["source"];
-  providerFamily: ProviderFamily;
   family: SecretFamily;
   loginModes: LoginMode[];
   settingsFields: readonly ChannelSettingField[];
@@ -83,15 +81,6 @@ const DISPLAY_NAMES: Record<string, string> = {
   copilotcli: "GitHub Copilot CLI", geminicli: "Gemini CLI",
   grokbuild: "Grok Build", vertexexpress: "Vertex AI Express",
 };
-const CLAUDE_CHANNELS = new Set(["claudeapi", "claudecode", "claudeweb"]);
-const GEMINI_CHANNELS = new Set(["aistudio", "vertexexpress", "vertex", "geminicli", "antigravity"]);
-
-function providerFamily(id: string): ProviderFamily {
-  if (CLAUDE_CHANNELS.has(id)) return "claude";
-  if (GEMINI_CHANNELS.has(id)) return "gemini";
-  return "open_ai";
-}
-
 function builtinMeta(
   id: string,
   family: SecretFamily,
@@ -101,7 +90,6 @@ function builtinMeta(
     id,
     displayName: DISPLAY_NAMES[id] ?? id,
     source: "builtin",
-    providerFamily: providerFamily(id),
     family,
     loginModes: [],
     settingsFields: [],
@@ -158,7 +146,6 @@ function normalizeRemote(entry: ChannelCatalogDto): ChannelMeta {
     id: entry.id,
     displayName: entry.display_name,
     source: entry.source,
-    providerFamily: entry.provider_family,
     family: entry.credential_family,
     loginModes: [...entry.login_modes],
     settingsFields: entry.settings_fields.map((field) => ({ ...field })),

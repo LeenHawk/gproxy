@@ -29,7 +29,7 @@ use crate::channel::{
     DevicePoll, PrepareCtx, PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
-use crate::protocol::{Operation, Provider};
+use crate::protocol::Operation;
 
 pub struct CodexChannel;
 
@@ -43,10 +43,6 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for CodexChannel {
     fn id(&self) -> &'static str {
         "codex"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     /// ChatGPT-subscription account: the OAuth token is account-wide.

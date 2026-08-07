@@ -12,7 +12,7 @@ pub mod routes;
 pub mod transport;
 pub mod usage;
 
-pub use channel::Channel;
+pub use channel::{Channel, ModelCatalog};
 pub use context::{PrepareCtx, RefreshCtx, ShapeCtx, TransportKind};
 pub use disposition::Disposition;
 pub use error::ChannelError;

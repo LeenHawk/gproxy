@@ -39,10 +39,6 @@ impl Channel for AwsBedrockChannel {
         "aws-bedrock"
     }
 
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
-    }
-
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         use crate::channel::routes::{cg, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};

@@ -13,7 +13,7 @@ use crate::channel::shaping::{
     claude_sampling,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
+use crate::protocol::{ContentGenerationKind, OperationKind};
 
 /// Whether `op` targets the native Claude Messages content-generation path.
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
@@ -44,10 +44,6 @@ pub struct ClaudeApiChannel;
 impl Channel for ClaudeApiChannel {
     fn id(&self) -> &'static str {
         "claudeapi"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Claude
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

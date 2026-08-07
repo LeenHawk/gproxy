@@ -19,7 +19,7 @@ use http::HeaderMap;
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::http_util::{allow_headers, allow_query, build_request};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKind};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.deepseek.com"),
@@ -43,10 +43,6 @@ pub struct DeepSeekChannel;
 impl Channel for DeepSeekChannel {
     fn id(&self) -> &'static str {
         "deepseek"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

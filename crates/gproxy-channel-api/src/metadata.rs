@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::protocol::Provider;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialFamily {
@@ -50,7 +48,6 @@ pub struct ChannelSettingField {
 pub struct ChannelMetadata {
     pub id: String,
     pub display_name: String,
-    pub provider_family: Provider,
     pub credential_family: CredentialFamily,
     pub login_modes: Vec<LoginMode>,
     pub settings_fields: Vec<ChannelSettingField>,
@@ -60,12 +57,11 @@ pub struct ChannelMetadata {
 }
 
 impl ChannelMetadata {
-    pub fn new(id: impl Into<String>, provider_family: Provider) -> Self {
+    pub fn new(id: impl Into<String>) -> Self {
         let id = id.into();
         Self {
             display_name: id.clone(),
             id,
-            provider_family,
             credential_family: CredentialFamily::ApiKey,
             login_modes: Vec::new(),
             settings_fields: Vec::new(),

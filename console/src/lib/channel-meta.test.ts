@@ -7,7 +7,6 @@ function catalogEntry(overrides: Partial<ChannelCatalogDto> = {}): ChannelCatalo
     source: "builtin",
     id: "openai",
     display_name: "OpenAI",
-    provider_family: "open_ai",
     credential_family: "api_key",
     login_modes: [],
     settings_fields: [],
@@ -26,7 +25,6 @@ describe("mergeChannelCatalog", () => {
   it("keeps runtime capabilities authoritative for built-in channels", () => {
     const [merged] = mergeChannelCatalog([catalogEntry({
       display_name: "OpenAI Platform",
-      provider_family: "gemini",
       credential_family: "oauth_tokens",
       login_modes: ["cookie"],
       settings_fields: [{ key: "runtime_only", control: "boolean", required: true }],
@@ -36,7 +34,6 @@ describe("mergeChannelCatalog", () => {
     })]);
 
     expect(merged.displayName).toBe("OpenAI Platform");
-    expect(merged.providerFamily).toBe("gemini");
     expect(merged.family).toBe("oauth_tokens");
     expect(merged.loginModes).toEqual(["cookie"]);
     expect(merged.settingsFields).toEqual([
@@ -64,7 +61,6 @@ describe("mergeChannelCatalog", () => {
       source: "external",
       id: "acme",
       display_name: "Acme Gateway",
-      provider_family: "claude",
       credential_family: "oauth_tokens",
       login_modes: ["device"],
       settings_fields: [field],
@@ -77,7 +73,6 @@ describe("mergeChannelCatalog", () => {
       id: "acme",
       displayName: "Acme Gateway",
       source: "external",
-      providerFamily: "claude",
       family: "oauth_tokens",
       loginModes: ["device"],
       settingsFields: [field],

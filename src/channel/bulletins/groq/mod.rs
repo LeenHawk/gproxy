@@ -4,7 +4,6 @@ mod auth;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
-use crate::protocol::Provider;
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.groq.com/openai"),
@@ -19,10 +18,6 @@ pub struct GroqChannel;
 impl Channel for GroqChannel {
     fn id(&self) -> &'static str {
         "groq"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
