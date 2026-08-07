@@ -59,10 +59,20 @@ function sanitizeRules(
   );
 }
 
-/// OpenCode identifies itself as `opencode/<version> ai-sdk/... runtime/bun/...`.
-/// Without this scope the response-side tool renames below rewrite EVERY
-/// client's tool names (Claude Code's `Read` → `read`), breaking their tools.
-const OPENCODE_CLIENT = "user-agent: opencode/*";
+/// Client scopes (case-insensitive regex over every `name: value` inbound
+/// header line). OpenCode's exact user-agent is known — `opencode/<version>
+/// ai-sdk/... runtime/bun/...`; the rest key on the app name in whichever
+/// header carries it (`user-agent`, `x-title`, `http-referer`), which is how
+/// those clients identify themselves. Confirm against a captured request in
+/// Logs → Requests before relying on one.
+const CLIENT = {
+  opencode: "^user-agent: opencode/",
+  pi: "(?i)^user-agent: pi[-/ ]|\\bpi-mono\\b",
+  aider: "(?i)\\baider\\b",
+  cline: "(?i)\\bcline\\b",
+  continue: "(?i)^user-agent: continue[-/ ]|\\bcontinue\\.dev\\b",
+  cursor: "(?i)\\bcursor\\b",
+} as const;
 
 export const OPENCODE_PRESET_RULES: PresetRule[] = [
   transform(0, "request", { paths: ["system", "system.*.text"] }, [
@@ -77,23 +87,23 @@ export const OPENCODE_PRESET_RULES: PresetRule[] = [
     { op: "replace_regex", pattern: "(?i)/tmp/opencode\\b", with: "/tmp/coding-agent" },
     { op: "replace_regex", pattern: "(?i)\\bopencode\\b", with: "the coding assistant" },
     { op: "replace_regex", pattern: "\\bgit repo\\b", with: "git repository" },
-  ], OPENCODE_CLIENT),
+  ], CLIENT.opencode),
   transform(1, "request", { paths: OPENCODE_REQUEST_TOOL_PATHS }, OPENCODE_TOOL_RENAMES.map(([from, replacement]) => ({
     op: "replace_text",
     from,
     with: replacement,
-  })), OPENCODE_CLIENT),
+  })), CLIENT.opencode),
   transform(2, "request", { paths: OPENCODE_REQUEST_TOOL_PATHS }, [
     { op: "replace_regex", pattern: "^mcp_([^_].*)$", with: "mcp__$1" },
-  ], OPENCODE_CLIENT),
+  ], CLIENT.opencode),
   transform(3, "response", { paths: RESPONSE_TOOL_PATHS }, OPENCODE_TOOL_RENAMES.map(([original, renamed]) => ({
     op: "replace_text",
     from: renamed,
     with: original,
-  })), OPENCODE_CLIENT),
+  })), CLIENT.opencode),
   transform(4, "response", { paths: RESPONSE_TOOL_PATHS }, [
     { op: "replace_regex", pattern: "^mcp__([^_].*)$", with: "mcp_$1" },
-  ], OPENCODE_CLIENT),
+  ], CLIENT.opencode),
 ];
 
 export const APPLICATION_RULE_SET_PRESETS: ApplicationRuleSetPreset[] = [
@@ -117,7 +127,7 @@ export const APPLICATION_RULE_SET_PRESETS: ApplicationRuleSetPreset[] = [
       ["\\bpi\\b", "the agent"],
       ["\\bPi\\b", "The agent"],
       ["\\bPI\\b", "AGENT"],
-    ]),
+    ], CLIENT.pi),
   },
   {
     id: "aider",
@@ -126,25 +136,25 @@ export const APPLICATION_RULE_SET_PRESETS: ApplicationRuleSetPreset[] = [
     rules: sanitizeRules([
       ["\\bAider\\b", "The assistant"],
       ["\\baider\\b", "the assistant"],
-    ]),
+    ], CLIENT.aider),
   },
   {
     id: "cline",
     name: "Cline",
     description: "gproxy:preset:cline:v1",
-    rules: sanitizeRules([["\\bCline\\b", "Assistant"]]),
+    rules: sanitizeRules([["\\bCline\\b", "Assistant"]], CLIENT.cline),
   },
   {
     id: "continue",
     name: "Continue",
     description: "gproxy:preset:continue:v1",
-    rules: sanitizeRules([["\\bContinue\\b", "Assistant"]]),
+    rules: sanitizeRules([["\\bContinue\\b", "Assistant"]], CLIENT.continue),
   },
   {
     id: "cursor",
     name: "Cursor",
     description: "gproxy:preset:cursor:v1",
-    rules: sanitizeRules([["\\bCursor\\b", "Assistant"]]),
+    rules: sanitizeRules([["\\bCursor\\b", "Assistant"]], CLIENT.cursor),
   },
 ];
 

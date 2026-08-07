@@ -59,13 +59,13 @@ export function ModelPatternField({
 }
 
 export const CLIENT_HEADER_PRESETS = [
-  "user-agent: opencode/*",
-  "user-agent: claude-cli/*",
-  "user-agent: codex*",
-  "user-agent: *cursor*",
+  "^user-agent: opencode/",
+  "^user-agent: claude-cli/",
+  "^user-agent: codex",
+  "(?i)\\bcursor\\b",
 ] as const;
 
-/// Inbound-header glob: scopes a rule to one client (matched against every
+/// Inbound-header regex: scopes a rule to one client (matched against every
 /// `name: value` line of the ORIGINAL client request).
 export function ClientHeaderField({
   value, onChange,
