@@ -271,6 +271,21 @@ fn normalizes_responses_body() {
     assert_eq!(roles, vec!["user"]);
 }
 
+/// Regression: the ChatGPT backend answers `400 Unknown parameter:
+/// 'input[N].status'` for a replayed reasoning item carrying `status`, which
+/// is non-retryable and aborts the client's whole tool loop. Other item types
+/// keep theirs.
+#[test]
+fn strips_status_from_replayed_reasoning_items() {
+    let value = shaped_body(
+        br#"{"model":"gpt-5.4","input":[{"type":"reasoning","id":"rs_1","summary":[],"encrypted_content":"C","status":"completed"},{"type":"function_call","id":"fc_1","call_id":"c1","name":"f","arguments":"{}","status":"completed"}]}"#,
+    );
+    let input = value["input"].as_array().unwrap();
+    assert!(input[0].get("status").is_none(), "{input:?}");
+    assert_eq!(input[0]["encrypted_content"], "C");
+    assert_eq!(input[1]["status"], "completed", "{input:?}");
+}
+
 #[test]
 fn drops_prompt_cache_options_unsupported_by_codex() {
     let value = shaped_body(

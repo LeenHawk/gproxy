@@ -12,6 +12,7 @@ mod control;
 mod fingerprint;
 mod headers;
 mod image_shape;
+mod input_shape;
 mod model_metadata;
 mod request;
 mod request_shape;

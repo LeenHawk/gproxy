@@ -104,6 +104,7 @@ pub(super) struct ResponsesStreamState {
     message: ResponsesTextItemState,
     reasoning: ResponsesTextItemState,
     tools: BTreeMap<u32, ResponsesToolItemState>,
+    done_items: BTreeMap<u32, ResponseOutputItem>,
     completed: bool,
 }
 
@@ -224,6 +225,7 @@ impl ResponsesStreamState {
                 item, output_index, ..
             } => {
                 self.note_item_done(item, *output_index);
+                self.done_items.insert(*output_index, (**item).clone());
                 Vec::new()
             }
             KnownEvent::ResponseOutputTextDone { text, .. } => {
@@ -382,22 +384,36 @@ impl ResponsesStreamState {
         }
     }
 
+    /// Rebuild the `output` array a sparse upstream left empty on
+    /// `response.completed`. Items the upstream itself emitted via
+    /// `response.output_item.done` win over the locally reassembled ones: they
+    /// carry fields the reassembly cannot reconstruct (`encrypted_content`,
+    /// reasoning summaries) and omit ones it would invent. Clients replay this
+    /// array verbatim into the next turn, so an invented field is a hard 400.
     fn completed_output_items(&self) -> Vec<ResponseOutputItem> {
         use crate::protocol::openai::ResponseItemLifecycleStatus::Completed;
-        let mut output = Vec::new();
+        let mut items: BTreeMap<u32, ResponseOutputItem> = BTreeMap::new();
         if self.reasoning.started {
-            output.push(text::reasoning_item(&self.reasoning, Completed));
+            items.insert(
+                self.reasoning.output_index(),
+                text::reasoning_item(&self.reasoning, Completed),
+            );
         }
         if self.message.started {
-            output.push(text::message_item(&self.message, Completed));
+            items.insert(
+                self.message.output_index(),
+                text::message_item(&self.message, Completed),
+            );
         }
-        output.extend(
-            self.tools
-                .values()
-                .filter(|state| state.can_finish())
-                .map(ResponsesToolItemState::completed_item),
-        );
-        output
+        for (index, state) in &self.tools {
+            if state.can_finish() {
+                items.insert(*index, state.completed_item());
+            }
+        }
+        for (index, item) in &self.done_items {
+            items.insert(*index, item.clone());
+        }
+        items.into_values().collect()
     }
 }
 
