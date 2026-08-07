@@ -4,7 +4,7 @@ use bytes::Bytes;
 use serde_json::{Value, json};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
-pub(super) const CODEX_VERSION: &str = "0.144.0";
+pub(super) const CODEX_VERSION: &str = "0.147.0";
 
 fn normalize_entry(model: &Value) -> Option<Value> {
     let id = model

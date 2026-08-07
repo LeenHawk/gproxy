@@ -24,6 +24,9 @@ pub struct ControlPlaneSnapshot {
     pub providers_by_name: HashMap<String, Arc<Provider>>,
     pub providers_by_id: HashMap<i64, Arc<Provider>>,
     pub routes_by_name: HashMap<String, Arc<ResolvedRoute>>,
+    /// Public service namespace (for example `openai`) -> logical route name -> route.
+    /// Populated from `routes.settings_json.public_namespace`; provider names remain internal.
+    pub routes_by_namespace: HashMap<String, HashMap<String, Arc<ResolvedRoute>>>,
     /// Alias scope (`*` or provider name) → compiled model alias rules.
     pub aliases_by_provider: HashMap<String, Arc<Vec<CompiledAlias>>>,
     /// api-key digest → identity (auth without a DB hit). ENABLED keys + users.
@@ -123,6 +126,7 @@ impl ControlPlaneSnapshot {
             providers_by_name: HashMap::new(),
             providers_by_id: HashMap::new(),
             routes_by_name: HashMap::new(),
+            routes_by_namespace: HashMap::new(),
             aliases_by_provider: HashMap::new(),
             keys_by_digest: HashMap::new(),
             credentials_by_provider: HashMap::new(),
@@ -301,8 +305,16 @@ impl ControlPlaneSnapshot {
             let mut members = members_by_route.remove(&route.id).unwrap_or_default();
             members.sort_by(|a, b| a.tier.cmp(&b.tier).then(b.weight.cmp(&a.weight)));
             let name = route.name.clone();
+            let namespace = route_public_namespace(&route);
+            let resolved = Arc::new(ResolvedRoute { route, members });
             snap.routes_by_name
-                .insert(name, Arc::new(ResolvedRoute { route, members }));
+                .insert(name.clone(), Arc::clone(&resolved));
+            if let Some(namespace) = namespace {
+                snap.routes_by_namespace
+                    .entry(namespace)
+                    .or_default()
+                    .insert(name, resolved);
+            }
         }
 
         // model aliases, grouped by global/provider scope and compiled once.
@@ -374,6 +386,17 @@ impl ControlPlaneSnapshot {
 
 /// Group whole-table child rows by their parent id (insertion order kept
 /// within each group — the backends return primary-key order).
+fn route_public_namespace(route: &Route) -> Option<String> {
+    route
+        .settings_json
+        .as_ref()?
+        .get("public_namespace")?
+        .as_str()
+        .map(str::trim)
+        .filter(|namespace| !namespace.is_empty())
+        .map(str::to_ascii_lowercase)
+}
+
 fn group_by<T>(
     items: impl IntoIterator<Item = T>,
     key: impl Fn(&T) -> i64,

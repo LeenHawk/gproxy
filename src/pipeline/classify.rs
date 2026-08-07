@@ -78,6 +78,14 @@ pub fn classify(
             OperationKey::provider(Operation::EditImage, Prov::OpenAi),
             false,
         ),
+        ("POST", "/v1/alpha/search") => (
+            OperationKey::provider(Operation::WebSearch, Prov::OpenAi),
+            false,
+        ),
+        ("POST", "/v1/realtime/calls") => (
+            OperationKey::provider(Operation::CreateRealtimeCall, Prov::OpenAi),
+            false,
+        ),
         ("GET", "/v1/models") => (
             OperationKey::provider(Operation::ListModels, credential_provider(headers)),
             false,
@@ -187,7 +195,11 @@ fn peek_body(body: &Bytes) -> (bool, Option<String>) {
         .get("stream")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
-    let model = v.get("model").and_then(|m| m.as_str().map(str::to_string));
+    let model = v
+        .get("model")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| v.get("session")?.get("model")?.as_str())
+        .map(str::to_string);
     (stream, model)
 }
 

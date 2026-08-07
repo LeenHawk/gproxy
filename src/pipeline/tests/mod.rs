@@ -52,6 +52,7 @@ struct FakeUpstream {
     /// canned non-stream response body
     response: Bytes,
     response_content_type: &'static str,
+    response_headers: HeaderMap,
     /// canned stream chunks (send_streaming)
     chunks: Vec<Bytes>,
     calls: AtomicUsize,
@@ -68,11 +69,13 @@ impl UpstreamClient for FakeUpstream {
             .or_else(|| self.statuses.last())
             .copied()
             .unwrap_or(StatusCode::OK);
-        Ok(http::Response::builder()
+        let mut response = http::Response::builder()
             .status(status)
             .header("content-type", self.response_content_type)
             .body(self.response.clone())
-            .expect("response"))
+            .expect("response");
+        response.headers_mut().extend(self.response_headers.clone());
+        Ok(response)
     }
 
     async fn send_streaming(
@@ -80,7 +83,7 @@ impl UpstreamClient for FakeUpstream {
         req: http::Request<Bytes>,
     ) -> Result<(StatusCode, HeaderMap, RespStream), ClientError> {
         self.capture(&req);
-        let mut h = HeaderMap::new();
+        let mut h = self.response_headers.clone();
         h.insert("content-type", "text/event-stream".parse().unwrap());
         let chunks: Vec<Result<Bytes, ClientError>> = self.chunks.iter().cloned().map(Ok).collect();
         Ok((
@@ -120,6 +123,7 @@ impl FakeUpstream {
             statuses: vec![StatusCode::OK],
             response,
             response_content_type: "application/json",
+            response_headers: HeaderMap::new(),
             chunks,
             calls: AtomicUsize::new(0),
         }
@@ -127,6 +131,12 @@ impl FakeUpstream {
 
     fn with_response_content_type(mut self, content_type: &'static str) -> Self {
         self.response_content_type = content_type;
+        self
+    }
+
+    fn with_response_header(mut self, name: &'static str, value: &'static str) -> Self {
+        self.response_headers
+            .insert(name, value.parse().expect("response header"));
         self
     }
 

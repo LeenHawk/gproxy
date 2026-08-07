@@ -338,10 +338,16 @@ pub(crate) async fn serve_aggregated(
     let op = ctx.op.expect("classified");
     let family = op.provider_family();
     let identity = ctx.identity.as_ref().expect("auth ran first");
+    let namespace = match &ctx.mode {
+        crate::pipeline::context::RoutingMode::Namespace { namespace } => Some(namespace.as_str()),
+        _ => None,
+    };
 
     let body = match op.operation() {
         Operation::ListModels => {
-            let providers: Vec<Arc<Provider>> = {
+            let providers: Vec<Arc<Provider>> = if namespace.is_some() {
+                Vec::new()
+            } else {
                 let cp = state.cp();
                 cp.providers_by_name
                     .values()
@@ -360,9 +366,18 @@ pub(crate) async fn serve_aggregated(
             .await;
 
             let cp = state.cp();
-            let mut entries: Vec<ModelEntry> = cp
-                .routes_by_name
-                .keys()
+            let route_ids: Vec<String> = match namespace {
+                Some(namespace) => cp
+                    .routes_by_namespace
+                    .get(namespace)
+                    .into_iter()
+                    .flat_map(|routes| routes.keys())
+                    .cloned()
+                    .collect(),
+                None => cp.routes_by_name.keys().cloned().collect(),
+            };
+            let mut entries: Vec<ModelEntry> = route_ids
+                .iter()
                 .filter(|id| authz::permitted(&cp, identity, id))
                 .map(|id| ModelEntry {
                     id: id.clone(),
@@ -375,7 +390,19 @@ pub(crate) async fn serve_aggregated(
                 entries.extend(
                     global_aliases
                         .iter()
-                        .filter(|alias| target_permitted(&cp, identity, &alias.target))
+                        .filter(|alias| {
+                            namespace.map_or_else(
+                                || target_permitted(&cp, identity, &alias.target),
+                                |namespace| {
+                                    namespace_target_permitted(
+                                        &cp,
+                                        identity,
+                                        namespace,
+                                        &alias.target,
+                                    )
+                                },
+                            )
+                        })
                         .map(|alias| ModelEntry {
                             id: alias.alias.clone(),
                             display_name: None,
@@ -418,10 +445,14 @@ pub(crate) async fn serve_aggregated(
         _ => {
             let cp = state.cp();
             let id = classify::path_model_id(&ctx.path).ok_or(PipelineError::UnsupportedPath)?;
-            if !resolved_target_permitted(&cp, identity, &id) {
+            let target = preprocess::apply_global_alias(&cp, &id);
+            let permitted = namespace.map_or_else(
+                || resolved_target_permitted(&cp, identity, &id),
+                |namespace| namespace_target_permitted(&cp, identity, namespace, &target),
+            );
+            if !permitted {
                 return Err(PipelineError::UnknownRoute(id));
             }
-            let target = preprocess::apply_global_alias(&cp, &id);
             local_ops::render_model(
                 family,
                 &ModelEntry {
@@ -434,6 +465,18 @@ pub(crate) async fn serve_aggregated(
         }
     };
     Ok(local_ops::json_outcome(http::StatusCode::OK, body))
+}
+
+fn namespace_target_permitted(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    namespace: &str,
+    target: &str,
+) -> bool {
+    cp.routes_by_namespace
+        .get(namespace)
+        .is_some_and(|routes| routes.contains_key(target))
+        && authz::permitted(cp, identity, target)
 }
 
 fn target_permitted(cp: &ControlPlaneSnapshot, identity: &KeyIdentity, target: &str) -> bool {

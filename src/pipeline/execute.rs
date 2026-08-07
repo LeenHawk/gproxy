@@ -86,6 +86,15 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     let prepared = {
         let cp = state.cp();
         ctx.identity = Some(auth::authenticate(&cp, &ctx.headers, ctx.query.as_deref())?);
+        if let RoutingMode::Named { name } = &ctx.mode {
+            let name = name.clone();
+            let namespace = name.to_ascii_lowercase();
+            ctx.mode = if cp.routes_by_namespace.contains_key(&namespace) {
+                RoutingMode::Namespace { namespace }
+            } else {
+                RoutingMode::Scoped { provider: name }
+            };
+        }
         let affinity_session_id = balance::take_session_id(&mut ctx.headers);
         ingress::apply_global_blacklist(&mut ctx);
         ingress::normalize_multipart_form_body(&mut ctx)?;
@@ -105,12 +114,13 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
             span.record("model", model.as_str());
         }
 
-        if matches!(ctx.mode, RoutingMode::Aggregated)
-            && matches!(
-                classified.op.operation(),
-                Operation::ListModels | Operation::GetModel
-            )
-        {
+        if matches!(
+            ctx.mode,
+            RoutingMode::Aggregated | RoutingMode::Namespace { .. }
+        ) && matches!(
+            classified.op.operation(),
+            Operation::ListModels | Operation::GetModel
+        ) {
             None
         } else {
             Some(candidate::prepare(

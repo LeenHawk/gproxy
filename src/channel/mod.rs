@@ -24,11 +24,11 @@ pub mod shaping;
 pub use gproxy_channel_api::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, Channel, ChannelCatalogEntry,
     ChannelError, ChannelLogin, ChannelMetadata, ChannelSettingField, ChannelSource,
-    ChannelStreamDecoder, CookieExchangeCtx, CredentialFamily, DeviceInit, DevicePoll,
-    DevicePollCtx, DeviceStartCtx, Disposition, LoginMode, ModelCatalog, PrepareCtx,
-    PreparedRequest, RateLimitResetCreditConsumeOutcome, RateLimitResetCreditConsumeResponse,
-    RateLimitResetCredits, RefreshCtx, SettingControl, ShapeCtx, TransportKind, UsageCredits,
-    UsageSnapshot, UsageWindow,
+    ChannelStreamDecoder, CookieExchangeCtx, CredentialControlOperation, CredentialControlResponse,
+    CredentialFamily, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, Disposition,
+    LoginMode, PrepareCtx, PreparedRequest, RateLimitResetCreditConsumeOutcome,
+    RateLimitResetCreditConsumeResponse, RateLimitResetCredits, RefreshCtx, SettingControl,
+    ShapeCtx, TransportKind, UsageCredits, UsageSnapshot, UsageWindow,
 };
 pub use gproxy_channel_api::{
     disposition, login, prepared, registration, routes, transport, usage,

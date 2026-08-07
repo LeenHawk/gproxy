@@ -1,7 +1,8 @@
 //! OpenAI create-image <-> OpenAI Responses transforms.
 //!
-//! Codex/ChatGPT has no dedicated `/v1/images/generations` endpoint; it
-//! generates images through the Responses API `image_generation` tool. So an
+//! Fallback for Responses-only backends: reshape an Images request into a
+//! Responses API `image_generation` tool call. Native Codex Images routing now
+//! bypasses this transform when its dedicated image endpoint is available. An
 //! images request is reshaped into a Responses request that invokes that tool,
 //! and the resulting `image_generation_call` output item (a base64 image) is
 //! reshaped back into an images response.

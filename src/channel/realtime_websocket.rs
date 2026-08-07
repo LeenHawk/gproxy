@@ -64,9 +64,20 @@ pub fn rewrite_model_query(query: Option<&str>, model: &str) -> Result<String, C
         .join("&");
     if found {
         Ok(rewritten)
+    } else if query_value(query, "call_id").is_some() {
+        // A WebRTC sideband joins an already-created call and normally carries
+        // only `call_id`; its model is recovered from the gproxy call binding.
+        Ok(query.to_owned())
     } else {
         Err(ChannelError::Build("realtime query missing model".into()))
     }
+}
+
+fn query_value(query: &str, name: &str) -> Option<String> {
+    serde_urlencoded::from_str::<Vec<(String, String)>>(query)
+        .ok()?
+        .into_iter()
+        .find_map(|(key, value)| (key == name && !value.is_empty()).then_some(value))
 }
 
 /// Remove downstream API-key parameters while preserving every other raw pair.

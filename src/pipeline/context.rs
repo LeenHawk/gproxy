@@ -15,7 +15,13 @@ use crate::store::persistence::records::{Credential, Provider};
 pub enum RoutingMode {
     /// `/v1/...` — model name resolves to a route via alias/route tables.
     Aggregated,
-    /// `/{provider}/v1/...` — bypass routing, hit the named provider directly.
+    /// `/{name}/v1/...` as parsed at the HTTP boundary. The pipeline resolves
+    /// this to a public namespace first, then falls back to legacy provider scope.
+    Named { name: String },
+    /// Public logical service namespace such as `/openai/v1/...`.
+    Namespace { namespace: String },
+    /// Legacy `/{provider}/v1/...` provider bypass. Kept for compatibility; new
+    /// public integrations should use [`RoutingMode::Namespace`].
     Scoped { provider: String },
 }
 
@@ -57,6 +63,8 @@ pub struct Candidate {
     /// Cache key for optional route-member affinity. Set only for routed
     /// requests whose route enables affinity.
     pub(crate) member_affinity_key: Option<Arc<str>>,
+    /// Hard binding for stateful upstream resources (Codex search/turn state).
+    pub(crate) credential_binding_key: Option<Arc<str>>,
 }
 
 impl Candidate {
@@ -71,6 +79,7 @@ impl Candidate {
             upstream_model_id,
             member_id: None,
             member_affinity_key: None,
+            credential_binding_key: None,
         }
     }
 }

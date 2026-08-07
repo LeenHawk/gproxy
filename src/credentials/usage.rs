@@ -334,7 +334,7 @@ pub(crate) fn resolve_client(
         .map_err(|e| UsageError::Upstream(format!("resolve usage client: {e}")))
 }
 
-pub(super) fn audit_sequence<'a>(
+pub(crate) fn audit_sequence<'a>(
     state: &'a AppState,
     credential: &Credential,
     purpose: &str,

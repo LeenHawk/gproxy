@@ -24,6 +24,7 @@ pub enum OperationGroup {
     CountTokens,
     GenerateContent,
     Images,
+    Search,
     Embeddings,
     Compact,
     Conversation,
@@ -46,9 +47,11 @@ pub enum Operation {
     StreamGenerateContent,
     CreateImage,
     EditImage,
+    WebSearch,
     CreateEmbedding,
     CompactContent,
     CreateConversation,
+    CreateRealtimeCall,
     ConnectRealtime,
 }
 
@@ -60,10 +63,11 @@ impl Operation {
             Self::CountTokens => OperationGroup::CountTokens,
             Self::GenerateContent | Self::StreamGenerateContent => OperationGroup::GenerateContent,
             Self::CreateImage | Self::EditImage => OperationGroup::Images,
+            Self::WebSearch => OperationGroup::Search,
             Self::CreateEmbedding => OperationGroup::Embeddings,
             Self::CompactContent => OperationGroup::Compact,
             Self::CreateConversation => OperationGroup::Conversation,
-            Self::ConnectRealtime => OperationGroup::Realtime,
+            Self::CreateRealtimeCall | Self::ConnectRealtime => OperationGroup::Realtime,
         }
     }
 

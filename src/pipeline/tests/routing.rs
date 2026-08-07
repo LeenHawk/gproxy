@@ -212,14 +212,14 @@ async fn direct_provider_candidates_respect_exact_model_health() {
 
     assert!(
         blocked
-            .candidates(state.health.as_ref(), state.cache.as_ref(), Some(1))
+            .candidates(state.health.as_ref(), state.cache.as_ref(), Some(1), None)
             .await
             .is_err(),
         "variant resolves to the blocked base model"
     );
     assert_eq!(
         available
-            .candidates(state.health.as_ref(), state.cache.as_ref(), Some(1))
+            .candidates(state.health.as_ref(), state.cache.as_ref(), Some(1), None)
             .await
             .expect("different model remains available")
             .len(),
@@ -277,4 +277,249 @@ async fn route_affinity_rebinds_after_pinned_member_fails() {
         .expect("new pin");
 
     assert_eq!(seen_models(&fake), vec!["gpt-a", "gpt-a", "gpt-b", "gpt-b"]);
+}
+
+fn codex_search_bundle() -> String {
+    let mut bundle: Value = serde_json::from_str(BUNDLE).expect("bundle");
+    bundle["providers"][0]["channel"] = json!("codex");
+    bundle["providers"][0]["credential_strategy"] = json!("round_robin");
+    bundle["providers"][0]["settings_json"] = json!({
+        "endpoints": { "openai_search": "http://fake.local/v1/alpha/search" }
+    });
+    bundle["credentials"] = json!([
+        { "id": 1, "provider_id": 1, "label": "a", "kind": "oauth", "secret_json": { "access_token": "tok-a", "account_id": "acct-a" }, "enabled": true },
+        { "id": 3, "provider_id": 1, "label": "b", "kind": "oauth", "secret_json": { "access_token": "tok-b", "account_id": "acct-b" }, "enabled": true },
+        { "id": 2, "provider_id": 2, "label": null, "secret_json": { "api_key": "up-key" }, "enabled": true }
+    ]);
+    bundle["routes"][0]["settings_json"] = json!({ "public_namespace": "openai" });
+    serde_json::to_string(&bundle).expect("serialize search bundle")
+}
+
+fn codex_search_ctx(request_id: &str, search_id: &str) -> RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    RequestCtx {
+        request_id: request_id.into(),
+        method: Method::POST,
+        path: "/v1/alpha/search".into(),
+        query: None,
+        headers,
+        body: Bytes::from(
+            serde_json::to_vec(&json!({
+                "id": search_id,
+                "model": "to-openai",
+                "input": "find this"
+            }))
+            .unwrap(),
+        ),
+        mode: RoutingMode::Named {
+            name: "openai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    }
+}
+
+#[tokio::test]
+async fn codex_search_id_hard_binds_one_credential() {
+    let response = Bytes::from_static(br#"{"output":"ok","results":[]}"#);
+    let fake = Arc::new(FakeUpstream::new(response, vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &codex_search_bundle()).await;
+
+    crate::pipeline::execute(&state, codex_search_ctx("search-1", "session-x"))
+        .await
+        .expect("first search");
+    crate::pipeline::execute(&state, codex_search_ctx("search-2", "session-x"))
+        .await
+        .expect("bound search");
+
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(seen.len(), 2);
+    let first = seen[0].headers["authorization"].to_str().unwrap();
+    let second = seen[1].headers["authorization"].to_str().unwrap();
+    assert_eq!(
+        first, second,
+        "same search id must not rotate OAuth accounts"
+    );
+    assert!(
+        seen.iter()
+            .all(|request| request.uri.ends_with("/v1/alpha/search"))
+    );
+}
+
+fn codex_realtime_bundle() -> String {
+    let mut bundle: Value = serde_json::from_str(&codex_search_bundle()).expect("search bundle");
+    bundle["providers"][0]["settings_json"] = json!({
+        "endpoints": {
+            "openai_realtime_call": "http://fake.local/v1/realtime/calls"
+        }
+    });
+    serde_json::to_string(&bundle).expect("serialize realtime bundle")
+}
+
+fn codex_realtime_call_ctx() -> RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    RequestCtx {
+        request_id: "rtc-create".into(),
+        method: Method::POST,
+        path: "/v1/realtime/calls".into(),
+        query: None,
+        headers,
+        body: Bytes::from(
+            serde_json::to_vec(&json!({
+                "sdp": "v=offer",
+                "model": "to-openai",
+                "session": { "type": "realtime" }
+            }))
+            .unwrap(),
+        ),
+        mode: RoutingMode::Named {
+            name: "openai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    }
+}
+
+fn codex_realtime_sideband_ctx() -> RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    RequestCtx {
+        request_id: "rtc-sideband".into(),
+        method: Method::GET,
+        path: "/v1/realtime".into(),
+        query: Some("call_id=rtc-bound".into()),
+        headers,
+        body: Bytes::new(),
+        mode: RoutingMode::Named {
+            name: "openai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: true,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    }
+}
+
+#[tokio::test]
+async fn codex_realtime_call_binds_model_and_credential_for_sideband() {
+    let upstream = FakeUpstream::new(Bytes::from_static(b"v=answer"), vec![])
+        .with_response_content_type("application/sdp")
+        .with_response_header("location", "/v1/realtime/calls/calls/rtc-bound");
+    let fake = Arc::new(upstream);
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &codex_realtime_bundle()).await;
+
+    let outcome = crate::pipeline::execute(&state, codex_realtime_call_ctx())
+        .await
+        .expect("create realtime call");
+    assert_eq!(outcome.status, StatusCode::OK);
+
+    let _session = crate::pipeline::realtime::open(&state, codex_realtime_sideband_ctx())
+        .await
+        .expect("bound sideband");
+
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(seen.len(), 2);
+    let call_auth = seen[0].headers["authorization"].to_str().unwrap();
+    let sideband_auth = seen[1].headers["authorization"].to_str().unwrap();
+    assert_eq!(
+        call_auth, sideband_auth,
+        "sideband must reuse the call credential"
+    );
+    let call_body: Value = serde_json::from_slice(&seen[0].body).unwrap();
+    assert_eq!(call_body["session"]["model"], "gpt-test");
+    assert!(
+        call_body.get("model").is_none(),
+        "public route model must not leak top-level"
+    );
+    assert_eq!(seen[0].headers["accept"], "application/sdp");
+    assert_eq!(
+        seen[1].uri,
+        "wss://api.openai.com/v1/realtime?call_id=rtc-bound"
+    );
+}
+
+fn codex_responses_bundle() -> String {
+    let mut bundle: Value = serde_json::from_str(&codex_search_bundle()).expect("search bundle");
+    bundle["providers"][0]["settings_json"] = json!({
+        "endpoints": { "openai_responses": "http://fake.local/v1/responses" }
+    });
+    serde_json::to_string(&bundle).expect("serialize responses bundle")
+}
+
+fn codex_responses_ctx(request_id: &str, turn_state: Option<&str>) -> RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    if let Some(turn_state) = turn_state {
+        headers.insert("x-codex-turn-state", turn_state.parse().unwrap());
+    }
+    RequestCtx {
+        request_id: request_id.into(),
+        method: Method::POST,
+        path: "/v1/responses".into(),
+        query: None,
+        headers,
+        body: Bytes::from(
+            serde_json::to_vec(&json!({
+                "model": "to-openai",
+                "input": "hello",
+                "stream": true
+            }))
+            .unwrap(),
+        ),
+        mode: RoutingMode::Named {
+            name: "openai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    }
+}
+
+#[tokio::test]
+async fn codex_returned_turn_state_binds_next_request_to_same_credential() {
+    let upstream = FakeUpstream::new(Bytes::new(), vec![])
+        .with_response_header("x-codex-turn-state", "turn-state-1")
+        .with_response_header("x-codex-primary-used-percent", "96")
+        .with_response_header("x-codex-credits-balance", "0")
+        .with_response_header("x-codex-routing-hint", "internal-route");
+    let fake = Arc::new(upstream);
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &codex_responses_bundle()).await;
+
+    let first = crate::pipeline::execute(&state, codex_responses_ctx("turn-1", None))
+        .await
+        .expect("first responses request");
+    assert_eq!(first.headers["x-codex-turn-state"], "turn-state-1");
+    assert!(first.headers.get("x-codex-primary-used-percent").is_none());
+    assert!(first.headers.get("x-codex-credits-balance").is_none());
+    assert!(first.headers.get("x-codex-routing-hint").is_none());
+    let _second =
+        crate::pipeline::execute(&state, codex_responses_ctx("turn-2", Some("turn-state-1")))
+            .await
+            .expect("bound responses request");
+
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(seen.len(), 2);
+    assert_eq!(
+        seen[0].headers["authorization"], seen[1].headers["authorization"],
+        "server-issued turn state must bind the next request before rotation"
+    );
+    assert_eq!(seen[1].headers["x-codex-turn-state"], "turn-state-1");
 }

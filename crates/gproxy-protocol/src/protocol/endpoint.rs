@@ -138,8 +138,10 @@ pub fn request_target(
         }
         (Operation::CreateImage, P::OpenAi) => RequestTarget::post("/v1/images/generations"),
         (Operation::EditImage, P::OpenAi) => RequestTarget::post("/v1/images/edits"),
+        (Operation::WebSearch, P::OpenAi) => RequestTarget::post("/v1/alpha/search"),
         (Operation::CompactContent, P::OpenAi) => RequestTarget::post("/v1/responses/compact"),
         (Operation::CreateConversation, P::OpenAi) => RequestTarget::post("/v1/conversations"),
+        (Operation::CreateRealtimeCall, P::OpenAi) => RequestTarget::post("/v1/realtime/calls"),
         (Operation::ConnectRealtime, P::OpenAi) => {
             require_model(target.operation(), provider, model)?;
             RequestTarget {
@@ -238,8 +240,10 @@ mod tests {
             (O::CreateEmbedding, [true, false, true]),
             (O::CreateImage, [true, false, false]),
             (O::EditImage, [true, false, false]),
+            (O::WebSearch, [true, false, false]),
             (O::CompactContent, [true, false, false]),
             (O::CreateConversation, [true, false, false]),
+            (O::CreateRealtimeCall, [true, false, false]),
             (O::ConnectRealtime, [true, false, false]),
         ];
         for (operation, supported) in rows {

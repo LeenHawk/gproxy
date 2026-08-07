@@ -4,6 +4,7 @@
 //! rotation or sticky cache affinity).
 
 mod affinity;
+mod credential_affinity;
 mod strategy;
 
 use std::collections::HashMap;
@@ -19,6 +20,10 @@ use crate::store::persistence::records::{Credential, Provider, Route, RouteMembe
 use crate::util::time::unix_now;
 
 pub(crate) use affinity::take_session_id;
+pub(crate) use credential_affinity::read as read_credential_binding;
+pub(crate) use credential_affinity::realtime_model as bound_realtime_model;
+pub(crate) use credential_affinity::record_response as record_response_affinity;
+pub(crate) use credential_affinity::request_key as credential_binding_key;
 
 /// Snapshot-owned input for route balancing. Only providers and credential
 /// pools referenced by this route are retained.
@@ -94,18 +99,23 @@ impl PreparedProvider {
         health: &HealthState,
         cache: &dyn CacheBackend,
         user_key_id: Option<i64>,
+        hard_pinned_credential: Option<i64>,
     ) -> Result<Vec<Candidate>, PipelineError> {
         if self.credentials.is_empty() {
             return Err(PipelineError::NoCredentials);
         }
+        let selection = CredentialSelection {
+            health,
+            cache,
+            user_key_id,
+            hard_pinned_credential,
+            now: unix_now(),
+        };
         let credentials = credential_pool(
             &self.credentials,
             &self.provider,
             &self.upstream_model_id,
-            health,
-            cache,
-            user_key_id,
-            unix_now(),
+            &selection,
         )
         .await;
         if credentials.is_empty() {
@@ -124,6 +134,14 @@ impl PreparedProvider {
     }
 }
 
+struct CredentialSelection<'a> {
+    health: &'a HealthState,
+    cache: &'a dyn CacheBackend,
+    user_key_id: Option<i64>,
+    hard_pinned_credential: Option<i64>,
+    now: i64,
+}
+
 /// Build the ordered candidate list for failover: healthy members per the
 /// route strategy, each expanded across its provider's filtered + ordered
 /// credential pool. `user_key_id` keys sticky credential affinity.
@@ -133,8 +151,16 @@ pub(crate) async fn candidates(
     cache: &dyn CacheBackend,
     user_key_id: Option<i64>,
     session_id: Option<&str>,
+    hard_pinned_credential: Option<i64>,
 ) -> Result<Vec<Candidate>, PipelineError> {
     let now = unix_now();
+    let selection = CredentialSelection {
+        health,
+        cache,
+        user_key_id,
+        hard_pinned_credential,
+        now,
+    };
     let affinity_key = affinity::member_key(&prepared.route, user_key_id, session_id);
     let pinned_member = affinity::read_pin(cache, affinity_key.as_deref()).await;
     let mut ordered = strategy::order_members(
@@ -167,23 +193,14 @@ pub(crate) async fn candidates(
             .get(&provider.id)
             .map(Vec::as_slice)
             .unwrap_or_default();
-        for cred in credential_pool(
-            pool,
-            provider,
-            &member.upstream_model_id,
-            health,
-            cache,
-            user_key_id,
-            now,
-        )
-        .await
-        {
+        for cred in credential_pool(pool, provider, &member.upstream_model_id, &selection).await {
             out.push(Candidate {
                 provider: Arc::clone(provider),
                 credential: cred,
                 upstream_model_id: member.upstream_model_id.clone(),
                 member_id: Some(member.id),
                 member_affinity_key: affinity_key.clone(),
+                credential_binding_key: None,
             });
         }
     }
@@ -202,15 +219,31 @@ async fn credential_pool(
     pool: &[Arc<Credential>],
     provider: &Arc<Provider>,
     upstream_model_id: &str,
-    health: &HealthState,
-    cache: &dyn CacheBackend,
-    user_key_id: Option<i64>,
-    now: i64,
+    selection: &CredentialSelection<'_>,
 ) -> Vec<Arc<Credential>> {
+    if let Some(credential_id) = selection.hard_pinned_credential {
+        return pool
+            .iter()
+            .find(|credential| credential.id == credential_id)
+            .filter(|credential| {
+                selection.health.credential_model_available(
+                    credential.id,
+                    upstream_model_id,
+                    selection.now,
+                ) != CredAdmit::No
+            })
+            .cloned()
+            .into_iter()
+            .collect();
+    }
+
     let filtered: Vec<Arc<Credential>> = pool
         .iter()
         .filter(|c| {
-            health.credential_model_available(c.id, upstream_model_id, now) != CredAdmit::No
+            selection
+                .health
+                .credential_model_available(c.id, upstream_model_id, selection.now)
+                != CredAdmit::No
         })
         .cloned()
         .collect();
@@ -218,12 +251,12 @@ async fn credential_pool(
         return filtered;
     }
 
-    let rotation = health.next_credential_rotation(provider.id);
-    let sticky_key = match (provider.credential_strategy.as_str(), user_key_id) {
+    let rotation = selection.health.next_credential_rotation(provider.id);
+    let sticky_key = match (provider.credential_strategy.as_str(), selection.user_key_id) {
         ("sticky", Some(uk)) => Some(format!("aff:{}:{uk}", provider.id)),
         _ => None,
     };
-    let pinned = affinity::read_pin(cache, sticky_key.as_deref()).await;
+    let pinned = affinity::read_pin(selection.cache, sticky_key.as_deref()).await;
 
     let ordered = strategy::order_credentials(&filtered, rotation, pinned);
     if let Some(key) = sticky_key
@@ -231,17 +264,20 @@ async fn credential_pool(
     {
         // Affinity is a best-effort hint: a failed write just loses
         // stickiness for this window.
-        affinity::write_pin(cache, &key, first.id).await;
+        affinity::write_pin(selection.cache, &key, first.id).await;
     }
     ordered
 }
 
 /// Refresh a route-member pin only after that member actually served a 2xx.
-pub(crate) async fn record_member_affinity(cache: &dyn CacheBackend, candidate: &Candidate) {
+pub(crate) async fn record_affinity(cache: &dyn CacheBackend, candidate: &Candidate) {
     if let (Some(key), Some(member_id)) = (
         candidate.member_affinity_key.as_deref(),
         candidate.member_id,
     ) {
         affinity::write_pin(cache, key, member_id).await;
+    }
+    if let Some(key) = candidate.credential_binding_key.as_deref() {
+        credential_affinity::write(cache, key, candidate.credential.id).await;
     }
 }
