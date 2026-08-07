@@ -32,10 +32,11 @@ Every rule has:
   model name.
 - `filter_operation_keys`: optional list of `Operation` values such as
   `generate_content` or `stream_generate_content`.
-- `filter_header_pattern`: optional glob against the inbound client request
-  headers. Every header is rendered as a lowercase `name: value` line and the
-  rule applies when any line matches, e.g. `user-agent: opencode/*`. A rule with
-  a pattern is skipped when no header line matches.
+- `filter_header_pattern`: optional case-insensitive regex against the inbound
+  client request headers. Every header is rendered as a `name: value` line and
+  the rule applies when any line matches, e.g. `^user-agent: opencode/`. A rule
+  whose pattern matches no header line is skipped; a pattern that fails to
+  compile disables the rule entirely.
 - `sort_order` and `enabled`.
 
 Filters are ANDed. Omitted filters match everything.

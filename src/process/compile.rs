@@ -179,13 +179,13 @@ pub struct CompiledRule {
     pub config: RuleConfig,
     model_pattern: Option<String>,
     operations: Option<Vec<Operation>>,
-    header_pattern: Option<String>,
+    header_pattern: Option<Regex>,
 }
 
 impl CompiledRule {
     /// `filter_operation_keys` matches the TARGET operation;
     /// `filter_model_pattern` glob-matches the (prefix-stripped) upstream model;
-    /// `filter_header_pattern` glob-matches the INBOUND client headers (see
+    /// `filter_header_pattern` regex-matches the INBOUND client headers (see
     /// [`header_matches`]).
     pub fn matches(&self, op: OperationKey, model: &str, client: &http::HeaderMap) -> bool {
         if let Some(ops) = &self.operations
@@ -198,8 +198,8 @@ impl CompiledRule {
         {
             return false;
         }
-        if let Some(p) = &self.header_pattern
-            && !header_matches(p, client)
+        if let Some(re) = &self.header_pattern
+            && !header_matches(re, client)
         {
             return false;
         }
@@ -207,17 +207,15 @@ impl CompiledRule {
     }
 }
 
-/// Glob-match `pattern` against the inbound headers, one `name: value` line at
-/// a time (name lowercased, value lowercased, both trimmed). Matching is
-/// anchored, so scope a client with e.g. `user-agent: opencode/*`.
-fn header_matches(pattern: &str, client: &http::HeaderMap) -> bool {
-    let pattern = pattern.trim().to_ascii_lowercase();
+/// Match `regex` against the inbound headers, one `name: value` line at a time
+/// (name lowercased by `http`, value trimmed). Unanchored and case-insensitive,
+/// so a client is scoped with e.g. `^user-agent: opencode/`.
+fn header_matches(regex: &Regex, client: &http::HeaderMap) -> bool {
     client.iter().any(|(name, value)| {
         let Ok(value) = value.to_str() else {
             return false;
         };
-        let line = format!("{}: {}", name.as_str(), value.trim().to_ascii_lowercase());
-        crate::util::glob::matches(&pattern, &line)
+        regex.is_match(&format!("{}: {}", name.as_str(), value.trim()))
     })
 }
 
@@ -378,16 +376,28 @@ fn compile_row(row: &Rule) -> Option<CompiledRule> {
         None | Some(Value::Null) => None,
         Some(v) => Some(serde_json::from_value::<Vec<Operation>>(v.clone()).ok()?),
     };
+    let header_pattern = match row
+        .filter_header_pattern
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
+        // Case-insensitive so `^user-agent:` matches regardless of how the
+        // client cased the value; an unparsable filter drops the whole rule
+        // rather than silently applying it to every client.
+        Some(p) => Some(
+            regex::RegexBuilder::new(p)
+                .case_insensitive(true)
+                .build()
+                .ok()?,
+        ),
+        None => None,
+    };
     Some(CompiledRule {
         config,
         model_pattern: row.filter_model_pattern.clone(),
         operations,
-        header_pattern: row
-            .filter_header_pattern
-            .as_deref()
-            .map(str::trim)
-            .filter(|p| !p.is_empty())
-            .map(str::to_owned),
+        header_pattern,
     })
 }
 
@@ -469,7 +479,7 @@ mod tests {
     #[test]
     fn header_filter_scopes_a_rule_to_one_client() {
         let mut row = rule("system_text", serde_json::json!({ "text": "x" }));
-        row.filter_header_pattern = Some("user-agent: opencode/*".into());
+        row.filter_header_pattern = Some("^user-agent: opencode/".into());
         let compiled = compile_rules(&[row]);
         let op = OperationKey::content_generation(
             Operation::GenerateContent,
@@ -492,5 +502,14 @@ mod tests {
         );
         assert!(!compiled[0].matches(op, "any-model", &claude_code));
         assert!(!compiled[0].matches(op, "any-model", &http::HeaderMap::new()));
+    }
+
+    /// A filter that cannot compile must drop its rule, never fall back to
+    /// "applies to every client".
+    #[test]
+    fn unparsable_header_filter_drops_the_rule() {
+        let mut row = rule("system_text", serde_json::json!({ "text": "x" }));
+        row.filter_header_pattern = Some("^user-agent: (opencode".into());
+        assert!(compile_rules(&[row]).is_empty());
     }
 }

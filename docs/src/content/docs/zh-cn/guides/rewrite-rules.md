@@ -28,9 +28,9 @@ client request
 - `config_json`：该规则类型的具体配置。
 - `filter_model_pattern`：可选 glob，匹配去掉前缀后的上游 model 名称。
 - `filter_operation_keys`：可选 Operation 列表，例如 `generate_content` 或 `stream_generate_content`。
-- `filter_header_pattern`：可选 glob，匹配入站客户端请求头。每个 header 会渲染成小写的
-  `名称: 值` 一行，任一行命中即生效，例如 `user-agent: opencode/*`。填了该模式但没有任何
-  header 行匹配时，规则被跳过。
+- `filter_header_pattern`：可选正则（大小写不敏感），匹配入站客户端请求头。每个 header 会
+  渲染成 `名称: 值` 一行，任一行命中即生效，例如 `^user-agent: opencode/`。填了该模式但没有
+  任何 header 行匹配时规则被跳过；正则本身编译失败则该规则整条失效。
 - `sort_order` 和 `enabled`。
 
 过滤条件按 AND 组合。省略的维度表示匹配全部。
