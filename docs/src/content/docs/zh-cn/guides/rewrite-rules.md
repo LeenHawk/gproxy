@@ -35,6 +35,13 @@ client request
 
 过滤条件按 AND 组合。省略的维度表示匹配全部。
 
+客户端到底发了什么 header,在"日志 → 请求"里能直接看到。已确认的取值:
+`user-agent: opencode/<版本> ai-sdk/... runtime/bun/...`、
+`user-agent: claude-cli/<版本> (external, cli)`、`user-agent: codex-tui/...`。
+也有客户端根本不自报家门 —— Aider 只暴露它的传输层(`user-agent: litellm/<版本>`),
+Cline 只在自家计费 provider 上发 `User-Agent: Cline/<版本>` 与 `X-Title` /
+`HTTP-Referer`,指向自建端点时什么都不带。
+
 应用兼容规则集尤其需要客户端过滤：把 OpenCode 的小写工具名改写成 Claude Code 的大写驼峰
 名后，响应方向还要改回来；如果不加 `filter_header_pattern`,这条响应规则会把共用该 provider
 的**所有**客户端的 `Read` 改成 `read`,Claude Code 会因此认不出自己的工具。
