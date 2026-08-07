@@ -10,7 +10,8 @@ use crate::store::persistence::libsql::util::{
 use crate::store::persistence::records::{Rule, RuleInput};
 
 const COLS: &str = "id, rule_set_id, kind, config_json, filter_model_pattern, \
-     filter_operation_keys, sort_order, enabled, created_at, updated_at";
+     filter_operation_keys, filter_header_pattern, \
+     sort_order, enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<Rule> {
     Ok(Rule {
@@ -20,10 +21,11 @@ fn decode(row: &Row) -> anyhow::Result<Rule> {
         config_json: col_json(row, 3)?,
         filter_model_pattern: col_opt_str(row, 4)?,
         filter_operation_keys: col_opt_json(row, 5)?,
-        sort_order: col_i64(row, 6)?,
-        enabled: col_bool(row, 7)?,
-        created_at: col_i64(row, 8)?,
-        updated_at: col_i64(row, 9)?,
+        filter_header_pattern: col_opt_str(row, 6)?,
+        sort_order: col_i64(row, 7)?,
+        enabled: col_bool(row, 8)?,
+        created_at: col_i64(row, 9)?,
+        updated_at: col_i64(row, 10)?,
     })
 }
 
@@ -73,13 +75,15 @@ pub async fn upsert(client: &LibsqlClient, input: RuleInput) -> anyhow::Result<R
             exec(
                 client,
                 "UPDATE rules SET rule_set_id=?, kind=?, config_json=?, filter_model_pattern=?, \
-                 filter_operation_keys=?, sort_order=?, enabled=?, updated_at=? WHERE id=?",
+                 filter_operation_keys=?, filter_header_pattern=?, \
+                 sort_order=?, enabled=?, updated_at=? WHERE id=?",
                 &[
                     arg_integer(input.rule_set_id),
                     arg_text(&input.kind),
                     arg_text(&config),
                     arg_opt_text(input.filter_model_pattern.as_deref()),
                     arg_opt_text(filter_keys.as_deref()),
+                    arg_opt_text(input.filter_header_pattern.as_deref()),
                     arg_integer(input.sort_order),
                     arg_bool(input.enabled),
                     arg_integer(now),
@@ -94,8 +98,9 @@ pub async fn upsert(client: &LibsqlClient, input: RuleInput) -> anyhow::Result<R
                 .execute(
                     "INSERT INTO rules \
                      (id, rule_set_id, kind, config_json, filter_model_pattern, \
-                      filter_operation_keys, sort_order, enabled, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      filter_operation_keys, filter_header_pattern, \
+                      sort_order, enabled, created_at, updated_at) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_integer(input.rule_set_id),
@@ -103,6 +108,7 @@ pub async fn upsert(client: &LibsqlClient, input: RuleInput) -> anyhow::Result<R
                         arg_text(&config),
                         arg_opt_text(input.filter_model_pattern.as_deref()),
                         arg_opt_text(filter_keys.as_deref()),
+                        arg_opt_text(input.filter_header_pattern.as_deref()),
                         arg_integer(input.sort_order),
                         arg_bool(input.enabled),
                         arg_integer(now),

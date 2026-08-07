@@ -164,6 +164,7 @@ pub(super) fn rule_to_input(r: Rule) -> RuleInput {
         config_json: r.config_json,
         filter_model_pattern: r.filter_model_pattern,
         filter_operation_keys: r.filter_operation_keys,
+        filter_header_pattern: r.filter_header_pattern,
         sort_order: r.sort_order,
         enabled: r.enabled,
     }

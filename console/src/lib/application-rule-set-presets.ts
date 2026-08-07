@@ -33,6 +33,7 @@ function transform(
   phase: "request" | "response",
   locate: { match: string } | { paths: readonly string[] },
   actions: unknown[],
+  clientPattern: string | null = null,
 ): PresetRule {
   return {
     kind: "transform",
@@ -43,16 +44,25 @@ function transform(
     },
     filter_model_pattern: null,
     filter_operation_keys: OPERATIONS,
+    filter_header_pattern: clientPattern,
     sort_order: sortOrder,
     enabled: true,
   };
 }
 
-function sanitizeRules(entries: readonly (readonly [string, string])[]): PresetRule[] {
+function sanitizeRules(
+  entries: readonly (readonly [string, string])[],
+  clientPattern: string | null = null,
+): PresetRule[] {
   return entries.map(([pattern, replacement], index) =>
-    transform(index, "request", { match: pattern }, [{ op: "replace_text", with: replacement }]),
+    transform(index, "request", { match: pattern }, [{ op: "replace_text", with: replacement }], clientPattern),
   );
 }
+
+/// OpenCode identifies itself as `opencode/<version> ai-sdk/... runtime/bun/...`.
+/// Without this scope the response-side tool renames below rewrite EVERY
+/// client's tool names (Claude Code's `Read` → `read`), breaking their tools.
+const OPENCODE_CLIENT = "user-agent: opencode/*";
 
 export const OPENCODE_PRESET_RULES: PresetRule[] = [
   transform(0, "request", { paths: ["system", "system.*.text"] }, [
@@ -67,23 +77,23 @@ export const OPENCODE_PRESET_RULES: PresetRule[] = [
     { op: "replace_regex", pattern: "(?i)/tmp/opencode\\b", with: "/tmp/coding-agent" },
     { op: "replace_regex", pattern: "(?i)\\bopencode\\b", with: "the coding assistant" },
     { op: "replace_regex", pattern: "\\bgit repo\\b", with: "git repository" },
-  ]),
+  ], OPENCODE_CLIENT),
   transform(1, "request", { paths: OPENCODE_REQUEST_TOOL_PATHS }, OPENCODE_TOOL_RENAMES.map(([from, replacement]) => ({
     op: "replace_text",
     from,
     with: replacement,
-  }))),
+  })), OPENCODE_CLIENT),
   transform(2, "request", { paths: OPENCODE_REQUEST_TOOL_PATHS }, [
     { op: "replace_regex", pattern: "^mcp_([^_].*)$", with: "mcp__$1" },
-  ]),
+  ], OPENCODE_CLIENT),
   transform(3, "response", { paths: RESPONSE_TOOL_PATHS }, OPENCODE_TOOL_RENAMES.map(([original, renamed]) => ({
     op: "replace_text",
     from: renamed,
     with: original,
-  }))),
+  })), OPENCODE_CLIENT),
   transform(4, "response", { paths: RESPONSE_TOOL_PATHS }, [
     { op: "replace_regex", pattern: "^mcp__([^_].*)$", with: "mcp_$1" },
-  ]),
+  ], OPENCODE_CLIENT),
 ];
 
 export const APPLICATION_RULE_SET_PRESETS: ApplicationRuleSetPreset[] = [

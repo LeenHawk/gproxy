@@ -58,8 +58,49 @@ export function ModelPatternField({
   );
 }
 
-export function OperationChips({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+export const CLIENT_HEADER_PRESETS = [
+  "user-agent: opencode/*",
+  "user-agent: claude-cli/*",
+  "user-agent: codex*",
+  "user-agent: *cursor*",
+] as const;
+
+/// Inbound-header glob: scopes a rule to one client (matched against every
+/// `name: value` line of the ORIGINAL client request).
+export function ClientHeaderField({
+  value, onChange,
+}: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation("rules");
+  return (
+    <div className="grid gap-1">
+      <Label htmlFor="rule-fhp">{t("filter.clientGlobLabel")}</Label>
+      <Input
+        id="rule-fhp"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={t("filter.clientGlobPlaceholder")}
+      />
+      <div className="flex flex-wrap gap-1.5">
+        {CLIENT_HEADER_PRESETS.map((preset) => (
+          <Badge
+            key={preset}
+            role="button"
+            tabIndex={0}
+            variant={value === preset ? "secondary" : "outline"}
+            className={cn("cursor-pointer select-none", value === preset && "ring-1 ring-primary")}
+            onClick={() => onChange(value === preset ? "" : preset)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onChange(value === preset ? "" : preset); } }}
+          >
+            {preset}
+          </Badge>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{t("filter.clientGlobHelp")}</p>
+    </div>
+  );
+}
+
+export function OperationChips({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {  const { t } = useTranslation("rules");
   const toggle = (op: string) =>
     onChange(value.includes(op) ? value.filter((x) => x !== op) : [...value, op]);
   return (

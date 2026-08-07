@@ -15,6 +15,7 @@ pub struct Model {
     pub filter_model_pattern: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub filter_operation_keys: Option<String>,
+    pub filter_header_pattern: Option<String>,
     pub sort_order: i64,
     pub enabled: bool,
     pub created_at: i64,

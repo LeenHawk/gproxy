@@ -170,6 +170,9 @@
     "modelGlobLabel": "模型过滤（glob）",
     "modelGlobPlaceholder": "例如 claude-*  ·  *-thinking  （空 = 所有模型）",
     "modelGlobHelp": "Glob 匹配，非正则。* 匹配任意字符串，? 匹配单个字符。",
+    "clientGlobLabel": "客户端过滤（入站 header glob）",
+    "clientGlobPlaceholder": "例如 user-agent: opencode/*  （空 = 所有客户端）",
+    "clientGlobHelp": "对原始客户端请求的每一行 \"名称: 值\" header 做 glob 匹配，大小写不敏感、两端锚定，只有 * 是通配符。留空 = 所有客户端；填了则任一行都不匹配时跳过该规则。",
     "operationsLabel": "操作过滤",
     "operationsHelp": "为空则匹配所有操作。",
     "noModels": "该 provider 未定义任何模型。"

@@ -170,6 +170,9 @@
     "modelGlobLabel": "Model filter (glob)",
     "modelGlobPlaceholder": "e.g. claude-*  ·  *-thinking  (empty = all models)",
     "modelGlobHelp": "Glob, not regex. * matches any run of chars, ? matches one.",
+    "clientGlobLabel": "Client filter (inbound header glob)",
+    "clientGlobPlaceholder": "e.g. user-agent: opencode/*  (empty = all clients)",
+    "clientGlobHelp": "Glob matched against every \"name: value\" header line of the original client request, case-insensitive and anchored at both ends. Only * is a wildcard. Empty = every client; set = the rule is skipped when no header line matches.",
     "operationsLabel": "Operation filter",
     "operationsHelp": "Empty = all operations.",
     "noModels": "No models defined on this provider."

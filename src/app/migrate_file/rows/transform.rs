@@ -82,6 +82,8 @@ pub(crate) struct LegacyRule {
     #[serde(default)]
     pub filter_operation_keys: Option<Value>,
     #[serde(default)]
+    pub filter_header_pattern: Option<String>,
+    #[serde(default)]
     pub sort_order: i64,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -96,6 +98,7 @@ impl From<LegacyRule> for RuleInput {
             config_json: x.config_json,
             filter_model_pattern: x.filter_model_pattern,
             filter_operation_keys: x.filter_operation_keys,
+            filter_header_pattern: x.filter_header_pattern,
             sort_order: x.sort_order,
             enabled: x.enabled,
         }

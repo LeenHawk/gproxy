@@ -19,6 +19,7 @@ fn to_record(m: rule::Model) -> anyhow::Result<Rule> {
             .filter_operation_keys
             .map(|s| serde_json::from_str(&s))
             .transpose()?,
+        filter_header_pattern: m.filter_header_pattern,
         sort_order: m.sort_order,
         enabled: m.enabled,
         created_at: m.created_at,
@@ -70,6 +71,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: RuleInput) -> anyhow::Resu
                 am.config_json = Set(config);
                 am.filter_model_pattern = Set(input.filter_model_pattern);
                 am.filter_operation_keys = Set(filter_keys);
+                am.filter_header_pattern = Set(input.filter_header_pattern);
                 am.sort_order = Set(input.sort_order);
                 am.enabled = Set(input.enabled);
                 am.updated_at = Set(now);
@@ -85,6 +87,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: RuleInput) -> anyhow::Resu
                     config_json: Set(config),
                     filter_model_pattern: Set(input.filter_model_pattern),
                     filter_operation_keys: Set(filter_keys),
+                    filter_header_pattern: Set(input.filter_header_pattern),
                     sort_order: Set(input.sort_order),
                     enabled: Set(input.enabled),
                     created_at: Set(now),
@@ -102,6 +105,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: RuleInput) -> anyhow::Resu
                 config_json: Set(config),
                 filter_model_pattern: Set(input.filter_model_pattern),
                 filter_operation_keys: Set(filter_keys),
+                filter_header_pattern: Set(input.filter_header_pattern),
                 sort_order: Set(input.sort_order),
                 enabled: Set(input.enabled),
                 created_at: Set(now),

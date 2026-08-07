@@ -51,6 +51,7 @@ export function RulePipeline({ providerId }: { providerId: number }) {
                   <span className="flex shrink-0 items-center gap-1.5">
                     <Badge variant="outline" className="text-[10px]">
                       {r.filter_model_pattern ?? t("pipeline.allRequests")}
+                      {r.filter_header_pattern && ` · ${r.filter_header_pattern}`}
                     </Badge>
                     <span className="text-muted-foreground">
                       {t("pipeline.fromSet", { name: setNameByRuleId.get(r.id) })}

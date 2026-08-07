@@ -336,6 +336,7 @@ pub fn request_parts(
             target_key,
             kind,
             &filter_model,
+            &ctx.headers,
             &mut headers,
             parts.body,
         );
