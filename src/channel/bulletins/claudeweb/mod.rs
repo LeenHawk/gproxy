@@ -25,7 +25,9 @@ use bytes::Bytes;
 use http::{Request, StatusCode};
 use serde_json::Value;
 
-use crate::channel::{Channel, ChannelError, ChannelLogin, PrepareCtx, PreparedRequest};
+use crate::channel::{
+    Channel, ChannelError, ChannelLogin, ModelCatalog, PrepareCtx, PreparedRequest,
+};
 use crate::http::client::UpstreamClient;
 use crate::protocol::Provider;
 

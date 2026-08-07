@@ -26,7 +26,7 @@ pub use gproxy_channel_api::{
     ChannelError, ChannelLogin, ChannelMetadata, ChannelSettingField, ChannelSource,
     ChannelStreamDecoder, CookieExchangeCtx, CredentialControlOperation, CredentialControlResponse,
     CredentialFamily, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, Disposition,
-    LoginMode, PrepareCtx, PreparedRequest, RateLimitResetCreditConsumeOutcome,
+    LoginMode, ModelCatalog, PrepareCtx, PreparedRequest, RateLimitResetCreditConsumeOutcome,
     RateLimitResetCreditConsumeResponse, RateLimitResetCredits, RefreshCtx, SettingControl,
     ShapeCtx, TransportKind, UsageCredits, UsageSnapshot, UsageWindow,
 };
