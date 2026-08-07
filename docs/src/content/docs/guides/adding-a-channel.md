@@ -97,12 +97,11 @@ cargo tree -p my-gproxy-runner -i gproxy-channel-api
 
 ## Implement `Channel`
 
-The four required methods are:
+The three required methods are:
 
 | Method | Responsibility |
 | --- | --- |
 | `id()` | Stable registry id; it becomes `Provider.channel`. |
-| `provider_family()` | Existing `OpenAi`, `Claude`, or `Gemini` protocol family. |
 | `routing_table()` | Declared `(Operation, OperationKind) -> RoutingDecision` surface. |
 | `prepare()` | Build an absolute upstream request and inject auth. |
 
@@ -175,7 +174,6 @@ built-in channels.
 | `ChannelMetadata` field | Purpose |
 | --- | --- |
 | `id`, `display_name` | Registry identity and operator-facing name. |
-| `provider_family` | OpenAI, Claude, or Gemini protocol family. |
 | `credential_family` | API key, OAuth tokens, service account, or GitHub token. |
 | `login_modes` | Auth-code, device-code, or cookie flows supplied by `ChannelLogin`. |
 | `settings_fields` | Generic provider settings rendered by the Console. |
@@ -184,7 +182,7 @@ built-in channels.
 | `usage` | Whether live credential usage is available. |
 
 Settings support `text`, `url`, `boolean`, `integer`, and `string_list`
-controls. `ChannelMetadata::new(id, family)` supplies a minimal API-key default;
+controls. `ChannelMetadata::new(id)` supplies a minimal API-key default;
 override fields for richer configuration. External channels should not edit the
 Console's static built-in `CHANNELS` table.
 

@@ -47,7 +47,7 @@ use gproxy_channel_api::{Channel, RegisteredChannel};
 pub struct MyChannel;
 
 impl Channel for MyChannel {
-    // id(), provider_family(), routing_table(), prepare(), ...
+    // id(), routing_table(), prepare(), ...
 }
 
 fn register() -> RegisteredChannel {
