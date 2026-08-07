@@ -55,6 +55,7 @@ fn claude_stop_reason_to_gemini(reason: claude::StopReason) -> gemini::FinishRea
 }
 
 fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
+    let service_tier = common::claude_speed_to_gemini(usage.speed.clone());
     let cache_creation = usage.cache_creation_total();
     let prompt = (usage.input_tokens.is_some()
         || usage.cache_read_input_tokens.is_some()
@@ -89,7 +90,7 @@ fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
         cache_tokens_details: Vec::new(),
         candidates_tokens_details: Vec::new(),
         tool_use_prompt_tokens_details: Vec::new(),
-        service_tier: None,
+        service_tier,
         extra: Default::default(),
     })
 }

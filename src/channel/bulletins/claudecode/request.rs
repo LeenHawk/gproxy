@@ -11,13 +11,18 @@ use crate::channel::shaping::{
     claude_sampling,
 };
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, OperationKind};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
         op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     )
+}
+
+fn is_claude_count_tokens(op: crate::protocol::OperationKey) -> bool {
+    op.operation() == Operation::CountTokens
+        && op.kind() == OperationKind::Provider(Provider::Claude)
 }
 
 /// Claude Code model calls carry `beta=true`. Preserve any caller query and
@@ -38,6 +43,10 @@ pub(super) fn model_query(query: Option<&str>) -> String {
 
 /// Apply Claude body hygiene, including unsupported prefill coercion.
 pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
+    if is_claude_count_tokens(ctx.op) {
+        shaping::anthropic_beta::append_fast_mode_beta_from_body(headers, &body);
+        return body;
+    }
     if !is_claude_messages(ctx.op) {
         return body;
     }
@@ -49,6 +58,7 @@ pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) 
         if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
             claude_fallback::apply_claude_fallback(value, headers, fallbacks);
         }
+        shaping::anthropic_beta::append_fast_mode_beta(headers, value);
     });
     shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
     body

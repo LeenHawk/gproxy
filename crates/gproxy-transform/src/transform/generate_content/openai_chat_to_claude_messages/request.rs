@@ -211,7 +211,7 @@ pub fn request(
         output_config,
         output_format: None,
         service_tier: common::openai_service_tier_to_claude(input.service_tier.clone()),
-        speed: openai_service_tier_to_claude_speed(input.service_tier),
+        speed: common::openai_service_tier_to_claude_speed(input.service_tier),
         stop_sequences: common::openai_stop_to_vec(input.stop),
         stream: input.stream,
         system: system_prompt(system_blocks),
@@ -245,17 +245,6 @@ fn chat_output_config(
     }
 }
 
-fn openai_service_tier_to_claude_speed(
-    service_tier: Option<openai::ServiceTier>,
-) -> Option<claude::Speed> {
-    match service_tier {
-        Some(openai::ServiceTier::Fast | openai::ServiceTier::Priority) => {
-            Some(claude::Speed::Known(claude::SpeedKnown::Fast))
-        }
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -274,6 +263,16 @@ mod tests {
                 ContentGenerationKind::ClaudeMessages,
             ),
         )
+    }
+
+    #[test]
+    fn maps_openai_fast_and_priority_service_tiers_to_claude_speed() {
+        for tier in [openai::ServiceTier::Fast, openai::ServiceTier::Priority] {
+            assert_eq!(
+                common::openai_service_tier_to_claude_speed(Some(tier)),
+                Some(claude::Speed::Known(claude::SpeedKnown::Fast))
+            );
+        }
     }
 
     #[test]

@@ -20,7 +20,9 @@ pub(in crate::transform::count_tokens) use response_format::{
     gemini_generation_to_openai_text, openai_text_to_claude_output_format,
 };
 pub(in crate::transform::count_tokens) use service_tier::{
-    claude_service_tier_to_gemini, claude_service_tier_to_openai, gemini_service_tier_to_claude,
-    gemini_service_tier_to_openai, openai_service_tier_to_claude, openai_service_tier_to_gemini,
+    claude_service_tier_to_gemini, claude_service_tier_to_openai, claude_speed_to_gemini,
+    claude_speed_to_openai, gemini_service_tier_to_claude, gemini_service_tier_to_claude_speed,
+    gemini_service_tier_to_openai, openai_service_tier_to_claude,
+    openai_service_tier_to_claude_speed, openai_service_tier_to_gemini,
 };
 pub(in crate::transform::count_tokens) use thinking::gemini_generation_to_claude_thinking;

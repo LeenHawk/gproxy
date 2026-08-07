@@ -29,8 +29,11 @@ fn known_event_to_chat(event: claude::KnownStreamEvent) -> openai::ChatCompletio
         }
         claude::KnownStreamEvent::MessageDelta { delta, usage, .. } => {
             let delta = *delta;
+            let service_tier = usage
+                .as_deref()
+                .and_then(common::claude_usage_to_openai_service_tier);
             let usage = common::claude_usage_to_completion_option(usage);
-            if let Some(reason) = delta.stop_reason {
+            let mut chunk = if let Some(reason) = delta.stop_reason {
                 common::chat_finish_chunk(
                     "claude_msg".to_owned(),
                     common::default_openai_model(),
@@ -45,7 +48,9 @@ fn known_event_to_chat(event: claude::KnownStreamEvent) -> openai::ChatCompletio
                     0,
                     usage,
                 )
-            }
+            };
+            chunk.service_tier = service_tier;
+            chunk
         }
         claude::KnownStreamEvent::Error { .. } => common::chat_finish_chunk(
             "claude_error".to_owned(),
@@ -59,9 +64,10 @@ fn known_event_to_chat(event: claude::KnownStreamEvent) -> openai::ChatCompletio
 }
 
 fn message_start_to_chat(message: claude::CreateMessageStartBody) -> openai::ChatCompletionChunk {
+    let service_tier = common::claude_usage_to_openai_service_tier(&message.usage);
     let mut delta = common::empty_chat_delta();
     delta.role = Some(openai::ChatDeltaRole::Assistant);
-    common::chat_delta_chunk(
+    let mut chunk = common::chat_delta_chunk(
         message.id,
         common::claude_model_string(message.model).into(),
         0,
@@ -69,7 +75,9 @@ fn message_start_to_chat(message: claude::CreateMessageStartBody) -> openai::Cha
         delta,
         None,
         Some(common::claude_usage_to_completion(message.usage)),
-    )
+    );
+    chunk.service_tier = service_tier;
+    chunk
 }
 
 fn content_block_start_to_chat(

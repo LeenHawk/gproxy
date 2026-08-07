@@ -20,6 +20,13 @@ pub(super) fn usage(value: serde_json::Value) -> serde_json::Value {
     response::usage(value)
 }
 
+pub(super) fn apply_service_tier(
+    usage: &mut serde_json::Value,
+    service_tier: Option<serde_json::Value>,
+) {
+    response::apply_service_tier(usage, service_tier);
+}
+
 pub(super) fn stop_reason(value: Option<serde_json::Value>) -> serde_json::Value {
     response::stop_reason(value)
 }

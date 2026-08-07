@@ -25,6 +25,16 @@ fn error_type_for(code: i64) -> &'static str {
     }
 }
 
+/// OpenRouter's OpenAI-compatible schemas expose `priority` for accelerated
+/// inference, while gproxy's OpenAI schema also accepts the `fast` alias.
+pub(super) fn normalize_fast_service_tier(value: &mut Value) {
+    if value.get("service_tier").and_then(Value::as_str) == Some("fast")
+        && let Some(root) = value.as_object_mut()
+    {
+        root.insert("service_tier".into(), Value::String("priority".into()));
+    }
+}
+
 /// Reshape an OpenRouter error body: int `error.code` -> string, synthesize
 /// `error.type` from the code if absent. No-op for non-error bodies, bodies
 /// whose `error.code` is not an integer, or bodies that fail to parse.

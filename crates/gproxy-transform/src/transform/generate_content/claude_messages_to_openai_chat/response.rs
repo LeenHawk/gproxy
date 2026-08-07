@@ -8,6 +8,7 @@ pub fn response(
     input: claude::CreateMessageResponseBody,
     _: &TransformContext,
 ) -> Result<openai::ChatCompletionResponse, TransformError> {
+    let service_tier = common::claude_usage_to_openai_service_tier(&input.usage);
     Ok(crate::protocol::wire!(openai::ChatCompletionResponse {
         id: input.id,
         choices: vec![crate::protocol::wire!(openai::ChatCompletionChoice {
@@ -21,7 +22,7 @@ pub fn response(
         model: common::claude_model_string(input.model).into(),
         object: openai::ChatCompletionObjectType::ChatCompletion,
         moderation: None,
-        service_tier: claude_usage_service_tier_to_openai(input.usage.service_tier.as_ref()),
+        service_tier,
         system_fingerprint: None,
         usage: Some(common::claude_usage_to_completion(input.usage)),
         extra: Default::default(),
@@ -47,23 +48,6 @@ fn claude_stop_reason_to_chat(reason: claude::StopReason) -> openai::ChatFinishR
             | claude::StopReasonKnown::Compaction,
         )
         | claude::StopReason::Unknown(_) => openai::ChatFinishReason::Stop,
-        _ => {
-            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
-        }
-    }
-}
-
-fn claude_usage_service_tier_to_openai(
-    tier: Option<&claude::UsageServiceTier>,
-) -> Option<openai::ServiceTier> {
-    match tier? {
-        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Priority) => {
-            Some(openai::ServiceTier::Priority)
-        }
-        claude::UsageServiceTier::Known(
-            claude::UsageServiceTierKnown::Standard | claude::UsageServiceTierKnown::Batch,
-        )
-        | claude::UsageServiceTier::Unknown(_) => Some(openai::ServiceTier::Default),
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }

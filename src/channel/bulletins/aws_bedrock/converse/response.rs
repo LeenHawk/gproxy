@@ -18,7 +18,8 @@ pub(super) fn convert(body: Bytes) -> Bytes {
         .into_iter()
         .filter_map(content_block)
         .collect::<Vec<_>>();
-    let usage = root.remove("usage").map(usage).unwrap_or_else(|| json!({}));
+    let mut usage = root.remove("usage").map(usage).unwrap_or_else(|| json!({}));
+    apply_service_tier(&mut usage, root.remove("serviceTier"));
     Bytes::from(
         json!({
             "id": format!("msg_{}", crate::util::id::ulid().to_ascii_lowercase()),
@@ -92,6 +93,34 @@ pub(super) fn usage(value: Value) -> Value {
             .insert("cache_creation".into(), cache_creation);
     }
     mapped
+}
+
+/// Preserve Bedrock's actual serving tier in the Claude-shaped response.
+/// `priority` is the Bedrock equivalent of accelerated/Fast serving.
+pub(super) fn apply_service_tier(usage: &mut Value, service_tier: Option<Value>) {
+    let Some(kind) = service_tier
+        .as_ref()
+        .and_then(|value| value.get("type"))
+        .and_then(Value::as_str)
+    else {
+        return;
+    };
+    let Some(root) = usage.as_object_mut() else {
+        return;
+    };
+    match kind {
+        "priority" => {
+            root.insert("service_tier".into(), Value::String("priority".into()));
+            root.insert("speed".into(), Value::String("fast".into()));
+        }
+        "default" => {
+            root.insert("service_tier".into(), Value::String("standard".into()));
+        }
+        "reserved" | "flex" => {
+            root.insert("service_tier".into(), Value::String(kind.into()));
+        }
+        _ => {}
+    }
 }
 
 fn cache_creation(usage: &mut Map<String, Value>) -> Option<Value> {

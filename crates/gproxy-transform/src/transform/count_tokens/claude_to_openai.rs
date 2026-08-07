@@ -28,7 +28,8 @@ pub fn request(
             input.thinking,
             output_config.as_ref(),
         ),
-        service_tier: common::claude_service_tier_to_openai(input.service_tier),
+        service_tier: common::claude_speed_to_openai(input.speed)
+            .or_else(|| common::claude_service_tier_to_openai(input.service_tier)),
         text: common::claude_generation_to_openai_text(output_config.as_ref(), output_format),
         tool_choice: common::claude_tool_choice_to_openai(tool_choice),
         tools: common::claude_tools_to_openai(input.tools, input.mcp_servers),

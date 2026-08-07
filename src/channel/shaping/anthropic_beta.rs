@@ -1,6 +1,25 @@
 //! `anthropic-beta` header token hygiene.
 
 use http::{HeaderMap, HeaderValue};
+use serde_json::Value;
+
+const FAST_MODE_BETA: &str = "fast-mode-2026-02-01";
+
+/// Add the Fast Mode beta when a native Claude Messages body explicitly asks
+/// for `speed: "fast"`. Callers decide whether their upstream is Anthropic
+/// direct; this helper deliberately does not infer support from channel type.
+pub fn append_fast_mode_beta(headers: &mut HeaderMap, body: &Value) {
+    if body.get("speed").and_then(Value::as_str) == Some("fast") {
+        append_beta_token(headers, FAST_MODE_BETA);
+    }
+}
+
+/// Inspect a serialized Claude request without rewriting its body.
+pub fn append_fast_mode_beta_from_body(headers: &mut HeaderMap, body: &[u8]) {
+    if let Ok(value) = serde_json::from_slice::<Value>(body) {
+        append_fast_mode_beta(headers, &value);
+    }
+}
 
 /// Append `token` to the `anthropic-beta` header, comma-joining with existing
 /// tokens and de-duplicating exact token matches.

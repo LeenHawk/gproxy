@@ -28,8 +28,8 @@ pub fn request(
         output_format: common::gemini_generation_to_claude_output_format(
             request.generation_config.as_ref(),
         ),
-        service_tier: common::gemini_service_tier_to_claude(request.service_tier),
-        speed: None,
+        service_tier: common::gemini_service_tier_to_claude(request.service_tier.clone()),
+        speed: common::gemini_service_tier_to_claude_speed(request.service_tier),
         system: common::text_to_claude_system(
             request.system_instruction.map(common::gemini_content_text),
         ),

@@ -37,7 +37,8 @@ pub fn request(
             output_format,
         ),
         cached_content: None,
-        service_tier: common::claude_service_tier_to_gemini(input.service_tier),
+        service_tier: common::claude_speed_to_gemini(input.speed)
+            .or_else(|| common::claude_service_tier_to_gemini(input.service_tier)),
         store: None,
         extra: Default::default(),
     }))
