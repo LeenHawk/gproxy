@@ -60,19 +60,34 @@ function sanitizeRules(
 }
 
 /// Client scopes (case-insensitive regex over every `name: value` inbound
-/// header line). OpenCode's exact user-agent is known — `opencode/<version>
-/// ai-sdk/... runtime/bun/...`; the rest key on the app name in whichever
-/// header carries it (`user-agent`, `x-title`, `http-referer`), which is how
-/// those clients identify themselves. Confirm against a captured request in
-/// Logs → Requests before relying on one.
-const CLIENT = {
+/// header line), derived from each client's own source:
+///
+/// - opencode: `user-agent: opencode/<ver> ai-sdk/... runtime/bun/...` (verified
+///   against live traffic).
+/// - aider: sends nothing of its own — every request goes through litellm,
+///   whose default is `User-Agent: litellm/{version}`.
+/// - cline: `User-Agent: Cline/<ver>` plus `X-Title` / `HTTP-Referer`, but only
+///   on its own billing provider; a plain custom endpoint gets none of them.
+/// - continue / cursor: no default self-identifying header at all (Continue only
+///   sends one if the user configures `requestOptions.headers`).
+/// - pi: identifies itself as `pi (<os>)` on the Codex path, but impersonates
+///   Claude Code (`user-agent: claude-cli/<ver>`) on the Anthropic path, so it
+///   cannot be told apart there.
+///
+/// Unverifiable clients keep a best-guess pattern on purpose: an unmatched
+/// filter merely leaves the preset inert, whereas an unscoped preset rewrites
+/// every other client's body (these rules match on the whole request text).
+/// Confirm against a captured request in Logs → Requests and adjust.
+export const PRESET_CLIENT_PATTERNS = {
   opencode: "^user-agent: opencode/",
-  pi: "(?i)^user-agent: pi[-/ ]|\\bpi-mono\\b",
-  aider: "(?i)\\baider\\b",
-  cline: "(?i)\\bcline\\b",
-  continue: "(?i)^user-agent: continue[-/ ]|\\bcontinue\\.dev\\b",
-  cursor: "(?i)\\bcursor\\b",
+  pi: "^user-agent: pi[ /]",
+  aider: "^user-agent: litellm/",
+  cline: "^user-agent: cline/|^x-title: cline$|^http-referer: https://cline\\.bot",
+  continue: "^user-agent: continue/",
+  cursor: "^user-agent: cursor/",
 } as const;
+
+const CLIENT = PRESET_CLIENT_PATTERNS;
 
 export const OPENCODE_PRESET_RULES: PresetRule[] = [
   transform(0, "request", { paths: ["system", "system.*.text"] }, [

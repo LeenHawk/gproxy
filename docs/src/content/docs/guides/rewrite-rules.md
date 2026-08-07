@@ -41,6 +41,14 @@ Every rule has:
 
 Filters are ANDed. Omitted filters match everything.
 
+Read the exact header lines a client sends from Logs → Requests. Observed
+values: `user-agent: opencode/<version> ai-sdk/... runtime/bun/...`,
+`user-agent: claude-cli/<version> (external, cli)`, `user-agent: codex-tui/...`.
+Some clients never identify themselves — Aider only shows its transport
+(`user-agent: litellm/<version>`), and Cline sends `User-Agent: Cline/<version>`
+plus `X-Title` / `HTTP-Referer` on its own billing provider but nothing on a
+plain custom endpoint.
+
 Client scoping matters for app-compatibility sets. A rule set that renames
 OpenCode's lowercase tool names to Claude Code's TitleCase names also renames
 them back on the response — without `filter_header_pattern` that response rule
