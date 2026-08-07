@@ -295,6 +295,33 @@ fn responses_normalizer_finish_flushes_tool_only_stream() {
     assert!(text.contains("response.completed"));
 }
 
+/// Regression: an upstream that sends real `output_item.done` items but an
+/// empty `response.completed.output` must have that array filled with *those*
+/// items. Re-synthesising them drops `encrypted_content` and invents
+/// `status`, which the ChatGPT backend rejects with a fatal 400 when the
+/// client replays `response.output` into the next turn.
+#[test]
+fn responses_normalizer_completed_output_reuses_upstream_items() {
+    let mut normalizer = ResponsesStreamNormalizer::new();
+    let input = concat!(
+        "event: response.output_item.done\n",
+        "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"reasoning\",\"id\":\"rs_1\",\"summary\":[],\"encrypted_content\":\"CIPHER\"}}\n\n",
+        "event: response.completed\n",
+        "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"created_at\":0,\"object\":\"response\",\"output\":[],\"status\":\"completed\"}}\n\n"
+    );
+    let mut out = normalizer.push(input.as_bytes()).unwrap();
+    out.extend(normalizer.finish().unwrap());
+    let text = String::from_utf8(out).unwrap();
+    let completed = text
+        .split("data: ")
+        .find(|frame| frame.contains("\"response.completed\""))
+        .expect("completed frame");
+    let event: serde_json::Value = serde_json::from_str(completed.trim()).unwrap();
+    let item = &event["response"]["output"][0];
+    assert_eq!(item["encrypted_content"], "CIPHER", "{item}");
+    assert!(item.get("status").is_none(), "{item}");
+}
+
 #[test]
 fn responses_normalizer_passthroughs_unparseable_frame_and_continues() {
     let mut normalizer = ResponsesStreamNormalizer::new();

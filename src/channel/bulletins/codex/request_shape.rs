@@ -75,6 +75,7 @@ fn normalize_responses_body(body: &Bytes) -> Bytes {
     }
 
     object.insert("instructions".into(), Value::String(instructions));
+    super::input_shape::strip_reasoning_status(object);
     serde_json::to_vec(&value)
         .map(Bytes::from)
         .unwrap_or_else(|_| body.clone())
