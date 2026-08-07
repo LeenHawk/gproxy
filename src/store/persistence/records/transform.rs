@@ -73,6 +73,11 @@ pub struct Rule {
     pub filter_model_pattern: Option<String>,
     #[serde(default)]
     pub filter_operation_keys: Option<Value>,
+    /// Inbound-client filter: glob matched (case-insensitively) against every
+    /// `name: value` header line of the ORIGINAL client request; the rule
+    /// applies when any line matches. `None` = every client.
+    #[serde(default)]
+    pub filter_header_pattern: Option<String>,
     pub sort_order: i64,
     pub enabled: bool,
     pub created_at: i64,
@@ -89,6 +94,8 @@ pub struct RuleInput {
     pub filter_model_pattern: Option<String>,
     #[serde(default)]
     pub filter_operation_keys: Option<Value>,
+    #[serde(default)]
+    pub filter_header_pattern: Option<String>,
     pub sort_order: i64,
     pub enabled: bool,
 }

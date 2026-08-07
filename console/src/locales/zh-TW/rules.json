@@ -170,6 +170,9 @@
     "modelGlobLabel": "模型過濾（glob）",
     "modelGlobPlaceholder": "例如 claude-*  ·  *-thinking  （空 = 所有模型）",
     "modelGlobHelp": "Glob 比對，非正規表示式。* 比對任意字串，? 比對單一字元。",
+    "clientGlobLabel": "用戶端過濾（入站 header glob）",
+    "clientGlobPlaceholder": "例如 user-agent: opencode/*  （空 = 所有用戶端）",
+    "clientGlobHelp": "對原始用戶端請求的每一行 \"名稱: 值\" header 做 glob 比對，大小寫不敏感、兩端錨定，只有 * 是萬用字元。留空 = 所有用戶端；填了則任一行都不符合時跳過該規則。",
     "operationsLabel": "操作過濾",
     "operationsHelp": "為空則比對所有操作。",
     "noModels": "此 provider 未定義任何模型。"

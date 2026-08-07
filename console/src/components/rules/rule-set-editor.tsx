@@ -76,6 +76,7 @@ export function RuleSetEditor({
         config_json: r.config_json,
         filter_model_pattern: r.filter_model_pattern,
         filter_operation_keys: r.filter_operation_keys,
+        filter_header_pattern: r.filter_header_pattern,
         sort_order: r.sort_order,
         enabled: next,
       }),
@@ -120,6 +121,7 @@ export function RuleSetEditor({
                   <span className="block truncate font-mono text-xs">{summarizeRuleConfig(r.kind, r.config_json)}</span>
                   <span className="text-[10px] text-muted-foreground">
                     {r.filter_model_pattern ?? t("pipeline.allRequests")}
+                    {r.filter_header_pattern && ` · ${r.filter_header_pattern}`}
                   </span>
                 </button>
                 <EnabledToggle

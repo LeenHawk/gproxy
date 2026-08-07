@@ -32,9 +32,19 @@ Every rule has:
   model name.
 - `filter_operation_keys`: optional list of `Operation` values such as
   `generate_content` or `stream_generate_content`.
+- `filter_header_pattern`: optional glob against the inbound client request
+  headers. Every header is rendered as a lowercase `name: value` line and the
+  rule applies when any line matches, e.g. `user-agent: opencode/*`. A rule with
+  a pattern is skipped when no header line matches.
 - `sort_order` and `enabled`.
 
 Filters are ANDed. Omitted filters match everything.
+
+Client scoping matters for app-compatibility sets. A rule set that renames
+OpenCode's lowercase tool names to Claude Code's TitleCase names also renames
+them back on the response — without `filter_header_pattern` that response rule
+would rewrite `Read` to `read` for *every* client sharing the provider, and
+Claude Code would reject its own tool calls.
 
 ## `cache_breakpoint`
 

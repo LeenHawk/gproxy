@@ -7,7 +7,7 @@ import type { Rule, ProviderRuleSet } from "@/api/rules";
 function rule(o: Partial<Rule>): Rule {
   return {
     id: 1, rule_set_id: 1, kind: "rewrite", config_json: {},
-    filter_model_pattern: null, filter_operation_keys: null,
+    filter_model_pattern: null, filter_operation_keys: null, filter_header_pattern: null,
     sort_order: 0, enabled: true, created_at: 0, updated_at: 0, ...o,
   };
 }

@@ -28,9 +28,16 @@ client request
 - `config_json`：该规则类型的具体配置。
 - `filter_model_pattern`：可选 glob，匹配去掉前缀后的上游 model 名称。
 - `filter_operation_keys`：可选 Operation 列表，例如 `generate_content` 或 `stream_generate_content`。
+- `filter_header_pattern`：可选 glob，匹配入站客户端请求头。每个 header 会渲染成小写的
+  `名称: 值` 一行，任一行命中即生效，例如 `user-agent: opencode/*`。填了该模式但没有任何
+  header 行匹配时，规则被跳过。
 - `sort_order` 和 `enabled`。
 
 过滤条件按 AND 组合。省略的维度表示匹配全部。
+
+应用兼容规则集尤其需要客户端过滤：把 OpenCode 的小写工具名改写成 Claude Code 的大写驼峰
+名后，响应方向还要改回来；如果不加 `filter_header_pattern`,这条响应规则会把共用该 provider
+的**所有**客户端的 `Read` 改成 `read`,Claude Code 会因此认不出自己的工具。
 
 ## `cache_breakpoint`
 

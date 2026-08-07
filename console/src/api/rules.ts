@@ -4,8 +4,8 @@ import { api } from "./http";
 export interface RuleSet { id: number; name: string; enabled: boolean; description: string | null; created_at: number; updated_at: number; }
 export interface RuleSetInput { id?: number | null; name: string; enabled: boolean; description?: string | null; }
 
-export interface Rule { id: number; rule_set_id: number; kind: string; config_json: unknown; filter_model_pattern: string | null; filter_operation_keys: unknown; sort_order: number; enabled: boolean; created_at: number; updated_at: number; }
-export interface RuleInput { id?: number | null; rule_set_id: number; kind: string; config_json: unknown; filter_model_pattern?: string | null; filter_operation_keys?: unknown; sort_order: number; enabled: boolean; }
+export interface Rule { id: number; rule_set_id: number; kind: string; config_json: unknown; filter_model_pattern: string | null; filter_operation_keys: unknown; filter_header_pattern: string | null; sort_order: number; enabled: boolean; created_at: number; updated_at: number; }
+export interface RuleInput { id?: number | null; rule_set_id: number; kind: string; config_json: unknown; filter_model_pattern?: string | null; filter_operation_keys?: unknown; filter_header_pattern?: string | null; sort_order: number; enabled: boolean; }
 
 export interface RoutingRule { id: number; provider_id: number; operation: string; kind: string; implementation: string; dest_operation: string | null; dest_kind: string | null; sort_order: number; enabled: boolean; created_at: number; updated_at: number; }
 export interface RoutingRuleInput { id?: number | null; provider_id: number; operation: string; kind: string; implementation: string; dest_operation?: string | null; dest_kind?: string | null; sort_order: number; enabled: boolean; }
@@ -44,6 +44,7 @@ export async function cloneRuleSet(src: RuleSet, suffix: string): Promise<RuleSe
     await upsertRule(copy.id, {
       rule_set_id: copy.id, kind: r.kind, config_json: r.config_json,
       filter_model_pattern: r.filter_model_pattern, filter_operation_keys: r.filter_operation_keys,
+      filter_header_pattern: r.filter_header_pattern,
       sort_order: r.sort_order, enabled: r.enabled,
     });
   }

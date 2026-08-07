@@ -179,12 +179,15 @@ pub struct CompiledRule {
     pub config: RuleConfig,
     model_pattern: Option<String>,
     operations: Option<Vec<Operation>>,
+    header_pattern: Option<String>,
 }
 
 impl CompiledRule {
     /// `filter_operation_keys` matches the TARGET operation;
-    /// `filter_model_pattern` glob-matches the (prefix-stripped) upstream model.
-    pub fn matches(&self, op: OperationKey, model: &str) -> bool {
+    /// `filter_model_pattern` glob-matches the (prefix-stripped) upstream model;
+    /// `filter_header_pattern` glob-matches the INBOUND client headers (see
+    /// [`header_matches`]).
+    pub fn matches(&self, op: OperationKey, model: &str, client: &http::HeaderMap) -> bool {
         if let Some(ops) = &self.operations
             && !ops.contains(&op.operation())
         {
@@ -195,8 +198,27 @@ impl CompiledRule {
         {
             return false;
         }
+        if let Some(p) = &self.header_pattern
+            && !header_matches(p, client)
+        {
+            return false;
+        }
         true
     }
+}
+
+/// Glob-match `pattern` against the inbound headers, one `name: value` line at
+/// a time (name lowercased, value lowercased, both trimmed). Matching is
+/// anchored, so scope a client with e.g. `user-agent: opencode/*`.
+fn header_matches(pattern: &str, client: &http::HeaderMap) -> bool {
+    let pattern = pattern.trim().to_ascii_lowercase();
+    client.iter().any(|(name, value)| {
+        let Ok(value) = value.to_str() else {
+            return false;
+        };
+        let line = format!("{}: {}", name.as_str(), value.trim().to_ascii_lowercase());
+        crate::util::glob::matches(&pattern, &line)
+    })
 }
 
 /// Compile one rule set's rows: enabled only, in `sort_order`. Unparsable
@@ -360,6 +382,12 @@ fn compile_row(row: &Rule) -> Option<CompiledRule> {
         config,
         model_pattern: row.filter_model_pattern.clone(),
         operations,
+        header_pattern: row
+            .filter_header_pattern
+            .as_deref()
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(str::to_owned),
     })
 }
 
@@ -375,6 +403,7 @@ mod tests {
             config_json,
             filter_model_pattern: None,
             filter_operation_keys: None,
+            filter_header_pattern: None,
             sort_order: 0,
             enabled: true,
             created_at: 0,
@@ -433,5 +462,35 @@ mod tests {
             }),
         )]);
         assert!(invalid.is_empty());
+    }
+
+    /// Client scoping is the only thing that keeps an app-compatibility rule
+    /// set (e.g. OpenCode tool renames) from mangling another client's traffic.
+    #[test]
+    fn header_filter_scopes_a_rule_to_one_client() {
+        let mut row = rule("system_text", serde_json::json!({ "text": "x" }));
+        row.filter_header_pattern = Some("user-agent: opencode/*".into());
+        let compiled = compile_rules(&[row]);
+        let op = OperationKey::content_generation(
+            Operation::GenerateContent,
+            crate::protocol::ContentGenerationKind::ClaudeMessages,
+        );
+
+        let mut opencode = http::HeaderMap::new();
+        opencode.insert(
+            http::header::USER_AGENT,
+            "opencode/1.18.10 ai-sdk/provider-utils/4.0.27"
+                .parse()
+                .unwrap(),
+        );
+        assert!(compiled[0].matches(op, "any-model", &opencode));
+
+        let mut claude_code = http::HeaderMap::new();
+        claude_code.insert(
+            http::header::USER_AGENT,
+            "claude-cli/2.1.223 (external, cli)".parse().unwrap(),
+        );
+        assert!(!compiled[0].matches(op, "any-model", &claude_code));
+        assert!(!compiled[0].matches(op, "any-model", &http::HeaderMap::new()));
     }
 }

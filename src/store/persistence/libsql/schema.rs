@@ -151,6 +151,7 @@ const TABLES: &[&str] = &[
         config_json TEXT NOT NULL, \
         filter_model_pattern TEXT, \
         filter_operation_keys TEXT, \
+        filter_header_pattern TEXT, \
         sort_order INTEGER NOT NULL, \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \

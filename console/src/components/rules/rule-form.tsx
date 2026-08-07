@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { upsertRule, type Rule } from "@/api/rules";
 import { ApiError } from "@/api/http";
 import { normalizeRuleConfig } from "@/lib/rule-config";
-import { ModelPatternField, OperationChips, toOperationArray, fromOperationArray } from "./filter-fields";
+import { ClientHeaderField, ModelPatternField, OperationChips, toOperationArray, fromOperationArray } from "./filter-fields";
 import { RuleConfigFields } from "./rule-config-fields";
 import { RuleKindPicker } from "./rule-kind-picker";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ export function RuleForm({ ruleSetId, rule, modelOptions, onSaved }: Props) {
   const [sortOrder, setSortOrder] = useState(String(rule?.sort_order ?? 0));
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
   const [filterModelPattern, setFilterModelPattern] = useState(rule?.filter_model_pattern ?? "");
+  const [filterHeaderPattern, setFilterHeaderPattern] = useState(rule?.filter_header_pattern ?? "");
   const [ops, setOps] = useState<string[]>(toOperationArray(rule?.filter_operation_keys));
   const [configValue, setConfigValue] = useState<unknown>(initialConfig);
   const [configValid, setConfigValid] = useState(true);
@@ -74,6 +75,7 @@ export function RuleForm({ ruleSetId, rule, modelOptions, onSaved }: Props) {
         config_json: normalizedConfig,
         filter_model_pattern: filterModelPattern.trim() || null,
         filter_operation_keys: fromOperationArray(ops),
+        filter_header_pattern: filterHeaderPattern.trim() || null,
         sort_order: orderNum,
         enabled,
       });
@@ -112,6 +114,7 @@ export function RuleForm({ ruleSetId, rule, modelOptions, onSaved }: Props) {
         <Switch id="rule-enabled" checked={enabled} onCheckedChange={setEnabled} />
       </div>
       <ModelPatternField value={filterModelPattern} onChange={setFilterModelPattern} modelOptions={modelOptions} />
+      <ClientHeaderField value={filterHeaderPattern} onChange={setFilterHeaderPattern} />
       <OperationChips value={ops} onChange={setOps} />
       <div className="grid gap-1">
         <Label>{t("rule.configJson")}</Label>

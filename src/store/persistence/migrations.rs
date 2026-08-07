@@ -451,6 +451,11 @@ pub const MIGRATIONS: &[Migration] = &[
             "ALTER TABLE provider_models ADD COLUMN thinking_enabled_supported BOOLEAN",
         ]),
     },
+    Migration {
+        version: 20,
+        description: "rules: inbound header filter (client scoping, §8-B2)",
+        sql: MigrationSql::Shared(&["ALTER TABLE rules ADD COLUMN filter_header_pattern TEXT"]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

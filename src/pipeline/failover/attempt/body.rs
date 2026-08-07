@@ -90,6 +90,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     shape.op,
                     kind,
                     response_rules.model,
+                    &ctx.headers,
                     b,
                 ),
                 _ => b,
@@ -172,6 +173,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     shape_op,
                     kind,
                     response_rules.model,
+                    &ctx.headers,
                 )
             }) {
                 Some(dec) => crate::pipeline::stream::channel_decode_stream(st, dec),
