@@ -64,7 +64,7 @@ pub(super) async fn exchange(
         obj.insert("cookie".into(), Value::String(cookie));
         obj.insert("account_uuid".into(), Value::String(org_uuid));
     }
-    super::auth::enrich_from_profile(client, &mut secret).await;
+    super::profile::enrich(client, &mut secret).await;
     super::auth::ensure_device_id(&mut secret);
     Ok(secret)
 }
