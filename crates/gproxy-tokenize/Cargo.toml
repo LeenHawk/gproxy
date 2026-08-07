@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-tokenize"
-version = "2.3.1"
+version = "2.3.2"
 edition = "2024"
 authors = ["LeenHawk <leenhawk@leenhawk.com>"]
 license = "MIT"
