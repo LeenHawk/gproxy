@@ -18,6 +18,7 @@ pub(super) struct ConverseStreamDecoder {
     metadata_seen: bool,
     stop_reason: Option<Value>,
     usage: Option<Value>,
+    service_tier: Option<Value>,
     blocks: BTreeSet<u64>,
     tools: BTreeMap<u64, ToolBlock>,
 }
@@ -39,6 +40,7 @@ impl ConverseStreamDecoder {
             metadata_seen: false,
             stop_reason: None,
             usage: None,
+            service_tier: None,
             blocks: BTreeSet::new(),
             tools: BTreeMap::new(),
         }
@@ -105,6 +107,7 @@ impl ConverseStreamDecoder {
             "metadata" => {
                 self.metadata_seen = true;
                 self.usage = frame.payload.get("usage").cloned();
+                self.service_tier = frame.payload.get("serviceTier").cloned();
                 if self.message_stopped {
                     let usage = self.usage.take();
                     self.finish_message(usage, out);
@@ -139,9 +142,10 @@ impl ConverseStreamDecoder {
             return;
         }
         self.stopped = true;
-        let usage = usage
+        let mut usage = usage
             .map(super::converse::usage)
             .unwrap_or_else(|| json!({}));
+        super::converse::apply_service_tier(&mut usage, self.service_tier.take());
         push(
             out,
             "message_delta",

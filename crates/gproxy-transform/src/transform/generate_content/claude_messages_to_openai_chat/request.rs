@@ -110,7 +110,8 @@ pub fn request(
         response_format: common::claude_output_format_to_chat(output_format),
         safety_identifier: None,
         seed: None,
-        service_tier: common::claude_service_tier_to_openai(input.service_tier),
+        service_tier: common::claude_speed_to_openai(input.speed)
+            .or_else(|| common::claude_service_tier_to_openai(input.service_tier)),
         stop: common::vec_to_openai_stop(input.stop_sequences),
         store: None,
         stream: input.stream,

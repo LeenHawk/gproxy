@@ -14,7 +14,7 @@ fn converse_events_become_claude_sse() {
         ("messageStop", r#"{"stopReason":"end_turn"}"#),
         (
             "metadata",
-            r#"{"usage":{"inputTokens":9,"outputTokens":4,"totalTokens":13,"cacheReadInputTokens":2,"cacheWriteInputTokens":3,"cacheDetails":[{"inputTokens":1,"ttl":"5m"},{"inputTokens":2,"ttl":"1h"}]}}"#,
+            r#"{"usage":{"inputTokens":9,"outputTokens":4,"totalTokens":13,"cacheReadInputTokens":2,"cacheWriteInputTokens":3,"cacheDetails":[{"inputTokens":1,"ttl":"5m"},{"inputTokens":2,"ttl":"1h"}]},"serviceTier":{"type":"priority"}}"#,
         ),
     ] {
         bytes.extend(build_frame(kind, payload.as_bytes()));
@@ -42,6 +42,8 @@ fn converse_events_become_claude_sse() {
     assert!(output.contains(r#""type":"text_delta""#));
     assert!(output.contains(r#""text":"OK""#));
     assert!(output.contains(r#""cache_read_input_tokens":2"#));
+    assert!(output.contains(r#""service_tier":"priority""#));
+    assert!(output.contains(r#""speed":"fast""#));
     assert!(output.contains("event: message_stop"));
 }
 

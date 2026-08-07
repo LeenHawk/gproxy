@@ -32,10 +32,12 @@ impl StreamTransform {
 
 fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude::StreamEvent> {
     let usage = input.usage_metadata.map(|usage| {
+        let speed = common::gemini_service_tier_to_claude_speed(usage.service_tier.clone());
         let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
         let mut usage =
             common::completion_usage_to_claude(Some(common::gemini_usage_to_completion(usage)));
         usage.service_tier = service_tier;
+        usage.speed = speed;
         usage
     });
     let blocked = input

@@ -20,12 +20,7 @@ pub fn stream_event(
 fn known_event_to_gemini(event: claude::KnownStreamEvent) -> gemini::GenerateContentResponse {
     match event {
         claude::KnownStreamEvent::MessageStart { message, .. } => {
-            let mut chunk = empty_chunk_with_usage(Some(
-                common::completion_usage_to_gemini(Some(common::claude_usage_to_completion(
-                    message.usage,
-                )))
-                .unwrap_or_default(),
-            ));
+            let mut chunk = empty_chunk_with_usage(Some(claude_usage_to_gemini(message.usage)));
             chunk.response_id = Some(message.id);
             chunk.model_version = Some(common::claude_model_string(message.model));
             chunk
@@ -40,9 +35,7 @@ fn known_event_to_gemini(event: claude::KnownStreamEvent) -> gemini::GenerateCon
             candidate_chunk(
                 None,
                 finish_reason,
-                common::completion_usage_to_gemini(
-                    usage.map(|usage| common::claude_usage_to_completion(*usage)),
-                ),
+                usage.map(|usage| claude_usage_to_gemini(*usage)),
             )
         }
         claude::KnownStreamEvent::Error { .. } => candidate_chunk(
@@ -54,6 +47,15 @@ fn known_event_to_gemini(event: claude::KnownStreamEvent) -> gemini::GenerateCon
         ),
         _ => empty_chunk(),
     }
+}
+
+fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
+    let service_tier = common::claude_speed_to_gemini(usage.speed.clone());
+    let mut mapped =
+        common::completion_usage_to_gemini(Some(common::claude_usage_to_completion(usage)))
+            .unwrap_or_default();
+    mapped.service_tier = service_tier;
+    mapped
 }
 
 fn content_block_to_gemini(block: claude::ContentBlock) -> gemini::GenerateContentResponse {

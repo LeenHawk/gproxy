@@ -16,6 +16,7 @@ pub fn stream_event(
 #[derive(Default)]
 pub struct StreamTransform {
     item_ids: BTreeMap<u32, String>,
+    service_tier: Option<openai::ServiceTier>,
 }
 
 impl StreamTransform {
@@ -46,7 +47,8 @@ impl StreamTransform {
     ) -> Vec<openai::ResponseStreamEvent> {
         match event {
             claude::KnownStreamEvent::MessageStart { message, .. } => {
-                vec![response_created(*message)]
+                self.service_tier = common::claude_usage_to_openai_service_tier(&message.usage);
+                vec![response_created(*message, self.service_tier.clone())]
             }
             claude::KnownStreamEvent::ContentBlockStart {
                 index,
@@ -58,6 +60,12 @@ impl StreamTransform {
             }
             claude::KnownStreamEvent::MessageDelta { delta, usage, .. } => {
                 let delta = *delta;
+                if let Some(tier) = usage
+                    .as_deref()
+                    .and_then(common::claude_usage_to_openai_service_tier)
+                {
+                    self.service_tier = Some(tier);
+                }
                 let usage = common::claude_usage_to_completion_option(usage);
                 let (status, incomplete_details) = delta
                     .stop_reason
@@ -67,6 +75,7 @@ impl StreamTransform {
                     "claude_msg".to_owned(),
                     common::default_openai_model(),
                     usage,
+                    self.service_tier.clone(),
                     status,
                     incomplete_details,
                 )]
@@ -75,6 +84,7 @@ impl StreamTransform {
                 "claude_msg".to_owned(),
                 common::default_openai_model(),
                 None,
+                self.service_tier.clone(),
                 openai::ResponseStatus::Completed,
                 None,
             )],
@@ -193,12 +203,16 @@ impl StreamTransform {
     }
 }
 
-fn response_created(message: claude::CreateMessageStartBody) -> openai::ResponseStreamEvent {
+fn response_created(
+    message: claude::CreateMessageStartBody,
+    service_tier: Option<openai::ServiceTier>,
+) -> openai::ResponseStreamEvent {
     known(openai::KnownResponseStreamEvent::ResponseCreated {
         response: Box::new(response_object(
             message.id,
             common::claude_model_string(message.model).into(),
             Some(common::claude_usage_to_completion(message.usage)),
+            service_tier,
             openai::ResponseStatus::InProgress,
             None,
         )),
@@ -245,6 +259,7 @@ fn response_lifecycle_event(
     id: String,
     model: openai::OpenAiModelId,
     usage: Option<openai::CompletionUsage>,
+    service_tier: Option<openai::ServiceTier>,
     status: openai::ResponseStatus,
     incomplete_details: Option<openai::IncompleteDetails>,
 ) -> openai::ResponseStreamEvent {
@@ -253,6 +268,7 @@ fn response_lifecycle_event(
         id,
         model,
         usage,
+        service_tier,
         status,
         incomplete_details,
     ));
@@ -284,6 +300,7 @@ fn response_object(
     id: String,
     model: openai::OpenAiModelId,
     usage: Option<openai::CompletionUsage>,
+    service_tier: Option<openai::ServiceTier>,
     status: openai::ResponseStatus,
     incomplete_details: Option<openai::IncompleteDetails>,
 ) -> openai::ResponseObject {
@@ -313,7 +330,7 @@ fn response_object(
         previous_response_id: None,
         reasoning: None,
         safety_identifier: None,
-        service_tier: None,
+        service_tier,
         status: Some(status),
         store: None,
         temperature: None,

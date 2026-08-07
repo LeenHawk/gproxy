@@ -102,11 +102,11 @@ impl Channel for OpenRouterChannel {
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
         let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
-            if !settings.enable_openai_magic_cache {
-                return body;
-            }
             return shaping::with_json_body(body, |value| {
-                openai_cache::apply_magic_string_cache_breakpoints(value, kind)
+                shape::normalize_fast_service_tier(value);
+                if settings.enable_openai_magic_cache {
+                    openai_cache::apply_magic_string_cache_breakpoints(value, kind);
+                }
             });
         }
         if !is_claude_messages(ctx.op)
@@ -172,6 +172,19 @@ mod tests {
             status: StatusCode::OK,
             settings,
         }
+    }
+
+    #[test]
+    fn normalizes_openai_fast_alias_to_priority() {
+        let mut headers = HeaderMap::new();
+        let settings = json!({});
+        let body = Bytes::from_static(
+            br#"{"model":"openai/gpt-5.6","messages":[{"role":"user","content":"hi"}],"service_tier":"fast"}"#,
+        );
+        let shaped =
+            OpenRouterChannel.shape_request(body, &mut headers, &openai_magic_ctx(&settings));
+        let value: Value = serde_json::from_slice(&shaped).unwrap();
+        assert_eq!(value["service_tier"], "priority");
     }
 
     #[test]

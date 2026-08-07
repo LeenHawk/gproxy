@@ -13,7 +13,7 @@ use crate::channel::shaping::{
     claude_sampling,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, OperationKind};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
 /// Whether `op` targets the native Claude Messages content-generation path.
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
@@ -21,6 +21,11 @@ fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
         op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     )
+}
+
+fn is_claude_count_tokens(op: crate::protocol::OperationKey) -> bool {
+    op.operation() == Operation::CountTokens
+        && op.kind() == OperationKind::Provider(Provider::Claude)
 }
 
 fn is_openai_chat(op: crate::protocol::OperationKey) -> bool {
@@ -111,6 +116,10 @@ impl Channel for ClaudeApiChannel {
         if is_openai_chat(ctx.op) {
             return shaping::with_json_body(body, claude_prefill::coerce_trailing_prefill);
         }
+        if is_claude_count_tokens(ctx.op) {
+            shaping::anthropic_beta::append_fast_mode_beta_from_body(headers, &body);
+            return body;
+        }
         if !is_claude_messages(ctx.op) {
             return body;
         }
@@ -125,6 +134,7 @@ impl Channel for ClaudeApiChannel {
             if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
                 claude_fallback::apply_claude_fallback(v, headers, fallbacks);
             }
+            shaping::anthropic_beta::append_fast_mode_beta(headers, v);
         });
         shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
         body
@@ -192,7 +202,7 @@ mod tests {
             HeaderValue::from_static("context-1m-2025-08-07,files-api-2025-04-14"),
         );
         let body = Bytes::from(
-            r#"{"model":"claude-opus-4-8","messages":[{"role":"assistant","content":"prefix"}],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
+            r#"{"model":"claude-opus-4-8","messages":[{"role":"assistant","content":"prefix"}],"speed":"fast","temperature":0.7,"top_p":0.9,"top_k":40}"#,
         );
         let out = ClaudeApiChannel.shape_request(body, &mut headers, &messages_ctx());
 
@@ -204,7 +214,26 @@ mod tests {
         assert_eq!(v["messages"][0]["role"], "user");
         assert_eq!(
             headers.get("anthropic-beta").unwrap(),
-            "files-api-2025-04-14"
+            "files-api-2025-04-14,fast-mode-2026-02-01"
+        );
+    }
+
+    #[test]
+    fn count_tokens_fast_adds_beta_without_rewriting_body() {
+        let mut headers = HeaderMap::new();
+        let body =
+            Bytes::from_static(br#"{"model":"claude-sonnet-4-6","speed":"fast","messages":[]}"#);
+        let ctx = ShapeCtx {
+            op: OperationKey::provider(Operation::CountTokens, Provider::Claude),
+            stream: false,
+            status: StatusCode::OK,
+            settings: &Value::Null,
+        };
+        let out = ClaudeApiChannel.shape_request(body.clone(), &mut headers, &ctx);
+        assert_eq!(out, body);
+        assert_eq!(
+            headers.get("anthropic-beta").unwrap(),
+            "fast-mode-2026-02-01"
         );
     }
 

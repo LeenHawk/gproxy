@@ -89,19 +89,52 @@ fn shapes_claude_messages_to_converse_and_back() {
     );
 
     let response = AwsBedrockChannel.shape_response(Bytes::from_static(
-        br#"{"output":{"message":{"role":"assistant","content":[{"toolUse":{"toolUseId":"tool_1","name":"get_weather","input":{"city":"Paris"}}}]}},"stopReason":"tool_use","usage":{"inputTokens":9,"outputTokens":4,"totalTokens":13,"cacheReadInputTokens":2,"cacheWriteInputTokens":3,"cacheDetails":[{"inputTokens":1,"ttl":"5m"},{"inputTokens":2,"ttl":"1h"}]}}"#,
+        br#"{"output":{"message":{"role":"assistant","content":[{"toolUse":{"toolUseId":"tool_1","name":"get_weather","input":{"city":"Paris"}}}]}},"stopReason":"tool_use","serviceTier":{"type":"priority"},"usage":{"inputTokens":9,"outputTokens":4,"totalTokens":13,"cacheReadInputTokens":2,"cacheWriteInputTokens":3,"cacheDetails":[{"inputTokens":1,"ttl":"5m"},{"inputTokens":2,"ttl":"1h"}]}}"#,
     ), &ctx);
     let response: Value = serde_json::from_slice(&response).unwrap();
     assert_eq!(response["type"], "message");
     assert_eq!(response["content"][0]["type"], "tool_use");
     assert_eq!(response["content"][0]["input"]["city"], "Paris");
     assert_eq!(response["usage"]["input_tokens"], 9);
+    assert_eq!(response["usage"]["service_tier"], "priority");
+    assert_eq!(response["usage"]["speed"], "fast");
     let usage = crate::usage::extract::from_response(Provider::Claude, &response).unwrap();
     assert_eq!(usage.input, 9);
     assert_eq!(usage.output, 4);
     assert_eq!(usage.cache_read, 2);
     assert_eq!(usage.cache_creation_5m, 1);
     assert_eq!(usage.cache_creation_1h, 2);
+}
+
+#[test]
+fn openai_fast_becomes_bedrock_priority() {
+    let source = OperationKey::content_generation(
+        Operation::GenerateContent,
+        ContentGenerationKind::OpenAiChatCompletions,
+    );
+    let target = OperationKey::content_generation(
+        Operation::GenerateContent,
+        ContentGenerationKind::ClaudeMessages,
+    );
+    let transformed = dispatch::request_bytes(
+        resolve(source, target).unwrap(),
+        &TransformContext::new(source, target),
+        br#"{"model":"us.anthropic.claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}],"max_completion_tokens":32,"service_tier":"fast"}"#,
+    )
+    .unwrap();
+    let settings = json!({});
+    let shaped = AwsBedrockChannel.shape_request(
+        Bytes::from(transformed),
+        &mut HeaderMap::new(),
+        &ShapeCtx {
+            op: target,
+            stream: false,
+            status: StatusCode::OK,
+            settings: &settings,
+        },
+    );
+    let shaped: Value = serde_json::from_slice(&shaped).unwrap();
+    assert_eq!(shaped["serviceTier"]["type"], "priority");
 }
 
 #[test]

@@ -40,6 +40,14 @@ pub(super) fn convert_value(value: Value) -> Value {
     if !inference.is_empty() {
         output.insert("inferenceConfig".into(), Value::Object(inference));
     }
+    if input
+        .remove("speed")
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .as_deref()
+        == Some("fast")
+    {
+        output.insert("serviceTier".into(), json!({ "type": "priority" }));
+    }
     if let Some(Value::Array(tools)) = input.remove("tools") {
         let tools: Vec<_> = tools.into_iter().flat_map(tool).collect();
         if !tools.is_empty() {

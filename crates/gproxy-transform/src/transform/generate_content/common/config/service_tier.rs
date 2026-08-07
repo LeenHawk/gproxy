@@ -35,6 +35,23 @@ pub(in crate::transform::generate_content) fn claude_service_tier_to_openai(
     Some(tier)
 }
 
+pub(in crate::transform::generate_content) fn claude_usage_service_tier_to_openai(
+    service_tier: Option<&claude::UsageServiceTier>,
+) -> Option<openai::ServiceTier> {
+    match service_tier? {
+        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Priority) => {
+            Some(openai::ServiceTier::Priority)
+        }
+        claude::UsageServiceTier::Known(
+            claude::UsageServiceTierKnown::Standard | claude::UsageServiceTierKnown::Batch,
+        )
+        | claude::UsageServiceTier::Unknown(_) => Some(openai::ServiceTier::Default),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
+    }
+}
+
 pub(in crate::transform::generate_content) fn openai_service_tier_to_gemini(
     service_tier: Option<openai::ServiceTier>,
 ) -> Option<gemini::ServiceTier> {

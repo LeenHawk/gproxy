@@ -49,8 +49,8 @@ pub fn request(
                 .and_then(|config| config.thinking_config.as_ref()),
         ),
         output_format: None,
-        service_tier: common::gemini_service_tier_to_claude(input.service_tier),
-        speed: None,
+        service_tier: common::gemini_service_tier_to_claude(input.service_tier.clone()),
+        speed: common::gemini_service_tier_to_claude_speed(input.service_tier),
         stop_sequences: generation_config
             .as_ref()
             .map(|config| config.stop_sequences.clone())
