@@ -78,7 +78,7 @@ function sanitizeRules(
 /// filter merely leaves the preset inert, whereas an unscoped preset rewrites
 /// every other client's body (these rules match on the whole request text).
 /// Confirm against a captured request in Logs → Requests and adjust.
-export const PRESET_CLIENT_PATTERNS = {
+const CLIENT = {
   opencode: "^user-agent: opencode/",
   pi: "^user-agent: pi[ /]",
   aider: "^user-agent: litellm/",
@@ -86,8 +86,6 @@ export const PRESET_CLIENT_PATTERNS = {
   continue: "^user-agent: continue/",
   cursor: "^user-agent: cursor/",
 } as const;
-
-const CLIENT = PRESET_CLIENT_PATTERNS;
 
 export const OPENCODE_PRESET_RULES: PresetRule[] = [
   transform(0, "request", { paths: ["system", "system.*.text"] }, [
