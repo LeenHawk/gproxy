@@ -8,10 +8,6 @@ impl Channel for DelayedInvalidGrant {
         "delayed_invalid_grant"
     }
 
-    fn provider_family(&self) -> crate::protocol::Provider {
-        crate::protocol::Provider::OpenAi
-    }
-
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         Vec::new()
     }

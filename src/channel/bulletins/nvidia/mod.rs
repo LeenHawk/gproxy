@@ -5,7 +5,6 @@ mod auth;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
-use crate::protocol::Provider;
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://integrate.api.nvidia.com"),
@@ -20,10 +19,6 @@ pub struct NvidiaChannel;
 impl Channel for NvidiaChannel {
     fn id(&self) -> &'static str {
         "nvidia"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

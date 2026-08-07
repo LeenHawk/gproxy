@@ -12,7 +12,7 @@ use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{self, claude_cache_control, claude_magic_cache, openai_cache};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
+use crate::protocol::{ContentGenerationKind, OperationKind};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: None,
@@ -27,10 +27,6 @@ pub struct CustomChannel;
 impl Channel for CustomChannel {
     fn id(&self) -> &'static str {
         "custom"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

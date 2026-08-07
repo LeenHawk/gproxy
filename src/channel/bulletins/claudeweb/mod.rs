@@ -25,7 +25,9 @@ use bytes::Bytes;
 use http::{Request, StatusCode};
 use serde_json::Value;
 
-use crate::channel::{Channel, ChannelError, ChannelLogin, PrepareCtx, PreparedRequest};
+use crate::channel::{
+    Channel, ChannelError, ChannelLogin, ModelCatalog, PrepareCtx, PreparedRequest,
+};
 use crate::http::client::UpstreamClient;
 use crate::protocol::Provider;
 
@@ -45,10 +47,6 @@ impl Channel for ClaudeWebChannel {
         Self::ID
     }
 
-    fn provider_family(&self) -> Provider {
-        Provider::Claude
-    }
-
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         routing::table()
     }
@@ -57,8 +55,11 @@ impl Channel for ClaudeWebChannel {
         session::prepare(ctx)
     }
 
-    fn credential_models(&self, secret: &Value) -> Option<Bytes> {
-        models::credential_models(secret)
+    fn credential_models(&self, secret: &Value) -> Option<ModelCatalog> {
+        models::credential_models(secret).map(|body| ModelCatalog {
+            family: Provider::Claude,
+            body,
+        })
     }
 
     fn needs_refresh(&self, secret: &Value) -> bool {

@@ -21,7 +21,6 @@ use crate::channel::{
     PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
-use crate::protocol::Provider;
 
 pub struct GeminiCliChannel;
 
@@ -35,10 +34,6 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for GeminiCliChannel {
     fn id(&self) -> &'static str {
         "geminicli"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Gemini
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

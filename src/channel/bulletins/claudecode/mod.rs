@@ -26,7 +26,6 @@ use crate::channel::{
     AuthCodeStart, Channel, ChannelError, ChannelLogin, PrepareCtx, PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
-use crate::protocol::Provider;
 
 pub struct ClaudeCodeChannel;
 
@@ -40,10 +39,6 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for ClaudeCodeChannel {
     fn id(&self) -> &'static str {
         "claudecode"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Claude
     }
 
     /// Claude-subscription account: the OAuth token is account-wide.

@@ -8,7 +8,7 @@ use bytes::Bytes;
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::http_util::{allow_headers, allow_query, build_request};
 use crate::channel::shaping::vertex_normalize;
-use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
+use crate::channel::{Channel, ChannelError, ModelCatalog, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
@@ -34,10 +34,6 @@ pub struct VertexExpressChannel;
 impl Channel for VertexExpressChannel {
     fn id(&self) -> &'static str {
         "vertexexpress"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Gemini
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
@@ -145,10 +141,11 @@ impl Channel for VertexExpressChannel {
 
     /// Vertex AI Express exposes no model-listing endpoint; the admin model-pull
     /// reads this bundled Gemini-shaped catalogue instead of calling upstream.
-    fn bundled_models(&self) -> Option<Bytes> {
-        Some(Bytes::from_static(
-            include_str!("models.gemini.json").as_bytes(),
-        ))
+    fn bundled_models(&self) -> Option<ModelCatalog> {
+        Some(ModelCatalog {
+            family: Provider::Gemini,
+            body: Bytes::from_static(include_str!("models.gemini.json").as_bytes()),
+        })
     }
 }
 

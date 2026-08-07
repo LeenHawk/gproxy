@@ -11,7 +11,7 @@ use crate::channel::shaping::{
     self, claude_cache_control, claude_fallback, claude_magic_cache, openai_cache,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
-use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKind};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://openrouter.ai/api"),
@@ -35,10 +35,6 @@ fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
 impl Channel for OpenRouterChannel {
     fn id(&self) -> &'static str {
         "openrouter"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::OpenAi
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

@@ -23,7 +23,7 @@ use crate::channel::http_util::{allow_headers, build_request, join_url};
 use crate::channel::shaping::vertex_normalize;
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::http::client::UpstreamClient;
-use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKind};
 
 /// Whether this op is a Gemini content-generation call (the only response shape
 /// Vertex normalizes; model lists / embeddings / errors pass through untouched).
@@ -71,10 +71,6 @@ impl VertexChannel {
 impl Channel for VertexChannel {
     fn id(&self) -> &'static str {
         "vertex"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Gemini
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {

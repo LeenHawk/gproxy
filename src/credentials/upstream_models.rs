@@ -17,13 +17,14 @@ pub use parse::UpstreamModel;
 use parse::parse_models;
 
 use crate::app::AppState;
+use crate::channel::routes::RoutingDecision;
 use crate::channel::{Channel, ChannelError, Disposition, PrepareCtx};
 use crate::health::CredAdmit;
 use crate::health::config::breaker_config;
 use crate::http::client::UpstreamClient;
 use crate::pipeline::context::Candidate;
 use crate::pipeline::health_hooks;
-use crate::protocol::{Operation, OperationKey, Provider};
+use crate::protocol::{Operation, OperationKey};
 use crate::util::time::unix_now;
 
 /// Why a model pull could not produce a list.
@@ -76,12 +77,10 @@ pub async fn fetch_models(
         .channels
         .get(&provider.channel)
         .ok_or_else(|| ModelsError::UnknownChannel(provider.channel.clone()))?;
-    let family = channel.provider_family();
-
     // Channels with a bundled static catalogue (no upstream model-list endpoint,
     // e.g. vertexexpress) short-circuit — no credential / upstream call needed.
-    if let Some(body) = channel.bundled_models() {
-        return Ok(parse_models(family, &body));
+    if let Some(catalog) = channel.bundled_models() {
+        return Ok(parse_models(catalog.family, &catalog.body));
     }
 
     // Walk every enabled credential serially. Account-specific catalogues may
@@ -129,7 +128,7 @@ pub async fn fetch_models(
             Arc::clone(&credential),
             String::new(),
         );
-        match fetch_models_for_credential(state, &channel, family, &cand).await {
+        match fetch_models_for_credential(state, &channel, &cand).await {
             CredentialPull::Success(pulled) => {
                 succeeded = true;
                 merge_models(&mut models, &mut model_indexes, pulled);
@@ -155,6 +154,27 @@ pub async fn fetch_models(
 enum CredentialPull {
     Success(Vec<UpstreamModel>),
     Next(ModelsError),
+}
+
+fn model_list_operation(channel: &dyn Channel) -> Result<OperationKey, ModelsError> {
+    let mut transformed = None;
+    for (source, decision) in channel.routing_table() {
+        if source.operation() != Operation::ListModels {
+            continue;
+        }
+        match decision {
+            RoutingDecision::Passthrough => return Ok(source),
+            RoutingDecision::TransformTo(target) if target.operation() == Operation::ListModels => {
+                transformed.get_or_insert(target);
+            }
+            RoutingDecision::Local
+            | RoutingDecision::Unsupported
+            | RoutingDecision::TransformTo(_) => {}
+        }
+    }
+    transformed.ok_or(ModelsError::Channel(ChannelError::Unsupported(
+        "model list",
+    )))
 }
 
 fn merge_models(
@@ -195,7 +215,6 @@ fn merge_models(
 async fn fetch_models_for_credential(
     state: &AppState,
     channel: &Arc<dyn Channel>,
-    family: Provider,
     cand: &Candidate,
 ) -> CredentialPull {
     let opened = match state.cipher.open(&cand.credential.secret_json) {
@@ -217,10 +236,14 @@ async fn fetch_models_for_credential(
             return CredentialPull::Next(ModelsError::Channel(e));
         }
     };
-    if let Some(body) = channel.credential_models(&secret) {
+    if let Some(catalog) = channel.credential_models(&secret) {
         record_credential_attempt(state, cand, &Disposition::Success);
-        return CredentialPull::Success(parse_models(family, &body));
+        return CredentialPull::Success(parse_models(catalog.family, &catalog.body));
     }
+    let op = match model_list_operation(channel.as_ref()) {
+        Ok(op) => op,
+        Err(err) => return CredentialPull::Next(err),
+    };
     let client =
         match super::usage::resolve_client(state, channel, &cand.credential, &cand.provider) {
             Ok(c) => c,
@@ -231,7 +254,7 @@ async fn fetch_models_for_credential(
 
     let outcome = match fetch_models_with(
         channel,
-        family,
+        op,
         &secret,
         &cand.provider.settings_json,
         &client,
@@ -263,7 +286,7 @@ async fn fetch_models_for_credential(
                         cand,
                         fetch_models_with(
                             channel,
-                            family,
+                            op,
                             &secret,
                             &cand.provider.settings_json,
                             &client,
@@ -379,12 +402,12 @@ enum ModelPullResult {
 /// frequently 429s the `retrieveUserQuota` endpoint a single call rides.
 async fn fetch_models_with(
     channel: &Arc<dyn Channel>,
-    family: Provider,
+    op: OperationKey,
     secret: &Value,
     settings: &Value,
     client: &Arc<dyn UpstreamClient>,
 ) -> Result<ModelPullResult, ModelsError> {
-    let op = OperationKey::provider(Operation::ListModels, family);
+    let family = op.provider_family();
     let target = crate::protocol::request_target(op, "", false)?;
     let headers = http::HeaderMap::new();
 
@@ -416,9 +439,8 @@ async fn fetch_models_with(
         if status.is_success() {
             // Channel response 整形 (same hook proxy traffic uses): lets a channel
             // reshape a non-standard model-list body (e.g. codex `{models}`→`{data}`,
-            // vertex `publisherModels`→`models`) into its family's canonical shape
+            // vertex `publisherModels`→`models`) into the selected operation's canonical shape
             // before `parse_models` reads it.
-            let op = OperationKey::provider(Operation::ListModels, family);
             let body = channel.shape_response(
                 body,
                 &crate::channel::ShapeCtx {

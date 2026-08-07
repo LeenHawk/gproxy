@@ -14,21 +14,24 @@ use crate::prepared::PreparedRequest;
 use crate::transport::{ByteStreamDecoder as ChannelStreamDecoder, UpstreamClient};
 use crate::usage::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
 
+/// A model catalogue plus the wire family used by its serialized body.
+#[derive(Debug, Clone)]
+pub struct ModelCatalog {
+    pub family: crate::protocol::Provider,
+    pub body: Bytes,
+}
+
 /// Pure upstream access adapter (§6.3). Implementors provide `id`,
-/// `provider_family`, `routing_table` and `prepare`; the rest have sensible
-/// defaults.
+/// `routing_table` and `prepare`; the rest have sensible defaults.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait Channel: Send + Sync {
     /// Stable channel id used as the registry key (matches `Provider.channel`).
     fn id(&self) -> &'static str;
 
-    /// The provider family this channel's upstream belongs to (billing/usage).
-    fn provider_family(&self) -> crate::protocol::Provider;
-
     /// Metadata for runtime discovery and generic configuration UIs.
     fn metadata(&self) -> ChannelMetadata {
-        ChannelMetadata::new(self.id(), self.provider_family())
+        ChannelMetadata::new(self.id())
     }
 
     /// The channel's explicit routing surface (ported from its capabilities).
@@ -93,9 +96,9 @@ pub trait Channel: Send + Sync {
     /// A channel-bundled static model catalogue, for channels whose upstream
     /// exposes no model-list endpoint (e.g. vertexexpress). When `Some`, the
     /// admin model-pull returns it directly — no credential / upstream call. The
-    /// body is in the channel family's canonical model-list wire shape. Default:
-    /// none.
-    fn bundled_models(&self) -> Option<Bytes> {
+    /// returned catalogue identifies its own canonical model-list wire family.
+    /// Default: none.
+    fn bundled_models(&self) -> Option<ModelCatalog> {
         None
     }
 
@@ -104,7 +107,7 @@ pub trait Channel: Send + Sync {
     /// this hook is evaluated only after the credential has been decrypted and
     /// refreshed, so account-specific catalogues can be returned without an
     /// extra upstream model-list request. Default: none.
-    fn credential_models(&self, _secret: &Value) -> Option<Bytes> {
+    fn credential_models(&self, _secret: &Value) -> Option<ModelCatalog> {
         None
     }
 

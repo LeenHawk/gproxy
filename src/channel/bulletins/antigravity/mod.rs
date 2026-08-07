@@ -31,7 +31,6 @@ use crate::channel::{
     PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
-use crate::protocol::Provider;
 
 pub struct AntigravityChannel;
 
@@ -45,10 +44,6 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for AntigravityChannel {
     fn id(&self) -> &'static str {
         "antigravity"
-    }
-
-    fn provider_family(&self) -> Provider {
-        Provider::Gemini
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
