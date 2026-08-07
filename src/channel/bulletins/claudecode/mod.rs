@@ -8,6 +8,7 @@ mod cch;
 mod cookie;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 mod fingerprint;
+mod profile;
 mod request;
 mod routing;
 mod stainless;
