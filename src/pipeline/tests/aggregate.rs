@@ -83,6 +83,75 @@ async fn non_stream_client_collapses_forced_stream() {
     assert_eq!(outcome.headers["content-type"], "application/json");
 }
 
+/// Cross-kind force-stream routes must normalize the operation used by the
+/// transform context while preserving the routed streaming operation.
+#[tokio::test]
+async fn non_stream_chat_collapses_forced_responses_stream() {
+    let rule = json!([
+        { "id": 1, "provider_id": 1, "operation": "generate_content", "kind": "open_ai_chat_completions",
+          "implementation": "transform_to", "dest_operation": "stream_generate_content",
+          "dest_kind": "open_ai_responses", "sort_order": 0, "enabled": true }
+    ]);
+    let bundle = bundle_with("routing_rules", rule);
+
+    let sse = concat!(
+        "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",",
+        "\"object\":\"response\",\"created_at\":1,\"status\":\"completed\",\"model\":\"gpt-test\",",
+        "\"output\":[{\"id\":\"msg_1\",\"type\":\"message\",\"status\":\"completed\",",
+        "\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\",",
+        "\"annotations\":[]}]}]}}\n\n",
+    );
+    let fake = Arc::new(FakeUpstream::new(Bytes::from(sse), vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    let body = json!({
+        "model": "gpt-test",
+        "stream": false,
+        "messages": [{ "role": "user", "content": "hi" }]
+    });
+    let ctx = RequestCtx {
+        request_id: "cross-kind-agg".into(),
+        method: Method::POST,
+        path: "/v1/chat/completions".into(),
+        query: None,
+        headers,
+        body: Bytes::from(serde_json::to_vec(&body).unwrap()),
+        mode: RoutingMode::Scoped {
+            provider: "oai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    };
+
+    let outcome = crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("pipeline ok");
+    assert_eq!(outcome.status, StatusCode::OK);
+
+    {
+        let seen = fake.seen.lock().unwrap();
+        assert!(seen[0].uri.contains("/responses"), "uri: {}", seen[0].uri);
+        let upstream: Value = serde_json::from_slice(&seen[0].body).unwrap();
+        assert_eq!(upstream["stream"], true);
+        assert_eq!(upstream["input"][0]["content"], "hi");
+    }
+
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("expected a buffered Full body")
+    };
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(response["object"], "chat.completion");
+    assert_eq!(response["choices"][0]["message"]["content"], "hello");
+    assert_eq!(outcome.headers["content-type"], "application/json");
+}
+
 /// `(create_image, open_ai) → (stream_generate_content, open_ai_responses)` is a
 /// codex-shaped force-stream: the images request is reshaped into a streaming
 /// Responses call carrying the `image_generation` tool, and the buffered
