@@ -303,7 +303,7 @@ impl ContentStreamConverter {
             }
             P::OpenAiResponsesToClaudeMessages | P::OpenAiResponsesWebSocketToClaudeMessages => {
                 ContentStreamState::ResponsesToClaude(
-                    gc::openai_responses_to_claude_messages::StreamTransform,
+                    gc::openai_responses_to_claude_messages::StreamTransform::default(),
                 )
             }
             P::OpenAiResponsesToGeminiGenerateContent
@@ -318,10 +318,10 @@ impl ContentStreamConverter {
                 )
             }
             P::OpenAiChatToClaudeMessages => ContentStreamState::ChatToClaude(
-                gc::openai_chat_to_claude_messages::StreamTransform,
+                gc::openai_chat_to_claude_messages::StreamTransform::default(),
             ),
             P::GeminiGenerateContentToClaudeMessages => ContentStreamState::GeminiToClaude(
-                gc::gemini_generate_content_to_claude_messages::StreamTransform,
+                gc::gemini_generate_content_to_claude_messages::StreamTransform::default(),
             ),
             other if is_content(other) => ContentStreamState::Stateless,
             other => return Err(not_wired(other)),

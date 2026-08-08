@@ -1,9 +1,251 @@
+use std::collections::BTreeMap;
+
 use crate::protocol::{claude, gemini, openai};
 
 use super::scalar::{i32_to_u32, u32_to_i32};
 
 pub(in crate::transform::generate_content) fn default_openai_model() -> openai::OpenAiModelId {
     super::DEFAULT_OPENAI_MODEL.to_owned().into()
+}
+
+pub(in crate::transform::generate_content) fn claude_message_start(
+    id: String,
+    model: String,
+    usage: claude::Usage,
+) -> claude::StreamEvent {
+    claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::MessageStart {
+        message: Box::new(crate::protocol::wire!(claude::CreateMessageStartBody {
+            id,
+            type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
+            role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
+            content: Vec::new(),
+            model: model.into(),
+            stop_reason: None,
+            stop_sequence: None,
+            usage,
+            extra: Default::default(),
+        })),
+        extra: Default::default(),
+    }))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ClaudeBlockKind {
+    Text,
+    Thinking,
+    Tool,
+    Compaction,
+}
+
+/// Enforce the ordering required by the Claude Messages streaming protocol.
+#[derive(Default)]
+pub(in crate::transform::generate_content) struct ClaudeStreamLifecycle {
+    message_started: bool,
+    open_blocks: BTreeMap<u64, ClaudeBlockKind>,
+    terminated: bool,
+}
+
+impl ClaudeStreamLifecycle {
+    pub(in crate::transform::generate_content) fn push(
+        &mut self,
+        events: Vec<claude::StreamEvent>,
+        fallback_start: claude::StreamEvent,
+    ) -> Vec<claude::StreamEvent> {
+        let mut out = Vec::new();
+        let mut fallback_start = Some(fallback_start);
+
+        for event in events {
+            if self.terminated {
+                break;
+            }
+            match &event {
+                claude::StreamEvent::Known(known) => match known.as_ref() {
+                    claude::KnownStreamEvent::MessageStart { .. } => {
+                        if !self.message_started {
+                            self.message_started = true;
+                            out.push(event);
+                        }
+                    }
+                    claude::KnownStreamEvent::ContentBlockStart {
+                        index,
+                        content_block,
+                        ..
+                    } => {
+                        self.ensure_message_start(&mut out, &mut fallback_start);
+                        self.close_blocks(&mut out);
+                        if let Some(kind) = claude_block_kind(content_block) {
+                            self.open_blocks.insert(*index, kind);
+                        }
+                        out.push(event);
+                    }
+                    claude::KnownStreamEvent::ContentBlockDelta { index, delta, .. } => {
+                        self.ensure_message_start(&mut out, &mut fallback_start);
+                        let kind = claude_delta_kind(delta).unwrap_or(ClaudeBlockKind::Text);
+                        if self.open_blocks.get(index) != Some(&kind) {
+                            self.close_blocks(&mut out);
+                            out.push(claude_block_start(*index, kind));
+                            self.open_blocks.insert(*index, kind);
+                        }
+                        out.push(event);
+                    }
+                    claude::KnownStreamEvent::ContentBlockStop { index, .. } => {
+                        if self.open_blocks.remove(index).is_some() {
+                            out.push(event);
+                        }
+                    }
+                    claude::KnownStreamEvent::MessageDelta { delta, .. } => {
+                        self.ensure_message_start(&mut out, &mut fallback_start);
+                        self.close_blocks(&mut out);
+                        let terminal = delta.stop_reason.is_some();
+                        out.push(event);
+                        if terminal {
+                            out.push(claude_message_stop());
+                            self.terminated = true;
+                        }
+                    }
+                    claude::KnownStreamEvent::MessageStop { .. } => {
+                        self.ensure_message_start(&mut out, &mut fallback_start);
+                        self.close_blocks(&mut out);
+                        out.push(event);
+                        self.terminated = true;
+                    }
+                    claude::KnownStreamEvent::Error { .. } => {
+                        self.close_blocks(&mut out);
+                        out.push(event);
+                        self.terminated = true;
+                    }
+                    claude::KnownStreamEvent::Ping { .. } => out.push(event),
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
+                },
+                claude::StreamEvent::Unknown(_) => out.push(event),
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
+            }
+        }
+        out
+    }
+
+    pub(in crate::transform::generate_content) fn finish(&mut self) -> Vec<claude::StreamEvent> {
+        if !self.message_started || self.terminated {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        self.close_blocks(&mut out);
+        out.push(claude_message_stop());
+        self.terminated = true;
+        out
+    }
+
+    fn ensure_message_start(
+        &mut self,
+        out: &mut Vec<claude::StreamEvent>,
+        fallback_start: &mut Option<claude::StreamEvent>,
+    ) {
+        if !self.message_started {
+            out.push(fallback_start.take().unwrap_or_else(|| {
+                claude_message_start(
+                    "message".to_owned(),
+                    super::DEFAULT_OPENAI_MODEL.to_owned(),
+                    super::empty_claude_usage(),
+                )
+            }));
+            self.message_started = true;
+        }
+    }
+
+    fn close_blocks(&mut self, out: &mut Vec<claude::StreamEvent>) {
+        for index in std::mem::take(&mut self.open_blocks).into_keys() {
+            out.push(claude_content_block_stop(index));
+        }
+    }
+}
+
+fn claude_block_kind(block: &claude::ContentBlock) -> Option<ClaudeBlockKind> {
+    match block {
+        claude::ContentBlock::Text(_) => Some(ClaudeBlockKind::Text),
+        claude::ContentBlock::Thinking(_) => Some(ClaudeBlockKind::Thinking),
+        claude::ContentBlock::ToolUse(_) | claude::ContentBlock::McpToolUse(_) => {
+            Some(ClaudeBlockKind::Tool)
+        }
+        claude::ContentBlock::Compaction(_) => Some(ClaudeBlockKind::Compaction),
+        _ => None,
+    }
+}
+
+fn claude_delta_kind(delta: &claude::EventDelta) -> Option<ClaudeBlockKind> {
+    let claude::EventDelta::Known(delta) = delta else {
+        return None;
+    };
+    match delta.as_ref() {
+        claude::KnownEventDelta::Text { .. } | claude::KnownEventDelta::Citations { .. } => {
+            Some(ClaudeBlockKind::Text)
+        }
+        claude::KnownEventDelta::Thinking { .. } | claude::KnownEventDelta::Signature { .. } => {
+            Some(ClaudeBlockKind::Thinking)
+        }
+        claude::KnownEventDelta::InputJson { .. } => Some(ClaudeBlockKind::Tool),
+        claude::KnownEventDelta::Compaction { .. } => Some(ClaudeBlockKind::Compaction),
+        _ => None,
+    }
+}
+
+fn claude_block_start(index: u64, kind: ClaudeBlockKind) -> claude::StreamEvent {
+    let content_block = match kind {
+        ClaudeBlockKind::Text => {
+            claude::ContentBlock::Text(crate::protocol::wire!(claude::ResponseTextBlock {
+                citations: None,
+                text: String::new(),
+                type_: claude::TextBlockType::Text,
+                extra: Default::default(),
+            }))
+        }
+        ClaudeBlockKind::Thinking => {
+            claude::ContentBlock::Thinking(crate::protocol::wire!(claude::ThinkingBlock {
+                signature: String::new(),
+                thinking: String::new(),
+                type_: claude::ThinkingBlockType::Thinking,
+            }))
+        }
+        ClaudeBlockKind::Tool => {
+            claude::ContentBlock::ToolUse(crate::protocol::wire!(claude::ResponseToolUseBlock {
+                id: format!("call_{index}"),
+                input: Default::default(),
+                name: "unknown".to_owned(),
+                type_: claude::ToolUseBlockType::ToolUse,
+                caller: None,
+                extra: Default::default(),
+            }))
+        }
+        ClaudeBlockKind::Compaction => claude::ContentBlock::Compaction(crate::protocol::wire!(
+            claude::ResponseCompactionBlock {
+                content: None,
+                encrypted_content: String::new(),
+                type_: claude::CompactionBlockType::Compaction,
+                extra: Default::default(),
+            }
+        )),
+    };
+    claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::ContentBlockStart {
+        index,
+        content_block: Box::new(content_block),
+        extra: Default::default(),
+    }))
+}
+
+fn claude_content_block_stop(index: u64) -> claude::StreamEvent {
+    claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::ContentBlockStop {
+        index,
+        extra: Default::default(),
+    }))
+}
+
+fn claude_message_stop() -> claude::StreamEvent {
+    claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::MessageStop {
+        extra: Default::default(),
+    }))
 }
 
 pub(in crate::transform::generate_content) fn empty_chat_delta() -> openai::ChatDelta {

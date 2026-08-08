@@ -16,6 +16,8 @@ pub fn stream_event(
 #[derive(Default)]
 pub struct StreamTransform {
     tool_calls: BTreeMap<String, ToolCallState>,
+    response_id: Option<String>,
+    model_version: Option<String>,
 }
 
 impl StreamTransform {
@@ -44,17 +46,18 @@ impl StreamTransform {
         &mut self,
         event: openai::KnownResponseStreamEvent,
     ) -> Vec<gemini::GenerateContentResponse> {
-        match event {
+        let mut chunks = match event {
             openai::KnownResponseStreamEvent::ResponseCreated { response, .. }
             | openai::KnownResponseStreamEvent::ResponseInProgress { response, .. }
             | openai::KnownResponseStreamEvent::ResponseQueued { response, .. } => {
-                vec![chunk_from_response(*response, None)]
+                self.remember_response(&response);
+                Vec::new()
             }
             openai::KnownResponseStreamEvent::ResponseCompleted { response, .. }
             | openai::KnownResponseStreamEvent::ResponseFailed { response, .. }
             | openai::KnownResponseStreamEvent::ResponseIncomplete { response, .. } => {
-                let finish_reason = Some(response_finish_reason(&response));
-                vec![chunk_from_response(*response, finish_reason)]
+                self.remember_response(&response);
+                vec![chunk_from_response(*response)]
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextDelta { delta, .. }
             | openai::KnownResponseStreamEvent::ResponseAudioTranscriptDelta { delta, .. } => {
@@ -142,7 +145,16 @@ impl StreamTransform {
                 None,
             )],
             _ => Vec::new(),
+        };
+        for chunk in &mut chunks {
+            if chunk.response_id.is_none() {
+                chunk.response_id.clone_from(&self.response_id);
+            }
+            if chunk.model_version.is_none() {
+                chunk.model_version.clone_from(&self.model_version);
+            }
         }
+        chunks
     }
 
     fn response_item_to_gemini(
@@ -195,6 +207,13 @@ impl StreamTransform {
                 ))
             }
             _ => None,
+        }
+    }
+
+    fn remember_response(&mut self, response: &openai::ResponseObject) {
+        self.response_id = Some(response.id.clone());
+        if let Some(model) = response.model.clone() {
+            self.model_version = Some(common::openai_model_string(model));
         }
     }
 }
@@ -287,34 +306,14 @@ fn candidate_chunk(
     })
 }
 
-fn chunk_from_response(
-    response: openai::ResponseObject,
-    finish_reason: Option<gemini::FinishReason>,
-) -> gemini::GenerateContentResponse {
+fn chunk_from_response(response: openai::ResponseObject) -> gemini::GenerateContentResponse {
+    let finish_reason = response_finish_reason(&response);
     let usage_metadata =
         common::completion_usage_to_gemini(common::response_usage_to_completion(response.usage));
-    let mut chunk = if let Some(finish_reason) = finish_reason {
-        finish_chunk(finish_reason, usage_metadata)
-    } else {
-        empty_chunk_with_usage(usage_metadata)
-    };
+    let mut chunk = finish_chunk(finish_reason, usage_metadata);
     chunk.model_version = response.model.map(common::openai_model_string);
     chunk.response_id = Some(response.id);
     chunk
-}
-
-fn empty_chunk_with_usage(
-    usage_metadata: Option<gemini::UsageMetadata>,
-) -> gemini::GenerateContentResponse {
-    crate::protocol::wire!(gemini::GenerateContentResponse {
-        candidates: Vec::new(),
-        prompt_feedback: None,
-        usage_metadata,
-        model_version: None,
-        response_id: None,
-        model_status: None,
-        extra: Default::default(),
-    })
 }
 
 fn response_finish_reason(response: &openai::ResponseObject) -> gemini::FinishReason {
