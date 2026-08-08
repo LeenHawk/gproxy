@@ -7,12 +7,14 @@ pub fn stream_event(
     input: openai::ResponseStreamEvent,
     ctx: &TransformContext,
 ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-    let mut transform = StreamTransform;
+    let mut transform = StreamTransform::default();
     transform.push(input, ctx)
 }
 
 #[derive(Default)]
-pub struct StreamTransform;
+pub struct StreamTransform {
+    lifecycle: common::ClaudeStreamLifecycle,
+}
 
 impl StreamTransform {
     pub fn push(
@@ -20,20 +22,22 @@ impl StreamTransform {
         input: openai::ResponseStreamEvent,
         _: &TransformContext,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-        Ok(match input {
+        let fallback_start = fallback_message_start(&input);
+        let events = match input {
             openai::ResponseStreamEvent::Known(event) => known_event_to_claude(event),
             openai::ResponseStreamEvent::Unknown(_) => Vec::new(),
             _ => unreachable!(
                 "new non-exhaustive protocol variant requires a lockstep transform update"
             ),
-        })
+        };
+        Ok(self.lifecycle.push(events, fallback_start))
     }
 
     pub fn finish(
         &mut self,
         _: &TransformContext,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-        Ok(Vec::new())
+        Ok(self.lifecycle.finish())
     }
 }
 
@@ -54,27 +58,36 @@ fn known_event_to_claude(event: openai::KnownResponseStreamEvent) -> Vec<claude:
             vec![content_block_stop(u64::from(output_index))]
         }
         openai::KnownResponseStreamEvent::ResponseContentPartAdded {
-            content_index,
-            part,
-            ..
-        } => vec![content_part_to_claude(content_index, part)],
+            output_index, part, ..
+        } => vec![content_part_to_claude(output_index, part)],
         openai::KnownResponseStreamEvent::ResponseContentPartDone { .. } => Vec::new(),
         openai::KnownResponseStreamEvent::ResponseOutputTextDelta {
-            content_index,
+            output_index,
             delta,
             ..
-        } => vec![content_delta(u64::from(content_index), text_delta(delta))],
+        } => vec![content_delta(u64::from(output_index), text_delta(delta))],
         openai::KnownResponseStreamEvent::ResponseAudioTranscriptDelta { delta, .. } => {
             vec![content_delta(0, text_delta(delta))]
         }
         openai::KnownResponseStreamEvent::ResponseRefusalDelta {
-            content_index,
+            output_index,
             delta,
             ..
-        } => vec![content_delta(u64::from(content_index), text_delta(delta))],
-        openai::KnownResponseStreamEvent::ResponseReasoningSummaryTextDelta { delta, .. }
-        | openai::KnownResponseStreamEvent::ResponseReasoningTextDelta { delta, .. } => {
-            vec![content_delta(0, thinking_delta(delta))]
+        } => vec![content_delta(u64::from(output_index), text_delta(delta))],
+        openai::KnownResponseStreamEvent::ResponseReasoningSummaryTextDelta {
+            delta,
+            output_index,
+            ..
+        }
+        | openai::KnownResponseStreamEvent::ResponseReasoningTextDelta {
+            delta,
+            output_index,
+            ..
+        } => {
+            vec![content_delta(
+                u64::from(output_index),
+                thinking_delta(delta),
+            )]
         }
         openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta {
             delta,
@@ -111,6 +124,30 @@ fn known_event_to_claude(event: openai::KnownResponseStreamEvent) -> Vec<claude:
         }
         _ => Vec::new(),
     }
+}
+
+fn fallback_message_start(input: &openai::ResponseStreamEvent) -> claude::StreamEvent {
+    let response = match input {
+        openai::ResponseStreamEvent::Known(
+            openai::KnownResponseStreamEvent::ResponseCreated { response, .. }
+            | openai::KnownResponseStreamEvent::ResponseInProgress { response, .. }
+            | openai::KnownResponseStreamEvent::ResponseQueued { response, .. }
+            | openai::KnownResponseStreamEvent::ResponseCompleted { response, .. }
+            | openai::KnownResponseStreamEvent::ResponseFailed { response, .. }
+            | openai::KnownResponseStreamEvent::ResponseIncomplete { response, .. },
+        ) => Some(response.as_ref()),
+        _ => None,
+    };
+    common::claude_message_start(
+        response
+            .map(|response| response.id.clone())
+            .unwrap_or_else(|| "response".to_owned()),
+        response
+            .and_then(|response| response.model.clone())
+            .map(common::openai_model_string)
+            .unwrap_or_else(|| common::DEFAULT_OPENAI_MODEL.to_owned()),
+        common::empty_claude_usage(),
+    )
 }
 
 fn message_start_from_response(response: openai::ResponseObject) -> claude::StreamEvent {

@@ -17,6 +17,8 @@ pub fn stream_event(
 #[derive(Default)]
 pub struct StreamTransform {
     tool_calls: BTreeMap<String, ToolCallState>,
+    response: Option<ResponseMetadata>,
+    assistant_role_sent: bool,
 }
 
 impl StreamTransform {
@@ -45,11 +47,12 @@ impl StreamTransform {
         &mut self,
         event: openai::KnownResponseStreamEvent,
     ) -> Vec<openai::ChatCompletionChunk> {
-        match event {
+        let mut chunks = match event {
             openai::KnownResponseStreamEvent::ResponseCreated { response, .. }
             | openai::KnownResponseStreamEvent::ResponseInProgress { response, .. }
             | openai::KnownResponseStreamEvent::ResponseQueued { response, .. } => {
-                vec![empty_from_response(*response)]
+                self.remember_response(&response);
+                Vec::new()
             }
             openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
                 item,
@@ -59,6 +62,7 @@ impl StreamTransform {
             openai::KnownResponseStreamEvent::ResponseCompleted { response, .. }
             | openai::KnownResponseStreamEvent::ResponseFailed { response, .. }
             | openai::KnownResponseStreamEvent::ResponseIncomplete { response, .. } => {
+                self.remember_response(&response);
                 vec![finish_from_response(*response)]
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextDelta {
@@ -174,7 +178,17 @@ impl StreamTransform {
                 None,
             )],
             _ => Vec::new(),
+        };
+        self.apply_response_metadata(&mut chunks);
+        if !self.assistant_role_sent
+            && let Some(choice) = chunks
+                .iter_mut()
+                .find_map(|chunk| chunk.choices.first_mut())
+        {
+            choice.delta.role = Some(openai::ChatDeltaRole::Assistant);
+            self.assistant_role_sent = true;
         }
+        chunks
     }
 
     fn output_item_added_to_chat(
@@ -183,6 +197,7 @@ impl StreamTransform {
         output_index: u32,
     ) -> Vec<openai::ChatCompletionChunk> {
         match item.0 {
+            openai::ResponseItem::Message(_) => vec![chat_role_chunk(output_index)],
             openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
                 arguments,
                 call_id,
@@ -327,12 +342,59 @@ impl StreamTransform {
             .map(|state| state.call_id.clone())
             .unwrap_or_else(|| common::fallback_response_call_id(output_index, Some(item_id)))
     }
+
+    fn remember_response(&mut self, response: &openai::ResponseObject) {
+        let previous_model = self
+            .response
+            .as_ref()
+            .map(|metadata| metadata.model.clone());
+        self.response = Some(ResponseMetadata {
+            id: response.id.clone(),
+            model: response
+                .model
+                .clone()
+                .or(previous_model)
+                .unwrap_or_else(common::default_openai_model),
+            created: response.created_at,
+        });
+    }
+
+    fn apply_response_metadata(&self, chunks: &mut [openai::ChatCompletionChunk]) {
+        let Some(metadata) = &self.response else {
+            return;
+        };
+        for chunk in chunks {
+            chunk.id.clone_from(&metadata.id);
+            chunk.model.clone_from(&metadata.model);
+            chunk.created = metadata.created;
+        }
+    }
 }
 
 #[derive(Clone)]
 struct ToolCallState {
     call_id: String,
     name: Option<String>,
+}
+
+struct ResponseMetadata {
+    id: String,
+    model: openai::OpenAiModelId,
+    created: u64,
+}
+
+fn chat_role_chunk(index: u32) -> openai::ChatCompletionChunk {
+    let mut delta = common::empty_chat_delta();
+    delta.role = Some(openai::ChatDeltaRole::Assistant);
+    common::chat_delta_chunk(
+        "response".to_owned(),
+        common::default_openai_model(),
+        0,
+        index,
+        delta,
+        None,
+        None,
+    )
 }
 
 fn chat_tool_delta(
@@ -352,14 +414,6 @@ fn chat_tool_delta(
         finish_reason,
         None,
     )
-}
-
-fn empty_from_response(response: openai::ResponseObject) -> openai::ChatCompletionChunk {
-    let id = response.id;
-    let created = response.created_at;
-    let model = response.model.unwrap_or_else(common::default_openai_model);
-    let usage = response_usage_to_chat(response.usage);
-    common::empty_chat_chunk(id, model, created, usage)
 }
 
 fn finish_from_response(response: openai::ResponseObject) -> openai::ChatCompletionChunk {

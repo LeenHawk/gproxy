@@ -7,11 +7,13 @@ pub fn stream_event(
     input: openai::ChatCompletionChunk,
     ctx: &TransformContext,
 ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-    StreamTransform.push(input, ctx)
+    StreamTransform::default().push(input, ctx)
 }
 
 #[derive(Default)]
-pub struct StreamTransform;
+pub struct StreamTransform {
+    lifecycle: common::ClaudeStreamLifecycle,
+}
 
 impl StreamTransform {
     pub fn push(
@@ -19,14 +21,20 @@ impl StreamTransform {
         input: openai::ChatCompletionChunk,
         _: &TransformContext,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-        Ok(chat_chunk_to_claude_events(input))
+        let fallback_start = common::claude_message_start(
+            input.id.clone(),
+            common::openai_model_string(input.model.clone()),
+            common::completion_usage_to_claude(input.usage.clone()),
+        );
+        let events = chat_chunk_to_claude_events(input);
+        Ok(self.lifecycle.push(events, fallback_start))
     }
 
     pub fn finish(
         &mut self,
         _: &TransformContext,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-        Ok(Vec::new())
+        Ok(self.lifecycle.finish())
     }
 }
 

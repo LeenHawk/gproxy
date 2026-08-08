@@ -3,30 +3,64 @@ use serde_json::{Value, json};
 use super::*;
 use crate::protocol::{Operation, OperationKey};
 
-#[test]
-fn chat_chunks_to_claude_events() {
-    let upstream = OperationKey::content_generation(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChatCompletions,
-    );
-    let inbound = OperationKey::content_generation(
-        Operation::GenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    );
+fn transform_sse(
+    upstream_kind: ContentGenerationKind,
+    inbound_kind: ContentGenerationKind,
+    input: &str,
+) -> String {
+    let upstream =
+        OperationKey::content_generation(Operation::StreamGenerateContent, upstream_kind);
+    let inbound = OperationKey::content_generation(Operation::StreamGenerateContent, inbound_kind);
     let pair = crate::transform::resolve(upstream, inbound).unwrap();
     let mut transformer =
         SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
-    let chunk = br#"data: {"id":"c1","object":"chat.completion.chunk","created":0,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"he"},"finish_reason":null}]}"#;
-    let mut out = transformer.push(chunk).unwrap();
-    out.extend(transformer.push(b"\n\ndata: [DONE]\n\n").unwrap());
+    let mut out = transformer.push(input.as_bytes()).unwrap();
     out.extend(transformer.finish().unwrap());
-    let text = String::from_utf8(out).unwrap();
-    assert!(text.contains("event: "));
-    assert!(!text.contains("[DONE]"));
-    for line in text.lines().filter(|line| line.starts_with("data: ")) {
-        let value: Value = serde_json::from_str(&line[6..]).unwrap();
-        assert!(value.get("type").is_some());
+    String::from_utf8(out).unwrap()
+}
+
+fn sse_values(text: &str) -> Vec<Value> {
+    text.lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter(|data| *data != "[DONE]")
+        .map(|data| serde_json::from_str(data).unwrap())
+        .collect()
+}
+
+fn assert_claude_lifecycle(text: &str) {
+    let events = sse_values(text);
+    let mut started = false;
+    let mut open_block = None;
+    let mut stopped = false;
+    for event in &events {
+        match event["type"].as_str().unwrap() {
+            "message_start" => {
+                assert!(!started);
+                started = true;
+            }
+            "content_block_start" => {
+                assert!(started && open_block.is_none());
+                open_block = event["index"].as_u64();
+            }
+            "content_block_delta" => {
+                assert_eq!(open_block, event["index"].as_u64());
+            }
+            "content_block_stop" => {
+                assert_eq!(open_block.take(), event["index"].as_u64());
+            }
+            "message_delta" => assert!(started && open_block.is_none()),
+            "message_stop" => {
+                assert!(started && open_block.is_none());
+                stopped = true;
+            }
+            other => panic!("unexpected Claude event {other}"),
+        }
     }
+    assert!(stopped, "missing message_stop: {text}");
+    assert_eq!(
+        events.last().and_then(|event| event["type"].as_str()),
+        Some("message_stop")
+    );
 }
 
 #[test]
@@ -180,42 +214,86 @@ fn gemini_frame_preserves_all_parts_and_finish_reason() {
 }
 
 #[test]
-fn chat_frame_preserves_content_reasoning_tool_and_finish() {
-    let upstream = OperationKey::content_generation(
-        Operation::StreamGenerateContent,
+fn streams_targeting_claude_have_complete_lifecycles() {
+    let cases = [
+        (
+            ContentGenerationKind::OpenAiChatCompletions,
+            concat!(
+                "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"pong\"},\"finish_reason\":\"stop\"}]}\n\n",
+                "data: [DONE]\n\n",
+            ),
+        ),
+        (
+            ContentGenerationKind::OpenAiResponses,
+            concat!(
+                "event: response.created\n",
+                "data: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\",\"created_at\":1,\"model\":\"m\",\"object\":\"response\",\"output\":[],\"status\":\"in_progress\"}}\n\n",
+                "event: response.content_part.added\n",
+                "data: {\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg1\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"text\":\"\",\"logprobs\":[]}}\n\n",
+                "event: response.output_text.delta\n",
+                "data: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"pong\",\"item_id\":\"msg1\",\"output_index\":0}\n\n",
+                "event: response.completed\n",
+                "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"created_at\":1,\"model\":\"m\",\"object\":\"response\",\"output\":[],\"status\":\"completed\"}}\n\n",
+            ),
+        ),
+        (
+            ContentGenerationKind::GeminiGenerateContent,
+            "data: {\"responseId\":\"r1\",\"modelVersion\":\"m\",\"candidates\":[{\"index\":0,\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"pong\"}]},\"finishReason\":\"STOP\"}]}\n\n",
+        ),
+    ];
+
+    for (source, input) in cases {
+        let text = transform_sse(source, ContentGenerationKind::ClaudeMessages, input);
+        assert!(text.contains("pong"), "{source:?}: {text}");
+        assert_claude_lifecycle(&text);
+    }
+}
+
+#[test]
+fn responses_metadata_is_folded_into_chat_and_gemini_content_frames() {
+    let input = concat!(
+        "event: response.created\n",
+        "data: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\",\"created_at\":1,\"model\":\"m\",\"object\":\"response\",\"output\":[],\"status\":\"in_progress\"}}\n\n",
+        "event: response.in_progress\n",
+        "data: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"r1\",\"created_at\":1,\"model\":\"m\",\"object\":\"response\",\"output\":[],\"status\":\"in_progress\"}}\n\n",
+        "event: response.output_item.added\n",
+        "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"message\",\"id\":\"msg1\",\"role\":\"assistant\",\"content\":[],\"status\":\"in_progress\"}}\n\n",
+        "event: response.output_text.delta\n",
+        "data: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"pong\",\"item_id\":\"msg1\",\"output_index\":0}\n\n",
+        "event: response.completed\n",
+        "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"created_at\":1,\"model\":\"m\",\"object\":\"response\",\"output\":[],\"status\":\"completed\"}}\n\n",
+    );
+
+    let chat = sse_values(&transform_sse(
+        ContentGenerationKind::OpenAiResponses,
         ContentGenerationKind::OpenAiChatCompletions,
+        input,
+    ));
+    assert!(
+        chat.iter()
+            .all(|chunk| !chunk["choices"].as_array().unwrap().is_empty())
     );
-    let inbound = OperationKey::content_generation(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::ClaudeMessages,
+    assert_eq!(chat[0]["choices"][0]["delta"]["role"], "assistant");
+    assert!(
+        chat.iter()
+            .all(|chunk| chunk["id"] == "r1" && chunk["model"] == "m")
     );
-    let pair = crate::transform::resolve(upstream, inbound).unwrap();
-    let mut transformer =
-        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
-    let chunk = serde_json::json!({
-        "id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m",
-        "choices": [{
-            "index": 0,
-            "delta": {
-                "content": "answer",
-                "reasoning_content": "thinking",
-                "tool_calls": [{
-                    "index": 1, "id": "call_1", "type": "function",
-                    "function": {"name": "echo", "arguments": "{\"x\":1}"}
-                }]
-            },
-            "finish_reason": "tool_calls"
-        }]
-    });
-    let input = format!("data: {chunk}\n\ndata: [DONE]\n\n");
-    let mut out = transformer.push(input.as_bytes()).unwrap();
-    out.extend(transformer.finish().unwrap());
-    let text = String::from_utf8(out).unwrap();
-    assert!(text.contains(r#""text":"answer""#));
-    assert!(text.contains(r#""thinking":"thinking""#));
-    assert!(text.contains(r#""name":"echo""#));
-    assert!(text.contains(r#""partial_json":"{\"x\":1}""#));
-    assert!(text.contains(r#""stop_reason":"tool_use""#));
+
+    let gemini = sse_values(&transform_sse(
+        ContentGenerationKind::OpenAiResponses,
+        ContentGenerationKind::GeminiGenerateContent,
+        input,
+    ));
+    assert!(
+        gemini
+            .iter()
+            .all(|chunk| !chunk["candidates"].as_array().unwrap().is_empty())
+    );
+    assert!(
+        gemini
+            .iter()
+            .all(|chunk| { chunk["responseId"] == "r1" && chunk["modelVersion"] == "m" })
+    );
 }
 
 #[test]

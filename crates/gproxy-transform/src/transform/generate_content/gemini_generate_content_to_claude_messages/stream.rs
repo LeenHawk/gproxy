@@ -7,11 +7,13 @@ pub fn stream_event(
     input: gemini::StreamGenerateContentChunk,
     ctx: &TransformContext,
 ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-    StreamTransform.push(input, ctx)
+    StreamTransform::default().push(input, ctx)
 }
 
 #[derive(Default)]
-pub struct StreamTransform;
+pub struct StreamTransform {
+    lifecycle: common::ClaudeStreamLifecycle,
+}
 
 impl StreamTransform {
     pub fn push(
@@ -19,27 +21,35 @@ impl StreamTransform {
         input: gemini::StreamGenerateContentChunk,
         _: &TransformContext,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-        Ok(gemini_chunk_to_claude(input))
+        let fallback_start = common::claude_message_start(
+            input
+                .response_id
+                .clone()
+                .unwrap_or_else(|| "gemini_message".to_owned()),
+            input
+                .model_version
+                .clone()
+                .unwrap_or_else(|| common::DEFAULT_OPENAI_MODEL.to_owned()),
+            input
+                .usage_metadata
+                .clone()
+                .map(gemini_usage_to_claude)
+                .unwrap_or_else(common::empty_claude_usage),
+        );
+        let events = gemini_chunk_to_claude(input);
+        Ok(self.lifecycle.push(events, fallback_start))
     }
 
     pub fn finish(
         &mut self,
         _: &TransformContext,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
-        Ok(Vec::new())
+        Ok(self.lifecycle.finish())
     }
 }
 
 fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude::StreamEvent> {
-    let usage = input.usage_metadata.map(|usage| {
-        let speed = common::gemini_service_tier_to_claude_speed(usage.service_tier.clone());
-        let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
-        let mut usage =
-            common::completion_usage_to_claude(Some(common::gemini_usage_to_completion(usage)));
-        usage.service_tier = service_tier;
-        usage.speed = speed;
-        usage
-    });
+    let usage = input.usage_metadata.map(gemini_usage_to_claude);
     let blocked = input
         .prompt_feedback
         .as_ref()
@@ -77,6 +87,16 @@ fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude:
         }
     }
     out
+}
+
+fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
+    let speed = common::gemini_service_tier_to_claude_speed(usage.service_tier.clone());
+    let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
+    let mut usage =
+        common::completion_usage_to_claude(Some(common::gemini_usage_to_completion(usage)));
+    usage.service_tier = service_tier;
+    usage.speed = speed;
+    usage
 }
 
 fn gemini_content_to_claude(content: gemini::Content, index: u64) -> Vec<claude::StreamEvent> {
