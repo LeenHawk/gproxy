@@ -6,7 +6,7 @@
 use bytes::Bytes;
 
 use crate::pipeline::error::PipelineError;
-use crate::protocol::OperationKey;
+use crate::protocol::{Operation, OperationKey};
 use crate::transform::stream_adapter::SseTransformer;
 use crate::transform::{TransformContext, dispatch};
 
@@ -69,7 +69,17 @@ pub fn aggregate_response_body(plan: &TransformPlan, body: Bytes) -> Result<Byte
             target,
             ..
         } => {
-            let rev = TransformContext::new(*target, *source);
+            let (context_target, context_source) =
+                if source.operation() == Operation::GenerateContent {
+                    let target = OperationKey::try_new(Operation::GenerateContent, target.kind())
+                        .expect("content transform target kind must be content generation");
+                    let source = OperationKey::try_new(Operation::GenerateContent, source.kind())
+                        .expect("content transform source kind must be content generation");
+                    (target, source)
+                } else {
+                    (*target, *source)
+                };
+            let rev = TransformContext::new(context_target, context_source);
             let output = dispatch::response_bytes_detailed(*rp, &rev, &body)
                 .map_err(PipelineError::TransformResponse)?;
             log_diagnostics(&output.diagnostics);
@@ -105,8 +115,19 @@ pub fn stream_transformer(plan: &TransformPlan) -> Result<Option<SseTransformer>
             let Some(pair) = *response_pair else {
                 return Ok(None);
             };
+            let (context_target, context_source) = if source.operation()
+                == Operation::GenerateContent
+            {
+                let target = OperationKey::try_new(Operation::StreamGenerateContent, target.kind())
+                    .expect("content transform target kind must be content generation");
+                let source = OperationKey::try_new(Operation::StreamGenerateContent, source.kind())
+                    .expect("content transform source kind must be content generation");
+                (target, source)
+            } else {
+                (*target, *source)
+            };
             Some(
-                SseTransformer::new(pair, TransformContext::new(*target, *source))
+                SseTransformer::new(pair, TransformContext::new(context_target, context_source))
                     .map_err(PipelineError::TransformResponse)?,
             )
         }

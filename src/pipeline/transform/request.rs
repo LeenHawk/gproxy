@@ -280,7 +280,20 @@ pub fn request_parts(
             // passes it through.
             let base = match request_pair {
                 Some(rp) => {
-                    let fwd = TransformContext::new(*source, *target)
+                    let (context_source, context_target) = if source.operation()
+                        == Operation::GenerateContent
+                    {
+                        let source =
+                            OperationKey::try_new(Operation::GenerateContent, source.kind())
+                                .expect("content transform source kind must be content generation");
+                        let target =
+                            OperationKey::try_new(Operation::GenerateContent, target.kind())
+                                .expect("content transform target kind must be content generation");
+                        (source, target)
+                    } else {
+                        (*source, *target)
+                    };
+                    let fwd = TransformContext::new(context_source, context_target)
                         .with_request(&ctx.path, ctx.query.as_deref());
                     Bytes::from({
                         let output = dispatch::request_bytes_detailed(*rp, &fwd, &inbound)
