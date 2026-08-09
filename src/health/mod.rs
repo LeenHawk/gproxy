@@ -1,6 +1,8 @@
 //! Per-instance passive health (§3.2/§16.3): member breakers, credential
 //! and credential-model health (breaker + cooldown), member latency EWMA. Soft
 //! state — restart clears, multi-instance deployments observe independently.
+//! The same applies to the operator `clear_*` resets: they only reach the
+//! instance that served the request.
 
 pub mod breaker;
 pub mod config;
@@ -219,6 +221,22 @@ impl HealthState {
             .entry(key)
             .or_insert_with(CredHealth::new);
         health.cooldown_until = health.cooldown_until.max(until);
+    }
+
+    /// Operator reset of this credential's own breaker and cooldown. Dropping
+    /// the entry is the reset: entries are created lazily, so an absent one
+    /// reads as a closed breaker with no cooldown.
+    pub fn clear_credential(&self, credential_id: i64) -> bool {
+        self.creds.remove(&credential_id).is_some()
+    }
+
+    /// Operator reset of every model-scoped breaker and cooldown under one
+    /// credential. Returns how many entries were dropped.
+    pub fn clear_credential_models(&self, credential_id: i64) -> usize {
+        let before = self.credential_models.len();
+        self.credential_models
+            .retain(|key, _| key.credential_id != credential_id);
+        before - self.credential_models.len()
     }
 
     /// EWMA with alpha 0.3; first sample is taken as-is.

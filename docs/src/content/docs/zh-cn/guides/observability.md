@@ -56,6 +56,8 @@ Pipeline 和 channel response classifier 决定整个 credential 或仅某个模
 
 模型请求失败默认只影响精确的 credential/最终上游模型组合，不会根据失败次数或跨模型相关性自动扩大范围。模型列表、Usage、Token Refresh 等不绑定模型的操作则更新 Credential 全局健康。
 
+两个单凭证端点同时接受 `DELETE`，用于人工复位：删除持久化的健康快照，并重置**处理该请求的那个实例**的熔断器与 cooldown（Console 的健康徽章点击即触发）。健康是 per-instance 软状态，多实例部署需要在每个实例上分别清除，或等 cooldown 自然到期。复位只是清空判断依据——若上游仍在失败，下一次尝试会重新打开熔断。
+
 ## Metrics
 
 `/metrics` 需要 admin，并从持久化聚合数据渲染 Prometheus text，不使用进程本地 counter。当前指标包括：

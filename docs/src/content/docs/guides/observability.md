@@ -76,6 +76,14 @@ and are never promoted from failure counts or cross-model correlation.
 Credential-wide operations such as model-list, usage, and token refresh update
 credential-wide health instead.
 
+Both per-credential endpoints also accept `DELETE` as an operator reset: it
+drops the persisted snapshot and resets the breaker and cooldown of the
+instance that served the request (the Console health badges call this on
+click). Health is per-instance soft state, so a multi-instance deployment has
+to clear each instance — or wait out the cooldown. A reset only clears the
+decision inputs: a still-failing upstream re-trips the breaker on the next
+attempt.
+
 ## Metrics
 
 `/metrics` is admin-gated and renders Prometheus text from persisted aggregate

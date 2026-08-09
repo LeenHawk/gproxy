@@ -479,20 +479,86 @@ async fn credential_model_status_routes_are_separate_and_guarded() {
     .await
     .expect_err("non-admin guard");
     assert_eq!(error.status(), http::StatusCode::UNAUTHORIZED);
+
+    // Operator reset: each scope clears independently.
+    let resp = run(
+        &state,
+        &parts(
+            "DELETE",
+            &format!("/admin/credentials/{}/model-statuses", credential.id),
+            Some(&cookie),
+            None,
+        ),
+        b"",
+    )
+    .await
+    .expect("clear model statuses");
+    assert_eq!(resp.status, http::StatusCode::NO_CONTENT);
+    assert!(
+        state
+            .persistence
+            .list_credential_model_statuses(credential.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        state
+            .persistence
+            .list_credential_statuses(credential.id)
+            .await
+            .unwrap()
+            .len(),
+        1,
+        "model reset must not touch credential-wide health"
+    );
+
+    let resp = run(
+        &state,
+        &parts(
+            "DELETE",
+            &format!("/admin/credentials/{}/status", credential.id),
+            Some(&cookie),
+            None,
+        ),
+        b"",
+    )
+    .await
+    .expect("clear credential status");
+    assert_eq!(resp.status, http::StatusCode::NO_CONTENT);
+    assert!(
+        state
+            .persistence
+            .list_credential_statuses(credential.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
 async fn credential_model_status_routes_advertise_read_only_methods() {
     let (state, _dir) = state_with(vec![]).await;
 
+    let resp = run(
+        &state,
+        &parts("OPTIONS", "/admin/credential-model-statuses", None, None),
+        b"",
+    )
+    .await
+    .expect("known route");
+    assert_eq!(resp.status, http::StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(resp.headers[http::header::ALLOW], "GET,HEAD");
+
+    // Per-credential health also accepts the operator reset.
     for path in [
-        "/admin/credential-model-statuses",
         "/admin/credentials/1/model-statuses",
+        "/admin/credentials/1/status",
     ] {
         let resp = run(&state, &parts("OPTIONS", path, None, None), b"")
             .await
             .expect("known route");
         assert_eq!(resp.status, http::StatusCode::METHOD_NOT_ALLOWED);
-        assert_eq!(resp.headers[http::header::ALLOW], "GET,HEAD");
+        assert_eq!(resp.headers[http::header::ALLOW], "GET,HEAD,DELETE");
     }
 }

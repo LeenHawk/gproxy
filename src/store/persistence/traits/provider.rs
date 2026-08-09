@@ -35,6 +35,8 @@ pub trait ProviderPersistence {
         input: CredentialStatusInput,
     ) -> anyhow::Result<CredentialStatus>;
     async fn delete_credential_status(&self, id: i64) -> anyhow::Result<bool>;
+    /// Drop every credential-wide health snapshot of one credential.
+    async fn clear_credential_statuses(&self, credential_id: i64) -> anyhow::Result<()>;
     async fn list_credential_model_statuses(
         &self,
         credential_id: i64,
@@ -47,6 +49,8 @@ pub trait ProviderPersistence {
         input: CredentialModelStatusInput,
     ) -> anyhow::Result<CredentialModelStatus>;
     async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool>;
+    /// Drop every model-scoped health snapshot of one credential.
+    async fn clear_credential_model_statuses(&self, credential_id: i64) -> anyhow::Result<()>;
 
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>>;
     async fn list_all_provider_models(&self) -> anyhow::Result<Vec<ProviderModel>>;
@@ -128,6 +132,9 @@ impl ProviderPersistence for dyn super::PersistenceBackend + '_ {
     async fn delete_credential_status(&self, id: i64) -> anyhow::Result<bool> {
         super::PersistenceBackend::delete_credential_status(self, id).await
     }
+    async fn clear_credential_statuses(&self, credential_id: i64) -> anyhow::Result<()> {
+        super::PersistenceBackend::clear_credential_statuses(self, credential_id).await
+    }
     async fn list_credential_model_statuses(
         &self,
         credential_id: i64,
@@ -147,6 +154,9 @@ impl ProviderPersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool> {
         super::PersistenceBackend::delete_credential_model_status(self, id).await
+    }
+    async fn clear_credential_model_statuses(&self, credential_id: i64) -> anyhow::Result<()> {
+        super::PersistenceBackend::clear_credential_model_statuses(self, credential_id).await
     }
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>> {
         super::PersistenceBackend::list_provider_models(self, provider_id).await

@@ -7,6 +7,12 @@ export interface DatedCredentialHealthLike extends CredentialHealthLike {
   updated_at: number;
 }
 
+/** Model-scoped row; `updated_at` is optional so callers can pass trimmed rows. */
+export interface ModelHealthLike extends CredentialHealthLike {
+  model_id: string;
+  updated_at?: number;
+}
+
 function isExpiredCooldown(status: CredentialHealthLike, nowSecs: number): boolean {
   const until = status.health_json?.open_until;
   return (
@@ -21,15 +27,25 @@ export function isCurrentCredentialStatus(status: CredentialHealthLike, nowSecs:
   return !isExpiredCooldown(status, nowSecs);
 }
 
-export function countCurrentUnhealthyModels<T extends CredentialHealthLike & { model_id: string }>(
+export function countCurrentUnhealthyModels<T extends ModelHealthLike>(
   rows: T[],
   nowSecs: number,
 ): number {
-  return new Set(
-    currentCredentialStatuses(rows, nowSecs)
-      .filter((row) => row.health_kind !== "recovered")
-      .map((row) => row.model_id),
-  ).size;
+  return currentUnhealthyModels(rows, nowSecs).length;
+}
+
+/** Current non-recovered model rows, one per `model_id` (the most recent wins). */
+export function currentUnhealthyModels<T extends ModelHealthLike>(
+  rows: T[],
+  nowSecs: number,
+): T[] {
+  const latest = new Map<string, T>();
+  for (const row of currentCredentialStatuses(rows, nowSecs)) {
+    if (row.health_kind === "recovered") continue;
+    const seen = latest.get(row.model_id);
+    if (!seen || (seen.updated_at ?? 0) < (row.updated_at ?? 0)) latest.set(row.model_id, row);
+  }
+  return [...latest.values()].sort((a, b) => a.model_id.localeCompare(b.model_id));
 }
 
 export function currentCredentialStatuses<T extends CredentialHealthLike>(

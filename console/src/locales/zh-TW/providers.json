@@ -234,7 +234,12 @@
     "rate_limited": "限流冷卻",
     "auth_dead": "驗證失效",
     "until": "至 {{time}}",
-    "modelIssues": "{{count}} 個模型異常"
+    "modelIssues": "{{count}} 個模型異常",
+    "clearHint": "點擊清除該憑證的健康狀態",
+    "clearAria": "清除該憑證的健康狀態",
+    "modelIssuesHint": "點擊清除所有模型異常狀態",
+    "modelIssuesClearAria": "清除所有模型異常狀態",
+    "more": "另有 {{count}} 個…"
   },
   "usage": {
     "title": "上游用量",

@@ -60,19 +60,14 @@ pub(super) fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
             _,
             "siblings",
         ] => Some("GET,HEAD"),
+        // Health snapshots double as operator resets (DELETE).
+        ["admin", "credentials", _, "status" | "model-statuses"] => Some("GET,HEAD,DELETE"),
         ["admin", "providers", _, "upstream-models"]
         | [
             "admin",
             "credentials",
             _,
-            "status"
-            | "model-statuses"
-            | "secret"
-            | "usage"
-            | "rate-limit-reset-credits"
-            | "account"
-            | "profile"
-            | "settings",
+            "secret" | "usage" | "rate-limit-reset-credits" | "account" | "profile" | "settings",
         ]
         | ["admin", "logs", _, "downstream" | "upstream"] => Some("GET,HEAD"),
         ["admin", "credentials", _, "rate-limit-reset-credit"]

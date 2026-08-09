@@ -1,12 +1,10 @@
 //! Shared admin observability endpoints.
 //!
-//! Covers usage, usage-rollups, audit, credential health, and request logs.
-//! Collection DELETE handlers clear accumulated observability data without
-//! enumerating rows through the Console. All handlers are target-independent
-//! and mounted behind `guard_admin`.
+//! Covers usage, usage-rollups, audit, and request logs. Credential health has
+//! its own module (`credential_health`). Collection DELETE handlers clear
+//! accumulated observability data without enumerating rows through the Console.
+//! All handlers are target-independent and mounted behind `guard_admin`.
 //!
-
-use std::collections::HashMap;
 
 use bytes::Bytes;
 use http::Method;
@@ -15,52 +13,15 @@ use serde::Deserialize;
 use crate::admin::guard::guard_admin;
 use crate::api::error::ApiError;
 use crate::app::AppState;
-use crate::store::persistence::records::Credential;
 use crate::store::persistence::{
     AuditLogQuery as StoreAuditLogQuery, LogQuery as StoreLogQuery, UsageQuery as StoreUsageQuery,
 };
 
 use super::pagination;
-use super::{Request, Resp, internal, parse_i64, query, segments};
+use super::{Request, Resp, internal, query, segments};
 
 const DEFAULT_LIMIT: u64 = 100;
 const MAX_LIMIT: u64 = 1000;
-
-#[derive(serde::Serialize)]
-struct CredentialStatusView<T: serde::Serialize> {
-    #[serde(flatten)]
-    status: T,
-    provider_id: Option<i64>,
-}
-
-fn status_views<T: serde::Serialize>(
-    rows: Vec<T>,
-    credentials: Vec<Credential>,
-    credential_id: impl Fn(&T) -> i64,
-) -> Vec<CredentialStatusView<T>> {
-    let provider_ids = credentials
-        .into_iter()
-        .map(|credential| (credential.id, credential.provider_id))
-        .collect::<HashMap<_, _>>();
-    rows.into_iter()
-        .map(|status| CredentialStatusView {
-            provider_id: provider_ids.get(&credential_id(&status)).copied(),
-            status,
-        })
-        .collect()
-}
-
-fn status_views_for_provider<T: serde::Serialize>(
-    rows: Vec<T>,
-    provider_id: Option<i64>,
-) -> Vec<CredentialStatusView<T>> {
-    rows.into_iter()
-        .map(|status| CredentialStatusView {
-            status,
-            provider_id,
-        })
-        .collect()
-}
 
 /// Usage explorer filter + keyset-cursor query.
 #[derive(Debug, Clone, Deserialize)]
@@ -138,17 +99,7 @@ pub(super) async fn dispatch(
         (&Method::GET, ["admin", "audit"]) => list_audit(state, parts).await,
         (&Method::DELETE, ["admin", "audit"]) => clear_audit(state, parts).await,
 
-        // Credential statuses
-        (&Method::GET, ["admin", "credential-statuses"]) => credential_statuses(state, parts).await,
-        (&Method::GET, ["admin", "credentials", id, "status"]) => {
-            credential_status(state, parts, id).await
-        }
-        (&Method::GET, ["admin", "credential-model-statuses"]) => {
-            credential_model_statuses(state, parts).await
-        }
-        (&Method::GET, ["admin", "credentials", id, "model-statuses"]) => {
-            credential_model_status(state, parts, id).await
-        }
+        // Credential statuses live in `credential_health`.
 
         // Request logs
         (&Method::GET, ["admin", "logs"]) => list_logs(state, parts).await,
@@ -293,56 +244,6 @@ async fn clear_audit(state: &AppState, parts: &Request) -> Result<Resp, ApiError
         .await
         .map_err(internal)?;
     Ok(Resp::no_content())
-}
-
-async fn credential_statuses(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
-    guard_admin(state, parts).await?;
-    let (rows, credentials) = futures_util::try_join!(
-        state.persistence.list_all_credential_statuses(),
-        state.persistence.list_all_credentials(),
-    )
-    .map_err(internal)?;
-    let rows = status_views(rows, credentials, |status| status.credential_id);
-    Resp::json(200, &rows)
-}
-
-async fn credential_status(state: &AppState, parts: &Request, id: &str) -> Result<Resp, ApiError> {
-    guard_admin(state, parts).await?;
-    let id = parse_i64(id)?;
-    let (rows, credential) = futures_util::try_join!(
-        state.persistence.list_credential_statuses(id),
-        state.persistence.get_credential(id),
-    )
-    .map_err(internal)?;
-    let rows = status_views_for_provider(rows, credential.map(|row| row.provider_id));
-    Resp::json(200, &rows)
-}
-
-async fn credential_model_statuses(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
-    guard_admin(state, parts).await?;
-    let (rows, credentials) = futures_util::try_join!(
-        state.persistence.list_all_credential_model_statuses(),
-        state.persistence.list_all_credentials(),
-    )
-    .map_err(internal)?;
-    let rows = status_views(rows, credentials, |status| status.credential_id);
-    Resp::json(200, &rows)
-}
-
-async fn credential_model_status(
-    state: &AppState,
-    parts: &Request,
-    id: &str,
-) -> Result<Resp, ApiError> {
-    guard_admin(state, parts).await?;
-    let id = parse_i64(id)?;
-    let (rows, credential) = futures_util::try_join!(
-        state.persistence.list_credential_model_statuses(id),
-        state.persistence.get_credential(id),
-    )
-    .map_err(internal)?;
-    let rows = status_views_for_provider(rows, credential.map(|row| row.provider_id));
-    Resp::json(200, &rows)
 }
 
 async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
