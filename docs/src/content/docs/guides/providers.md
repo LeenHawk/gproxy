@@ -25,6 +25,7 @@ channel ids are:
 | `azure` | Microsoft Foundry / Azure OpenAI, including OpenAI v1, Claude, embeddings, compact, and deployment-bound image APIs. |
 | `aws-bedrock` | Amazon Bedrock API-key channel using native Bedrock control-plane and Runtime APIs. |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
+| `opencodezen`, `opencodego` | OpenCode's curated coding-model gateway, pay-as-you-go and subscription tiers. |
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
@@ -154,6 +155,48 @@ The channel supports provider `cache_breakpoint` rules and magic-string cache
 triggers. Anthropic server-side fallback is not available on Amazon Bedrock;
 use provider-level routing or client-side fallback instead. Model and API
 availability remains region-dependent.
+
+### OpenCode Zen and Go channels
+
+`opencodezen` and `opencodego` are the two tiers of OpenCode's model gateway.
+Zen (`https://opencode.ai/zen/v1`) bills per request against the full curated
+catalogue, including frontier Claude, GPT, and Gemini models. Go
+(`https://opencode.ai/zen/go/v1`) is a flat subscription covering the
+open-weights subset. Both take the same console API key as
+`secret_json.api_key`; create one provider per tier.
+
+The gateway converts wire formats server-side, so each tier serves every model
+in its catalogue on any of its surfaces. GPROXY passes the client's protocol
+through unchanged rather than transforming it first: OpenAI chat completions to
+`/chat/completions`, OpenAI Responses to `/responses`, and Claude Messages to
+`/messages`. Zen additionally serves Gemini natively at
+`/models/{model}:generateContent`; Go has no Gemini route, so Gemini clients are
+converted to chat completions there. The credential travels in whichever header
+the routed surface expects — `Authorization: Bearer`, `x-api-key`, or
+`x-goog-api-key`.
+
+Model lists come from `GET {base}/models`. Get-model and count-tokens requests
+are served locally because the gateway exposes neither. Neither tier reports a
+usage snapshot: OpenCode publishes no per-credential balance or quota endpoint.
+Track Go's five-hour, weekly, and monthly usage limits in the OpenCode console.
+
+#### Console device login
+
+Both tiers also offer a device-code login against the OpenCode Console
+(`https://console.opencode.ai`, or an enterprise console set through
+`settings_json.console_base_url`). The console account token is **not** itself a
+gateway credential: Zen and Go authenticate the bearer against stored API keys,
+so a console token sent to `/zen/v1/*` is rejected. What the login does is read
+the workspace's managed config — `GET {server}/api/config`, the same document
+the OpenCode CLI merges — and keep its `provider.<tier>.options.apiKey` as the
+credential. The stored console tokens are used only to re-pull that key when
+they expire, so a rotated managed key is picked up automatically.
+
+This means the login only succeeds for workspaces that publish a managed config.
+A personal account has none, its config request answers 404, and the login fails
+with a message pointing at manual entry rather than saving a credential that
+would fail every request. Copy the key from the OpenCode dashboard into
+`secret_json.api_key` for that case.
 
 ### Claude fallback
 

@@ -28,6 +28,8 @@ pub mod groq;
 pub mod nvidia;
 #[cfg(feature = "channel-openai")]
 pub mod openai;
+#[cfg(any(feature = "channel-opencodezen", feature = "channel-opencodego"))]
+pub mod opencode;
 #[cfg(feature = "channel-openrouter")]
 pub mod openrouter;
 #[cfg(feature = "channel-vercel")]

@@ -21,8 +21,8 @@ GPROXY gives your applications one stable API while letting you choose and
 combine upstream providers behind it:
 
 - **Multi-provider routing** — OpenAI, Anthropic, Gemini/Vertex, DeepSeek, Groq,
-  OpenRouter, NVIDIA, Vercel AI Gateway, Claude Code, Codex, Grok Build, and any
-  OpenAI-compatible custom endpoint.
+  OpenRouter, NVIDIA, Vercel AI Gateway, OpenCode Zen/Go, Claude Code, Codex,
+  Grok Build, and any OpenAI-compatible custom endpoint.
 - **Two routing modes** — aggregated `/v1/...` (provider in the model name) and
   scoped `/{provider}/v1/...` (provider in the URL).
 - **Cross-protocol translation** — an OpenAI client can use a Claude or Gemini

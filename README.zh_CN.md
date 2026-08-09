@@ -19,7 +19,8 @@ Provider 路由、协议转换、凭据、配额和可观测性，并提供内�
 GPROXY 为应用提供稳定的统一 API，上游 Provider 可以按需选择和组合：
 
 - **多供应商路由** —— OpenAI、Anthropic、Gemini/Vertex、DeepSeek、Groq、OpenRouter、
-  NVIDIA、Vercel AI Gateway、Claude Code、Codex、Grok Build，以及任意 OpenAI 兼容自定义端点。
+  NVIDIA、Vercel AI Gateway、OpenCode Zen/Go、Claude Code、Codex、Grok Build，以及任意
+  OpenAI 兼容自定义端点。
 - **两种路由模式** —— 聚合 `/v1/...`（Provider 写在模型名里）与 Scoped
   `/{provider}/v1/...`（Provider 写在 URL 里）。
 - **跨协议转换** —— OpenAI 客户端可以使用 Claude 或 Gemini 上游，响应会再转换回客户端

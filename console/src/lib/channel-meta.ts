@@ -15,6 +15,8 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   nvidia: "https://integrate.api.nvidia.com",
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
+  opencodezen: "https://opencode.ai/zen/v1",
+  opencodego: "https://opencode.ai/zen/go/v1",
   grokbuild: "https://cli-chat-proxy.grok.com/v1",
   claudeweb: "https://claude.ai",
 };
@@ -40,6 +42,8 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
+  opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
+  opencodego: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages"],
   vercel: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
   custom: CUSTOM_ENDPOINTS,
   claudeapi: ["openai_list_models", "claude_list_models", "openai_get_model", "claude_get_model", "claude_count_tokens", "openai_chat_completions", "claude_messages"],
@@ -73,6 +77,18 @@ const API_KEY_IDS = [
   "vercel", "custom", "claudeapi", "aistudio", "vertexexpress",
 ] as const;
 
+// Both OpenCode tiers stay API-key credentials; the console device login is an
+// extra way to obtain the key, not a second credential family.
+const OPENCODE_SETTINGS: ChannelSettingField[] = [
+  {
+    key: "console_base_url",
+    control: "url",
+    label: "OpenCode Console URL",
+    required: false,
+    placeholder: "https://console.opencode.ai",
+  },
+];
+
 const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -80,6 +96,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   claudeapi: "Claude API", claudecode: "Claude Code", claudeweb: "Claude Web",
   copilotcli: "GitHub Copilot CLI", geminicli: "Gemini CLI",
   grokbuild: "Grok Build", vertexexpress: "Vertex AI Express",
+  opencodezen: "OpenCode Zen", opencodego: "OpenCode Go",
 };
 function builtinMeta(
   id: string,
@@ -138,6 +155,14 @@ export const CHANNELS: ChannelMeta[] = [
     loginModes: ["device"],
     usage: true,
     secretTemplate: { github_token: "" },
+  }),
+  builtinMeta("opencodezen", "api_key", {
+    loginModes: ["device"],
+    settingsFields: OPENCODE_SETTINGS,
+  }),
+  builtinMeta("opencodego", "api_key", {
+    loginModes: ["device"],
+    settingsFields: OPENCODE_SETTINGS,
   }),
 ];
 

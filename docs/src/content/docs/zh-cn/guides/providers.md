@@ -21,6 +21,7 @@ channel id 包括：
 | `azure` | Microsoft Foundry / Azure OpenAI；支持 OpenAI v1、Claude、嵌入、Compact 与 deployment-bound 图片接口。 |
 | `aws-bedrock` | 使用 API key 接入 Amazon Bedrock 原生 control-plane 与 Runtime API。 |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
+| `opencodezen`, `opencodego` | OpenCode 面向编码模型的精选网关，分按量与订阅两档。 |
 | `claudeapi` | Anthropic Claude Messages API。 |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
@@ -117,6 +118,39 @@ Claude `5m`/`1h` TTL 转发到 `cachePoint`，实际是否接受取决于所选 
 
 该渠道支持 provider `cache_breakpoint` 规则与魔法字符串缓存触发。Amazon Bedrock 不提供
 Anthropic 服务端回退；请改用 provider 级路由或客户端回退。模型与 API 的可用性仍取决于区域。
+
+### OpenCode Zen 与 Go 渠道
+
+`opencodezen` 与 `opencodego` 是 OpenCode 模型网关的两档。Zen
+（`https://opencode.ai/zen/v1`）按请求计费，覆盖完整精选目录，包含 Claude、GPT、
+Gemini 等前沿模型；Go（`https://opencode.ai/zen/go/v1`）是固定订阅，只覆盖开放权重
+模型子集。两者都使用控制台 API key，存放在 `secret_json.api_key`；每一档各建一个
+Provider。
+
+网关在服务端完成协议互转，因此同一档内任意模型都能从它的任意入口访问。GPROXY 直接
+透传客户端协议而不先做转换：OpenAI chat completions 走 `/chat/completions`，OpenAI
+Responses 走 `/responses`，Claude Messages 走 `/messages`。Zen 额外原生支持 Gemini
+（`/models/{model}:generateContent`）；Go 没有 Gemini 路由，该档的 Gemini 请求会转换为
+chat completions。凭据按路由到的入口选择请求头 —— `Authorization: Bearer`、
+`x-api-key` 或 `x-goog-api-key`。
+
+模型列表来自 `GET {base}/models`。网关既没有单模型查询也没有 token 计数接口，这两个
+操作由 GPROXY 本地处理。两档都不上报 usage 快照：OpenCode 没有公开按凭据的余额或配额
+接口；Go 的 5 小时 / 周 / 月额度请在 OpenCode 控制台查看。
+
+#### Console device 登录
+
+两档还支持对 OpenCode Console（`https://console.opencode.ai`，企业自建控制台用
+`settings_json.console_base_url` 指定）的 device-code 登录。注意：console 账号 token
+**本身不是**网关凭据 —— Zen 与 Go 会把 bearer 拿去比对已存的 API key，直接把 console
+token 发给 `/zen/v1/*` 会被拒绝。这个登录真正做的事是读取工作区的托管配置
+（`GET {server}/api/config`，与 OpenCode CLI 合并的是同一份文档），取其中的
+`provider.<tier>.options.apiKey` 作为凭据；保存下来的 console token 只用于在过期后
+重新拉取该 key，因此托管 key 轮换后会自动跟上。
+
+也就是说，只有发布了托管配置的工作区才能登录成功。个人账号没有托管配置，config 请求
+返回 404，登录会直接失败并提示改用手工填写 —— 而不是存下一个每次请求都会失败的凭据。
+这种情况请从 OpenCode 控制台复制 key 填入 `secret_json.api_key`。
 
 ### Claude 回退
 
