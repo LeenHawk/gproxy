@@ -15,7 +15,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   nvidia: "https://integrate.api.nvidia.com",
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
-  grokbuild: "https://api.x.ai/v1",
+  grokbuild: "https://cli-chat-proxy.grok.com/v1",
   claudeweb: "https://claude.ai",
 };
 

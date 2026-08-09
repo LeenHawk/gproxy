@@ -1,5 +1,4 @@
-//! Grok Build channel — xAI Grok Build device-code/API-key access over the
-//! OpenAI-like Responses API at `https://api.x.ai/v1`.
+//! Grok Build channel — xAI OAuth access through the CLI chat proxy.
 
 mod auth;
 mod shape;
@@ -112,7 +111,6 @@ impl Channel for GrokBuildChannel {
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-        let token = auth::bearer_token(ctx.secret)?.to_owned();
         let base = auth::base_url(ctx.provider_settings, ctx.secret);
         let path = auth::upstream_path(base, ctx.path);
         let websocket = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
@@ -139,7 +137,7 @@ impl Channel for GrokBuildChannel {
         } else {
             auth::AcceptMode::Json
         };
-        auth::apply(&mut req, &token, accept, session_id.as_deref())?;
+        auth::apply(&mut req, ctx.secret, accept, session_id.as_deref())?;
         if websocket {
             *req.uri_mut() = crate::channel::responses_websocket::websocket_uri(req.uri())?;
             return crate::channel::responses_websocket::prepare(req);

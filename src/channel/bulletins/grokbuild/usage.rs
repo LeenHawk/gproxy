@@ -4,7 +4,6 @@
 //! OpenAI-compatible `https://api.x.ai/v1` API does not expose it.
 
 use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use http::{HeaderMap, Method, Request, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
@@ -20,16 +19,15 @@ pub(super) fn request(
     secret: &Value,
     settings: &Value,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
-    let token = auth::bearer_token(secret)?;
     let base = usage_base_url(settings, secret);
     let uri = join_url(base, "/billing", Some("format=credits"))?;
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
-    let bearer = HeaderValue::from_str(&format!("Bearer {token}"))
-        .map_err(|e| ChannelError::InvalidCredential(format!("bad bearer token: {e}")))?;
-    let h = req.headers_mut();
-    h.insert(AUTHORIZATION, bearer);
-    h.insert(ACCEPT, HeaderValue::from_static("application/json"));
-    h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    auth::apply(&mut req, secret, auth::AcceptMode::Json, None)?;
+    if let Some(user_id) = auth::user_id(secret) {
+        let user_id = http::HeaderValue::from_str(user_id)
+            .map_err(|e| ChannelError::Build(format!("bad x-userid: {e}")))?;
+        req.headers_mut().insert("x-userid", user_id);
+    }
     Ok(Some(req))
 }
 
@@ -207,6 +205,21 @@ impl MoneyValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn billing_request_uses_oauth_proxy_identity() {
+        let secret = json!({ "access_token": "oauth-token", "sub": "user-1" });
+        let request = request(&secret, &Value::Null).unwrap().unwrap();
+
+        assert_eq!(
+            request.uri().to_string(),
+            "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
+        );
+        assert_eq!(request.headers()["authorization"], "Bearer oauth-token");
+        assert_eq!(request.headers()["x-xai-token-auth"], "xai-grok-cli");
+        assert_eq!(request.headers()["x-userid"], "user-1");
+    }
 
     #[test]
     fn parses_billing_credits_payload() {

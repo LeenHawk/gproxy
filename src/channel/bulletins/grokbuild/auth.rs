@@ -1,13 +1,12 @@
-//! Grok Build auth — xAI device-code/API-key bearer auth against the
-//! OpenAI-like `https://api.x.ai/v1` Responses API.
+//! Grok Build OAuth against xAI's CLI chat proxy.
 
 use std::sync::Arc;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64URL;
 use bytes::Bytes;
-use http::Request;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT};
+use http::{HeaderMap, Request};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -15,11 +14,14 @@ use crate::channel::ChannelError;
 use crate::channel::oauth;
 use crate::http::client::UpstreamClient;
 
-pub(super) const DEFAULT_BASE_URL: &str = "https://api.x.ai/v1";
+pub(super) const DEFAULT_BASE_URL: &str = "https://cli-chat-proxy.grok.com/v1";
+const LEGACY_API_BASE_URL: &str = "https://api.x.ai/v1";
 const TOKEN_URL: &str = "https://auth.x.ai/oauth2/token";
 const DEVICE_CODE_URL: &str = "https://auth.x.ai/oauth2/device/code";
 const OAUTH_CLIENT_ID: &str = "b1a00492-073a-47ea-816f-4c329264a828";
-const OAUTH_SCOPE: &str = "openid profile email offline_access grok-cli:access api:access conversations:read conversations:write";
+const OAUTH_SCOPE: &str = "openid profile email offline_access grok-cli:access api:access conversations:read conversations:write workspaces:read workspaces:write";
+const GROK_CLIENT_VERSION: &str = "1.0.0";
+const GROK_CLIENT_IDENTIFIER: &str = "grok-shell";
 const EXPIRY_SKEW_MS: i64 = 60_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -230,18 +232,20 @@ async fn form_post(
 
 pub(super) fn bearer_token(secret: &Value) -> Result<&str, ChannelError> {
     secret_str(secret, "access_token")
-        .or_else(|| secret_str(secret, "api_key"))
-        .ok_or_else(|| ChannelError::InvalidCredential("missing access_token or api_key".into()))
+        .ok_or_else(|| ChannelError::InvalidCredential("missing OAuth access_token".into()))
 }
 
 pub(super) fn base_url<'a>(settings: &'a Value, secret: &'a Value) -> &'a str {
-    settings
+    let configured = settings
         .get("base_url")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|base| !base.is_empty())
-        .or_else(|| secret_str(secret, "base_url"))
-        .unwrap_or(DEFAULT_BASE_URL)
+        .or_else(|| secret_str(secret, "base_url"));
+    match configured {
+        Some(base) if !is_legacy_api_base_url(base) => base,
+        _ => DEFAULT_BASE_URL,
+    }
 }
 
 pub(super) fn upstream_path(base_url: &str, path: &str) -> String {
@@ -253,9 +257,6 @@ pub(super) fn upstream_path(base_url: &str, path: &str) -> String {
 }
 
 pub(super) fn needs_refresh(secret: &Value) -> bool {
-    if secret_str(secret, "api_key").is_some() && secret_str(secret, "refresh_token").is_none() {
-        return false;
-    }
     if secret_str(secret, "access_token").is_none() {
         return true;
     }
@@ -314,8 +315,13 @@ pub(super) async fn refresh(
         .or_insert_with(|| Value::String("oauth".into()));
     obj.entry("type")
         .or_insert_with(|| Value::String("xai".into()));
-    obj.entry("base_url")
-        .or_insert_with(|| Value::String(DEFAULT_BASE_URL.into()));
+    if obj
+        .get("base_url")
+        .and_then(Value::as_str)
+        .is_none_or(is_legacy_api_base_url)
+    {
+        obj.insert("base_url".into(), Value::String(DEFAULT_BASE_URL.into()));
+    }
     obj.entry("token_endpoint")
         .or_insert_with(|| Value::String(token_url.into()));
     Ok(out)
@@ -333,15 +339,17 @@ pub(super) fn session_id_from_body(body: &Bytes) -> Option<String> {
 
 pub(super) fn apply(
     req: &mut Request<Bytes>,
-    bearer_token: &str,
+    secret: &Value,
     accept: AcceptMode,
     session_id: Option<&str>,
 ) -> Result<(), ChannelError> {
+    let bearer_token = bearer_token(secret)?;
     let bearer = HeaderValue::from_str(&format!("Bearer {bearer_token}"))
         .map_err(|e| ChannelError::InvalidCredential(format!("bad bearer token: {e}")))?;
     let headers = req.headers_mut();
     headers.insert(AUTHORIZATION, bearer);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    apply_proxy_identity(headers)?;
     match accept {
         AcceptMode::Json => {
             headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
@@ -358,7 +366,54 @@ pub(super) fn apply(
             .map_err(|e| ChannelError::Build(format!("bad x-grok-conv-id: {e}")))?;
         headers.insert(HeaderName::from_static("x-grok-conv-id"), value);
     }
+    if let Some(user_id) = user_id(secret) {
+        let value = HeaderValue::from_str(user_id)
+            .map_err(|e| ChannelError::Build(format!("bad x-grok-user-id: {e}")))?;
+        headers.insert(HeaderName::from_static("x-grok-user-id"), value);
+    }
     Ok(())
+}
+
+pub(super) fn user_id(secret: &Value) -> Option<&str> {
+    secret_str(secret, "sub")
+}
+
+fn apply_proxy_identity(headers: &mut HeaderMap) -> Result<(), ChannelError> {
+    headers.insert(
+        HeaderName::from_static("x-xai-token-auth"),
+        HeaderValue::from_static("xai-grok-cli"),
+    );
+    headers.insert(
+        HeaderName::from_static("x-authenticateresponse"),
+        HeaderValue::from_static("authenticate-response"),
+    );
+    headers.insert(
+        HeaderName::from_static("x-grok-client-version"),
+        HeaderValue::from_static(GROK_CLIENT_VERSION),
+    );
+    headers.insert(
+        HeaderName::from_static("x-grok-client-identifier"),
+        HeaderValue::from_static(GROK_CLIENT_IDENTIFIER),
+    );
+    headers.insert(
+        HeaderName::from_static("x-grok-client-mode"),
+        HeaderValue::from_static("headless"),
+    );
+    let user_agent = format!(
+        "{GROK_CLIENT_IDENTIFIER}/{GROK_CLIENT_VERSION} ({}; {})",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_str(&user_agent)
+            .map_err(|e| ChannelError::Build(format!("bad Grok User-Agent: {e}")))?,
+    );
+    Ok(())
+}
+
+fn is_legacy_api_base_url(base: &str) -> bool {
+    base.trim().trim_end_matches('/') == LEGACY_API_BASE_URL
 }
 
 fn validate_xai_endpoint(raw_url: &str, field: &str) -> Result<(), ChannelError> {
@@ -387,4 +442,55 @@ fn jwt_claim(id_token: &str, claim: &str) -> Option<String> {
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(ToOwned::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oauth_only_rejects_api_key_secret() {
+        let secret = json!({ "api_key": "xai-test" });
+        assert!(bearer_token(&secret).is_err());
+        assert!(needs_refresh(&secret));
+    }
+
+    #[test]
+    fn legacy_public_api_base_moves_to_cli_proxy() {
+        let settings = Value::Null;
+        let secret = json!({ "base_url": "https://api.x.ai/v1/" });
+        assert_eq!(base_url(&settings, &secret), DEFAULT_BASE_URL);
+    }
+
+    #[test]
+    fn oauth_request_has_cli_proxy_identity() {
+        let secret = json!({ "access_token": "oauth-token", "sub": "user-1" });
+        let mut req = Request::post("https://cli-chat-proxy.grok.com/v1/responses")
+            .body(Bytes::new())
+            .unwrap();
+
+        apply(&mut req, &secret, AcceptMode::EventStream, Some("conv-1")).unwrap();
+
+        let headers = req.headers();
+        assert_eq!(headers[AUTHORIZATION], "Bearer oauth-token");
+        assert_eq!(headers["x-xai-token-auth"], "xai-grok-cli");
+        assert_eq!(headers["x-authenticateresponse"], "authenticate-response");
+        assert_eq!(headers["x-grok-client-version"], GROK_CLIENT_VERSION);
+        assert_eq!(headers["x-grok-client-identifier"], GROK_CLIENT_IDENTIFIER);
+        assert_eq!(headers["x-grok-client-mode"], "headless");
+        assert_eq!(headers["x-grok-user-id"], "user-1");
+        assert_eq!(headers["x-grok-conv-id"], "conv-1");
+        assert!(
+            headers[USER_AGENT]
+                .to_str()
+                .unwrap()
+                .starts_with("grok-shell/1.0.0 (")
+        );
+    }
+
+    #[test]
+    fn oauth_scope_matches_current_grok_build() {
+        assert!(OAUTH_SCOPE.contains("workspaces:read"));
+        assert!(OAUTH_SCOPE.contains("workspaces:write"));
+    }
 }
