@@ -52,9 +52,10 @@ pub(in crate::pipeline::failover) struct ResponseRuleCtx<'a> {
 
 /// Materialize an attempt's body. Response-direction transform applies only to
 /// 2xx bodies — error payloads stay provider-native (M2 fidelity note). When
-/// `upstream` is `Some`, the post-decode provider response is captured for
-/// §8-D logging (buffered: returned via `upstream_raw`; streaming: backfilled by
-/// the spliced guard).
+/// When `capture_upstream_body` is true, the post-decode provider response is
+/// captured for §8-D logging. Buffered responses are returned via
+/// `upstream_raw`; streaming responses are backfilled through `upstream`'s
+/// spliced guard.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::pipeline::failover) async fn materialize(
     channel: &Arc<dyn Channel>,
@@ -64,6 +65,7 @@ pub(in crate::pipeline::failover) async fn materialize(
     status: StatusCode,
     provider_settings: &Value,
     response_rules: Option<ResponseRuleCtx<'_>>,
+    capture_upstream_body: bool,
     upstream: Option<UpstreamRespCapture>,
     settle_ctx: Option<settle::SettleCtx>,
 ) -> Result<Materialized, PipelineError> {
@@ -99,7 +101,7 @@ pub(in crate::pipeline::failover) async fn materialize(
             // aggregate path (codex/kiro non-stream) the real decode happens in
             // `materialize_buffered` → decode here too so the log matches the
             // streaming arm + the "post-decode" contract, not raw binary frames.
-            let upstream_raw = if upstream.is_some() {
+            let upstream_raw = if capture_upstream_body {
                 if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
                     Some(Bytes::from(decode_buffered_stream(channel, &b)?))
                 } else {

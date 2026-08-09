@@ -318,13 +318,12 @@ pub async fn run_failover(
             // exposed. Custom streams own their exact per-call guards inside
             // `CapturingClient`; buffered responses are folded into the later
             // INSERT as before.
-            let direct_stream_capture = {
+            let capture_upstream_body = {
                 let ls = state.cp().log_settings.clone();
-                !multi_step
-                    && matches!(&source, BodySource::Streaming(_))
-                    && ls.enable_upstream_log
-                    && ls.enable_upstream_log_body
+                !multi_step && ls.enable_upstream_log && ls.enable_upstream_log_body
             };
+            let direct_stream_capture =
+                capture_upstream_body && matches!(&source, BodySource::Streaming(_));
             let up_cap = if direct_stream_capture {
                 capture::start_upstream_stream(
                     state,
@@ -393,6 +392,7 @@ pub async fn run_failover(
                 status,
                 &cand.provider.settings_json,
                 response_rules,
+                capture_upstream_body,
                 up_cap,
                 settle_ctx,
             )
