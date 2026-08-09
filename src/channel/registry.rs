@@ -24,8 +24,8 @@ pub enum ChannelRegistryError {
 ///
 /// `login` is a parallel map holding the channels that support a §14.5
 /// interactive login (authcode: codex, claudecode, geminicli, antigravity,
-/// kiro; device-code: grokbuild, copilotcli, opencodezen, opencodego; cookie:
-/// claudecode, claudeweb); a channel absent from it has no login flow.
+/// kiro; device-code: grokbuild, copilotcli, cline, opencodezen, opencodego;
+/// cookie: claudecode, claudeweb); a channel absent from it has no login flow.
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
@@ -164,6 +164,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(crate::channel::bulletins::custom::CustomChannel),
         #[cfg(feature = "channel-claudeapi")]
         Arc::new(crate::channel::bulletins::claudeapi::ClaudeApiChannel),
+        #[cfg(feature = "channel-cline")]
+        Arc::new(crate::channel::bulletins::cline::ClineChannel),
         #[cfg(feature = "channel-aistudio")]
         Arc::new(crate::channel::bulletins::aistudio::AiStudioChannel),
         #[cfg(feature = "channel-vertexexpress")]
@@ -228,6 +230,11 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
         (
             "copilotcli",
             Arc::new(crate::channel::bulletins::copilotcli::CopilotCliChannel),
+        ),
+        #[cfg(feature = "channel-cline")]
+        (
+            "cline",
+            Arc::new(crate::channel::bulletins::cline::ClineChannel),
         ),
         #[cfg(feature = "channel-opencodezen")]
         (

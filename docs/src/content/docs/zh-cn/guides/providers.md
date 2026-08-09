@@ -22,6 +22,7 @@ channel id 包括：
 | `aws-bedrock` | 使用 API key 接入 Amazon Bedrock 原生 control-plane 与 Runtime API。 |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
 | `opencodezen`, `opencodego` | OpenCode 面向编码模型的精选网关，分按量与订阅两档。 |
+| `cline` | Cline 账号推理网关，按量计费与 ClinePass 订阅通用。 |
 | `claudeapi` | Anthropic Claude Messages API。 |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
@@ -151,6 +152,28 @@ token 发给 `/zen/v1/*` 会被拒绝。这个登录真正做的事是读取工�
 也就是说，只有发布了托管配置的工作区才能登录成功。个人账号没有托管配置，config 请求
 返回 404，登录会直接失败并提示改用手工填写 —— 而不是存下一个每次请求都会失败的凭据。
 这种情况请从 OpenCode 控制台复制 key 填入 `secret_json.api_key`。
+
+### Cline 渠道
+
+`cline` 渠道接入 Cline 账号的推理网关 `https://api.cline.bot/api/v1`。它只有
+OpenAI chat completions 一个面，模型 ID 采用 OpenRouter 风格的带命名空间形式，例如
+`anthropic/claude-sonnet-4.6`；Claude、Gemini 与 Responses 客户端都会转换成 chat
+completions。模型列表来自 `GET {base}/models`；单模型查询与 token 计数由本地处理。
+
+Cline 的两种计费形态 —— 按量计费额度与 ClinePass 订阅 —— 共用同一 base URL 和凭据，
+只在账号可调用的模型集上有区别，因此一个 Provider 即可覆盖。
+
+凭据接受两种形态，且发送方式不同：Cline 账号 access token 是 WorkOS 签发的 JWT，
+按 Cline 官方客户端的做法以 `Authorization: Bearer workos:<token>` 发送；手工粘贴的
+工作区 API key 则原样发送。account token 请以不带前缀的形式存入
+`secret_json.access_token`，API key 存入 `secret_json.api_key`。
+
+device 登录先走 WorkOS device flow，再把拿到的 WorkOS token 对通过
+`POST {base}/auth/register` 换成真正授权推理的 Cline token；`POST {base}/auth/refresh`
+负责轮换，触发时机取自 access token 的 `exp` claim。只持有 API key 的凭据不会触发刷新。
+
+usage 上报账号额度余额，来自 `GET {base}/users/{id}/balance`。该接口按用户维度提供，
+用户 ID 由登录流程写入，因此手工粘贴 API key 创建的凭据不上报 usage。
 
 ### Claude 回退
 

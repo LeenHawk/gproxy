@@ -18,6 +18,8 @@ pub mod aws_bedrock;
 pub mod azure;
 #[cfg(feature = "channel-claudeapi")]
 pub mod claudeapi;
+#[cfg(feature = "channel-cline")]
+pub mod cline;
 #[cfg(feature = "channel-custom")]
 pub mod custom;
 #[cfg(feature = "channel-deepseek")]

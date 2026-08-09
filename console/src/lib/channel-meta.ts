@@ -15,6 +15,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   nvidia: "https://integrate.api.nvidia.com",
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
+  cline: "https://api.cline.bot/api/v1",
   opencodezen: "https://opencode.ai/zen/v1",
   opencodego: "https://opencode.ai/zen/go/v1",
   grokbuild: "https://cli-chat-proxy.grok.com/v1",
@@ -44,6 +45,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
   opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
   opencodego: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages"],
+  cline: ["openai_list_models", "openai_chat_completions", "usage"],
   vercel: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
   custom: CUSTOM_ENDPOINTS,
   claudeapi: ["openai_list_models", "claude_list_models", "openai_get_model", "claude_get_model", "claude_count_tokens", "openai_chat_completions", "claude_messages"],
@@ -94,6 +96,7 @@ const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 const DISPLAY_NAMES: Record<string, string> = {
   aistudio: "Google AI Studio", antigravity: "Antigravity", "aws-bedrock": "AWS Bedrock",
   claudeapi: "Claude API", claudecode: "Claude Code", claudeweb: "Claude Web",
+  cline: "Cline",
   copilotcli: "GitHub Copilot CLI", geminicli: "Gemini CLI",
   grokbuild: "Grok Build", vertexexpress: "Vertex AI Express",
   opencodezen: "OpenCode Zen", opencodego: "OpenCode Go",
@@ -150,6 +153,9 @@ export const CHANNELS: ChannelMeta[] = [
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
   }),
   oauthMeta("grokbuild", ["device"]),
+  oauthMeta("cline", ["device"], {
+    secretTemplate: { ...OAUTH_TOKENS, api_key: "" },
+  }),
   oauthMeta("kiro", ["authcode", "device"]),
   builtinMeta("copilotcli", "github_token", {
     loginModes: ["device"],

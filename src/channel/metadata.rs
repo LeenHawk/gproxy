@@ -52,6 +52,15 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 json!({ "access_token": "", "refresh_token": "", "account_id": "" });
         }
         "grokbuild" => oauth(&mut metadata, &[LoginMode::Device], true),
+        // Account tokens from the device login, or a pasted workspace API key —
+        // `prepare` accepts either, so the template offers both.
+        "cline" => {
+            metadata.credential_family = CredentialFamily::OauthTokens;
+            metadata.login_modes = vec![LoginMode::Device];
+            metadata.secret_template =
+                json!({ "access_token": "", "refresh_token": "", "api_key": "" });
+            metadata.usage = true;
+        }
         "kiro" => oauth(
             &mut metadata,
             &[LoginMode::Authcode, LoginMode::Device],
@@ -96,6 +105,7 @@ fn display_name(id: &str) -> &str {
         "claudeapi" => "Claude API",
         "claudecode" => "Claude Code",
         "claudeweb" => "Claude Web",
+        "cline" => "Cline",
         "copilotcli" => "GitHub Copilot CLI",
         "geminicli" => "Gemini CLI",
         "grokbuild" => "Grok Build",
@@ -253,6 +263,7 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_compact",
         ],
         "kiro" => &["openai_responses"],
+        "cline" => &["openai_list_models", "openai_chat_completions", "usage"],
         // Only the surfaces the gateway actually exposes: one OpenAI-shaped
         // catalogue endpoint (the Claude/Gemini lists transform onto it) plus
         // the content surfaces. Get-model and count-tokens are served locally.

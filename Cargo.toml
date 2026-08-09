@@ -173,6 +173,7 @@ channels-edge = [
     "channel-azure",
     "channel-aws-bedrock",
     "channel-claudeapi",
+    "channel-cline",
     "channel-claudecode",
     "channel-codex",
     "channel-copilotcli",
@@ -197,6 +198,7 @@ channel-azure = []
 channel-aws-bedrock = []
 channel-claudeweb = ["upstream-wreq"]
 channel-claudeapi = []
+channel-cline = []
 channel-claudecode = []
 channel-codex = []
 channel-copilotcli = []
