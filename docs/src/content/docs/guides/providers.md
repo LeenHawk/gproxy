@@ -26,6 +26,7 @@ channel ids are:
 | `aws-bedrock` | Amazon Bedrock API-key channel using native Bedrock control-plane and Runtime APIs. |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
 | `opencodezen`, `opencodego` | OpenCode's curated coding-model gateway, pay-as-you-go and subscription tiers. |
+| `cline` | Cline account inference, both usage-billed credits and ClinePass. |
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
@@ -197,6 +198,34 @@ A personal account has none, its config request answers 404, and the login fails
 with a message pointing at manual entry rather than saving a credential that
 would fail every request. Copy the key from the OpenCode dashboard into
 `secret_json.api_key` for that case.
+
+### Cline channel
+
+The `cline` channel serves a Cline account's inference gateway at
+`https://api.cline.bot/api/v1`. It is OpenAI chat completions only, with
+OpenRouter-style namespaced model ids such as `anthropic/claude-sonnet-4.6`, so
+Claude, Gemini, and Responses clients are converted to chat completions. Model
+lists come from `GET {base}/models`; get-model and count-tokens are local.
+
+Both Cline billing products — usage-billed credits and the ClinePass
+subscription — share this base URL and credential and differ only in which
+models the account may call, so one provider covers either.
+
+Two credential shapes are accepted, and they are presented differently. A Cline
+account access token is a WorkOS-issued JWT and goes out as
+`Authorization: Bearer workos:<token>`, matching Cline's own client; a pasted
+workspace API key is sent verbatim. Store the account token unprefixed in
+`secret_json.access_token`, or the key in `secret_json.api_key`.
+
+The device login runs the WorkOS device flow, then registers the resulting
+WorkOS pair with `POST {base}/auth/register` to obtain the Cline tokens that
+actually authorize inference; `POST {base}/auth/refresh` rotates them, driven by
+the access token's `exp` claim. A credential holding only an API key never
+refreshes.
+
+Usage reports the account credit balance from `GET {base}/users/{id}/balance`.
+That endpoint is user-scoped and the id comes from the login, so credentials
+created by pasting an API key report no usage.
 
 ### Claude fallback
 
