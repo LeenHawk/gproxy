@@ -2,7 +2,9 @@ use super::*;
 
 #[tokio::test]
 async fn buffered_error_response_body_is_captured() {
-    let error_body = Bytes::from_static(br#"{"error":{"code":"content_rejected"}}"#);
+    let error_body = Bytes::from_static(
+        br#"{"error":{"code":"content_rejected","message":"request rejected"}}"#,
+    );
     let mut upstream = FakeUpstream::new(error_body.clone(), vec![]);
     upstream.statuses = vec![StatusCode::FORBIDDEN];
     let upstream = Arc::new(upstream);
@@ -46,6 +48,6 @@ async fn buffered_error_response_body_is_captured() {
     assert_eq!(rows[0].status, 403);
     assert_eq!(
         rows[0].response_body.as_deref(),
-        Some(r#"{"error":{"code":"content_rejected"}}"#)
+        Some(r#"{"error":{"code":"[REDACTED]","message":"request rejected"}}"#)
     );
 }
