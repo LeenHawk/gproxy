@@ -48,9 +48,20 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         .or_else(|| config.billing_period_end.clone());
 
     let mut windows = Vec::new();
-    if let Some(percent) = config.credit_usage_percent {
+    if config.credit_usage_percent.is_some()
+        || config.current_period.is_some()
+        || config.monthly_limit.is_some()
+        || config.used.is_some()
+        || config.billing_period_end.is_some()
+    {
+        let name = config
+            .current_period
+            .as_ref()
+            .and_then(|period| period.period_type.as_deref())
+            .map(period_window_name)
+            .unwrap_or("usage");
         windows.push(with_period(
-            UsageWindow::percent("credits", percent).label("Credits"),
+            UsageWindow::percent(name, included_usage_percent(&config)),
             reset.as_deref(),
         ));
     }
@@ -105,22 +116,52 @@ fn with_period(mut window: UsageWindow, reset: Option<&str>) -> UsageWindow {
     window
 }
 
+fn period_window_name(period_type: &str) -> &'static str {
+    if period_type.contains("WEEKLY") {
+        "weekly_limit"
+    } else if period_type.contains("MONTHLY") {
+        "monthly_limit"
+    } else {
+        "usage"
+    }
+}
+
+fn included_usage_percent(config: &BillingConfig) -> f64 {
+    if let Some(percent) = config.credit_usage_percent {
+        return percent.clamp(0.0, 100.0);
+    }
+
+    let limit = config
+        .monthly_limit
+        .as_ref()
+        .and_then(MoneyValue::number)
+        .unwrap_or(0.0);
+    if limit <= 0.0 {
+        return 0.0;
+    }
+    let used = config
+        .used
+        .as_ref()
+        .and_then(MoneyValue::number)
+        .unwrap_or(0.0);
+    (used / limit * 100.0).clamp(0.0, 100.0)
+}
+
 fn credits(config: &BillingConfig) -> Option<UsageCredits> {
+    let balance_number = config.prepaid_balance.as_ref().and_then(MoneyValue::number);
     let balance = config
         .prepaid_balance
         .as_ref()
         .and_then(MoneyValue::display);
     let used = config.on_demand_used.as_ref().and_then(MoneyValue::number);
     let cap = config.on_demand_cap.as_ref().and_then(MoneyValue::number);
-    if balance.is_none() && used.is_none() && cap.is_none() {
+    let has_prepaid = balance_number.is_some_and(|value| value.abs() > f64::EPSILON);
+    let has_pay_as_you_go = cap.is_some_and(|value| value.abs() > f64::EPSILON);
+    if !has_prepaid && !has_pay_as_you_go {
         return None;
     }
     Some(UsageCredits {
-        has_credits: config
-            .prepaid_balance
-            .as_ref()
-            .and_then(MoneyValue::number)
-            .map(|v| v > 0.0),
+        has_credits: balance_number.map(|value| value > 0.0),
         balance,
         used_credits: used,
         monthly_limit: cap,
@@ -159,6 +200,8 @@ struct BillingResponse {
 struct BillingConfig {
     current_period: Option<BillingPeriod>,
     credit_usage_percent: Option<f64>,
+    monthly_limit: Option<MoneyValue>,
+    used: Option<MoneyValue>,
     on_demand_cap: Option<MoneyValue>,
     on_demand_used: Option<MoneyValue>,
     product_usage: Option<Vec<ProductUsage>>,
@@ -169,6 +212,8 @@ struct BillingConfig {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BillingPeriod {
+    #[serde(rename = "type")]
+    period_type: Option<String>,
     end: Option<String>,
 }
 
@@ -247,7 +292,7 @@ mod tests {
 
         let snap = parse(StatusCode::OK, &body).expect("snapshot");
         assert_eq!(snap.windows.len(), 2);
-        assert_eq!(snap.windows[0].name, "credits");
+        assert_eq!(snap.windows[0].name, "weekly_limit");
         assert_eq!(snap.windows[0].used_percent, Some(2.0));
         assert_eq!(
             snap.windows[0].resets_at.as_deref(),
@@ -258,5 +303,53 @@ mod tests {
         assert_eq!(credits.balance.as_deref(), Some("0"));
         assert_eq!(credits.used_credits, Some(3.5));
         assert_eq!(credits.monthly_limit, Some(25.0));
+    }
+
+    #[test]
+    fn zero_credit_payload_matches_grok_build_fallback() {
+        let body = Bytes::from_static(
+            br#"{
+              "currentPeriod": {
+                "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                "start": "2026-08-08T00:00:00+00:00",
+                "end": "2026-08-15T00:00:00+00:00"
+              },
+              "creditUsagePercent": null,
+              "productUsage": null,
+              "onDemandCap": {"val": 0},
+              "onDemandUsed": {"val": 0},
+              "prepaidBalance": {"val": 0}
+            }"#,
+        );
+
+        let snap = parse(StatusCode::OK, &body).expect("snapshot");
+        assert_eq!(snap.windows.len(), 1);
+        assert_eq!(snap.windows[0].name, "weekly_limit");
+        assert_eq!(snap.windows[0].used_percent, Some(0.0));
+        assert_eq!(
+            snap.windows[0].resets_at.as_deref(),
+            Some("2026-08-15T00:00:00+00:00")
+        );
+        assert!(snap.credits.is_none());
+    }
+
+    #[test]
+    fn legacy_payload_derives_percent_from_used_and_limit() {
+        let body = Bytes::from_static(
+            br#"{
+              "monthlyLimit": {"val": 2000},
+              "used": {"val": 500},
+              "billingPeriodEnd": "2026-09-01T00:00:00+00:00"
+            }"#,
+        );
+
+        let snap = parse(StatusCode::OK, &body).expect("snapshot");
+        assert_eq!(snap.windows.len(), 1);
+        assert_eq!(snap.windows[0].name, "usage");
+        assert_eq!(snap.windows[0].used_percent, Some(25.0));
+        assert_eq!(
+            snap.windows[0].resets_at.as_deref(),
+            Some("2026-09-01T00:00:00+00:00")
+        );
     }
 }
