@@ -184,6 +184,8 @@ channels-edge = [
     "channel-kiro",
     "channel-nvidia",
     "channel-openai",
+    "channel-opencodego",
+    "channel-opencodezen",
     "channel-openrouter",
     "channel-vercel",
     "channel-vertex",
@@ -206,6 +208,8 @@ channel-groq = []
 channel-kiro = []
 channel-nvidia = []
 channel-openai = []
+channel-opencodego = []
+channel-opencodezen = []
 channel-openrouter = []
 channel-vercel = []
 channel-vertex = []

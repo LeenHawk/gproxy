@@ -2,7 +2,9 @@
 
 use serde_json::json;
 
-use crate::channel::{Channel, ChannelMetadata, CredentialFamily, LoginMode};
+use crate::channel::{
+    Channel, ChannelMetadata, ChannelSettingField, CredentialFamily, LoginMode, SettingControl,
+};
 
 pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
     let id = channel.id();
@@ -61,6 +63,19 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             metadata.secret_template = json!({ "github_token": "" });
             metadata.usage = true;
         }
+        // The gateway credential stays an API key; the console device login is
+        // an extra way to obtain one, not a second credential family.
+        "opencodezen" | "opencodego" => {
+            metadata.login_modes = vec![LoginMode::Device];
+            metadata.settings_fields = vec![ChannelSettingField {
+                key: "console_base_url".into(),
+                control: SettingControl::Url,
+                label: Some("OpenCode Console URL".into()),
+                required: false,
+                default: None,
+                placeholder: Some("https://console.opencode.ai".into()),
+            }];
+        }
         _ => {}
     }
     metadata
@@ -84,6 +99,8 @@ fn display_name(id: &str) -> &str {
         "copilotcli" => "GitHub Copilot CLI",
         "geminicli" => "Gemini CLI",
         "grokbuild" => "Grok Build",
+        "opencodego" => "OpenCode Go",
+        "opencodezen" => "OpenCode Zen",
         "vertexexpress" => "Vertex AI Express",
         _ => id,
     }
@@ -236,6 +253,23 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_compact",
         ],
         "kiro" => &["openai_responses"],
+        // Only the surfaces the gateway actually exposes: one OpenAI-shaped
+        // catalogue endpoint (the Claude/Gemini lists transform onto it) plus
+        // the content surfaces. Get-model and count-tokens are served locally.
+        "opencodezen" => &[
+            "openai_list_models",
+            "openai_chat_completions",
+            "openai_responses",
+            "claude_messages",
+            "gemini_generate_content",
+            "gemini_stream_generate_content",
+        ],
+        "opencodego" => &[
+            "openai_list_models",
+            "openai_chat_completions",
+            "openai_responses",
+            "claude_messages",
+        ],
         _ => &[],
     }
 }
