@@ -8,11 +8,7 @@ use serde_json::{Map, Value, json};
 const COMPOSER_MODEL_PREFIX: &str = "grok-composer-";
 
 pub(super) fn shape_responses_request(body: Bytes) -> Bytes {
-    shape_responses_body(body, false, false)
-}
-
-pub(super) fn shape_responses_websocket_request(body: Bytes) -> Bytes {
-    shape_responses_body(body, true, true)
+    shape_responses_body(body)
 }
 
 pub(super) fn shape_image_request(body: Bytes) -> Bytes {
@@ -32,11 +28,7 @@ pub(super) fn shape_image_request(body: Bytes) -> Bytes {
         .unwrap_or_else(|_| body)
 }
 
-fn shape_responses_body(
-    body: Bytes,
-    preserve_previous_response_id: bool,
-    websocket: bool,
-) -> Bytes {
+fn shape_responses_body(body: Bytes) -> Bytes {
     let Ok(mut value) = serde_json::from_slice::<Value>(&body) else {
         return body;
     };
@@ -44,10 +36,7 @@ fn shape_responses_body(
         return body;
     };
 
-    map.insert("stream".into(), Value::Bool(true));
-    if !preserve_previous_response_id {
-        map.remove("previous_response_id");
-    }
+    map.remove("previous_response_id");
     for key in [
         "metadata",
         "prompt_cache_retention",
@@ -64,30 +53,10 @@ fn shape_responses_body(
     remove_encrypted_reasoning_include(map);
     strip_unsupported_reasoning_effort(map);
     ensure_composer_session(map);
-    if websocket {
-        normalize_websocket_frame(map);
-    }
 
     serde_json::to_vec(&value)
         .map(Bytes::from)
         .unwrap_or_else(|_| body)
-}
-
-fn normalize_websocket_frame(map: &mut Map<String, Value>) {
-    map.insert("type".into(), Value::String("response.create".into()));
-    map.remove("stream");
-    map.remove("stream_options");
-    map.remove("background");
-    map.insert("store".into(), Value::Bool(true));
-    if map
-        .get("previous_response_id")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .is_some()
-    {
-        map.remove("instructions");
-    }
 }
 
 fn normalize_tools(map: &mut Map<String, Value>) {
