@@ -490,6 +490,7 @@ fn claude_ctx_as(api_key: &str, model: &str, stream: bool) -> RequestCtx {
 mod aggregate;
 mod authz;
 mod billing;
+mod capture;
 mod conversion;
 mod envelope;
 mod health;
