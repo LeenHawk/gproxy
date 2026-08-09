@@ -234,7 +234,12 @@
     "rate_limited": "rate-limited",
     "auth_dead": "auth dead",
     "until": "until {{time}}",
-    "modelIssues": "Abnormal models: {{count}}"
+    "modelIssues": "Abnormal models: {{count}}",
+    "clearHint": "Click to clear this credential's health state",
+    "clearAria": "Clear this credential's health state",
+    "modelIssuesHint": "Click to clear every model health state",
+    "modelIssuesClearAria": "Clear every model health state",
+    "more": "+{{count}} more…"
   },
   "usage": {
     "title": "Upstream usage",

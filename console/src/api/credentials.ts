@@ -111,6 +111,17 @@ export const credentialModelStatusesQuery = (credentialId: number) =>
     staleTime: 30_000,
   });
 
+/** Operator reset: drops the credential-wide health snapshot and the serving
+ *  instance's breaker/cooldown. Health is per-instance soft state. */
+export function clearCredentialStatus(credentialId: number): Promise<void> {
+  return api<void>(`/admin/credentials/${credentialId}/status`, { method: "DELETE" });
+}
+
+/** Same reset, scoped to the credential's model-bound health entries. */
+export function clearCredentialModelStatuses(credentialId: number): Promise<void> {
+  return api<void>(`/admin/credentials/${credentialId}/model-statuses`, { method: "DELETE" });
+}
+
 /** LIVE upstream query — expensive; consumers must keep enabled:false and refetch manually. */
 export const credentialUsageQuery = (credentialId: number) =>
   queryOptions({

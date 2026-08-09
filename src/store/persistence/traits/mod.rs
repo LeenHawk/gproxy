@@ -124,10 +124,12 @@ persistence_backend! {
     ProviderPersistence::list_all_credential_statuses => list_all_credential_statuses() -> anyhow::Result<Vec<CredentialStatus>>;
     ProviderPersistence::upsert_credential_status => upsert_credential_status(input: CredentialStatusInput) -> anyhow::Result<CredentialStatus>;
     ProviderPersistence::delete_credential_status => delete_credential_status(id: i64) -> anyhow::Result<bool>;
+    ProviderPersistence::clear_credential_statuses => clear_credential_statuses(credential_id: i64) -> anyhow::Result<()>;
     ProviderPersistence::list_credential_model_statuses => list_credential_model_statuses(credential_id: i64) -> anyhow::Result<Vec<CredentialModelStatus>>;
     ProviderPersistence::list_all_credential_model_statuses => list_all_credential_model_statuses() -> anyhow::Result<Vec<CredentialModelStatus>>;
     ProviderPersistence::upsert_credential_model_status => upsert_credential_model_status(input: CredentialModelStatusInput) -> anyhow::Result<CredentialModelStatus>;
     ProviderPersistence::delete_credential_model_status => delete_credential_model_status(id: i64) -> anyhow::Result<bool>;
+    ProviderPersistence::clear_credential_model_statuses => clear_credential_model_statuses(credential_id: i64) -> anyhow::Result<()>;
     ProviderPersistence::list_provider_models => list_provider_models(provider_id: i64) -> anyhow::Result<Vec<ProviderModel>>;
     ProviderPersistence::list_all_provider_models => list_all_provider_models() -> anyhow::Result<Vec<ProviderModel>>;
     ProviderPersistence::upsert_provider_model => upsert_provider_model(input: ProviderModelInput) -> anyhow::Result<ProviderModel>;

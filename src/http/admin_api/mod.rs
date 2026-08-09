@@ -12,6 +12,7 @@ pub(crate) mod auth;
 pub(crate) mod authz;
 pub(crate) mod batch;
 mod channels;
+pub(crate) mod credential_health;
 pub(crate) mod credential_import;
 pub(crate) mod credential_ops;
 pub mod crud;
@@ -343,8 +344,14 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
         return Some(r);
     }
 
-    // 5. Observability (usage / rollups / audit / logs / cred-status).
+    // 5. Observability (usage / rollups / audit / logs).
     if let Some(r) = observability::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
+    // 5b. Credential health snapshots + operator resets. Must come BEFORE
+    //     `special` so its 4-seg `credentials/{id}/…` arms are not shadowed.
+    if let Some(r) = credential_health::dispatch(state, parts, body).await {
         return Some(r);
     }
 

@@ -75,6 +75,9 @@ impl ProviderPersistence for DbPersistence {
     async fn delete_credential_status(&self, id: i64) -> anyhow::Result<bool> {
         ops::provider::credential_statuses::delete(&self.conn, id).await
     }
+    async fn clear_credential_statuses(&self, credential_id: i64) -> anyhow::Result<()> {
+        ops::provider::credential_statuses::delete_by_credential(&self.conn, credential_id).await
+    }
     async fn list_credential_model_statuses(
         &self,
         credential_id: i64,
@@ -94,6 +97,10 @@ impl ProviderPersistence for DbPersistence {
     }
     async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool> {
         ops::provider::credential_model_statuses::delete(&self.conn, id).await
+    }
+    async fn clear_credential_model_statuses(&self, credential_id: i64) -> anyhow::Result<()> {
+        ops::provider::credential_model_statuses::delete_by_credential(&self.conn, credential_id)
+            .await
     }
 
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>> {
