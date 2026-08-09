@@ -9,56 +9,56 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as PortalRouteImport } from './routes/_portal'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as PortalRouteImport } from './routes/_portal'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppUsersRouteImport } from './routes/_app/users'
-import { Route as AppRulesRouteImport } from './routes/_app/rules'
-import { Route as AppRoutesRouteImport } from './routes/_app/routes'
-import { Route as AppProvidersRouteImport } from './routes/_app/providers'
 import { Route as AppOrgsRouteImport } from './routes/_app/orgs'
-import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
-import { Route as AppUsageIndexRouteImport } from './routes/_app/usage/index'
-import { Route as AppUpdateIndexRouteImport } from './routes/_app/update/index'
-import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
-import { Route as AppRulesIndexRouteImport } from './routes/_app/rules/index'
-import { Route as AppRoutesIndexRouteImport } from './routes/_app/routes/index'
-import { Route as AppProvidersIndexRouteImport } from './routes/_app/providers/index'
-import { Route as AppPricingIndexRouteImport } from './routes/_app/pricing/index'
+import { Route as AppProvidersRouteImport } from './routes/_app/providers'
+import { Route as AppRoutesRouteImport } from './routes/_app/routes'
+import { Route as AppRulesRouteImport } from './routes/_app/rules'
+import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppOrgsIndexRouteImport } from './routes/_app/orgs/index'
-import { Route as AppUsersNewRouteImport } from './routes/_app/users/new'
-import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
-import { Route as AppRulesNewRouteImport } from './routes/_app/rules/new'
-import { Route as AppRulesRuleSetIdRouteImport } from './routes/_app/rules/$ruleSetId'
-import { Route as AppRoutesNewRouteImport } from './routes/_app/routes/new'
-import { Route as AppRoutesRouteIdRouteImport } from './routes/_app/routes/$routeId'
-import { Route as AppProvidersNewRouteImport } from './routes/_app/providers/new'
-import { Route as AppProvidersProviderIdRouteImport } from './routes/_app/providers/$providerId'
-import { Route as AppOrgsNewRouteImport } from './routes/_app/orgs/new'
 import { Route as AppOrgsOrgIdRouteImport } from './routes/_app/orgs/$orgId'
-import { Route as PortalAccountUsageIndexRouteImport } from './routes/_portal/account/usage/index'
-import { Route as PortalAccountSecurityIndexRouteImport } from './routes/_portal/account/security/index'
-import { Route as PortalAccountLimitsIndexRouteImport } from './routes/_portal/account/limits/index'
-import { Route as PortalAccountKeysIndexRouteImport } from './routes/_portal/account/keys/index'
+import { Route as AppOrgsNewRouteImport } from './routes/_app/orgs/new'
+import { Route as AppPricingIndexRouteImport } from './routes/_app/pricing/index'
+import { Route as AppProvidersIndexRouteImport } from './routes/_app/providers/index'
+import { Route as AppProvidersProviderIdRouteImport } from './routes/_app/providers/$providerId'
+import { Route as AppProvidersNewRouteImport } from './routes/_app/providers/new'
+import { Route as AppRoutesIndexRouteImport } from './routes/_app/routes/index'
+import { Route as AppRoutesRouteIdRouteImport } from './routes/_app/routes/$routeId'
+import { Route as AppRoutesNewRouteImport } from './routes/_app/routes/new'
+import { Route as AppRulesIndexRouteImport } from './routes/_app/rules/index'
+import { Route as AppRulesRuleSetIdRouteImport } from './routes/_app/rules/$ruleSetId'
+import { Route as AppRulesNewRouteImport } from './routes/_app/rules/new'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppUpdateIndexRouteImport } from './routes/_app/update/index'
+import { Route as AppUsageIndexRouteImport } from './routes/_app/usage/index'
+import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
+import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
+import { Route as AppUsersNewRouteImport } from './routes/_app/users/new'
 import { Route as AppProvidersProviderIdIndexRouteImport } from './routes/_app/providers/$providerId/index'
-import { Route as AppProvidersProviderIdSettingsRouteImport } from './routes/_app/providers/$providerId/settings'
-import { Route as AppProvidersProviderIdRuleSetsRouteImport } from './routes/_app/providers/$providerId/rule-sets'
-import { Route as AppProvidersProviderIdRoutingRulesRouteImport } from './routes/_app/providers/$providerId/routing-rules'
-import { Route as AppProvidersProviderIdModelsRouteImport } from './routes/_app/providers/$providerId/models'
 import { Route as AppProvidersProviderIdCredentialsRouteImport } from './routes/_app/providers/$providerId/credentials'
+import { Route as AppProvidersProviderIdModelsRouteImport } from './routes/_app/providers/$providerId/models'
+import { Route as AppProvidersProviderIdRoutingRulesRouteImport } from './routes/_app/providers/$providerId/routing-rules'
+import { Route as AppProvidersProviderIdRuleSetsRouteImport } from './routes/_app/providers/$providerId/rule-sets'
+import { Route as AppProvidersProviderIdSettingsRouteImport } from './routes/_app/providers/$providerId/settings'
+import { Route as PortalAccountKeysIndexRouteImport } from './routes/_portal/account/keys/index'
+import { Route as PortalAccountLimitsIndexRouteImport } from './routes/_portal/account/limits/index'
+import { Route as PortalAccountSecurityIndexRouteImport } from './routes/_portal/account/security/index'
+import { Route as PortalAccountUsageIndexRouteImport } from './routes/_portal/account/usage/index'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/_portal',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -66,19 +66,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppUsersRoute = AppUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppRulesRoute = AppRulesRouteImport.update({
-  id: '/rules',
-  path: '/rules',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppRoutesRoute = AppRoutesRouteImport.update({
-  id: '/routes',
-  path: '/routes',
+const AppOrgsRoute = AppOrgsRouteImport.update({
+  id: '/orgs',
+  path: '/orgs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProvidersRoute = AppProvidersRouteImport.update({
@@ -86,49 +76,19 @@ const AppProvidersRoute = AppProvidersRouteImport.update({
   path: '/providers',
   getParentRoute: () => AppRoute,
 } as any)
-const AppOrgsRoute = AppOrgsRouteImport.update({
-  id: '/orgs',
-  path: '/orgs',
+const AppRoutesRoute = AppRoutesRouteImport.update({
+  id: '/routes',
+  path: '/routes',
   getParentRoute: () => AppRoute,
 } as any)
-const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppUsersRoute,
-} as any)
-const AppUsageIndexRoute = AppUsageIndexRouteImport.update({
-  id: '/usage/',
-  path: '/usage/',
+const AppRulesRoute = AppRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
   getParentRoute: () => AppRoute,
 } as any)
-const AppUpdateIndexRoute = AppUpdateIndexRouteImport.update({
-  id: '/update/',
-  path: '/update/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppRulesIndexRoute = AppRulesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppRulesRoute,
-} as any)
-const AppRoutesIndexRoute = AppRoutesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppRoutesRoute,
-} as any)
-const AppProvidersIndexRoute = AppProvidersIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppProvidersRoute,
-} as any)
-const AppPricingIndexRoute = AppPricingIndexRouteImport.update({
-  id: '/pricing/',
-  path: '/pricing/',
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => AppRoute,
 } as any)
 const AppOrgsIndexRoute = AppOrgsIndexRouteImport.update({
@@ -136,39 +96,24 @@ const AppOrgsIndexRoute = AppOrgsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppOrgsRoute,
 } as any)
-const AppUsersNewRoute = AppUsersNewRouteImport.update({
+const AppOrgsOrgIdRoute = AppOrgsOrgIdRouteImport.update({
+  id: '/$orgId',
+  path: '/$orgId',
+  getParentRoute: () => AppOrgsRoute,
+} as any)
+const AppOrgsNewRoute = AppOrgsNewRouteImport.update({
   id: '/new',
   path: '/new',
-  getParentRoute: () => AppUsersRoute,
+  getParentRoute: () => AppOrgsRoute,
 } as any)
-const AppUsersUserIdRoute = AppUsersUserIdRouteImport.update({
-  id: '/$userId',
-  path: '/$userId',
-  getParentRoute: () => AppUsersRoute,
+const AppPricingIndexRoute = AppPricingIndexRouteImport.update({
+  id: '/pricing/',
+  path: '/pricing/',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppRulesNewRoute = AppRulesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AppRulesRoute,
-} as any)
-const AppRulesRuleSetIdRoute = AppRulesRuleSetIdRouteImport.update({
-  id: '/$ruleSetId',
-  path: '/$ruleSetId',
-  getParentRoute: () => AppRulesRoute,
-} as any)
-const AppRoutesNewRoute = AppRoutesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AppRoutesRoute,
-} as any)
-const AppRoutesRouteIdRoute = AppRoutesRouteIdRouteImport.update({
-  id: '/$routeId',
-  path: '/$routeId',
-  getParentRoute: () => AppRoutesRoute,
-} as any)
-const AppProvidersNewRoute = AppProvidersNewRouteImport.update({
-  id: '/new',
-  path: '/new',
+const AppProvidersIndexRoute = AppProvidersIndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => AppProvidersRoute,
 } as any)
 const AppProvidersProviderIdRoute = AppProvidersProviderIdRouteImport.update({
@@ -176,66 +121,75 @@ const AppProvidersProviderIdRoute = AppProvidersProviderIdRouteImport.update({
   path: '/$providerId',
   getParentRoute: () => AppProvidersRoute,
 } as any)
-const AppOrgsNewRoute = AppOrgsNewRouteImport.update({
+const AppProvidersNewRoute = AppProvidersNewRouteImport.update({
   id: '/new',
   path: '/new',
-  getParentRoute: () => AppOrgsRoute,
+  getParentRoute: () => AppProvidersRoute,
 } as any)
-const AppOrgsOrgIdRoute = AppOrgsOrgIdRouteImport.update({
-  id: '/$orgId',
-  path: '/$orgId',
-  getParentRoute: () => AppOrgsRoute,
+const AppRoutesIndexRoute = AppRoutesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoutesRoute,
 } as any)
-const PortalAccountUsageIndexRoute = PortalAccountUsageIndexRouteImport.update({
-  id: '/account/usage/',
-  path: '/account/usage/',
-  getParentRoute: () => PortalRoute,
+const AppRoutesRouteIdRoute = AppRoutesRouteIdRouteImport.update({
+  id: '/$routeId',
+  path: '/$routeId',
+  getParentRoute: () => AppRoutesRoute,
 } as any)
-const PortalAccountSecurityIndexRoute =
-  PortalAccountSecurityIndexRouteImport.update({
-    id: '/account/security/',
-    path: '/account/security/',
-    getParentRoute: () => PortalRoute,
-  } as any)
-const PortalAccountLimitsIndexRoute =
-  PortalAccountLimitsIndexRouteImport.update({
-    id: '/account/limits/',
-    path: '/account/limits/',
-    getParentRoute: () => PortalRoute,
-  } as any)
-const PortalAccountKeysIndexRoute = PortalAccountKeysIndexRouteImport.update({
-  id: '/account/keys/',
-  path: '/account/keys/',
-  getParentRoute: () => PortalRoute,
+const AppRoutesNewRoute = AppRoutesNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppRoutesRoute,
+} as any)
+const AppRulesIndexRoute = AppRulesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRulesRoute,
+} as any)
+const AppRulesRuleSetIdRoute = AppRulesRuleSetIdRouteImport.update({
+  id: '/$ruleSetId',
+  path: '/$ruleSetId',
+  getParentRoute: () => AppRulesRoute,
+} as any)
+const AppRulesNewRoute = AppRulesNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppRulesRoute,
+} as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUpdateIndexRoute = AppUpdateIndexRouteImport.update({
+  id: '/update/',
+  path: '/update/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsageIndexRoute = AppUsageIndexRouteImport.update({
+  id: '/usage/',
+  path: '/usage/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppUsersRoute,
+} as any)
+const AppUsersUserIdRoute = AppUsersUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => AppUsersRoute,
+} as any)
+const AppUsersNewRoute = AppUsersNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppUsersRoute,
 } as any)
 const AppProvidersProviderIdIndexRoute =
   AppProvidersProviderIdIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AppProvidersProviderIdRoute,
-  } as any)
-const AppProvidersProviderIdSettingsRoute =
-  AppProvidersProviderIdSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AppProvidersProviderIdRoute,
-  } as any)
-const AppProvidersProviderIdRuleSetsRoute =
-  AppProvidersProviderIdRuleSetsRouteImport.update({
-    id: '/rule-sets',
-    path: '/rule-sets',
-    getParentRoute: () => AppProvidersProviderIdRoute,
-  } as any)
-const AppProvidersProviderIdRoutingRulesRoute =
-  AppProvidersProviderIdRoutingRulesRouteImport.update({
-    id: '/routing-rules',
-    path: '/routing-rules',
-    getParentRoute: () => AppProvidersProviderIdRoute,
-  } as any)
-const AppProvidersProviderIdModelsRoute =
-  AppProvidersProviderIdModelsRouteImport.update({
-    id: '/models',
-    path: '/models',
     getParentRoute: () => AppProvidersProviderIdRoute,
   } as any)
 const AppProvidersProviderIdCredentialsRoute =
@@ -244,6 +198,52 @@ const AppProvidersProviderIdCredentialsRoute =
     path: '/credentials',
     getParentRoute: () => AppProvidersProviderIdRoute,
   } as any)
+const AppProvidersProviderIdModelsRoute =
+  AppProvidersProviderIdModelsRouteImport.update({
+    id: '/models',
+    path: '/models',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdRoutingRulesRoute =
+  AppProvidersProviderIdRoutingRulesRouteImport.update({
+    id: '/routing-rules',
+    path: '/routing-rules',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdRuleSetsRoute =
+  AppProvidersProviderIdRuleSetsRouteImport.update({
+    id: '/rule-sets',
+    path: '/rule-sets',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdSettingsRoute =
+  AppProvidersProviderIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const PortalAccountKeysIndexRoute = PortalAccountKeysIndexRouteImport.update({
+  id: '/account/keys/',
+  path: '/account/keys/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalAccountLimitsIndexRoute =
+  PortalAccountLimitsIndexRouteImport.update({
+    id: '/account/limits/',
+    path: '/account/limits/',
+    getParentRoute: () => PortalRoute,
+  } as any)
+const PortalAccountSecurityIndexRoute =
+  PortalAccountSecurityIndexRouteImport.update({
+    id: '/account/security/',
+    path: '/account/security/',
+    getParentRoute: () => PortalRoute,
+  } as any)
+const PortalAccountUsageIndexRoute = PortalAccountUsageIndexRouteImport.update({
+  id: '/account/usage/',
+  path: '/account/usage/',
+  getParentRoute: () => PortalRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -477,11 +477,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_portal': {
@@ -491,11 +491,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -505,25 +505,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/users': {
-      id: '/_app/users'
-      path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof AppUsersRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/rules': {
-      id: '/_app/rules'
-      path: '/rules'
-      fullPath: '/rules'
-      preLoaderRoute: typeof AppRulesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/routes': {
-      id: '/_app/routes'
-      path: '/routes'
-      fullPath: '/routes'
-      preLoaderRoute: typeof AppRoutesRouteImport
+    '/_app/orgs': {
+      id: '/_app/orgs'
+      path: '/orgs'
+      fullPath: '/orgs'
+      preLoaderRoute: typeof AppOrgsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/providers': {
@@ -533,67 +519,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProvidersRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/orgs': {
-      id: '/_app/orgs'
-      path: '/orgs'
-      fullPath: '/orgs'
-      preLoaderRoute: typeof AppOrgsRouteImport
+    '/_app/routes': {
+      id: '/_app/routes'
+      path: '/routes'
+      fullPath: '/routes'
+      preLoaderRoute: typeof AppRoutesRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/users/': {
-      id: '/_app/users/'
-      path: '/'
-      fullPath: '/users/'
-      preLoaderRoute: typeof AppUsersIndexRouteImport
-      parentRoute: typeof AppUsersRoute
-    }
-    '/_app/usage/': {
-      id: '/_app/usage/'
-      path: '/usage'
-      fullPath: '/usage/'
-      preLoaderRoute: typeof AppUsageIndexRouteImport
+    '/_app/rules': {
+      id: '/_app/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof AppRulesRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/update/': {
-      id: '/_app/update/'
-      path: '/update'
-      fullPath: '/update/'
-      preLoaderRoute: typeof AppUpdateIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/settings/': {
-      id: '/_app/settings/'
-      path: '/settings'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof AppSettingsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/rules/': {
-      id: '/_app/rules/'
-      path: '/'
-      fullPath: '/rules/'
-      preLoaderRoute: typeof AppRulesIndexRouteImport
-      parentRoute: typeof AppRulesRoute
-    }
-    '/_app/routes/': {
-      id: '/_app/routes/'
-      path: '/'
-      fullPath: '/routes/'
-      preLoaderRoute: typeof AppRoutesIndexRouteImport
-      parentRoute: typeof AppRoutesRoute
-    }
-    '/_app/providers/': {
-      id: '/_app/providers/'
-      path: '/'
-      fullPath: '/providers/'
-      preLoaderRoute: typeof AppProvidersIndexRouteImport
-      parentRoute: typeof AppProvidersRoute
-    }
-    '/_app/pricing/': {
-      id: '/_app/pricing/'
-      path: '/pricing'
-      fullPath: '/pricing/'
-      preLoaderRoute: typeof AppPricingIndexRouteImport
+    '/_app/users': {
+      id: '/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AppUsersRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/orgs/': {
@@ -603,53 +547,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOrgsIndexRouteImport
       parentRoute: typeof AppOrgsRoute
     }
-    '/_app/users/new': {
-      id: '/_app/users/new'
+    '/_app/orgs/$orgId': {
+      id: '/_app/orgs/$orgId'
+      path: '/$orgId'
+      fullPath: '/orgs/$orgId'
+      preLoaderRoute: typeof AppOrgsOrgIdRouteImport
+      parentRoute: typeof AppOrgsRoute
+    }
+    '/_app/orgs/new': {
+      id: '/_app/orgs/new'
       path: '/new'
-      fullPath: '/users/new'
-      preLoaderRoute: typeof AppUsersNewRouteImport
-      parentRoute: typeof AppUsersRoute
+      fullPath: '/orgs/new'
+      preLoaderRoute: typeof AppOrgsNewRouteImport
+      parentRoute: typeof AppOrgsRoute
     }
-    '/_app/users/$userId': {
-      id: '/_app/users/$userId'
-      path: '/$userId'
-      fullPath: '/users/$userId'
-      preLoaderRoute: typeof AppUsersUserIdRouteImport
-      parentRoute: typeof AppUsersRoute
+    '/_app/pricing/': {
+      id: '/_app/pricing/'
+      path: '/pricing'
+      fullPath: '/pricing/'
+      preLoaderRoute: typeof AppPricingIndexRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/rules/new': {
-      id: '/_app/rules/new'
-      path: '/new'
-      fullPath: '/rules/new'
-      preLoaderRoute: typeof AppRulesNewRouteImport
-      parentRoute: typeof AppRulesRoute
-    }
-    '/_app/rules/$ruleSetId': {
-      id: '/_app/rules/$ruleSetId'
-      path: '/$ruleSetId'
-      fullPath: '/rules/$ruleSetId'
-      preLoaderRoute: typeof AppRulesRuleSetIdRouteImport
-      parentRoute: typeof AppRulesRoute
-    }
-    '/_app/routes/new': {
-      id: '/_app/routes/new'
-      path: '/new'
-      fullPath: '/routes/new'
-      preLoaderRoute: typeof AppRoutesNewRouteImport
-      parentRoute: typeof AppRoutesRoute
-    }
-    '/_app/routes/$routeId': {
-      id: '/_app/routes/$routeId'
-      path: '/$routeId'
-      fullPath: '/routes/$routeId'
-      preLoaderRoute: typeof AppRoutesRouteIdRouteImport
-      parentRoute: typeof AppRoutesRoute
-    }
-    '/_app/providers/new': {
-      id: '/_app/providers/new'
-      path: '/new'
-      fullPath: '/providers/new'
-      preLoaderRoute: typeof AppProvidersNewRouteImport
+    '/_app/providers/': {
+      id: '/_app/providers/'
+      path: '/'
+      fullPath: '/providers/'
+      preLoaderRoute: typeof AppProvidersIndexRouteImport
       parentRoute: typeof AppProvidersRoute
     }
     '/_app/providers/$providerId': {
@@ -659,47 +582,96 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProvidersProviderIdRouteImport
       parentRoute: typeof AppProvidersRoute
     }
-    '/_app/orgs/new': {
-      id: '/_app/orgs/new'
+    '/_app/providers/new': {
+      id: '/_app/providers/new'
       path: '/new'
-      fullPath: '/orgs/new'
-      preLoaderRoute: typeof AppOrgsNewRouteImport
-      parentRoute: typeof AppOrgsRoute
+      fullPath: '/providers/new'
+      preLoaderRoute: typeof AppProvidersNewRouteImport
+      parentRoute: typeof AppProvidersRoute
     }
-    '/_app/orgs/$orgId': {
-      id: '/_app/orgs/$orgId'
-      path: '/$orgId'
-      fullPath: '/orgs/$orgId'
-      preLoaderRoute: typeof AppOrgsOrgIdRouteImport
-      parentRoute: typeof AppOrgsRoute
+    '/_app/routes/': {
+      id: '/_app/routes/'
+      path: '/'
+      fullPath: '/routes/'
+      preLoaderRoute: typeof AppRoutesIndexRouteImport
+      parentRoute: typeof AppRoutesRoute
     }
-    '/_portal/account/usage/': {
-      id: '/_portal/account/usage/'
-      path: '/account/usage'
-      fullPath: '/account/usage/'
-      preLoaderRoute: typeof PortalAccountUsageIndexRouteImport
-      parentRoute: typeof PortalRoute
+    '/_app/routes/$routeId': {
+      id: '/_app/routes/$routeId'
+      path: '/$routeId'
+      fullPath: '/routes/$routeId'
+      preLoaderRoute: typeof AppRoutesRouteIdRouteImport
+      parentRoute: typeof AppRoutesRoute
     }
-    '/_portal/account/security/': {
-      id: '/_portal/account/security/'
-      path: '/account/security'
-      fullPath: '/account/security/'
-      preLoaderRoute: typeof PortalAccountSecurityIndexRouteImport
-      parentRoute: typeof PortalRoute
+    '/_app/routes/new': {
+      id: '/_app/routes/new'
+      path: '/new'
+      fullPath: '/routes/new'
+      preLoaderRoute: typeof AppRoutesNewRouteImport
+      parentRoute: typeof AppRoutesRoute
     }
-    '/_portal/account/limits/': {
-      id: '/_portal/account/limits/'
-      path: '/account/limits'
-      fullPath: '/account/limits/'
-      preLoaderRoute: typeof PortalAccountLimitsIndexRouteImport
-      parentRoute: typeof PortalRoute
+    '/_app/rules/': {
+      id: '/_app/rules/'
+      path: '/'
+      fullPath: '/rules/'
+      preLoaderRoute: typeof AppRulesIndexRouteImport
+      parentRoute: typeof AppRulesRoute
     }
-    '/_portal/account/keys/': {
-      id: '/_portal/account/keys/'
-      path: '/account/keys'
-      fullPath: '/account/keys/'
-      preLoaderRoute: typeof PortalAccountKeysIndexRouteImport
-      parentRoute: typeof PortalRoute
+    '/_app/rules/$ruleSetId': {
+      id: '/_app/rules/$ruleSetId'
+      path: '/$ruleSetId'
+      fullPath: '/rules/$ruleSetId'
+      preLoaderRoute: typeof AppRulesRuleSetIdRouteImport
+      parentRoute: typeof AppRulesRoute
+    }
+    '/_app/rules/new': {
+      id: '/_app/rules/new'
+      path: '/new'
+      fullPath: '/rules/new'
+      preLoaderRoute: typeof AppRulesNewRouteImport
+      parentRoute: typeof AppRulesRoute
+    }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/update/': {
+      id: '/_app/update/'
+      path: '/update'
+      fullPath: '/update/'
+      preLoaderRoute: typeof AppUpdateIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/usage/': {
+      id: '/_app/usage/'
+      path: '/usage'
+      fullPath: '/usage/'
+      preLoaderRoute: typeof AppUsageIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users/': {
+      id: '/_app/users/'
+      path: '/'
+      fullPath: '/users/'
+      preLoaderRoute: typeof AppUsersIndexRouteImport
+      parentRoute: typeof AppUsersRoute
+    }
+    '/_app/users/$userId': {
+      id: '/_app/users/$userId'
+      path: '/$userId'
+      fullPath: '/users/$userId'
+      preLoaderRoute: typeof AppUsersUserIdRouteImport
+      parentRoute: typeof AppUsersRoute
+    }
+    '/_app/users/new': {
+      id: '/_app/users/new'
+      path: '/new'
+      fullPath: '/users/new'
+      preLoaderRoute: typeof AppUsersNewRouteImport
+      parentRoute: typeof AppUsersRoute
     }
     '/_app/providers/$providerId/': {
       id: '/_app/providers/$providerId/'
@@ -708,25 +680,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProvidersProviderIdIndexRouteImport
       parentRoute: typeof AppProvidersProviderIdRoute
     }
-    '/_app/providers/$providerId/settings': {
-      id: '/_app/providers/$providerId/settings'
-      path: '/settings'
-      fullPath: '/providers/$providerId/settings'
-      preLoaderRoute: typeof AppProvidersProviderIdSettingsRouteImport
-      parentRoute: typeof AppProvidersProviderIdRoute
-    }
-    '/_app/providers/$providerId/rule-sets': {
-      id: '/_app/providers/$providerId/rule-sets'
-      path: '/rule-sets'
-      fullPath: '/providers/$providerId/rule-sets'
-      preLoaderRoute: typeof AppProvidersProviderIdRuleSetsRouteImport
-      parentRoute: typeof AppProvidersProviderIdRoute
-    }
-    '/_app/providers/$providerId/routing-rules': {
-      id: '/_app/providers/$providerId/routing-rules'
-      path: '/routing-rules'
-      fullPath: '/providers/$providerId/routing-rules'
-      preLoaderRoute: typeof AppProvidersProviderIdRoutingRulesRouteImport
+    '/_app/providers/$providerId/credentials': {
+      id: '/_app/providers/$providerId/credentials'
+      path: '/credentials'
+      fullPath: '/providers/$providerId/credentials'
+      preLoaderRoute: typeof AppProvidersProviderIdCredentialsRouteImport
       parentRoute: typeof AppProvidersProviderIdRoute
     }
     '/_app/providers/$providerId/models': {
@@ -736,12 +694,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProvidersProviderIdModelsRouteImport
       parentRoute: typeof AppProvidersProviderIdRoute
     }
-    '/_app/providers/$providerId/credentials': {
-      id: '/_app/providers/$providerId/credentials'
-      path: '/credentials'
-      fullPath: '/providers/$providerId/credentials'
-      preLoaderRoute: typeof AppProvidersProviderIdCredentialsRouteImport
+    '/_app/providers/$providerId/routing-rules': {
+      id: '/_app/providers/$providerId/routing-rules'
+      path: '/routing-rules'
+      fullPath: '/providers/$providerId/routing-rules'
+      preLoaderRoute: typeof AppProvidersProviderIdRoutingRulesRouteImport
       parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/rule-sets': {
+      id: '/_app/providers/$providerId/rule-sets'
+      path: '/rule-sets'
+      fullPath: '/providers/$providerId/rule-sets'
+      preLoaderRoute: typeof AppProvidersProviderIdRuleSetsRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/settings': {
+      id: '/_app/providers/$providerId/settings'
+      path: '/settings'
+      fullPath: '/providers/$providerId/settings'
+      preLoaderRoute: typeof AppProvidersProviderIdSettingsRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_portal/account/keys/': {
+      id: '/_portal/account/keys/'
+      path: '/account/keys'
+      fullPath: '/account/keys/'
+      preLoaderRoute: typeof PortalAccountKeysIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/account/limits/': {
+      id: '/_portal/account/limits/'
+      path: '/account/limits'
+      fullPath: '/account/limits/'
+      preLoaderRoute: typeof PortalAccountLimitsIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/account/security/': {
+      id: '/_portal/account/security/'
+      path: '/account/security'
+      fullPath: '/account/security/'
+      preLoaderRoute: typeof PortalAccountSecurityIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/account/usage/': {
+      id: '/_portal/account/usage/'
+      path: '/account/usage'
+      fullPath: '/account/usage/'
+      preLoaderRoute: typeof PortalAccountUsageIndexRouteImport
+      parentRoute: typeof PortalRoute
     }
   }
 }
