@@ -45,6 +45,7 @@ pub struct FailureRecord<'a> {
     pub status: i64,
     pub latency_ms: i64,
     pub error: &'a str,
+    pub response_body: Option<&'a str>,
 }
 
 fn tok(v: u64) -> i64 {
@@ -124,7 +125,7 @@ pub async fn record_failure(
         latency_ms: rec.latency_ms,
         headers_json: None,
         body: Some(rec.error.to_owned()),
-        response_body: None,
+        response_body: rec.response_body.map(str::to_owned),
     })
     .await
 }

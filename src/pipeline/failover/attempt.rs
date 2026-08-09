@@ -168,6 +168,7 @@ pub(super) async fn attempt(
                         status: 0,
                         latency_ms: 0,
                         error: &e.to_string(),
+                        response_body: None,
                     },
                 )
                 .await;
@@ -232,6 +233,7 @@ pub(super) async fn attempt(
                     status: 0,
                     latency_ms: 0,
                     error: &e,
+                    response_body: None,
                 },
             )
             .await;
@@ -299,6 +301,7 @@ pub(super) async fn refresh_failed(
             status: 0,
             latency_ms: 0,
             error: &format!("refresh failed: {e}"),
+            response_body: None,
         },
     )
     .await;

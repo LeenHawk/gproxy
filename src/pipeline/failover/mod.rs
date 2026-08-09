@@ -516,6 +516,10 @@ pub async fn run_failover(
                 status: i64::from(outcome.status.as_u16()),
                 latency_ms: outcome.send_ms.map(|ms| ms as i64).unwrap_or(0),
                 error: &error,
+                response_body: match &outcome.source {
+                    BodySource::Buffered(body) => Some(body.as_ref()),
+                    BodySource::Streaming(_) => None,
+                },
             },
         )
         .await;

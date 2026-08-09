@@ -25,10 +25,8 @@ async fn buffered_error_response_body_is_captured() {
     );
     let (state, _dir) = state_with_bundle(upstream, &bundle).await;
 
-    let outcome = crate::pipeline::execute(&state, claude_ctx("claude-test", false))
-        .await
-        .expect("403 should be relayed");
-    assert_eq!(outcome.status, StatusCode::FORBIDDEN);
+    let result = crate::pipeline::execute(&state, claude_ctx("claude-test", false)).await;
+    assert!(result.is_err(), "AuthDead 403 should fail the request");
 
     let mut captured = None;
     for _ in 0..100 {
