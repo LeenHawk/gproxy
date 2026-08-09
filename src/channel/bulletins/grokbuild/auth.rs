@@ -28,7 +28,6 @@ const EXPIRY_SKEW_MS: i64 = 60_000;
 pub(super) enum AcceptMode {
     Json,
     EventStream,
-    Unset,
 }
 
 fn pct(s: &str) -> String {
@@ -356,9 +355,6 @@ pub(super) fn apply(
         }
         AcceptMode::EventStream => {
             headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
-        }
-        AcceptMode::Unset => {
-            headers.remove(ACCEPT);
         }
     }
     if let Some(session_id) = session_id {
