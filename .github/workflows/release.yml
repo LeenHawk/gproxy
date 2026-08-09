@@ -686,6 +686,13 @@ jobs:
       - build-edge
       - docker-manifest
     runs-on: ubuntu-latest
+    # Consecutive main pushes build in parallel, but they all mutate the fixed
+    # `staging` Release. Serialize that final mutation so one run cannot delete
+    # or replace assets while another `gh release upload --clobber` is active.
+    # Versioned releases use their tag as an independent lock.
+    concurrency:
+      group: github-release-${{ github.ref_type == 'tag' && github.ref_name || 'staging' }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
 
@@ -743,6 +750,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          latest_main="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$latest_main" != "$GITHUB_SHA" ]; then
+            echo "Skipping stale staging publish for $GITHUB_SHA; main is $latest_main."
+            exit 0
+          fi
+
           git tag -f staging "$GITHUB_SHA"
           git push -f origin "refs/tags/staging"
 
