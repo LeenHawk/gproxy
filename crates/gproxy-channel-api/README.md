@@ -33,7 +33,7 @@ adapter never touches them.
 
 ```toml
 [dependencies]
-gproxy-channel-api = { version = "=2.3.2", features = ["external-channels"] }
+gproxy-channel-api = { version = "=2.4.0", features = ["external-channels"] }
 linkme = "0.3"
 ```
 

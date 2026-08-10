@@ -17,7 +17,7 @@ and `http` — nothing else, and it builds for `wasm32`.
 
 ```toml
 [dependencies]
-gproxy-protocol = "=2.3.2"
+gproxy-protocol = "=2.4.0"
 ```
 
 ```rust

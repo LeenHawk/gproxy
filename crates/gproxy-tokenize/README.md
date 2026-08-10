@@ -15,7 +15,7 @@ the text it contains, and counts it.
 
 ```toml
 [dependencies]
-gproxy-tokenize = { version = "=2.3.2", features = ["count-local"] }
+gproxy-tokenize = { version = "=2.4.0", features = ["count-local"] }
 ```
 
 ```rust
