@@ -12,7 +12,9 @@
 //! # TTL
 //! TTL expiry-on-read filters `WHERE expires_ms IS NULL OR expires_ms > <now>`.
 //! `now` is obtained from JS via `js_sys::Date::now()` (milliseconds since epoch),
-//! mirroring [`crate::util::time`] — wasm32 has no `std::time::Instant`.
+//! mirroring [`crate::util::time`] — wasm32 has no `std::time::Instant`. An
+//! indexed trigger also prunes expired rows on subsequent writes so one-shot
+//! keys do not accumulate permanently.
 //!
 //! # `incr` atomicity
 //! Uses a single SQL statement with `ON CONFLICT DO UPDATE` to atomically
@@ -33,6 +35,22 @@ use crate::store::libsql::{LibsqlClient, arg_blob, arg_integer, arg_null, arg_te
 use super::b64;
 use super::{CacheBackend, CacheError, CounterError, InvalidationHandler, LockAttempt};
 
+const CREATE_KV_TABLE: &str = "CREATE TABLE IF NOT EXISTS gproxy_kv \
+    (k TEXT PRIMARY KEY, v BLOB, expires_ms INTEGER)";
+const CREATE_EXPIRY_INDEX: &str = "CREATE INDEX IF NOT EXISTS \
+    gproxy_kv_expires_ms_idx ON gproxy_kv(expires_ms) \
+    WHERE expires_ms IS NOT NULL";
+// `expires_ms` comes from the Worker clock while this cleanup uses the database
+// clock. Keep a one-hour grace so modest clock skew can never delete a live key.
+const CREATE_INSERT_PRUNE_TRIGGER: &str = "CREATE TRIGGER IF NOT EXISTS \
+    gproxy_kv_prune_expired_after_insert AFTER INSERT ON gproxy_kv BEGIN \
+    DELETE FROM gproxy_kv WHERE expires_ms IS NOT NULL AND expires_ms <= \
+    CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) - 3600000; END";
+const CREATE_UPDATE_PRUNE_TRIGGER: &str = "CREATE TRIGGER IF NOT EXISTS \
+    gproxy_kv_prune_expired_after_update AFTER UPDATE ON gproxy_kv BEGIN \
+    DELETE FROM gproxy_kv WHERE expires_ms IS NOT NULL AND expires_ms <= \
+    CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) - 3600000; END";
+
 /// Edge cache backend backed by a libSQL/Turso kv table.
 pub struct LibsqlCache {
     client: LibsqlClient,
@@ -46,11 +64,12 @@ impl LibsqlCache {
     ) -> Result<Self, crate::store::libsql::StoreError> {
         let client = LibsqlClient::new(url, token);
         client
-            .execute(
-                "CREATE TABLE IF NOT EXISTS gproxy_kv \
-                 (k TEXT PRIMARY KEY, v BLOB, expires_ms INTEGER)",
-                &[],
-            )
+            .execute_batch(&[
+                CREATE_KV_TABLE,
+                CREATE_EXPIRY_INDEX,
+                CREATE_INSERT_PRUNE_TRIGGER,
+                CREATE_UPDATE_PRUNE_TRIGGER,
+            ])
             .await?;
         Ok(Self { client })
     }

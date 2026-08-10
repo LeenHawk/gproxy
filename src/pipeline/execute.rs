@@ -99,6 +99,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         ingress::apply_global_blacklist(&mut ctx);
         ingress::normalize_multipart_form_body(&mut ctx)?;
         let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
+        let conversation_fingerprint = classified.conversation_fingerprint;
         ctx.op = Some(classified.op);
         ctx.stream = classified.stream;
         ctx.body_model = classified.body_model;
@@ -128,6 +129,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                 &ctx,
                 classified.op,
                 affinity_session_id,
+                conversation_fingerprint,
             )?)
         }
     };

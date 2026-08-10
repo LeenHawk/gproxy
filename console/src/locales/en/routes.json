@@ -48,7 +48,15 @@
   },
   "affinity": {
     "title": "Session affinity",
-    "hint": "Keep the same API key on one member. X-Gproxy-Session-Id takes priority when supplied; pins expire after 1 hour of inactivity."
+    "hint": "Prefer the same member across related requests. X-Gproxy-Session-Id always takes priority; pins expire after 1 hour of inactivity.",
+    "subject": "Fallback subject",
+    "subjectUser": "API key (legacy)",
+    "subjectConversation": "Conversation",
+    "subjectHint": "When no session header is supplied, pin by API key or by a derived conversation fingerprint.",
+    "reanchorAfterSecs": "Re-anchor interval (seconds)",
+    "reanchorOff": "Off",
+    "reanchorHint": "Optional hard age for a pin, up to one year. After it expires, the next request returns to normal member selection.",
+    "reanchorInvalid": "Leave the re-anchor interval empty or enter an integer from 1 to 31,536,000 seconds (one year)."
   },
   "delete": {
     "route": "Delete load balancer",

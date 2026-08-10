@@ -45,6 +45,7 @@ pub(crate) async fn open(
     let affinity_session_id = balance::take_session_id(&mut ctx.headers);
     ingress::apply_global_blacklist(&mut ctx);
     let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
+    let conversation_fingerprint = classified.conversation_fingerprint;
     ctx.op = Some(classified.op);
     ctx.stream = true;
     ctx.body_model = crate::channel::realtime_websocket::query_model(ctx.query.as_deref());
@@ -62,7 +63,13 @@ pub(crate) async fn open(
 
     let prepared = {
         let cp = state.cp();
-        candidate::prepare(&cp, &ctx, classified.op, affinity_session_id)?
+        candidate::prepare(
+            &cp,
+            &ctx,
+            classified.op,
+            affinity_session_id,
+            conversation_fingerprint,
+        )?
     };
     let request = match prepared {
         candidate::Prepared::Candidates(request) => *request,

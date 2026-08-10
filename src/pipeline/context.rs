@@ -60,9 +60,10 @@ pub struct Candidate {
     /// Route member behind this attempt; `None` in scoped mode (no member —
     /// the member breaker is skipped).
     pub member_id: Option<i64>,
-    /// Cache key for optional route-member affinity. Set only for routed
-    /// requests whose route enables affinity.
-    pub(crate) member_affinity_key: Option<Arc<str>>,
+    /// Request-scoped route-member affinity state. Shared by every candidate
+    /// so the successful member can slide the main pin and, when needed,
+    /// establish a new hard re-anchor marker.
+    pub(crate) member_affinity: Option<Arc<crate::pipeline::balance::MemberAffinityPlan>>,
     /// Hard binding for stateful upstream resources (Codex search/turn state).
     pub(crate) credential_binding_key: Option<Arc<str>>,
 }
@@ -78,7 +79,7 @@ impl Candidate {
             credential,
             upstream_model_id,
             member_id: None,
-            member_affinity_key: None,
+            member_affinity: None,
             credential_binding_key: None,
         }
     }
@@ -90,4 +91,7 @@ pub struct Classified {
     pub stream: bool,
     /// Body `"model"` from the same single classify-time body parse.
     pub body_model: Option<String>,
+    /// Stable BLAKE3 digest of a supported conversational request's immutable
+    /// head. `None` makes route affinity fall back to its existing subject.
+    pub conversation_fingerprint: Option<[u8; 32]>,
 }

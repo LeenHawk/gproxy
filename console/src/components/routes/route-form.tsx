@@ -11,6 +11,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  MAX_REANCHOR_AFTER_SECS, assembleAffinitySettings, initialAffinity,
+} from "./affinity-settings";
 
 interface BreakerState {
   consecutiveFailures: string;
@@ -58,9 +61,7 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
   const [strategy, setStrategy] = useState(route?.strategy ?? "failover");
   const [description, setDescription] = useState(route?.description ?? "");
   const [enabled, setEnabled] = useState(route?.enabled ?? true);
-  const [affinityEnabled, setAffinityEnabled] = useState(
-    objectValue(objectValue(route?.settings_json).affinity).enabled === true,
-  );
+  const [affinity, setAffinity] = useState(() => initialAffinity(route?.settings_json));
   const [breaker, setBreaker] = useState<BreakerState>(() => initialBreaker(route?.settings_json));
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -73,7 +74,7 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
         throw new ApiError(0, "bad_request", t("form.positiveInteger"));
       }
 
-      const settings = { ...objectValue(route?.settings_json) };
+      let settings = { ...objectValue(route?.settings_json) };
       const circuitBreaker = { ...objectValue(settings.circuit_breaker) };
       if (consecutiveFailures === null) delete circuitBreaker.consecutive_failures;
       else circuitBreaker.consecutive_failures = consecutiveFailures;
@@ -103,11 +104,11 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
 
       if (Object.keys(circuitBreaker).length > 0) settings.circuit_breaker = circuitBreaker;
       else delete settings.circuit_breaker;
-      const affinity = { ...objectValue(settings.affinity) };
-      if (affinityEnabled) affinity.enabled = true;
-      else delete affinity.enabled;
-      if (Object.keys(affinity).length > 0) settings.affinity = affinity;
-      else delete settings.affinity;
+      const affinityResult = assembleAffinitySettings(settings, affinity);
+      if (!affinityResult.ok) {
+        throw new ApiError(0, "bad_request", t("affinity.reanchorInvalid"));
+      }
+      settings = affinityResult.settings;
       return upsertRoute({
         id: route?.id ?? null,
         name: name.trim(),
@@ -146,12 +147,55 @@ export function RouteForm({ route, onSaved }: { route?: Route; onSaved: (saved: 
         <Label htmlFor="r-desc">{t("fields.description")}</Label>
         <Input id="r-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
-      <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-        <div>
-          <Label htmlFor="r-affinity">{t("affinity.title")}</Label>
-          <p className="text-xs text-muted-foreground">{t("affinity.hint")}</p>
+      <div className="grid gap-3 rounded-md border p-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="r-affinity">{t("affinity.title")}</Label>
+            <p className="text-xs text-muted-foreground">{t("affinity.hint")}</p>
+          </div>
+          <Switch
+            id="r-affinity"
+            checked={affinity.enabled}
+            onCheckedChange={(enabled) => setAffinity((current) => ({ ...current, enabled }))}
+          />
         </div>
-        <Switch id="r-affinity" checked={affinityEnabled} onCheckedChange={setAffinityEnabled} />
+        {affinity.enabled && (
+          <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <Label htmlFor="r-affinity-subject">{t("affinity.subject")}</Label>
+              <Select
+                value={affinity.subject}
+                onValueChange={(subject: "user" | "conversation") => (
+                  setAffinity((current) => ({ ...current, subject }))
+                )}
+              >
+                <SelectTrigger id="r-affinity-subject"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">{t("affinity.subjectUser")}</SelectItem>
+                  <SelectItem value="conversation">{t("affinity.subjectConversation")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t("affinity.subjectHint")}</p>
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="r-affinity-reanchor">{t("affinity.reanchorAfterSecs")}</Label>
+              <Input
+                id="r-affinity-reanchor"
+                type="number"
+                min="1"
+                max={MAX_REANCHOR_AFTER_SECS}
+                step="1"
+                value={affinity.reanchorAfterSecs}
+                onChange={(event) => setAffinity((current) => ({
+                  ...current,
+                  reanchorAfterSecs: event.target.value,
+                }))}
+                placeholder={t("affinity.reanchorOff")}
+              />
+              <p className="text-xs text-muted-foreground">{t("affinity.reanchorHint")}</p>
+            </div>
+          </div>
+        )}
       </div>
       <div className="grid gap-3 rounded-md border p-3">
         <div>

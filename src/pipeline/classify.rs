@@ -1,6 +1,8 @@
 //! Inbound request classification: `(method, path)` → [`OperationKey`] plus the
 //! streaming flag. M1 ships a hardcoded table (D5); unknown rows → 404.
 
+mod conversation;
+
 use bytes::Bytes;
 use http::{HeaderMap, Method};
 
@@ -20,13 +22,12 @@ pub fn classify(
     body: &Bytes,
 ) -> Result<Classified, PipelineError> {
     // ONE tolerant body parse per request: every downstream consumer (routing
-    // preprocess, transform memo, rule filters, local count) reads the peeked
-    // model from `Classified`/`RequestCtx` instead of re-parsing the body.
-    let (body_stream, body_model) = if method == Method::POST && !body.is_empty() {
-        peek_body(body)
-    } else {
-        (false, None)
-    };
+    // preprocess, transform memo, rule filters, local count, and conversation
+    // affinity) reads facts derived from this value instead of re-parsing.
+    let body_value = (method == Method::POST && !body.is_empty())
+        .then(|| serde_json::from_slice::<serde_json::Value>(body).ok())
+        .flatten();
+    let (body_stream, body_model) = body_value.as_ref().map(peek_body).unwrap_or((false, None));
     let (op, stream) = match (method.as_str(), path) {
         ("POST", "/v1/chat/completions") => (
             OperationKey::content_generation(
@@ -108,10 +109,14 @@ pub fn classify(
         },
         _ => return Err(PipelineError::UnsupportedPath),
     };
+    let conversation_fingerprint = body_value
+        .as_ref()
+        .and_then(|body| conversation::fingerprint(op, body));
     Ok(Classified {
         op,
         stream,
         body_model,
+        conversation_fingerprint,
     })
 }
 
@@ -183,14 +188,10 @@ fn gemini_suffix(path: &str) -> Option<(OperationKey, bool)> {
     }
 }
 
-/// Minimal single-parse body peek for the `"stream"` flag and `"model"` field
-/// (NOT a full protocol deserialize). Tolerant: a type error elsewhere in the
-/// body must not flip the flag, and a non-bool `stream` / non-string `model`
-/// is treated as absent.
-fn peek_body(body: &Bytes) -> (bool, Option<String>) {
-    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
-        return (false, None);
-    };
+/// Minimal peek over classify's one parsed body value. A type error elsewhere
+/// must not flip the flag, and a non-bool `stream` / non-string `model` is
+/// treated as absent.
+fn peek_body(v: &serde_json::Value) -> (bool, Option<String>) {
     let stream = v
         .get("stream")
         .and_then(serde_json::Value::as_bool)

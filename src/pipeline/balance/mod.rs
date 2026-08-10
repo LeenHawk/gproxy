@@ -19,6 +19,7 @@ use crate::store::cache::CacheBackend;
 use crate::store::persistence::records::{Credential, Provider, Route, RouteMember};
 use crate::util::time::unix_now;
 
+pub(crate) use affinity::MemberAffinityPlan;
 pub(crate) use affinity::take_session_id;
 pub(crate) use credential_affinity::read as read_credential_binding;
 pub(crate) use credential_affinity::realtime_model as bound_realtime_model;
@@ -152,6 +153,7 @@ pub(crate) async fn candidates(
     user_key_id: Option<i64>,
     session_id: Option<&str>,
     hard_pinned_credential: Option<i64>,
+    conversation_fingerprint: Option<&[u8; 32]>,
 ) -> Result<Vec<Candidate>, PipelineError> {
     let now = unix_now();
     let selection = CredentialSelection {
@@ -161,8 +163,17 @@ pub(crate) async fn candidates(
         hard_pinned_credential,
         now,
     };
-    let affinity_key = affinity::member_key(&prepared.route, user_key_id, session_id);
-    let pinned_member = affinity::read_pin(cache, affinity_key.as_deref()).await;
+    let member_affinity = affinity::prepare(
+        cache,
+        &prepared.route,
+        user_key_id,
+        session_id,
+        conversation_fingerprint,
+    )
+    .await;
+    let pinned_member = member_affinity
+        .as_deref()
+        .and_then(MemberAffinityPlan::pinned_member);
     let mut ordered = strategy::order_members(
         &prepared.route.strategy,
         &prepared.members,
@@ -199,7 +210,7 @@ pub(crate) async fn candidates(
                 credential: cred,
                 upstream_model_id: member.upstream_model_id.clone(),
                 member_id: Some(member.id),
-                member_affinity_key: affinity_key.clone(),
+                member_affinity: member_affinity.clone(),
                 credential_binding_key: None,
             });
         }
@@ -271,11 +282,8 @@ async fn credential_pool(
 
 /// Refresh a route-member pin only after that member actually served a 2xx.
 pub(crate) async fn record_affinity(cache: &dyn CacheBackend, candidate: &Candidate) {
-    if let (Some(key), Some(member_id)) = (
-        candidate.member_affinity_key.as_deref(),
-        candidate.member_id,
-    ) {
-        affinity::write_pin(cache, key, member_id).await;
+    if let (Some(plan), Some(member_id)) = (&candidate.member_affinity, candidate.member_id) {
+        plan.record_success(cache, member_id).await;
     }
     if let Some(key) = candidate.credential_binding_key.as_deref() {
         credential_affinity::write(cache, key, candidate.credential.id).await;
