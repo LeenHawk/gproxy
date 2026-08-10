@@ -4,7 +4,7 @@ import { OPERATIONS } from "@/api/rules";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 export function toOperationArray(v: unknown): string[] {
@@ -14,28 +14,38 @@ export function fromOperationArray(a: string[]): string[] | null {
   return a.length ? a : null;
 }
 
+function modelPatternSuggestions(value: string, modelOptions: string[]): string[] {
+  const exactSelection = modelOptions.some((model) => model === value);
+  const query = exactSelection ? "" : value.toLowerCase();
+  return modelOptions
+    .filter((model) => model !== value && model.toLowerCase().includes(query))
+    .slice(0, 8);
+}
+
 export function ModelPatternField({
   value, onChange, modelOptions,
 }: { value: string; onChange: (v: string) => void; modelOptions?: string[] }) {
   const { t } = useTranslation("rules");
   const [open, setOpen] = useState(false);
-  const matches = (modelOptions ?? []).filter(
-    (m) => m.toLowerCase().includes(value.toLowerCase()) && m !== value,
-  ).slice(0, 8);
+  const matches = modelPatternSuggestions(value, modelOptions ?? []);
   const showPopover = open && (modelOptions?.length ?? 0) > 0 && matches.length > 0;
   return (
     <div className="grid gap-1">
       <Label htmlFor="rule-fmp">{t("filter.modelGlobLabel")}</Label>
       <Popover open={showPopover} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+        <PopoverAnchor asChild>
           <Input
             id="rule-fmp"
             value={value}
             onChange={(e) => { onChange(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
+            autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showPopover}
             placeholder={t("filter.modelGlobPlaceholder")}
           />
-        </PopoverTrigger>
+        </PopoverAnchor>
         <PopoverContent
           className="w-[--radix-popover-trigger-width] p-1"
           align="start"

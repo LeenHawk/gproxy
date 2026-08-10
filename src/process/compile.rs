@@ -184,17 +184,31 @@ pub struct CompiledRule {
 
 impl CompiledRule {
     /// `filter_operation_keys` matches the TARGET operation;
-    /// `filter_model_pattern` glob-matches the (prefix-stripped) upstream model;
+    /// `filter_model_pattern` glob-matches any supplied upstream/request model;
     /// `filter_header_pattern` regex-matches the INBOUND client headers (see
     /// [`header_matches`]).
     pub fn matches(&self, op: OperationKey, model: &str, client: &http::HeaderMap) -> bool {
+        self.matches_any_model(op, &[model], client)
+    }
+
+    /// Match against every name by which the selected model is known. Provider
+    /// rules receive both the configured upstream model id and, when different,
+    /// the inbound route/variant name.
+    pub fn matches_any_model(
+        &self,
+        op: OperationKey,
+        models: &[&str],
+        client: &http::HeaderMap,
+    ) -> bool {
         if let Some(ops) = &self.operations
             && !ops.contains(&op.operation())
         {
             return false;
         }
         if let Some(p) = &self.model_pattern
-            && !crate::util::glob::matches(p, model)
+            && !models
+                .iter()
+                .any(|model| crate::util::glob::matches(p, model))
         {
             return false;
         }

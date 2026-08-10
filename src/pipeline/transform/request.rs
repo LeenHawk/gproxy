@@ -336,19 +336,22 @@ pub fn request_parts(
                 "new non-exhaustive protocol variant requires a lockstep transform update"
             ),
         };
-        // §8-B: rule model filters match the PRE-variant-strip INBOUND name
-        // (body model, else path-embedded model — e.g. `*-thinking` patterns
-        // keyed on the requested variant), falling back to the member model.
-        let filter_model = memo
+        // Rule filters match the selected provider model shown by the console.
+        // Also retain the inbound name so variant-specific rules (for example
+        // `*-thinking`) continue to match after routing resolves to a base model.
+        let requested_model = memo
             .inbound_model(ctx)
             .or_else(|| crate::pipeline::classify::path_model_id(&ctx.path))
             .unwrap_or_else(|| cand.upstream_model_id.clone());
+        let alternate_model =
+            (requested_model != cand.upstream_model_id).then_some(requested_model.as_str());
         let mut headers = ctx.headers.clone();
         parts.body = process::apply(
             rules,
             target_key,
             kind,
-            &filter_model,
+            &cand.upstream_model_id,
+            alternate_model,
             &ctx.headers,
             &mut headers,
             parts.body,
