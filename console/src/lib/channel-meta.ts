@@ -28,7 +28,7 @@ export const ENDPOINT_KINDS = [
   "openai_count_tokens", "claude_count_tokens", "gemini_count_tokens",
   "openai_chat_completions", "openai_responses", "openai_realtime", "claude_messages",
   "gemini_generate_content", "gemini_stream_generate_content",
-  "openai_embeddings", "gemini_embeddings", "image_generations", "image_edits",
+  "openai_embeddings", "gemini_embeddings", "openai_rerank", "image_generations", "image_edits",
   "openai_compact", "openai_conversations", "usage", "rate_limit_reset",
 ] as const;
 
@@ -39,7 +39,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   openai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_realtime", "openai_embeddings", "image_generations", "image_edits", "openai_compact"],
   azure: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "image_generations", "image_edits", "openai_compact"],
   "aws-bedrock": ["openai_list_models", "openai_get_model", "claude_count_tokens", "claude_messages", "openai_compact"],
-  openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
+  openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_rerank"],
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],

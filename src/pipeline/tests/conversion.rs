@@ -3,6 +3,78 @@
 use super::*;
 
 #[tokio::test]
+async fn custom_rerank_routes_and_preserves_opaque_payloads() {
+    let rerank_response = json!({
+        "id": "rerank-1",
+        "model": "gpt-test",
+        "results": [{
+            "index": 1,
+            "relevance_score": 0.97,
+            "document": { "text": "doc b", "vendor_field": true }
+        }],
+        "usage": { "total_tokens": 150, "search_units": 1 }
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&rerank_response).unwrap()),
+        vec![],
+    ));
+    let mut bundle: Value = serde_json::from_str(BUNDLE).unwrap();
+    bundle["providers"][0]["channel"] = json!("custom");
+    bundle["providers"][0]["settings_json"]["endpoints"]["openai_rerank"] =
+        json!("http://fake.local/v1/rerank");
+    let (state, _dir) =
+        state_with_bundle(Arc::clone(&fake), &serde_json::to_string(&bundle).unwrap()).await;
+
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    let request = json!({
+        "model": "claude-test",
+        "query": "test",
+        "documents": ["doc a", "doc b"],
+        "top_n": 1,
+        "vendor_option": { "keep": true }
+    });
+    let ctx = RequestCtx {
+        request_id: "rerank-route".into(),
+        method: Method::POST,
+        path: "/v1/rerank".into(),
+        query: None,
+        headers,
+        body: Bytes::from(serde_json::to_vec(&request).unwrap()),
+        mode: RoutingMode::Aggregated,
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    };
+
+    let outcome = crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("rerank pipeline ok");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("rerank must be buffered")
+    };
+    assert_eq!(
+        serde_json::from_slice::<Value>(&body).unwrap(),
+        rerank_response
+    );
+
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].uri, "http://fake.local/v1/rerank");
+    assert_eq!(seen[0].headers["authorization"], "Bearer up-key");
+    let upstream: Value = serde_json::from_slice(&seen[0].body).unwrap();
+    assert_eq!(upstream["model"], "gpt-test");
+    assert_eq!(upstream["query"], request["query"]);
+    assert_eq!(upstream["documents"], request["documents"]);
+    assert_eq!(upstream["top_n"], request["top_n"]);
+    assert_eq!(upstream["vendor_option"], request["vendor_option"]);
+}
+
+#[tokio::test]
 async fn claude_inbound_to_openai_buffered() {
     let chat_response = json!({
         "id": "chatcmpl-1", "object": "chat.completion", "created": 0, "model": "gpt-test",

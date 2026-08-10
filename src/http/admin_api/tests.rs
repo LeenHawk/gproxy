@@ -167,6 +167,7 @@ async fn channel_catalog_is_guarded_and_sorted() {
     if let Some(custom) = entries.iter().find(|entry| entry["id"] == "custom") {
         let kinds = custom["endpoint_kinds"].as_array().unwrap();
         assert!(kinds.iter().any(|kind| kind == "openai_count_tokens"));
+        assert!(kinds.iter().any(|kind| kind == "openai_rerank"));
         assert!(
             kinds
                 .iter()

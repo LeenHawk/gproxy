@@ -15,3 +15,4 @@ mod import;
 mod migrations;
 mod observability;
 mod operations;
+mod rerank_migration;

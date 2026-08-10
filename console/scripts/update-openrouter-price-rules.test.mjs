@@ -81,6 +81,7 @@ describe("OpenRouter price-rule generator", () => {
       dynamic_price_models: 1,
       included_models: 5,
       embedding_models: 1,
+      rerank_models: 0,
       image_output_priced_models: 1,
     });
     expect(bundle.price_rules[0]).toMatchObject({
@@ -110,7 +111,7 @@ describe("OpenRouter price-rule generator", () => {
     });
   });
 
-  it("keeps mixed supported output and excludes unsupported-only dimensions", () => {
+  it("keeps every supported output modality and excludes unsupported-only dimensions", () => {
     const model = (id, outputModalities) => ({
       id,
       architecture: { output_modalities: outputModalities },
@@ -126,7 +127,11 @@ describe("OpenRouter price-rule generator", () => {
       ],
     });
 
-    expect(bundle.price_rules.map((rule) => rule.model_match)).toEqual(["audio-text"]);
+    expect(bundle.price_rules.map((rule) => rule.model_match)).toEqual([
+      "audio-text",
+      "reranker",
+    ]);
+    expect(bundle.source.rerank_models).toBe(1);
   });
 
   it("rejects duplicate basenames", () => {
@@ -156,16 +161,18 @@ describe("OpenRouter price-rule generator", () => {
     expect(bundle.source).toEqual({
       catalog: "openrouter",
       total_models: 525,
-      supported_output_models: 464,
+      supported_output_models: 470,
       dynamic_price_models: 5,
-      included_models: 459,
+      included_models: 465,
       embedding_models: 33,
+      rerank_models: 6,
       image_output_priced_models: 40,
     });
-    expect(bundle.price_rules).toHaveLength(459);
+    expect(bundle.price_rules).toHaveLength(465);
     expect(new Set(names).size).toBe(names.length);
     expect(names).toEqual([...names].sort());
     expect(bundle.price_rules.filter((rule) => rule.image_output_price !== "0")).toHaveLength(40);
+    expect(bundle.price_rules.filter((rule) => rule.model_match.includes("rerank"))).toHaveLength(6);
     expect(bundle.price_rules.every((rule) => (
       JSON.stringify(Object.keys(rule)) === JSON.stringify(expectedFields)
     ))).toBe(true);

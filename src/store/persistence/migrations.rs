@@ -53,6 +53,7 @@
 
 mod claude_fallback;
 mod quota_windows;
+mod rerank_routing;
 
 use claude_fallback::{
     MYSQL_SQL as CLAUDE_FALLBACK_MYSQL_SQL, POSTGRES_SQL as CLAUDE_FALLBACK_POSTGRES_SQL,
@@ -60,6 +61,7 @@ use claude_fallback::{
 };
 use quota_windows::SQLITE_SQL as QUOTA_SQLITE_SQL;
 use quota_windows::{MYSQL_SQL as QUOTA_MYSQL_SQL, POSTGRES_SQL as QUOTA_POSTGRES_SQL};
+use rerank_routing::SQL as RERANK_ROUTING_SQL;
 
 /// The version stamped for the auto-created baseline schema. Migrations in
 /// [`MIGRATIONS`] must use versions strictly greater than this.
@@ -480,6 +482,11 @@ pub const MIGRATIONS: &[Migration] = &[
                 "ALTER TABLE usage_rollups ADD COLUMN image_output_tokens BIGINT NOT NULL DEFAULT 0",
             ],
         },
+    },
+    Migration {
+        version: 22,
+        description: "routing_rules: rerank passthrough for existing custom/openrouter providers",
+        sql: MigrationSql::Shared(RERANK_ROUTING_SQL),
     },
 ];
 

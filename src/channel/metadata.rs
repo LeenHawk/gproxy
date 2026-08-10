@@ -154,6 +154,7 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_responses",
             "claude_messages",
             "openai_embeddings",
+            "openai_rerank",
         ],
         "deepseek" => &[
             "openai_list_models",
@@ -200,6 +201,7 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "gemini_stream_generate_content",
             "openai_embeddings",
             "gemini_embeddings",
+            "openai_rerank",
             "image_generations",
             "image_edits",
             "openai_compact",

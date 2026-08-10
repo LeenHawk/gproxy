@@ -25,7 +25,7 @@ provider's routing rules.
 | Field | Description |
 | --- | --- |
 | `provider_id` | Provider whose channel and credentials will service the request. |
-| `operation` | Provider-neutral operation string, for example `generate_content`, `stream_generate_content`, `list_models`, `count_tokens`, `create_image`, or `create_embedding`. |
+| `operation` | Provider-neutral operation string, for example `generate_content`, `stream_generate_content`, `list_models`, `count_tokens`, `create_image`, `create_embedding`, or `rerank`. |
 | `kind` | Inbound wire kind. Content generation uses concrete dialect names such as `open_ai_responses`, `open_ai_chat_completions`, `claude_messages`, or `gemini_generate_content`. Other operations use provider families such as `open_ai`, `claude`, or `gemini`. |
 | `implementation` | `passthrough`, `transform_to`, `local`, or `unsupported`. |
 | `dest_operation` | Destination operation for `transform_to`; may be omitted to keep the same operation. |
@@ -44,7 +44,8 @@ Current operation enum values are:
 | `list_models`, `get_model` | Models | Model list/get endpoints. |
 | `count_tokens` | Count tokens | Provider token counting endpoints. |
 | `generate_content`, `stream_generate_content` | Generate content | OpenAI Chat Completions, OpenAI Responses, Claude Messages, and Gemini generateContent dialects. |
-| `create_image`, `edit_image` | Images | OpenAI-shaped image generation/edit operations; transforms exist only where implemented. |
+| `create_image`, `edit_image` | Images | OpenAI-shaped image generation/edit operations; transforms exist only where implemented. A passthrough request with `stream: true` relays the upstream SSE response. |
+| `rerank` | Search | OpenAI-shaped `POST /v1/rerank`; Custom and OpenRouter providers seed passthrough support. |
 | `create_embedding` | Embeddings | OpenAI and Gemini embedding shapes. |
 | `compact_content` | Compact | Compact endpoint used by agent workflows. |
 | `create_conversation` | Conversation | OpenAI conversation-shaped operation. |
@@ -120,6 +121,32 @@ Answer model listing locally:
   "enabled": true
 }
 ```
+
+Pass through an OpenAI-shaped rerank request:
+
+```json
+{
+  "provider_id": 1,
+  "operation": "rerank",
+  "kind": "open_ai",
+  "implementation": "passthrough",
+  "dest_operation": null,
+  "dest_kind": null,
+  "sort_order": 0,
+  "enabled": true
+}
+```
+
+Custom and OpenRouter providers seed this cell by default. `passthrough`
+preserves the `/v1/rerank` request and response dialect, but it does not bypass
+GPROXY: normal routing and provider/credential failover still apply, as do
+permission and rate-limit checks, usage recording, and settlement. When an
+OpenRouter-shaped rerank response reports only `usage.total_tokens`, GPROXY
+accounts that value as input tokens for billing.
+
+Image passthrough likewise preserves a request body's `stream: true` and relays
+the upstream SSE payload in its original wire shape. Usage reported by the
+completed image event is still included in token-based settlement.
 
 ## Default seeding and reset
 

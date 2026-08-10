@@ -32,7 +32,7 @@ use crate::pipeline::local_ops;
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::pipeline::settle;
 use crate::pipeline::transform::{self as transform_step, AttemptMemo, TransformPlan};
-use crate::protocol::OperationKind;
+use crate::protocol::{Operation, OperationKind};
 
 fn sanitize_public_upstream_headers(ctx: &RequestCtx, headers: &mut http::HeaderMap) {
     if !matches!(
@@ -462,6 +462,32 @@ pub async fn run_failover(
                     s, inbound,
                 )),
                 (_, _, body) => body,
+            };
+            let image_stream_family = match (status.is_success() && ctx.stream, ctx.op) {
+                (true, Some(op))
+                    if matches!(
+                        op.operation(),
+                        Operation::CreateImage | Operation::EditImage
+                    ) =>
+                {
+                    Some(match op.kind() {
+                        OperationKind::ContentGeneration(kind) => kind.provider(),
+                        OperationKind::Provider(family) => family,
+                        _ => unreachable!(
+                            "new non-exhaustive protocol variant requires a lockstep transform update"
+                        ),
+                    })
+                }
+                _ => None,
+            };
+            let body = match (image_stream_family, body) {
+                (Some(family), ResponseBody::Stream(stream)) => {
+                    let guard = settle::provider::StreamGuard::new(state, ctx, cand, family);
+                    ResponseBody::Stream(
+                        crate::pipeline::stream::instrument_provider_settle_stream(stream, guard),
+                    )
+                }
+                (_, body) => body,
             };
             let provider_usage = provider_settle
                 .map(|settle| (settle.body, settle.family))

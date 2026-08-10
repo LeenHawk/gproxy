@@ -22,7 +22,7 @@ GPROXY v2 的 routing table 是每个 provider 一份的持久化矩阵。每行
 | 字段 | 说明 |
 | --- | --- |
 | `provider_id` | 由哪个 provider 的 channel 和 credential 处理请求。 |
-| `operation` | provider-neutral operation 字符串，例如 `generate_content`、`stream_generate_content`、`list_models`、`count_tokens`、`create_image` 或 `create_embedding`。 |
+| `operation` | provider-neutral operation 字符串，例如 `generate_content`、`stream_generate_content`、`list_models`、`count_tokens`、`create_image`、`create_embedding` 或 `rerank`。 |
 | `kind` | 入站 wire kind。content generation 使用具体 dialect：`open_ai_responses`、`open_ai_chat_completions`、`claude_messages`、`gemini_generate_content`。其它 operation 使用 provider family：`open_ai`、`claude`、`gemini`。 |
 | `implementation` | `passthrough`、`transform_to`、`local` 或 `unsupported`。 |
 | `dest_operation` | `transform_to` 的目标 operation；可为空，表示保持原 operation。 |
@@ -41,7 +41,8 @@ GPROXY v2 的 routing table 是每个 provider 一份的持久化矩阵。每行
 | `list_models`, `get_model` | Models | 模型列表/获取端点。 |
 | `count_tokens` | Count tokens | provider token counting 端点。 |
 | `generate_content`, `stream_generate_content` | Generate content | OpenAI Chat Completions、OpenAI Responses、Claude Messages、Gemini generateContent dialect。 |
-| `create_image`, `edit_image` | Images | OpenAI-shaped 图片生成/编辑 operation；只有已实现的路径才可转换。 |
+| `create_image`, `edit_image` | Images | OpenAI-shaped 图片生成/编辑 operation；只有已实现的路径才可转换。带 `stream: true` 的 passthrough 请求会透传上游 SSE 响应。 |
+| `rerank` | Search | OpenAI-shaped `POST /v1/rerank`；Custom 和 OpenRouter provider 默认 seed passthrough 支持。 |
 | `create_embedding` | Embeddings | OpenAI 和 Gemini embedding shape。 |
 | `compact_content` | Compact | agent 工作流使用的 compact endpoint。 |
 | `create_conversation` | Conversation | OpenAI conversation-shaped operation。 |
@@ -115,6 +116,30 @@ Gemini JSON 数组流使用合法 JSON 空白。Edge 构建会保持最终 wire 
   "enabled": true
 }
 ```
+
+透传 OpenAI-shaped rerank 请求：
+
+```json
+{
+  "provider_id": 1,
+  "operation": "rerank",
+  "kind": "open_ai",
+  "implementation": "passthrough",
+  "dest_operation": null,
+  "dest_kind": null,
+  "sort_order": 0,
+  "enabled": true
+}
+```
+
+Custom 和 OpenRouter provider 默认会 seed 这个单元格。`passthrough` 会保留
+`/v1/rerank` 的请求与响应 dialect，但不会绕过 GPROXY：请求仍经过常规路由、
+provider 与 credential 故障转移、权限与限流检查、usage 记录和结算。
+OpenRouter-shaped rerank 响应仅报告 `usage.total_tokens` 时，GPROXY 会把该值
+作为 input token 计费。
+
+图片 passthrough 同样会保留请求 body 中的 `stream: true`，并按原始 wire shape
+透传上游 SSE payload；完成事件中报告的 usage 仍会参与 token 结算。
 
 ## 默认 seed 与 reset
 

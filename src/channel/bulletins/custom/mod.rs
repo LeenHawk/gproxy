@@ -59,6 +59,7 @@ impl Channel for CustomChannel {
             pass(CreateEmbedding, pv(P::OpenAi)),
             pass(CreateEmbedding, pv(P::Claude)),
             pass(CreateEmbedding, pv(P::Gemini)),
+            pass(Rerank, pv(P::OpenAi)),
             pass(CreateImage, pv(P::OpenAi)),
             pass(CreateImage, pv(P::Claude)),
             pass(CreateImage, pv(P::Gemini)),
@@ -118,7 +119,8 @@ mod tests {
     use http::StatusCode;
     use serde_json::{Value, json};
 
-    use crate::protocol::{Operation, OperationKey};
+    use crate::protocol::{Operation, OperationKey, Provider};
+    use crate::routing::RoutingDecision;
 
     const MAGIC: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
 
@@ -192,5 +194,17 @@ mod tests {
         let fallback: Value = serde_json::from_slice(&fallback).unwrap();
         assert_eq!(fallback["fallbacks"], "default");
         assert_eq!(headers["anthropic-beta"], "server-side-fallback-2026-07-01");
+    }
+
+    #[test]
+    fn rerank_defaults_to_openai_shaped_passthrough() {
+        let key = OperationKey::provider(Operation::Rerank, Provider::OpenAi);
+        assert_eq!(
+            CustomChannel
+                .routing_table()
+                .into_iter()
+                .find(|(source, _)| *source == key),
+            Some((key, RoutingDecision::Passthrough))
+        );
     }
 }

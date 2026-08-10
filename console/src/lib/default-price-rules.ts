@@ -12,6 +12,7 @@ export interface PriceRuleBundle {
     dynamic_price_models: number;
     included_models: number;
     embedding_models: number;
+    rerank_models: number;
     image_output_priced_models: number;
   };
   price_rules: PriceRuleDraft[];

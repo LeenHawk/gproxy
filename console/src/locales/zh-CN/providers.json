@@ -116,6 +116,7 @@
       "gemini_stream_generate_content": "Gemini 流式内容生成",
       "openai_embeddings": "OpenAI 嵌入",
       "gemini_embeddings": "Gemini 嵌入",
+      "openai_rerank": "OpenAI 兼容重排序",
       "image_generations": "图片生成",
       "image_edits": "图片编辑",
       "openai_compact": "OpenAI 压缩",

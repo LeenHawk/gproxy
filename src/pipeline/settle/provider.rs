@@ -1,7 +1,7 @@
 //! §17 settlement for the provider-shaped billable ops that are NOT
-//! content-generation: compact content, embeddings, and image generation. These
-//! are always non-streaming single-JSON responses, so they settle inline from
-//! the buffered body (no counting ladder, no stream guard). The
+//! content-generation: compact content, embeddings, rerank, and image
+//! generation. Buffered JSON responses settle inline; image SSE responses use
+//! a bounded relay guard so they can stream without losing final usage. The
 //! content-generation settle path ([`super::SettleCtx`]) is untouched.
 //!
 //! Pricing uses the normalized per-million-token rates from response `usage`.
@@ -9,7 +9,6 @@
 //! it settles at zero rather than guessing from the number of returned images.
 
 use bytes::Bytes;
-use rust_decimal::Decimal;
 use serde_json::Value;
 
 use crate::app::AppState;
@@ -19,7 +18,11 @@ use crate::protocol::{Operation, OperationKey, Provider as Family};
 use crate::usage::{Ended, UsageSource, extract};
 use crate::util::time::unix_now;
 
-/// Whether this op settles here (compact / embeddings / images). Lets the
+mod image_sse;
+mod stream;
+pub(crate) use stream::StreamGuard;
+
+/// Whether this op settles here (compact / embeddings / rerank / images). Lets the
 /// caller skip spawning a settle task for every other buffered success.
 pub(crate) fn billable(op: Option<OperationKey>) -> bool {
     matches!(
@@ -27,10 +30,61 @@ pub(crate) fn billable(op: Option<OperationKey>) -> bool {
         Some(
             Operation::CompactContent
                 | Operation::CreateEmbedding
+                | Operation::Rerank
                 | Operation::CreateImage
                 | Operation::EditImage
         )
     )
+}
+
+/// Provider settlement facts fixed before a response body is detached or
+/// exposed as a stream. This keeps pricing, pending refunds, and limiter targets
+/// stable if the control plane changes while a long image stream is in flight.
+pub(super) struct Captured {
+    pub(super) state: AppState,
+    pub(super) ctx: RequestCtx,
+    pub(super) cand: Candidate,
+    usage_family: Family,
+    pricing: billing::price::Pricing,
+    quota_scopes: Vec<(crate::store::persistence::records::Scope, i64)>,
+    token_rlt_ids: Vec<i64>,
+}
+
+impl Captured {
+    pub(super) fn new(
+        state: &AppState,
+        ctx: &RequestCtx,
+        cand: &Candidate,
+        usage_family: Family,
+    ) -> Self {
+        let identity = ctx.identity.as_deref();
+        let (pricing, quota_scopes, token_rlt_ids) = {
+            let cp = state.cp();
+            let pricing =
+                billing::pending::resolve_pricing(&cp, cand.provider.id, &cand.upstream_model_id)
+                    .pricing;
+            let (scopes, token_rlt_ids) = identity.map_or_else(
+                || (Vec::new(), Vec::new()),
+                |identity| {
+                    let name = ctx.route_name.as_deref().unwrap_or(&cand.provider.name);
+                    (
+                        crate::pipeline::authz::quota_scopes(&cp, identity),
+                        crate::pipeline::authz::token_limit_ids(&cp, identity, name),
+                    )
+                },
+            );
+            (pricing, scopes, token_rlt_ids)
+        };
+        Self {
+            state: state.clone(),
+            ctx: ctx.clone(),
+            cand: cand.clone(),
+            usage_family,
+            pricing,
+            quota_scopes,
+            token_rlt_ids,
+        }
+    }
 }
 
 /// Detach provider-op settlement on native; edge request contexts must await it.
@@ -41,60 +95,47 @@ pub(crate) async fn schedule(
     body: Bytes,
     usage_family: Family,
 ) {
+    let captured = Captured::new(state, ctx, cand, usage_family);
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let (state, ctx, cand) = (state.clone(), ctx.clone(), cand.clone());
         tokio::spawn(async move {
-            settle(&state, &ctx, &cand, &body, usage_family).await;
+            settle_ended(&captured, &body, Ended::Complete).await;
         });
     }
     #[cfg(target_arch = "wasm32")]
-    settle(state, ctx, cand, &body, usage_family).await;
+    settle_ended(&captured, &body, Ended::Complete).await;
 }
 
-/// Settle a successful compact / embedding / image response. No-op for any other
-/// operation (the caller invokes this for every successful buffered response;
-/// content-generation, models and count ops return early here).
-pub(crate) async fn settle(
-    state: &AppState,
-    ctx: &RequestCtx,
-    cand: &Candidate,
-    body: &Bytes,
-    usage_family: Family,
-) {
+async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
+    let Captured {
+        state,
+        ctx,
+        cand,
+        usage_family,
+        pricing,
+        quota_scopes,
+        token_rlt_ids,
+    } = captured;
     let Some(op) = ctx.op else { return };
     let is_embedding = matches!(op.operation(), Operation::CreateEmbedding);
+    let is_rerank = matches!(op.operation(), Operation::Rerank);
     let is_compact = matches!(op.operation(), Operation::CompactContent);
     let is_image = matches!(
         op.operation(),
         Operation::CreateImage | Operation::EditImage
     );
-    if !is_embedding && !is_compact && !is_image {
+    if !is_embedding && !is_rerank && !is_compact && !is_image {
         return;
     }
 
-    // Resolve pricing + quota scopes under a scoped snapshot guard (the await
-    // below never touches the snapshot).
     let identity = ctx.identity.as_deref();
-    let (pricing, quota_scopes) = {
-        let cp = state.cp();
-        let resolved =
-            billing::pending::resolve_pricing(&cp, cand.provider.id, &cand.upstream_model_id);
-        let pricing = resolved.pricing;
-        let scopes = identity
-            .map(|i| crate::pipeline::authz::quota_scopes(&cp, i))
-            .unwrap_or_default();
-        (pricing, scopes)
-    };
-
     let (parsed, parse_error): (Option<Value>, Option<serde_json::Error>) =
         match serde_json::from_slice(body) {
             Ok(value) => (Some(value), None),
             Err(error) => (None, Some(error)),
         };
-    // Images supports `stream:true`, while the provider operation currently
-    // reaches this settlement path as a buffered SSE transcript. Decode the
-    // completed event instead of treating the transcript as malformed JSON.
+    // Image responses may arrive as a buffered transcript or through the
+    // streaming relay guard. Decode the completed event in either case.
     let stream_frames = (is_image && parsed.is_none())
         .then(|| super::frames::decode(body).ok())
         .flatten()
@@ -112,21 +153,25 @@ pub(crate) async fn settle(
         .as_ref()
         .and_then(|value| {
             if is_image {
-                extract::from_image_response(usage_family, value)
+                extract::from_image_response(*usage_family, value)
+            } else if is_rerank {
+                extract::from_rerank_response(*usage_family, value)
             } else {
-                extract::from_response(usage_family, value)
+                extract::from_response(*usage_family, value)
             }
         })
         .or_else(|| {
             stream_frames
                 .as_deref()
-                .and_then(|frames| extract::from_image_stream_frames(usage_family, frames))
+                .and_then(|frames| extract::from_image_stream_frames(*usage_family, frames))
         });
     if (parsed.is_some() || stream_frames.is_some()) && extracted.is_none() {
         let operation = if is_compact {
             "compact_content"
         } else if is_embedding {
             "create_embedding"
+        } else if is_rerank {
+            "rerank"
         } else if matches!(op.operation(), Operation::EditImage) {
             "edit_image"
         } else {
@@ -146,7 +191,24 @@ pub(crate) async fn settle(
         UsageSource::Upstream
     };
     let usage = extracted.unwrap_or_default();
-    let cost = price::cost(&usage, &pricing);
+    let cost = price::cost(&usage, pricing);
+
+    // Keep provider-shaped operations on the same billing and token-counter
+    // path as content generation. Recording may be disabled, but quota and
+    // limiter reconciliation is always required.
+    super::reconcile::reconcile_target(
+        super::reconcile::ReconcileTarget {
+            state,
+            request_id: &ctx.request_id,
+            credential_id: cand.credential.id,
+            pending_micros: ctx.pending_micros,
+            quota_scopes,
+            token_rlt_ids,
+        },
+        &usage,
+        cost,
+    )
+    .await;
 
     let operation = super::enum_str(&op.operation());
     let kind = super::enum_str(&op.kind());
@@ -167,42 +229,20 @@ pub(crate) async fn settle(
         cost,
         latency_ms: 0,
         source,
-        ended: Ended::Complete,
+        ended,
     };
-    // §8-E: `enable_usage` gates the usage row only — the reconcile below
-    // (pending refund + quota cost) is billing correctness and always runs.
+    // §8-E: `enable_usage` gates the usage row only.
     if state.cp().log_settings.enable_usage
         && let Err(e) = billing::record_success(state.persistence.as_ref(), rec).await
     {
         tracing::warn!(request_id = %ctx.request_id, error = %e, "provider settle write failed");
-    }
-    // §17 reconcile, symmetric with the content-generation path: refund the
-    // pre-deducted pending (charged in `execute`), then persist the actual cost
-    // into each quota row. `refund` is a no-op when nothing was pre-deducted.
-    billing::pending::refund(
-        state.cache.as_ref(),
-        &quota_scopes,
-        ctx.pending_micros,
-        &ctx.request_id,
-    )
-    .await;
-    if cost > Decimal::ZERO {
-        for (scope, scope_id) in &quota_scopes {
-            if let Err(e) = state
-                .persistence
-                .add_quota_cost(*scope, *scope_id, cost)
-                .await
-            {
-                tracing::warn!(request_id = %ctx.request_id, error = %e, "provider quota write failed");
-            }
-        }
     }
     tracing::debug!(
         request_id = %ctx.request_id,
         provider = %cand.provider.name,
         upstream_model = %cand.upstream_model_id,
         usage_source = %source,
-        ended = "complete",
+        ended = %ended,
         image_output_tokens = usage.image_output,
         tokens = usage.total(),
         cost = %cost,

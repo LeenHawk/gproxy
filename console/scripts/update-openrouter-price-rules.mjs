@@ -9,7 +9,7 @@ const scriptPath = fileURLToPath(import.meta.url);
 const consoleDir = path.resolve(path.dirname(scriptPath), "..");
 const outputPath = path.join(consoleDir, "src", "data", "openrouter-price-rules.json");
 const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
-const TOKEN_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings"]);
+const SUPPORTED_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings", "rerank"]);
 
 /** Convert an OpenRouter USD/token decimal into GPROXY's USD/1M-token form. */
 export function perMillion(value) {
@@ -46,6 +46,7 @@ export function buildPriceBundle(payload) {
   let supportedOutputModels = 0;
   let dynamicPriceModels = 0;
   let embeddingModels = 0;
+  let rerankModels = 0;
   for (const model of payload.data) {
     if (typeof model?.id !== "string" || !model.id.includes("/")) {
       throw new Error(`invalid OpenRouter model id: ${String(model?.id)}`);
@@ -53,7 +54,7 @@ export function buildPriceBundle(payload) {
     const outputModalities = model?.architecture?.output_modalities;
     if (
       !Array.isArray(outputModalities)
-      || !outputModalities.some((modality) => TOKEN_OUTPUT_MODALITIES.has(modality))
+      || !outputModalities.some((modality) => SUPPORTED_OUTPUT_MODALITIES.has(modality))
     ) {
       continue;
     }
@@ -78,6 +79,7 @@ export function buildPriceBundle(payload) {
       continue;
     }
     if (outputModalities.includes("embeddings")) embeddingModels += 1;
+    if (outputModalities.includes("rerank")) rerankModels += 1;
 
     const author = model.id.slice(0, model.id.indexOf("/")).replace(/^~/, "");
     const modelMatch = model.id.slice(model.id.lastIndexOf("/") + 1);
@@ -119,6 +121,7 @@ export function buildPriceBundle(payload) {
       dynamic_price_models: dynamicPriceModels,
       included_models: rules.length,
       embedding_models: embeddingModels,
+      rerank_models: rerankModels,
       image_output_priced_models: rules.filter((rule) => rule.image_output_price !== "0").length,
     },
     price_rules: rules,
