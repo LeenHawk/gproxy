@@ -3,17 +3,37 @@ export interface TransformTemplate {
   config: {
     phase: "request";
     locate: { match: string } | { paths: string[] };
-    actions: { op: "replace_text"; from?: string; with: string }[];
+    actions: (
+      | { op: "replace_text"; from?: string; with: string }
+      | { op: "replace_regex"; pattern: string; with: string }
+    )[];
   };
 }
+
+// Text-bearing request fields across Claude Messages, OpenAI Chat/Responses,
+// and Gemini GenerateContent. Keep client-identity substitutions structural so
+// opaque payloads such as image/document base64 are never searched or changed.
+export const APPLICATION_REQUEST_TEXT_PATHS = [
+  "system",
+  "system.*.text",
+  "instructions",
+  "messages.*.content",
+  "messages.*.content.*.text",
+  "messages.*.content.*.content.*.text",
+  "input",
+  "input.*.content",
+  "input.*.content.*.text",
+  "contents.*.parts.*.text",
+  "systemInstruction.parts.*.text",
+] as const;
 
 function replaceText(id: string, pattern: string, replacement: string): TransformTemplate {
   return {
     id,
     config: {
       phase: "request",
-      locate: { match: pattern },
-      actions: [{ op: "replace_text", with: replacement }],
+      locate: { paths: [...APPLICATION_REQUEST_TEXT_PATHS] },
+      actions: [{ op: "replace_regex", pattern, with: replacement }],
     },
   };
 }

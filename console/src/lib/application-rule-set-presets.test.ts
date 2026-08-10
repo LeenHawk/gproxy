@@ -17,8 +17,14 @@ describe("application rule-set presets", () => {
     const pi = APPLICATION_RULE_SET_PRESETS.find((preset) => preset.id === "pi");
     expect(pi?.rules).toHaveLength(9);
     expect(pi?.rules.map((rule) => rule.sort_order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(pi?.rules[0].config_json).toMatchObject({ locate: { match: "\\bPi documentation\\b" } });
-    expect(pi?.rules[8].config_json).toMatchObject({ locate: { match: "\\bPI\\b" } });
+    expect(pi?.rules[0].config_json).toMatchObject({
+      locate: { paths: expect.arrayContaining(["system.*.text", "messages.*.content.*.text"]) },
+      actions: [{ op: "replace_regex", pattern: "\\bPi documentation\\b", with: "Harness documentation" }],
+    });
+    expect(pi?.rules[8].config_json).toMatchObject({
+      actions: [{ op: "replace_regex", pattern: "\\bPI\\b", with: "AGENT" }],
+    });
+    expect(pi?.rules.every((rule) => rule.filter_header_pattern === null)).toBe(true);
   });
 
   it("contains paired OpenCode tool and MCP request/response transforms", () => {
