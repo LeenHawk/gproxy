@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectNotesSection } from "./release-notes";
+import { selectNotesSection, sortReleaseNotesDescending } from "./release-notes";
 
 const bilingual = `## v2.2.5
 
@@ -24,5 +24,22 @@ describe("selectNotesSection", () => {
 
   it("returns an unsectioned body unchanged apart from surrounding whitespace", () => {
     expect(selectNotesSection("  Rolling staging build.\n", "en")).toBe("Rolling staging build.");
+  });
+});
+
+describe("sortReleaseNotesDescending", () => {
+  it("sorts stable versions numerically without mutating the response", () => {
+    const entries = [
+      { version: "2.9.0", body: "older" },
+      { version: "2.10.0", body: "newer" },
+      { version: "2.9.1", body: "middle" },
+    ];
+
+    expect(sortReleaseNotesDescending(entries).map(({ version }) => version)).toEqual([
+      "2.10.0",
+      "2.9.1",
+      "2.9.0",
+    ]);
+    expect(entries[0].version).toBe("2.9.0");
   });
 });

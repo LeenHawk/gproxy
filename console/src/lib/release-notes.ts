@@ -5,6 +5,7 @@ export type ReleaseNoteLine =
   | { kind: "blockquote" | "bullet" | "paragraph"; content: ReactNode };
 
 const SECTION_HEADING = /^###\s+(English|简体中文)\s*$/;
+const STABLE_VERSION = /^v?(\d+)\.(\d+)\.(\d+)$/;
 
 export function selectNotesSection(markdown: string, language: string): string {
   const lines = markdown.split(/\r?\n/);
@@ -16,6 +17,22 @@ export function selectNotesSection(markdown: string, language: string): string {
   const following = lines.slice(start + 1);
   const nextSection = following.findIndex((line) => SECTION_HEADING.test(line.trim()));
   return following.slice(0, nextSection < 0 ? undefined : nextSection).join("\n").trim();
+}
+
+export function sortReleaseNotesDescending<T extends { version: string }>(entries: readonly T[]): T[] {
+  return [...entries].sort((left, right) => compareStableVersions(right.version, left.version));
+}
+
+function compareStableVersions(left: string, right: string): number {
+  const leftParts = STABLE_VERSION.exec(left)?.slice(1).map(Number);
+  const rightParts = STABLE_VERSION.exec(right)?.slice(1).map(Number);
+  if (!leftParts || !rightParts) return left.localeCompare(right, "en", { numeric: true });
+
+  for (let index = 0; index < leftParts.length; index += 1) {
+    const difference = leftParts[index] - rightParts[index];
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 export function parseReleaseNotes(markdown: string): ReleaseNoteLine[] {

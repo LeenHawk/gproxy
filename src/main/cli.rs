@@ -208,16 +208,11 @@ pub(crate) async fn run_update(
             UpdateAction::Check => {
                 let report = gproxy::selfupdate::check(&ctx).await?;
                 println!(
-                    "channel={channel:?} target={} current={} latest={} available={}{}",
+                    "channel={channel:?} target={} current={} latest={} available={}",
                     gproxy::selfupdate::current_target_triple(),
                     report.current,
                     report.latest,
-                    report.available,
-                    report
-                        .notes_url
-                        .as_deref()
-                        .map(|u| format!(" notes={u}"))
-                        .unwrap_or_default()
+                    report.available
                 );
                 Ok(())
             }
