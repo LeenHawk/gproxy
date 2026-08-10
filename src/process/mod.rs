@@ -29,13 +29,14 @@ pub fn apply(
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
     model: &str,
+    alternate_model: Option<&str>,
     client: &HeaderMap,
     headers: &mut HeaderMap,
     body: Bytes,
 ) -> Bytes {
     let applicable: Vec<&CompiledRule> = rules
         .iter()
-        .filter(|r| r.matches(op, model, client))
+        .filter(|r| rule_matches(r, op, model, alternate_model, client))
         .collect();
     if applicable.is_empty() {
         return body;
@@ -107,12 +108,13 @@ pub fn apply_response(
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
     model: &str,
+    alternate_model: Option<&str>,
     client: &HeaderMap,
     body: Bytes,
 ) -> Bytes {
     let applicable: Vec<&CompiledRule> = rules
         .iter()
-        .filter(|r| r.matches(op, model, client))
+        .filter(|r| rule_matches(r, op, model, alternate_model, client))
         .collect();
     if applicable.is_empty() {
         return body;
@@ -167,12 +169,13 @@ pub fn response_stream_decoder(
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
     model: &str,
+    alternate_model: Option<&str>,
     client: &HeaderMap,
 ) -> Option<Box<dyn ByteStreamDecoder>> {
     let rules: Vec<CompiledRule> = rules
         .iter()
         .filter(|rule| {
-            rule.matches(op, model, client)
+            rule_matches(rule, op, model, alternate_model, client)
                 && (rule.config.mutates_response_value() || rule.config.mutates_response_text())
         })
         .cloned()
@@ -186,8 +189,22 @@ pub fn response_stream_decoder(
         op,
         kind,
         model: model.to_owned(),
+        alternate_model: alternate_model.map(str::to_owned),
         client: client.clone(),
     }))
+}
+
+fn rule_matches(
+    rule: &CompiledRule,
+    op: OperationKey,
+    model: &str,
+    alternate_model: Option<&str>,
+    client: &HeaderMap,
+) -> bool {
+    match alternate_model {
+        Some(alternate) => rule.matches_any_model(op, &[model, alternate], client),
+        None => rule.matches(op, model, client),
+    }
 }
 
 struct ResponseRuleStreamDecoder {
@@ -196,6 +213,7 @@ struct ResponseRuleStreamDecoder {
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
     model: String,
+    alternate_model: Option<String>,
     /// Inbound client headers, re-checked per frame by the rule filters.
     client: HeaderMap,
 }
@@ -236,6 +254,7 @@ impl ResponseRuleStreamDecoder {
             self.op,
             self.kind,
             &self.model,
+            self.alternate_model.as_deref(),
             &self.client,
             Bytes::from(frame.data.clone()),
         );
