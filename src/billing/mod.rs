@@ -74,6 +74,7 @@ pub async fn record_success(
         model: rec.model.map(str::to_owned),
         input_tokens: tok(rec.usage.input),
         output_tokens: tok(rec.usage.output),
+        image_output_tokens: tok(rec.usage.image_output),
         cache_read_tokens: tok(rec.usage.cache_read),
         cache_creation_5m_tokens: tok(rec.usage.cache_creation_5m),
         cache_creation_30m_tokens: tok(rec.usage.cache_creation_30m),
@@ -100,6 +101,7 @@ pub async fn record_success(
             requests: 1,
             input_tokens: tok(rec.usage.input),
             output_tokens: tok(rec.usage.output),
+            image_output_tokens: tok(rec.usage.image_output),
             cache_write_tokens: tok(rec.usage.cache_creation()),
             cache_read_tokens: tok(rec.usage.cache_read),
             cost: rec.cost,
@@ -144,6 +146,7 @@ mod tests {
         let usage = NormalizedUsage {
             input: 1500,
             output: 100,
+            image_output: 50,
             cache_creation_5m: 200,
             cache_creation_30m: 400,
             cache_creation_1h: 300,
@@ -179,6 +182,7 @@ mod tests {
         assert_eq!(rows[0].cache_creation_5m_tokens, 200);
         assert_eq!(rows[0].cache_creation_30m_tokens, 400);
         assert_eq!(rows[0].cache_creation_1h_tokens, 300);
+        assert_eq!(rows[0].image_output_tokens, 50);
 
         // Rollups counted exactly once per granularity.
         for gran in ["hour", "day"] {
@@ -189,6 +193,7 @@ mod tests {
             assert_eq!(rollups.len(), 1, "{gran}");
             assert_eq!(rollups[0].requests, 1, "{gran}");
             assert_eq!(rollups[0].input_tokens, 1500, "{gran}");
+            assert_eq!(rollups[0].image_output_tokens, 50, "{gran}");
             assert_eq!(rollups[0].cache_write_tokens, 900, "{gran}");
         }
     }

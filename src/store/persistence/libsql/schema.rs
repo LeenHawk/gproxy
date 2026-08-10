@@ -89,7 +89,7 @@ const TABLES: &[&str] = &[
         cache_creation_5m_price TEXT NOT NULL, \
         cache_creation_30m_price TEXT NOT NULL, \
         cache_creation_1h_price TEXT NOT NULL, \
-        image_price TEXT NOT NULL, \
+        image_output_price TEXT NOT NULL DEFAULT '0', \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
@@ -252,6 +252,7 @@ const TABLES: &[&str] = &[
         model TEXT, \
         input_tokens INTEGER NOT NULL, \
         output_tokens INTEGER NOT NULL, \
+        image_output_tokens INTEGER NOT NULL DEFAULT 0, \
         cache_read_tokens INTEGER NOT NULL, \
         cache_creation_5m_tokens INTEGER NOT NULL, \
         cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0, \
@@ -275,6 +276,7 @@ const TABLES: &[&str] = &[
         requests INTEGER NOT NULL, \
         input_tokens INTEGER NOT NULL, \
         output_tokens INTEGER NOT NULL, \
+        image_output_tokens INTEGER NOT NULL DEFAULT 0, \
         cache_write_tokens INTEGER NOT NULL DEFAULT 0, \
         cache_read_tokens INTEGER NOT NULL DEFAULT 0, \
         cost TEXT NOT NULL, \

@@ -29,6 +29,7 @@ fn to_record(m: usage::Model) -> anyhow::Result<Usage> {
         model: m.model,
         input_tokens: m.input_tokens,
         output_tokens: m.output_tokens,
+        image_output_tokens: m.image_output_tokens,
         cache_read_tokens: m.cache_read_tokens,
         cache_creation_5m_tokens: m.cache_creation_5m_tokens,
         cache_creation_30m_tokens: m.cache_creation_30m_tokens,
@@ -71,6 +72,7 @@ pub async fn append(conn: &DatabaseConnection, input: UsageInput) -> anyhow::Res
         model: Set(input.model),
         input_tokens: Set(input.input_tokens),
         output_tokens: Set(input.output_tokens),
+        image_output_tokens: Set(input.image_output_tokens),
         cache_read_tokens: Set(input.cache_read_tokens),
         cache_creation_5m_tokens: Set(input.cache_creation_5m_tokens),
         cache_creation_30m_tokens: Set(input.cache_creation_30m_tokens),
@@ -192,6 +194,7 @@ pub async fn summarize(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Res
         "SELECT COUNT(*) AS requests, \
          CAST(COALESCE(SUM(input_tokens), 0) AS BIGINT) AS input_tokens, \
          CAST(COALESCE(SUM(output_tokens), 0) AS BIGINT) AS output_tokens, \
+         CAST(COALESCE(SUM(image_output_tokens), 0) AS BIGINT) AS image_output_tokens, \
          CAST(COALESCE(SUM(cache_read_tokens), 0) AS BIGINT) AS cache_read_tokens, \
          CAST(COALESCE(SUM(cache_creation_5m_tokens), 0) AS BIGINT) AS cache_creation_5m_tokens, \
          CAST(COALESCE(SUM(cache_creation_30m_tokens), 0) AS BIGINT) AS cache_creation_30m_tokens, \
@@ -250,6 +253,7 @@ pub async fn summarize(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Res
         requests: row.try_get("", "requests")?,
         input_tokens: row.try_get("", "input_tokens")?,
         output_tokens: row.try_get("", "output_tokens")?,
+        image_output_tokens: row.try_get("", "image_output_tokens")?,
         cache_read_tokens: row.try_get("", "cache_read_tokens")?,
         cache_creation_5m_tokens: row.try_get("", "cache_creation_5m_tokens")?,
         cache_creation_30m_tokens: row.try_get("", "cache_creation_30m_tokens")?,

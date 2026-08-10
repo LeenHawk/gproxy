@@ -1,32 +1,15 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "source": {
+    "catalog": "openrouter",
+    "total_models": 525,
+    "supported_output_models": 464,
+    "dynamic_price_models": 5,
+    "included_models": 459,
+    "embedding_models": 33,
+    "image_output_priced_models": 40
+  },
   "price_rules": [
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "aion-1.0",
-      "input_price": "4",
-      "output_price": "8",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "aion-1.0-mini",
-      "input_price": "0.7",
-      "output_price": "1.4",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
     {
       "provider_id": null,
       "match_type": "contains",
@@ -37,7 +20,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "aion-3.0",
+      "input_price": "3",
+      "output_price": "6",
+      "cache_read_price": "0.75",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "aion-3.0-mini",
+      "input_price": "0.7",
+      "output_price": "1.4",
+      "cache_read_price": "0.18",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -50,7 +59,85 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "all-minilm-l12-v2",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "all-minilm-l6-v2",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "all-mpnet-base-v2",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "bge-base-en-v1.5",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "bge-large-en-v1.5",
+      "input_price": "0.01",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "bge-m3",
+      "input_price": "0.01",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -63,7 +150,7 @@
       "cache_creation_5m_price": "0.3",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0.5",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -75,8 +162,21 @@
       "cache_read_price": "1",
       "cache_creation_5m_price": "12.5",
       "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "cache_creation_1h_price": "20",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-fable-5:batch",
+      "input_price": "5",
+      "output_price": "25",
+      "cache_read_price": "0.5",
+      "cache_creation_5m_price": "6.25",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "10",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -88,8 +188,8 @@
       "cache_read_price": "1",
       "cache_creation_5m_price": "12.5",
       "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "cache_creation_1h_price": "20",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -102,7 +202,20 @@
       "cache_creation_5m_price": "1.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "2",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-haiku-4.5:batch",
+      "input_price": "0.5",
+      "output_price": "2.5",
+      "cache_read_price": "0.05",
+      "cache_creation_5m_price": "0.625",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "1",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -115,7 +228,7 @@
       "cache_creation_5m_price": "1.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "2",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -128,7 +241,7 @@
       "cache_creation_5m_price": "18.75",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "30",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -141,7 +254,20 @@
       "cache_creation_5m_price": "18.75",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "30",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-4.1:batch",
+      "input_price": "7.5",
+      "output_price": "37.5",
+      "cache_read_price": "0.75",
+      "cache_creation_5m_price": "9.375",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "15",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -154,7 +280,20 @@
       "cache_creation_5m_price": "6.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-4.5:batch",
+      "input_price": "2.5",
+      "output_price": "12.5",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "3.125",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "5",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -167,7 +306,20 @@
       "cache_creation_5m_price": "6.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-4.6:batch",
+      "input_price": "2.5",
+      "output_price": "12.5",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "3.125",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "5",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -180,7 +332,7 @@
       "cache_creation_5m_price": "6.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -193,7 +345,20 @@
       "cache_creation_5m_price": "37.5",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "60",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-4.7:batch",
+      "input_price": "2.5",
+      "output_price": "12.5",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "3.125",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "5",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -206,7 +371,7 @@
       "cache_creation_5m_price": "6.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -219,20 +384,20 @@
       "cache_creation_5m_price": "12.5",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "20",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "claude-opus-5-fast",
-      "input_price": "10",
-      "output_price": "50",
-      "cache_read_price": "1",
-      "cache_creation_5m_price": "12.5",
+      "model_match": "claude-opus-4.8:batch",
+      "input_price": "2.5",
+      "output_price": "12.5",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "3.125",
       "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "20",
-      "image_price": "0",
+      "cache_creation_1h_price": "5",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -245,7 +410,33 @@
       "cache_creation_5m_price": "6.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-5-fast",
+      "input_price": "10",
+      "output_price": "50",
+      "cache_read_price": "1",
+      "cache_creation_5m_price": "12.5",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "20",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-5:batch",
+      "input_price": "2.5",
+      "output_price": "12.5",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "3.125",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "5",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -258,7 +449,7 @@
       "cache_creation_5m_price": "6.25",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -271,7 +462,7 @@
       "cache_creation_5m_price": "3.75",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "6",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -284,7 +475,20 @@
       "cache_creation_5m_price": "3.75",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "6",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-sonnet-4.5:batch",
+      "input_price": "1.5",
+      "output_price": "7.5",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "1.875",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "3",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -297,7 +501,20 @@
       "cache_creation_5m_price": "3.75",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "6",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-sonnet-4.6:batch",
+      "input_price": "1.5",
+      "output_price": "7.5",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "1.875",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "3",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -310,7 +527,20 @@
       "cache_creation_5m_price": "2.5",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "4",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-sonnet-5:batch",
+      "input_price": "1",
+      "output_price": "5",
+      "cache_read_price": "0.1",
+      "cache_creation_5m_price": "1.25",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "2",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -323,20 +553,7 @@
       "cache_creation_5m_price": "2.5",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "4",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "coder-large",
-      "input_price": "0.5",
-      "output_price": "0.8",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -349,7 +566,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "codestral-embed-2505",
+      "input_price": "0.15",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -362,7 +592,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -375,7 +605,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -388,7 +618,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -401,7 +631,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -414,7 +644,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -427,46 +657,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-chat",
-      "input_price": "0.2002",
-      "output_price": "0.8001",
+      "input_price": "0.2574",
+      "output_price": "1.0287",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-chat-v3-0324",
-      "input_price": "0.24",
-      "output_price": "0.9",
+      "input_price": "0.27",
+      "output_price": "1.12",
       "cache_read_price": "0.135",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-chat-v3.1",
-      "input_price": "0.21",
-      "output_price": "0.79",
+      "input_price": "0.25",
+      "output_price": "0.95",
       "cache_read_price": "0.13",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -479,7 +709,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -492,7 +722,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -505,7 +735,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -513,25 +743,25 @@
       "match_type": "contains",
       "model_match": "deepseek-v3.1-terminus",
       "input_price": "0.27",
-      "output_price": "0.95",
-      "cache_read_price": "0.13",
+      "output_price": "1",
+      "cache_read_price": "0.135",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v3.2",
-      "input_price": "0.2288",
-      "output_price": "0.3432",
-      "cache_read_price": "0.02288",
+      "input_price": "0.269",
+      "output_price": "0.4",
+      "cache_read_price": "0.1345",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -544,20 +774,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v4-flash",
+      "input_price": "0.14",
+      "output_price": "0.28",
+      "cache_read_price": "0.028",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "deepseek-v4-flash-0731",
       "input_price": "0.09",
       "output_price": "0.18",
       "cache_read_price": "0.018",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "deepseek-v4-flash-latest",
+      "input_price": "0.079996",
+      "output_price": "0.252",
+      "cache_read_price": "0.0252",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -570,33 +826,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "devstral-2512",
-      "input_price": "0.4",
-      "output_price": "2",
-      "cache_read_price": "0.04",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "dolphin-mistral-24b-venice-edition",
-      "input_price": "0",
+      "input_price": "0.2",
+      "output_price": "0.9",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "e5-base-v2",
+      "input_price": "0.005",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "e5-large-v2",
+      "input_price": "0.01",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -609,7 +878,59 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "flux.2-flex",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "14.6484375",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "flux.2-klein-4b",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "3.41796875",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "flux.2-max",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "17.08984375",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "flux.2-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "7.32421875",
       "enabled": true
     },
     {
@@ -622,7 +943,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -635,7 +956,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -645,10 +966,10 @@
       "input_price": "0.3",
       "output_price": "2.5",
       "cache_read_price": "0.03",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -658,10 +979,10 @@
       "input_price": "0.3",
       "output_price": "2.5",
       "cache_read_price": "0.03",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "30",
       "enabled": true
     },
     {
@@ -671,23 +992,36 @@
       "input_price": "0.1",
       "output_price": "0.4",
       "cache_read_price": "0.01",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gemini-2.5-flash-lite-preview-09-2025",
-      "input_price": "0.1",
-      "output_price": "0.4",
+      "model_match": "gemini-2.5-flash-lite:batch",
+      "input_price": "0.05",
+      "output_price": "0.2",
       "cache_read_price": "0.01",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-2.5-flash:batch",
+      "input_price": "0.15",
+      "output_price": "1.25",
+      "cache_read_price": "0.03",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -700,7 +1034,7 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -713,7 +1047,7 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -726,7 +1060,20 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-2.5-pro:batch",
+      "input_price": "0.625",
+      "output_price": "5",
+      "cache_read_price": "0.125",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -736,10 +1083,23 @@
       "input_price": "0.5",
       "output_price": "3",
       "cache_read_price": "0.05",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3-flash-preview:batch",
+      "input_price": "0.25",
+      "output_price": "1.5",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -752,7 +1112,7 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "120",
       "enabled": true
     },
     {
@@ -765,7 +1125,7 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "120",
       "enabled": true
     },
     {
@@ -778,7 +1138,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "60",
       "enabled": true
     },
     {
@@ -791,7 +1151,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "60",
       "enabled": true
     },
     {
@@ -801,10 +1161,10 @@
       "input_price": "0.25",
       "output_price": "1.5",
       "cache_read_price": "0.025",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -817,7 +1177,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "30",
       "enabled": true
     },
     {
@@ -827,10 +1187,23 @@
       "input_price": "0.25",
       "output_price": "1.5",
       "cache_read_price": "0.025",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.1-flash-lite:batch",
+      "input_price": "0.125",
+      "output_price": "0.75",
+      "cache_read_price": "0.0125",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -843,7 +1216,7 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -856,7 +1229,20 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.1-pro-preview:batch",
+      "input_price": "1",
+      "output_price": "6",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -866,10 +1252,114 @@
       "input_price": "1.5",
       "output_price": "9",
       "cache_read_price": "0.15",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.5-flash-lite",
+      "input_price": "0.3",
+      "output_price": "2.5",
+      "cache_read_price": "0.03",
+      "cache_creation_5m_price": "0.0833333333333333",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.5-flash-lite:batch",
+      "input_price": "0.15",
+      "output_price": "1.25",
+      "cache_read_price": "0.015",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.5-flash:batch",
+      "input_price": "0.75",
+      "output_price": "4.5",
+      "cache_read_price": "0.075",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.6-flash",
+      "input_price": "1.5",
+      "output_price": "7.5",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "0.0833333333333333",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.6-flash:batch",
+      "input_price": "0.75",
+      "output_price": "3.75",
+      "cache_read_price": "0.075",
+      "cache_creation_5m_price": "0.0833333333333333",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-embedding-001",
+      "input_price": "0.15",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-embedding-2",
+      "input_price": "0.2",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-embedding-2-preview",
+      "input_price": "0.2",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -877,12 +1367,12 @@
       "match_type": "contains",
       "model_match": "gemini-flash-latest",
       "input_price": "1.5",
-      "output_price": "9",
+      "output_price": "7.5",
       "cache_read_price": "0.15",
-      "cache_creation_5m_price": "0.08333333333333334",
+      "cache_creation_5m_price": "0.0833333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -895,7 +1385,7 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -908,7 +1398,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -921,7 +1411,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -929,12 +1419,12 @@
       "match_type": "contains",
       "model_match": "gemma-3-27b-it",
       "input_price": "0.08",
-      "output_price": "0.16",
-      "cache_read_price": "0",
+      "output_price": "0.45",
+      "cache_read_price": "0.04",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -947,7 +1437,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -960,33 +1450,59 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gemma-4-26b-a4b-it",
-      "input_price": "0.06",
-      "output_price": "0.33",
+      "input_price": "0.12",
+      "output_price": "0.4",
+      "cache_read_price": "0.05",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemma-4-26b-a4b-it:free",
+      "input_price": "0",
+      "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gemma-4-31b-it",
-      "input_price": "0.12",
-      "output_price": "0.35",
-      "cache_read_price": "0.09",
+      "input_price": "0.1",
+      "output_price": "0.34",
+      "cache_read_price": "0.1",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemma-4-31b-it:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -999,7 +1515,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1012,7 +1528,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1025,20 +1541,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-4.6",
-      "input_price": "0.43",
-      "output_price": "1.74",
-      "cache_read_price": "0.08",
+      "input_price": "0.5",
+      "output_price": "2",
+      "cache_read_price": "0.1",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1051,7 +1567,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1064,7 +1580,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1077,20 +1593,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-5",
-      "input_price": "0.6",
-      "output_price": "1.92",
-      "cache_read_price": "0.12",
+      "input_price": "0.95",
+      "output_price": "2.55",
+      "cache_read_price": "0.2",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1103,33 +1619,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-5.1",
-      "input_price": "0.966",
-      "output_price": "3.036",
-      "cache_read_price": "0.1794",
+      "input_price": "0.952",
+      "output_price": "2.992",
+      "cache_read_price": "0.1768",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-5.2",
-      "input_price": "0.9086",
-      "output_price": "2.8556",
-      "cache_read_price": "0.16874",
+      "input_price": "0.0812",
+      "output_price": "0.2552",
+      "cache_read_price": "0.01508",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "glm-5.2:batch",
+      "input_price": "0.7",
+      "output_price": "2.2",
+      "cache_read_price": "0.13",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1142,7 +1671,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1155,7 +1684,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1168,7 +1697,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1181,7 +1710,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1194,7 +1723,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-3.5-turbo:batch",
+      "input_price": "0.25",
+      "output_price": "0.75",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1207,7 +1749,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1220,7 +1762,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1233,7 +1775,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-4-turbo:batch",
+      "input_price": "5",
+      "output_price": "15",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1246,7 +1801,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1259,7 +1814,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-4.1-mini:batch",
+      "input_price": "0.2",
+      "output_price": "0.8",
+      "cache_read_price": "0.05",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1272,7 +1840,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-4.1-nano:batch",
+      "input_price": "0.05",
+      "output_price": "0.2",
+      "cache_read_price": "0.0125",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-4.1:batch",
+      "input_price": "1",
+      "output_price": "4",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1281,11 +1875,11 @@
       "model_match": "gpt-4o",
       "input_price": "2.5",
       "output_price": "10",
-      "cache_read_price": "0",
+      "cache_read_price": "1.25",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1298,7 +1892,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1311,7 +1905,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1324,7 +1918,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1337,7 +1931,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1350,33 +1944,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gpt-4o-mini-search-preview",
-      "input_price": "0.15",
-      "output_price": "0.6",
-      "cache_read_price": "0",
+      "model_match": "gpt-4o-mini:batch",
+      "input_price": "0.075",
+      "output_price": "0.3",
+      "cache_read_price": "0.0375",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gpt-4o-search-preview",
-      "input_price": "2.5",
-      "output_price": "10",
-      "cache_read_price": "0",
+      "model_match": "gpt-4o:batch",
+      "input_price": "1.25",
+      "output_price": "5",
+      "cache_read_price": "0.625",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1389,33 +1983,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gpt-5-chat",
-      "input_price": "1.25",
-      "output_price": "10",
-      "cache_read_price": "0.125",
+      "model_match": "gpt-5-codex:batch",
+      "input_price": "0.625",
+      "output_price": "5",
+      "cache_read_price": "0.0625",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "gpt-5-codex",
-      "input_price": "1.25",
-      "output_price": "10",
-      "cache_read_price": "0.125",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1428,7 +2009,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "40",
       "enabled": true
     },
     {
@@ -1441,7 +2022,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "8",
       "enabled": true
     },
     {
@@ -1454,7 +2035,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5-mini:batch",
+      "input_price": "0.125",
+      "output_price": "1",
+      "cache_read_price": "0.0125",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1463,11 +2057,24 @@
       "model_match": "gpt-5-nano",
       "input_price": "0.05",
       "output_price": "0.4",
-      "cache_read_price": "0.01",
+      "cache_read_price": "0.005",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5-nano:batch",
+      "input_price": "0.025",
+      "output_price": "0.2",
+      "cache_read_price": "0.0025",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1480,7 +2087,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5-pro:batch",
+      "input_price": "7.5",
+      "output_price": "60",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1489,24 +2109,11 @@
       "model_match": "gpt-5.1",
       "input_price": "1.25",
       "output_price": "10",
-      "cache_read_price": "0.13",
+      "cache_read_price": "0.125",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "gpt-5.1-chat",
-      "input_price": "1.25",
-      "output_price": "10",
-      "cache_read_price": "0.13",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1519,7 +2126,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1532,7 +2139,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1541,11 +2148,24 @@
       "model_match": "gpt-5.1-codex-mini",
       "input_price": "0.25",
       "output_price": "2",
-      "cache_read_price": "0.025",
+      "cache_read_price": "0.03",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.1:batch",
+      "input_price": "0.625",
+      "output_price": "5",
+      "cache_read_price": "0.0625",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1558,7 +2178,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1571,7 +2191,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1584,7 +2204,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1597,7 +2217,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.2-pro:batch",
+      "input_price": "10.5",
+      "output_price": "84",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.2:batch",
+      "input_price": "0.875",
+      "output_price": "7",
+      "cache_read_price": "0.0875",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1610,7 +2256,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1623,7 +2269,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1636,7 +2282,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1649,7 +2295,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "30",
       "enabled": true
     },
     {
@@ -1662,7 +2308,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.4-mini:batch",
+      "input_price": "0.375",
+      "output_price": "2.25",
+      "cache_read_price": "0.0375",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1675,7 +2334,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.4-nano:batch",
+      "input_price": "0.1",
+      "output_price": "0.625",
+      "cache_read_price": "0.01",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1688,7 +2360,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.4-pro:batch",
+      "input_price": "15",
+      "output_price": "90",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.4:batch",
+      "input_price": "1.25",
+      "output_price": "7.5",
+      "cache_read_price": "0.125",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1701,7 +2399,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1714,46 +2412,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gpt-5.6",
-      "input_price": "5",
-      "output_price": "30",
-      "cache_read_price": "0.5",
+      "model_match": "gpt-5.5-pro:batch",
+      "input_price": "15",
+      "output_price": "90",
+      "cache_read_price": "0",
       "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "6.25",
+      "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gpt-5.6-sol",
-      "input_price": "5",
-      "output_price": "30",
-      "cache_read_price": "0.5",
+      "model_match": "gpt-5.5:batch",
+      "input_price": "2.5",
+      "output_price": "15",
+      "cache_read_price": "0.25",
       "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "6.25",
+      "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "gpt-5.6-terra",
-      "input_price": "1",
-      "output_price": "6",
-      "cache_read_price": "0.1",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "1.25",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1766,7 +2451,163 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0.125",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-luna-pro",
+      "input_price": "0.1",
+      "output_price": "0.6",
+      "cache_read_price": "0.01",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0.125",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-luna-pro:batch",
+      "input_price": "0.1",
+      "output_price": "0.6",
+      "cache_read_price": "0.01",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-luna:batch",
+      "input_price": "0.1",
+      "output_price": "0.6",
+      "cache_read_price": "0.01",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-sol",
+      "input_price": "5",
+      "output_price": "30",
+      "cache_read_price": "0.5",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "6.25",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-sol-pro",
+      "input_price": "5",
+      "output_price": "30",
+      "cache_read_price": "0.5",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "6.25",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-sol-pro:batch",
+      "input_price": "2.5",
+      "output_price": "15",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-sol:batch",
+      "input_price": "2.5",
+      "output_price": "15",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-terra",
+      "input_price": "1",
+      "output_price": "6",
+      "cache_read_price": "0.1",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "1.25",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-terra-pro",
+      "input_price": "1",
+      "output_price": "6",
+      "cache_read_price": "0.1",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "1.25",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-terra-pro:batch",
+      "input_price": "1",
+      "output_price": "6",
+      "cache_read_price": "0.1",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5.6-terra:batch",
+      "input_price": "1",
+      "output_price": "6",
+      "cache_read_price": "0.1",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-5:batch",
+      "input_price": "0.625",
+      "output_price": "5",
+      "cache_read_price": "0.0625",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1779,7 +2620,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1792,7 +2633,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1805,7 +2646,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-image-1",
+      "input_price": "10",
+      "output_price": "10",
+      "cache_read_price": "1.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "40",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-image-1-mini",
+      "input_price": "2.5",
+      "output_price": "2.5",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "8",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-image-2",
+      "input_price": "8",
+      "output_price": "8",
+      "cache_read_price": "2",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "30",
       "enabled": true
     },
     {
@@ -1816,9 +2696,9 @@
       "output_price": "30",
       "cache_read_price": "0.5",
       "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
+      "cache_creation_30m_price": "6.25",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1831,33 +2711,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gpt-oss-120b",
-      "input_price": "0.03",
-      "output_price": "0.15",
+      "input_price": "0.037",
+      "output_price": "0.17",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gpt-oss-20b",
-      "input_price": "0.029",
-      "output_price": "0.14",
+      "input_price": "0.03",
+      "output_price": "0.13",
+      "cache_read_price": "0.03",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gpt-oss-20b:free",
+      "input_price": "0",
+      "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1870,7 +2763,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1883,7 +2776,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1896,7 +2789,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1909,7 +2802,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1922,7 +2815,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1935,7 +2828,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "grok-4.5",
+      "input_price": "2",
+      "output_price": "6",
+      "cache_read_price": "0.3",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1948,7 +2854,59 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "grok-imagine-image-quality",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "11.9760479041916",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "grok-latest",
+      "input_price": "2",
+      "output_price": "6",
+      "cache_read_price": "0.3",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gte-base",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gte-large",
+      "input_price": "0.01",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1961,7 +2919,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1974,7 +2932,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -1987,7 +2945,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2000,7 +2958,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2013,20 +2971,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "hy3",
-      "input_price": "0.2",
-      "output_price": "0.8",
-      "cache_read_price": "0.5",
+      "input_price": "0.132",
+      "output_price": "0.528",
+      "cache_read_price": "0.033",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2039,33 +2997,46 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "inflection-3-pi",
-      "input_price": "2.5",
-      "output_price": "10",
-      "cache_read_price": "0",
+      "model_match": "inkling",
+      "input_price": "0.95",
+      "output_price": "4.05",
+      "cache_read_price": "0.16",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "inflection-3-productivity",
-      "input_price": "2.5",
-      "output_price": "10",
-      "cache_read_price": "0",
+      "model_match": "inkling-small",
+      "input_price": "0.45",
+      "output_price": "1.2",
+      "cache_read_price": "0.1",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "inkling:batch",
+      "input_price": "0.5",
+      "output_price": "2.025",
+      "cache_read_price": "0.085",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2078,7 +3049,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "kat-coder-air-v2.5",
+      "input_price": "0.15",
+      "output_price": "0.6",
+      "cache_read_price": "0.03",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2091,7 +3075,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "kat-coder-pro-v2.5",
+      "input_price": "0.74",
+      "output_price": "2.96",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2104,7 +3101,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2117,7 +3114,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2130,59 +3127,124 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.5",
-      "input_price": "0.375",
-      "output_price": "2.025",
-      "cache_read_price": "0.203",
+      "input_price": "0.57",
+      "output_price": "2.85",
+      "cache_read_price": "0.095",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.6",
-      "input_price": "0.66",
-      "output_price": "3.41",
-      "cache_read_price": "0.14",
+      "input_price": "0.5795",
+      "output_price": "2.44",
+      "cache_read_price": "0.0976",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.7-code",
-      "input_price": "0.74",
+      "input_price": "0.7",
       "output_price": "3.5",
       "cache_read_price": "0.15",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "kimi-k2.7-code:batch",
+      "input_price": "0.475",
+      "output_price": "2",
+      "cache_read_price": "0.095",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "kimi-k3",
+      "input_price": "3",
+      "output_price": "15",
+      "cache_read_price": "0.3",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-latest",
-      "input_price": "0.66",
-      "output_price": "3.41",
-      "cache_read_price": "0.14",
+      "input_price": "2.8",
+      "output_price": "14",
+      "cache_read_price": "0.29",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "krea-2-large",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "14.3712574850299",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "krea-2-medium",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "7.18562874251497",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "krea-2-medium-turbo",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "3.59281437125749",
       "enabled": true
     },
     {
@@ -2195,20 +3257,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "l3.1-70b-hanami-x1",
-      "input_price": "3",
-      "output_price": "3",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2221,7 +3270,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2234,20 +3283,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "laguna-m.1",
-      "input_price": "0.2",
-      "output_price": "0.4",
-      "cache_read_price": "0.1",
+      "model_match": "laguna-s-2.1",
+      "input_price": "0.09",
+      "output_price": "0.18",
+      "cache_read_price": "0.009",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "laguna-s-2.1:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2260,59 +3322,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "laguna-xs.2",
-      "input_price": "0.1",
-      "output_price": "0.2",
-      "cache_read_price": "0.05",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "lfm-2-24b-a2b",
-      "input_price": "0.03",
-      "output_price": "0.12",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "lfm-2.5-1.2b-instruct",
+      "model_match": "laguna-xs-2.1:free",
       "input_price": "0",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "lfm-2.5-1.2b-thinking",
-      "input_price": "0",
-      "output_price": "0",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2325,7 +3348,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2338,20 +3361,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "llama-3-8b-instruct",
-      "input_price": "0.14",
-      "output_price": "0.14",
+      "model_match": "ling-3.0-flash",
+      "input_price": "0.021",
+      "output_price": "0.063",
+      "cache_read_price": "0.0042",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "ling-3.0-tiny:free",
+      "input_price": "0",
+      "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2364,33 +3400,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "llama-3.1-8b-instruct",
-      "input_price": "0.02",
-      "output_price": "0.03",
-      "cache_read_price": "0",
+      "input_price": "0.05",
+      "output_price": "0.08",
+      "cache_read_price": "0.025",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "llama-3.2-11b-vision-instruct",
-      "input_price": "0.345",
-      "output_price": "0.345",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2403,7 +3426,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2416,7 +3439,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2429,33 +3452,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "llama-3.3-nemotron-super-49b-v1.5",
-      "input_price": "0.4",
-      "output_price": "0.4",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "llama-4-maverick",
-      "input_price": "0.15",
-      "output_price": "0.6",
+      "input_price": "0.2",
+      "output_price": "0.696",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2468,7 +3478,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2481,7 +3491,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "llama-nemotron-embed-vl-1b-v2:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "longcat-2.0",
+      "input_price": "0.3",
+      "output_price": "1.2",
+      "cache_read_price": "0.006",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2494,7 +3530,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2507,7 +3543,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2520,7 +3556,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "mai-image-2.5",
+      "input_price": "5",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "47",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "mai-image-2.5-pro",
+      "input_price": "5",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "108",
       "enabled": true
     },
     {
@@ -2533,20 +3595,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "mimo-v2.5",
-      "input_price": "0.105",
+      "input_price": "0.14",
       "output_price": "0.28",
-      "cache_read_price": "0.028",
+      "cache_read_price": "0.0028",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2559,7 +3621,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2572,20 +3634,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "minimax-m1",
-      "input_price": "0.4",
+      "input_price": "0.55",
       "output_price": "2.2",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2598,7 +3660,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2611,7 +3673,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2624,33 +3686,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "minimax-m2.5",
-      "input_price": "0.12",
-      "output_price": "0.48",
-      "cache_read_price": "0",
+      "input_price": "0.22",
+      "output_price": "0.9",
+      "cache_read_price": "0.05",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "minimax-m2.7",
-      "input_price": "0.18",
-      "output_price": "0.72",
-      "cache_read_price": "0",
+      "input_price": "0.3",
+      "output_price": "1.2",
+      "cache_read_price": "0.06",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2663,7 +3725,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "minimax-m3:batch",
+      "input_price": "0.15",
+      "output_price": "0.6",
+      "cache_read_price": "0.03",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2676,7 +3751,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2689,7 +3764,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2702,7 +3777,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "mistral-embed-2312",
+      "input_price": "0.1",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2715,7 +3803,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2728,7 +3816,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2741,7 +3829,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2754,7 +3842,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2767,7 +3855,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2780,20 +3868,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "mistral-nemo",
-      "input_price": "0.02",
+      "input_price": "0.019",
       "output_price": "0.03",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2806,7 +3894,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2819,7 +3907,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2832,7 +3920,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2845,20 +3933,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "mistral-small-3.2-24b-instruct",
-      "input_price": "0.075",
-      "output_price": "0.2",
+      "input_price": "0.09375",
+      "output_price": "0.25",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2871,7 +3959,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2884,7 +3972,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2897,7 +3985,59 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "multi-qa-mpnet-base-dot-v1",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "multilingual-e5-large",
+      "input_price": "0.01",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "muse-spark-1.1",
+      "input_price": "1.25",
+      "output_price": "4.25",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "muse-spark-1.2",
+      "input_price": "1.25",
+      "output_price": "4.25",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2910,7 +4050,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-3-embed-1b:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -2919,89 +4072,141 @@
       "model_match": "nemotron-3-nano-30b-a3b",
       "input_price": "0.05",
       "output_price": "0.2",
-      "cache_read_price": "0",
+      "cache_read_price": "0.025",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "nemotron-3-nano-omni-30b-a3b-reasoning",
+      "model_match": "nemotron-3-nano-30b-a3b:free",
       "input_price": "0",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "nemotron-3-super-120b-a12b",
-      "input_price": "0.08",
-      "output_price": "0.45",
+      "input_price": "0.085",
+      "output_price": "0.4",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-3-super-120b-a12b:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "nemotron-3-ultra-550b-a55b",
-      "input_price": "0.5",
-      "output_price": "2.2",
+      "input_price": "0.6",
+      "output_price": "3.6",
+      "cache_read_price": "0.2",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-3-ultra-550b-a55b:batch",
+      "input_price": "0.3",
+      "output_price": "1.8",
       "cache_read_price": "0.1",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "nemotron-3.5-content-safety",
+      "model_match": "nemotron-3-ultra-550b-a55b:free",
       "input_price": "0",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "nemotron-nano-12b-v2-vl",
+      "model_match": "nemotron-3.5-content-safety:free",
       "input_price": "0",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "nemotron-nano-9b-v2",
+      "model_match": "nemotron-nano-12b-v2-vl:free",
       "input_price": "0",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-nano-9b-v2:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3014,7 +4219,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3027,20 +4232,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "north-mini-code",
+      "model_match": "north-mini-code:free",
       "input_price": "0",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3053,7 +4258,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3066,7 +4271,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3079,7 +4284,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3092,7 +4297,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3105,7 +4310,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3118,7 +4323,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3131,7 +4336,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o1-pro:batch",
+      "input_price": "75",
+      "output_price": "300",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o1:batch",
+      "input_price": "7.5",
+      "output_price": "30",
+      "cache_read_price": "3.75",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3144,20 +4375,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "o3-deep-research",
-      "input_price": "10",
-      "output_price": "40",
-      "cache_read_price": "2.5",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3170,7 +4388,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3183,7 +4401,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o3-mini-high:batch",
+      "input_price": "0.55",
+      "output_price": "2.2",
+      "cache_read_price": "0.275",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o3-mini:batch",
+      "input_price": "0.55",
+      "output_price": "2.2",
+      "cache_read_price": "0.275",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3196,7 +4440,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o3-pro:batch",
+      "input_price": "10",
+      "output_price": "40",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o3:batch",
+      "input_price": "1",
+      "output_price": "4",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3209,20 +4479,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "o4-mini-deep-research",
-      "input_price": "2",
-      "output_price": "8",
-      "cache_read_price": "0.5",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3235,7 +4492,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o4-mini-high:batch",
+      "input_price": "0.55",
+      "output_price": "2.2",
+      "cache_read_price": "0.1375",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "o4-mini:batch",
+      "input_price": "0.55",
+      "output_price": "2.2",
+      "cache_read_price": "0.1375",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3248,7 +4531,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3261,7 +4544,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "paraphrase-minilm-l6-v2",
+      "input_price": "0.005",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3274,7 +4570,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3287,7 +4583,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "pplx-embed-v1-0.6b",
+      "input_price": "0.004",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "pplx-embed-v1-4b",
+      "input_price": "0.03",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3300,20 +4622,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen-2.5-7b-instruct",
-      "input_price": "0.04",
-      "output_price": "0.1",
+      "input_price": "0.1",
+      "output_price": "0.2",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3326,7 +4648,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen-image-3",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "7.18562874251497",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen-image-3-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "9.58083832335329",
       "enabled": true
     },
     {
@@ -3339,7 +4687,7 @@
       "cache_creation_5m_price": "0.325",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3349,36 +4697,49 @@
       "input_price": "0.26",
       "output_price": "0.78",
       "cache_read_price": "0",
-      "cache_creation_5m_price": "0.325",
+      "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen-plus-2025-07-28:thinking",
+      "input_price": "0.4",
+      "output_price": "1.2",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0.5",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen2.5-vl-72b-instruct",
-      "input_price": "0.8",
-      "output_price": "1",
-      "cache_read_price": "0.4",
+      "input_price": "0.25",
+      "output_price": "0.75",
+      "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-14b",
-      "input_price": "0.1",
+      "input_price": "0.12",
       "output_price": "0.24",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3391,7 +4752,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3399,25 +4760,25 @@
       "match_type": "contains",
       "model_match": "qwen3-235b-a22b-2507",
       "input_price": "0.09",
-      "output_price": "0.1",
+      "output_price": "0.55",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-235b-a22b-thinking-2507",
-      "input_price": "0.1495",
-      "output_price": "1.495",
+      "input_price": "0.23",
+      "output_price": "2.3",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3430,7 +4791,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3443,20 +4804,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-30b-a3b-thinking-2507",
-      "input_price": "0.13",
-      "output_price": "1.56",
+      "input_price": "0.2",
+      "output_price": "2.4",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3469,7 +4830,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3482,20 +4843,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-coder",
-      "input_price": "0.22",
-      "output_price": "1.8",
-      "cache_read_price": "0",
+      "input_price": "0.3",
+      "output_price": "1",
+      "cache_read_price": "0.1",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3508,7 +4869,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3521,20 +4882,20 @@
       "cache_creation_5m_price": "0.24375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-coder-next",
-      "input_price": "0.11",
+      "input_price": "0.12",
       "output_price": "0.8",
       "cache_read_price": "0.07",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3547,7 +4908,33 @@
       "cache_creation_5m_price": "0.8125",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3-embedding-4b",
+      "input_price": "0.02",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3-embedding-8b",
+      "input_price": "0.01",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3560,7 +4947,7 @@
       "cache_creation_5m_price": "0.975",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3573,7 +4960,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3586,72 +4973,72 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-next-80b-a3b-thinking",
-      "input_price": "0.0975",
-      "output_price": "0.78",
+      "input_price": "0.15",
+      "output_price": "1.2",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-235b-a22b-instruct",
-      "input_price": "0.2",
-      "output_price": "0.88",
-      "cache_read_price": "0.11",
+      "input_price": "0.21",
+      "output_price": "1.9",
+      "cache_read_price": "0.1",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-235b-a22b-thinking",
-      "input_price": "0.26",
-      "output_price": "2.6",
+      "input_price": "0.4",
+      "output_price": "4",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-30b-a3b-instruct",
-      "input_price": "0.13",
-      "output_price": "0.52",
+      "input_price": "0.15",
+      "output_price": "0.6",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-30b-a3b-thinking",
-      "input_price": "0.13",
-      "output_price": "1.56",
+      "input_price": "0.2",
+      "output_price": "2.4",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3664,7 +5051,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3677,33 +5064,33 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-8b-thinking",
-      "input_price": "0.117",
-      "output_price": "1.365",
+      "input_price": "0.18",
+      "output_price": "2.1",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.5-122b-a10b",
-      "input_price": "0.26",
-      "output_price": "2.08",
+      "input_price": "0.29",
+      "output_price": "2.4",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3716,7 +5103,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3725,24 +5112,24 @@
       "model_match": "qwen3.5-35b-a3b",
       "input_price": "0.14",
       "output_price": "1",
-      "cache_read_price": "0.05",
+      "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.5-397b-a17b",
-      "input_price": "0.385",
-      "output_price": "2.45",
-      "cache_read_price": "0.111",
+      "input_price": "0.39",
+      "output_price": "2.34",
+      "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3755,7 +5142,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3768,7 +5155,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3781,7 +5168,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3794,33 +5181,33 @@
       "cache_creation_5m_price": "0.375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.6-27b",
-      "input_price": "0.285",
-      "output_price": "2.4",
-      "cache_read_price": "0.15",
+      "input_price": "0.6",
+      "output_price": "3.6",
+      "cache_read_price": "0.12",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.6-35b-a3b",
-      "input_price": "0.14",
+      "input_price": "0.15",
       "output_price": "1",
-      "cache_read_price": "0",
+      "cache_read_price": "0.05",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3833,20 +5220,20 @@
       "cache_creation_5m_price": "0.234375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.6-max-preview",
-      "input_price": "1.04",
-      "output_price": "6.24",
+      "input_price": "1.027",
+      "output_price": "6.162",
       "cache_read_price": "0",
-      "cache_creation_5m_price": "1.3",
+      "cache_creation_5m_price": "1.28375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3859,20 +5246,33 @@
       "cache_creation_5m_price": "0.40625",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3.7-flash",
+      "input_price": "0.03",
+      "output_price": "0.13",
+      "cache_read_price": "0.006",
+      "cache_creation_5m_price": "0.038",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.7-max",
-      "input_price": "1.25",
-      "output_price": "3.75",
-      "cache_read_price": "0.25",
-      "cache_creation_5m_price": "1.5625",
+      "input_price": "1.475",
+      "output_price": "4.425",
+      "cache_read_price": "0.295",
+      "cache_creation_5m_price": "1.84375",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3885,7 +5285,163 @@
       "cache_creation_5m_price": "0.4",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3.8-max",
+      "input_price": "2",
+      "output_price": "6",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "2.5",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v3",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "9.58083832335329",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "9.58083832335329",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "59.8802395209581",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4-pro-vector",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "71.8562874251497",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4-vector",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "19.1616766467066",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4.1",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "8.38323353293413",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4.1-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "50.2994011976048",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4.1-pro-vector",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "71.8562874251497",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4.1-utility",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "8.38323353293413",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4.1-utility-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "50.2994011976048",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "recraft-v4.1-vector",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "19.1616766467066",
       "enabled": true
     },
     {
@@ -3898,7 +5454,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3911,7 +5467,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3924,7 +5480,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3937,7 +5493,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3950,7 +5506,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -3963,7 +5519,59 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "riverflow-v2-fast",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "4.79041916167665",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "riverflow-v2-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "35.9281437125749",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "riverflow-v2.5-fast",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "4.55089820359281",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "riverflow-v2.5-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "31.1377245508982",
       "enabled": true
     },
     {
@@ -3976,20 +5584,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "router",
-      "input_price": "0.85",
-      "output_price": "3.4",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4002,7 +5597,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4015,7 +5610,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4028,7 +5623,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4041,7 +5636,20 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "seedream-4.5",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "9.58083832335329",
       "enabled": true
     },
     {
@@ -4054,7 +5662,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4067,7 +5675,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4080,7 +5688,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4093,7 +5701,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4106,7 +5714,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4119,7 +5727,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4132,7 +5740,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4145,7 +5753,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4158,33 +5766,85 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "text-embedding-3-large",
+      "input_price": "0.13",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "text-embedding-3-large:batch",
+      "input_price": "0.065",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "text-embedding-3-small",
+      "input_price": "0.02",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "text-embedding-ada-002",
+      "input_price": "0.1",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "text-embedding-ada-002:batch",
+      "input_price": "0.05",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "trinity-large-thinking",
-      "input_price": "0.25",
-      "output_price": "0.8",
+      "input_price": "0.22",
+      "output_price": "0.85",
       "cache_read_price": "0.06",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "trinity-mini",
-      "input_price": "0.045",
-      "output_price": "0.15",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4197,7 +5857,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4210,7 +5870,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4223,7 +5883,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4236,20 +5896,72 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "voyage-4",
+      "input_price": "0.06",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "voyage-4-large",
+      "input_price": "0.12",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "voyage-4-lite",
+      "input_price": "0.02",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "voyage-multimodal-3.5",
+      "input_price": "0.12",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "weaver",
-      "input_price": "0.75",
-      "output_price": "1",
+      "input_price": "0.5",
+      "output_price": "0.75",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     },
     {
@@ -4262,7 +5974,7 @@
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     }
   ]

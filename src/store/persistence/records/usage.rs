@@ -23,6 +23,9 @@ pub struct Usage {
     pub model: Option<String>,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    /// Image-output tokens, kept separate from normal text output tokens.
+    #[serde(default)]
+    pub image_output_tokens: i64,
     pub cache_read_tokens: i64,
     pub cache_creation_5m_tokens: i64,
     #[serde(default)]
@@ -63,6 +66,8 @@ pub struct UsageInput {
     pub model: Option<String>,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
     pub cache_read_tokens: i64,
     pub cache_creation_5m_tokens: i64,
     #[serde(default)]
@@ -89,6 +94,8 @@ pub struct UsageSummary {
     pub requests: i64,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
     pub cache_read_tokens: i64,
     pub cache_creation_5m_tokens: i64,
     pub cache_creation_30m_tokens: i64,
@@ -102,6 +109,7 @@ impl UsageSummary {
         self.requests += 1;
         self.input_tokens += usage.input_tokens;
         self.output_tokens += usage.output_tokens;
+        self.image_output_tokens += usage.image_output_tokens;
         self.cache_read_tokens += usage.cache_read_tokens;
         self.cache_creation_5m_tokens += usage.cache_creation_5m_tokens;
         self.cache_creation_30m_tokens += usage.cache_creation_30m_tokens;
@@ -128,6 +136,8 @@ pub struct UsageRollup {
     pub requests: i64,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
     /// Summed cache-creation tokens (5m + 30m + 1h). The split is not preserved at
     /// rollup granularity (NormalizedUsage carries only the total); `#[serde(default)]`
     /// lets pre-existing file-backend rows load as 0.
@@ -159,6 +169,8 @@ pub struct UsageRollupInput {
     pub requests: i64,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
     pub cache_write_tokens: i64,
     pub cache_read_tokens: i64,
     #[serde(with = "rust_decimal::serde::str")]

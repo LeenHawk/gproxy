@@ -52,6 +52,10 @@ export function UsageMobileCard({ usage, providerLabel }: UsageMobileCardProps) 
           <dd className="font-medium tabular-nums">{count(usage.output_tokens)}</dd>
         </div>
         <div className="col-span-2">
+          <dt className="text-muted-foreground">{t("usage.columns.imageOutputTokens")}</dt>
+          <dd className="font-medium tabular-nums">{count(usage.image_output_tokens)}</dd>
+        </div>
+        <div className="col-span-2">
           <dt className="text-muted-foreground">{t("usage.columns.cacheWrite")}</dt>
           <dd className="flex flex-wrap gap-x-3 font-medium tabular-nums">
             <span>5m {count(usage.cache_creation_5m_tokens)}</span>

@@ -30,7 +30,7 @@ written or imported.
   "cache_creation_5m_price": "0",
   "cache_creation_30m_price": "0",
   "cache_creation_1h_price": "0",
-  "image_price": "0",
+  "image_output_price": "0",
   "enabled": true
 }
 ```
@@ -39,8 +39,7 @@ written or imported.
 
 ## Price fields
 
-All price fields are decimal strings. Token prices are per 1,000,000 tokens;
-image price is per generated image.
+All price fields are decimal strings and are per 1,000,000 tokens.
 
 Supported fields:
 
@@ -52,7 +51,7 @@ Supported fields:
 | `cache_creation_5m_price` | Per-million 5-minute cache-creation token price. |
 | `cache_creation_30m_price` | Per-million 30-minute cache-creation token price. |
 | `cache_creation_1h_price` | Per-million 1-hour cache-creation token price. |
-| `image_price` | Per generated image price. |
+| `image_output_price` | Per-million generated-image token price. |
 
 The token cost formula is:
 
@@ -64,12 +63,21 @@ cost =
 + cache_creation_5m_tokens * cache_creation_5m_price / 1_000_000
 + cache_creation_30m_tokens * cache_creation_30m_price / 1_000_000
 + cache_creation_1h_tokens * cache_creation_1h_price / 1_000_000
++ image_output_tokens * image_output_price / 1_000_000
 ```
 
 ## Image pricing
 
-For image operations, `image_price` is a flat per-image price. It is not per
-million tokens and it is not tiered by size or quality.
+Image generation uses the same token-based settlement as other billable
+operations. `image_output_tokens` is disjoint from ordinary `output_tokens`, so
+text and image output can use different rates without double billing. For an
+OpenAI-compatible response, GPROXY reads the image-token subset from
+`completion_tokens_details.image_tokens`. On a dedicated image operation whose
+usage has only aggregate completion tokens, those completion tokens are treated
+as image-output tokens.
+
+There is no flat per-image price. If an upstream image response provides no
+token usage, GPROXY records zero usage and cannot derive a local price for it.
 
 ## Runtime lookup
 
@@ -92,7 +100,7 @@ Before an upstream request is sent, quota admission uses a best-effort estimate:
 
 - estimated input tokens are the request body length used by the current
   pending-cost estimator;
-- output, cache, and image components are not estimated;
+- output, cache, and image-output components are not estimated;
 - the estimate is priced with the selected price rule's token pricing;
 - if the estimate is zero, pending quota pre-deduct is skipped.
 
@@ -118,9 +126,10 @@ latency, route/provider/user dimensions, and cost. Quota reconciliation then:
 2. atomically increments `quotas.cost_used` for each quota-bearing scope by the
    actual settled cost.
 
-Embedding and image operations have their own provider-shaped settlement path.
-Model list/get, token-count, compact, and conversation operations are not
-currently billed by the content-generation settlement path.
+Embedding and image operations have their own provider-shaped settlement path
+and both settle from upstream token usage. Model list/get, token-count, compact,
+and conversation operations are not currently billed by the content-generation
+settlement path.
 
 ## Where operators edit prices
 
@@ -148,7 +157,7 @@ JSON import/export uses the `price_rules` array:
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     }
   ]

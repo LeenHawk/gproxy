@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use crate::store::persistence::records::PriceRule;
 use crate::usage::NormalizedUsage;
 
-/// Per-million-token token rates plus per-image item rate.
+/// Per-million-token rates for normalized usage categories.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Pricing {
     pub input: Decimal,
@@ -14,13 +14,12 @@ pub struct Pricing {
     pub cache_creation_5m: Decimal,
     pub cache_creation_30m: Decimal,
     pub cache_creation_1h: Decimal,
-    /// Flat price PER IMAGE (not per-million) — image generation is billed by
-    /// count, not tokens. Zero when unconfigured.
-    pub image: Decimal,
+    /// Per-million image-output-token price.
+    pub image_output: Decimal,
 }
 
-/// Build [`Pricing`] from a structured price rule. Token prices are per
-/// 1,000,000 tokens; image price is per generated image.
+/// Build [`Pricing`] from a structured price rule. All prices are per
+/// 1,000,000 tokens.
 pub fn pricing_from_rule(rule: &PriceRule) -> Pricing {
     Pricing {
         input: rule.input_price,
@@ -29,7 +28,7 @@ pub fn pricing_from_rule(rule: &PriceRule) -> Pricing {
         cache_creation_5m: rule.cache_creation_5m_price,
         cache_creation_30m: rule.cache_creation_30m_price,
         cache_creation_1h: rule.cache_creation_1h_price,
-        image: rule.image_price,
+        image_output: rule.image_output_price,
     }
 }
 
@@ -41,7 +40,8 @@ pub fn cost(u: &NormalizedUsage, p: &Pricing) -> Decimal {
         + Decimal::from(u.cache_read) * p.cache_read
         + Decimal::from(u.cache_creation_5m) * p.cache_creation_5m
         + Decimal::from(u.cache_creation_30m) * p.cache_creation_30m
-        + Decimal::from(u.cache_creation_1h) * p.cache_creation_1h)
+        + Decimal::from(u.cache_creation_1h) * p.cache_creation_1h
+        + Decimal::from(u.image_output) * p.image_output)
         / million
 }
 
@@ -62,7 +62,7 @@ mod tests {
             cache_creation_5m_price: "3.75".parse::<Decimal>().unwrap(),
             cache_creation_30m_price: "3.75".parse::<Decimal>().unwrap(),
             cache_creation_1h_price: Decimal::from(6),
-            image_price: "0.04".parse::<Decimal>().unwrap(),
+            image_output_price: Decimal::from(40),
             enabled: true,
             created_at: 0,
             updated_at: 0,
@@ -74,13 +74,7 @@ mod tests {
         assert_eq!(p.cache_creation_5m, "3.75".parse::<Decimal>().unwrap());
         assert_eq!(p.cache_creation_30m, "3.75".parse::<Decimal>().unwrap());
         assert_eq!(p.cache_creation_1h, Decimal::from(6));
-
-        // Per-image flat rate (image generation is billed by count, not tokens).
-        assert_eq!(p.image, "0.04".parse::<Decimal>().unwrap());
-        assert_eq!(
-            Decimal::from(3u64) * p.image,
-            "0.12".parse::<Decimal>().unwrap()
-        );
+        assert_eq!(p.image_output, Decimal::from(40));
 
         // 1500 input @ 3.00/M = 0.0045; cache creation is split by TTL.
         let u = NormalizedUsage {
@@ -90,9 +84,10 @@ mod tests {
             cache_creation_5m: 200,
             cache_creation_30m: 400,
             cache_creation_1h: 300,
+            image_output: 100,
             reasoning: 0,
         };
-        let expected: Decimal = "0.04155".parse().unwrap();
+        let expected: Decimal = "0.04555".parse().unwrap();
         assert_eq!(cost(&u, &p), expected);
         assert_eq!(
             cost(

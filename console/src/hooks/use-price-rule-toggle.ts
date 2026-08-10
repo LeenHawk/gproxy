@@ -19,7 +19,7 @@ export function usePriceRuleToggle() {
         cache_creation_5m_price: rule.cache_creation_5m_price,
         cache_creation_30m_price: rule.cache_creation_30m_price,
         cache_creation_1h_price: rule.cache_creation_1h_price,
-        image_price: rule.image_price,
+        image_output_price: rule.image_output_price,
         enabled,
       }),
     onMutate: async ({ rule, enabled }) => {

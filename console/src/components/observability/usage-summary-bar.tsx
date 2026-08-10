@@ -34,6 +34,10 @@ export function UsageSummaryBar({ summary, pending = false }: UsageSummaryBarPro
       value: summary && count(summary.output_tokens),
     },
     {
+      label: t("usage.columns.imageOutputTokens"),
+      value: summary && count(summary.image_output_tokens),
+    },
+    {
       label: `${t("usage.columns.cacheWrite")} · 5m`,
       value: summary && count(summary.cache_creation_5m_tokens),
     },
@@ -62,7 +66,7 @@ export function UsageSummaryBar({ summary, pending = false }: UsageSummaryBarPro
       aria-label={t("usage.summary")}
       aria-busy={pending}
     >
-      <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9">
+      <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-10">
         {metrics.map((metric) => (
           <div key={metric.label} className="min-w-0 border-r border-b px-3 py-2.5">
             <dt className="min-h-8 text-xs leading-4 text-muted-foreground lg:min-h-12 xl:min-h-8">

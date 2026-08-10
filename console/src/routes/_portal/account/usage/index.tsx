@@ -100,6 +100,11 @@ function MyUsagePage() {
       ),
     },
     {
+      key: "imageOutputTokens",
+      header: tObs("usage.columns.imageOutputTokens"),
+      cell: (r) => <span className="tabular-nums text-xs">{r.image_output_tokens}</span>,
+    },
+    {
       key: "cache",
       header: `${tObs("usage.columns.cacheWrite")} (5m/1h)`,
       cell: (r) => (

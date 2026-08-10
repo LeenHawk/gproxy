@@ -82,4 +82,4 @@ Aggregated 与 scoped 模型列表使用相同策略。默认情况下，每个�
 3. provider contains；
 4. global contains。
 
-价格字段包括 `input_price`、`output_price`、`cache_read_price`、`cache_creation_5m_price`、`cache_creation_30m_price`、`cache_creation_1h_price` 和 `image_price`。Token 价格是每百万 token。图片价格是每张图片的 flat value。没有匹配规则时默认为 0：usage 仍会记录，但该调用不产生费用。
+价格字段包括 `input_price`、`output_price`、`cache_read_price`、`cache_creation_5m_price`、`cache_creation_30m_price`、`cache_creation_1h_price` 和 `image_output_price`。所有价格均按每百万 token 计算；图片输出 token 与普通输出 token 分开结算。没有匹配规则时默认为 0：usage 仍会记录，但该调用不产生费用。

@@ -25,6 +25,7 @@ fn to_record(m: usage_rollup::Model) -> anyhow::Result<UsageRollup> {
         requests: m.requests,
         input_tokens: m.input_tokens,
         output_tokens: m.output_tokens,
+        image_output_tokens: m.image_output_tokens,
         cache_write_tokens: m.cache_write_tokens,
         cache_read_tokens: m.cache_read_tokens,
         cost: m.cost.parse::<rust_decimal::Decimal>()?,
@@ -94,6 +95,7 @@ pub async fn add(
                 requests: Set(input.requests),
                 input_tokens: Set(input.input_tokens),
                 output_tokens: Set(input.output_tokens),
+                image_output_tokens: Set(input.image_output_tokens),
                 cache_write_tokens: Set(input.cache_write_tokens),
                 cache_read_tokens: Set(input.cache_read_tokens),
                 cost: Set(input.cost.to_string()),
@@ -123,6 +125,10 @@ pub async fn add(
             .col_expr(
                 usage_rollup::Column::OutputTokens,
                 Expr::col(usage_rollup::Column::OutputTokens).add(input.output_tokens),
+            )
+            .col_expr(
+                usage_rollup::Column::ImageOutputTokens,
+                Expr::col(usage_rollup::Column::ImageOutputTokens).add(input.image_output_tokens),
             )
             .col_expr(
                 usage_rollup::Column::CacheWriteTokens,

@@ -62,7 +62,7 @@ export function PriceRuleForm({
   const [cacheCreation5mPrice, setCacheCreation5mPrice] = useState(() => decimalField(rule?.cache_creation_5m_price));
   const [cacheCreation30mPrice, setCacheCreation30mPrice] = useState(() => decimalField(rule?.cache_creation_30m_price));
   const [cacheCreation1hPrice, setCacheCreation1hPrice] = useState(() => decimalField(rule?.cache_creation_1h_price));
-  const [imagePrice, setImagePrice] = useState(() => decimalField(rule?.image_price));
+  const [imageOutputPrice, setImageOutputPrice] = useState(() => decimalField(rule?.image_output_price));
   const [formError, setFormError] = useState<string | null>(null);
   const matchOptions = [...new Set(modelMatchOptions.map((v) => v.trim()).filter((v) => v !== ""))];
   const defaultPriceRule = findDefaultPriceRule(modelMatch);
@@ -75,7 +75,7 @@ export function PriceRuleForm({
     setCacheCreation5mPrice(defaultPriceRule.cache_creation_5m_price);
     setCacheCreation30mPrice(defaultPriceRule.cache_creation_30m_price);
     setCacheCreation1hPrice(defaultPriceRule.cache_creation_1h_price);
-    setImagePrice(defaultPriceRule.image_price);
+    setImageOutputPrice(defaultPriceRule.image_output_price);
   };
 
   const mutation = useMutation({
@@ -92,7 +92,7 @@ export function PriceRuleForm({
         cache_creation_5m_price: normalizeDecimal(cacheCreation5mPrice),
         cache_creation_30m_price: normalizeDecimal(cacheCreation30mPrice),
         cache_creation_1h_price: normalizeDecimal(cacheCreation1hPrice),
-        image_price: normalizeDecimal(imagePrice),
+        image_output_price: normalizeDecimal(imageOutputPrice),
         enabled,
       });
     },
@@ -190,8 +190,13 @@ export function PriceRuleForm({
             <Input id="price-cache-creation-1h" inputMode="decimal" value={cacheCreation1hPrice} onChange={(e) => setCacheCreation1hPrice(e.target.value)} />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="price-image">{t("form.imagePrice")}</Label>
-            <Input id="price-image" inputMode="decimal" value={imagePrice} onChange={(e) => setImagePrice(e.target.value)} />
+            <Label htmlFor="price-image-output">{t("form.imageOutputPrice")}</Label>
+            <Input
+              id="price-image-output"
+              inputMode="decimal"
+              value={imageOutputPrice}
+              onChange={(e) => setImageOutputPrice(e.target.value)}
+            />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">{t("form.pricesHint")}</p>

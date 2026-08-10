@@ -33,6 +33,7 @@
       "route": "Route",
       "inputTokens": "Input tokens",
       "outputTokens": "Output tokens",
+      "imageOutputTokens": "Image output tokens",
       "cacheWrite": "Cache write",
       "cacheRead": "Cache hit",
       "cost": "Cost",
@@ -113,6 +114,7 @@
       "requests": "Requests",
       "input_tokens": "Input tokens",
       "output_tokens": "Output tokens",
+      "image_output_tokens": "Image output tokens",
       "cache_write_tokens": "Cache write",
       "cache_read_tokens": "Cache hit",
       "cost": "Cost ($)"

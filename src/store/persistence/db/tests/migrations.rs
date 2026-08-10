@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::persistence::traits::{
-    CorePersistence, ProviderPersistence, RoutingPersistence, SettingsPersistence,
+    CorePersistence, ProviderPersistence, RoutingPersistence, SettingsPersistence, UsagePersistence,
 };
 
 #[tokio::test]
@@ -485,7 +485,7 @@ async fn repairs_old_price_rules_rates_json_table() {
     assert_eq!(rules[0].cache_read_price, Decimal::new(10, 2));
     assert_eq!(rules[0].cache_creation_5m_price, Decimal::new(250, 2));
     assert_eq!(rules[0].cache_creation_1h_price, Decimal::new(250, 2));
-    assert_eq!(rules[0].image_price, Decimal::new(4, 2));
+    assert_eq!(rules[0].image_output_price, Decimal::ZERO);
 
     let backend = db.conn.get_database_backend();
     let cols = db
@@ -505,6 +505,8 @@ async fn repairs_old_price_rules_rates_json_table() {
     assert!(!cols.iter().any(|col| col == "operation"));
     assert!(!cols.iter().any(|col| col == "kind"));
     assert!(!cols.iter().any(|col| col == "priority"));
+    assert!(!cols.iter().any(|col| col == "image_price"));
+    assert!(cols.iter().any(|col| col == "image_output_price"));
 
     db.upsert_price_rule(PriceRuleInput {
         id: None,
@@ -517,7 +519,7 @@ async fn repairs_old_price_rules_rates_json_table() {
         cache_creation_5m_price: Decimal::ZERO,
         cache_creation_30m_price: Decimal::ZERO,
         cache_creation_1h_price: Decimal::ZERO,
-        image_price: Decimal::ZERO,
+        image_output_price: Decimal::ZERO,
         enabled: true,
     })
     .await
@@ -534,4 +536,116 @@ async fn repairs_old_price_rules_rates_json_table() {
         .expect("query")
         .expect("row");
     assert_eq!(row.try_get::<i64>("", "v").expect("v"), latest_version());
+}
+
+#[tokio::test]
+async fn migrates_image_output_pricing_and_usage_without_reusing_per_image_price() {
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-image-pricing.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE price_rules (\
+            id INTEGER PRIMARY KEY, provider_id INTEGER, match_type TEXT NOT NULL, \
+            model_match TEXT NOT NULL, input_price TEXT NOT NULL, output_price TEXT NOT NULL, \
+            cache_read_price TEXT NOT NULL, cache_creation_5m_price TEXT NOT NULL, \
+            cache_creation_30m_price TEXT NOT NULL, cache_creation_1h_price TEXT NOT NULL, \
+            image_price TEXT NOT NULL, enabled INTEGER NOT NULL, \
+            created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old price_rules table");
+    conn.execute_unprepared(
+        "INSERT INTO price_rules VALUES \
+         (1, NULL, 'contains', 'image-model', '1', '2', '0', '0', '0', '0', \
+          '0.04', 1, 10, 11)",
+    )
+    .await
+    .expect("old price rule");
+    conn.execute_unprepared(
+        "CREATE TABLE usages (\
+            id INTEGER PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, at INTEGER NOT NULL, \
+            route_name TEXT, provider_id INTEGER, credential_id INTEGER, org_id INTEGER, \
+            team_id INTEGER, user_id INTEGER, user_key_id INTEGER, operation TEXT NOT NULL, \
+            kind TEXT NOT NULL, model TEXT, input_tokens INTEGER NOT NULL, \
+            output_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL, \
+            cache_creation_5m_tokens INTEGER NOT NULL, \
+            cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0, \
+            cache_creation_1h_tokens INTEGER NOT NULL, cost TEXT NOT NULL, \
+            latency_ms INTEGER NOT NULL DEFAULT 0, usage_source TEXT NOT NULL DEFAULT '', \
+            ended TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old usages table");
+    conn.execute_unprepared(
+        "INSERT INTO usages VALUES \
+         (1, 'request-1', 100, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
+          'images', 'openai', 'image-model', 3, 7, 0, 0, 0, 0, '0.1', \
+          0, 'upstream', 'complete', 10, 11)",
+    )
+    .await
+    .expect("old usage");
+    conn.execute_unprepared(
+        "CREATE TABLE usage_rollups (\
+            id INTEGER PRIMARY KEY, granularity TEXT NOT NULL, bucket_start INTEGER NOT NULL, \
+            provider_id INTEGER, org_id INTEGER, team_id INTEGER, user_id INTEGER, \
+            route_name TEXT, model TEXT, requests INTEGER NOT NULL, input_tokens INTEGER NOT NULL, \
+            output_tokens INTEGER NOT NULL, cache_write_tokens INTEGER NOT NULL DEFAULT 0, \
+            cache_read_tokens INTEGER NOT NULL DEFAULT 0, cost TEXT NOT NULL, \
+            created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old usage_rollups table");
+    conn.execute_unprepared(
+        "INSERT INTO usage_rollups VALUES \
+         (1, 'hour', 0, NULL, NULL, NULL, NULL, NULL, 'image-model', 1, 3, 7, 0, 0, \
+          '0.1', 10, 11)",
+    )
+    .await
+    .expect("old rollup");
+    conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
+        .await
+        .expect("schema_migrations");
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (20, 0)")
+        .await
+        .expect("version 20");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("migrate");
+    let rules = db.list_price_rules().await.expect("price rules");
+    assert_eq!(rules[0].image_output_price, rust_decimal::Decimal::ZERO);
+    let usages = db.list_usages(10).await.expect("usages");
+    assert_eq!(usages[0].output_tokens, 7);
+    assert_eq!(usages[0].image_output_tokens, 0);
+    let rollups = db
+        .list_usage_rollups("hour", 0, 0, None)
+        .await
+        .expect("rollups");
+    assert_eq!(rollups[0].output_tokens, 7);
+    assert_eq!(rollups[0].image_output_tokens, 0);
+
+    let backend = db.conn.get_database_backend();
+    for (table, new_column, removed_column) in [
+        ("price_rules", "image_output_price", Some("image_price")),
+        ("usages", "image_output_tokens", None),
+        ("usage_rollups", "image_output_tokens", None),
+    ] {
+        let columns = db
+            .conn
+            .query_all_raw(Statement::from_string(
+                backend,
+                format!("PRAGMA table_info({table})"),
+            ))
+            .await
+            .expect("columns")
+            .into_iter()
+            .map(|row| row.try_get::<String>("", "name").expect("column name"))
+            .collect::<Vec<_>>();
+        assert!(columns.iter().any(|column| column == new_column));
+        if let Some(removed_column) = removed_column {
+            assert!(!columns.iter().any(|column| column == removed_column));
+        }
+    }
 }

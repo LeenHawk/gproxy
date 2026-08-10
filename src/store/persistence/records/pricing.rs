@@ -30,9 +30,9 @@ pub struct PriceRule {
     /// Per-million 1-hour cache-creation-token price.
     #[serde(with = "rust_decimal::serde::str")]
     pub cache_creation_1h_price: Decimal,
-    /// Per-image price.
+    /// Per-million image-output-token price.
     #[serde(with = "rust_decimal::serde::str")]
-    pub image_price: Decimal,
+    pub image_output_price: Decimal,
     pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -58,6 +58,6 @@ pub struct PriceRuleInput {
     #[serde(with = "rust_decimal::serde::str")]
     pub cache_creation_1h_price: Decimal,
     #[serde(with = "rust_decimal::serde::str")]
-    pub image_price: Decimal,
+    pub image_output_price: Decimal,
     pub enabled: bool,
 }

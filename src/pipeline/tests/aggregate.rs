@@ -174,7 +174,7 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
         "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
         "input_price": "0", "output_price": "0", "cache_read_price": "0",
         "cache_creation_5m_price": "0", "cache_creation_30m_price": "0",
-        "cache_creation_1h_price": "0", "image_price": "0.04", "enabled": true
+        "cache_creation_1h_price": "0", "image_output_price": "40", "enabled": true
     }]);
     let bundle = bundle.to_string();
 
@@ -186,7 +186,9 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
         "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":",
         "{\"type\":\"image_generation_call\",\"id\":\"ig_1\",\"result\":\"AAAA\",\"status\":\"completed\"}}\n\n",
         "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"created_at\":1,",
-        "\"object\":\"response\",\"output\":[],\"status\":\"completed\"}}\n\n",
+        "\"object\":\"response\",\"output\":[],\"status\":\"completed\",",
+        "\"usage\":{\"input_tokens\":25,\"output_tokens\":1040,\"total_tokens\":1065,",
+        "\"output_tokens_details\":{\"reasoning_tokens\":0,\"image_tokens\":1000}}}}\n\n",
     );
     let fake = Arc::new(FakeUpstream::new(Bytes::from(sse), vec![]));
     let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
@@ -240,5 +242,8 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
         "collapsed image base64 surfaced: {v}"
     );
     let usage = super::billing::wait_usage(&state).await;
+    assert_eq!(usage.input_tokens, 25);
+    assert_eq!(usage.output_tokens, 40);
+    assert_eq!(usage.image_output_tokens, 1000);
     assert_eq!(usage.cost, "0.04".parse().unwrap());
 }

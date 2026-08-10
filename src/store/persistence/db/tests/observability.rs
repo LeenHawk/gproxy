@@ -23,6 +23,7 @@ async fn metrics_aggregate_sums_rollups_and_buckets_latency() {
             model: None,
             input_tokens: 0,
             output_tokens: 0,
+            image_output_tokens: 0,
             cache_read_tokens: 0,
             cache_creation_5m_tokens: 0,
             cache_creation_30m_tokens: 0,
@@ -47,6 +48,7 @@ async fn metrics_aggregate_sums_rollups_and_buckets_latency() {
         requests: 5,
         input_tokens: 1000,
         output_tokens: 400,
+        image_output_tokens: 50,
         cache_write_tokens: 0,
         cache_read_tokens: 0,
         cost: rust_decimal::Decimal::ZERO,
@@ -89,6 +91,7 @@ async fn usage_summary_matches_filters_and_ignores_pagination() {
             model: Some(model.into()),
             input_tokens: input,
             output_tokens: output,
+            image_output_tokens: input + 5,
             cache_read_tokens: input + 1,
             cache_creation_5m_tokens: input + 2,
             cache_creation_30m_tokens: input + 3,
@@ -121,6 +124,7 @@ async fn usage_summary_matches_filters_and_ignores_pagination() {
     assert_eq!(summary.requests, 2);
     assert_eq!(summary.input_tokens, 40);
     assert_eq!(summary.output_tokens, 60);
+    assert_eq!(summary.image_output_tokens, 50);
     assert_eq!(summary.cache_read_tokens, 42);
     assert_eq!(summary.cache_creation_5m_tokens, 44);
     assert_eq!(summary.cache_creation_30m_tokens, 46);
@@ -180,6 +184,7 @@ async fn downstream_logs_filter_by_time_and_usage_dimensions() {
             model: None,
             input_tokens: 0,
             output_tokens: 0,
+            image_output_tokens: 0,
             cache_read_tokens: 0,
             cache_creation_5m_tokens: 0,
             cache_creation_30m_tokens: 0,
@@ -390,6 +395,7 @@ async fn size_pressure_prunes_logs_and_audit_but_preserves_usage() {
         model: None,
         input_tokens: 1,
         output_tokens: 1,
+        image_output_tokens: 2,
         cache_read_tokens: 0,
         cache_creation_5m_tokens: 0,
         cache_creation_30m_tokens: 0,

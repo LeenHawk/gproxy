@@ -177,6 +177,7 @@ async fn portal_usage_page_items_and_total_are_session_scoped() {
                 model: None,
                 input_tokens: 0,
                 output_tokens: 0,
+                image_output_tokens: 0,
                 cache_read_tokens: 0,
                 cache_creation_5m_tokens: 0,
                 cache_creation_30m_tokens: 0,

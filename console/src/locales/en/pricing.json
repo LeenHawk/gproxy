@@ -32,7 +32,7 @@
     "cacheCreation5mPrice": "Cache 5m",
     "cacheCreation30mPrice": "Cache 30m",
     "cacheCreation1hPrice": "Cache 1h",
-    "imagePrice": "Image",
+    "imageOutputPrice": "Image output",
     "status": "Status",
     "actions": "Actions",
     "toggle": "Columns"
@@ -67,7 +67,7 @@
     "cacheCreation5mPrice": "Cache creation 5m / 1M tokens",
     "cacheCreation30mPrice": "Cache creation 30m / 1M tokens",
     "cacheCreation1hPrice": "Cache creation 1h / 1M tokens",
-    "imagePrice": "Image / item",
+    "imageOutputPrice": "Image output / 1M tokens",
     "pricesHint": "Leave empty for zero. Values are decimal dollars.",
     "enabled": "Enabled",
     "create": "Create",

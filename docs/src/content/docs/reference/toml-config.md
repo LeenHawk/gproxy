@@ -132,7 +132,7 @@ pin explicit ids.
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     }
   ],

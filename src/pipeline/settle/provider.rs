@@ -4,9 +4,9 @@
 //! the buffered body (no counting ladder, no stream guard). The
 //! content-generation settle path ([`super::SettleCtx`]) is untouched.
 //!
-//! Pricing: compact content and embeddings use the per-million-token rates from
-//! their response `usage`; images are billed per image from the matching price
-//! rule (counted from the response `data` array).
+//! Pricing uses the normalized per-million-token rates from response `usage`.
+//! Image operations require upstream token usage as well; a response without
+//! it settles at zero rather than guessing from the number of returned images.
 
 use bytes::Bytes;
 use rust_decimal::Decimal;
@@ -16,7 +16,7 @@ use crate::app::AppState;
 use crate::billing::{self, UsageRecord, price};
 use crate::pipeline::context::{Candidate, RequestCtx};
 use crate::protocol::{Operation, OperationKey, Provider as Family};
-use crate::usage::{Ended, NormalizedUsage, UsageSource, extract};
+use crate::usage::{Ended, UsageSource, extract};
 use crate::util::time::unix_now;
 
 /// Whether this op settles here (compact / embeddings / images). Lets the
@@ -87,60 +87,66 @@ pub(crate) async fn settle(
         (pricing, scopes)
     };
 
-    let parsed: Option<Value> = match serde_json::from_slice(body) {
-        Ok(value) => Some(value),
-        Err(error) => {
-            tracing::warn!(
-                request_id = %ctx.request_id,
-                provider = %cand.provider.name,
-                upstream_model = %cand.upstream_model_id,
-                error = %error,
-                "billable provider response JSON parse failed; using zero usage"
-            );
-            None
-        }
-    };
-    let (usage, cost, source) = if is_embedding || is_compact {
-        let extracted = parsed
-            .as_ref()
-            .and_then(|v| extract::from_response(usage_family, v));
-        if parsed.is_some() && extracted.is_none() {
-            tracing::warn!(
-                request_id = %ctx.request_id,
-                provider = %cand.provider.name,
-                upstream_model = %cand.upstream_model_id,
-                operation = if is_compact { "compact_content" } else { "create_embedding" },
-                "provider usage missing; using zero usage"
-            );
-        }
-        let source = if is_compact && extracted.is_none() {
-            UsageSource::Estimated
-        } else {
-            UsageSource::Upstream
+    let (parsed, parse_error): (Option<Value>, Option<serde_json::Error>) =
+        match serde_json::from_slice(body) {
+            Ok(value) => (Some(value), None),
+            Err(error) => (None, Some(error)),
         };
-        let usage = extracted.unwrap_or_default();
-        (usage, price::cost(&usage, &pricing), source)
+    // Images supports `stream:true`, while the provider operation currently
+    // reaches this settlement path as a buffered SSE transcript. Decode the
+    // completed event instead of treating the transcript as malformed JSON.
+    let stream_frames = (is_image && parsed.is_none())
+        .then(|| super::frames::decode(body).ok())
+        .flatten()
+        .filter(|frames| !frames.is_empty());
+    if parsed.is_none() && stream_frames.is_none() {
+        tracing::warn!(
+            request_id = %ctx.request_id,
+            provider = %cand.provider.name,
+            upstream_model = %cand.upstream_model_id,
+            error = %parse_error.expect("failed JSON parse has an error"),
+            "billable provider response parse failed; using zero usage"
+        );
+    }
+    let extracted = parsed
+        .as_ref()
+        .and_then(|value| {
+            if is_image {
+                extract::from_image_response(usage_family, value)
+            } else {
+                extract::from_response(usage_family, value)
+            }
+        })
+        .or_else(|| {
+            stream_frames
+                .as_deref()
+                .and_then(|frames| extract::from_image_stream_frames(usage_family, frames))
+        });
+    if (parsed.is_some() || stream_frames.is_some()) && extracted.is_none() {
+        let operation = if is_compact {
+            "compact_content"
+        } else if is_embedding {
+            "create_embedding"
+        } else if matches!(op.operation(), Operation::EditImage) {
+            "edit_image"
+        } else {
+            "create_image"
+        };
+        tracing::warn!(
+            request_id = %ctx.request_id,
+            provider = %cand.provider.name,
+            upstream_model = %cand.upstream_model_id,
+            operation,
+            "provider usage missing; using zero usage"
+        );
+    }
+    let source = if is_compact && extracted.is_none() {
+        UsageSource::Estimated
     } else {
-        // Images: bill per image in the response `data` array.
-        let count = parsed
-            .as_ref()
-            .and_then(|v| v.get("data"))
-            .and_then(Value::as_array)
-            .map(|a| a.len() as u64);
-        if parsed.is_some() && count.is_none() {
-            tracing::warn!(
-                request_id = %ctx.request_id,
-                provider = %cand.provider.name,
-                upstream_model = %cand.upstream_model_id,
-                "image count unavailable; using zero image cost"
-            );
-        }
-        (
-            NormalizedUsage::default(),
-            Decimal::from(count.unwrap_or(0)) * pricing.image,
-            UsageSource::Upstream,
-        )
+        UsageSource::Upstream
     };
+    let usage = extracted.unwrap_or_default();
+    let cost = price::cost(&usage, &pricing);
 
     let operation = super::enum_str(&op.operation());
     let kind = super::enum_str(&op.kind());
@@ -197,6 +203,7 @@ pub(crate) async fn settle(
         upstream_model = %cand.upstream_model_id,
         usage_source = %source,
         ended = "complete",
+        image_output_tokens = usage.image_output,
         tokens = usage.total(),
         cost = %cost,
         "provider usage settled"

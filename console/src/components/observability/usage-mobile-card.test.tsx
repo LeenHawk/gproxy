@@ -23,6 +23,7 @@ const usage: Usage = {
   model: "claude-test",
   input_tokens: 101,
   output_tokens: 202,
+  image_output_tokens: 808,
   cache_read_tokens: 606,
   cache_creation_5m_tokens: 303,
   cache_creation_30m_tokens: 404,
@@ -43,6 +44,8 @@ describe("UsageMobileCard", () => {
     expect(html).toContain(">101<");
     expect(html).toContain("usage.columns.outputTokens");
     expect(html).toContain(">202<");
+    expect(html).toContain("usage.columns.imageOutputTokens");
+    expect(html).toContain(">808<");
     expect(html).toContain("5m 303");
     expect(html).toContain("30m 404");
     expect(html).toContain("1h 505");

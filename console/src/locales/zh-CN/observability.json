@@ -33,6 +33,7 @@
       "route": "路由",
       "inputTokens": "输入 tokens",
       "outputTokens": "输出 tokens",
+      "imageOutputTokens": "图片输出 tokens",
       "cacheWrite": "缓存写入",
       "cacheRead": "缓存命中",
       "cost": "费用",
@@ -113,6 +114,7 @@
       "requests": "请求数",
       "input_tokens": "输入 tokens",
       "output_tokens": "输出 tokens",
+      "image_output_tokens": "图片输出 tokens",
       "cache_write_tokens": "缓存写入",
       "cache_read_tokens": "缓存命中",
       "cost": "费用（$）"
