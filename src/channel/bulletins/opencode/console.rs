@@ -1,14 +1,13 @@
 //! OpenCode Console REST client — the read side of a console account.
 //!
-//! Two endpoints matter to this channel: `/api/orgs` picks the workspace, and
-//! `/api/config` carries that workspace's managed OpenCode config. The console
-//! speaks JSON (not form-encoded OAuth bodies), so the request builders here
-//! are shared by the device flow in [`super::login`].
+//! The Console speaks JSON (not form-encoded OAuth bodies). These request
+//! builders are shared by the device flow in [`super::login`], while `/api/orgs`
+//! provides an optional human-readable credential label.
 
 use std::sync::Arc;
 
 use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use http::{Request, Response};
 use serde::Deserialize;
 use serde_json::Value;
@@ -40,51 +39,17 @@ pub(super) struct Org {
     pub name: String,
 }
 
-/// The workspace whose managed config to read: first by name, then by id —
-/// the selection the OpenCode CLI makes.
+/// The account's first workspace, ordered the same way as the OpenCode CLI, for
+/// stable credential metadata and labels.
 pub(super) async fn first_org(
     client: &Arc<dyn UpstreamClient>,
     base: &str,
     access: &str,
 ) -> Result<Option<Org>, ChannelError> {
-    let mut orgs: Vec<Org> = send_json(
-        client,
-        get(&format!("{base}/api/orgs"), access, None)?,
-        "orgs",
-    )
-    .await?;
+    let mut orgs: Vec<Org> =
+        send_json(client, get(&format!("{base}/api/orgs"), access)?, "orgs").await?;
     orgs.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
     Ok(orgs.into_iter().next())
-}
-
-/// `provider.<tier>.options.apiKey` from the managed config, when the workspace
-/// publishes one. A 404 — no managed config at all — reads as "no key" rather
-/// than an error, because that is the ordinary shape of a personal account.
-pub(super) async fn workspace_key(
-    client: &Arc<dyn UpstreamClient>,
-    base: &str,
-    access: &str,
-    org_id: Option<&str>,
-    tier: &str,
-) -> Result<Option<String>, ChannelError> {
-    let resp = client
-        .send(get(&format!("{base}/api/config"), access, org_id)?)
-        .await
-        .map_err(|e| ChannelError::Build(format!("config request failed: {e}")))?;
-    if resp.status() == http::StatusCode::NOT_FOUND {
-        return Ok(None);
-    }
-    let body = read_ok(resp, "config")?;
-    let config: Value = serde_json::from_slice(&body)
-        .map_err(|e| ChannelError::Build(format!("config response parse: {e}")))?;
-    Ok(config
-        .pointer("/config/provider")
-        .and_then(|providers| providers.get(tier))
-        .and_then(|provider| provider.pointer("/options/apiKey"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|key| !key.is_empty())
-        .map(str::to_string))
 }
 
 pub(super) fn post(url: &str, body: &Value) -> Result<Request<Bytes>, ChannelError> {
@@ -95,14 +60,10 @@ pub(super) fn post(url: &str, body: &Value) -> Result<Request<Bytes>, ChannelErr
         .map_err(|e| ChannelError::Build(format!("console request build: {e}")))
 }
 
-fn get(url: &str, access: &str, org_id: Option<&str>) -> Result<Request<Bytes>, ChannelError> {
-    let mut builder = Request::get(url)
+fn get(url: &str, access: &str) -> Result<Request<Bytes>, ChannelError> {
+    Request::get(url)
         .header(ACCEPT, "application/json")
-        .header(AUTHORIZATION, format!("Bearer {access}"));
-    if let Some(org) = org_id.filter(|org| !org.is_empty()) {
-        builder = builder.header(HeaderName::from_static("x-org-id"), org);
-    }
-    builder
+        .header(AUTHORIZATION, format!("Bearer {access}"))
         .body(Bytes::new())
         .map_err(|e| ChannelError::Build(format!("console request build: {e}")))
 }
