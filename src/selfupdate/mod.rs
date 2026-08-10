@@ -50,6 +50,8 @@ pub use build_info::version_line;
 #[cfg(not(target_arch = "wasm32"))]
 pub use manifest::{Artifact, Manifest};
 #[cfg(not(target_arch = "wasm32"))]
+pub use notes::{ReleaseNotesEntry, ReleaseNotesReport, fetch_range as release_notes};
+#[cfg(not(target_arch = "wasm32"))]
 pub use version::{UpdateDecision, current_target_triple};
 
 /// Built-in GitHub repository used by native self-update.
@@ -192,6 +194,8 @@ pub enum UpdateError {
     Incompatible(String),
     #[error("update refused — downgrade/rollback blocked: {0}")]
     Downgrade(String),
+    #[error("release notes unavailable: {0}")]
+    ReleaseNotes(String),
 }
 
 /// Result of a `check` (§19.10 `GET /admin/update/check` shape).
@@ -208,10 +212,9 @@ pub struct CheckReport {
     pub latest: String,
     /// Whether an update is available.
     pub available: bool,
-    /// Release notes URL, if the manifest carries one.
-    pub notes_url: Option<String>,
-    /// Inline release notes fetched from the project documentation site.
-    pub notes: Option<String>,
+    /// Whether cumulative stable release notes can be requested for this
+    /// update. Staging identities do not map to versioned release notes.
+    pub release_notes_available: bool,
     /// Safety metadata that is absent from the manifest or this binary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub safety: Vec<UpdateSafetyRisk>,
@@ -276,8 +279,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
                 current,
                 target: triple,
                 available: false,
-                notes_url: None,
-                notes: None,
+                release_notes_available: false,
                 safety: Vec::new(),
                 install_mode: current_install_mode(),
             });
@@ -300,22 +302,20 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
     } else {
         Vec::new()
     };
-    let notes = if decision.available {
-        notes::fetch(ctx, &manifest.version).await
-    } else {
-        None
-    };
-
     Ok(CheckReport {
         current: decision.current,
         target: triple,
         latest: decision.latest,
         available: decision.available,
-        notes_url: manifest.notes_url.clone(),
-        notes,
+        release_notes_available: release_notes_available(ctx.channel, decision.available),
         safety,
         install_mode: current_install_mode(),
     })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn release_notes_available(channel: Channel, update_available: bool) -> bool {
+    channel == Channel::Releases && update_available
 }
 
 /// The current identity string for a channel (semver for `releases`, sha256
@@ -397,7 +397,7 @@ fn restart_now(restart: Restart) -> ! {
 
 #[cfg(test)]
 mod build_channel_tests {
-    use super::{Channel, channel_from_build_label};
+    use super::{Channel, channel_from_build_label, release_notes_available};
 
     #[test]
     fn build_label_selects_expected_channel() {
@@ -407,5 +407,13 @@ mod build_channel_tests {
             Channel::Releases
         );
         assert_eq!(channel_from_build_label(None), Channel::Releases);
+    }
+
+    #[test]
+    fn release_notes_require_a_stable_update() {
+        assert!(release_notes_available(Channel::Releases, true));
+        assert!(!release_notes_available(Channel::Releases, false));
+        assert!(!release_notes_available(Channel::Staging, true));
+        assert!(!release_notes_available(Channel::Staging, false));
     }
 }

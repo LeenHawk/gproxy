@@ -42,7 +42,7 @@ export function UpdateBanner() {
           <p className="min-w-0 flex-1 text-sm font-medium">
             {t("updateBanner.message", { version: data.latest })}
           </p>
-          {data.notes != null && (
+          {data.available && data.release_notes_available && (
             <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setNotesOpen(true)}>
               {t("updateBanner.whatsNew")}
             </Button>
@@ -62,12 +62,12 @@ export function UpdateBanner() {
           </Button>
         </div>
       </div>
-      {data.notes != null && (
+      {data.available && data.release_notes_available && (
         <ReleaseNotesDialog
           open={notesOpen}
           onOpenChange={setNotesOpen}
-          version={data.latest}
-          notes={data.notes}
+          current={data.current}
+          latest={data.latest}
         />
       )}
     </>

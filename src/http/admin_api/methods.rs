@@ -35,7 +35,7 @@ pub(super) fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
         ["admin", "route-permissions" | "rate-limits" | "quotas"] => Some("GET,HEAD,POST"),
         ["admin", "login-flows", "start" | "complete" | "cookie"] => Some("POST"),
         ["admin", "login-flows", "device", "start" | "poll"] => Some("POST"),
-        ["admin", "update", "check" | "status"] => Some("GET,HEAD"),
+        ["admin", "update", "check" | "notes" | "status"] => Some("GET,HEAD"),
         ["admin", "update", "apply"] => Some("POST"),
         ["admin", "connectivity", "test"] => Some("POST"),
         ["admin", "orgs", _, "teams"]

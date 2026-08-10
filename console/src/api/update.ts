@@ -9,10 +9,21 @@ export interface CheckReport {
   target: string;
   latest: string;
   available: boolean;
-  notes_url: string | null;
-  notes?: string | null;
+  release_notes_available: boolean;
   safety?: UpdateSafetyRisk[];
   install_mode: "binary" | "android_apk";
+}
+
+export interface ReleaseNotesEntry {
+  version: string;
+  body: string;
+}
+
+export interface ReleaseNotesReport {
+  current: string;
+  latest: string;
+  complete: boolean;
+  entries: ReleaseNotesEntry[];
 }
 
 export type UpdateSafetyRisk = "missing_sha256" | "missing_signature" | "missing_public_key";
@@ -39,6 +50,14 @@ export const updateStatusQuery = queryOptions({
   queryKey: ["update", "status"],
   queryFn: () => api<UpdateStatus>("/admin/update/status"),
 });
+
+export function releaseNotesQuery(current: string, latest: string) {
+  return queryOptions({
+    queryKey: ["update", "notes", current, latest],
+    queryFn: () => api<ReleaseNotesReport>("/admin/update/notes"),
+    retry: false,
+  });
+}
 
 export function applyUpdate(options: { allow_insecure?: boolean } = {}): Promise<UpdateStatus> {
   return api<UpdateStatus>("/admin/update/apply", {

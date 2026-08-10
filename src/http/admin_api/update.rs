@@ -16,11 +16,34 @@ pub(super) async fn dispatch(
 ) -> Option<Result<Resp, ApiError>> {
     let result = match (&request.method, segments(request).as_slice()) {
         (&Method::GET, ["admin", "update", "check"]) => check(state, request).await,
+        (&Method::GET, ["admin", "update", "notes"]) => notes(state, request).await,
         (&Method::GET, ["admin", "update", "status"]) => status(state, request).await,
         (&Method::POST, ["admin", "update", "apply"]) => apply(state, request, body).await,
         _ => return None,
     };
     Some(result)
+}
+
+async fn notes(state: &AppState, request: &Request) -> Result<Resp, ApiError> {
+    guard_admin(state, request).await?;
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let context = native::context(state)?;
+        if context.channel == crate::selfupdate::Channel::Staging {
+            return Err(ApiError::NotImplemented(
+                "release notes are unavailable for the staging channel".into(),
+            ));
+        }
+        let check = crate::selfupdate::check(&context)
+            .await
+            .map_err(native::update_error)?;
+        let report = crate::selfupdate::release_notes(&context, &check.current, &check.latest)
+            .await
+            .map_err(native::update_error)?;
+        Resp::json(200, &report)
+    }
+    #[cfg(target_arch = "wasm32")]
+    edge_unavailable()
 }
 
 async fn check(state: &AppState, request: &Request) -> Result<Resp, ApiError> {
@@ -134,6 +157,7 @@ mod native {
             UpdateError::Incompatible(_) | UpdateError::Downgrade(_) => ApiError::Conflict(message),
             UpdateError::Integrity(_) | UpdateError::Signature(_) => ApiError::Conflict(message),
             UpdateError::Manifest(_)
+            | UpdateError::ReleaseNotes(_)
             | UpdateError::Download(_)
             | UpdateError::Io(_)
             | UpdateError::Swap(_) => ApiError::Internal(message),

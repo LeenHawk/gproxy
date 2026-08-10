@@ -9,7 +9,6 @@
     "available": "有可用更新",
     "availableYes": "是",
     "availableNo": "已是最新",
-    "notes": "发布说明",
     "whatsNew": "更新内容",
     "genericError": "检查更新失败",
     "safetyWarning": "此更新缺少安全元数据：{{risks}}。应用时需要再次确认。",
@@ -20,7 +19,11 @@
     }
   },
   "releaseNotes": {
-    "title": "GPROXY {{version}} 更新内容",
+    "title": "GPROXY {{current}} → {{latest}} 更新内容",
+    "loading": "正在加载发布说明…",
+    "unavailable": "发布说明暂时无法加载。",
+    "incomplete": "部分版本的发布说明暂时无法加载。",
+    "retry": "重试",
     "viewUpdate": "前往更新"
   },
   "apply": {

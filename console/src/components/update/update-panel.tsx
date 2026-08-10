@@ -117,24 +117,13 @@ export function UpdatePanel() {
                     </Badge>
                   </dd>
                 </div>
-                {checkData.notes != null ? (
+                {checkData.available && checkData.release_notes_available && (
                   <div className="pt-1">
                     <Button variant="link" className="h-auto p-0" onClick={() => setNotesOpen(true)}>
                       {t("check.whatsNew")}
                     </Button>
                   </div>
-                ) : checkData.notes_url ? (
-                  <div className="pt-1">
-                    <a
-                      href={checkData.notes_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary underline-offset-4 hover:underline"
-                    >
-                      {t("check.notes")}
-                    </a>
-                  </div>
-                ) : null}
+                )}
               </dl>
             )}
 
@@ -195,12 +184,12 @@ export function UpdatePanel() {
         pending={applying}
       />
 
-      {checkData?.notes != null && (
+      {checkData?.available && checkData.release_notes_available && (
         <ReleaseNotesDialog
           open={notesOpen}
           onOpenChange={setNotesOpen}
-          version={checkData.latest}
-          notes={checkData.notes}
+          current={checkData.current}
+          latest={checkData.latest}
         />
       )}
     </div>

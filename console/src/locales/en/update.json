@@ -9,7 +9,6 @@
     "available": "Update available",
     "availableYes": "Yes",
     "availableNo": "Up to date",
-    "notes": "Release notes",
     "whatsNew": "What's new",
     "genericError": "Failed to check for updates",
     "safetyWarning": "This update is missing security metadata: {{risks}}. Applying it will require confirmation.",
@@ -20,7 +19,11 @@
     }
   },
   "releaseNotes": {
-    "title": "What's new in GPROXY {{version}}",
+    "title": "GPROXY {{current}} → {{latest}} release notes",
+    "loading": "Loading release notes…",
+    "unavailable": "Release notes are temporarily unavailable.",
+    "incomplete": "Some release notes could not be loaded.",
+    "retry": "Retry",
     "viewUpdate": "Go to update"
   },
   "apply": {
