@@ -161,6 +161,8 @@ export function UsageCard({
               : [];
             const label = w.label
               ? w.name.startsWith("weekly_scoped:")
+                || w.name.startsWith("weekly_model:")
+                || w.name.startsWith("weekly_surface:")
                 ? t("usage.window.weekly_scoped", { scope: w.label })
                 : w.name.startsWith("additional_primary:")
                   ? t("usage.window.additional_primary", { scope: w.label })

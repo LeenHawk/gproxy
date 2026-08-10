@@ -66,7 +66,7 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
             .unwrap_or("usage");
         let mut window = UsageWindow {
             name: name.to_owned(),
-            used_percent: included_usage_percent(&config),
+            used_percent: Some(included_usage_percent(&config).unwrap_or(0.0)),
             used: config.used.as_ref().and_then(MoneyValue::number),
             limit: config.monthly_limit.as_ref().and_then(MoneyValue::number),
             ..Default::default()

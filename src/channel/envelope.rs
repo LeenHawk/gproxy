@@ -312,6 +312,12 @@ impl BucketInfo {
             .map(|f| ((1.0 - f) * 100.0).clamp(0.0, 100.0));
         let mut w = UsageWindow {
             name,
+            label: self
+                .model_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned),
             used_percent,
             ..Default::default()
         };
@@ -450,7 +456,8 @@ mod tests {
         );
         let snap = parse_user_quota(StatusCode::OK, &body).expect("snapshot");
         assert_eq!(snap.windows.len(), 1);
-        assert_eq!(snap.windows[0].name, "gemini-2.5-pro");
+        assert_eq!(snap.windows[0].name, "gemini-2.5-pro:requests");
+        assert_eq!(snap.windows[0].label.as_deref(), Some("gemini-2.5-pro"));
         // remainingFraction 0.75 → 25% used.
         assert_eq!(snap.windows[0].used_percent, Some(25.0));
         assert_eq!(

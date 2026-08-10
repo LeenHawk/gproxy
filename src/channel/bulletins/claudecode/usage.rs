@@ -431,12 +431,12 @@ mod tests {
         );
         let snap = parse(StatusCode::OK, &body).expect("snapshot");
         let names: Vec<&str> = snap.windows.iter().map(|w| w.name.as_str()).collect();
-        assert_eq!(names, ["five_hour", "seven_day", "weekly_scoped:fable"]);
+        assert_eq!(names, ["five_hour", "seven_day", "weekly_model:fable"]);
 
         let fable = snap
             .windows
             .iter()
-            .find(|w| w.name == "weekly_scoped:fable")
+            .find(|w| w.name == "weekly_model:fable")
             .expect("fable window");
         assert_eq!(fable.label.as_deref(), Some("Fable"));
         assert_eq!(fable.used_percent, Some(0.0));
