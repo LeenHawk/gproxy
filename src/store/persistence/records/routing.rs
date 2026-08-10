@@ -13,7 +13,7 @@ pub struct Route {
     pub enabled: bool,
     pub description: Option<String>,
     /// Free-form route settings. `circuit_breaker` overrides member-provider
-    /// thresholds (§3.2); `affinity.enabled` pins a user/session to one member.
+    /// thresholds (§3.2); `affinity` configures user/session/conversation pins.
     #[serde(default)]
     pub settings_json: Option<Value>,
     pub created_at: i64,

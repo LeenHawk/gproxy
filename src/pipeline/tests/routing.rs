@@ -14,6 +14,13 @@ fn affinity_bundle() -> String {
     serde_json::to_string(&bundle).expect("serialize affinity bundle")
 }
 
+fn conversation_affinity_bundle() -> String {
+    let mut bundle: Value = serde_json::from_str(&affinity_bundle()).expect("affinity bundle");
+    bundle["routes"][0]["settings_json"] =
+        json!({ "affinity": { "enabled": true, "subject": "conversation" } });
+    serde_json::to_string(&bundle).expect("serialize conversation affinity bundle")
+}
+
 fn affinity_ctx(request_id: &str, session_id: Option<&str>) -> RequestCtx {
     let mut ctx = claude_ctx("claude-test", false);
     ctx.request_id = request_id.to_owned();
@@ -21,6 +28,26 @@ fn affinity_ctx(request_id: &str, session_id: Option<&str>) -> RequestCtx {
         ctx.headers
             .insert("x-gproxy-session-id", session_id.parse().unwrap());
     }
+    ctx
+}
+
+fn conversation_affinity_ctx(
+    request_id: &str,
+    first_user: &str,
+    appended_tail: bool,
+) -> RequestCtx {
+    let mut ctx = affinity_ctx(request_id, None);
+    let mut body: Value = serde_json::from_slice(&ctx.body).expect("request body");
+    body["messages"] = if appended_tail {
+        json!([
+            { "role": "user", "content": first_user },
+            { "role": "assistant", "content": "earlier answer" },
+            { "role": "user", "content": "follow-up" }
+        ])
+    } else {
+        json!([{ "role": "user", "content": first_user }])
+    };
+    ctx.body = Bytes::from(serde_json::to_vec(&body).expect("serialize request body"));
     ctx
 }
 
@@ -129,7 +156,14 @@ async fn prepared_candidates_survive_snapshot_swap() {
                 .unwrap();
         ctx.op = Some(classified.op);
         ctx.body_model = classified.body_model;
-        crate::pipeline::candidate::prepare(&cp, &ctx, classified.op, None).unwrap()
+        crate::pipeline::candidate::prepare(
+            &cp,
+            &ctx,
+            classified.op,
+            None,
+            classified.conversation_fingerprint,
+        )
+        .unwrap()
     };
     state
         .snapshot
@@ -252,6 +286,38 @@ async fn route_affinity_prefers_session_header_then_user_key() {
             .all(|request| !request.headers.contains_key("x-gproxy-session-id")),
         "affinity control header must not reach upstream"
     );
+}
+
+#[tokio::test]
+async fn route_affinity_uses_conversation_head() {
+    let fake = Arc::new(FakeUpstream::new(affinity_response(), vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &conversation_affinity_bundle()).await;
+
+    crate::pipeline::execute(
+        &state,
+        conversation_affinity_ctx("conv-a-1", "question A", false),
+    )
+    .await
+    .expect("first conversation A request");
+    crate::pipeline::execute(
+        &state,
+        conversation_affinity_ctx("conv-b-1", "question B", false),
+    )
+    .await
+    .expect("first conversation B request");
+    crate::pipeline::execute(
+        &state,
+        conversation_affinity_ctx("conv-a-2", "question A", true),
+    )
+    .await
+    .expect("conversation A with an appended tail");
+    crate::pipeline::execute(
+        &state,
+        conversation_affinity_ctx("conv-b-2", "question B", true),
+    )
+    .await
+    .expect("conversation B with an appended tail");
+    assert_eq!(seen_models(&fake), vec!["gpt-a", "gpt-b", "gpt-a", "gpt-b"]);
 }
 
 #[tokio::test]

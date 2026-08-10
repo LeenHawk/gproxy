@@ -25,6 +25,11 @@ enum CandidateSource {
     Provider(balance::PreparedProvider),
 }
 
+struct AffinityInput {
+    session_id: Option<String>,
+    conversation_fingerprint: Option<[u8; 32]>,
+}
+
 pub(crate) struct CandidateRequest {
     authorization: authz::AuthorizationPlan,
     quota: authz::QuotaPlan,
@@ -33,7 +38,7 @@ pub(crate) struct CandidateRequest {
     synthetic_providers: HashSet<i64>,
     route_name: Option<String>,
     provider_name: Option<String>,
-    affinity_session_id: Option<String>,
+    affinity: AffinityInput,
     credential_binding_key: Option<Arc<str>>,
 }
 
@@ -61,15 +66,20 @@ pub(crate) fn prepare(
     ctx: &RequestCtx,
     op: OperationKey,
     affinity_session_id: Option<String>,
+    conversation_fingerprint: Option<[u8; 32]>,
 ) -> Result<Prepared, PipelineError> {
     let identity = ctx.identity.as_ref().expect("auth ran first");
+    let affinity = AffinityInput {
+        session_id: affinity_session_id,
+        conversation_fingerprint,
+    };
     match &ctx.mode {
-        RoutingMode::Aggregated => prepare_aggregated(cp, ctx, identity, affinity_session_id),
+        RoutingMode::Aggregated => prepare_aggregated(cp, ctx, identity, affinity),
         RoutingMode::Namespace { namespace } => {
-            prepare_namespace(cp, ctx, identity, namespace, affinity_session_id)
+            prepare_namespace(cp, ctx, identity, namespace, affinity)
         }
         RoutingMode::Scoped { provider } => {
-            prepare_scoped(cp, ctx, op, identity, provider, affinity_session_id)
+            prepare_scoped(cp, ctx, op, identity, provider, affinity)
         }
         RoutingMode::Named { .. } => unreachable!("named routing mode must be resolved first"),
     }
@@ -79,7 +89,7 @@ fn prepare_aggregated(
     cp: &ControlPlaneSnapshot,
     ctx: &RequestCtx,
     identity: &Arc<KeyIdentity>,
-    affinity_session_id: Option<String>,
+    affinity: AffinityInput,
 ) -> Result<Prepared, PipelineError> {
     let model = preprocess::preprocess(cp, ctx)?;
     if cp.routes_by_name.contains_key(&model) {
@@ -93,7 +103,7 @@ fn prepare_aggregated(
             source,
             Some(model),
             None,
-            affinity_session_id,
+            affinity,
         ))));
     }
 
@@ -112,7 +122,7 @@ fn prepare_aggregated(
         source,
         None,
         Some(provider.name.clone()),
-        affinity_session_id,
+        affinity,
     ))))
 }
 
@@ -121,7 +131,7 @@ fn prepare_namespace(
     ctx: &RequestCtx,
     identity: &Arc<KeyIdentity>,
     namespace: &str,
-    affinity_session_id: Option<String>,
+    affinity: AffinityInput,
 ) -> Result<Prepared, PipelineError> {
     let model = preprocess::preprocess(cp, ctx)?;
     let resolved = route::route_in_namespace(cp, namespace, &model)?;
@@ -134,7 +144,7 @@ fn prepare_namespace(
         source,
         Some(model),
         None,
-        affinity_session_id,
+        affinity,
     ))))
 }
 
@@ -144,7 +154,7 @@ fn prepare_scoped(
     op: OperationKey,
     identity: &Arc<KeyIdentity>,
     provider_name: &str,
-    affinity_session_id: Option<String>,
+    affinity: AffinityInput,
 ) -> Result<Prepared, PipelineError> {
     let provider = enabled_provider(cp, provider_name)?;
     if op.operation() == Operation::ListModels {
@@ -173,7 +183,7 @@ fn prepare_scoped(
         source,
         None,
         Some(provider.name.clone()),
-        affinity_session_id,
+        affinity,
     ))))
 }
 
@@ -201,7 +211,7 @@ fn prepare_request(
     source: CandidateSource,
     route_name: Option<String>,
     provider_name: Option<String>,
-    affinity_session_id: Option<String>,
+    affinity: AffinityInput,
 ) -> CandidateRequest {
     let op = ctx.op.expect("classified");
     let identity = ctx.identity.as_deref().expect("auth ran first");
@@ -236,7 +246,7 @@ fn prepare_request(
         synthetic_providers,
         route_name,
         provider_name,
-        affinity_session_id,
+        affinity,
         credential_binding_key: balance::credential_binding_key(ctx, identity.user_key.id),
     }
 }
@@ -270,8 +280,9 @@ impl CandidateRequest {
                     state.health.as_ref(),
                     state.cache.as_ref(),
                     Some(identity.user_key.id),
-                    self.affinity_session_id.as_deref(),
+                    self.affinity.session_id.as_deref(),
                     bound_credential,
+                    self.affinity.conversation_fingerprint.as_ref(),
                 )
                 .await?
             }

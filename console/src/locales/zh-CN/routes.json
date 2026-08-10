@@ -48,7 +48,15 @@
   },
   "affinity": {
     "title": "会话粘性",
-    "hint": "同一 API Key 优先使用同一成员；提供 X-Gproxy-Session-Id 时以该会话为准，空闲 1 小时后过期。"
+    "hint": "相关请求优先使用同一成员；X-Gproxy-Session-Id 始终优先，固定关系空闲 1 小时后过期。",
+    "subject": "回退主体",
+    "subjectUser": "API Key（兼容原有行为）",
+    "subjectConversation": "对话",
+    "subjectHint": "未提供会话请求头时，按 API Key 或自动推导的对话指纹固定成员。",
+    "reanchorAfterSecs": "重新锚定间隔（秒）",
+    "reanchorOff": "关闭",
+    "reanchorHint": "可选的固定时长上限，最长一年；到期后的下一次请求恢复正常成员选择。",
+    "reanchorInvalid": "重新锚定间隔必须留空，或填写 1 到 31,536,000 秒之间的整数（最长一年）。"
   },
   "delete": {
     "route": "删除负载均衡",
