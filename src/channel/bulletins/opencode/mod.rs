@@ -8,9 +8,9 @@
 //! upstream path and the credential header are chosen from the routed cell (the
 //! internal `auth` module); the tier only changes the base URL.
 //!
-//! The gateway credential is an API key. It can be pasted directly, or picked
-//! up from an OpenCode Console account by the device-code login — see
-//! [`login`] for why the console token is not itself a gateway credential.
+//! The gateway credential is an API key. It can be pasted directly, or supplied
+//! by the OpenCode Console device-code exchange; the latter is refreshed as an
+//! OAuth credential while still feeding the same API-key request path.
 //! There is no envelope, no stream decoder, and no TLS impersonation, which is
 //! why both tiers are in the edge/wasm channel subset. Live per-credential usage
 //! is not exposed by any public OpenCode endpoint, so neither tier reports a
@@ -37,13 +37,6 @@ use crate::channel::{
 };
 use crate::http::client::UpstreamClient;
 use crate::protocol::{ContentGenerationKind, OperationKind};
-
-/// Provider id each tier carries inside an OpenCode Console managed config —
-/// the models.dev ids, which the console reuses verbatim.
-#[cfg(feature = "channel-opencodezen")]
-const ZEN_CONFIG_TIER: &str = "opencode";
-#[cfg(feature = "channel-opencodego")]
-const GO_CONFIG_TIER: &str = "opencode-go";
 
 /// Zen: pay-as-you-go, full catalogue, Gemini served natively.
 #[cfg(feature = "channel-opencodezen")]
@@ -141,12 +134,12 @@ impl Channel for OpenCodeZenChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        login::refresh(client, ctx.secret, ctx.provider_settings, ZEN_CONFIG_TIER).await
+        login::refresh(client, ctx.secret, ctx.provider_settings).await
     }
 }
 
-/// Device-code login against the OpenCode Console. The minted secret is the
-/// workspace's managed gateway key plus the tokens needed to re-pull it.
+/// Device-code login against the OpenCode Console. The minted access token is
+/// stored as the gateway key together with the fields needed to refresh it.
 #[cfg(feature = "channel-opencodezen")]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -164,13 +157,7 @@ impl ChannelLogin for OpenCodeZenChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        login::device_poll(
-            client,
-            ctx.provider_settings,
-            ctx.device_code,
-            ZEN_CONFIG_TIER,
-        )
-        .await
+        login::device_poll(client, ctx.provider_settings, ctx.device_code).await
     }
 }
 
@@ -203,12 +190,12 @@ impl Channel for OpenCodeGoChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        login::refresh(client, ctx.secret, ctx.provider_settings, GO_CONFIG_TIER).await
+        login::refresh(client, ctx.secret, ctx.provider_settings).await
     }
 }
 
-/// Same console login as Zen; only the managed-config provider id differs, so a
-/// Go credential picks up the Go key rather than the Zen one.
+/// Same Console login as Zen; the returned access credential is valid for the
+/// account's subscribed tier and the channel chooses the Go gateway URL.
 #[cfg(feature = "channel-opencodego")]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -226,13 +213,7 @@ impl ChannelLogin for OpenCodeGoChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        login::device_poll(
-            client,
-            ctx.provider_settings,
-            ctx.device_code,
-            GO_CONFIG_TIER,
-        )
-        .await
+        login::device_poll(client, ctx.provider_settings, ctx.device_code).await
     }
 }
 

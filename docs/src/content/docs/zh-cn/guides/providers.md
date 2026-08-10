@@ -142,16 +142,14 @@ chat completions。凭据按路由到的入口选择请求头 —— `Authorizat
 #### Console device 登录
 
 两档还支持对 OpenCode Console（`https://console.opencode.ai`，企业自建控制台用
-`settings_json.console_base_url` 指定）的 device-code 登录。注意：console 账号 token
-**本身不是**网关凭据 —— Zen 与 Go 会把 bearer 拿去比对已存的 API key，直接把 console
-token 发给 `/zen/v1/*` 会被拒绝。这个登录真正做的事是读取工作区的托管配置
-（`GET {server}/api/config`，与 OpenCode CLI 合并的是同一份文档），取其中的
-`provider.<tier>.options.apiKey` 作为凭据；保存下来的 console token 只用于在过期后
-重新拉取该 key，因此托管 key 轮换后会自动跟上。
+`settings_json.console_base_url` 指定）的 device-code 登录。device exchange 返回的 access
+token 同时用于 OpenCode Console API 和模型网关。GPROXY 会把它同时保存到
+`access_token` 与 `api_key`：后者供普通 API-key 请求链路使用，refresh token 则会在
+access token 过期前同时轮换这两个字段。`/api/orgs` 返回的工作区信息只作为凭据元数据；
+登录不再依赖 `/api/config` 或托管 provider 配置。
 
-也就是说，只有发布了托管配置的工作区才能登录成功。个人账号没有托管配置，config 请求
-返回 404，登录会直接失败并提示改用手工填写 —— 而不是存下一个每次请求都会失败的凭据。
-这种情况请从 OpenCode 控制台复制 key 填入 `secret_json.api_key`。
+手工凭据仍然受支持。不希望使用 device 登录时，可从 OpenCode 控制台复制 key 填入
+`secret_json.api_key`。
 
 ### Cline 渠道
 

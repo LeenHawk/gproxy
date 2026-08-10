@@ -1,16 +1,9 @@
 //! OpenCode Console device-code login and token refresh.
 //!
-//! The console account token is NOT itself a gateway credential: Zen/Go
-//! authenticate strictly against stored API keys (the gateway looks the bearer
-//! up in its key table), so a console access token presented to `/zen/v1/*` is
-//! rejected. What the account DOES give is the workspace's managed config — the
-//! same `GET {server}/api/config` document the OpenCode CLI merges — whose
-//! `provider.<tier>.options.apiKey` is a real gateway key.
-//!
-//! So the flow is: device-code login → console tokens → pull the managed config
-//! → keep its `apiKey` as the credential, retaining the tokens only to re-pull
-//! it later. An account with no managed config fails the login loudly instead of
-//! persisting a credential that would 401 on every request.
+//! OpenCode's device exchange returns the short-lived access credential used by
+//! both the Console API and the Zen/Go model gateways. Keep it in the channel's
+//! `api_key` field so the ordinary API-key request path can use it, while also
+//! retaining the OAuth fields needed to refresh it.
 
 use std::sync::Arc;
 
@@ -80,7 +73,6 @@ pub(super) async fn device_poll(
     client: &Arc<dyn UpstreamClient>,
     settings: &Value,
     device_code: &str,
-    tier: &str,
 ) -> Result<DevicePoll, ChannelError> {
     let base = console::base_url(settings, &Value::Null);
     let req = console::post(
@@ -109,18 +101,9 @@ pub(super) async fn device_poll(
 
     let org = console::first_org(client, base, &access).await?;
     let (org_id, org_name) = org.map_or((None, None), |org| (Some(org.id), Some(org.name)));
-    let api_key = console::workspace_key(client, base, &access, org_id.as_deref(), tier)
-        .await?
-        .ok_or_else(|| {
-            ChannelError::InvalidCredential(format!(
-                "this OpenCode Console account publishes no managed `{tier}` API key. \
-                 Console sign-in only distributes workspace-managed keys; copy the key \
-                 from the OpenCode dashboard and add it as `api_key` instead"
-            ))
-        })?;
 
     Ok(DevicePoll::Ready(json!({
-        "api_key": api_key,
+        "api_key": access.clone(),
         "access_token": access,
         "refresh_token": reply.refresh_token.unwrap_or_default(),
         "expires_at_ms": expires_at_ms(reply.expires_in),
@@ -130,14 +113,12 @@ pub(super) async fn device_poll(
     })))
 }
 
-/// Rotate the console tokens and re-pull the managed key. A failed config pull
-/// keeps the stored key: a transient console outage must not break an otherwise
-/// working credential.
+/// Rotate the console tokens and keep the request credential in sync with the
+/// newly returned access token.
 pub(super) async fn refresh(
     client: &Arc<dyn UpstreamClient>,
     secret: &Value,
     settings: &Value,
-    tier: &str,
 ) -> Result<Value, ChannelError> {
     let base = console::base_url(settings, secret).to_string();
     let refresh_token = secret
@@ -162,19 +143,11 @@ pub(super) async fn refresh(
             ChannelError::InvalidCredential("refresh returned no access_token".into())
         })?;
 
-    let org_id = secret
-        .get("org_id")
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let fresh_key = console::workspace_key(client, &base, &access, org_id.as_deref(), tier)
-        .await
-        .ok()
-        .flatten();
-
     let mut out = secret.clone();
     let obj = out
         .as_object_mut()
         .ok_or_else(|| ChannelError::Build("secret is not an object".into()))?;
+    obj.insert("api_key".into(), Value::String(access.clone()));
     obj.insert("access_token".into(), Value::String(access));
     if let Some(token) = reply.refresh_token.filter(|token| !token.is_empty()) {
         obj.insert("refresh_token".into(), Value::String(token));
@@ -183,9 +156,6 @@ pub(super) async fn refresh(
         "expires_at_ms".into(),
         json!(expires_at_ms(reply.expires_in)),
     );
-    if let Some(key) = fresh_key {
-        obj.insert("api_key".into(), Value::String(key));
-    }
     Ok(out)
 }
 

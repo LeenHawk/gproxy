@@ -185,19 +185,16 @@ Track Go's five-hour, weekly, and monthly usage limits in the OpenCode console.
 
 Both tiers also offer a device-code login against the OpenCode Console
 (`https://console.opencode.ai`, or an enterprise console set through
-`settings_json.console_base_url`). The console account token is **not** itself a
-gateway credential: Zen and Go authenticate the bearer against stored API keys,
-so a console token sent to `/zen/v1/*` is rejected. What the login does is read
-the workspace's managed config — `GET {server}/api/config`, the same document
-the OpenCode CLI merges — and keep its `provider.<tier>.options.apiKey` as the
-credential. The stored console tokens are used only to re-pull that key when
-they expire, so a rotated managed key is picked up automatically.
+`settings_json.console_base_url`). The device exchange returns an access token
+that OpenCode uses for both its Console APIs and model gateways. GPROXY stores
+that value in both `access_token` and `api_key`: the latter feeds the ordinary
+API-key request path, while the refresh token rotates both fields before the
+access token expires. Workspace information from `/api/orgs` is retained only
+as credential metadata; login does not depend on `/api/config` or a managed
+provider configuration.
 
-This means the login only succeeds for workspaces that publish a managed config.
-A personal account has none, its config request answers 404, and the login fails
-with a message pointing at manual entry rather than saving a credential that
-would fail every request. Copy the key from the OpenCode dashboard into
-`secret_json.api_key` for that case.
+Manual credentials remain supported. Copy the key from the OpenCode dashboard
+into `secret_json.api_key` when device login is not desired.
 
 ### Cline channel
 
