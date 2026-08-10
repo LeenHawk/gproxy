@@ -13,7 +13,7 @@ use serde_json::Value;
 
 const COLS: &str = "id, request_id, at, route_name, provider_id, credential_id, org_id, team_id, \
      user_id, user_key_id, operation, kind, model, input_tokens, output_tokens, \
-     cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
+     image_output_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
      cache_creation_1h_tokens, cost, latency_ms, \
      usage_source, ended, created_at, updated_at";
 
@@ -34,16 +34,17 @@ fn decode(row: &Row) -> anyhow::Result<Usage> {
         model: col_opt_str(row, 12)?,
         input_tokens: col_i64(row, 13)?,
         output_tokens: col_i64(row, 14)?,
-        cache_read_tokens: col_i64(row, 15)?,
-        cache_creation_5m_tokens: col_i64(row, 16)?,
-        cache_creation_30m_tokens: col_i64(row, 17)?,
-        cache_creation_1h_tokens: col_i64(row, 18)?,
-        cost: col_decimal(row, 19)?,
-        latency_ms: col_i64(row, 20)?,
-        usage_source: col_str(row, 21)?,
-        ended: col_str(row, 22)?,
-        created_at: col_i64(row, 23)?,
-        updated_at: col_i64(row, 24)?,
+        image_output_tokens: col_i64(row, 15)?,
+        cache_read_tokens: col_i64(row, 16)?,
+        cache_creation_5m_tokens: col_i64(row, 17)?,
+        cache_creation_30m_tokens: col_i64(row, 18)?,
+        cache_creation_1h_tokens: col_i64(row, 19)?,
+        cost: col_decimal(row, 20)?,
+        latency_ms: col_i64(row, 21)?,
+        usage_source: col_str(row, 22)?,
+        ended: col_str(row, 23)?,
+        created_at: col_i64(row, 24)?,
+        updated_at: col_i64(row, 25)?,
     })
 }
 
@@ -67,10 +68,10 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
             "INSERT INTO usages \
              (request_id, at, route_name, provider_id, credential_id, org_id, team_id, user_id, \
               user_key_id, operation, kind, model, input_tokens, output_tokens, \
-              cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
+              image_output_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
               cache_creation_1h_tokens, cost, \
               latency_ms, usage_source, ended, created_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             &[
                 arg_text(&input.request_id),
                 arg_integer(input.at),
@@ -86,6 +87,7 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
                 arg_opt_text(input.model.as_deref()),
                 arg_integer(input.input_tokens),
                 arg_integer(input.output_tokens),
+                arg_integer(input.image_output_tokens),
                 arg_integer(input.cache_read_tokens),
                 arg_integer(input.cache_creation_5m_tokens),
                 arg_integer(input.cache_creation_30m_tokens),
@@ -232,7 +234,8 @@ mod tests {
 pub async fn summarize(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
     let mut sql = String::from(
         "SELECT COUNT(*), COALESCE(SUM(input_tokens), 0), \
-         COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cache_read_tokens), 0), \
+         COALESCE(SUM(output_tokens), 0), COALESCE(SUM(image_output_tokens), 0), \
+         COALESCE(SUM(cache_read_tokens), 0), \
          COALESCE(SUM(cache_creation_5m_tokens), 0), \
          COALESCE(SUM(cache_creation_30m_tokens), 0), \
          COALESCE(SUM(cache_creation_1h_tokens), 0), \
@@ -276,10 +279,11 @@ pub async fn summarize(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<
         requests: col_i64(&row, 0)?,
         input_tokens: col_i64(&row, 1)?,
         output_tokens: col_i64(&row, 2)?,
-        cache_read_tokens: col_i64(&row, 3)?,
-        cache_creation_5m_tokens: col_i64(&row, 4)?,
-        cache_creation_30m_tokens: col_i64(&row, 5)?,
-        cache_creation_1h_tokens: col_i64(&row, 6)?,
-        cost: col_decimal(&row, 7)?,
+        image_output_tokens: col_i64(&row, 3)?,
+        cache_read_tokens: col_i64(&row, 4)?,
+        cache_creation_5m_tokens: col_i64(&row, 5)?,
+        cache_creation_30m_tokens: col_i64(&row, 6)?,
+        cache_creation_1h_tokens: col_i64(&row, 7)?,
+        cost: col_decimal(&row, 8)?,
     })
 }

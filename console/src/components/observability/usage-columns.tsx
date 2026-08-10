@@ -57,6 +57,14 @@ export function useUsageColumns(
       ),
     },
     {
+      key: "imageOutputTokens",
+      label: t("usage.columns.imageOutputTokens"),
+      header: t("usage.columns.imageOutputTokens"),
+      cell: (usage) => (
+        <span className="tabular-nums text-xs">{usage.image_output_tokens}</span>
+      ),
+    },
+    {
       key: "cache",
       label: `${t("usage.columns.cacheWrite")} (5m/1h)`,
       header: `${t("usage.columns.cacheWrite")} (5m/1h)`,

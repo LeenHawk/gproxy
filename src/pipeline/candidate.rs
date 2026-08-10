@@ -352,19 +352,11 @@ fn estimate(cp: &ControlPlaneSnapshot, ctx: &RequestCtx, provider_id: i64, model
         Operation::GenerateContent
         | Operation::StreamGenerateContent
         | Operation::CompactContent
-        | Operation::CreateEmbedding => {
+        | Operation::CreateEmbedding
+        | Operation::CreateImage
+        | Operation::EditImage => {
             let pricing = pending::model_pricing(cp, provider_id, model_id);
             pending::estimate_micros(&pricing, ctx.body.len())
-        }
-        Operation::CreateImage | Operation::EditImage => {
-            let request: Option<serde_json::Value> = serde_json::from_slice(&ctx.body).ok();
-            let count = request
-                .as_ref()
-                .and_then(|value| value.get("n"))
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(1);
-            let resolved = pending::resolve_pricing(cp, provider_id, model_id);
-            pending::to_micros(rust_decimal::Decimal::from(count) * resolved.pricing.image)
         }
         _ => 0,
     }

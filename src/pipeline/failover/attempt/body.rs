@@ -116,18 +116,40 @@ pub(in crate::pipeline::failover) async fn materialize(
                 body: b.clone(),
                 stream: settle_stream,
             });
+            // A force-streamed image call collapses into a provider-native
+            // Responses object before it is transformed back to the Images
+            // response returned to the client. Preserve that object for
+            // settlement: the response-direction image transform may omit
+            // provider usage fields that billing needs.
+            let aggregate = if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
+                Some(aggregate_buffered_stream(channel, plan.target_kind(), &b)?)
+            } else {
+                None
+            };
             let provider_settle = ctx
                 .op
-                .is_some_and(|op| op.operation() == crate::protocol::Operation::CompactContent)
+                .is_some_and(|op| {
+                    matches!(
+                        op.operation(),
+                        crate::protocol::Operation::CompactContent
+                            | crate::protocol::Operation::CreateImage
+                            | crate::protocol::Operation::EditImage
+                    )
+                })
                 .then(|| ProviderSettle {
-                    body: b.clone(),
+                    body: aggregate.clone().unwrap_or_else(|| b.clone()),
                     family: match shape.op.kind() {
                         crate::protocol::OperationKind::ContentGeneration(kind) => kind.provider(),
                         crate::protocol::OperationKind::Provider(family) => family,
                     _ => unreachable!("new non-exhaustive protocol variant requires a lockstep transform update"),
 },
                 });
-            let body = materialize_buffered(channel, plan, ctx, status, b)?;
+            let body = match aggregate {
+                Some(aggregate) => {
+                    ResponseBody::Full(transform_step::aggregate_response_body(plan, aggregate)?)
+                }
+                None => materialize_buffered(plan, ctx, status, b)?,
+            };
             Ok(Materialized {
                 body,
                 upstream_raw,
@@ -200,11 +222,26 @@ pub(in crate::pipeline::failover) async fn materialize(
             if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
                 let b = collect_byte_stream(st).await?;
                 let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b)?;
+                let provider_settle = ctx
+                    .op
+                    .is_some_and(|op| {
+                        matches!(
+                            op.operation(),
+                            crate::protocol::Operation::CreateImage
+                                | crate::protocol::Operation::EditImage
+                        )
+                    })
+                    .then(|| ProviderSettle {
+                        body: agg.clone(),
+                        family: kind
+                            .expect("aggregate-stream image target is content generation")
+                            .provider(),
+                    });
                 return Ok(Materialized {
                     body: ResponseBody::Full(transform_step::aggregate_response_body(plan, agg)?),
                     upstream_raw: None,
                     settle: None,
-                    provider_settle: None,
+                    provider_settle,
                 });
             }
             let body = match transform_step::stream_transformer(plan)? {
@@ -238,7 +275,6 @@ async fn collect_byte_stream(
 /// The buffered-body conversion ladder, split out so [`materialize`] stays
 /// focused on capture + stream wiring.
 fn materialize_buffered(
-    channel: &Arc<dyn Channel>,
     plan: &TransformPlan,
     ctx: &RequestCtx,
     status: StatusCode,
@@ -246,15 +282,6 @@ fn materialize_buffered(
 ) -> Result<ResponseBody, PipelineError> {
     if status.is_success() && plan.is_synthesize_stream() {
         return Ok(ResponseBody::Full(transform_step::response_body(plan, b)?));
-    }
-    // Non-stream client over a force-streamed upstream (codex/kiro): collapse
-    // the buffered event-stream into one object, then convert the target wire
-    // back to the inbound wire.
-    if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
-        let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b)?;
-        return Ok(ResponseBody::Full(transform_step::aggregate_response_body(
-            plan, agg,
-        )?));
     }
     if !status.is_success() || !plan.is_transform() {
         return Ok(ResponseBody::Full(b));

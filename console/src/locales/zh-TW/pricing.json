@@ -32,7 +32,7 @@
     "cacheCreation5mPrice": "快取建立 5m",
     "cacheCreation30mPrice": "快取建立 30m",
     "cacheCreation1hPrice": "快取建立 1h",
-    "imagePrice": "圖片",
+    "imageOutputPrice": "圖片輸出",
     "status": "狀態",
     "actions": "操作",
     "toggle": "欄"
@@ -67,7 +67,7 @@
     "cacheCreation5mPrice": "快取建立 5m / 每百萬 tokens",
     "cacheCreation30mPrice": "快取建立 30m / 每百萬 tokens",
     "cacheCreation1hPrice": "快取建立 1h / 每百萬 tokens",
-    "imagePrice": "圖片 / 每張",
+    "imageOutputPrice": "圖片輸出 / 每百萬 tokens",
     "pricesHint": "留空按 0 處理。值是美元 decimal。",
     "enabled": "啟用",
     "create": "建立",

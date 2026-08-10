@@ -18,6 +18,7 @@ export interface Usage {
   model: string | null;
   input_tokens: number;
   output_tokens: number;
+  image_output_tokens: number;
   cache_read_tokens: number;
   cache_creation_5m_tokens: number;
   cache_creation_30m_tokens: number;
@@ -41,6 +42,7 @@ export interface UsageRollup {
   requests: number;
   input_tokens: number;
   output_tokens: number;
+  image_output_tokens: number;
   cache_write_tokens: number;
   cache_read_tokens: number;
   cost: string;
@@ -50,6 +52,7 @@ export interface UsageSummary {
   requests: number;
   input_tokens: number;
   output_tokens: number;
+  image_output_tokens: number;
   cache_read_tokens: number;
   cache_creation_5m_tokens: number;
   cache_creation_30m_tokens: number;

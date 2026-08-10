@@ -5,6 +5,15 @@ export type PriceRuleDraft = Omit<PriceRuleInput, "id">;
 
 export interface PriceRuleBundle {
   schema_version: number;
+  source: {
+    catalog: string;
+    total_models: number;
+    supported_output_models: number;
+    dynamic_price_models: number;
+    included_models: number;
+    embedding_models: number;
+    image_output_priced_models: number;
+  };
   price_rules: PriceRuleDraft[];
 }
 

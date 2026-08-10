@@ -450,7 +450,7 @@ async fn price_rules_route_gap_is_covered_by_shared_crud() {
         "cache_creation_5m_price": "0",
         "cache_creation_30m_price": "0",
         "cache_creation_1h_price": "0",
-        "image_price": "0",
+        "image_output_price": "0",
         "enabled": true
     })
     .to_string();

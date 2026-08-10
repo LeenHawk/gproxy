@@ -16,6 +16,7 @@ function makeRow(overrides: Partial<UsageRollup>): UsageRollup {
     requests: 1,
     input_tokens: 100,
     output_tokens: 50,
+    image_output_tokens: 0,
     cache_write_tokens: 0,
     cache_read_tokens: 0,
     cost: "0.001",
@@ -30,15 +31,16 @@ describe("aggregateRollups", () => {
 
   it("sums multiple dimension rows within the same bucket", () => {
     const rows = [
-      makeRow({ id: 1, requests: 5, input_tokens: 100, output_tokens: 50, cost: "0.010" }),
-      makeRow({ id: 2, requests: 3, input_tokens: 200, output_tokens: 80, cost: "0.020", model: "claude-3-sonnet" }),
-      makeRow({ id: 3, requests: 2, input_tokens: 50, output_tokens: 20, cost: "0.005", provider_id: 2 }),
+      makeRow({ id: 1, requests: 5, input_tokens: 100, output_tokens: 50, image_output_tokens: 7, cost: "0.010" }),
+      makeRow({ id: 2, requests: 3, input_tokens: 200, output_tokens: 80, image_output_tokens: 8, cost: "0.020", model: "claude-3-sonnet" }),
+      makeRow({ id: 3, requests: 2, input_tokens: 50, output_tokens: 20, image_output_tokens: 9, cost: "0.005", provider_id: 2 }),
     ];
     const result = aggregateRollups(rows);
     expect(result).toHaveLength(1);
     expect(result[0].requests).toBe(10);
     expect(result[0].input_tokens).toBe(350);
     expect(result[0].output_tokens).toBe(150);
+    expect(result[0].image_output_tokens).toBe(24);
     expect(result[0].cost).toBeCloseTo(0.035);
   });
 

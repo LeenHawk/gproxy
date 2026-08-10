@@ -14,6 +14,9 @@ use std::fmt;
 pub struct NormalizedUsage {
     pub input: u64,
     pub output: u64,
+    /// Image-output tokens, separated from ordinary text/reasoning output so
+    /// providers with a distinct image-output rate are not double-billed.
+    pub image_output: u64,
     pub cache_read: u64,
     pub cache_creation_5m: u64,
     pub cache_creation_30m: u64,
@@ -28,7 +31,7 @@ impl NormalizedUsage {
     }
 
     pub fn total(&self) -> u64 {
-        self.input + self.output + self.cache_read + self.cache_creation()
+        self.input + self.output + self.image_output + self.cache_read + self.cache_creation()
     }
 }
 

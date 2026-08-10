@@ -55,7 +55,7 @@ export function PricingTable({
     { key: "cache_creation_5m_price", label: t("columns.cacheCreation5mPrice"), header: t("columns.cacheCreation5mPrice"), cell: (rule) => priceCell(rule.cache_creation_5m_price) },
     { key: "cache_creation_30m_price", label: t("columns.cacheCreation30mPrice"), header: t("columns.cacheCreation30mPrice"), cell: (rule) => priceCell(rule.cache_creation_30m_price) },
     { key: "cache_creation_1h_price", label: t("columns.cacheCreation1hPrice"), header: t("columns.cacheCreation1hPrice"), cell: (rule) => priceCell(rule.cache_creation_1h_price) },
-    { key: "image_price", label: t("columns.imagePrice"), header: t("columns.imagePrice"), cell: (rule) => priceCell(rule.image_price) },
+    { key: "image_output_price", label: t("columns.imageOutputPrice"), header: t("columns.imageOutputPrice"), cell: (rule) => priceCell(rule.image_output_price) },
     {
       key: "enabled",
       label: t("columns.status"),
@@ -118,7 +118,7 @@ export function PricingTable({
             <span>{t("columns.cacheCreation5mPrice")}: {rule.cache_creation_5m_price}</span>
             <span>{t("columns.cacheCreation30mPrice")}: {rule.cache_creation_30m_price}</span>
             <span>{t("columns.cacheCreation1hPrice")}: {rule.cache_creation_1h_price}</span>
-            <span>{t("columns.imagePrice")}: {rule.image_price}</span>
+            <span>{t("columns.imageOutputPrice")}: {rule.image_output_price}</span>
           </div>
         </div>
       )}

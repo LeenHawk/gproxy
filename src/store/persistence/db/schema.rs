@@ -264,6 +264,28 @@ async fn repair_usage_schema(
         )
         .await?;
     }
+    if !cols.is_empty() && !cols.contains("image_output_tokens") {
+        let ty = match dialect {
+            MigrationDialect::Sqlite => "INTEGER",
+            MigrationDialect::Postgres | MigrationDialect::MySql => "BIGINT",
+        };
+        conn.execute_unprepared(&format!(
+            "ALTER TABLE usages ADD COLUMN image_output_tokens {ty} NOT NULL DEFAULT 0"
+        ))
+        .await?;
+    }
+
+    let rollup_cols = table_columns(conn, dialect, "usage_rollups").await?;
+    if !rollup_cols.is_empty() && !rollup_cols.contains("image_output_tokens") {
+        let ty = match dialect {
+            MigrationDialect::Sqlite => "INTEGER",
+            MigrationDialect::Postgres | MigrationDialect::MySql => "BIGINT",
+        };
+        conn.execute_unprepared(&format!(
+            "ALTER TABLE usage_rollups ADD COLUMN image_output_tokens {ty} NOT NULL DEFAULT 0"
+        ))
+        .await?;
+    }
     Ok(())
 }
 
@@ -281,6 +303,7 @@ async fn repair_price_rules_schema(
     let had_operation = cols.contains("operation");
     let had_kind = cols.contains("kind");
     let had_priority = cols.contains("priority");
+    let had_image_price = cols.contains("image_price");
     let mut changed = false;
 
     for col in [
@@ -290,7 +313,7 @@ async fn repair_price_rules_schema(
         "cache_creation_5m_price",
         "cache_creation_30m_price",
         "cache_creation_1h_price",
-        "image_price",
+        "image_output_price",
     ] {
         if !cols.contains(col) {
             conn.execute_unprepared(&add_price_column_sql(dialect, col))
@@ -316,7 +339,13 @@ async fn repair_price_rules_schema(
         }
     }
 
-    if had_rates_json || had_cache_write_price || had_operation || had_kind || had_priority {
+    if had_rates_json
+        || had_cache_write_price
+        || had_operation
+        || had_kind
+        || had_priority
+        || had_image_price
+    {
         drop_price_rules_legacy_columns(
             conn,
             dialect,
@@ -326,6 +355,7 @@ async fn repair_price_rules_schema(
                 (had_operation, "operation"),
                 (had_kind, "kind"),
                 (had_priority, "priority"),
+                (had_image_price, "image_price"),
             ],
         )
         .await?;
@@ -370,18 +400,18 @@ async fn rebuild_sqlite_price_rules_table(conn: &DatabaseConnection) -> anyhow::
             cache_creation_5m_price TEXT NOT NULL, \
             cache_creation_30m_price TEXT NOT NULL, \
             cache_creation_1h_price TEXT NOT NULL, \
-            image_price TEXT NOT NULL, \
+            image_output_price TEXT NOT NULL DEFAULT '0', \
             enabled INTEGER NOT NULL, \
             created_at INTEGER NOT NULL, \
             updated_at INTEGER NOT NULL)",
         "INSERT INTO price_rules_repaired \
             (id, provider_id, match_type, model_match, \
              input_price, output_price, cache_read_price, cache_creation_5m_price, \
-             cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
+             cache_creation_30m_price, cache_creation_1h_price, image_output_price, enabled, created_at, updated_at) \
          SELECT \
             id, provider_id, match_type, model_match, \
             input_price, output_price, cache_read_price, cache_creation_5m_price, \
-            cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at \
+            cache_creation_30m_price, cache_creation_1h_price, image_output_price, enabled, created_at, updated_at \
          FROM price_rules",
         "DROP TABLE price_rules",
         "ALTER TABLE price_rules_repaired RENAME TO price_rules",
@@ -436,12 +466,7 @@ fn backfill_price_rules_from_rates_json_sql(dialect: MigrationDialect) -> &'stat
                 output_price = COALESCE(CAST(json_extract(rates_json, '$.output_tokens') AS TEXT), CAST(json_extract(rates_json, '$.output') AS TEXT), output_price), \
                 cache_read_price = COALESCE(CAST(json_extract(rates_json, '$.cache_read_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_read') AS TEXT), cache_read_price), \
                 cache_creation_5m_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_5m_price), \
-                cache_creation_1h_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_1h_price), \
-                image_price = CASE \
-                    WHEN json_type(rates_json, '$.image_count') IN ('integer', 'real', 'text') THEN CAST(json_extract(rates_json, '$.image_count') AS TEXT) \
-                    WHEN json_type(rates_json, '$.image') IN ('integer', 'real', 'text') THEN CAST(json_extract(rates_json, '$.image') AS TEXT) \
-                    ELSE image_price \
-                END \
+                cache_creation_1h_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_1h_price) \
              WHERE rates_json IS NOT NULL AND rates_json <> '' AND json_valid(rates_json)"
         }
         MigrationDialect::Postgres => {
@@ -450,12 +475,7 @@ fn backfill_price_rules_from_rates_json_sql(dialect: MigrationDialect) -> &'stat
                 output_price = COALESCE(rates_json::jsonb->>'output_tokens', rates_json::jsonb->>'output', output_price), \
                 cache_read_price = COALESCE(rates_json::jsonb->>'cache_read_tokens', rates_json::jsonb->>'cache_read', cache_read_price), \
                 cache_creation_5m_price = COALESCE(rates_json::jsonb->>'cache_write_tokens', rates_json::jsonb->>'cache_creation', cache_creation_5m_price), \
-                cache_creation_1h_price = COALESCE(rates_json::jsonb->>'cache_write_tokens', rates_json::jsonb->>'cache_creation', cache_creation_1h_price), \
-                image_price = CASE \
-                    WHEN jsonb_typeof(rates_json::jsonb->'image_count') IN ('string', 'number') THEN rates_json::jsonb->>'image_count' \
-                    WHEN jsonb_typeof(rates_json::jsonb->'image') IN ('string', 'number') THEN rates_json::jsonb->>'image' \
-                    ELSE image_price \
-                END \
+                cache_creation_1h_price = COALESCE(rates_json::jsonb->>'cache_write_tokens', rates_json::jsonb->>'cache_creation', cache_creation_1h_price) \
              WHERE rates_json IS NOT NULL AND rates_json <> ''"
         }
         MigrationDialect::MySql => {
@@ -464,12 +484,7 @@ fn backfill_price_rules_from_rates_json_sql(dialect: MigrationDialect) -> &'stat
                 output_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.output_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.output')), output_price), \
                 cache_read_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_read_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_read')), cache_read_price), \
                 cache_creation_5m_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_write_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_creation')), cache_creation_5m_price), \
-                cache_creation_1h_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_write_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_creation')), cache_creation_1h_price), \
-                image_price = CASE \
-                    WHEN JSON_TYPE(JSON_EXTRACT(rates_json, '$.image_count')) IN ('INTEGER', 'DOUBLE', 'DECIMAL', 'STRING') THEN JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.image_count')) \
-                    WHEN JSON_TYPE(JSON_EXTRACT(rates_json, '$.image')) IN ('INTEGER', 'DOUBLE', 'DECIMAL', 'STRING') THEN JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.image')) \
-                    ELSE image_price \
-                END \
+                cache_creation_1h_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_write_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_creation')), cache_creation_1h_price) \
              WHERE rates_json IS NOT NULL AND rates_json <> '' AND JSON_VALID(rates_json)"
         }
     }

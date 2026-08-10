@@ -41,6 +41,10 @@ async fn migrates_minimal_file_backend_once() {
             "route_members.json",
             json!([{"id":1,"route_id":1,"provider_id":1,"upstream_model_id":"gpt-test","weight":100,"tier":0,"enabled":true}]),
         ),
+        (
+            "price_rules.json",
+            json!([{"id":1,"provider_id":1,"match_type":"exact","model_match":"gpt-image-1","input_price":"1","output_price":"2","cache_read_price":"0","cache_creation_5m_price":"0","cache_creation_30m_price":"0","cache_creation_1h_price":"0","image_output_price":"32","enabled":true}]),
+        ),
     ];
     for (name, rows) in fixtures {
         std::fs::write(root.join(name), table(rows)).unwrap();
@@ -53,7 +57,7 @@ async fn migrates_minimal_file_backend_once() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(report.total, 7);
+    assert_eq!(report.total, 8);
     for name in [
         "orgs.json",
         "users.json",
@@ -62,6 +66,7 @@ async fn migrates_minimal_file_backend_once() {
         "credentials.json",
         "routes.json",
         "route_members.json",
+        "price_rules.json",
     ] {
         assert!(!root.join(name).exists());
         assert!(root.join(format!("{name}.filebak")).exists());
@@ -73,6 +78,10 @@ async fn migrates_minimal_file_backend_once() {
     assert_eq!(db.list_providers().await.unwrap().len(), 1);
     assert_eq!(db.list_routes().await.unwrap().len(), 1);
     assert_eq!(db.list_route_members(1).await.unwrap().len(), 1);
+    assert_eq!(
+        db.list_price_rules().await.unwrap()[0].image_output_price,
+        "32".parse().unwrap()
+    );
     let stored_key = db.list_user_keys(1).await.unwrap().remove(0);
     assert_eq!(stored_key.api_key_ciphertext, key);
     let credential = db.list_credentials(1).await.unwrap().remove(0);

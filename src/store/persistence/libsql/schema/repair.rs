@@ -86,6 +86,36 @@ pub(super) async fn usage(client: &LibsqlClient) -> anyhow::Result<()> {
             .await
             .map_err(|e| anyhow::anyhow!("libsql repair usages add 30m cache column: {e}"))?;
     }
+    if !cols.is_empty() && !cols.contains("image_output_tokens") {
+        client
+            .execute(
+                "ALTER TABLE usages ADD COLUMN image_output_tokens INTEGER NOT NULL DEFAULT 0",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair usages add image output column: {e}"))?;
+    }
+
+    let qr = client
+        .execute("PRAGMA table_info(usage_rollups)", &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql inspect usage_rollups columns failed: {e}"))?;
+    let rollup_cols = qr
+        .rows
+        .iter()
+        .map(|row| col_str(row, 1))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    if !rollup_cols.is_empty() && !rollup_cols.contains("image_output_tokens") {
+        client
+            .execute(
+                "ALTER TABLE usage_rollups ADD COLUMN image_output_tokens INTEGER NOT NULL DEFAULT 0",
+                &[],
+            )
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!("libsql repair usage_rollups add image output column: {e}")
+            })?;
+    }
     Ok(())
 }
 
@@ -137,6 +167,7 @@ pub(super) async fn price_rules(client: &LibsqlClient) -> anyhow::Result<()> {
     let had_operation = cols.contains("operation");
     let had_kind = cols.contains("kind");
     let had_priority = cols.contains("priority");
+    let had_image_price = cols.contains("image_price");
     let mut changed = false;
 
     for col in [
@@ -146,7 +177,7 @@ pub(super) async fn price_rules(client: &LibsqlClient) -> anyhow::Result<()> {
         "cache_creation_5m_price",
         "cache_creation_30m_price",
         "cache_creation_1h_price",
-        "image_price",
+        "image_output_price",
     ] {
         if !cols.contains(col) {
             client
@@ -166,12 +197,7 @@ pub(super) async fn price_rules(client: &LibsqlClient) -> anyhow::Result<()> {
                 output_price = COALESCE(CAST(json_extract(rates_json, '$.output_tokens') AS TEXT), CAST(json_extract(rates_json, '$.output') AS TEXT), output_price), \
                 cache_read_price = COALESCE(CAST(json_extract(rates_json, '$.cache_read_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_read') AS TEXT), cache_read_price), \
                 cache_creation_5m_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_5m_price), \
-                cache_creation_1h_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_1h_price), \
-                image_price = CASE \
-                    WHEN json_type(rates_json, '$.image_count') IN ('integer', 'real', 'text') THEN CAST(json_extract(rates_json, '$.image_count') AS TEXT) \
-                    WHEN json_type(rates_json, '$.image') IN ('integer', 'real', 'text') THEN CAST(json_extract(rates_json, '$.image') AS TEXT) \
-                    ELSE image_price \
-                END \
+                cache_creation_1h_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_1h_price) \
              WHERE rates_json IS NOT NULL AND rates_json <> '' AND json_valid(rates_json)";
         if let Err(err) = client.execute(sql, &[]).await {
             tracing::warn!(error = %err, "libsql price_rules rates_json backfill skipped");
@@ -188,7 +214,13 @@ pub(super) async fn price_rules(client: &LibsqlClient) -> anyhow::Result<()> {
         }
     }
 
-    if had_rates_json || had_cache_write_price || had_operation || had_kind || had_priority {
+    if had_rates_json
+        || had_cache_write_price
+        || had_operation
+        || had_kind
+        || had_priority
+        || had_image_price
+    {
         rebuild_price_rules_table_without_legacy_columns(client).await?;
     }
     Ok(())
@@ -210,18 +242,18 @@ async fn rebuild_price_rules_table_without_legacy_columns(
             cache_creation_5m_price TEXT NOT NULL, \
             cache_creation_30m_price TEXT NOT NULL, \
             cache_creation_1h_price TEXT NOT NULL, \
-            image_price TEXT NOT NULL, \
+            image_output_price TEXT NOT NULL DEFAULT '0', \
             enabled INTEGER NOT NULL, \
             created_at INTEGER NOT NULL, \
             updated_at INTEGER NOT NULL)",
         "INSERT INTO price_rules_repaired \
             (id, provider_id, match_type, model_match, \
              input_price, output_price, cache_read_price, cache_creation_5m_price, \
-             cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
+             cache_creation_30m_price, cache_creation_1h_price, image_output_price, enabled, created_at, updated_at) \
          SELECT \
             id, provider_id, match_type, model_match, \
             input_price, output_price, cache_read_price, cache_creation_5m_price, \
-            cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at \
+            cache_creation_30m_price, cache_creation_1h_price, image_output_price, enabled, created_at, updated_at \
          FROM price_rules",
         "DROP TABLE price_rules",
         "ALTER TABLE price_rules_repaired RENAME TO price_rules",

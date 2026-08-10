@@ -12,9 +12,9 @@ import {
 import { useMediaQuery } from "@/hooks/use-media-query";
 import type { ChartPoint } from "@/lib/rollups";
 
-type Metric = "requests" | "input_tokens" | "output_tokens" | "cache_write_tokens" | "cache_read_tokens" | "cost";
+type Metric = "requests" | "input_tokens" | "output_tokens" | "image_output_tokens" | "cache_write_tokens" | "cache_read_tokens" | "cost";
 
-const METRICS: Metric[] = ["requests", "input_tokens", "output_tokens", "cache_write_tokens", "cache_read_tokens", "cost"];
+const METRICS: Metric[] = ["requests", "input_tokens", "output_tokens", "image_output_tokens", "cache_write_tokens", "cache_read_tokens", "cost"];
 
 function fmtDate(unixSecs: number): string {
   return new Date(unixSecs * 1000).toLocaleDateString(undefined, {

@@ -58,7 +58,7 @@ async fn normal_stream_settles_upstream_usage() {
             "operation": null, "kind": null,
             "input_price": "3", "output_price": "15",
             "cache_read_price": "0", "cache_creation_5m_price": "0",
-            "cache_creation_1h_price": "0", "image_price": "0",
+            "cache_creation_1h_price": "0", "image_output_price": "0",
             "priority": 0, "enabled": true
         }]),
     );
@@ -164,6 +164,71 @@ async fn compact_content_settles_usage() {
 }
 
 #[tokio::test]
+async fn buffered_image_sse_settles_completed_event_usage() {
+    let completed = json!({
+        "type": "image_generation.completed",
+        "b64_json": "AAAA",
+        "usage": {
+            "prompt_tokens": 25,
+            "completion_tokens": 1000,
+            "total_tokens": 1025
+        }
+    });
+    let fake = Arc::new(
+        FakeUpstream::new(Bytes::from(format!("data: {completed}\n\n")), vec![])
+            .with_response_content_type("text/event-stream"),
+    );
+    let mut bundle: Value = serde_json::from_str(&bundle_with(
+        "routing_rules",
+        json!([{
+            "id": 1, "provider_id": 1, "operation": "create_image", "kind": "open_ai",
+            "implementation": "passthrough", "dest_operation": null, "dest_kind": null,
+            "sort_order": 0, "enabled": true
+        }]),
+    ))
+    .unwrap();
+    bundle["price_rules"] = json!([{
+        "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+        "input_price": "0", "output_price": "0", "cache_read_price": "0",
+        "cache_creation_5m_price": "0", "cache_creation_30m_price": "0",
+        "cache_creation_1h_price": "0", "image_output_price": "40", "enabled": true
+    }]);
+    let (state, _dir) =
+        state_with_bundle(Arc::clone(&fake), &serde_json::to_string(&bundle).unwrap()).await;
+
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    let body = json!({ "model": "gpt-test", "prompt": "a red cube", "stream": true });
+    let ctx = RequestCtx {
+        request_id: "bill-image-sse".into(),
+        method: Method::POST,
+        path: "/v1/images/generations".into(),
+        query: None,
+        headers,
+        body: Bytes::from(serde_json::to_vec(&body).unwrap()),
+        mode: RoutingMode::Scoped {
+            provider: "oai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    };
+
+    crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("pipeline ok");
+    let row = wait_usage(&state).await;
+    assert_eq!(row.input_tokens, 25);
+    assert_eq!(row.output_tokens, 0);
+    assert_eq!(row.image_output_tokens, 1000);
+    assert_eq!(row.cost, "0.04".parse().unwrap());
+}
+
+#[tokio::test]
 async fn transformed_compact_settles_target_usage_and_cache_ttl() {
     let claude_response = json!({
         "id": "msg-compact-1", "type": "message", "role": "assistant", "model": "claude-test",
@@ -244,7 +309,7 @@ async fn openai_cache_write_settles_and_converts() {
             "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
             "input_price": "3", "output_price": "15", "cache_read_price": "0",
             "cache_creation_5m_price": "0", "cache_creation_30m_price": "3.75",
-            "cache_creation_1h_price": "0", "image_price": "0", "enabled": true
+            "cache_creation_1h_price": "0", "image_output_price": "0", "enabled": true
         }]),
     );
     let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
@@ -399,7 +464,7 @@ fn quota_bundle() -> String {
             "operation": null, "kind": null,
             "input_price": "3", "output_price": "15",
             "cache_read_price": "0", "cache_creation_5m_price": "0",
-            "cache_creation_1h_price": "0", "image_price": "0",
+            "cache_creation_1h_price": "0", "image_output_price": "0",
             "priority": 0, "enabled": true
         }
     ]);

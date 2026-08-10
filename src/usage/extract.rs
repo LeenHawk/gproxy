@@ -41,6 +41,35 @@ pub fn from_response(family: Provider, body: &Value) -> Option<NormalizedUsage> 
     }
 }
 
+/// Extract usage for a provider-shaped image response.
+///
+/// OpenAI-compatible image endpoints are inconsistent about output modality
+/// detail: some report `image_tokens`, while OpenRouter's image API may expose
+/// only aggregate completion/output tokens. For an image operation the latter
+/// are image-output tokens, so move the aggregate out of ordinary output when
+/// no explicit image breakdown is present. An explicit zero remains
+/// authoritative and is not replaced by the aggregate.
+pub fn from_image_response(family: Provider, body: &Value) -> Option<NormalizedUsage> {
+    let mut normalized = from_response(family, body)?;
+    if family == Provider::OpenAi {
+        let usage = body.get("usage").filter(|u| u.is_object())?;
+        if !openai_image_output_is_explicit(usage) {
+            normalized.image_output = normalized.output;
+            normalized.output = 0;
+        }
+    }
+    Some(normalized)
+}
+
+/// Extract the final usage-bearing event from a provider-shaped image SSE
+/// response. OpenAI Images puts `usage` on its `*.completed` event.
+pub fn from_image_stream_frames(family: Provider, frames: &[SseFrame]) -> Option<NormalizedUsage> {
+    frames.iter().rev().find_map(|frame| {
+        let body = frame_json(frame)?;
+        from_image_response(family, &body)
+    })
+}
+
 /// Extract the FINAL usage from buffered stream frames.
 ///
 /// Walks the decoded SSE frames from the END backwards and returns the first
@@ -118,6 +147,7 @@ fn claude_usage(usage: &Value) -> NormalizedUsage {
     NormalizedUsage {
         input: field(usage, "input_tokens"),
         output: field(usage, "output_tokens"),
+        image_output: 0,
         cache_read: field(usage, "cache_read_input_tokens"),
         cache_creation_5m,
         cache_creation_30m: 0,
@@ -132,6 +162,11 @@ fn openai_usage(usage: &Value) -> Option<NormalizedUsage> {
         Some(openai_chat_usage(usage))
     } else if numeric(usage, "input_tokens") && numeric(usage, "output_tokens") {
         Some(openai_responses_usage(usage))
+    } else if numeric(usage, "prompt_tokens") && numeric(usage, "total_tokens") {
+        // Embeddings report input-only usage as prompt + total, without a
+        // completion field. Reuse chat input/cache normalization; its missing
+        // completion side is intentionally zero.
+        Some(openai_chat_usage(usage))
     } else {
         None
     }
@@ -141,15 +176,19 @@ fn openai_usage(usage: &Value) -> Option<NormalizedUsage> {
 /// GPT-5.6+ reports explicit/implicit cache writes as `cache_write_tokens`.
 fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
     let prompt = field(usage, "prompt_tokens");
+    let completion = field(usage, "completion_tokens");
     let (cached, cache_write) = usage.get("prompt_tokens_details").map_or((0, 0), |d| {
         (field(d, "cached_tokens"), field(d, "cache_write_tokens"))
     });
-    let reasoning = usage
-        .get("completion_tokens_details")
-        .map_or(0, |d| field(d, "reasoning_tokens"));
+    let (reasoning, reported_image_output) =
+        usage.get("completion_tokens_details").map_or((0, 0), |d| {
+            (field(d, "reasoning_tokens"), field(d, "image_tokens"))
+        });
+    let image_output = reported_image_output.min(completion);
     NormalizedUsage {
         input: prompt.saturating_sub(cached).saturating_sub(cache_write),
-        output: field(usage, "completion_tokens"),
+        output: completion.saturating_sub(image_output),
+        image_output,
         cache_read: cached,
         cache_creation_30m: cache_write,
         reasoning,
@@ -161,20 +200,38 @@ fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
 /// GPT-5.6+ reports explicit/implicit cache writes as `cache_write_tokens`.
 fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
     let input = field(usage, "input_tokens");
+    let output = field(usage, "output_tokens");
     let (cached, cache_write) = usage.get("input_tokens_details").map_or((0, 0), |d| {
         (field(d, "cached_tokens"), field(d, "cache_write_tokens"))
     });
-    let reasoning = usage
-        .get("output_tokens_details")
-        .map_or(0, |d| field(d, "reasoning_tokens"));
+    let (reasoning, reported_image_output) =
+        usage.get("output_tokens_details").map_or((0, 0), |d| {
+            (field(d, "reasoning_tokens"), field(d, "image_tokens"))
+        });
+    let image_output = reported_image_output.min(output);
     NormalizedUsage {
         input: input.saturating_sub(cached).saturating_sub(cache_write),
-        output: field(usage, "output_tokens"),
+        output: output.saturating_sub(image_output),
+        image_output,
         cache_read: cached,
         cache_creation_30m: cache_write,
         reasoning,
         ..Default::default()
     }
+}
+
+fn openai_image_output_is_explicit(usage: &Value) -> bool {
+    // Keep this selection in lockstep with `openai_usage`: mixed alias objects
+    // occasionally contain both detail containers, and a field belonging to
+    // the shape we did not normalize must not suppress the image fallback.
+    let details = if numeric(usage, "prompt_tokens") && numeric(usage, "completion_tokens") {
+        usage.get("completion_tokens_details")
+    } else if numeric(usage, "input_tokens") && numeric(usage, "output_tokens") {
+        usage.get("output_tokens_details")
+    } else {
+        None
+    };
+    details.is_some_and(|details| numeric(details, "image_tokens"))
 }
 
 /// Gemini `usageMetadata`. `promptTokenCount` INCLUDES cached → subtract.
@@ -189,9 +246,27 @@ fn gemini_usage(meta: &Value) -> NormalizedUsage {
     let cached = field(meta, "cachedContentTokenCount");
     let candidates = field(meta, "candidatesTokenCount");
     let thoughts = field(meta, "thoughtsTokenCount");
+    let reported_image_output = meta
+        .get("candidatesTokensDetails")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|detail| {
+            detail
+                .get("modality")
+                .and_then(Value::as_str)
+                .is_some_and(|modality| modality.eq_ignore_ascii_case("image"))
+        })
+        .fold(0u64, |total, detail| {
+            total.saturating_add(field(detail, "tokenCount"))
+        });
+    let image_output = reported_image_output.min(candidates);
     NormalizedUsage {
         input: prompt.saturating_sub(cached),
-        output: candidates + thoughts,
+        output: candidates
+            .saturating_sub(image_output)
+            .saturating_add(thoughts),
+        image_output,
         cache_read: cached,
         reasoning: thoughts,
         ..Default::default()
@@ -364,22 +439,29 @@ mod tests {
                     "cached_tokens": 600,
                     "cache_write_tokens": 150
                 },
-                "completion_tokens_details": {"reasoning_tokens": 80}
+                "completion_tokens_details": {
+                    "reasoning_tokens": 80,
+                    "image_tokens": 50
+                }
             }
         });
         let u = from_response(Provider::OpenAi, &chat).unwrap();
         assert_eq!(u.input, 250); // prompt - cache read - cache write
         assert_eq!(u.cache_read, 600);
         assert_eq!(u.cache_creation_30m, 150);
-        assert_eq!(u.output, 200);
+        assert_eq!(u.output, 150);
+        assert_eq!(u.image_output, 50);
         assert_eq!(u.reasoning, 80);
         assert_eq!(u.cache_creation(), 150);
+        assert_eq!(u.total(), 1200);
 
         // Missing details → cache 0, full input.
         let plain = json!({"usage": {"prompt_tokens": 1000, "completion_tokens": 200}});
         let u = from_response(Provider::OpenAi, &plain).unwrap();
         assert_eq!(u.input, 1000);
         assert_eq!(u.cache_read, 0);
+        assert_eq!(u.output, 200);
+        assert_eq!(u.image_output, 0);
         assert_eq!(u.reasoning, 0);
 
         let responses = json!({
@@ -390,15 +472,127 @@ mod tests {
                     "cached_tokens": 600,
                     "cache_write_tokens": 150
                 },
-                "output_tokens_details": {"reasoning_tokens": 80}
+                "output_tokens_details": {
+                    "reasoning_tokens": 80,
+                    "image_tokens": 60
+                }
             }
         });
         let u = from_response(Provider::OpenAi, &responses).unwrap();
         assert_eq!(u.input, 250);
         assert_eq!(u.cache_read, 600);
         assert_eq!(u.cache_creation_30m, 150);
-        assert_eq!(u.output, 200);
+        assert_eq!(u.output, 140);
+        assert_eq!(u.image_output, 60);
         assert_eq!(u.reasoning, 80);
+    }
+
+    #[test]
+    fn openai_image_usage_falls_back_to_aggregate_output_without_breakdown() {
+        let chat = json!({
+            "usage": {
+                "prompt_tokens": 25,
+                "completion_tokens": 1200,
+                "total_tokens": 1225
+            }
+        });
+        let u = from_image_response(Provider::OpenAi, &chat).unwrap();
+        assert_eq!(u.input, 25);
+        assert_eq!(u.output, 0);
+        assert_eq!(u.image_output, 1200);
+        assert_eq!(u.total(), 1225);
+
+        // An explicit breakdown is authoritative, including an explicit zero.
+        let explicit_zero = json!({
+            "usage": {
+                "input_tokens": 25,
+                "output_tokens": 40,
+                "output_tokens_details": {"image_tokens": 0}
+            }
+        });
+        let u = from_image_response(Provider::OpenAi, &explicit_zero).unwrap();
+        assert_eq!(u.output, 40);
+        assert_eq!(u.image_output, 0);
+
+        let responses = json!({
+            "usage": {
+                "input_tokens": 25,
+                "output_tokens": 1040,
+                "output_tokens_details": {
+                    "text_tokens": 40,
+                    "image_tokens": 1000
+                }
+            }
+        });
+        let u = from_image_response(Provider::OpenAi, &responses).unwrap();
+        assert_eq!(u.output, 40);
+        assert_eq!(u.image_output, 1000);
+
+        let malformed = json!({
+            "usage": {
+                "input_tokens": 5,
+                "output_tokens": 10,
+                "output_tokens_details": {"image_tokens": 99}
+            }
+        });
+        let u = from_image_response(Provider::OpenAi, &malformed).unwrap();
+        assert_eq!(u.output, 0);
+        assert_eq!(u.image_output, 10);
+        assert_eq!(u.total(), 15);
+
+        // An unrelated details alias must not suppress fallback for the chat
+        // shape selected by `openai_usage`.
+        let mixed_aliases = json!({
+            "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 12,
+                "input_tokens": 5,
+                "output_tokens": 12,
+                "output_tokens_details": {"image_tokens": 0}
+            }
+        });
+        let u = from_image_response(Provider::OpenAi, &mixed_aliases).unwrap();
+        assert_eq!(u.output, 0);
+        assert_eq!(u.image_output, 12);
+
+        let frames = [SseFrame::data(
+            json!({
+                "type": "image_generation.completed",
+                "b64_json": "AAAA",
+                "usage": {
+                    "input_tokens": 25,
+                    "output_tokens": 1000,
+                    "total_tokens": 1025,
+                    "output_tokens_details": {"image_tokens": 1000}
+                }
+            })
+            .to_string(),
+        )];
+        let u = from_image_stream_frames(Provider::OpenAi, &frames).unwrap();
+        assert_eq!(u.input, 25);
+        assert_eq!(u.output, 0);
+        assert_eq!(u.image_output, 1000);
+    }
+
+    #[test]
+    fn openai_embedding_input_only_usage_is_authoritative() {
+        let body = json!({
+            "usage": {
+                "prompt_tokens": 1000,
+                "total_tokens": 1000,
+                "prompt_tokens_details": {
+                    "cached_tokens": 600,
+                    "cache_write_tokens": 150
+                }
+            }
+        });
+        let u = from_response(Provider::OpenAi, &body).unwrap();
+        assert_eq!(u.input, 250);
+        assert_eq!(u.output, 0);
+        assert_eq!(u.image_output, 0);
+        assert_eq!(u.cache_read, 600);
+        assert_eq!(u.cache_creation_30m, 150);
+        assert_eq!(u.total(), 1000);
     }
 
     #[test]
@@ -409,14 +603,46 @@ mod tests {
                 "candidatesTokenCount": 100,
                 "cachedContentTokenCount": 200,
                 "thoughtsTokenCount": 30,
+                "candidatesTokensDetails": [
+                    {"modality": "TEXT", "tokenCount": 30},
+                    {"modality": "IMAGE", "tokenCount": 70}
+                ],
                 "totalTokenCount": 630
             }
         });
         let u = from_response(Provider::Gemini, &body).unwrap();
         assert_eq!(u.input, 300); // prompt - cached
-        assert_eq!(u.output, 130); // candidates + thoughts (thinking billed as output)
+        assert_eq!(u.output, 60); // non-image candidates + thoughts
+        assert_eq!(u.image_output, 70);
         assert_eq!(u.reasoning, 30);
         assert_eq!(u.cache_read, 200);
+        assert_eq!(u.total(), 630);
+
+        let without_details = json!({
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 20,
+                "thoughtsTokenCount": 5
+            }
+        });
+        let u = from_response(Provider::Gemini, &without_details).unwrap();
+        assert_eq!(u.output, 25);
+        assert_eq!(u.image_output, 0);
+
+        let malformed = json!({
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 20,
+                "thoughtsTokenCount": 5,
+                "candidatesTokensDetails": [
+                    {"modality": "IMAGE", "tokenCount": 99}
+                ]
+            }
+        });
+        let u = from_response(Provider::Gemini, &malformed).unwrap();
+        assert_eq!(u.output, 5);
+        assert_eq!(u.image_output, 20);
+        assert_eq!(u.total(), 35);
     }
 
     #[test]

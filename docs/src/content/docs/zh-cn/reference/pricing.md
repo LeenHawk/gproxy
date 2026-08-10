@@ -29,7 +29,7 @@ pricing 和 quota 相关但不是同一层：
   "cache_creation_5m_price": "0",
   "cache_creation_30m_price": "0",
   "cache_creation_1h_price": "0",
-  "image_price": "0",
+  "image_output_price": "0",
   "enabled": true
 }
 ```
@@ -38,8 +38,7 @@ pricing 和 quota 相关但不是同一层：
 
 ## 价格字段
 
-所有价格字段都是 decimal 字符串。Token 价格按每 1,000,000 tokens 计；
-图片价格按每张生成图片计。
+所有价格字段都是 decimal 字符串，并且都按每 1,000,000 tokens 计。
 
 支持字段：
 
@@ -51,7 +50,7 @@ pricing 和 quota 相关但不是同一层：
 | `cache_creation_5m_price` | 每百万 5 分钟 cache-creation token 价格。 |
 | `cache_creation_30m_price` | 每百万 30 分钟 cache-creation token 价格。 |
 | `cache_creation_1h_price` | 每百万 1 小时 cache-creation token 价格。 |
-| `image_price` | 每张生成图片价格。 |
+| `image_output_price` | 每百万生成图片 token 价格。 |
 
 token cost 公式：
 
@@ -63,12 +62,19 @@ cost =
 + cache_creation_5m_tokens * cache_creation_5m_price / 1_000_000
 + cache_creation_30m_tokens * cache_creation_30m_price / 1_000_000
 + cache_creation_1h_tokens * cache_creation_1h_price / 1_000_000
++ image_output_tokens * image_output_price / 1_000_000
 ```
 
 ## 图片价格
 
-图片 operation 使用 `image_price` 作为每张图片的 flat price。它不是按百万
-tokens 计，也不再按 size 或 quality 分 tier。
+图片生成与其他可计费 operation 一样按 token 结算。`image_output_tokens` 与普通
+`output_tokens` 互斥，因此文字输出与图片输出可以使用不同单价，且不会重复计费。
+对于 OpenAI-compatible 响应，GPROXY 从
+`completion_tokens_details.image_tokens` 读取图片 token 子集。专用图片 operation
+如果只返回聚合 completion token，则这些 completion token 会视为图片输出 token。
+
+价格规则不再提供按张计费字段。上游图片响应没有提供 token usage 时，GPROXY
+会记录零 usage，无法据此计算本地费用。
 
 ## 运行时查找
 
@@ -89,7 +95,7 @@ control-plane snapshot 会缓存启用的 price rules。admission 和 settlement
 发送上游请求前，quota admission 使用 best-effort 估算：
 
 - 估算 input tokens 使用当前 pending-cost estimator 的请求 body length；
-- output、cache 和 image 分量不做估算；
+- output、cache 和 image-output 分量不做估算；
 - 估算值按选中 price rule 的 token pricing 计价；
 - 估算为 0 时跳过 pending quota 预扣。
 
@@ -114,9 +120,9 @@ settle 后会写入 `usages` 行，包含 token 数、usage source、结束状�
 1. refund 精确的 pending micro-dollar 估算；
 2. 按实际 settled cost 原子增加每个 quota-bearing scope 的 `quotas.cost_used`。
 
-Embedding 和 image operation 有自己的 provider-shaped settlement 路径。
-model list/get、token-count、compact 和 conversation operation 当前不走
-content-generation settlement 计费路径。
+Embedding 和 image operation 有自己的 provider-shaped settlement 路径，二者都按
+上游 token usage 结算。model list/get、token-count、compact 和 conversation
+operation 当前不走 content-generation settlement 计费路径。
 
 ## 操作员在哪里改价格
 
@@ -144,7 +150,7 @@ JSON import/export 使用 `price_rules` 数组：
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
-      "image_price": "0",
+      "image_output_price": "0",
       "enabled": true
     }
   ]

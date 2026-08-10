@@ -456,6 +456,31 @@ pub const MIGRATIONS: &[Migration] = &[
         description: "rules: inbound header filter (client scoping, §8-B2)",
         sql: MigrationSql::Shared(&["ALTER TABLE rules ADD COLUMN filter_header_pattern TEXT"]),
     },
+    Migration {
+        version: 21,
+        description: "image output token usage and per-million pricing",
+        // The existence-aware repair pass removes the semantically incompatible
+        // legacy `image_price` column after these new zero-default columns are
+        // materialized. Keeping DROP out of this list also makes partially
+        // upgraded databases repairable on every supported dialect.
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "ALTER TABLE price_rules ADD COLUMN image_output_price TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE usages ADD COLUMN image_output_tokens INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE usage_rollups ADD COLUMN image_output_tokens INTEGER NOT NULL DEFAULT 0",
+            ],
+            postgres: &[
+                "ALTER TABLE price_rules ADD COLUMN image_output_price TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE usages ADD COLUMN image_output_tokens BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE usage_rollups ADD COLUMN image_output_tokens BIGINT NOT NULL DEFAULT 0",
+            ],
+            mysql: &[
+                "ALTER TABLE price_rules ADD COLUMN image_output_price VARCHAR(64) NOT NULL DEFAULT '0'",
+                "ALTER TABLE usages ADD COLUMN image_output_tokens BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE usage_rollups ADD COLUMN image_output_tokens BIGINT NOT NULL DEFAULT 0",
+            ],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

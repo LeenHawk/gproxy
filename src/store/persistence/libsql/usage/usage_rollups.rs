@@ -13,7 +13,7 @@ use crate::store::persistence::records::{UsageRollup, UsageRollupInput};
 
 const COLS: &str = "id, granularity, bucket_start, provider_id, org_id, team_id, user_id, \
      route_name, model, requests, input_tokens, output_tokens, \
-     cache_write_tokens, cache_read_tokens, cost, created_at, updated_at";
+     image_output_tokens, cache_write_tokens, cache_read_tokens, cost, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<UsageRollup> {
     Ok(UsageRollup {
@@ -29,11 +29,12 @@ fn decode(row: &Row) -> anyhow::Result<UsageRollup> {
         requests: col_i64(row, 9)?,
         input_tokens: col_i64(row, 10)?,
         output_tokens: col_i64(row, 11)?,
-        cache_write_tokens: col_i64(row, 12)?,
-        cache_read_tokens: col_i64(row, 13)?,
-        cost: col_decimal(row, 14)?,
-        created_at: col_i64(row, 15)?,
-        updated_at: col_i64(row, 16)?,
+        image_output_tokens: col_i64(row, 12)?,
+        cache_write_tokens: col_i64(row, 13)?,
+        cache_read_tokens: col_i64(row, 14)?,
+        cost: col_decimal(row, 15)?,
+        created_at: col_i64(row, 16)?,
+        updated_at: col_i64(row, 17)?,
     })
 }
 
@@ -118,9 +119,9 @@ pub async fn add(client: &LibsqlClient, input: UsageRollupInput) -> anyhow::Resu
                 "INSERT INTO usage_rollups \
                  (granularity, bucket_start, provider_id, org_id, team_id, user_id, \
                   route_name, model, requests, input_tokens, output_tokens, \
-                  cache_write_tokens, cache_read_tokens, cost, \
+                  image_output_tokens, cache_write_tokens, cache_read_tokens, cost, \
                   created_at, updated_at) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 &[
                     arg_text(&input.granularity),
                     arg_integer(input.bucket_start),
@@ -133,6 +134,7 @@ pub async fn add(client: &LibsqlClient, input: UsageRollupInput) -> anyhow::Resu
                     arg_integer(input.requests),
                     arg_integer(input.input_tokens),
                     arg_integer(input.output_tokens),
+                    arg_integer(input.image_output_tokens),
                     arg_integer(input.cache_write_tokens),
                     arg_integer(input.cache_read_tokens),
                     arg_text(&input.cost.to_string()),
@@ -184,6 +186,7 @@ async fn accumulate(
             client,
             "UPDATE usage_rollups SET requests = requests + ?, \
              input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, \
+             image_output_tokens = image_output_tokens + ?, \
              cache_write_tokens = cache_write_tokens + ?, \
              cache_read_tokens = cache_read_tokens + ?, \
              cost = ?, updated_at = ? WHERE id = ? AND cost = ?",
@@ -191,6 +194,7 @@ async fn accumulate(
                 arg_integer(input.requests),
                 arg_integer(input.input_tokens),
                 arg_integer(input.output_tokens),
+                arg_integer(input.image_output_tokens),
                 arg_integer(input.cache_write_tokens),
                 arg_integer(input.cache_read_tokens),
                 arg_text(&cost.to_string()),

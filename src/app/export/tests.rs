@@ -39,6 +39,9 @@ const BUNDLE: &str = r#"{
   "provider_models": [
     { "id": 1, "provider_id": 1, "model_id": "gpt-4.1", "display_name": null, "variants_json": null, "enabled": true }
   ],
+  "price_rules": [
+    { "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-image-1", "input_price": "1", "output_price": "2", "cache_read_price": "0", "cache_creation_5m_price": "0", "cache_creation_30m_price": "0", "cache_creation_1h_price": "0", "image_output_price": "32", "enabled": true }
+  ],
   "routes": [{ "id": 1, "name": "main", "strategy": "failover", "enabled": true, "description": null }],
   "route_members": [
     { "id": 1, "route_id": 1, "provider_id": 1, "upstream_model_id": "gpt-4.1", "weight": 100, "tier": 0, "enabled": true }
@@ -78,6 +81,7 @@ async fn counts(db: &dyn PersistenceBackend) -> Vec<usize> {
         db.list_aliases().await.unwrap().len(),
         db.list_rule_sets().await.unwrap().len(),
         db.list_instance_settings().await.unwrap().len(),
+        db.list_price_rules().await.unwrap().len(),
     ];
     // scoped counts: keys/perms/limits/quotas per identity, members/creds/etc.
     for org in db.list_orgs().await.unwrap() {
@@ -142,6 +146,10 @@ async fn export_roundtrips_import() {
     );
     // and the bare user-key was recovered (not the sealed ciphertext).
     assert_eq!(bundle.user_keys[0].api_key, "sk-secret-key");
+    assert_eq!(
+        bundle.price_rules[0].image_output_price,
+        "32".parse().unwrap()
+    );
 }
 
 #[tokio::test]
