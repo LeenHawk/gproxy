@@ -7,7 +7,11 @@ import {
   type RuleInput,
   type RuleSet,
 } from "@/api/rules";
-import { OPENCODE_REQUEST_TOOL_PATHS, OPENCODE_TOOL_RENAMES } from "./transform-templates";
+import {
+  APPLICATION_REQUEST_TEXT_PATHS,
+  OPENCODE_REQUEST_TOOL_PATHS,
+  OPENCODE_TOOL_RENAMES,
+} from "./transform-templates";
 
 const RESPONSE_TOOL_PATHS = [
   "content.*.name",
@@ -55,7 +59,9 @@ function sanitizeRules(
   clientPattern: string | null = null,
 ): PresetRule[] {
   return entries.map(([pattern, replacement], index) =>
-    transform(index, "request", { match: pattern }, [{ op: "replace_text", with: replacement }], clientPattern),
+    transform(index, "request", { paths: APPLICATION_REQUEST_TEXT_PATHS }, [
+      { op: "replace_regex", pattern, with: replacement },
+    ], clientPattern),
   );
 }
 
@@ -71,8 +77,9 @@ function sanitizeRules(
 /// - continue / cursor: no default self-identifying header at all (Continue only
 ///   sends one if the user configures `requestOptions.headers`).
 /// - pi: identifies itself as `pi (<os>)` on the Codex path, but impersonates
-///   Claude Code (`user-agent: claude-cli/<ver>`) on the Anthropic path, so it
-///   cannot be told apart there.
+///   Claude Code (`user-agent: claude-cli/<ver>`) on the Anthropic path. Its
+///   preset is therefore intentionally unscoped and should only be attached to
+///   a provider dedicated to pi traffic.
 ///
 /// Unverifiable clients keep a best-guess pattern on purpose: an unmatched
 /// filter merely leaves the preset inert, whereas an unscoped preset rewrites
@@ -80,7 +87,6 @@ function sanitizeRules(
 /// Confirm against a captured request in Logs → Requests and adjust.
 const CLIENT = {
   opencode: "^user-agent: opencode/",
-  pi: "^user-agent: pi[ /]",
   aider: "^user-agent: litellm/",
   cline: "^user-agent: cline/|^x-title: cline$|^http-referer: https://cline\\.bot",
   continue: "^user-agent: continue/",
@@ -140,7 +146,7 @@ export const APPLICATION_RULE_SET_PRESETS: ApplicationRuleSetPreset[] = [
       ["\\bpi\\b", "the agent"],
       ["\\bPi\\b", "The agent"],
       ["\\bPI\\b", "AGENT"],
-    ], CLIENT.pi),
+    ]),
   },
   {
     id: "aider",
