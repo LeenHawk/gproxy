@@ -21,7 +21,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::channel::http_util::{build_request, exact_url, join_url};
-use crate::channel::usage::{UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    UsageSnapshot, UsageWindow, UsageWindowDescriptor, UsageWindowMeter, UsageWindowScope,
+};
 use crate::channel::{ChannelError, ChannelStreamDecoder};
 use crate::transform::common::sse::SseDecoder;
 
@@ -234,6 +236,49 @@ pub fn parse_user_quota(status: StatusCode, body: &Bytes) -> Option<UsageSnapsho
     })
 }
 
+pub fn describe_user_quota_window(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+    let bucket = snapshot
+        .raw
+        .get("buckets")
+        .and_then(Value::as_array)
+        .and_then(|buckets| buckets.get(index));
+    let model = bucket
+        .and_then(|bucket| bucket.get("modelId"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let token_type = bucket
+        .and_then(|bucket| bucket.get("tokenType"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let scope = model
+        .map(|model| UsageWindowScope::Models {
+            models: vec![model.to_owned()],
+        })
+        .unwrap_or(UsageWindowScope::Unknown);
+    let meter = match token_type.map(|value| value.to_ascii_uppercase()) {
+        Some(value) if value.contains("REQUEST") => UsageWindowMeter::Requests,
+        Some(value)
+            if value.contains("TOKEN") || value.contains("INPUT") || value.contains("OUTPUT") =>
+        {
+            UsageWindowMeter::Tokens
+        }
+        Some(value) if value.contains("CREDIT") => UsageWindowMeter::Credits,
+        Some(value) if value.contains("USD") || value.contains("DOLLAR") => UsageWindowMeter::Usd,
+        _ => UsageWindowMeter::Opaque,
+    };
+    UsageWindowDescriptor::from_window(window)
+        .scope(scope)
+        .meter(meter)
+}
+
 #[derive(Deserialize)]
 struct RetrieveUserQuotaResponse {
     #[serde(default)]
@@ -252,16 +297,16 @@ struct BucketInfo {
     #[serde(default)]
     remaining_fraction: Option<f64>,
     #[serde(default)]
+    remaining_amount: Option<Value>,
+    #[serde(default, alias = "quotaAmount", alias = "maxAmount")]
+    limit: Option<Value>,
+    #[serde(default)]
     reset_time: Option<String>,
 }
 
 impl BucketInfo {
     fn to_window(&self, i: usize) -> UsageWindow {
-        let name = self
-            .model_id
-            .clone()
-            .or_else(|| self.token_type.clone())
-            .unwrap_or_else(|| format!("bucket_{i}"));
+        let name = stable_bucket_key(self.model_id.as_deref(), self.token_type.as_deref(), i);
         let used_percent = self
             .remaining_fraction
             .map(|f| ((1.0 - f) * 100.0).clamp(0.0, 100.0));
@@ -270,10 +315,72 @@ impl BucketInfo {
             used_percent,
             ..Default::default()
         };
+        let remaining = self.remaining_amount.as_ref().and_then(number);
+        let explicit_limit = self.limit.as_ref().and_then(number);
+        let derived_limit =
+            remaining
+                .zip(self.remaining_fraction)
+                .and_then(|(remaining, fraction)| {
+                    (remaining >= 0.0 && fraction > 0.0 && fraction <= 1.0 && fraction.is_finite())
+                        .then_some(remaining / fraction)
+                });
+        if let Some(limit) = explicit_limit
+            .or(derived_limit)
+            .filter(|value| value.is_finite() && *value >= 0.0)
+        {
+            w.limit = Some(limit);
+            if let Some(remaining) = remaining {
+                w.used = Some((limit - remaining).max(0.0));
+            } else if let Some(fraction) = self.remaining_fraction {
+                w.used = Some((limit * (1.0 - fraction.clamp(0.0, 1.0))).max(0.0));
+            }
+        }
         if let Some(rt) = &self.reset_time {
             w = w.resets_iso(rt.clone());
         }
         w
+    }
+}
+
+fn stable_bucket_key(model_id: Option<&str>, token_type: Option<&str>, index: usize) -> String {
+    let model_id = model_id.map(str::trim).filter(|value| !value.is_empty());
+    let token_type = token_type.map(str::trim).filter(|value| !value.is_empty());
+    match (model_id, token_type) {
+        (Some(model), Some(token_type)) => {
+            format!(
+                "{}:{}",
+                stable_component(model),
+                stable_component(token_type)
+            )
+        }
+        (Some(model), None) => format!("{}:unknown", stable_component(model)),
+        (None, Some(token_type)) => format!("unknown:{}", stable_component(token_type)),
+        (None, None) => format!("bucket_{index}"),
+    }
+}
+
+fn stable_component(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('_');
+    if out.is_empty() {
+        "unknown".into()
+    } else {
+        out.into()
+    }
+}
+
+fn number(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(value) => value.as_f64(),
+        Value::String(value) => value.parse().ok(),
+        _ => None,
     }
 }
 

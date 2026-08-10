@@ -3,6 +3,7 @@
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// A per-request usage row (one logical proxied request, §8-D).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -116,6 +117,218 @@ impl UsageSummary {
         self.cache_creation_1h_tokens += usage.cache_creation_1h_tokens;
         self.cost += usage.cost;
     }
+}
+
+/// Aggregate totals grouped by the final upstream model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct UsageModelSummary {
+    pub model: Option<String>,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    #[serde(default)]
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+}
+
+/// Permanent UTC-day aggregate for one credential and final upstream model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialUsageDaily {
+    pub id: i64,
+    /// Unix seconds at 00:00 UTC.
+    pub day_start: i64,
+    pub credential_id: i64,
+    pub provider_id: i64,
+    pub model: Option<String>,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Replacement snapshot for a permanent credential/day/model aggregate.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialUsageDailyInput {
+    pub day_start: i64,
+    pub credential_id: i64,
+    pub provider_id: i64,
+    pub model: Option<String>,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    #[serde(default)]
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+}
+
+/// A permanently stored upstream quota-window cycle.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialQuotaCycle {
+    pub id: i64,
+    pub credential_id: i64,
+    pub provider_id: i64,
+    pub channel: String,
+    pub window_key: String,
+    pub name: String,
+    pub label: Option<String>,
+    pub scope_kind: String,
+    pub scope_json: Option<Value>,
+    pub meter_kind: String,
+    pub period_start: Option<i64>,
+    pub period_end: Option<i64>,
+    pub boundary_source: String,
+    pub boundary_confidence: String,
+    pub close_reason: Option<String>,
+    pub status: String,
+    pub last_observed_at: Option<i64>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub used_percent: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub upstream_used: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub upstream_limit: Option<Decimal>,
+    pub coverage: String,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+    pub estimated_tokens: Option<i64>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub estimated_cost: Option<Decimal>,
+    pub aggregated_through: Option<i64>,
+    pub finalized_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Replacement snapshot for the one open cycle identified by
+/// `(credential_id, window_key)`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialQuotaCycleInput {
+    pub credential_id: i64,
+    pub provider_id: i64,
+    pub channel: String,
+    pub window_key: String,
+    pub name: String,
+    pub label: Option<String>,
+    pub scope_kind: String,
+    pub scope_json: Option<Value>,
+    pub meter_kind: String,
+    pub period_start: Option<i64>,
+    pub period_end: Option<i64>,
+    pub boundary_source: String,
+    pub boundary_confidence: String,
+    pub last_observed_at: Option<i64>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub used_percent: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub upstream_used: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub upstream_limit: Option<Decimal>,
+    pub coverage: String,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    #[serde(default)]
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+    pub estimated_tokens: Option<i64>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub estimated_cost: Option<Decimal>,
+    pub aggregated_through: Option<i64>,
+}
+
+impl CredentialQuotaCycleInput {
+    /// Merge the local accounting checkpoint from an already-open cycle.
+    /// Upstream observation metadata deliberately remains from `self`.
+    pub fn preserve_monotonic_local(&mut self, existing: &CredentialQuotaCycle) {
+        if existing.aggregated_through <= self.aggregated_through {
+            return;
+        }
+        self.requests = existing.requests;
+        self.input_tokens = existing.input_tokens;
+        self.output_tokens = existing.output_tokens;
+        self.image_output_tokens = existing.image_output_tokens;
+        self.cache_read_tokens = existing.cache_read_tokens;
+        self.cache_creation_5m_tokens = existing.cache_creation_5m_tokens;
+        self.cache_creation_30m_tokens = existing.cache_creation_30m_tokens;
+        self.cache_creation_1h_tokens = existing.cache_creation_1h_tokens;
+        self.cost = existing.cost;
+        self.estimated_tokens = existing.estimated_tokens;
+        self.estimated_cost = existing.estimated_cost;
+        self.aggregated_through = existing.aggregated_through;
+    }
+}
+
+/// Model composition stored with a quota cycle.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialQuotaCycleModel {
+    pub id: i64,
+    pub cycle_id: i64,
+    pub model: String,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Replacement snapshot for one cycle/model aggregate.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialQuotaCycleModelInput {
+    pub cycle_id: i64,
+    pub model: String,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    #[serde(default)]
+    pub image_output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    #[serde(default)]
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
 }
 
 /// An aggregated usage bucket for one `(granularity, bucket_start, dimensions)`

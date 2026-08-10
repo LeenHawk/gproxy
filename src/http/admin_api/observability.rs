@@ -160,6 +160,15 @@ async fn list_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError>
 
 async fn clear_usages(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
+    // Preserve open-cycle totals before removing the per-request source rows.
+    // The permanent daily/lifetime and finalized-cycle history are not part of
+    // this observability-log clear action.
+    crate::credentials::quota_history::checkpoint_open_cycles(
+        state,
+        crate::util::time::unix_now().saturating_add(1),
+    )
+    .await
+    .map_err(internal)?;
     state.persistence.clear_usages().await.map_err(internal)?;
     Ok(Resp::no_content())
 }

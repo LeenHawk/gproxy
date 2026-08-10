@@ -1,10 +1,16 @@
 use crate::store::persistence::batch::AdminEntity;
 use crate::store::persistence::metrics::MetricsAggregate;
 use crate::store::persistence::records::{
-    AuditLog, AuditLogInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
-    UpstreamRequestInput, Usage, UsageInput, UsageRollup, UsageRollupInput, UsageSummary,
+    AuditLog, AuditLogInput, CredentialQuotaCycle, CredentialQuotaCycleInput,
+    CredentialQuotaCycleModel, CredentialQuotaCycleModelInput, CredentialUsageDaily,
+    CredentialUsageDailyInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
+    UpstreamRequestInput, Usage, UsageInput, UsageModelSummary, UsageRollup, UsageRollupInput,
+    UsageSummary,
 };
-use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, PageResult, UsageQuery};
+use crate::store::persistence::{
+    AuditLogQuery, CredentialQuotaCycleQuery, CredentialUsageDailyQuery, LogQuery, PageQuery,
+    PageResult, UsageQuery,
+};
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -18,6 +24,50 @@ pub trait UsagePersistence {
         page: &PageQuery,
     ) -> anyhow::Result<PageResult<Usage>>;
     async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary>;
+    async fn summarize_usages_by_model(
+        &self,
+        q: &UsageQuery,
+    ) -> anyhow::Result<Vec<UsageModelSummary>>;
+    async fn add_credential_usage_daily(
+        &self,
+        input: CredentialUsageDailyInput,
+    ) -> anyhow::Result<CredentialUsageDaily>;
+    async fn query_credential_usage_daily(
+        &self,
+        q: &CredentialUsageDailyQuery,
+    ) -> anyhow::Result<Vec<CredentialUsageDaily>>;
+    async fn get_open_credential_quota_cycle(
+        &self,
+        credential_id: i64,
+        window_key: &str,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>>;
+    async fn get_credential_quota_cycle(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>>;
+    async fn upsert_credential_quota_cycle(
+        &self,
+        input: CredentialQuotaCycleInput,
+    ) -> anyhow::Result<CredentialQuotaCycle>;
+    async fn query_credential_quota_cycles(
+        &self,
+        q: &CredentialQuotaCycleQuery,
+    ) -> anyhow::Result<Vec<CredentialQuotaCycle>>;
+    async fn finalize_credential_quota_cycle(
+        &self,
+        id: i64,
+        period_end: Option<i64>,
+        close_reason: &str,
+        finalized_at: i64,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>>;
+    async fn upsert_credential_quota_cycle_model(
+        &self,
+        input: CredentialQuotaCycleModelInput,
+    ) -> anyhow::Result<CredentialQuotaCycleModel>;
+    async fn list_credential_quota_cycle_models(
+        &self,
+        cycle_id: i64,
+    ) -> anyhow::Result<Vec<CredentialQuotaCycleModel>>;
     async fn add_usage_rollup(&self, input: UsageRollupInput) -> anyhow::Result<UsageRollup>;
     async fn list_usage_rollups(
         &self,
@@ -107,6 +157,78 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
         super::PersistenceBackend::summarize_usages(self, q).await
+    }
+    async fn summarize_usages_by_model(
+        &self,
+        q: &UsageQuery,
+    ) -> anyhow::Result<Vec<UsageModelSummary>> {
+        super::PersistenceBackend::summarize_usages_by_model(self, q).await
+    }
+    async fn add_credential_usage_daily(
+        &self,
+        input: CredentialUsageDailyInput,
+    ) -> anyhow::Result<CredentialUsageDaily> {
+        super::PersistenceBackend::add_credential_usage_daily(self, input).await
+    }
+    async fn query_credential_usage_daily(
+        &self,
+        q: &CredentialUsageDailyQuery,
+    ) -> anyhow::Result<Vec<CredentialUsageDaily>> {
+        super::PersistenceBackend::query_credential_usage_daily(self, q).await
+    }
+    async fn get_open_credential_quota_cycle(
+        &self,
+        credential_id: i64,
+        window_key: &str,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>> {
+        super::PersistenceBackend::get_open_credential_quota_cycle(self, credential_id, window_key)
+            .await
+    }
+    async fn get_credential_quota_cycle(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>> {
+        super::PersistenceBackend::get_credential_quota_cycle(self, id).await
+    }
+    async fn upsert_credential_quota_cycle(
+        &self,
+        input: CredentialQuotaCycleInput,
+    ) -> anyhow::Result<CredentialQuotaCycle> {
+        super::PersistenceBackend::upsert_credential_quota_cycle(self, input).await
+    }
+    async fn query_credential_quota_cycles(
+        &self,
+        q: &CredentialQuotaCycleQuery,
+    ) -> anyhow::Result<Vec<CredentialQuotaCycle>> {
+        super::PersistenceBackend::query_credential_quota_cycles(self, q).await
+    }
+    async fn finalize_credential_quota_cycle(
+        &self,
+        id: i64,
+        period_end: Option<i64>,
+        close_reason: &str,
+        finalized_at: i64,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>> {
+        super::PersistenceBackend::finalize_credential_quota_cycle(
+            self,
+            id,
+            period_end,
+            close_reason,
+            finalized_at,
+        )
+        .await
+    }
+    async fn upsert_credential_quota_cycle_model(
+        &self,
+        input: CredentialQuotaCycleModelInput,
+    ) -> anyhow::Result<CredentialQuotaCycleModel> {
+        super::PersistenceBackend::upsert_credential_quota_cycle_model(self, input).await
+    }
+    async fn list_credential_quota_cycle_models(
+        &self,
+        cycle_id: i64,
+    ) -> anyhow::Result<Vec<CredentialQuotaCycleModel>> {
+        super::PersistenceBackend::list_credential_quota_cycle_models(self, cycle_id).await
     }
     async fn add_usage_rollup(&self, input: UsageRollupInput) -> anyhow::Result<UsageRollup> {
         super::PersistenceBackend::add_usage_rollup(self, input).await

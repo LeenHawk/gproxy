@@ -7,7 +7,8 @@ use sea_orm::{
     EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select, Statement,
 };
 
-use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
+use crate::store::persistence::db::ops::is_unique_violation;
+use crate::store::persistence::records::{Usage, UsageInput, UsageModelSummary, UsageSummary};
 use crate::store::persistence::{PageQuery, PageResult, UsageQuery};
 
 use crate::store::persistence::db::entities::usage::usage;
@@ -56,7 +57,7 @@ pub async fn append(conn: &DatabaseConnection, input: UsageInput) -> anyhow::Res
     }
 
     let now = crate::store::persistence::db::ops::now_secs();
-    let model = usage::ActiveModel {
+    let insert = usage::ActiveModel {
         id: NotSet,
         request_id: Set(input.request_id),
         at: Set(input.at),
@@ -85,8 +86,15 @@ pub async fn append(conn: &DatabaseConnection, input: UsageInput) -> anyhow::Res
         updated_at: Set(now),
     }
     .insert(conn)
-    .await?;
-    to_record(model).map(Some)
+    .await;
+    match insert {
+        Ok(model) => to_record(model).map(Some),
+        // A concurrent settlement can pass the pre-check and lose the unique
+        // request_id insert race. That is the same idempotent no-op as finding
+        // the row above, not a persistence failure.
+        Err(error) if is_unique_violation(&error) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub async fn list(conn: &DatabaseConnection, limit: u64) -> anyhow::Result<Vec<Usage>> {
@@ -260,4 +268,94 @@ pub async fn summarize(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Res
         cache_creation_1h_tokens: row.try_get("", "cache_creation_1h_tokens")?,
         cost: row.try_get::<String>("", "cost")?.parse()?,
     })
+}
+
+/// Backend-side full-result aggregate grouped by final upstream model.
+/// Pagination and the keyset cursor are deliberately ignored.
+pub async fn summarize_by_model(
+    conn: &DatabaseConnection,
+    q: &UsageQuery,
+) -> anyhow::Result<Vec<UsageModelSummary>> {
+    let backend = conn.get_database_backend();
+    let cost_expr = match backend {
+        DatabaseBackend::MySql => "CAST(COALESCE(SUM(CAST(cost AS DECIMAL(65, 30))), 0) AS CHAR)",
+        DatabaseBackend::Postgres | DatabaseBackend::Sqlite => {
+            "CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT)"
+        }
+        _ => "CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT)",
+    };
+    let mut sql = format!(
+        "SELECT NULLIF(TRIM(model), '') AS model, COUNT(*) AS requests, \
+         CAST(COALESCE(SUM(input_tokens), 0) AS BIGINT) AS input_tokens, \
+         CAST(COALESCE(SUM(output_tokens), 0) AS BIGINT) AS output_tokens, \
+         CAST(COALESCE(SUM(image_output_tokens), 0) AS BIGINT) AS image_output_tokens, \
+         CAST(COALESCE(SUM(cache_read_tokens), 0) AS BIGINT) AS cache_read_tokens, \
+         CAST(COALESCE(SUM(cache_creation_5m_tokens), 0) AS BIGINT) AS cache_creation_5m_tokens, \
+         CAST(COALESCE(SUM(cache_creation_30m_tokens), 0) AS BIGINT) AS cache_creation_30m_tokens, \
+         CAST(COALESCE(SUM(cache_creation_1h_tokens), 0) AS BIGINT) AS cache_creation_1h_tokens, \
+         {cost_expr} AS cost FROM usages WHERE 1=1"
+    );
+    let mut values = Vec::new();
+    if let Some(v) = q.at_from {
+        push_summary_filter(&mut sql, &mut values, backend, "at", ">=", v.into());
+    }
+    if let Some(v) = q.at_to {
+        push_summary_filter(&mut sql, &mut values, backend, "at", "<=", v.into());
+    }
+    if let Some(v) = q.provider_id {
+        push_summary_filter(&mut sql, &mut values, backend, "provider_id", "=", v.into());
+    }
+    if let Some(v) = q.credential_id {
+        push_summary_filter(
+            &mut sql,
+            &mut values,
+            backend,
+            "credential_id",
+            "=",
+            v.into(),
+        );
+    }
+    if let Some(v) = q.user_id {
+        push_summary_filter(&mut sql, &mut values, backend, "user_id", "=", v.into());
+    }
+    if let Some(ref v) = q.route_name {
+        push_summary_filter(
+            &mut sql,
+            &mut values,
+            backend,
+            "route_name",
+            "=",
+            v.clone().into(),
+        );
+    }
+    if let Some(ref v) = q.model {
+        push_summary_filter(
+            &mut sql,
+            &mut values,
+            backend,
+            "model",
+            "=",
+            v.clone().into(),
+        );
+    }
+    sql.push_str(" GROUP BY NULLIF(TRIM(model), '') ORDER BY model");
+
+    conn.query_all_raw(Statement::from_sql_and_values(backend, sql, values))
+        .await?
+        .into_iter()
+        .map(|row| {
+            Ok(UsageModelSummary {
+                model: row.try_get("", "model")?,
+                requests: row.try_get("", "requests")?,
+                input_tokens: row.try_get("", "input_tokens")?,
+                output_tokens: row.try_get("", "output_tokens")?,
+                image_output_tokens: row.try_get("", "image_output_tokens")?,
+                cache_read_tokens: row.try_get("", "cache_read_tokens")?,
+                cache_creation_5m_tokens: row.try_get("", "cache_creation_5m_tokens")?,
+                cache_creation_30m_tokens: row.try_get("", "cache_creation_30m_tokens")?,
+                cache_creation_1h_tokens: row.try_get("", "cache_creation_1h_tokens")?,
+                cost: row.try_get::<String>("", "cost")?.parse()?,
+            })
+        })
+        .collect()
 }

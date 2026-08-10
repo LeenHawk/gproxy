@@ -11,7 +11,11 @@ use serde_json::Value;
 use super::auth;
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, join_url};
-use crate::channel::usage::{UsageCredits, UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    UsageCredits, UsageSnapshot, UsageWindow, UsageWindowBoundaryConfidence,
+    UsageWindowBoundarySource, UsageWindowDescriptor, UsageWindowMeter, UsageWindowScope,
+};
+use crate::channel::usage_descriptor::iso_to_unix;
 
 const DEFAULT_USAGE_BASE_URL: &str = "https://cli-chat-proxy.grok.com/v1";
 
@@ -60,10 +64,15 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
             .and_then(|period| period.period_type.as_deref())
             .map(period_window_name)
             .unwrap_or("usage");
-        windows.push(with_period(
-            UsageWindow::percent(name, included_usage_percent(&config)),
-            reset.as_deref(),
-        ));
+        let mut window = UsageWindow {
+            name: name.to_owned(),
+            used_percent: included_usage_percent(&config),
+            used: config.used.as_ref().and_then(MoneyValue::number),
+            limit: config.monthly_limit.as_ref().and_then(MoneyValue::number),
+            ..Default::default()
+        };
+        window = with_period(window, reset.as_deref());
+        windows.push(window);
     }
     for product in config.product_usage.as_deref().unwrap_or_default() {
         let Some(percent) = product.usage_percent else {
@@ -91,6 +100,47 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         rate_limit_reset_credits: None,
         raw,
     })
+}
+
+pub(super) fn describe(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+    let scope = window
+        .name
+        .strip_prefix("product:")
+        .map(|product| UsageWindowScope::Feature {
+            feature: product.to_owned(),
+        })
+        .unwrap_or(UsageWindowScope::All);
+    let descriptor = UsageWindowDescriptor::from_window(window)
+        .scope(scope)
+        .meter(UsageWindowMeter::Credits);
+    let config = serde_json::from_value::<BillingResponse>(snapshot.raw.clone())
+        .ok()
+        .and_then(|payload| payload.config)
+        .or_else(|| serde_json::from_value::<BillingConfig>(snapshot.raw.clone()).ok());
+    let start = config
+        .as_ref()
+        .and_then(|config| {
+            config
+                .current_period
+                .as_ref()
+                .and_then(|period| period.start.as_deref())
+                .or(config.billing_period_start.as_deref())
+        })
+        .and_then(iso_to_unix);
+    match start {
+        Some(start) => descriptor.period_start(
+            start,
+            UsageWindowBoundarySource::Upstream,
+            UsageWindowBoundaryConfidence::Exact,
+        ),
+        None => descriptor,
+    }
 }
 
 fn usage_base_url<'a>(settings: &'a Value, secret: &'a Value) -> &'a str {
@@ -126,25 +176,17 @@ fn period_window_name(period_type: &str) -> &'static str {
     }
 }
 
-fn included_usage_percent(config: &BillingConfig) -> f64 {
+fn included_usage_percent(config: &BillingConfig) -> Option<f64> {
     if let Some(percent) = config.credit_usage_percent {
-        return percent.clamp(0.0, 100.0);
+        return Some(percent.clamp(0.0, 100.0));
     }
 
-    let limit = config
-        .monthly_limit
-        .as_ref()
-        .and_then(MoneyValue::number)
-        .unwrap_or(0.0);
+    let limit = config.monthly_limit.as_ref().and_then(MoneyValue::number)?;
     if limit <= 0.0 {
-        return 0.0;
+        return None;
     }
-    let used = config
-        .used
-        .as_ref()
-        .and_then(MoneyValue::number)
-        .unwrap_or(0.0);
-    (used / limit * 100.0).clamp(0.0, 100.0)
+    let used = config.used.as_ref().and_then(MoneyValue::number)?;
+    Some((used / limit * 100.0).clamp(0.0, 100.0))
 }
 
 fn credits(config: &BillingConfig) -> Option<UsageCredits> {
@@ -206,6 +248,7 @@ struct BillingConfig {
     on_demand_used: Option<MoneyValue>,
     product_usage: Option<Vec<ProductUsage>>,
     prepaid_balance: Option<MoneyValue>,
+    billing_period_start: Option<String>,
     billing_period_end: Option<String>,
 }
 
@@ -214,6 +257,7 @@ struct BillingConfig {
 struct BillingPeriod {
     #[serde(rename = "type")]
     period_type: Option<String>,
+    start: Option<String>,
     end: Option<String>,
 }
 

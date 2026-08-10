@@ -290,6 +290,52 @@ const TABLES: &[&str] = &[
         COALESCE(provider_id, 0), COALESCE(org_id, 0), \
         COALESCE(team_id, 0), COALESCE(user_id, 0), \
         COALESCE(route_name, ''), COALESCE(model, ''))",
+    "CREATE TABLE IF NOT EXISTS credential_usage_daily (\
+        id INTEGER PRIMARY KEY, \
+        day_start INTEGER NOT NULL, \
+        credential_id INTEGER NOT NULL, \
+        provider_id INTEGER NOT NULL, \
+        model TEXT, \
+        requests INTEGER NOT NULL, \
+        input_tokens INTEGER NOT NULL, \
+        output_tokens INTEGER NOT NULL, \
+        image_output_tokens INTEGER NOT NULL, \
+        cache_read_tokens INTEGER NOT NULL, \
+        cache_creation_5m_tokens INTEGER NOT NULL, \
+        cache_creation_30m_tokens INTEGER NOT NULL, \
+        cache_creation_1h_tokens INTEGER NOT NULL, \
+        cost TEXT NOT NULL, \
+        created_at INTEGER NOT NULL, \
+        updated_at INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_credential_usage_daily_dims ON \
+        credential_usage_daily (day_start, credential_id, COALESCE(model, ''))",
+    "CREATE TABLE IF NOT EXISTS credential_quota_cycles (\
+        id INTEGER PRIMARY KEY, credential_id INTEGER NOT NULL, provider_id INTEGER NOT NULL, \
+        channel TEXT NOT NULL, window_key TEXT NOT NULL, name TEXT NOT NULL, label TEXT, \
+        scope_kind TEXT NOT NULL, scope_json TEXT, meter_kind TEXT NOT NULL, \
+        period_start INTEGER, period_end INTEGER, boundary_source TEXT NOT NULL, \
+        boundary_confidence TEXT NOT NULL, close_reason TEXT, status TEXT NOT NULL, \
+        open_slot INTEGER, last_observed_at INTEGER, used_percent TEXT, upstream_used TEXT, \
+        upstream_limit TEXT, coverage TEXT NOT NULL, requests INTEGER NOT NULL, \
+        input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, \
+        image_output_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL, \
+        cache_creation_5m_tokens INTEGER NOT NULL, cache_creation_30m_tokens INTEGER NOT NULL, \
+        cache_creation_1h_tokens INTEGER NOT NULL, cost TEXT NOT NULL, estimated_tokens INTEGER, \
+        estimated_cost TEXT, aggregated_through INTEGER, finalized_at INTEGER, \
+        created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_credential_quota_cycles_open ON \
+        credential_quota_cycles (credential_id, window_key, open_slot)",
+    "CREATE INDEX IF NOT EXISTS ix_credential_quota_cycles_history ON \
+        credential_quota_cycles (credential_id, window_key, period_start)",
+    "CREATE TABLE IF NOT EXISTS credential_quota_cycle_models (\
+        id INTEGER PRIMARY KEY, cycle_id INTEGER NOT NULL, model TEXT NOT NULL, \
+        requests INTEGER NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, \
+        image_output_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL, \
+        cache_creation_5m_tokens INTEGER NOT NULL, cache_creation_30m_tokens INTEGER NOT NULL, \
+        cache_creation_1h_tokens INTEGER NOT NULL, cost TEXT NOT NULL, \
+        created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_credential_quota_cycle_models_dims ON \
+        credential_quota_cycle_models (cycle_id, model)",
     "CREATE TABLE IF NOT EXISTS downstream_requests (\
         id INTEGER PRIMARY KEY, \
         request_id TEXT NOT NULL, \
@@ -393,7 +439,7 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
     } else {
         current
     };
-
+    let migrated_credential_history = current < 23;
     for m in pending(current) {
         for sql in m.sql_for(MigrationDialect::Sqlite) {
             if added_column_exists(client, sql).await? {
@@ -408,6 +454,9 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
     repair::instance_settings(client).await?;
     repair::provider_models(client).await?;
     repair::quotas(client).await?;
+    if migrated_credential_history {
+        super::usage::credential_history::reconcile_daily(client, None, None).await?;
+    }
     Ok(())
 }
 

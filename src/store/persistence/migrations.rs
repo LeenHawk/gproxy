@@ -52,12 +52,18 @@
 //! ```
 
 mod claude_fallback;
+mod credential_usage_history;
 mod quota_windows;
 mod rerank_routing;
 
 use claude_fallback::{
     MYSQL_SQL as CLAUDE_FALLBACK_MYSQL_SQL, POSTGRES_SQL as CLAUDE_FALLBACK_POSTGRES_SQL,
     SQLITE_SQL as CLAUDE_FALLBACK_SQLITE_SQL,
+};
+use credential_usage_history::{
+    MYSQL_SQL as CREDENTIAL_USAGE_HISTORY_MYSQL_SQL,
+    POSTGRES_SQL as CREDENTIAL_USAGE_HISTORY_POSTGRES_SQL,
+    SQLITE_SQL as CREDENTIAL_USAGE_HISTORY_SQLITE_SQL,
 };
 use quota_windows::SQLITE_SQL as QUOTA_SQLITE_SQL;
 use quota_windows::{MYSQL_SQL as QUOTA_MYSQL_SQL, POSTGRES_SQL as QUOTA_POSTGRES_SQL};
@@ -487,6 +493,15 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 22,
         description: "routing_rules: rerank passthrough for existing custom/openrouter providers",
         sql: MigrationSql::Shared(RERANK_ROUTING_SQL),
+    },
+    Migration {
+        version: 23,
+        description: "permanent credential daily usage and upstream quota-cycle history",
+        sql: MigrationSql::ByDialect {
+            sqlite: CREDENTIAL_USAGE_HISTORY_SQLITE_SQL,
+            postgres: CREDENTIAL_USAGE_HISTORY_POSTGRES_SQL,
+            mysql: CREDENTIAL_USAGE_HISTORY_MYSQL_SQL,
+        },
     },
 ];
 

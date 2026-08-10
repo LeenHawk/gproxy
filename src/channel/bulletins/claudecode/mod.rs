@@ -64,7 +64,7 @@ impl Channel for ClaudeCodeChannel {
 
     /// All models draw the account 5h/weekly MAIN pool; fable
     /// (`claude-fable-5`) has an ADDITIONAL weekly-scoped limit on top
-    /// (`weekly_scoped:fable` in the usage snapshot), so its own 429 stays
+    /// (`weekly_model:fable` in the usage snapshot), so its own 429 stays
     /// model-scoped while a main-pool 429 blocks the whole credential.
     fn shares_account_quota(&self, upstream_model_id: &str) -> bool {
         !upstream_model_id.to_ascii_lowercase().contains("fable")
@@ -110,6 +110,14 @@ impl Channel for ClaudeCodeChannel {
         body: &Bytes,
     ) -> Option<crate::channel::UsageSnapshot> {
         usage::parse(status, body)
+    }
+
+    fn describe_usage_window(
+        &self,
+        snapshot: &crate::channel::UsageSnapshot,
+        index: usize,
+    ) -> crate::channel::UsageWindowDescriptor {
+        usage::describe(snapshot, index)
     }
 }
 

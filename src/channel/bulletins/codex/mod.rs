@@ -221,6 +221,14 @@ impl Channel for CodexChannel {
         usage::parse(status, body)
     }
 
+    fn describe_usage_window(
+        &self,
+        snapshot: &crate::channel::UsageSnapshot,
+        index: usize,
+    ) -> crate::channel::UsageWindowDescriptor {
+        usage::describe(snapshot, index)
+    }
+
     fn prepare_rate_limit_reset_credit_request(
         &self,
         secret: &Value,

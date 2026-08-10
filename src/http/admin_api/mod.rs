@@ -15,6 +15,7 @@ mod channels;
 pub(crate) mod credential_health;
 pub(crate) mod credential_import;
 pub(crate) mod credential_ops;
+mod credential_usage_history;
 pub mod crud;
 mod host;
 mod login_callback;
@@ -346,6 +347,10 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
 
     // 5. Observability (usage / rollups / audit / logs).
     if let Some(r) = observability::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
+    if let Some(r) = credential_usage_history::dispatch(state, parts, body).await {
         return Some(r);
     }
 

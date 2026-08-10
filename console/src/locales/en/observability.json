@@ -53,8 +53,91 @@
     },
     "tab": {
       "usage": "Usage",
+      "credentials": "Credential usage",
       "audit": "Audit",
       "logs": "Logs"
+    }
+  },
+  "credentialUsage": {
+    "title": "Credential usage comparison",
+    "description": "Compare locally recorded 7-day and lifetime usage across every credential. This view never queries upstream accounts.",
+    "loadError": "Failed to load credential usage.",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "empty": "No credential usage matches the current filters.",
+    "last7DaysTrend": "Last 7 days by credential",
+    "chartLimit": "Showing the top {{count}} credentials; filter to inspect another.",
+    "coverageUnknown": "Unknown",
+    "filters": {
+      "provider": "Provider",
+      "allProviders": "All providers",
+      "channel": "Channel",
+      "allChannels": "All channels",
+      "credential": "Credential",
+      "allCredentials": "All credentials"
+    },
+    "metric": {
+      "total_tokens": "Tokens",
+      "cost_usd": "USD",
+      "requests": "Requests"
+    },
+    "columns": {
+      "credential": "Credential",
+      "provider": "Provider",
+      "channel": "Channel",
+      "last7Tokens": "7-day tokens",
+      "last7Cost": "7-day USD",
+      "lifetimeTokens": "Recorded tokens",
+      "lifetimeCost": "Recorded USD",
+      "quotaWindows": "Stored quota windows",
+      "coverage": "Tracked since"
+    }
+  },
+  "quotaHistory": {
+    "title": "Quota cycle history",
+    "description": "Each bar is one quota cycle; no within-cycle curve is collected.",
+    "empty": "No upstream quota cycle has been observed for this selection yet.",
+    "filteredEmpty": "No quota cycles match these filters.",
+    "loadError": "Failed to load quota cycle history.",
+    "modelLoadError": "Failed to load the model breakdown.",
+    "noModels": "No model breakdown was recorded for this cycle.",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "loadOlder": "Load older cycles",
+    "loadingOlder": "Loading older cycles",
+    "tokens": "tokens",
+    "requests": "requests",
+    "models": "Model breakdown",
+    "filters": {
+      "window": "Quota window",
+      "allWindows": "All windows",
+      "status": "Status",
+      "allStatuses": "All statuses"
+    },
+    "metric": {
+      "tokens": "Tokens",
+      "cost": "USD",
+      "requests": "Requests",
+      "percent": "Final %"
+    },
+    "status": {
+      "open": "Open",
+      "finalized": "Finalized"
+    },
+    "coverage": {
+      "complete": "Full cycle",
+      "partial": "Partial cycle",
+      "unknown": "Coverage unknown"
+    },
+    "columns": {
+      "credential": "Credential",
+      "window": "Window",
+      "period": "Cycle period",
+      "status": "Status",
+      "percent": "Final %",
+      "tokens": "Tokens",
+      "cost": "USD",
+      "estimate": "Estimated capacity"
     }
   },
   "logs": {

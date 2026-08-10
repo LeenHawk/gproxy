@@ -14,7 +14,9 @@ use serde_json::{Value, json};
 use super::{AMZ_JSON, ORIGIN, TARGET_USAGE, UA_MANAGEMENT, auth, management_base};
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, join_url};
-use crate::channel::usage::{UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    UsageSnapshot, UsageWindow, UsageWindowDescriptor, UsageWindowMeter, UsageWindowScope,
+};
 
 /// Build the captured Kiro CLI `GetUsageLimits` request. `None` when the
 /// credential has no profileArn (the API requires it).
@@ -83,18 +85,32 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         .iter()
         .enumerate()
         .map(|(i, b)| {
-            let name = if single {
-                "agentic_request".to_string()
-            } else {
-                format!("agentic_request_{i}")
-            };
-            let mut w = UsageWindow::amounts(
+            let name = b
+                .resource_type
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(stable_key)
+                .unwrap_or_else(|| {
+                    if single {
+                        "agentic_request".to_string()
+                    } else {
+                        format!("usage_{i}")
+                    }
+                });
+            let mut w = UsageWindow {
                 name,
-                b.current_usage_with_precision.unwrap_or(0.0),
-                b.usage_limit_with_precision.unwrap_or(0.0),
-            );
-            if let Some(reset) = b.next_date_reset.or(resp.next_date_reset) {
-                w = w.resets_unix(reset as i64);
+                used: b.current_usage_with_precision,
+                limit: b.usage_limit_with_precision,
+                ..Default::default()
+            };
+            if let Some(reset) = b
+                .next_date_reset
+                .as_ref()
+                .and_then(epoch_seconds)
+                .or_else(|| resp.next_date_reset.as_ref().and_then(epoch_seconds))
+            {
+                w = w.resets_unix(reset);
             }
             w
         })
@@ -110,6 +126,69 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         rate_limit_reset_credits: None,
         raw,
     })
+}
+
+pub(super) fn describe(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+    let resource_type = snapshot
+        .raw
+        .get("usageBreakdownList")
+        .and_then(Value::as_array)
+        .and_then(|items| items.get(index))
+        .and_then(|item| item.get("resourceType"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let scope = match resource_type {
+        Some(value) if stable_key(value) == "agentic_request" => UsageWindowScope::All,
+        Some(value) => UsageWindowScope::Feature {
+            feature: value.to_owned(),
+        },
+        None if window.name == "agentic_request" => UsageWindowScope::All,
+        None => UsageWindowScope::Unknown,
+    };
+    UsageWindowDescriptor::from_window(window)
+        .scope(scope)
+        .meter(UsageWindowMeter::Credits)
+}
+
+fn stable_key(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('_');
+    if out.is_empty() {
+        "usage".to_owned()
+    } else {
+        out.to_owned()
+    }
+}
+
+fn epoch_seconds(value: &Value) -> Option<i64> {
+    let value = match value {
+        Value::Number(value) => value.as_f64()?,
+        Value::String(value) => value.trim().parse::<f64>().ok()?,
+        _ => return None,
+    };
+    if !value.is_finite() {
+        return None;
+    }
+    let seconds = if value.abs() >= 1_000_000_000_000.0 {
+        value / 1000.0
+    } else {
+        value
+    };
+    Some(seconds as i64)
 }
 
 /// Percent-encode a query value, leaving the RFC 3986 unreserved set verbatim
@@ -140,7 +219,7 @@ fn pct(s: &str) -> String {
 #[serde(rename_all = "camelCase")]
 struct UsageLimitsResponse {
     #[serde(default)]
-    next_date_reset: Option<f64>,
+    next_date_reset: Option<Value>,
     #[serde(default)]
     subscription_info: Option<SubscriptionInfo>,
     #[serde(default)]
@@ -158,11 +237,13 @@ struct SubscriptionInfo {
 #[serde(rename_all = "camelCase")]
 struct UsageBreakdown {
     #[serde(default)]
+    resource_type: Option<String>,
+    #[serde(default)]
     current_usage_with_precision: Option<f64>,
     #[serde(default)]
     usage_limit_with_precision: Option<f64>,
     #[serde(default)]
-    next_date_reset: Option<f64>,
+    next_date_reset: Option<Value>,
 }
 
 #[cfg(test)]

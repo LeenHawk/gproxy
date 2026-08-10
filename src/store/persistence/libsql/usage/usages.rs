@@ -7,7 +7,7 @@ use crate::store::persistence::libsql::row::{
 use crate::store::persistence::libsql::util::{
     arg_opt_i64, arg_opt_text, last_rowid, now_secs, query as run_query, query_one,
 };
-use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
+use crate::store::persistence::records::{Usage, UsageInput, UsageModelSummary, UsageSummary};
 use crate::store::persistence::{PageQuery, PageResult, UsageQuery};
 use serde_json::Value;
 
@@ -63,7 +63,7 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
     }
 
     let now = now_secs();
-    let qr = client
+    let qr = match client
         .execute(
             "INSERT INTO usages \
              (request_id, at, route_name, provider_id, credential_id, org_id, team_id, user_id, \
@@ -101,7 +101,16 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
             ],
         )
         .await
-        .map_err(|e| anyhow::anyhow!("libsql insert usage: {e}"))?;
+    {
+        Ok(result) => result,
+        Err(error)
+            if error.to_string().to_ascii_lowercase().contains("unique")
+                || error.to_string().to_ascii_lowercase().contains("duplicate") =>
+        {
+            return Ok(None);
+        }
+        Err(error) => return Err(anyhow::anyhow!("libsql insert usage: {error}")),
+    };
 
     let id = last_rowid(&qr)?;
     query_one(
@@ -286,4 +295,70 @@ pub async fn summarize(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<
         cache_creation_1h_tokens: col_i64(&row, 7)?,
         cost: col_decimal(&row, 8)?,
     })
+}
+
+/// Full-result aggregate grouped by final upstream model. Pagination and the
+/// keyset cursor are deliberately ignored.
+pub async fn summarize_by_model(
+    client: &LibsqlClient,
+    q: &UsageQuery,
+) -> anyhow::Result<Vec<UsageModelSummary>> {
+    let mut sql = String::from(
+        "SELECT NULLIF(TRIM(model), ''), COUNT(*), COALESCE(SUM(input_tokens), 0), \
+         COALESCE(SUM(output_tokens), 0), COALESCE(SUM(image_output_tokens), 0), \
+         COALESCE(SUM(cache_read_tokens), 0), \
+         COALESCE(SUM(cache_creation_5m_tokens), 0), \
+         COALESCE(SUM(cache_creation_30m_tokens), 0), \
+         COALESCE(SUM(cache_creation_1h_tokens), 0), \
+         CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT) \
+         FROM usages WHERE 1=1",
+    );
+    let mut args: Vec<Value> = Vec::new();
+    if let Some(v) = q.at_from {
+        sql.push_str(" AND at >= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.at_to {
+        sql.push_str(" AND at <= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.provider_id {
+        sql.push_str(" AND provider_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.credential_id {
+        sql.push_str(" AND credential_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.user_id {
+        sql.push_str(" AND user_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(ref v) = q.route_name {
+        sql.push_str(" AND route_name = ?");
+        args.push(arg_text(v));
+    }
+    if let Some(ref v) = q.model {
+        sql.push_str(" AND model = ?");
+        args.push(arg_text(v));
+    }
+    sql.push_str(" GROUP BY NULLIF(TRIM(model), '') ORDER BY model");
+    run_query(client, &sql, &args)
+        .await?
+        .iter()
+        .map(|row| {
+            Ok(UsageModelSummary {
+                model: col_opt_str(row, 0)?,
+                requests: col_i64(row, 1)?,
+                input_tokens: col_i64(row, 2)?,
+                output_tokens: col_i64(row, 3)?,
+                image_output_tokens: col_i64(row, 4)?,
+                cache_read_tokens: col_i64(row, 5)?,
+                cache_creation_5m_tokens: col_i64(row, 6)?,
+                cache_creation_30m_tokens: col_i64(row, 7)?,
+                cache_creation_1h_tokens: col_i64(row, 8)?,
+                cost: col_decimal(row, 9)?,
+            })
+        })
+        .collect()
 }

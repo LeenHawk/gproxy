@@ -243,8 +243,9 @@
     "more": "另有 {{count}} 个…"
   },
   "usage": {
-    "title": "上游用量",
+    "title": "凭证用量",
     "open": "用量",
+    "upstreamTitle": "上游额度",
     "fetch": "立即查询",
     "fetching": "查询中",
     "refresh": "刷新",
@@ -256,6 +257,32 @@
     "unlimited": "无限制",
     "raw": "原始响应",
     "resets": "{{time}} 重置",
+    "local": {
+      "summaryTitle": "GPROXY 已记录用量",
+      "summaryDescription": "该凭证的本地计量统计，不会请求上游。",
+      "summaryLoadError": "加载已记录用量失败",
+      "trackedSince": "从 {{time}} 开始记录",
+      "lifetime": "已记录累计",
+      "last7Days": "最近 7 天",
+      "dailyTokens": "每日 tokens",
+      "noRecordedUsage": "最近 7 天暂无已记录用量。",
+      "recorded": "经 GPROXY",
+      "estimatedCurrentMix": "约算（按当前模型/价格结构）",
+      "perWindow": "每周期",
+      "byModel": "按模型（{{count}}）",
+      "tokens": "tokens",
+      "requests": "次请求",
+      "input": "输入",
+      "output": "输出",
+      "imageOutput": "图片输出",
+      "cacheRead": "缓存读取",
+      "cacheCreation": "缓存创建",
+      "coverage": {
+        "complete": "完整周期",
+        "partial": "部分周期",
+        "unknown": "覆盖范围未知"
+      }
+    },
     "reset": {
       "available": "重置次数",
       "consume": "使用重置",

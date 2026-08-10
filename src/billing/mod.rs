@@ -7,7 +7,9 @@ pub mod price;
 use rust_decimal::Decimal;
 
 use crate::store::persistence::PersistenceBackend;
-use crate::store::persistence::records::{UpstreamRequest, UpstreamRequestInput, UsageInput};
+use crate::store::persistence::records::{
+    CredentialUsageDailyInput, UpstreamRequest, UpstreamRequestInput, UsageInput,
+};
 use crate::usage::{Ended, NormalizedUsage, UsageSource};
 
 /// Everything needed to settle one successful (possibly interrupted) request.
@@ -52,6 +54,10 @@ fn tok(v: u64) -> i64 {
     i64::try_from(v).unwrap_or(i64::MAX)
 }
 
+fn utc_day_start(at: i64) -> i64 {
+    at - at.rem_euclid(86_400)
+}
+
 /// Record a settled request: append the usage row (idempotent by
 /// `request_id`) and, on FIRST insert only, accumulate hour+day rollups.
 /// Returns `false` when this `request_id` was already settled (no-op).
@@ -59,6 +65,11 @@ pub async fn record_success(
     db: &dyn PersistenceBackend,
     rec: UsageRecord<'_>,
 ) -> anyhow::Result<bool> {
+    let model = rec
+        .model
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+        .map(str::to_owned);
     let input = UsageInput {
         request_id: rec.request_id.to_owned(),
         at: rec.at,
@@ -71,7 +82,7 @@ pub async fn record_success(
         user_key_id: rec.user_key_id,
         operation: rec.operation.to_owned(),
         kind: rec.kind.to_owned(),
-        model: rec.model.map(str::to_owned),
+        model: model.clone(),
         input_tokens: tok(rec.usage.input),
         output_tokens: tok(rec.usage.output),
         image_output_tokens: tok(rec.usage.image_output),
@@ -88,6 +99,30 @@ pub async fn record_success(
         return Ok(false); // duplicate settle — no rollup
     }
 
+    // This permanent aggregate is intentionally downstream of the
+    // request_id-idempotent append. A duplicate settlement therefore cannot
+    // increment either the daily bucket or the lifetime credential totals.
+    // Unlike raw usage rows, these compact buckets survive normal retention
+    // and the observability "clear usage" action.
+    if let (Some(credential_id), Some(provider_id)) = (rec.credential_id, rec.provider_id) {
+        db.add_credential_usage_daily(CredentialUsageDailyInput {
+            day_start: utc_day_start(rec.at),
+            credential_id,
+            provider_id,
+            model: model.clone(),
+            requests: 1,
+            input_tokens: tok(rec.usage.input),
+            output_tokens: tok(rec.usage.output),
+            image_output_tokens: tok(rec.usage.image_output),
+            cache_read_tokens: tok(rec.usage.cache_read),
+            cache_creation_5m_tokens: tok(rec.usage.cache_creation_5m),
+            cache_creation_30m_tokens: tok(rec.usage.cache_creation_30m),
+            cache_creation_1h_tokens: tok(rec.usage.cache_creation_1h),
+            cost: rec.cost,
+        })
+        .await?;
+    }
+
     for (granularity, bucket) in [("hour", 3600i64), ("day", 86_400i64)] {
         db.add_usage_rollup(crate::store::persistence::records::UsageRollupInput {
             granularity: granularity.to_owned(),
@@ -97,7 +132,7 @@ pub async fn record_success(
             team_id: rec.team_id,
             user_id: rec.user_id,
             route_name: rec.route_name.map(str::to_owned),
-            model: rec.model.map(str::to_owned),
+            model: model.clone(),
             requests: 1,
             input_tokens: tok(rec.usage.input),
             output_tokens: tok(rec.usage.output),

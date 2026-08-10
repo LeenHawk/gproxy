@@ -6,7 +6,9 @@ use serde_json::{Value, json};
 
 use super::auth;
 use crate::channel::http_util::{build_request, exact_url, join_url};
-use crate::channel::usage::{UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    UsageSnapshot, UsageWindow, UsageWindowDescriptor, UsageWindowMeter, UsageWindowScope,
+};
 use crate::channel::{ChannelError, settings};
 
 const PATH: &str = "/v1internal:fetchAvailableModels";
@@ -72,6 +74,20 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         rate_limit_reset_credits: None,
         raw,
     })
+}
+
+pub(super) fn describe(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+    UsageWindowDescriptor::from_window(window)
+        .scope(UsageWindowScope::Models {
+            models: vec![window.name.clone()],
+        })
+        .meter(UsageWindowMeter::Opaque)
 }
 
 #[cfg(test)]

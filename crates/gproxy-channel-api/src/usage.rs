@@ -12,7 +12,7 @@
 //! [`Channel::prepare_usage_request`]: crate::Channel::prepare_usage_request
 //! [`Channel::parse_usage`]: crate::Channel::parse_usage
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Normalized usage/quota snapshot for one credential.
@@ -61,6 +61,135 @@ pub struct UsageWindow {
     /// Window length in seconds, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window_seconds: Option<i64>,
+}
+
+/// Stable semantics for one provider-specific quota window.
+///
+/// [`UsageWindow`] intentionally stays close to the upstream response. This
+/// descriptor supplies the extra identity and accounting semantics a host
+/// needs to match the same window across refreshes and completed periods.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageWindowDescriptor {
+    /// Stable within one channel. Hosts that combine channels should namespace
+    /// this key with [`Channel::id`](crate::Channel::id).
+    pub key: String,
+    /// Which locally recorded traffic is governed by this window.
+    pub scope: UsageWindowScope,
+    /// The upstream unit represented by `used`, `limit`, or `used_percent`.
+    pub meter: UsageWindowMeter,
+    /// Inclusive period start, when it can be established, in unix seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub period_start_unix: Option<i64>,
+    /// How the period boundary was established.
+    pub boundary_source: UsageWindowBoundarySource,
+    /// Whether the complete boundary is exact, derived, partial, or unknown.
+    pub boundary_confidence: UsageWindowBoundaryConfidence,
+}
+
+impl UsageWindowDescriptor {
+    /// Conservative descriptor for a normalized window. Channel adapters can
+    /// refine its scope and meter through [`Channel::describe_usage_window`].
+    ///
+    /// [`Channel::describe_usage_window`]: crate::Channel::describe_usage_window
+    pub fn from_window(window: &UsageWindow) -> Self {
+        let period_start_unix = window
+            .resets_at_unix
+            .zip(window.window_seconds)
+            .filter(|(_, seconds)| *seconds > 0)
+            .map(|(reset, seconds)| reset.saturating_sub(seconds));
+        let (boundary_source, boundary_confidence) = if period_start_unix.is_some() {
+            (
+                UsageWindowBoundarySource::ResetAndDuration,
+                UsageWindowBoundaryConfidence::Exact,
+            )
+        } else if window.resets_at_unix.is_some() || window.resets_at.is_some() {
+            (
+                UsageWindowBoundarySource::ResetOnly,
+                UsageWindowBoundaryConfidence::Partial,
+            )
+        } else {
+            (
+                UsageWindowBoundarySource::Unknown,
+                UsageWindowBoundaryConfidence::Unknown,
+            )
+        };
+        Self {
+            key: window.name.clone(),
+            scope: UsageWindowScope::Unknown,
+            meter: UsageWindowMeter::Opaque,
+            period_start_unix,
+            boundary_source,
+            boundary_confidence,
+        }
+    }
+
+    pub fn scope(mut self, scope: UsageWindowScope) -> Self {
+        self.scope = scope;
+        self
+    }
+
+    pub fn meter(mut self, meter: UsageWindowMeter) -> Self {
+        self.meter = meter;
+        self
+    }
+
+    pub fn period_start(
+        mut self,
+        unix: i64,
+        source: UsageWindowBoundarySource,
+        confidence: UsageWindowBoundaryConfidence,
+    ) -> Self {
+        self.period_start_unix = Some(unix);
+        self.boundary_source = source;
+        self.boundary_confidence = confidence;
+        self
+    }
+}
+
+/// Local-usage scope governed by an upstream quota window.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum UsageWindowScope {
+    All,
+    Models { models: Vec<String> },
+    Feature { feature: String },
+    Unknown,
+}
+
+/// Upstream accounting unit for a quota window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageWindowMeter {
+    Tokens,
+    Requests,
+    Credits,
+    Usd,
+    Opaque,
+}
+
+/// Origin of the normalized period boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageWindowBoundarySource {
+    /// The upstream supplied an explicit start boundary.
+    Upstream,
+    /// The upstream supplied reset time and window duration.
+    ResetAndDuration,
+    /// The adapter derived the start from a documented/known window duration.
+    KnownWindow,
+    /// Only the reset/end boundary is known.
+    ResetOnly,
+    Unknown,
+}
+
+/// Confidence in the normalized period boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageWindowBoundaryConfidence {
+    Exact,
+    Derived,
+    Partial,
+    Unknown,
 }
 
 impl UsageWindow {
