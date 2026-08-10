@@ -16,7 +16,7 @@ synchronous library: no HTTP client, no runtime, no I/O.
 
 ```toml
 [dependencies]
-gproxy-transform = "=2.3.2"
+gproxy-transform = "=2.4.0"
 ```
 
 Resolve a pair from the source/target operation keys, then run the bytes-level
