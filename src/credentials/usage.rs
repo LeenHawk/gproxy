@@ -8,8 +8,10 @@ use std::sync::Arc;
 
 use crate::app::AppState;
 use crate::channel::{
-    Channel, ChannelError, Disposition, RateLimitResetCreditConsumeResponse, UsageSnapshot,
+    Channel, ChannelError, Disposition, RateLimitResetCreditConsumeOutcome,
+    RateLimitResetCreditConsumeResponse,
 };
+use crate::credentials::quota_history::CredentialUsageSnapshot;
 use crate::http::client::UpstreamClient;
 use crate::store::persistence::records::{Credential, Provider};
 
@@ -44,7 +46,7 @@ pub enum UsageError {
 pub async fn fetch_usage(
     state: &AppState,
     credential_id: i64,
-) -> Result<UsageSnapshot, UsageError> {
+) -> Result<CredentialUsageSnapshot, UsageError> {
     let credential = state
         .persistence
         .get_credential(credential_id)
@@ -135,7 +137,22 @@ pub async fn fetch_usage(
         .err()
         .map(|failure| failure.error.to_string());
     audit.persist(error.as_deref()).await;
-    finish(state, &provider, &credential, "fetch_usage", result)
+    let snapshot = finish(state, &provider, &credential, "fetch_usage", result)?;
+    match crate::credentials::quota_history::observe_snapshot(
+        state,
+        &provider,
+        &credential,
+        &channel,
+        snapshot.clone(),
+    )
+    .await
+    {
+        Ok(enriched) => Ok(enriched),
+        Err(error) => {
+            warn_persistence(credential_id, "fetch_usage.persist_quota_history", &error);
+            Ok(crate::credentials::quota_history::without_local(snapshot))
+        }
+    }
 }
 
 /// Consume one earned upstream rate-limit reset credit for a credential.
@@ -258,7 +275,23 @@ pub async fn consume_rate_limit_reset_credit(
         .err()
         .map(|failure| failure.error.to_string());
     audit.persist(error.as_deref()).await;
-    finish(state, &provider, &credential, "reset_credit", result)
+    let response = finish(state, &provider, &credential, "reset_credit", result)?;
+    if response.outcome == RateLimitResetCreditConsumeOutcome::Reset {
+        // Use an exclusive boundary one second after the reset response so all
+        // already-settled rows stamped in the current second stay in the cycle
+        // being closed.
+        let through = crate::util::time::unix_now().saturating_add(1);
+        if let Err(error) = crate::credentials::quota_history::finalize_after_manual_reset(
+            state,
+            credential_id,
+            through,
+        )
+        .await
+        {
+            warn_persistence(credential_id, "reset_credit.finalize_quota_history", &error);
+        }
+    }
+    Ok(response)
 }
 
 fn warn_persistence(credential_id: i64, operation: &'static str, error: &impl std::fmt::Display) {

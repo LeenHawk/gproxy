@@ -19,7 +19,10 @@ pub use usage::UsagePersistence;
 use crate::store::persistence::batch::AdminEntity;
 use crate::store::persistence::metrics::MetricsAggregate;
 use crate::store::persistence::records::*;
-use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, PageResult, UsageQuery};
+use crate::store::persistence::{
+    AuditLogQuery, CredentialQuotaCycleQuery, CredentialUsageDailyQuery, LogQuery, PageQuery,
+    PageResult, UsageQuery,
+};
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -214,6 +217,16 @@ persistence_backend! {
     UsagePersistence::query_usages => query_usages(q: &UsageQuery) -> anyhow::Result<Vec<Usage>>;
     UsagePersistence::query_usages_page => query_usages_page(q: &UsageQuery, page: &PageQuery) -> anyhow::Result<PageResult<Usage>>;
     UsagePersistence::summarize_usages => summarize_usages(q: &UsageQuery) -> anyhow::Result<UsageSummary>;
+    UsagePersistence::summarize_usages_by_model => summarize_usages_by_model(q: &UsageQuery) -> anyhow::Result<Vec<UsageModelSummary>>;
+    UsagePersistence::add_credential_usage_daily => add_credential_usage_daily(input: CredentialUsageDailyInput) -> anyhow::Result<CredentialUsageDaily>;
+    UsagePersistence::query_credential_usage_daily => query_credential_usage_daily(q: &CredentialUsageDailyQuery) -> anyhow::Result<Vec<CredentialUsageDaily>>;
+    UsagePersistence::get_open_credential_quota_cycle => get_open_credential_quota_cycle(credential_id: i64, window_key: &str) -> anyhow::Result<Option<CredentialQuotaCycle>>;
+    UsagePersistence::get_credential_quota_cycle => get_credential_quota_cycle(id: i64) -> anyhow::Result<Option<CredentialQuotaCycle>>;
+    UsagePersistence::upsert_credential_quota_cycle => upsert_credential_quota_cycle(input: CredentialQuotaCycleInput) -> anyhow::Result<CredentialQuotaCycle>;
+    UsagePersistence::query_credential_quota_cycles => query_credential_quota_cycles(q: &CredentialQuotaCycleQuery) -> anyhow::Result<Vec<CredentialQuotaCycle>>;
+    UsagePersistence::finalize_credential_quota_cycle => finalize_credential_quota_cycle(id: i64, period_end: Option<i64>, close_reason: &str, finalized_at: i64) -> anyhow::Result<Option<CredentialQuotaCycle>>;
+    UsagePersistence::upsert_credential_quota_cycle_model => upsert_credential_quota_cycle_model(input: CredentialQuotaCycleModelInput) -> anyhow::Result<CredentialQuotaCycleModel>;
+    UsagePersistence::list_credential_quota_cycle_models => list_credential_quota_cycle_models(cycle_id: i64) -> anyhow::Result<Vec<CredentialQuotaCycleModel>>;
     UsagePersistence::add_usage_rollup => add_usage_rollup(input: UsageRollupInput) -> anyhow::Result<UsageRollup>;
     UsagePersistence::list_usage_rollups => list_usage_rollups(granularity: &str, from: i64, to: i64, user_id: Option<i64>) -> anyhow::Result<Vec<UsageRollup>>;
     UsagePersistence::clear_usages => clear_usages() -> anyhow::Result<()>;

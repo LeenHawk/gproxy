@@ -42,6 +42,10 @@ async fn retention_sweep(state: &AppState) -> anyhow::Result<()> {
         return Ok(());
     };
     let cutoff = crate::util::time::unix_now() - days.saturating_mul(SECS_PER_DAY);
+    // Open quota cycles use raw rows only for the not-yet-checkpointed tail.
+    // Materialize that tail before retention makes it unavailable; completed
+    // cycle and daily aggregates are intentionally outside normal retention.
+    crate::credentials::quota_history::checkpoint_open_cycles(state, cutoff).await?;
     let removed = state.persistence.purge_before(cutoff).await?;
     if removed > 0 {
         tracing::info!(removed, days, "retention sweep purged old usage/log rows");

@@ -21,7 +21,10 @@ use super::entities::routing::{alias, route, route_member};
 use super::entities::settings::instance_setting;
 use super::entities::tokenize::tokenizer_vocab;
 use super::entities::transform::{provider_rule_set, routing_rule, rule, rule_set};
-use super::entities::usage::{usage, usage_rollup};
+use super::entities::usage::{
+    credential_quota_cycle, credential_quota_cycle_model, credential_usage_daily, usage,
+    usage_rollup,
+};
 
 mod repair_provider_models;
 mod repair_quota;
@@ -58,6 +61,9 @@ pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> 
     // §8-D usage
     create_table(conn, &schema, usage::Entity).await?;
     create_table(conn, &schema, usage_rollup::Entity).await?;
+    create_table(conn, &schema, credential_usage_daily::Entity).await?;
+    create_table(conn, &schema, credential_quota_cycle::Entity).await?;
+    create_table(conn, &schema, credential_quota_cycle_model::Entity).await?;
     create_rollup_unique_index(conn).await?;
     create_table(conn, &schema, downstream_request::Entity).await?;
     create_table(conn, &schema, upstream_request::Entity).await?;
@@ -139,6 +145,16 @@ pub(super) async fn create_composite_unique_indexes(
             "credential_model_statuses",
             "credential_id, channel, model_id",
         ),
+        (
+            "uq_credential_quota_cycles_open",
+            "credential_quota_cycles",
+            "credential_id, window_key, open_slot",
+        ),
+        (
+            "uq_credential_quota_cycle_models_dims",
+            "credential_quota_cycle_models",
+            "cycle_id, model",
+        ),
     ];
     for (name, table, cols) in defs {
         let sql = if mysql {
@@ -152,6 +168,36 @@ pub(super) async fn create_composite_unique_indexes(
             Err(e) if mysql && e.to_string().contains("1061") => {}
             Err(e) => return Err(e.into()),
         }
+    }
+
+    // Nullable models need NULL folded to one stable bucket. Keep this
+    // expression index separate from `defs`, whose columns are all NOT NULL.
+    let sql = if mysql {
+        "CREATE UNIQUE INDEX uq_credential_usage_daily_dims ON credential_usage_daily (\
+         day_start, credential_id, (COALESCE(model, '')))"
+            .to_owned()
+    } else {
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_credential_usage_daily_dims ON \
+         credential_usage_daily (day_start, credential_id, COALESCE(model, ''))"
+            .to_owned()
+    };
+    match conn.execute_unprepared(&sql).await {
+        Ok(_) => {}
+        Err(e) if mysql && e.to_string().contains("1061") => {}
+        Err(e) => return Err(e.into()),
+    }
+
+    let sql = if mysql {
+        "CREATE INDEX ix_credential_quota_cycles_history ON credential_quota_cycles \
+         (credential_id, window_key, period_start)"
+    } else {
+        "CREATE INDEX IF NOT EXISTS ix_credential_quota_cycles_history ON \
+         credential_quota_cycles (credential_id, window_key, period_start)"
+    };
+    match conn.execute_unprepared(sql).await {
+        Ok(_) => {}
+        Err(e) if mysql && e.to_string().contains("1061") => {}
+        Err(e) => return Err(e.into()),
     }
     Ok(())
 }
@@ -196,7 +242,7 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
     } else {
         current
     };
-
+    let migrated_credential_history = current < 23;
     for m in pending(current) {
         for sql in m.sql_for(dialect) {
             if added_column_exists(conn, dialect, sql).await? {
@@ -211,6 +257,9 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
     repair_instance_settings_schema(conn, dialect).await?;
     repair_provider_models::run(conn, dialect).await?;
     repair_quota::run(conn, dialect).await?;
+    if migrated_credential_history && matches!(dialect, MigrationDialect::Sqlite) {
+        super::ops::usage::credential_history::reconcile_daily(conn, None, None).await?;
+    }
     Ok(())
 }
 

@@ -8,11 +8,15 @@ use bytes::Bytes;
 use http::{Method, Request, StatusCode, header};
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashSet;
 
 use super::auth;
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, exact_url, join_url};
-use crate::channel::usage::{UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    UsageSnapshot, UsageWindow, UsageWindowDescriptor, UsageWindowMeter, UsageWindowScope,
+};
+use crate::channel::usage_descriptor::with_known_duration;
 
 pub(super) fn request(
     secret: &Value,
@@ -55,10 +59,35 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         usage.five_hour.to_window("five_hour"),
         usage.seven_day.to_window("seven_day"),
     ];
-    // Plan/model-specific windows really are nullable. Normalize the stable
-    // Sonnet window when present; experimental windows remain intact in `raw`.
+    let mut scoped_seen = HashSet::new();
+    // Plan/model-specific windows really are nullable. Normalize stable model
+    // windows when present; experimental windows remain intact in `raw`.
+    if let Some(window) = usage.seven_day_opus {
+        scoped_seen.insert("model:opus".to_owned());
+        windows.push(window.to_window("seven_day_opus").label("Opus"));
+    }
     if let Some(window) = usage.seven_day_sonnet {
+        scoped_seen.insert("model:sonnet".to_owned());
         windows.push(window.to_window("seven_day_sonnet").label("Sonnet"));
+    }
+    for limit in usage
+        .limits
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .filter(|limit| limit.kind.as_deref() == Some("weekly_scoped"))
+    {
+        let Some(scope) = limit.normalized_scope() else {
+            continue;
+        };
+        if !scoped_seen.insert(scope.identity()) {
+            continue;
+        }
+        windows.push(
+            limit
+                .to_window(scope.window_name())
+                .label(scope.label().to_owned()),
+        );
     }
     Some(UsageSnapshot {
         plan: raw
@@ -73,22 +102,192 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
     })
 }
 
+pub(super) fn describe(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+    let scope = match window.name.as_str() {
+        "five_hour" | "seven_day" => UsageWindowScope::All,
+        "seven_day_opus" => UsageWindowScope::Models {
+            models: vec!["opus".into()],
+        },
+        "seven_day_sonnet" => UsageWindowScope::Models {
+            models: vec!["sonnet".into()],
+        },
+        name if name.starts_with("weekly_model:") || name.starts_with("weekly_surface:") => {
+            describe_scoped(snapshot, name).unwrap_or(UsageWindowScope::Unknown)
+        }
+        _ => UsageWindowScope::Unknown,
+    };
+    let descriptor = UsageWindowDescriptor::from_window(window)
+        .scope(scope)
+        .meter(UsageWindowMeter::Opaque);
+    match window.name.as_str() {
+        "five_hour" => with_known_duration(descriptor, window, 5 * 60 * 60),
+        "seven_day" | "seven_day_opus" | "seven_day_sonnet" => {
+            with_known_duration(descriptor, window, 7 * 24 * 60 * 60)
+        }
+        name if name.starts_with("weekly_") => {
+            with_known_duration(descriptor, window, 7 * 24 * 60 * 60)
+        }
+        _ => descriptor,
+    }
+}
+
+fn describe_scoped(snapshot: &UsageSnapshot, name: &str) -> Option<UsageWindowScope> {
+    let usage: WebUsage = serde_json::from_value(snapshot.raw.clone()).ok()?;
+    usage
+        .limits?
+        .into_iter()
+        .filter_map(|limit| limit.normalized_scope())
+        .find(|scope| scope.window_name() == name)
+        .map(WebNormalizedScope::scope)
+}
+
 #[derive(Deserialize)]
 struct WebUsage {
     five_hour: WebWindow,
     seven_day: WebWindow,
+    seven_day_opus: Option<WebWindow>,
     seven_day_sonnet: Option<WebWindow>,
+    limits: Option<Vec<WebLimit>>,
 }
 
 #[derive(Deserialize)]
 struct WebWindow {
-    utilization: f64,
+    utilization: Option<f64>,
     resets_at: String,
 }
 
 impl WebWindow {
     fn to_window(&self, name: &str) -> UsageWindow {
-        UsageWindow::percent(name, self.utilization).resets_iso(self.resets_at.clone())
+        UsageWindow {
+            name: name.to_owned(),
+            used_percent: self.utilization,
+            ..Default::default()
+        }
+        .resets_iso(self.resets_at.clone())
+    }
+}
+
+#[derive(Deserialize)]
+struct WebLimit {
+    kind: Option<String>,
+    percent: Option<f64>,
+    resets_at: Option<String>,
+    scope: Option<WebLimitScope>,
+}
+
+impl WebLimit {
+    fn to_window(&self, name: impl Into<String>) -> UsageWindow {
+        let mut window = UsageWindow {
+            name: name.into(),
+            used_percent: self.percent,
+            ..Default::default()
+        };
+        if let Some(reset) = &self.resets_at {
+            window = window.resets_iso(reset.clone());
+        }
+        window
+    }
+
+    fn normalized_scope(&self) -> Option<WebNormalizedScope> {
+        let scope = self.scope.as_ref()?;
+        if let Some(model) = &scope.model {
+            let id = non_empty(model.id.as_deref());
+            let display = non_empty(model.display_name.as_deref());
+            let selector = id.or(display)?.to_owned();
+            return Some(WebNormalizedScope::Model {
+                key: scope_key(&selector),
+                label: display.unwrap_or(&selector).to_owned(),
+                selector,
+            });
+        }
+        let surface = non_empty(scope.surface.as_deref())?.to_owned();
+        Some(WebNormalizedScope::Surface {
+            key: scope_key(&surface),
+            surface,
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct WebLimitScope {
+    model: Option<WebLimitModel>,
+    surface: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct WebLimitModel {
+    display_name: Option<String>,
+    id: Option<String>,
+}
+
+enum WebNormalizedScope {
+    Model {
+        key: String,
+        label: String,
+        selector: String,
+    },
+    Surface {
+        key: String,
+        surface: String,
+    },
+}
+
+impl WebNormalizedScope {
+    fn identity(&self) -> String {
+        match self {
+            Self::Model { label, .. } => format!("model:{}", scope_key(label)),
+            Self::Surface { key, .. } => format!("surface:{key}"),
+        }
+    }
+
+    fn window_name(&self) -> String {
+        match self {
+            Self::Model { key, .. } => format!("weekly_model:{key}"),
+            Self::Surface { key, .. } => format!("weekly_surface:{key}"),
+        }
+    }
+
+    fn label(&self) -> &str {
+        match self {
+            Self::Model { label, .. } => label,
+            Self::Surface { surface, .. } => surface,
+        }
+    }
+
+    fn scope(self) -> UsageWindowScope {
+        match self {
+            Self::Model { selector, .. } => UsageWindowScope::Models {
+                models: vec![selector],
+            },
+            Self::Surface { surface, .. } => UsageWindowScope::Feature { feature: surface },
+        }
+    }
+}
+
+fn non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn scope_key(value: &str) -> String {
+    let mut out = String::new();
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('_');
+    if out.is_empty() {
+        "scoped".to_owned()
+    } else {
+        out.to_owned()
     }
 }
 

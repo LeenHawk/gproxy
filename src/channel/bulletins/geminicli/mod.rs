@@ -100,6 +100,14 @@ impl Channel for GeminiCliChannel {
     ) -> Option<crate::channel::UsageSnapshot> {
         envelope::parse_user_quota(status, body)
     }
+
+    fn describe_usage_window(
+        &self,
+        snapshot: &crate::channel::UsageSnapshot,
+        index: usize,
+    ) -> crate::channel::UsageWindowDescriptor {
+        envelope::describe_user_quota_window(snapshot, index)
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

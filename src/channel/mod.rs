@@ -20,6 +20,7 @@ pub mod resolve;
 pub mod responses_websocket;
 pub mod settings;
 pub mod shaping;
+pub(crate) mod usage_descriptor;
 
 pub use gproxy_channel_api::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, Channel, ChannelCatalogEntry,
@@ -29,6 +30,8 @@ pub use gproxy_channel_api::{
     LoginMode, ModelCatalog, PrepareCtx, PreparedRequest, RateLimitResetCreditConsumeOutcome,
     RateLimitResetCreditConsumeResponse, RateLimitResetCredits, RefreshCtx, SettingControl,
     ShapeCtx, TransportKind, UsageCredits, UsageSnapshot, UsageWindow,
+    UsageWindowBoundaryConfidence, UsageWindowBoundarySource, UsageWindowDescriptor,
+    UsageWindowMeter, UsageWindowScope,
 };
 pub use gproxy_channel_api::{
     disposition, login, prepared, registration, routes, transport, usage,

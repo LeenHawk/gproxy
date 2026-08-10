@@ -33,5 +33,6 @@ pub use registration::{ChannelRegistration, RegisteredChannel};
 pub use transport::ByteStreamDecoder as ChannelStreamDecoder;
 pub use usage::{
     RateLimitResetCreditConsumeOutcome, RateLimitResetCreditConsumeResponse, RateLimitResetCredits,
-    UsageCredits, UsageSnapshot, UsageWindow,
+    UsageCredits, UsageSnapshot, UsageWindow, UsageWindowBoundaryConfidence,
+    UsageWindowBoundarySource, UsageWindowDescriptor, UsageWindowMeter, UsageWindowScope,
 };

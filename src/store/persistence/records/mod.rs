@@ -34,4 +34,8 @@ pub use transform::{
     ProviderRuleSet, ProviderRuleSetInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet,
     RuleSetInput,
 };
-pub use usage::{Usage, UsageInput, UsageRollup, UsageRollupInput, UsageSummary};
+pub use usage::{
+    CredentialQuotaCycle, CredentialQuotaCycleInput, CredentialQuotaCycleModel,
+    CredentialQuotaCycleModelInput, CredentialUsageDaily, CredentialUsageDailyInput, Usage,
+    UsageInput, UsageModelSummary, UsageRollup, UsageRollupInput, UsageSummary,
+};

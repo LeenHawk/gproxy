@@ -6,11 +6,17 @@ use crate::store::persistence::batch::AdminEntity;
 use crate::store::persistence::db::entities::{logs, usage};
 use crate::store::persistence::metrics::MetricsAggregate;
 use crate::store::persistence::records::{
-    AuditLog, AuditLogInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
-    UpstreamRequestInput, Usage, UsageInput, UsageRollup, UsageRollupInput, UsageSummary,
+    AuditLog, AuditLogInput, CredentialQuotaCycle, CredentialQuotaCycleInput,
+    CredentialQuotaCycleModel, CredentialQuotaCycleModelInput, CredentialUsageDaily,
+    CredentialUsageDailyInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
+    UpstreamRequestInput, Usage, UsageInput, UsageModelSummary, UsageRollup, UsageRollupInput,
+    UsageSummary,
 };
 use crate::store::persistence::traits::UsagePersistence;
-use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, PageResult, UsageQuery};
+use crate::store::persistence::{
+    AuditLogQuery, CredentialQuotaCycleQuery, CredentialUsageDailyQuery, LogQuery, PageQuery,
+    PageResult, UsageQuery,
+};
 
 #[async_trait]
 impl UsagePersistence for DbPersistence {
@@ -32,6 +38,77 @@ impl UsagePersistence for DbPersistence {
     }
     async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
         ops::usage::usages::summarize(&self.conn, q).await
+    }
+    async fn summarize_usages_by_model(
+        &self,
+        q: &UsageQuery,
+    ) -> anyhow::Result<Vec<UsageModelSummary>> {
+        ops::usage::usages::summarize_by_model(&self.conn, q).await
+    }
+    async fn add_credential_usage_daily(
+        &self,
+        input: CredentialUsageDailyInput,
+    ) -> anyhow::Result<CredentialUsageDaily> {
+        ops::usage::credential_history::add_daily(&self.conn, input).await
+    }
+    async fn query_credential_usage_daily(
+        &self,
+        q: &CredentialUsageDailyQuery,
+    ) -> anyhow::Result<Vec<CredentialUsageDaily>> {
+        ops::usage::credential_history::query_daily(&self.conn, q).await
+    }
+    async fn get_open_credential_quota_cycle(
+        &self,
+        credential_id: i64,
+        window_key: &str,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>> {
+        ops::usage::credential_history::get_open_cycle(&self.conn, credential_id, window_key).await
+    }
+    async fn get_credential_quota_cycle(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>> {
+        ops::usage::credential_history::get_cycle(&self.conn, id).await
+    }
+    async fn upsert_credential_quota_cycle(
+        &self,
+        input: CredentialQuotaCycleInput,
+    ) -> anyhow::Result<CredentialQuotaCycle> {
+        ops::usage::credential_history::upsert_cycle(&self.conn, input).await
+    }
+    async fn query_credential_quota_cycles(
+        &self,
+        q: &CredentialQuotaCycleQuery,
+    ) -> anyhow::Result<Vec<CredentialQuotaCycle>> {
+        ops::usage::credential_history::query_cycles(&self.conn, q).await
+    }
+    async fn finalize_credential_quota_cycle(
+        &self,
+        id: i64,
+        period_end: Option<i64>,
+        close_reason: &str,
+        finalized_at: i64,
+    ) -> anyhow::Result<Option<CredentialQuotaCycle>> {
+        ops::usage::credential_history::finalize_cycle(
+            &self.conn,
+            id,
+            period_end,
+            close_reason,
+            finalized_at,
+        )
+        .await
+    }
+    async fn upsert_credential_quota_cycle_model(
+        &self,
+        input: CredentialQuotaCycleModelInput,
+    ) -> anyhow::Result<CredentialQuotaCycleModel> {
+        ops::usage::credential_history::upsert_cycle_model(&self.conn, input).await
+    }
+    async fn list_credential_quota_cycle_models(
+        &self,
+        cycle_id: i64,
+    ) -> anyhow::Result<Vec<CredentialQuotaCycleModel>> {
+        ops::usage::credential_history::list_cycle_models(&self.conn, cycle_id).await
     }
     async fn add_usage_rollup(&self, input: UsageRollupInput) -> anyhow::Result<UsageRollup> {
         ops::usage::usage_rollups::add(&self.conn, input).await

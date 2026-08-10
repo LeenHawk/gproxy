@@ -50,6 +50,35 @@ export interface CredentialModelStatus extends CredentialStatus {
   model_id: string;
 }
 
+export interface UsageTokenTotals {
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  image_output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  total_tokens: number;
+  cost_usd: string;
+}
+
+export interface UsageModelTotals extends UsageTokenTotals {
+  model: string;
+}
+
+export interface UsageWindowLocalUsage {
+  period_start?: number;
+  observed_at: number;
+  coverage: "complete" | "partial" | "unknown";
+  scope: "all" | "models" | "feature" | "unknown";
+  totals: UsageTokenTotals;
+  by_model: UsageModelTotals[];
+  estimated_capacity?: {
+    tokens?: number;
+    cost_usd?: string;
+    basis: "current_mix";
+  };
+}
+
 export interface UsageWindow {
   name: string;
   label?: string;
@@ -59,6 +88,7 @@ export interface UsageWindow {
   resets_at?: string;
   resets_at_unix?: number;
   window_seconds?: number;
+  local_usage?: UsageWindowLocalUsage;
 }
 
 export interface UsageCredits {
@@ -80,6 +110,102 @@ export interface UsageSnapshot {
   credits?: UsageCredits;
   rate_limit_reset_credits?: RateLimitResetCredits;
   raw: unknown;
+}
+
+export interface CredentialUsageDay {
+  day_start: number;
+  totals: UsageTokenTotals;
+}
+
+/** Local, persisted usage accounting. This endpoint never contacts the upstream. */
+export interface CredentialUsageSummary {
+  coverage_start?: number;
+  lifetime: UsageTokenTotals;
+  last_7_days: CredentialUsageDay[];
+  by_model: UsageModelTotals[];
+}
+
+export interface CredentialQuotaCycle {
+  id: number;
+  credential_id: number;
+  provider_id: number;
+  channel: string;
+  window_key: string;
+  name: string;
+  label: string | null;
+  scope_kind: string;
+  scope_json: unknown | null;
+  meter_kind: string;
+  period_start: number | null;
+  period_end: number | null;
+  boundary_source: string;
+  boundary_confidence: string;
+  close_reason: string | null;
+  status: string;
+  last_observed_at: number | null;
+  used_percent: string | null;
+  upstream_used: string | null;
+  upstream_limit: string | null;
+  coverage: string;
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  image_output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_5m_tokens: number;
+  cache_creation_30m_tokens: number;
+  cache_creation_1h_tokens: number;
+  cost: string;
+  estimated_tokens: number | null;
+  estimated_cost: string | null;
+  aggregated_through: number | null;
+  finalized_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CredentialQuotaCycleModel {
+  id: number;
+  cycle_id: number;
+  model: string;
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  image_output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_5m_tokens: number;
+  cache_creation_30m_tokens: number;
+  cache_creation_1h_tokens: number;
+  cost: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CredentialQuotaCycleDetail {
+  cycle: CredentialQuotaCycle;
+  by_model: CredentialQuotaCycleModel[];
+}
+
+export interface CredentialQuotaCycleFilter {
+  credential_id?: number;
+  provider_id?: number;
+  channel?: string;
+  window_key?: string;
+  status?: string;
+  from?: number;
+  to?: number;
+  before_id?: number;
+  limit?: number;
+}
+
+export interface CredentialUsageComparison extends CredentialUsageSummary {
+  credential_id: number;
+  credential_label: string;
+  provider_id: number;
+  channel: string;
+  supports_upstream_usage: boolean;
+  /** Last stored quota-window observations, when the channel exposes upstream usage. */
+  current_windows: CredentialQuotaCycle[];
 }
 
 export type RateLimitResetCreditOutcome = "reset" | "nothing_to_reset" | "no_credit" | "already_redeemed";
@@ -130,6 +256,60 @@ export const credentialUsageQuery = (credentialId: number) =>
     enabled: false,
     retry: false,
     staleTime: Infinity,
+  });
+
+/** Local-only summary for every credential kind, including plain API keys. */
+export const credentialUsageSummaryQuery = (credentialId: number) =>
+  queryOptions({
+    queryKey: ["credentials", credentialId, "usage-summary"],
+    queryFn: () =>
+      api<CredentialUsageSummary>(`/admin/credentials/${credentialId}/usage-summary`),
+    staleTime: 30_000,
+  });
+
+/** Local-only, cross-credential comparison. It must never trigger live upstream usage calls. */
+export const credentialUsageComparisonQuery = queryOptions({
+  queryKey: ["credential-usage-comparison"],
+  queryFn: () =>
+    api<CredentialUsageComparison[]>("/admin/credential-usage-comparison"),
+  staleTime: 30_000,
+});
+
+function credentialQuotaCycleQueryString(filter: CredentialQuotaCycleFilter): string {
+  const params = new URLSearchParams();
+  if (filter.credential_id !== undefined) params.set("credential_id", String(filter.credential_id));
+  if (filter.provider_id !== undefined) params.set("provider_id", String(filter.provider_id));
+  if (filter.channel) params.set("channel", filter.channel);
+  if (filter.window_key) params.set("window_key", filter.window_key);
+  if (filter.status) params.set("status", filter.status);
+  if (filter.from !== undefined) params.set("from", String(filter.from));
+  if (filter.to !== undefined) params.set("to", String(filter.to));
+  if (filter.before_id !== undefined) params.set("before_id", String(filter.before_id));
+  if (filter.limit !== undefined) params.set("limit", String(filter.limit));
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export function fetchCredentialQuotaCycles(
+  filter: CredentialQuotaCycleFilter = {},
+): Promise<CredentialQuotaCycle[]> {
+  return api<CredentialQuotaCycle[]>(
+    `/admin/credential-quota-cycles${credentialQuotaCycleQueryString(filter)}`,
+  );
+}
+
+export const credentialQuotaCyclesQuery = (filter: CredentialQuotaCycleFilter = {}) =>
+  queryOptions({
+    queryKey: ["credential-quota-cycles", filter],
+    queryFn: () => fetchCredentialQuotaCycles(filter),
+    staleTime: 30_000,
+  });
+
+export const credentialQuotaCycleDetailQuery = (cycleId: number) =>
+  queryOptions({
+    queryKey: ["credential-quota-cycles", cycleId],
+    queryFn: () => api<CredentialQuotaCycleDetail>(`/admin/credential-quota-cycles/${cycleId}`),
+    staleTime: 30_000,
   });
 
 export function consumeRateLimitResetCredit(

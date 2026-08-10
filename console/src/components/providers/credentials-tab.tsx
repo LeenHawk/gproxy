@@ -76,11 +76,9 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
 
   const actions = (c: CredentialView) => (
     <div className="flex items-center justify-end gap-1">
-      {meta?.usage && (
-        <Button variant="ghost" size="icon" aria-label={t("usage.open")} onClick={(e) => { e.stopPropagation(); setUsageTarget(c); }}>
-          <Gauge className="size-4" aria-hidden />
-        </Button>
-      )}
+      <Button variant="ghost" size="icon" aria-label={t("usage.open")} onClick={(e) => { e.stopPropagation(); setUsageTarget(c); }}>
+        <Gauge className="size-4" aria-hidden />
+      </Button>
       <Button
         variant="ghost"
         size="icon"
@@ -281,8 +279,14 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         open={usageTarget !== undefined}
         onOpenChange={(o) => { if (!o) setUsageTarget(undefined); }}
         title={`${t("usage.title")} — ${usageTarget ? credName(usageTarget, t("creds.unnamed", { id: usageTarget.id })) : ""}`}
+        wide
       >
-        {usageTarget && <UsageCard credentialId={usageTarget.id} />}
+        {usageTarget && (
+          <UsageCard
+            credentialId={usageTarget.id}
+            supportsUpstreamUsage={meta?.usage === true}
+          />
+        )}
       </EntityDialog>
 
       <EntityDialog

@@ -19,7 +19,11 @@ use std::collections::HashSet;
 use super::auth;
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, exact_url, join_url};
-use crate::channel::usage::{UsageCredits, UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    UsageCredits, UsageSnapshot, UsageWindow, UsageWindowDescriptor, UsageWindowMeter,
+    UsageWindowScope,
+};
+use crate::channel::usage_descriptor::with_known_duration;
 
 const USAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -87,7 +91,7 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         if let Some(w) = window {
             let mut w = w.to_window(name);
             if let Some(label) = label {
-                scoped_seen.insert(scope_key(label));
+                scoped_seen.insert(format!("model:{}", scope_key(label)));
                 w = w.label(label);
             }
             windows.push(w);
@@ -106,14 +110,17 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
             windows.push(limit.to_window("seven_day"));
         }
         for limit in limits.iter().filter(|limit| limit.kind_is("weekly_scoped")) {
-            let Some(label) = limit.scope_label() else {
+            let Some(scope) = limit.normalized_scope() else {
                 continue;
             };
-            let key = scope_key(&label);
-            if !scoped_seen.insert(key.clone()) {
+            if !scoped_seen.insert(scope.identity()) {
                 continue;
             }
-            windows.push(limit.to_window(format!("weekly_scoped:{key}")).label(label));
+            windows.push(
+                limit
+                    .to_window(scope.window_name())
+                    .label(scope.label().to_owned()),
+            );
         }
     }
 
@@ -132,6 +139,58 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
     })
 }
 
+pub(super) fn describe(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+
+    let scope = match window.name.as_str() {
+        "five_hour" | "seven_day" => UsageWindowScope::All,
+        "seven_day_opus" => UsageWindowScope::Models {
+            models: vec!["opus".into()],
+        },
+        "seven_day_sonnet" => UsageWindowScope::Models {
+            models: vec!["sonnet".into()],
+        },
+        name if name.starts_with("weekly_model:") => describe_scoped(snapshot, name)
+            .unwrap_or_else(|| UsageWindowScope::Models {
+                models: vec![name.trim_start_matches("weekly_model:").to_owned()],
+            }),
+        name if name.starts_with("weekly_surface:") => describe_scoped(snapshot, name)
+            .unwrap_or_else(|| UsageWindowScope::Feature {
+                feature: name.trim_start_matches("weekly_surface:").to_owned(),
+            }),
+        _ => UsageWindowScope::Unknown,
+    };
+    let descriptor = UsageWindowDescriptor::from_window(window)
+        .scope(scope)
+        .meter(UsageWindowMeter::Opaque);
+    match window.name.as_str() {
+        "five_hour" => with_known_duration(descriptor, window, 5 * 60 * 60),
+        "seven_day" | "seven_day_opus" | "seven_day_sonnet" => {
+            with_known_duration(descriptor, window, 7 * 24 * 60 * 60)
+        }
+        name if name.starts_with("weekly_") => {
+            with_known_duration(descriptor, window, 7 * 24 * 60 * 60)
+        }
+        _ => descriptor,
+    }
+}
+
+fn describe_scoped(snapshot: &UsageSnapshot, name: &str) -> Option<UsageWindowScope> {
+    let usage: ClaudeUsage = serde_json::from_value(snapshot.raw.clone()).ok()?;
+    usage
+        .limits?
+        .into_iter()
+        .filter(|limit| limit.kind_is("weekly_scoped"))
+        .filter_map(|limit| limit.normalized_scope())
+        .find(|scope| scope.window_name() == name)
+        .map(|scope| scope.scope())
+}
+
 /// One rolling window: `utilization` is a percentage (0–100, sometimes a bare
 /// int), `resets_at` an ISO-8601 timestamp.
 #[derive(Deserialize)]
@@ -142,7 +201,11 @@ struct ClaudeWindow {
 
 impl ClaudeWindow {
     fn to_window(&self, name: &str) -> UsageWindow {
-        let mut w = UsageWindow::percent(name, self.utilization.unwrap_or(0.0));
+        let mut w = UsageWindow {
+            name: name.to_owned(),
+            used_percent: self.utilization,
+            ..Default::default()
+        };
         if let Some(iso) = &self.resets_at {
             w = w.resets_iso(iso.clone());
         }
@@ -188,24 +251,78 @@ impl ClaudeLimit {
     }
 
     fn to_window(&self, name: impl Into<String>) -> UsageWindow {
-        let mut w = UsageWindow::percent(name, self.percent.unwrap_or(0.0));
+        let mut w = UsageWindow {
+            name: name.into(),
+            used_percent: self.percent,
+            ..Default::default()
+        };
         if let Some(iso) = &self.resets_at {
             w = w.resets_iso(iso.clone());
         }
         w
     }
 
-    fn scope_label(&self) -> Option<String> {
+    fn normalized_scope(&self) -> Option<NormalizedScope> {
         let scope = self.scope.as_ref()?;
-        scope
-            .model
-            .as_ref()
-            .and_then(|model| {
-                non_empty(&model.display_name)
-                    .or_else(|| non_empty(&model.id))
-                    .map(str::to_owned)
-            })
-            .or_else(|| non_empty(&scope.surface).map(str::to_owned))
+        if let Some(model) = &scope.model {
+            let id = non_empty(&model.id);
+            let display = non_empty(&model.display_name);
+            let selector = id.or(display)?.to_owned();
+            return Some(NormalizedScope::Model {
+                key: scope_key(&selector),
+                label: display.unwrap_or(&selector).to_owned(),
+                selector,
+            });
+        }
+        let surface = non_empty(&scope.surface)?.to_owned();
+        Some(NormalizedScope::Surface {
+            key: scope_key(&surface),
+            surface,
+        })
+    }
+}
+
+enum NormalizedScope {
+    Model {
+        key: String,
+        label: String,
+        selector: String,
+    },
+    Surface {
+        key: String,
+        surface: String,
+    },
+}
+
+impl NormalizedScope {
+    fn identity(&self) -> String {
+        match self {
+            Self::Model { label, .. } => format!("model:{}", scope_key(label)),
+            Self::Surface { key, .. } => format!("surface:{key}"),
+        }
+    }
+
+    fn window_name(&self) -> String {
+        match self {
+            Self::Model { key, .. } => format!("weekly_model:{key}"),
+            Self::Surface { key, .. } => format!("weekly_surface:{key}"),
+        }
+    }
+
+    fn label(&self) -> &str {
+        match self {
+            Self::Model { label, .. } => label,
+            Self::Surface { surface, .. } => surface,
+        }
+    }
+
+    fn scope(self) -> UsageWindowScope {
+        match self {
+            Self::Model { selector, .. } => UsageWindowScope::Models {
+                models: vec![selector],
+            },
+            Self::Surface { surface, .. } => UsageWindowScope::Feature { feature: surface },
+        }
     }
 }
 

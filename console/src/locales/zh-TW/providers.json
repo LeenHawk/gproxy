@@ -243,8 +243,9 @@
     "more": "另有 {{count}} 個…"
   },
   "usage": {
-    "title": "上游用量",
+    "title": "憑證用量",
     "open": "用量",
+    "upstreamTitle": "上游額度",
     "fetch": "立即查詢",
     "fetching": "查詢中",
     "refresh": "重新整理",
@@ -256,6 +257,32 @@
     "unlimited": "無限制",
     "raw": "原始回應",
     "resets": "{{time}} 重設",
+    "local": {
+      "summaryTitle": "GPROXY 已記錄用量",
+      "summaryDescription": "該憑證的本機計量統計，不會請求上游。",
+      "summaryLoadError": "載入已記錄用量失敗",
+      "trackedSince": "從 {{time}} 開始記錄",
+      "lifetime": "已記錄累計",
+      "last7Days": "最近 7 天",
+      "dailyTokens": "每日 tokens",
+      "noRecordedUsage": "最近 7 天尚無已記錄用量。",
+      "recorded": "經 GPROXY",
+      "estimatedCurrentMix": "約算（依目前模型/價格結構）",
+      "perWindow": "每週期",
+      "byModel": "依模型（{{count}}）",
+      "tokens": "tokens",
+      "requests": "次請求",
+      "input": "輸入",
+      "output": "輸出",
+      "imageOutput": "圖片輸出",
+      "cacheRead": "快取讀取",
+      "cacheCreation": "快取建立",
+      "coverage": {
+        "complete": "完整週期",
+        "partial": "部分週期",
+        "unknown": "涵蓋範圍未知"
+      }
+    },
     "reset": {
       "available": "重設次數",
       "consume": "使用重設",

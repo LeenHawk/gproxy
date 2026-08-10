@@ -13,7 +13,7 @@ use crate::error::ChannelError;
 use crate::metadata::ChannelMetadata;
 use crate::prepared::PreparedRequest;
 use crate::transport::{ByteStreamDecoder as ChannelStreamDecoder, UpstreamClient};
-use crate::usage::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
+use crate::usage::{RateLimitResetCreditConsumeResponse, UsageSnapshot, UsageWindowDescriptor};
 
 /// A model catalogue plus the wire family used by its serialized body.
 #[derive(Debug, Clone)]
@@ -203,6 +203,27 @@ pub trait Channel: Send + Sync {
         _body: &Bytes,
     ) -> Option<UsageSnapshot> {
         None
+    }
+
+    /// Describe the stable identity, scope, meter and period boundary of one
+    /// normalized usage window. The host calls this only with an index from
+    /// `snapshot.windows`; the conservative default keeps existing external
+    /// channel implementations source-compatible.
+    fn describe_usage_window(
+        &self,
+        snapshot: &UsageSnapshot,
+        index: usize,
+    ) -> UsageWindowDescriptor {
+        snapshot
+            .windows
+            .get(index)
+            .map(UsageWindowDescriptor::from_window)
+            .unwrap_or_else(|| {
+                UsageWindowDescriptor::from_window(&crate::usage::UsageWindow {
+                    name: format!("window_{index}"),
+                    ..Default::default()
+                })
+            })
     }
 
     /// Build a request to consume one earned rate-limit reset credit. Only

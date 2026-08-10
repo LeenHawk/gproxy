@@ -90,6 +90,14 @@ impl Channel for ClaudeWebChannel {
     ) -> Option<crate::channel::UsageSnapshot> {
         usage::parse(status, body)
     }
+
+    fn describe_usage_window(
+        &self,
+        snapshot: &crate::channel::UsageSnapshot,
+        index: usize,
+    ) -> crate::channel::UsageWindowDescriptor {
+        usage::describe(snapshot, index)
+    }
 }
 
 #[async_trait::async_trait]

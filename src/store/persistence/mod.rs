@@ -50,6 +50,33 @@ pub struct UsageQuery {
     pub limit: u64,
 }
 
+/// Filters permanent credential/day/model usage aggregates.
+#[derive(Debug, Default, Clone)]
+pub struct CredentialUsageDailyQuery {
+    pub credential_id: Option<i64>,
+    pub provider_id: Option<i64>,
+    /// Inclusive UTC day start.
+    pub from: Option<i64>,
+    /// Inclusive UTC day start.
+    pub to: Option<i64>,
+}
+
+/// Filters permanent quota-cycle history. `from`/`to` select cycles whose
+/// known time interval overlaps the requested inclusive range.
+#[derive(Debug, Default, Clone)]
+pub struct CredentialQuotaCycleQuery {
+    pub credential_id: Option<i64>,
+    pub provider_id: Option<i64>,
+    pub channel: Option<String>,
+    pub window_key: Option<String>,
+    pub status: Option<String>,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub before_id: Option<i64>,
+    /// Zero means no explicit limit.
+    pub limit: u64,
+}
+
 /// Filter + cursor for the downstream request log explorer. Provider, user,
 /// and route dimensions are resolved through the usage row sharing the same
 /// `request_id`.

@@ -16,7 +16,8 @@ use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{
     RateLimitResetCreditConsumeOutcome, RateLimitResetCreditConsumeResponse, RateLimitResetCredits,
-    UsageCredits, UsageSnapshot, UsageWindow,
+    UsageCredits, UsageSnapshot, UsageWindow, UsageWindowDescriptor, UsageWindowMeter,
+    UsageWindowScope,
 };
 
 /// Build `GET {base-without-/codex}/wham/usage` with the codex fingerprint.
@@ -102,6 +103,26 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
     })
 }
 
+pub(super) fn describe(snapshot: &UsageSnapshot, index: usize) -> UsageWindowDescriptor {
+    let Some(window) = snapshot.windows.get(index) else {
+        return UsageWindowDescriptor::from_window(&UsageWindow {
+            name: format!("window_{index}"),
+            ..Default::default()
+        });
+    };
+    let scope = window
+        .name
+        .split_once(':')
+        .filter(|(prefix, _)| matches!(*prefix, "additional_primary" | "additional_secondary"))
+        .map(|(_, feature)| UsageWindowScope::Feature {
+            feature: feature.to_owned(),
+        })
+        .unwrap_or(UsageWindowScope::All);
+    UsageWindowDescriptor::from_window(window)
+        .scope(scope)
+        .meter(UsageWindowMeter::Opaque)
+}
+
 pub(super) fn parse_reset_credit(
     status: StatusCode,
     body: &Bytes,
@@ -183,7 +204,11 @@ struct RateLimitWindowSnapshot {
 
 impl RateLimitWindowSnapshot {
     fn to_window(&self, name: &str) -> UsageWindow {
-        let mut w = UsageWindow::percent(name, self.used_percent.unwrap_or(0.0));
+        let mut w = UsageWindow {
+            name: name.to_owned(),
+            used_percent: self.used_percent,
+            ..Default::default()
+        };
         if let Some(secs) = self.limit_window_seconds {
             w = w.window_secs(secs);
         }
@@ -210,7 +235,13 @@ impl AdditionalRateLimitDetails {
             .metered_feature
             .as_deref()
             .filter(|s| !s.is_empty())
-            .map(str::to_owned)
+            .map(stable_key)
+            .or_else(|| {
+                self.limit_name
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .map(stable_key)
+            })
             .unwrap_or_else(|| format!("additional_{idx}"));
         let label = self
             .limit_name
@@ -233,6 +264,23 @@ impl AdditionalRateLimitDetails {
                     .label(label),
             );
         }
+    }
+}
+
+fn stable_key(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('_');
+    if out.is_empty() {
+        "additional".to_owned()
+    } else {
+        out.to_owned()
     }
 }
 

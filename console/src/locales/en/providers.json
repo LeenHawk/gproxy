@@ -243,8 +243,9 @@
     "more": "+{{count}} more…"
   },
   "usage": {
-    "title": "Upstream usage",
+    "title": "Credential usage",
     "open": "Usage",
+    "upstreamTitle": "Upstream quota",
     "fetch": "Fetch now",
     "fetching": "Fetching",
     "refresh": "Refresh",
@@ -256,6 +257,32 @@
     "unlimited": "Unlimited",
     "raw": "Raw response",
     "resets": "resets {{time}}",
+    "local": {
+      "summaryTitle": "GPROXY recorded usage",
+      "summaryDescription": "Local accounting for this credential; no upstream request is made.",
+      "summaryLoadError": "Failed to load recorded usage",
+      "trackedSince": "Tracked since {{time}}",
+      "lifetime": "Recorded total",
+      "last7Days": "Last 7 days",
+      "dailyTokens": "Daily tokens",
+      "noRecordedUsage": "No recorded usage in the last 7 days.",
+      "recorded": "Via GPROXY",
+      "estimatedCurrentMix": "Estimate (current model/price mix)",
+      "perWindow": "per window",
+      "byModel": "By model ({{count}})",
+      "tokens": "tokens",
+      "requests": "requests",
+      "input": "input",
+      "output": "output",
+      "imageOutput": "image output",
+      "cacheRead": "cache read",
+      "cacheCreation": "cache creation",
+      "coverage": {
+        "complete": "full window",
+        "partial": "partial window",
+        "unknown": "coverage unknown"
+      }
+    },
     "reset": {
       "available": "Reset credits",
       "consume": "Use reset",

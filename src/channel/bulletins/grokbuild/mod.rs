@@ -164,6 +164,14 @@ impl Channel for GrokBuildChannel {
     ) -> Option<crate::channel::UsageSnapshot> {
         usage::parse(status, body)
     }
+
+    fn describe_usage_window(
+        &self,
+        snapshot: &crate::channel::UsageSnapshot,
+        index: usize,
+    ) -> crate::channel::UsageWindowDescriptor {
+        usage::describe(snapshot, index)
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

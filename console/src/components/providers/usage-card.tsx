@@ -1,13 +1,21 @@
-import { useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronsUpDown, RefreshCw, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { consumeRateLimitResetCredit, credentialUsageQuery, type UsageCredits, type UsageWindow } from "@/api/credentials";
+import {
+  consumeRateLimitResetCredit,
+  credentialUsageQuery,
+  type UsageCredits,
+  type UsageWindow,
+} from "@/api/credentials";
 import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
+import { CredentialUsageSummaryCard } from "@/components/providers/credential-usage-summary";
+import { CredentialQuotaHistory } from "@/components/observability/credential-quota-history";
+import { formatUsageCount, formatUsageUsd } from "@/lib/credential-usage";
 
 const UNSUPPORTED_USAGE_MESSAGE = "channel exposes no usage endpoint";
 
@@ -51,6 +59,10 @@ function formatCredits(credits: UsageCredits, disabled: string, unlimited: strin
   return `${format(used)} / ${format(limit)}`;
 }
 
+function formatLocalTotal(totals: { total_tokens: number; cost_usd: string }, tokens: string): string {
+  return `${formatUsageCount(totals.total_tokens)} ${tokens} · ${formatUsageUsd(totals.cost_usd)}`;
+}
+
 function humanizeWindowName(name: string): string {
   return name
     .replace(/[_:.-]+/g, " ")
@@ -64,17 +76,33 @@ function idempotencyKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function UsageCard({ credentialId }: { credentialId: number }) {
+export function UsageCard({
+  credentialId,
+  supportsUpstreamUsage = false,
+}: {
+  credentialId: number;
+  supportsUpstreamUsage?: boolean;
+}) {
   const { t } = useTranslation("providers");
+  const queryClient = useQueryClient();
   const query = useQuery(credentialUsageQuery(credentialId));
   const snapshot = query.data;
   const { isFetched, isFetching, refetch } = query;
   const resetCredits = snapshot?.rate_limit_reset_credits;
+  const refreshUpstream = useCallback(async () => {
+    const result = await refetch();
+    if (result.isSuccess) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["credential-quota-cycles"] }),
+        queryClient.invalidateQueries({ queryKey: ["credential-usage-comparison"] }),
+      ]);
+    }
+  }, [queryClient, refetch]);
   const resetMutation = useMutation({
     mutationFn: () => consumeRateLimitResetCredit(credentialId, idempotencyKey()),
     onSuccess: (result) => {
       toast.success(t(`usage.reset.outcome.${result.outcome}`));
-      void refetch();
+      void refreshUpstream();
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : String(error));
@@ -90,30 +118,47 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
     : undefined;
 
   useEffect(() => {
-    if (isFetched || isFetching) return;
-    void refetch();
-  }, [credentialId, isFetched, isFetching, refetch]);
+    if (!supportsUpstreamUsage || isFetched || isFetching) return;
+    void refreshUpstream();
+  }, [credentialId, isFetched, isFetching, refreshUpstream, supportsUpstreamUsage]);
 
   return (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">{t("usage.sparingly")}</p>
-        <Button size="sm" variant="outline" disabled={!hasResolved || isFetching} onClick={() => void refetch()}>
-          <RefreshCw className={isFetching ? "size-4 animate-spin" : "size-4"} />
-          {isFetching ? t("usage.fetching") : hasResolved ? t("usage.refresh") : t("usage.fetching")}
-        </Button>
-      </div>
+      <CredentialUsageSummaryCard credentialId={credentialId} />
 
-      {errorText && <p className="text-sm text-destructive">{errorText}</p>}
+      {supportsUpstreamUsage && (
+        <div className="grid gap-4 border-t pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">{t("usage.upstreamTitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("usage.sparingly")}</p>
+            </div>
+            <Button size="sm" variant="outline" disabled={!hasResolved || isFetching} onClick={() => void refreshUpstream()}>
+              <RefreshCw className={isFetching ? "size-4 animate-spin" : "size-4"} />
+              {isFetching ? t("usage.fetching") : hasResolved ? t("usage.refresh") : t("usage.fetching")}
+            </Button>
+          </div>
 
-      {snapshot && (
-        <div className="grid gap-3">
+          {errorText && <p className="text-sm text-destructive">{errorText}</p>}
+
+          {snapshot && (
+            <div className="grid gap-3">
           {snapshot.plan && (
             <p className="text-sm"><span className="text-muted-foreground">{t("usage.plan")}:</span> <span className="font-medium">{snapshot.plan}</span></p>
           )}
           {snapshot.windows.map((w) => {
             const pct = windowPercent(w);
             const reset = windowReset(w);
+            const localUsage = w.local_usage;
+            const estimated = localUsage?.estimated_capacity;
+            const estimatedParts = estimated
+              ? [
+                  estimated.tokens !== undefined
+                    ? `≈${formatUsageCount(estimated.tokens)} ${t("usage.local.tokens")}`
+                    : undefined,
+                  estimated.cost_usd !== undefined ? `≈${formatUsageUsd(estimated.cost_usd)}` : undefined,
+                ].filter((part): part is string => part !== undefined)
+              : [];
             const label = w.label
               ? w.name.startsWith("weekly_scoped:")
                 ? t("usage.window.weekly_scoped", { scope: w.label })
@@ -133,6 +178,67 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
                   </span>
                 </div>
                 {pct !== undefined && <Progress value={pct} />}
+                {localUsage && (
+                  <div className="mt-1 grid gap-1.5 rounded-md border bg-muted/30 px-3 py-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
+                      <span className="text-muted-foreground">
+                        {t("usage.local.recorded")} · {t(`usage.local.coverage.${localUsage.coverage}`)}
+                      </span>
+                      <span className="font-medium">
+                        {formatLocalTotal(localUsage.totals, t("usage.local.tokens"))}
+                      </span>
+                    </div>
+                    {estimatedParts.length > 0 && (
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
+                        <span className="text-muted-foreground">{t("usage.local.estimatedCurrentMix")}</span>
+                        <span className="text-muted-foreground">
+                          {estimatedParts.join(" · ")} · {t("usage.local.perWindow")}
+                        </span>
+                      </div>
+                    )}
+                    {localUsage.by_model.length > 0 && (
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 px-1 text-xs text-muted-foreground">
+                            <ChevronsUpDown className="size-3" />
+                            {t("usage.local.byModel", { count: localUsage.by_model.length })}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="grid gap-1 border-t pt-1.5">
+                          {localUsage.by_model.map((model, index) => {
+                            const breakdown = [
+                              `${formatUsageCount(model.requests)} ${t("usage.local.requests")}`,
+                              model.input_tokens > 0
+                                ? `${t("usage.local.input")} ${formatUsageCount(model.input_tokens)}`
+                                : undefined,
+                              model.output_tokens > 0
+                                ? `${t("usage.local.output")} ${formatUsageCount(model.output_tokens)}`
+                                : undefined,
+                              model.image_output_tokens > 0
+                                ? `${t("usage.local.imageOutput")} ${formatUsageCount(model.image_output_tokens)}`
+                                : undefined,
+                              model.cache_read_tokens > 0
+                                ? `${t("usage.local.cacheRead")} ${formatUsageCount(model.cache_read_tokens)}`
+                                : undefined,
+                              model.cache_creation_tokens > 0
+                                ? `${t("usage.local.cacheCreation")} ${formatUsageCount(model.cache_creation_tokens)}`
+                                : undefined,
+                            ].filter((part): part is string => part !== undefined);
+                            return (
+                              <div key={`${model.model}-${index}`} className="grid gap-0.5 py-1 text-xs">
+                                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                                  <span className="break-all font-mono font-medium">{model.model}</span>
+                                  <span>{formatLocalTotal(model, t("usage.local.tokens"))}</span>
+                                </div>
+                                <span className="text-muted-foreground">{breakdown.join(" · ")}</span>
+                              </div>
+                            );
+                          })}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -172,8 +278,17 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
               </pre>
             </CollapsibleContent>
           </Collapsible>
+            </div>
+          )}
+
         </div>
       )}
+
+      <CredentialQuotaHistory
+        credentialId={credentialId}
+        compact
+        hideWhenEmpty={!supportsUpstreamUsage}
+      />
     </div>
   );
 }

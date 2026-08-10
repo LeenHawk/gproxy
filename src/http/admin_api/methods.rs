@@ -19,6 +19,11 @@ pub(super) fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
             | "tls-presets",
         ] => Some("GET,HEAD"),
         ["admin", "usage" | "logs" | "audit"] => Some("GET,HEAD,DELETE"),
+        [
+            "admin",
+            "credential-usage-comparison" | "credential-quota-cycles",
+        ] => Some("GET,HEAD"),
+        ["admin", "credential-quota-cycles", _] => Some("GET,HEAD"),
         ["admin", "batch", _] => Some("POST"),
         [
             "admin",
@@ -62,6 +67,7 @@ pub(super) fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
         ] => Some("GET,HEAD"),
         // Health snapshots double as operator resets (DELETE).
         ["admin", "credentials", _, "status" | "model-statuses"] => Some("GET,HEAD,DELETE"),
+        ["admin", "credentials", _, "usage-summary"] => Some("GET,HEAD"),
         ["admin", "providers", _, "upstream-models"]
         | [
             "admin",

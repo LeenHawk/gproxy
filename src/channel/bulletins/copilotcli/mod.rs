@@ -188,6 +188,14 @@ impl Channel for CopilotCliChannel {
     ) -> Option<crate::channel::UsageSnapshot> {
         usage::parse(status, body)
     }
+
+    fn describe_usage_window(
+        &self,
+        snapshot: &crate::channel::UsageSnapshot,
+        index: usize,
+    ) -> crate::channel::UsageWindowDescriptor {
+        usage::describe(snapshot, index)
+    }
 }
 
 /// GitHub device-code login: the operator visits the verification URL with the
