@@ -93,6 +93,7 @@
     "create_image": "建立圖像",
     "edit_image": "編輯圖像",
     "create_embedding": "建立嵌入",
+    "rerank": "重新排序",
     "compact_content": "壓縮內容",
     "create_conversation": "建立對話",
     "connect_realtime": "連線即時工作階段"

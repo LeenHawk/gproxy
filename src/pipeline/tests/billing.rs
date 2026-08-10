@@ -164,20 +164,31 @@ async fn compact_content_settles_usage() {
 }
 
 #[tokio::test]
-async fn buffered_image_sse_settles_completed_event_usage() {
+async fn image_sse_streams_and_settles_completed_event_usage() {
+    let partial = json!({
+        "type": "image_generation.partial_image",
+        "partial_image_index": 0,
+        "b64_json": "AA"
+    });
     let completed = json!({
         "type": "image_generation.completed",
-        "b64_json": "AAAA",
+        // Regression: the general SSE decoder caps frames at 1 MiB. Image
+        // settlement must discard this payload from its private transcript
+        // without touching the bytes relayed to the client.
+        "b64_json": "A".repeat((1024 * 1024) + 1),
         "usage": {
             "prompt_tokens": 25,
             "completion_tokens": 1000,
             "total_tokens": 1025
         }
     });
-    let fake = Arc::new(
-        FakeUpstream::new(Bytes::from(format!("data: {completed}\n\n")), vec![])
-            .with_response_content_type("text/event-stream"),
-    );
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::new(),
+        vec![
+            Bytes::from(format!("data: {partial}\n\n")),
+            Bytes::from(format!("data: {completed}\n\n")),
+        ],
+    ));
     let mut bundle: Value = serde_json::from_str(&bundle_with(
         "routing_rules",
         json!([{
@@ -187,6 +198,7 @@ async fn buffered_image_sse_settles_completed_event_usage() {
         }]),
     ))
     .unwrap();
+    bundle["providers"][0]["channel"] = json!("custom");
     bundle["price_rules"] = json!([{
         "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
         "input_price": "0", "output_price": "0", "cache_read_price": "0",
@@ -218,14 +230,115 @@ async fn buffered_image_sse_settles_completed_event_usage() {
         pending_micros: 0,
     };
 
-    crate::pipeline::execute(&state, ctx)
+    let outcome = crate::pipeline::execute(&state, ctx)
         .await
         .expect("pipeline ok");
+    let ResponseBody::Stream(stream) = outcome.body else {
+        panic!("stream:true image request must relay SSE")
+    };
+    use futures_util::StreamExt;
+    let relayed = stream
+        .map(|chunk| chunk.expect("image stream chunk"))
+        .collect::<Vec<_>>()
+        .await;
+    let relayed = String::from_utf8(relayed.concat()).unwrap();
+    assert!(relayed.contains("image_generation.partial_image"));
+    assert!(relayed.contains("image_generation.completed"));
+    assert!(relayed.len() > 1024 * 1024);
+
     let row = wait_usage(&state).await;
     assert_eq!(row.input_tokens, 25);
     assert_eq!(row.output_tokens, 0);
     assert_eq!(row.image_output_tokens, 1000);
     assert_eq!(row.cost, "0.04".parse().unwrap());
+}
+
+#[tokio::test]
+async fn rerank_total_tokens_settle_as_input_usage() {
+    let response = json!({
+        "id": "rerank-1",
+        "model": "gpt-test",
+        "results": [{ "index": 0, "relevance_score": 0.9 }],
+        "usage": { "total_tokens": 1500, "search_units": 1 }
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&response).unwrap()),
+        vec![],
+    ));
+    let mut bundle: Value = serde_json::from_str(BUNDLE).unwrap();
+    bundle["providers"][0]["channel"] = json!("custom");
+    bundle["providers"][0]["settings_json"]["endpoints"]["openai_rerank"] =
+        json!("http://fake.local/v1/rerank");
+    bundle["price_rules"] = json!([{
+        "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+        "input_price": "2", "output_price": "0", "cache_read_price": "0",
+        "cache_creation_5m_price": "0", "cache_creation_30m_price": "0",
+        "cache_creation_1h_price": "0", "image_output_price": "0", "enabled": true
+    }]);
+    bundle["rate_limits"] = json!([{
+        "id": 9, "scope": "user", "scope_id": 1, "route_pattern": "*",
+        "rpm": null, "rpd": null, "total_tokens": 10000
+    }]);
+    let (state, _dir) =
+        state_with_bundle(Arc::clone(&fake), &serde_json::to_string(&bundle).unwrap()).await;
+
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    let ctx = RequestCtx {
+        request_id: "bill-rerank".into(),
+        method: Method::POST,
+        path: "/v1/rerank".into(),
+        query: None,
+        headers,
+        body: Bytes::from(
+            serde_json::to_vec(&json!({
+                "model": "gpt-test",
+                "query": "test",
+                "documents": ["doc a", "doc b"]
+            }))
+            .unwrap(),
+        ),
+        mode: RoutingMode::Scoped {
+            provider: "oai".into(),
+        },
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    };
+
+    crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("rerank pipeline ok");
+    let row = wait_usage(&state).await;
+    assert_eq!(row.operation, "rerank");
+    assert_eq!(row.input_tokens, 1500);
+    assert_eq!(row.output_tokens, 0);
+    assert_eq!(row.cost, "0.003".parse().unwrap());
+
+    let now = crate::util::time::unix_now();
+    let current_daily = format!("rlt:9:d{}", now / 86_400);
+    let previous_daily = format!("rlt:9:d{}", (now / 86_400) - 1);
+    let daily = state
+        .cache
+        .get(&current_daily)
+        .await
+        .or(state.cache.get(&previous_daily).await)
+        .expect("rerank daily token counter");
+    assert_eq!(daily, b"1500");
+
+    let current_minute = format!("ctpm:1:m{}", now / 60);
+    let previous_minute = format!("ctpm:1:m{}", (now / 60) - 1);
+    let credential_tpm = state
+        .cache
+        .get(&current_minute)
+        .await
+        .or(state.cache.get(&previous_minute).await)
+        .expect("rerank credential token counter");
+    assert_eq!(credential_tpm, b"1500");
 }
 
 #[tokio::test]

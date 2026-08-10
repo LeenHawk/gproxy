@@ -18,6 +18,7 @@ const OPERATION_LABELS: Record<string, string> = {
   create_image: "images",
   edit_image: "image-edit",
   create_embedding: "embeddings",
+  rerank: "rerank",
   compact_content: "compact",
   create_conversation: "conversation",
   connect_realtime: "realtime",

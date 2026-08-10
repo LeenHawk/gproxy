@@ -80,6 +80,8 @@ impl Channel for OpenRouterChannel {
                 CreateEmbedding,
                 pv(P::OpenAi),
             ),
+            // === Rerank ===
+            pass(Rerank, pv(P::OpenAi)),
             // === Compact -> generate ===
             xform(
                 CompactContent,
@@ -149,6 +151,7 @@ mod tests {
     use serde_json::{Value, json};
 
     use crate::protocol::{Operation, OperationKey};
+    use crate::routing::RoutingDecision;
 
     fn fallback_ctx(settings: &Value) -> ShapeCtx<'_> {
         ShapeCtx {
@@ -160,6 +163,18 @@ mod tests {
             status: StatusCode::OK,
             settings,
         }
+    }
+
+    #[test]
+    fn rerank_defaults_to_passthrough() {
+        let key = OperationKey::provider(Operation::Rerank, crate::protocol::Provider::OpenAi);
+        assert_eq!(
+            OpenRouterChannel
+                .routing_table()
+                .into_iter()
+                .find(|(source, _)| *source == key),
+            Some((key, RoutingDecision::Passthrough))
+        );
     }
 
     fn openai_magic_ctx(settings: &Value) -> ShapeCtx<'_> {

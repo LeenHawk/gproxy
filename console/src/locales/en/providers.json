@@ -116,6 +116,7 @@
       "gemini_stream_generate_content": "Gemini stream generate content",
       "openai_embeddings": "OpenAI embeddings",
       "gemini_embeddings": "Gemini embeddings",
+      "openai_rerank": "OpenAI-compatible rerank",
       "image_generations": "Image generations",
       "image_edits": "Image edits",
       "openai_compact": "OpenAI compact",

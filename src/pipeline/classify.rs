@@ -28,6 +28,16 @@ pub fn classify(
         .then(|| serde_json::from_slice::<serde_json::Value>(body).ok())
         .flatten();
     let (body_stream, body_model) = body_value.as_ref().map(peek_body).unwrap_or((false, None));
+    // Multipart image edits are canonicalized before classification. Their
+    // text fields intentionally remain strings, so accept the same `"true"`
+    // form that the image request decoder already supports.
+    let image_stream = body_stream
+        || body_value
+            .as_ref()
+            .and_then(|value| value.get("stream"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| value.parse::<bool>().ok())
+            .unwrap_or(false);
     let (op, stream) = match (method.as_str(), path) {
         ("POST", "/v1/chat/completions") => (
             OperationKey::content_generation(
@@ -71,13 +81,17 @@ pub fn classify(
             OperationKey::provider(Operation::CreateEmbedding, Prov::OpenAi),
             false,
         ),
+        ("POST", "/v1/rerank") => (
+            OperationKey::provider(Operation::Rerank, Prov::OpenAi),
+            false,
+        ),
         ("POST", "/v1/images/generations") => (
             OperationKey::provider(Operation::CreateImage, Prov::OpenAi),
-            false,
+            image_stream,
         ),
         ("POST", "/v1/images/edits") => (
             OperationKey::provider(Operation::EditImage, Prov::OpenAi),
-            false,
+            image_stream,
         ),
         ("POST", "/v1/alpha/search") => (
             OperationKey::provider(Operation::WebSearch, Prov::OpenAi),
@@ -306,6 +320,40 @@ mod tests {
     }
 
     #[test]
+    fn image_paths_honor_boolean_stream_flag() {
+        for (path, operation) in [
+            ("/v1/images/generations", Operation::CreateImage),
+            ("/v1/images/edits", Operation::EditImage),
+        ] {
+            let c = classify(
+                &Method::POST,
+                path,
+                &HeaderMap::new(),
+                &Bytes::from_static(br#"{"model":"gpt-image","stream":true}"#),
+            )
+            .unwrap();
+            assert_eq!(op(&c), (operation, OperationKind::Provider(Prov::OpenAi)));
+            assert!(c.stream);
+        }
+    }
+
+    #[test]
+    fn image_edit_honors_multipart_normalized_stream_flag() {
+        let c = classify(
+            &Method::POST,
+            "/v1/images/edits",
+            &HeaderMap::new(),
+            &Bytes::from_static(br#"{"model":"gpt-image","stream":"true"}"#),
+        )
+        .unwrap();
+        assert_eq!(
+            op(&c),
+            (Operation::EditImage, OperationKind::Provider(Prov::OpenAi))
+        );
+        assert!(c.stream);
+    }
+
+    #[test]
     fn models_header_disambiguation() {
         let body = Bytes::new();
         let mut claude = HeaderMap::new();
@@ -365,6 +413,20 @@ mod tests {
             )
         );
         assert!(!c.stream);
+    }
+
+    #[test]
+    fn rerank_path_classifies_as_buffered_openai_provider_operation() {
+        let body = Bytes::from_static(
+            br#"{"model":"reranker","query":"test","documents":["a","b"],"top_n":1,"stream":true}"#,
+        );
+        let c = classify(&Method::POST, "/v1/rerank", &HeaderMap::new(), &body).unwrap();
+        assert_eq!(
+            op(&c),
+            (Operation::Rerank, OperationKind::Provider(Prov::OpenAi))
+        );
+        assert!(!c.stream, "the upstream rerank API has no SSE transport");
+        assert_eq!(c.body_model.as_deref(), Some("reranker"));
     }
 
     #[test]

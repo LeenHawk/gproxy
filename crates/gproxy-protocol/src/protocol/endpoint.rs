@@ -128,6 +128,7 @@ pub fn request_target(
             ))
         }
         (Operation::CreateEmbedding, P::OpenAi) => RequestTarget::post("/v1/embeddings"),
+        (Operation::Rerank, P::OpenAi) => RequestTarget::post("/v1/rerank"),
         // single-embed form; batch (`:batchEmbedContents`) is a separate op
         (Operation::CreateEmbedding, P::Gemini) => {
             require_model(target.operation(), provider, model)?;
@@ -238,6 +239,7 @@ mod tests {
             (O::GetModel, [true, true, true]),
             (O::CountTokens, [true, true, true]),
             (O::CreateEmbedding, [true, false, true]),
+            (O::Rerank, [true, false, false]),
             (O::CreateImage, [true, false, false]),
             (O::EditImage, [true, false, false]),
             (O::WebSearch, [true, false, false]),

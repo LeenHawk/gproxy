@@ -61,6 +61,26 @@ pub fn from_image_response(family: Provider, body: &Value) -> Option<NormalizedU
     Some(normalized)
 }
 
+/// Extract usage from a non-streaming rerank response.
+///
+/// OpenRouter's rerank surface reports only aggregate `total_tokens` alongside
+/// search-unit metadata. Reranking has no generated-token side, so treat that
+/// aggregate as input usage. Prefer the ordinary OpenAI aliases when a
+/// compatible backend provides a more detailed shape.
+pub fn from_rerank_response(family: Provider, body: &Value) -> Option<NormalizedUsage> {
+    if let Some(usage) = from_response(family, body) {
+        return Some(usage);
+    }
+    if family != Provider::OpenAi {
+        return None;
+    }
+    let usage = body.get("usage").filter(|usage| usage.is_object())?;
+    numeric(usage, "total_tokens").then(|| NormalizedUsage {
+        input: field(usage, "total_tokens"),
+        ..Default::default()
+    })
+}
+
 /// Extract the final usage-bearing event from a provider-shaped image SSE
 /// response. OpenAI Images puts `usage` on its `*.completed` event.
 pub fn from_image_stream_frames(family: Provider, frames: &[SseFrame]) -> Option<NormalizedUsage> {
@@ -593,6 +613,23 @@ mod tests {
         assert_eq!(u.cache_read, 600);
         assert_eq!(u.cache_creation_30m, 150);
         assert_eq!(u.total(), 1000);
+    }
+
+    #[test]
+    fn openrouter_rerank_total_tokens_are_input_usage() {
+        let body = json!({
+            "usage": {
+                "total_tokens": 150,
+                "search_units": 1,
+                "cost": 0.001
+            }
+        });
+        let u = from_rerank_response(Provider::OpenAi, &body).unwrap();
+        assert_eq!(u.input, 150);
+        assert_eq!(u.output, 0);
+        assert_eq!(u.total(), 150);
+
+        assert!(from_rerank_response(Provider::OpenAi, &json!({"usage": {}})).is_none());
     }
 
     #[test]

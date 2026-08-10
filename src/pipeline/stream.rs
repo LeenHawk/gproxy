@@ -383,6 +383,68 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
     ))
 }
 
+/// Tee provider-shaped image SSE into its settlement guard while relaying each
+/// chunk unchanged.
+pub(crate) fn instrument_provider_settle_stream(
+    s: ByteStream,
+    guard: crate::pipeline::settle::provider::StreamGuard,
+) -> ByteStream {
+    use futures_util::StreamExt;
+
+    struct State {
+        inner: Option<ByteStream>,
+        guard: Option<crate::pipeline::settle::provider::StreamGuard>,
+        request_id: String,
+    }
+
+    let request_id = guard.request_id().to_owned();
+    Box::pin(futures_util::stream::unfold(
+        State {
+            inner: Some(s),
+            guard: Some(guard),
+            request_id,
+        },
+        |mut state| async move {
+            let inner = state.inner.as_mut()?;
+            match inner.next().await {
+                Some(Ok(chunk)) => {
+                    if let Some(guard) = state.guard.as_mut() {
+                        guard.push(&chunk);
+                    }
+                    Some((Ok(chunk), state))
+                }
+                Some(Err(error)) => {
+                    state.inner = None;
+                    tracing::warn!(
+                        request_id = %state.request_id,
+                        error = %error,
+                        "upstream provider stream failed"
+                    );
+                    drop(state.guard.take());
+                    Some((Err(error), state))
+                }
+                None => {
+                    state.inner = None;
+                    if let Some(guard) = state.guard.take() {
+                        finish_provider_stream_guard(guard).await;
+                    }
+                    None
+                }
+            }
+        },
+    ))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn finish_provider_stream_guard(guard: crate::pipeline::settle::provider::StreamGuard) {
+    guard.finish();
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn finish_provider_stream_guard(guard: crate::pipeline::settle::provider::StreamGuard) {
+    guard.finish().await;
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 async fn finish_stream_guard(guard: StreamGuard) {
     guard.finish();

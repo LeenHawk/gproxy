@@ -116,6 +116,7 @@
       "gemini_stream_generate_content": "Gemini 串流內容生成",
       "openai_embeddings": "OpenAI 嵌入",
       "gemini_embeddings": "Gemini 嵌入",
+      "openai_rerank": "OpenAI 相容重新排序",
       "image_generations": "圖片生成",
       "image_edits": "圖片編輯",
       "openai_compact": "OpenAI 壓縮",

@@ -48,6 +48,7 @@ pub enum Operation {
     CreateImage,
     EditImage,
     WebSearch,
+    Rerank,
     CreateEmbedding,
     CompactContent,
     CreateConversation,
@@ -63,7 +64,7 @@ impl Operation {
             Self::CountTokens => OperationGroup::CountTokens,
             Self::GenerateContent | Self::StreamGenerateContent => OperationGroup::GenerateContent,
             Self::CreateImage | Self::EditImage => OperationGroup::Images,
-            Self::WebSearch => OperationGroup::Search,
+            Self::WebSearch | Self::Rerank => OperationGroup::Search,
             Self::CreateEmbedding => OperationGroup::Embeddings,
             Self::CompactContent => OperationGroup::Compact,
             Self::CreateConversation => OperationGroup::Conversation,
@@ -341,5 +342,12 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn rerank_is_a_provider_shaped_search_operation() {
+        assert_eq!(Operation::Rerank.group(), OperationGroup::Search);
+        assert!(Operation::Rerank.has_request_body());
+        assert!(OperationKey::provider(Operation::Rerank, Provider::OpenAi).is_consistent());
     }
 }

@@ -39,6 +39,7 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
         (O::CountTokens, P::Gemini) => "gemini_count_tokens",
         (O::CreateEmbedding, P::OpenAi | P::Claude) => "openai_embeddings",
         (O::CreateEmbedding, P::Gemini) => "gemini_embeddings",
+        (O::Rerank, P::OpenAi) => "openai_rerank",
         (O::CreateImage, _) => "image_generations",
         (O::EditImage, _) => "image_edits",
         (O::WebSearch, _) => "openai_search",
