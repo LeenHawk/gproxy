@@ -4,7 +4,6 @@ import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -20,6 +19,14 @@ import {
 } from "@/api/credentials";
 import { providersQuery } from "@/api/providers";
 import { CredentialQuotaHistory } from "@/components/observability/credential-quota-history";
+import {
+  CHART_AXIS,
+  CHART_TOOLTIP_STYLE,
+  LegendChips,
+  Meter,
+  seriesColor,
+} from "@/components/observability/chart-theme";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -50,14 +57,6 @@ import {
 type ComparisonMetric = "total_tokens" | "cost_usd" | "requests";
 type ChartDatum = { day_start: number } & Record<string, number | string>;
 
-const CHART_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-] as const;
-
 function credentialName(row: CredentialUsageComparison): string {
   return row.credential_label?.trim() || `#${row.credential_id}`;
 }
@@ -79,31 +78,31 @@ function formatDay(unixSeconds: number): string {
   });
 }
 
-function quotaWindowSummary(windows: CredentialQuotaCycle[]): string {
-  if (!windows.length) return "—";
-  return windows.map((window) => {
-    const percent = window.used_percent !== null ? Number(window.used_percent) : undefined;
-    const tokens = categorizedTotalTokens(window);
-    return `${window.label || window.name}${percent !== undefined ? ` ${percent.toFixed(0)}%` : ""} · ${formatUsageCount(tokens)}`;
-  }).join(" · ");
-}
-
-function buildChartData(rows: CredentialUsageComparison[]): ChartDatum[] {
-  const normalized = rows.map((row) => ({
-    key: `credential_${row.credential_id}`,
-    days: normalizeLastSevenDays(row.last_7_days),
-  }));
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const dayStart = normalized[0]?.days[index]?.day_start
-      ?? normalizeLastSevenDays([])[index]?.day_start
-      ?? 0;
-    const result: ChartDatum = { day_start: dayStart };
-    for (const series of normalized) {
-      result[series.key] = series.days[index]?.totals.total_tokens ?? 0;
-    }
-    return result;
-  });
+function QuotaWindowsCell({ windows }: { windows: CredentialQuotaCycle[] }) {
+  if (!windows.length) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="grid min-w-44 gap-1">
+      {windows.map((window) => {
+        const percent = window.used_percent !== null ? Number(window.used_percent) : undefined;
+        const label = window.label || window.name;
+        return (
+          <div key={window.id} className="flex items-center gap-2 text-xs">
+            <span className="w-24 truncate text-muted-foreground" title={label}>{label}</span>
+            {percent !== undefined ? (
+              <>
+                <Meter percent={percent} className="w-16 flex-none" />
+                <span className="w-9 text-right tabular-nums">{percent.toFixed(0)}%</span>
+              </>
+            ) : (
+              <span className="tabular-nums text-muted-foreground">
+                {formatUsageCount(categorizedTotalTokens(window))}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function CredentialUsageComparisonTab() {
@@ -120,6 +119,12 @@ export function CredentialUsageComparisonTab() {
     () => new Map(rows.map((row) => [row.credential_id, credentialName(row)])),
     [rows],
   );
+  // Color follows the credential, not its filtered rank: slots are assigned once
+  // per load from the lifetime-token ordering, so filters never repaint survivors.
+  const colorSlots = useMemo(() => {
+    const ordered = [...rows].sort((a, b) => b.lifetime.total_tokens - a.lifetime.total_tokens);
+    return new Map(ordered.map((row, index) => [row.credential_id, index]));
+  }, [rows]);
   const channels = useMemo(
     () => Array.from(new Set(rows.map((row) => row.channel))).sort(),
     [rows],
@@ -147,9 +152,9 @@ export function CredentialUsageComparisonTab() {
   // to be viewed independently; the comparison table always includes all rows.
   const chartRows = filtered.slice(0, 5);
   const chartData = useMemo(() => {
-    const base = buildChartData(chartRows);
-    return base.map((point, index) => {
-      const result: ChartDatum = { day_start: point.day_start };
+    const base = normalizeLastSevenDays([]).map((day) => day.day_start);
+    return base.map((dayStart, index) => {
+      const result: ChartDatum = { day_start: dayStart };
       for (const row of chartRows) {
         const day = normalizeLastSevenDays(row.last_7_days)[index];
         const key = `credential_${row.credential_id}`;
@@ -159,6 +164,10 @@ export function CredentialUsageComparisonTab() {
       return result;
     });
   }, [chartRows, metric]);
+  const chartLegend = useMemo(() => chartRows.map((row) => ({
+    label: credentialName(row),
+    color: seriesColor(colorSlots.get(row.credential_id) ?? 0),
+  })), [chartRows, colorSlots]);
 
   function changeProvider(value: string) {
     setProviderId(value);
@@ -270,8 +279,8 @@ export function CredentialUsageComparisonTab() {
         </p>
       ) : (
         <>
-          <div className="rounded-lg border bg-card p-3">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div className="min-w-0 rounded-lg border bg-card p-3">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-sm font-medium">{t("credentialUsage.last7DaysTrend")}</h3>
               {filtered.length > chartRows.length && (
                 <p className="text-xs text-muted-foreground">
@@ -279,29 +288,19 @@ export function CredentialUsageComparisonTab() {
                 </p>
               )}
             </div>
-            <div className="h-72">
+            <LegendChips items={chartLegend} className="mb-2" />
+            <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis
-                    dataKey="day_start"
-                    tickFormatter={(value: number) => formatDay(value)}
-                    tick={{ fontSize: 11 }}
-                    stroke="var(--muted-foreground)"
-                  />
+                <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
+                  <CartesianGrid vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="day_start" tickFormatter={formatDay} {...CHART_AXIS} />
                   <YAxis
                     tickFormatter={(value: number) => formatMetric(value, metric)}
-                    tick={{ fontSize: 11 }}
-                    stroke="var(--muted-foreground)"
                     width={68}
+                    {...CHART_AXIS}
                   />
                   <Tooltip
-                    contentStyle={{
-                      background: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "0.5rem",
-                      fontSize: 12,
-                    }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
                     labelFormatter={(value) => formatDay(Number(value))}
                     formatter={(value, name, item) => {
                       const dataKey = String(item.dataKey ?? "");
@@ -313,17 +312,17 @@ export function CredentialUsageComparisonTab() {
                       return [formatted, String(name)];
                     }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  {chartRows.map((row, index) => (
+                  {chartRows.map((row) => (
                     <Line
                       key={row.credential_id}
                       type="monotone"
                       dataKey={`credential_${row.credential_id}`}
                       name={credentialName(row)}
-                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                      stroke={seriesColor(colorSlots.get(row.credential_id) ?? 0)}
                       strokeWidth={2}
-                      dot={{ r: 2 }}
-                      activeDot={{ r: 4 }}
+                      strokeLinecap="round"
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
                       isAnimationActive={false}
                     />
                   ))}
@@ -332,7 +331,7 @@ export function CredentialUsageComparisonTab() {
             </div>
           </div>
 
-          <div className="rounded-lg border bg-card">
+          <div className="min-w-0 overflow-x-auto rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -350,18 +349,30 @@ export function CredentialUsageComparisonTab() {
               <TableBody>
                 {filtered.map((row) => {
                   const recent = sumUsageTotals(normalizeLastSevenDays(row.last_7_days).map((day) => day.totals));
+                  const slot = colorSlots.get(row.credential_id);
                   return (
                     <TableRow key={row.credential_id}>
-                      <TableCell className="font-medium">{credentialName(row)}</TableCell>
+                      <TableCell className="font-medium">
+                        <span className="flex items-center gap-1.5">
+                          {slot !== undefined && slot < 5 && (
+                            <span
+                              aria-hidden
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ background: seriesColor(slot) }}
+                            />
+                          )}
+                          {credentialName(row)}
+                        </span>
+                      </TableCell>
                       <TableCell>{providerMap.get(row.provider_id) ?? `#${row.provider_id}`}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.channel}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="font-mono text-[11px]">{row.channel}</Badge>
+                      </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatUsageCount(recent.total_tokens)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatUsageUsd(recent.cost_usd)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatUsageCount(row.lifetime.total_tokens)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatUsageUsd(row.lifetime.cost_usd)}</TableCell>
-                      <TableCell className="max-w-64 whitespace-normal text-xs text-muted-foreground">
-                        {quotaWindowSummary(row.current_windows)}
-                      </TableCell>
+                      <TableCell><QuotaWindowsCell windows={row.current_windows} /></TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {row.coverage_start !== undefined
                           ? new Date(row.coverage_start * 1000).toLocaleDateString()

@@ -29,7 +29,9 @@ export function EntityDialog({ open, onOpenChange, title, description, children,
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
-          <div className="max-h-[70svh] overflow-y-auto pr-1">{children}</div>
+          {/* min-w-0: a fixed-width child (e.g. a recharts svg mid-measure) must
+              not inflate this grid track past the dialog and clip siblings. */}
+          <div className="max-h-[70svh] min-w-0 overflow-y-auto pr-1">{children}</div>
         </DialogContent>
       </Dialog>
     );

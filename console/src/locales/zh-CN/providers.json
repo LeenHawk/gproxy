@@ -262,6 +262,11 @@
       "summaryDescription": "该凭证的本地计量统计，不会请求上游。",
       "summaryLoadError": "加载已记录用量失败",
       "trackedSince": "从 {{time}} 开始记录",
+      "metric": {
+        "tokens": "Tokens",
+        "requests": "请求数",
+        "cost": "USD"
+      },
       "lifetime": "已记录累计",
       "last7Days": "最近 7 天",
       "dailyTokens": "每日 tokens",
