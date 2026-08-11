@@ -20,6 +20,29 @@ use crate::http::client::ByteStreamDecoder;
 use crate::protocol::{ContentGenerationKind, OperationKey};
 use crate::transform::common::sse::{SseDecoder, SseFrame};
 
+/// Names by which the selected model can be matched by a provider rule.
+///
+/// `primary` is the configured upstream model id. `alternate` retains the
+/// inbound route or variant name when routing resolved it to a different id.
+#[derive(Debug, Clone, Copy)]
+pub struct RuleModels<'a> {
+    primary: &'a str,
+    alternate: Option<&'a str>,
+}
+
+impl<'a> RuleModels<'a> {
+    pub fn new(primary: &'a str, alternate: Option<&'a str>) -> Self {
+        Self { primary, alternate }
+    }
+
+    fn matches(self, rule: &CompiledRule, op: OperationKey, client: &HeaderMap) -> bool {
+        match self.alternate {
+            Some(alternate) => rule.matches_any_model(op, &[self.primary, alternate], client),
+            None => rule.matches(op, self.primary, client),
+        }
+    }
+}
+
 /// Apply every matching rule to the provider-native request. `rules` must be
 /// pre-ordered by [`order_for_apply`]. The JSON body parses at most once and
 /// re-serializes at most once; rules that cannot apply warn and skip — bad
@@ -28,15 +51,14 @@ pub fn apply(
     rules: &[CompiledRule],
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
-    model: &str,
-    alternate_model: Option<&str>,
+    models: RuleModels<'_>,
     client: &HeaderMap,
     headers: &mut HeaderMap,
     body: Bytes,
 ) -> Bytes {
     let applicable: Vec<&CompiledRule> = rules
         .iter()
-        .filter(|r| rule_matches(r, op, model, alternate_model, client))
+        .filter(|r| models.matches(r, op, client))
         .collect();
     if applicable.is_empty() {
         return body;
@@ -107,14 +129,13 @@ pub fn apply_response(
     rules: &[CompiledRule],
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
-    model: &str,
-    alternate_model: Option<&str>,
+    models: RuleModels<'_>,
     client: &HeaderMap,
     body: Bytes,
 ) -> Bytes {
     let applicable: Vec<&CompiledRule> = rules
         .iter()
-        .filter(|r| rule_matches(r, op, model, alternate_model, client))
+        .filter(|r| models.matches(r, op, client))
         .collect();
     if applicable.is_empty() {
         return body;
@@ -168,14 +189,13 @@ pub fn response_stream_decoder(
     rules: &[CompiledRule],
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
-    model: &str,
-    alternate_model: Option<&str>,
+    models: RuleModels<'_>,
     client: &HeaderMap,
 ) -> Option<Box<dyn ByteStreamDecoder>> {
     let rules: Vec<CompiledRule> = rules
         .iter()
         .filter(|rule| {
-            rule_matches(rule, op, model, alternate_model, client)
+            models.matches(rule, op, client)
                 && (rule.config.mutates_response_value() || rule.config.mutates_response_text())
         })
         .cloned()
@@ -188,23 +208,10 @@ pub fn response_stream_decoder(
         rules,
         op,
         kind,
-        model: model.to_owned(),
-        alternate_model: alternate_model.map(str::to_owned),
+        model: models.primary.to_owned(),
+        alternate_model: models.alternate.map(str::to_owned),
         client: client.clone(),
     }))
-}
-
-fn rule_matches(
-    rule: &CompiledRule,
-    op: OperationKey,
-    model: &str,
-    alternate_model: Option<&str>,
-    client: &HeaderMap,
-) -> bool {
-    match alternate_model {
-        Some(alternate) => rule.matches_any_model(op, &[model, alternate], client),
-        None => rule.matches(op, model, client),
-    }
 }
 
 struct ResponseRuleStreamDecoder {
@@ -253,8 +260,7 @@ impl ResponseRuleStreamDecoder {
             &self.rules,
             self.op,
             self.kind,
-            &self.model,
-            self.alternate_model.as_deref(),
+            RuleModels::new(&self.model, self.alternate_model.as_deref()),
             &self.client,
             Bytes::from(frame.data.clone()),
         );
