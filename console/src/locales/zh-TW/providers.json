@@ -262,6 +262,11 @@
       "summaryDescription": "該憑證的本機計量統計，不會請求上游。",
       "summaryLoadError": "載入已記錄用量失敗",
       "trackedSince": "從 {{time}} 開始記錄",
+      "metric": {
+        "tokens": "Tokens",
+        "requests": "請求數",
+        "cost": "USD"
+      },
       "lifetime": "已記錄累計",
       "last7Days": "最近 7 天",
       "dailyTokens": "每日 tokens",

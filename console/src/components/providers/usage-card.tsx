@@ -12,8 +12,11 @@ import {
 import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Progress } from "@/components/ui/progress";
-import { CredentialUsageSummaryCard } from "@/components/providers/credential-usage-summary";
+import { Meter } from "@/components/observability/chart-theme";
+import {
+  CredentialUsageSummaryCard,
+  modelUsageBreakdown,
+} from "@/components/providers/credential-usage-summary";
 import { CredentialQuotaHistory } from "@/components/observability/credential-quota-history";
 import { formatUsageCount, formatUsageUsd } from "@/lib/credential-usage";
 
@@ -69,11 +72,98 @@ function humanizeWindowName(name: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function windowLabel(w: UsageWindow, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (!w.label) return t(`usage.window.${w.name}`, { defaultValue: humanizeWindowName(w.name) });
+  if (w.name.startsWith("weekly_scoped:") || w.name.startsWith("weekly_model:") || w.name.startsWith("weekly_surface:")) {
+    return t("usage.window.weekly_scoped", { scope: w.label });
+  }
+  if (w.name.startsWith("additional_primary:")) return t("usage.window.additional_primary", { scope: w.label });
+  if (w.name.startsWith("additional_secondary:")) return t("usage.window.additional_secondary", { scope: w.label });
+  return t(`usage.window.${w.name}`, { scope: w.label, defaultValue: w.label });
+}
+
 function idempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function QuotaWindowCard({ window: w }: { window: UsageWindow }) {
+  const { t } = useTranslation("providers");
+  const pct = windowPercent(w);
+  const reset = windowReset(w);
+  const localUsage = w.local_usage;
+  const estimated = localUsage?.estimated_capacity;
+  const estimatedParts = estimated
+    ? [
+        estimated.tokens !== undefined
+          ? `≈${formatUsageCount(estimated.tokens)} ${t("usage.local.tokens")}`
+          : undefined,
+        estimated.cost_usd !== undefined ? `≈${formatUsageUsd(estimated.cost_usd)}` : undefined,
+      ].filter((part): part is string => part !== undefined)
+    : [];
+
+  return (
+    <div className="grid min-w-0 gap-1.5 rounded-lg border bg-card px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="text-sm font-medium">{windowLabel(w, t)}</span>
+        <span className="text-sm font-semibold tabular-nums">
+          {pct !== undefined
+            ? `${pct.toFixed(0)}%`
+            : w.used !== undefined
+              ? `${w.used}${w.limit !== undefined ? ` / ${w.limit}` : ""}`
+              : "—"}
+        </span>
+      </div>
+      {pct !== undefined && <Meter percent={pct} />}
+      {reset && (
+        <p className="text-xs text-muted-foreground">{t("usage.resets", { time: reset })}</p>
+      )}
+
+      {localUsage && (
+        <div className="mt-0.5 grid gap-1 border-t pt-1.5 text-xs">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <span className="text-muted-foreground">
+              {t("usage.local.recorded")} · {t(`usage.local.coverage.${localUsage.coverage}`)}
+            </span>
+            <span className="font-medium tabular-nums">
+              {formatLocalTotal(localUsage.totals, t("usage.local.tokens"))}
+            </span>
+          </div>
+          {estimatedParts.length > 0 && (
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-muted-foreground">
+              <span>{t("usage.local.estimatedCurrentMix")}</span>
+              <span className="tabular-nums">
+                {estimatedParts.join(" · ")} · {t("usage.local.perWindow")}
+              </span>
+            </div>
+          )}
+          {localUsage.by_model.length > 0 && (
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 px-1 text-xs text-muted-foreground">
+                  <ChevronsUpDown className="size-3" />
+                  {t("usage.local.byModel", { count: localUsage.by_model.length })}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="grid gap-1 border-t pt-1.5">
+                {localUsage.by_model.map((model, index) => (
+                  <div key={`${model.model}-${index}`} className="grid gap-0.5 py-1 text-xs">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <span className="break-all font-mono font-medium">{model.model}</span>
+                      <span className="tabular-nums">{formatLocalTotal(model, t("usage.local.tokens"))}</span>
+                    </div>
+                    <span className="text-muted-foreground">{modelUsageBreakdown(model, t)}</span>
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function UsageCard({
@@ -123,11 +213,11 @@ export function UsageCard({
   }, [credentialId, isFetched, isFetching, refreshUpstream, supportsUpstreamUsage]);
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-4">
       <CredentialUsageSummaryCard credentialId={credentialId} />
 
       {supportsUpstreamUsage && (
-        <div className="grid gap-4 border-t pt-4">
+        <div className="grid min-w-0 gap-3 border-t pt-4">
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-medium">{t("usage.upstreamTitle")}</p>
@@ -142,147 +232,52 @@ export function UsageCard({
           {errorText && <p className="text-sm text-destructive">{errorText}</p>}
 
           {snapshot && (
-            <div className="grid gap-3">
-          {snapshot.plan && (
-            <p className="text-sm"><span className="text-muted-foreground">{t("usage.plan")}:</span> <span className="font-medium">{snapshot.plan}</span></p>
-          )}
-          {snapshot.windows.map((w) => {
-            const pct = windowPercent(w);
-            const reset = windowReset(w);
-            const localUsage = w.local_usage;
-            const estimated = localUsage?.estimated_capacity;
-            const estimatedParts = estimated
-              ? [
-                  estimated.tokens !== undefined
-                    ? `≈${formatUsageCount(estimated.tokens)} ${t("usage.local.tokens")}`
-                    : undefined,
-                  estimated.cost_usd !== undefined ? `≈${formatUsageUsd(estimated.cost_usd)}` : undefined,
-                ].filter((part): part is string => part !== undefined)
-              : [];
-            const label = w.label
-              ? w.name.startsWith("weekly_scoped:")
-                || w.name.startsWith("weekly_model:")
-                || w.name.startsWith("weekly_surface:")
-                ? t("usage.window.weekly_scoped", { scope: w.label })
-                : w.name.startsWith("additional_primary:")
-                  ? t("usage.window.additional_primary", { scope: w.label })
-                : w.name.startsWith("additional_secondary:")
-                  ? t("usage.window.additional_secondary", { scope: w.label })
-                : t(`usage.window.${w.name}`, { scope: w.label, defaultValue: w.label })
-              : t(`usage.window.${w.name}`, { defaultValue: humanizeWindowName(w.name) });
-            return (
-              <div key={w.name} className="grid gap-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span>{label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {pct !== undefined ? `${pct.toFixed(0)}%` : w.used !== undefined ? `${w.used}${w.limit !== undefined ? ` / ${w.limit}` : ""}` : ""}
-                    {reset ? ` · ${t("usage.resets", { time: reset })}` : ""}
-                  </span>
+            <div className="grid min-w-0 gap-2">
+              {snapshot.plan && (
+                <p className="text-sm">
+                  <span className="text-muted-foreground">{t("usage.plan")}:</span>{" "}
+                  <span className="font-medium">{snapshot.plan}</span>
+                </p>
+              )}
+              {snapshot.windows.map((w) => <QuotaWindowCard key={w.name} window={w} />)}
+              {snapshot.credits && (
+                <p className="text-sm">
+                  <span className="text-muted-foreground">{t("usage.credits")}:</span>{" "}
+                  {formatCredits(snapshot.credits, t("usage.creditsDisabled"), t("usage.unlimited"))}
+                </p>
+              )}
+              {resetCredits && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">{t("usage.reset.available")}:</span>{" "}
+                    <span className="font-medium">{resetCredits.available_count}</span>
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={resetMutation.isPending || resetCredits.available_count <= 0}
+                    onClick={() => resetMutation.mutate()}
+                  >
+                    <RotateCcw className={resetMutation.isPending ? "size-4 animate-spin" : "size-4"} />
+                    {resetMutation.isPending ? t("usage.reset.consuming") : t("usage.reset.consume")}
+                  </Button>
                 </div>
-                {pct !== undefined && <Progress value={pct} />}
-                {localUsage && (
-                  <div className="mt-1 grid gap-1.5 rounded-md border bg-muted/30 px-3 py-2">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
-                      <span className="text-muted-foreground">
-                        {t("usage.local.recorded")} · {t(`usage.local.coverage.${localUsage.coverage}`)}
-                      </span>
-                      <span className="font-medium">
-                        {formatLocalTotal(localUsage.totals, t("usage.local.tokens"))}
-                      </span>
-                    </div>
-                    {estimatedParts.length > 0 && (
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
-                        <span className="text-muted-foreground">{t("usage.local.estimatedCurrentMix")}</span>
-                        <span className="text-muted-foreground">
-                          {estimatedParts.join(" · ")} · {t("usage.local.perWindow")}
-                        </span>
-                      </div>
-                    )}
-                    {localUsage.by_model.length > 0 && (
-                      <Collapsible>
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 px-1 text-xs text-muted-foreground">
-                            <ChevronsUpDown className="size-3" />
-                            {t("usage.local.byModel", { count: localUsage.by_model.length })}
-                          </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="grid gap-1 border-t pt-1.5">
-                          {localUsage.by_model.map((model, index) => {
-                            const breakdown = [
-                              `${formatUsageCount(model.requests)} ${t("usage.local.requests")}`,
-                              model.input_tokens > 0
-                                ? `${t("usage.local.input")} ${formatUsageCount(model.input_tokens)}`
-                                : undefined,
-                              model.output_tokens > 0
-                                ? `${t("usage.local.output")} ${formatUsageCount(model.output_tokens)}`
-                                : undefined,
-                              model.image_output_tokens > 0
-                                ? `${t("usage.local.imageOutput")} ${formatUsageCount(model.image_output_tokens)}`
-                                : undefined,
-                              model.cache_read_tokens > 0
-                                ? `${t("usage.local.cacheRead")} ${formatUsageCount(model.cache_read_tokens)}`
-                                : undefined,
-                              model.cache_creation_tokens > 0
-                                ? `${t("usage.local.cacheCreation")} ${formatUsageCount(model.cache_creation_tokens)}`
-                                : undefined,
-                            ].filter((part): part is string => part !== undefined);
-                            return (
-                              <div key={`${model.model}-${index}`} className="grid gap-0.5 py-1 text-xs">
-                                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                                  <span className="break-all font-mono font-medium">{model.model}</span>
-                                  <span>{formatLocalTotal(model, t("usage.local.tokens"))}</span>
-                                </div>
-                                <span className="text-muted-foreground">{breakdown.join(" · ")}</span>
-                              </div>
-                            );
-                          })}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {snapshot.credits && (
-            <p className="text-sm">
-              <span className="text-muted-foreground">{t("usage.credits")}:</span>{" "}
-              {formatCredits(snapshot.credits, t("usage.creditsDisabled"), t("usage.unlimited"))}
-            </p>
-          )}
-          {resetCredits && (
-            <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
-              <p className="text-sm">
-                <span className="text-muted-foreground">{t("usage.reset.available")}:</span>{" "}
-                <span className="font-medium">{resetCredits.available_count}</span>
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={resetMutation.isPending || resetCredits.available_count <= 0}
-                onClick={() => resetMutation.mutate()}
-              >
-                <RotateCcw className={resetMutation.isPending ? "size-4 animate-spin" : "size-4"} />
-                {resetMutation.isPending ? t("usage.reset.consuming") : t("usage.reset.consume")}
-              </Button>
+              )}
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="justify-self-start text-muted-foreground">
+                    <ChevronsUpDown className="size-3" />
+                    {t("usage.raw")}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {JSON.stringify(snapshot.raw, null, 2)}
+                  </pre>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           )}
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-muted-foreground">
-                <ChevronsUpDown className="size-3" />
-                {t("usage.raw")}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                {JSON.stringify(snapshot.raw, null, 2)}
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
-            </div>
-          )}
-
         </div>
       )}
 

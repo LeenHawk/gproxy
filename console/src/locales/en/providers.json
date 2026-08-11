@@ -262,6 +262,11 @@
       "summaryDescription": "Local accounting for this credential; no upstream request is made.",
       "summaryLoadError": "Failed to load recorded usage",
       "trackedSince": "Tracked since {{time}}",
+      "metric": {
+        "tokens": "Tokens",
+        "requests": "Requests",
+        "cost": "USD"
+      },
       "lifetime": "Recorded total",
       "last7Days": "Last 7 days",
       "dailyTokens": "Daily tokens",

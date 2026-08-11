@@ -6,6 +6,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,6 +18,7 @@ import {
   type CredentialQuotaCycle,
   type CredentialQuotaCycleFilter,
 } from "@/api/credentials";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -34,6 +36,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  CHART_AXIS,
+  CHART_TOOLTIP_STYLE,
+  LegendChips,
+  Meter,
+  seriesColor,
+} from "@/components/observability/chart-theme";
 import {
   categorizedTotalTokens,
   decimalToChartNumber,
@@ -77,14 +86,22 @@ function formatMetric(value: number, metric: CycleMetric): string {
   return formatUsageCount(value);
 }
 
+function formatStamp(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function formatCyclePeriod(cycle: CredentialQuotaCycle): string {
-  const format = (value: number) => new Date(value * 1000).toLocaleString();
   if (cycle.period_start !== null && cycle.period_end !== null) {
-    return `${format(cycle.period_start)} – ${format(cycle.period_end)}`;
+    return `${formatStamp(cycle.period_start)} – ${formatStamp(cycle.period_end)}`;
   }
-  if (cycle.period_start !== null) return `${format(cycle.period_start)} – …`;
-  if (cycle.period_end !== null) return `… – ${format(cycle.period_end)}`;
-  if (cycle.last_observed_at !== null) return format(cycle.last_observed_at);
+  if (cycle.period_start !== null) return `${formatStamp(cycle.period_start)} – …`;
+  if (cycle.period_end !== null) return `… – ${formatStamp(cycle.period_end)}`;
+  if (cycle.last_observed_at !== null) return formatStamp(cycle.last_observed_at);
   return "—";
 }
 
@@ -168,6 +185,12 @@ export function CredentialQuotaHistory({
     return Array.from(labels, ([key, label]) => ({ key, label }))
       .sort((left, right) => left.label.localeCompare(right.label));
   }, [rows]);
+  // Color follows the window identity: slots come from the stable option list,
+  // so changing filters never repaints the surviving bars.
+  const windowSlots = useMemo(
+    () => new Map(windowOptions.map((option, index) => [option.key, index])),
+    [windowOptions],
+  );
   const filtered = useMemo(() => rows
     .filter((cycle) => windowKey === "__all__" || cycle.window_key === windowKey)
     .filter((cycle) => status === "__all__" || cycle.status === status)
@@ -182,9 +205,19 @@ export function CredentialQuotaHistory({
       value: cycleMetric(cycle, metric),
       exactValue: metric === "cost" ? cycle.cost : undefined,
       label: cycleLabel(cycle),
+      windowKey: cycle.window_key,
       credential: credentialLabel?.(cycle.credential_id) ?? `#${cycle.credential_id}`,
     })),
   [credentialLabel, filtered, metric]);
+  const chartLegend = useMemo(() => {
+    const present = new Set(chartData.map((point) => point.windowKey));
+    return windowOptions
+      .filter((option) => present.has(option.key))
+      .map((option) => ({
+        label: option.label,
+        color: seriesColor(windowSlots.get(option.key) ?? 0),
+      }));
+  }, [chartData, windowOptions, windowSlots]);
 
   if (query.isPending) {
     return <Skeleton className={compact ? "h-40" : "h-72"} aria-busy="true" />;
@@ -212,7 +245,7 @@ export function CredentialQuotaHistory({
   }
 
   return (
-    <section className="grid gap-3" aria-label={t("quotaHistory.title")}>
+    <section className="grid min-w-0 gap-3" aria-label={t("quotaHistory.title")}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-medium">{t("quotaHistory.title")}</h3>
@@ -268,48 +301,49 @@ export function CredentialQuotaHistory({
         <p className="rounded-md border py-8 text-center text-xs text-muted-foreground">{t("quotaHistory.filteredEmpty")}</p>
       ) : (
         <>
-          <div className={compact ? "h-44 rounded-md border bg-muted/20 p-2" : "h-64 rounded-md border bg-card p-2"}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="at"
-                  tickFormatter={(value: number) => new Date(value * 1000).toLocaleDateString()}
-                  tick={{ fontSize: 10 }}
-                  stroke="var(--muted-foreground)"
-                />
-                <YAxis
-                  tickFormatter={(value: number) => formatMetric(value, metric)}
-                  tick={{ fontSize: 10 }}
-                  stroke="var(--muted-foreground)"
-                  width={64}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "0.5rem",
-                    fontSize: 12,
-                  }}
-                  labelFormatter={(_, payload) => {
-                    const point = payload[0]?.payload as { at?: number; label?: string; credential?: string } | undefined;
-                    if (!point?.at) return "";
-                    return `${point.credential ?? ""} · ${point.label ?? ""} · ${new Date(point.at * 1000).toLocaleString()}`;
-                  }}
-                  formatter={(value, _name, item) => {
-                    const point = item.payload as { exactValue?: string } | undefined;
-                    const formatted = metric === "cost" && point?.exactValue
-                      ? formatUsageUsd(point.exactValue)
-                      : formatMetric(Number(value), metric);
-                    return [formatted, t(`quotaHistory.metric.${metric}`)];
-                  }}
-                />
-                <Bar dataKey="value" fill="var(--chart-2)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className={compact ? "min-w-0 rounded-lg border bg-card p-2" : "min-w-0 rounded-lg border bg-card p-3"}>
+            <LegendChips items={chartLegend} className="mb-1 px-1" />
+            <div className={compact ? "h-40" : "h-60"}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                  <CartesianGrid vertical={false} stroke="var(--border)" />
+                  <XAxis
+                    dataKey="at"
+                    tickFormatter={(value: number) => new Date(value * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {...CHART_AXIS}
+                  />
+                  <YAxis
+                    tickFormatter={(value: number) => formatMetric(value, metric)}
+                    width={64}
+                    {...CHART_AXIS}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "var(--muted)", fillOpacity: 0.5 }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelFormatter={(_, payload) => {
+                      const point = payload[0]?.payload as { at?: number; label?: string; credential?: string } | undefined;
+                      if (!point?.at) return "";
+                      return `${point.credential ?? ""} · ${point.label ?? ""} · ${formatStamp(point.at)}`;
+                    }}
+                    formatter={(value, _name, item) => {
+                      const point = item.payload as { exactValue?: string } | undefined;
+                      const formatted = metric === "cost" && point?.exactValue
+                        ? formatUsageUsd(point.exactValue)
+                        : formatMetric(Number(value), metric);
+                      return [formatted, t(`quotaHistory.metric.${metric}`)];
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false}>
+                    {chartData.map((point) => (
+                      <Cell key={point.id} fill={seriesColor(windowSlots.get(point.windowKey) ?? 0)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div className="rounded-md border bg-card">
+          <div className="min-w-0 overflow-x-auto rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -320,7 +354,7 @@ export function CredentialQuotaHistory({
                   <TableHead className="text-right">{t("quotaHistory.columns.percent")}</TableHead>
                   <TableHead className="text-right">{t("quotaHistory.columns.tokens")}</TableHead>
                   <TableHead className="text-right">{t("quotaHistory.columns.cost")}</TableHead>
-                  <TableHead className="text-right">{t("quotaHistory.columns.estimate")}</TableHead>
+                  {!compact && <TableHead className="text-right">{t("quotaHistory.columns.estimate")}</TableHead>}
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -334,24 +368,42 @@ export function CredentialQuotaHistory({
                         </TableCell>
                       )}
                       <TableCell>
-                        <p>{cycleLabel(cycle)}</p>
-                        <p className="font-mono text-[10px] text-muted-foreground">{cycle.window_key}</p>
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            aria-hidden
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ background: seriesColor(windowSlots.get(cycle.window_key) ?? 0) }}
+                          />
+                          <span className="font-medium">{cycleLabel(cycle)}</span>
+                        </span>
+                        <span className="block pl-3.5 font-mono text-[10px] text-muted-foreground">{cycle.window_key}</span>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{formatCyclePeriod(cycle)}</TableCell>
-                      <TableCell className="text-xs">
-                        {t(`quotaHistory.status.${cycle.status}`, { defaultValue: cycle.status })}
-                        <span className="block text-[10px] text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                        {formatCyclePeriod(cycle)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={cycle.status === "open" ? "secondary" : "outline"}>
+                          {t(`quotaHistory.status.${cycle.status}`, { defaultValue: cycle.status })}
+                        </Badge>
+                        <span className="mt-0.5 block text-[10px] text-muted-foreground">
                           {t(`quotaHistory.coverage.${cycle.coverage}`, { defaultValue: cycle.coverage })}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
-                        {cycle.used_percent !== null ? `${Number(cycle.used_percent).toFixed(1)}%` : "—"}
+                      <TableCell className="text-right">
+                        {cycle.used_percent !== null ? (
+                          <span className="inline-flex flex-col items-end gap-1">
+                            <span className="font-medium tabular-nums">{Number(cycle.used_percent).toFixed(1)}%</span>
+                            <Meter percent={Number(cycle.used_percent)} className="w-16" />
+                          </span>
+                        ) : "—"}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatUsageCount(categorizedTotalTokens(cycle))}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{formatUsageUsd(cycle.cost)}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">
-                        {formatCycleEstimate(cycle, t("quotaHistory.tokens"))}
-                      </TableCell>
+                      {!compact && (
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {formatCycleEstimate(cycle, t("quotaHistory.tokens"))}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -366,7 +418,7 @@ export function CredentialQuotaHistory({
                     </TableRow>
                     {expandedCycle === cycle.id && (
                       <TableRow>
-                        <TableCell colSpan={credentialId ? 8 : 9} className="whitespace-normal bg-muted/20">
+                        <TableCell colSpan={(credentialId ? 7 : 8) + (compact ? 0 : 1)} className="whitespace-normal bg-muted/20">
                           <CycleModels cycleId={cycle.id} />
                         </TableCell>
                       </TableRow>

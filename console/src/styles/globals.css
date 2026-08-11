@@ -73,11 +73,14 @@
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    /* Categorical series palette. Slot order is the CVD-safety mechanism —
+       validated (adjacent-pair ΔE + contrast) against this mode's card surface;
+       re-validate before re-ordering or re-stepping. */
+    --chart-1: #2a78d6;
+    --chart-2: #eb6834;
+    --chart-3: #1baf7a;
+    --chart-4: #eda100;
+    --chart-5: #e87ba4;
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -108,11 +111,12 @@
     --border: oklch(0.38 0.025 255 / 55%);
     --input: oklch(0.46 0.03 255 / 35%);
     --ring: oklch(0.65 0.09 250);
-    --chart-1: oklch(0.7 0.12 250);
-    --chart-2: oklch(0.72 0.1 195);
-    --chart-3: oklch(0.71 0.11 155);
-    --chart-4: oklch(0.75 0.12 80);
-    --chart-5: oklch(0.68 0.13 20);
+    /* Same five hues re-stepped for the dark card surface; validated as a set. */
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
     --sidebar: oklch(0.16 0.018 255);
     --sidebar-foreground: oklch(0.88 0.014 255);
     --sidebar-primary: oklch(0.72 0.11 250);
