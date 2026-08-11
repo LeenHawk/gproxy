@@ -47,8 +47,7 @@ pub(in crate::pipeline::failover) struct UpstreamRespCapture {
 
 pub(in crate::pipeline::failover) struct ResponseRuleCtx<'a> {
     pub rules: &'a [crate::process::CompiledRule],
-    pub model: &'a str,
-    pub alternate_model: Option<&'a str>,
+    pub models: crate::process::RuleModels<'a>,
 }
 
 /// Materialize an attempt's body. Response-direction transform applies only to
@@ -92,8 +91,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     response_rules.rules,
                     shape.op,
                     kind,
-                    response_rules.model,
-                    response_rules.alternate_model,
+                    response_rules.models,
                     &ctx.headers,
                     b,
                 ),
@@ -198,8 +196,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     response_rules.rules,
                     shape_op,
                     kind,
-                    response_rules.model,
-                    response_rules.alternate_model,
+                    response_rules.models,
                     &ctx.headers,
                 )
             }) {

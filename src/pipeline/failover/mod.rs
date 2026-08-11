@@ -360,8 +360,10 @@ pub async fn run_failover(
                 (requested_model != cand.upstream_model_id).then_some(requested_model.as_str());
             let response_rules = rules.as_deref().map(|rules| ResponseRuleCtx {
                 rules: rules.as_slice(),
-                model: cand.upstream_model_id.as_str(),
-                alternate_model,
+                models: crate::process::RuleModels::new(
+                    cand.upstream_model_id.as_str(),
+                    alternate_model,
+                ),
             });
             let shaped_op = plan.shape_op(ctx);
             let usage_kind = match shaped_op.kind() {
