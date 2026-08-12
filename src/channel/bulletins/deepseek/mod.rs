@@ -36,6 +36,11 @@ fn is_openai_chat(op: crate::protocol::OperationKey) -> bool {
     ) && op.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions)
 }
 
+fn is_openai_model_list(op: crate::protocol::OperationKey) -> bool {
+    op.operation() == Operation::ListModels
+        && op.kind() == OperationKind::Provider(crate::protocol::Provider::OpenAi)
+}
+
 pub struct DeepSeekChannel;
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -117,6 +122,9 @@ impl Channel for DeepSeekChannel {
     }
 
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
+        if ctx.status.is_success() && is_openai_model_list(ctx.op) {
+            return shape::shape_model_list(body);
+        }
         // Only success bodies on the OpenAI chat surface carry the fields we
         // rewrite; error/non-chat bodies pass through untouched.
         if ctx.status.is_success() && is_openai_chat(ctx.op) {

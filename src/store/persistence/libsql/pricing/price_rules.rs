@@ -1,16 +1,18 @@
 //! Pricing rule ops for the libSQL edge backend.
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
-use crate::store::persistence::libsql::row::{Row, col_bool, col_i64, col_opt_i64, col_str};
+use crate::store::persistence::libsql::row::{
+    Row, col_bool, col_i64, col_opt_i64, col_opt_json, col_str,
+};
 use crate::store::persistence::libsql::util::{
-    arg_bool, arg_opt_i64, exec, last_rowid, now_secs, query, query_one,
+    arg_bool, arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query, query_one,
 };
 use crate::store::persistence::records::{PriceRule, PriceRuleInput};
 
 const COLS: &str = "id, provider_id, match_type, model_match, \
      input_price, output_price, cache_read_price, cache_creation_5m_price, \
      cache_creation_30m_price, cache_creation_1h_price, image_output_price, \
-     enabled, created_at, updated_at";
+     pricing_tiers_json, enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<PriceRule> {
     Ok(PriceRule {
@@ -25,9 +27,10 @@ fn decode(row: &Row) -> anyhow::Result<PriceRule> {
         cache_creation_30m_price: col_str(row, 8)?.parse()?,
         cache_creation_1h_price: col_str(row, 9)?.parse()?,
         image_output_price: col_str(row, 10)?.parse()?,
-        enabled: col_bool(row, 11)?,
-        created_at: col_i64(row, 12)?,
-        updated_at: col_i64(row, 13)?,
+        pricing_tiers_json: col_opt_json(row, 11)?,
+        enabled: col_bool(row, 12)?,
+        created_at: col_i64(row, 13)?,
+        updated_at: col_i64(row, 14)?,
     })
 }
 
@@ -62,7 +65,7 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                  input_price=?, output_price=?, cache_read_price=?, \
                  cache_creation_5m_price=?, cache_creation_30m_price=?, \
                  cache_creation_1h_price=?, image_output_price=?, \
-                 enabled=?, updated_at=? WHERE id=?",
+                 pricing_tiers_json=?, enabled=?, updated_at=? WHERE id=?",
                 &[
                     arg_opt_i64(input.provider_id),
                     arg_text(&input.match_type),
@@ -74,6 +77,14 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                     arg_text(&input.cache_creation_30m_price.to_string()),
                     arg_text(&input.cache_creation_1h_price.to_string()),
                     arg_text(&input.image_output_price.to_string()),
+                    arg_opt_text(
+                        input
+                            .pricing_tiers_json
+                            .as_ref()
+                            .map(serde_json::to_string)
+                            .transpose()?
+                            .as_deref(),
+                    ),
                     arg_bool(input.enabled),
                     arg_integer(now),
                     arg_integer(id),
@@ -89,8 +100,8 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                      (id, provider_id, match_type, model_match, \
                       input_price, output_price, cache_read_price, cache_creation_5m_price, \
                       cache_creation_30m_price, cache_creation_1h_price, image_output_price, \
-                      enabled, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      pricing_tiers_json, enabled, created_at, updated_at) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_opt_i64(input.provider_id),
@@ -103,6 +114,14 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                         arg_text(&input.cache_creation_30m_price.to_string()),
                         arg_text(&input.cache_creation_1h_price.to_string()),
                         arg_text(&input.image_output_price.to_string()),
+                        arg_opt_text(
+                            input
+                                .pricing_tiers_json
+                                .as_ref()
+                                .map(serde_json::to_string)
+                                .transpose()?
+                                .as_deref(),
+                        ),
                         arg_bool(input.enabled),
                         arg_integer(now),
                         arg_integer(now),

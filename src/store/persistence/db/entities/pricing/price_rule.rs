@@ -24,6 +24,8 @@ pub struct Model {
     pub cache_creation_1h_price: String,
     #[sea_orm(column_type = "Text", default_value = "0")]
     pub image_output_price: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub pricing_tiers_json: Option<String>,
     pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,

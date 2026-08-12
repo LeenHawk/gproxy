@@ -190,6 +190,18 @@ pub(super) async fn price_rules(client: &LibsqlClient) -> anyhow::Result<()> {
             changed = true;
         }
     }
+    if !cols.contains("pricing_tiers_json") {
+        client
+            .execute(
+                "ALTER TABLE price_rules ADD COLUMN pricing_tiers_json TEXT",
+                &[],
+            )
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!("libsql repair price_rules add pricing_tiers_json: {e}")
+            })?;
+        changed = true;
+    }
 
     if changed && had_rates_json {
         let sql = "UPDATE price_rules SET \
@@ -243,17 +255,20 @@ async fn rebuild_price_rules_table_without_legacy_columns(
             cache_creation_30m_price TEXT NOT NULL, \
             cache_creation_1h_price TEXT NOT NULL, \
             image_output_price TEXT NOT NULL DEFAULT '0', \
+            pricing_tiers_json TEXT, \
             enabled INTEGER NOT NULL, \
             created_at INTEGER NOT NULL, \
             updated_at INTEGER NOT NULL)",
         "INSERT INTO price_rules_repaired \
             (id, provider_id, match_type, model_match, \
              input_price, output_price, cache_read_price, cache_creation_5m_price, \
-             cache_creation_30m_price, cache_creation_1h_price, image_output_price, enabled, created_at, updated_at) \
+             cache_creation_30m_price, cache_creation_1h_price, image_output_price, \
+             pricing_tiers_json, enabled, created_at, updated_at) \
          SELECT \
             id, provider_id, match_type, model_match, \
             input_price, output_price, cache_read_price, cache_creation_5m_price, \
-            cache_creation_30m_price, cache_creation_1h_price, image_output_price, enabled, created_at, updated_at \
+            cache_creation_30m_price, cache_creation_1h_price, image_output_price, \
+            pricing_tiers_json, enabled, created_at, updated_at \
          FROM price_rules",
         "DROP TABLE price_rules",
         "ALTER TABLE price_rules_repaired RENAME TO price_rules",

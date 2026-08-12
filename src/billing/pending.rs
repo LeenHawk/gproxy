@@ -203,6 +203,7 @@ mod tests {
             cache_creation_30m_price: Decimal::ZERO,
             cache_creation_1h_price: Decimal::ZERO,
             image_output_price: Decimal::ZERO,
+            pricing_tiers_json: None,
             enabled: true,
             created_at: id,
             updated_at: id,

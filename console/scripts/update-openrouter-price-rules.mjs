@@ -10,6 +10,28 @@ const consoleDir = path.resolve(path.dirname(scriptPath), "..");
 const outputPath = path.join(consoleDir, "src", "data", "openrouter-price-rules.json");
 const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
 const SUPPORTED_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings", "rerank"]);
+const OFFICIAL_RULE_OVERRIDES = new Map([
+  ["deepseek-v4-flash", { cache_read_price: "0.0028" }],
+]);
+const OFFICIAL_EXTRA_RULES = [{
+  provider_id: null,
+  match_type: "contains",
+  model_match: "grok-4.6",
+  input_price: "2",
+  output_price: "6",
+  cache_read_price: "0.5",
+  cache_creation_5m_price: "0",
+  cache_creation_30m_price: "0",
+  cache_creation_1h_price: "0",
+  image_output_price: "0",
+  pricing_tiers_json: [{
+    min_prompt_tokens: 200000,
+    input_price: "4",
+    output_price: "12",
+    cache_read_price: "1",
+  }],
+  enabled: true,
+}];
 
 /** Convert an OpenRouter USD/token decimal into GPROXY's USD/1M-token form. */
 export function perMillion(value) {
@@ -84,6 +106,25 @@ export function buildPriceBundle(payload) {
     const author = model.id.slice(0, model.id.indexOf("/")).replace(/^~/, "");
     const modelMatch = model.id.slice(model.id.lastIndexOf("/") + 1);
     const cacheWrite = perMillion(pricing.input_cache_write);
+    const pricingTiers = Array.isArray(pricing.overrides)
+      ? pricing.overrides.map((override) => {
+          if (!Number.isInteger(override.min_prompt_tokens) || override.min_prompt_tokens <= 0) {
+            throw new Error(`model ${model.id} has an invalid pricing override threshold`);
+          }
+          const tier = { min_prompt_tokens: override.min_prompt_tokens };
+          const assign = (field, value) => {
+            if (value != null) tier[field] = perMillion(value);
+          };
+          assign("input_price", override.prompt);
+          assign("output_price", override.completion);
+          assign("cache_read_price", override.input_cache_read);
+          const tierCacheWrite = override.input_cache_write;
+          assign(author === "openai" ? "cache_creation_30m_price" : "cache_creation_5m_price", tierCacheWrite);
+          assign("cache_creation_1h_price", override.input_cache_write_1h);
+          assign("image_output_price", override.image_output);
+          return tier;
+        })
+      : null;
     rules.push({
       provider_id: null,
       match_type: "contains",
@@ -99,6 +140,7 @@ export function buildPriceBundle(payload) {
       // `image_output` is an output-token rate. Do not use `image`, which is an
       // input-image or flat-image rate depending on the upstream model.
       image_output_price: perMillion(pricing.image_output),
+      pricing_tiers_json: pricingTiers?.length ? pricingTiers : null,
       enabled: true,
     });
   }
@@ -128,6 +170,29 @@ export function buildPriceBundle(payload) {
   };
 }
 
+/** Apply pricing published directly by providers after the OpenRouter snapshot. */
+export function applyOfficialPriceOverrides(bundle) {
+  const rules = bundle.price_rules.map((rule) => ({
+    ...rule,
+    ...(OFFICIAL_RULE_OVERRIDES.get(rule.model_match) ?? {}),
+  }));
+  for (const rule of OFFICIAL_EXTRA_RULES) {
+    if (!rules.some((candidate) => candidate.model_match === rule.model_match)) rules.push(rule);
+  }
+  rules.sort((left, right) => (
+    left.model_match < right.model_match ? -1 : left.model_match > right.model_match ? 1 : 0
+  ));
+  return {
+    ...bundle,
+    source: {
+      ...bundle.source,
+      catalog: "openrouter+official-overrides",
+      included_models: rules.length,
+    },
+    price_rules: rules,
+  };
+}
+
 async function loadPayload(inputPath) {
   if (inputPath) {
     return JSON.parse(await readFile(path.resolve(process.cwd(), inputPath), "utf8"));
@@ -152,7 +217,7 @@ async function main() {
   }
 
   const payload = await loadPayload(args[1]);
-  const bundle = buildPriceBundle(payload);
+  const bundle = applyOfficialPriceOverrides(buildPriceBundle(payload));
   await writeFile(outputPath, `${JSON.stringify(bundle, null, 2)}\n`, "utf8");
 
   const variants = bundle.price_rules.filter((rule) => rule.model_match.includes(":")).length;

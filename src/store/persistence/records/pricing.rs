@@ -33,6 +33,10 @@ pub struct PriceRule {
     /// Per-million image-output-token price.
     #[serde(with = "rust_decimal::serde::str")]
     pub image_output_price: Decimal,
+    /// Ordered pricing tiers. Each object has `min_prompt_tokens` and optional
+    /// per-million rate overrides using the same `*_price` names as this row.
+    #[serde(default)]
+    pub pricing_tiers_json: Option<serde_json::Value>,
     pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -59,5 +63,7 @@ pub struct PriceRuleInput {
     pub cache_creation_1h_price: Decimal,
     #[serde(with = "rust_decimal::serde::str")]
     pub image_output_price: Decimal,
+    #[serde(default)]
+    pub pricing_tiers_json: Option<serde_json::Value>,
     pub enabled: bool,
 }

@@ -7,6 +7,46 @@
 use bytes::Bytes;
 use serde_json::{Map, Value};
 
+/// Enrich DeepSeek's deliberately minimal OpenAI model-list response with the
+/// limits and thinking capabilities published in the official model docs.
+pub(super) fn shape_model_list(body: Bytes) -> Bytes {
+    let Ok(mut value) = serde_json::from_slice::<Value>(&body) else {
+        return body;
+    };
+    let Some(models) = value.get_mut("data").and_then(Value::as_array_mut) else {
+        return body;
+    };
+    let mut changed = false;
+    for model in models {
+        let Some(object) = model.as_object_mut() else {
+            continue;
+        };
+        let Some(id) = object.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let display_name = match id {
+            "deepseek-v4-pro" => "DeepSeek V4 Pro",
+            "deepseek-v4-flash" => "DeepSeek V4 Flash",
+            _ => continue,
+        };
+        object.insert("display_name".into(), Value::String(display_name.into()));
+        object.insert("context_length".into(), Value::from(1_000_000));
+        object.insert("max_completion_tokens".into(), Value::from(384_000));
+        object.insert(
+            "supported_parameters".into(),
+            serde_json::json!(["reasoning"]),
+        );
+        object.insert("thinking_supported".into(), Value::Bool(true));
+        object.insert("thinking_adaptive_supported".into(), Value::Bool(false));
+        object.insert("thinking_enabled_supported".into(), Value::Bool(true));
+        changed = true;
+    }
+    if !changed {
+        return body;
+    }
+    serde_json::to_vec(&value).map(Bytes::from).unwrap_or(body)
+}
+
 /// OpenAI chat fields DeepSeek rejects. Stripped from every outbound
 /// `/chat/completions` body.
 const UNSUPPORTED_CHAT_FIELDS: &[&str] = &[
@@ -22,7 +62,6 @@ const UNSUPPORTED_CHAT_FIELDS: &[&str] = &[
     "prediction",
     "prompt_cache_key",
     "prompt_cache_retention",
-    "reasoning_effort",
     "safety_identifier",
     "seed",
     "service_tier",
@@ -37,7 +76,8 @@ const UNSUPPORTED_CHAT_FIELDS: &[&str] = &[
 ///
 /// - Fold `extra_body.thinking` into top-level `thinking` (`adaptive` →
 ///   `enabled`; DeepSeek only understands `enabled` / `disabled`).
-/// - Cap `max_tokens` / `max_completion_tokens` at 8192, then rename
+/// - Cap `max_tokens` / `max_completion_tokens` at DeepSeek V4's 384K output
+///   limit, then rename
 ///   `max_completion_tokens` → `max_tokens` when `max_tokens` is absent.
 /// - Strip unsupported OpenAI chat fields.
 /// - Rewrite `developer` role messages as `system`.
@@ -66,11 +106,15 @@ pub(super) fn shape_request(body: Bytes) -> Bytes {
 }
 
 fn cap_and_rename_max_tokens(map: &mut Map<String, Value>) {
+    const MAX_OUTPUT_TOKENS: u64 = 384_000;
     if let Some(max_tokens) = map.get("max_tokens").and_then(Value::as_u64) {
-        map.insert("max_tokens".to_string(), Value::from(max_tokens.min(8192)));
+        map.insert(
+            "max_tokens".to_string(),
+            Value::from(max_tokens.min(MAX_OUTPUT_TOKENS)),
+        );
     }
     if let Some(max_completion_tokens) = map.get("max_completion_tokens").and_then(Value::as_u64) {
-        let capped = max_completion_tokens.min(8192);
+        let capped = max_completion_tokens.min(MAX_OUTPUT_TOKENS);
         map.insert("max_completion_tokens".to_string(), Value::from(capped));
     }
     if map.get("max_tokens").is_none()
@@ -250,6 +294,18 @@ mod tests {
     }
 
     #[test]
+    fn enriches_v4_model_catalogue() {
+        let body = Bytes::from_static(
+            br#"{"object":"list","data":[{"id":"deepseek-v4-pro"},{"id":"other"}]}"#,
+        );
+        let value: Value = serde_json::from_slice(&shape_model_list(body)).unwrap();
+        assert_eq!(value["data"][0]["context_length"], 1_000_000);
+        assert_eq!(value["data"][0]["max_completion_tokens"], 384_000);
+        assert_eq!(value["data"][0]["thinking_supported"], true);
+        assert!(value["data"][1].get("context_length").is_none());
+    }
+
+    #[test]
     fn maps_max_completion_tokens_and_developer_role() {
         let body = req(json!({
             "model": "deepseek-chat",
@@ -273,13 +329,29 @@ mod tests {
     }
 
     #[test]
-    fn caps_max_tokens_at_8192() {
+    fn caps_max_tokens_at_v4_output_limit() {
         let body = req(json!({
             "model": "deepseek-chat",
-            "max_tokens": 20000,
+            "max_tokens": 500000,
             "messages": [{ "role": "user", "content": "hi" }]
         }));
-        assert_eq!(body.get("max_tokens").and_then(Value::as_u64), Some(8192));
+        assert_eq!(
+            body.get("max_tokens").and_then(Value::as_u64),
+            Some(384_000)
+        );
+    }
+
+    #[test]
+    fn preserves_supported_reasoning_effort() {
+        let body = req(json!({
+            "model": "deepseek-v4-pro",
+            "reasoning_effort": "max",
+            "messages": [{ "role": "user", "content": "hi" }]
+        }));
+        assert_eq!(
+            body.get("reasoning_effort").and_then(Value::as_str),
+            Some("max")
+        );
     }
 
     #[test]

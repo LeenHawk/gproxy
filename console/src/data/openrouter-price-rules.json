@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
   "source": {
-    "catalog": "openrouter",
-    "total_models": 525,
-    "supported_output_models": 470,
+    "catalog": "openrouter+official-overrides",
+    "total_models": 533,
+    "supported_output_models": 480,
     "dynamic_price_models": 5,
-    "included_models": 465,
+    "included_models": 475,
     "embedding_models": 33,
     "rerank_models": 6,
-    "image_output_priced_models": 40
+    "image_output_priced_models": 41
   },
   "price_rules": [
     {
@@ -22,6 +22,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -35,6 +36,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -48,6 +50,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -61,6 +64,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -74,6 +78,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -87,6 +92,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -100,6 +106,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -113,6 +120,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -126,6 +134,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -139,6 +148,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -152,6 +162,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0.5",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -165,6 +176,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "20",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -178,6 +190,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -191,6 +204,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "20",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -204,6 +218,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "2",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -217,6 +232,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "1",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -230,6 +246,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "2",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -243,6 +260,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "30",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -256,6 +274,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "30",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -269,6 +288,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "15",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -282,6 +302,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -295,6 +316,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "5",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -308,6 +330,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -321,6 +344,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "5",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -334,6 +358,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -347,6 +372,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "60",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -360,6 +386,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "5",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -373,6 +400,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -386,6 +414,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "20",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -399,6 +428,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "5",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -412,6 +442,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -425,6 +456,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "20",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -438,6 +470,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "5",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -451,6 +484,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -464,6 +498,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "6",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "6",
+          "output_price": "22.5",
+          "cache_read_price": "0.6",
+          "cache_creation_5m_price": "7.5",
+          "cache_creation_1h_price": "12"
+        }
+      ],
       "enabled": true
     },
     {
@@ -477,6 +521,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "6",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "6",
+          "output_price": "22.5",
+          "cache_read_price": "0.6",
+          "cache_creation_5m_price": "7.5",
+          "cache_creation_1h_price": "12"
+        }
+      ],
       "enabled": true
     },
     {
@@ -490,6 +544,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "3",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "3",
+          "output_price": "11.25",
+          "cache_read_price": "0.3",
+          "cache_creation_5m_price": "3.75",
+          "cache_creation_1h_price": "6"
+        }
+      ],
       "enabled": true
     },
     {
@@ -503,6 +567,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "6",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -516,6 +581,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "3",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -529,6 +595,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "4",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -542,6 +609,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "2",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -555,6 +623,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "4",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -568,6 +637,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -581,6 +651,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -594,6 +665,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -607,6 +679,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -620,6 +693,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -633,6 +707,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -646,6 +721,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -659,6 +735,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -672,6 +749,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -685,6 +763,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -698,6 +777,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -711,6 +791,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -724,6 +805,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -737,6 +819,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -744,12 +827,13 @@
       "match_type": "contains",
       "model_match": "deepseek-v3.1-terminus",
       "input_price": "0.27",
-      "output_price": "1",
-      "cache_read_price": "0.135",
+      "output_price": "0.95",
+      "cache_read_price": "0.13",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -763,6 +847,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -776,6 +861,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -784,24 +870,26 @@
       "model_match": "deepseek-v4-flash",
       "input_price": "0.14",
       "output_price": "0.28",
-      "cache_read_price": "0.028",
+      "cache_read_price": "0.0028",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v4-flash-0731",
-      "input_price": "0.09",
+      "input_price": "0.08",
       "output_price": "0.18",
-      "cache_read_price": "0.018",
+      "cache_read_price": "0.016",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -815,12 +903,27 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v4-pro",
+      "input_price": "1.168",
+      "output_price": "2.336",
+      "cache_read_price": "0.09855",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "deepseek-v4-pro-0813",
       "input_price": "0.435",
       "output_price": "0.87",
       "cache_read_price": "0.003625",
@@ -828,6 +931,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -841,6 +945,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -854,6 +959,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -867,6 +973,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -880,6 +987,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -893,6 +1001,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "14.6484375",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -906,6 +1015,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "3.41796875",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -919,6 +1029,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "17.08984375",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -932,6 +1043,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "7.32421875",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -945,6 +1057,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -958,6 +1071,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "10",
+          "output_price": "45",
+          "cache_read_price": "1"
+        }
+      ],
       "enabled": true
     },
     {
@@ -971,6 +1092,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -984,6 +1106,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "30",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -997,6 +1120,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1010,6 +1134,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1023,6 +1148,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1036,6 +1162,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2.5",
+          "output_price": "15",
+          "cache_read_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1049,6 +1183,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2.5",
+          "output_price": "15",
+          "cache_read_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1062,6 +1204,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2.5",
+          "output_price": "15",
+          "cache_read_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1075,6 +1225,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "1.25",
+          "output_price": "7.5",
+          "cache_read_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1088,6 +1246,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1101,6 +1260,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1114,6 +1274,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "120",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1127,6 +1288,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "120",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1140,6 +1302,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "60",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1153,6 +1316,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "60",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1166,6 +1330,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1179,6 +1344,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "30",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1192,6 +1358,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1205,6 +1372,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1218,6 +1386,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "4",
+          "output_price": "18",
+          "cache_read_price": "0.4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1231,6 +1407,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "4",
+          "output_price": "18",
+          "cache_read_price": "0.4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1244,6 +1428,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2",
+          "output_price": "9"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1257,6 +1448,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1270,6 +1462,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1283,6 +1476,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1296,6 +1490,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1309,6 +1504,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1322,6 +1518,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1335,6 +1532,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1348,6 +1546,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1361,6 +1560,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1374,6 +1574,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1387,6 +1588,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "4",
+          "output_price": "18",
+          "cache_read_price": "0.4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1400,6 +1609,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1413,6 +1623,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1426,6 +1637,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1439,6 +1651,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1452,6 +1665,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1465,6 +1679,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1478,6 +1693,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1491,6 +1707,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1504,6 +1721,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1517,6 +1735,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1530,6 +1749,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1543,19 +1763,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-4.6",
-      "input_price": "0.5",
-      "output_price": "2",
-      "cache_read_price": "0.1",
+      "input_price": "0.55",
+      "output_price": "2.2",
+      "cache_read_price": "0.11",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1569,6 +1791,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1582,6 +1805,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1595,6 +1819,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1608,6 +1833,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1621,6 +1847,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1634,19 +1861,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-5.2",
-      "input_price": "0.76",
-      "output_price": "2.42",
-      "cache_read_price": "0.14",
+      "input_price": "0.49",
+      "output_price": "1.54",
+      "cache_read_price": "0.091",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1660,6 +1889,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1673,6 +1903,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1686,6 +1917,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1699,6 +1931,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1712,6 +1945,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1725,6 +1959,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1738,6 +1973,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1751,6 +1987,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1764,6 +2001,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1777,6 +2015,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1790,6 +2029,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1803,6 +2043,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1816,6 +2057,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1829,6 +2071,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1842,6 +2085,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1855,6 +2099,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1868,6 +2113,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1881,6 +2127,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1894,6 +2141,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1907,6 +2155,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1920,6 +2169,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1933,6 +2183,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1946,6 +2197,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1959,6 +2211,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1972,6 +2225,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1985,6 +2239,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -1998,6 +2253,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2011,6 +2267,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "40",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2024,6 +2281,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "8",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2037,6 +2295,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2050,6 +2309,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2063,6 +2323,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2076,6 +2337,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2089,6 +2351,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2102,6 +2365,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2115,6 +2379,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2128,6 +2393,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2141,6 +2407,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2154,6 +2421,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2167,6 +2435,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2180,6 +2449,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2193,6 +2463,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2206,6 +2477,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2219,6 +2491,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2232,6 +2505,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2245,19 +2519,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
-      "model_match": "gpt-5.3-chat",
-      "input_price": "1.75",
-      "output_price": "14",
-      "cache_read_price": "0.175",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2271,6 +2533,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2284,6 +2547,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "5",
+          "output_price": "22.5",
+          "cache_read_price": "0.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2297,6 +2568,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "30",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2310,6 +2582,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2323,6 +2596,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2336,6 +2610,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2349,6 +2624,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2362,6 +2638,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "60",
+          "output_price": "270"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2375,6 +2658,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "30",
+          "output_price": "135"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2388,6 +2678,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "2.5",
+          "output_price": "11.25",
+          "cache_read_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2401,6 +2699,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "10",
+          "output_price": "45",
+          "cache_read_price": "1"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2414,6 +2720,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "60",
+          "output_price": "270"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2427,6 +2740,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "30",
+          "output_price": "135"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2440,6 +2760,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "5",
+          "output_price": "22.5",
+          "cache_read_price": "0.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2453,6 +2781,15 @@
       "cache_creation_30m_price": "0.125",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "0.2",
+          "output_price": "0.9",
+          "cache_read_price": "0.02",
+          "cache_creation_30m_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2466,6 +2803,15 @@
       "cache_creation_30m_price": "0.125",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "0.2",
+          "output_price": "0.9",
+          "cache_read_price": "0.02",
+          "cache_creation_30m_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2479,6 +2825,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "0.2",
+          "output_price": "0.9",
+          "cache_read_price": "0.02"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2492,6 +2846,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "0.2",
+          "output_price": "0.9",
+          "cache_read_price": "0.02"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2505,6 +2867,15 @@
       "cache_creation_30m_price": "6.25",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "10",
+          "output_price": "45",
+          "cache_read_price": "1",
+          "cache_creation_30m_price": "12.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2518,6 +2889,15 @@
       "cache_creation_30m_price": "6.25",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "10",
+          "output_price": "45",
+          "cache_read_price": "1",
+          "cache_creation_30m_price": "12.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2531,6 +2911,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "5",
+          "output_price": "22.5",
+          "cache_read_price": "0.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2544,6 +2932,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "5",
+          "output_price": "22.5",
+          "cache_read_price": "0.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2557,6 +2953,15 @@
       "cache_creation_30m_price": "1.25",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "2",
+          "output_price": "9",
+          "cache_read_price": "0.2",
+          "cache_creation_30m_price": "2.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2570,6 +2975,15 @@
       "cache_creation_30m_price": "1.25",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "2",
+          "output_price": "9",
+          "cache_read_price": "0.2",
+          "cache_creation_30m_price": "2.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2583,6 +2997,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "2",
+          "output_price": "9",
+          "cache_read_price": "0.2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2596,6 +3018,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "2",
+          "output_price": "9",
+          "cache_read_price": "0.2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2609,6 +3039,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2622,6 +3053,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2635,6 +3067,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2648,6 +3081,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2661,6 +3095,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "40",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2674,6 +3109,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "8",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2687,6 +3123,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "30",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2700,6 +3137,15 @@
       "cache_creation_30m_price": "6.25",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 272000,
+          "input_price": "10",
+          "output_price": "45",
+          "cache_read_price": "1",
+          "cache_creation_30m_price": "12.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2713,19 +3159,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gpt-oss-120b",
-      "input_price": "0.037",
+      "input_price": "0.03",
       "output_price": "0.17",
-      "cache_read_price": "0",
+      "cache_read_price": "0.03",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2739,6 +3187,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2752,6 +3201,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2765,6 +3215,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2778,6 +3229,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2791,6 +3243,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2804,6 +3257,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2.5",
+          "output_price": "5",
+          "cache_read_price": "0.4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2817,6 +3278,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2.5",
+          "output_price": "5",
+          "cache_read_price": "0.4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2830,6 +3299,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2.5",
+          "output_price": "5",
+          "cache_read_price": "0.4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2843,6 +3320,35 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "4",
+          "output_price": "12",
+          "cache_read_price": "0.6"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "grok-4.6",
+      "input_price": "2",
+      "output_price": "6",
+      "cache_read_price": "0.5",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "4",
+          "output_price": "12",
+          "cache_read_price": "1"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2856,6 +3362,28 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "2",
+          "output_price": "4",
+          "cache_read_price": "0.4"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "grok-imagine-image-2.0",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "9.58083832335329",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2869,6 +3397,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "11.9760479041916",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2877,11 +3406,19 @@
       "model_match": "grok-latest",
       "input_price": "2",
       "output_price": "6",
-      "cache_read_price": "0.3",
+      "cache_read_price": "0.5",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 200000,
+          "input_price": "4",
+          "output_price": "12",
+          "cache_read_price": "1"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2895,6 +3432,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2908,6 +3446,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2921,6 +3460,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2934,6 +3474,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2947,6 +3488,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2960,6 +3502,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2973,6 +3516,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2986,6 +3530,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -2999,6 +3544,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3012,6 +3558,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3025,6 +3572,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3038,6 +3586,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3051,6 +3600,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3064,6 +3614,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3077,6 +3628,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3090,6 +3642,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3103,6 +3656,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3116,6 +3670,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3129,6 +3684,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3142,32 +3698,35 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.6",
-      "input_price": "0.95",
-      "output_price": "4",
-      "cache_read_price": "0.16",
+      "input_price": "0.5795",
+      "output_price": "2.44",
+      "cache_read_price": "0.0976",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.7-code",
-      "input_price": "0.7",
-      "output_price": "3.5",
+      "input_price": "0.67",
+      "output_price": "3.4",
       "cache_read_price": "0.15",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3181,6 +3740,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3194,6 +3754,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3207,6 +3768,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3220,6 +3782,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "14.3712574850299",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3233,6 +3796,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "7.18562874251497",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3246,6 +3810,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "3.59281437125749",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3259,6 +3824,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3272,6 +3838,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3285,6 +3852,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3298,6 +3866,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3311,6 +3880,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3324,6 +3894,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3337,6 +3908,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "lfm-2.5-2.6b:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3350,6 +3936,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3363,6 +3950,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3376,6 +3964,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3389,6 +3978,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3402,6 +3992,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3415,6 +4006,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3428,6 +4020,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3441,6 +4034,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3454,6 +4048,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3467,6 +4062,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3480,6 +4076,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3493,6 +4090,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3506,6 +4104,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3519,6 +4118,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3532,6 +4132,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3545,6 +4146,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3558,6 +4160,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3571,6 +4174,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3584,6 +4188,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "47",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3597,6 +4202,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "108",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3610,6 +4216,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3623,6 +4230,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3636,6 +4244,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3649,6 +4258,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3662,6 +4272,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3675,6 +4286,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3688,6 +4300,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3701,6 +4314,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3714,6 +4328,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3727,6 +4342,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3740,6 +4356,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3753,6 +4370,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3766,6 +4384,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3779,6 +4398,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3792,6 +4412,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3805,6 +4426,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3818,6 +4440,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3831,6 +4454,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3844,6 +4468,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3857,6 +4482,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3870,6 +4496,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3883,6 +4510,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3896,6 +4524,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3909,6 +4538,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3922,6 +4552,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3935,6 +4566,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3948,6 +4580,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3961,6 +4594,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3974,6 +4608,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -3987,6 +4622,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4000,6 +4636,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4013,6 +4650,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4026,6 +4664,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "muse-glimmer-30b",
+      "input_price": "0.35",
+      "output_price": "1.5",
+      "cache_read_price": "0.04",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4039,6 +4692,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4052,6 +4706,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4065,6 +4720,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4078,6 +4734,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4091,6 +4748,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4104,6 +4762,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4117,6 +4776,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4130,6 +4790,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4143,6 +4804,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4156,6 +4818,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4169,6 +4832,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4182,6 +4846,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4195,6 +4860,35 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-3.5-lightning",
+      "input_price": "0.1",
+      "output_price": "0.25",
+      "cache_read_price": "0.05",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "nemotron-3.5-lightning:free",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4208,6 +4902,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4221,6 +4916,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4234,6 +4930,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4247,6 +4944,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4260,6 +4958,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4273,6 +4972,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4286,6 +4986,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4299,6 +5000,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4312,6 +5014,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4325,6 +5028,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4338,6 +5042,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4351,6 +5056,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4364,6 +5070,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4377,6 +5084,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4390,6 +5098,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4403,6 +5112,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4416,6 +5126,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4429,6 +5140,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4442,6 +5154,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4455,6 +5168,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4468,6 +5182,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4481,6 +5196,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4494,6 +5210,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4507,6 +5224,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4520,6 +5238,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4533,6 +5252,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4546,6 +5266,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4559,6 +5280,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4572,6 +5294,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4585,6 +5308,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4598,6 +5322,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4611,6 +5336,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4624,6 +5350,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4637,6 +5364,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4650,6 +5378,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4663,6 +5392,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4676,6 +5406,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "7.18562874251497",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4689,6 +5420,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "9.58083832335329",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4702,6 +5434,15 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.78",
+          "output_price": "2.34",
+          "cache_read_price": "0.156",
+          "cache_creation_5m_price": "0.975"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4715,6 +5456,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.78",
+          "output_price": "2.34"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4728,6 +5476,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "1.2",
+          "output_price": "3.6",
+          "cache_creation_5m_price": "1.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4741,6 +5497,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4754,6 +5511,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4767,6 +5525,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4780,6 +5539,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4793,6 +5553,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4806,6 +5567,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4819,6 +5581,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4832,6 +5595,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4845,6 +5609,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4858,6 +5623,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4871,6 +5637,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4878,12 +5645,13 @@
       "match_type": "contains",
       "model_match": "qwen3-coder-30b-a3b-instruct",
       "input_price": "0.07",
-      "output_price": "0.27",
+      "output_price": "0.28",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4897,6 +5665,22 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 32000,
+          "input_price": "0.325",
+          "output_price": "1.625",
+          "cache_read_price": "0.065",
+          "cache_creation_5m_price": "0.40625"
+        },
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "0.52",
+          "output_price": "2.6",
+          "cache_read_price": "0.104",
+          "cache_creation_5m_price": "0.65"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4910,6 +5694,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4923,6 +5708,22 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 32000,
+          "input_price": "1.17",
+          "output_price": "5.85",
+          "cache_read_price": "0.234",
+          "cache_creation_5m_price": "1.4625"
+        },
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "1.95",
+          "output_price": "9.75",
+          "cache_read_price": "0.39",
+          "cache_creation_5m_price": "2.4375"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4936,6 +5737,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4949,6 +5751,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -4962,6 +5765,22 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 32000,
+          "input_price": "1.56",
+          "output_price": "7.8",
+          "cache_read_price": "0.312",
+          "cache_creation_5m_price": "1.95"
+        },
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "1.95",
+          "output_price": "9.75",
+          "cache_read_price": "0.39",
+          "cache_creation_5m_price": "2.4375"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4975,6 +5794,18 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 32000,
+          "input_price": "1.56",
+          "output_price": "7.8"
+        },
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "1.95",
+          "output_price": "9.75"
+        }
+      ],
       "enabled": true
     },
     {
@@ -4988,6 +5819,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5001,19 +5833,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-235b-a22b-instruct",
-      "input_price": "0.21",
-      "output_price": "1.9",
-      "cache_read_price": "0.1",
+      "input_price": "0.26",
+      "output_price": "1.04",
+      "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5027,6 +5861,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5040,6 +5875,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5053,6 +5889,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5066,6 +5903,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5079,6 +5917,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5092,6 +5931,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5105,6 +5945,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5118,6 +5959,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5131,19 +5973,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.5-397b-a17b",
-      "input_price": "0.39",
-      "output_price": "2.34",
-      "cache_read_price": "0",
+      "input_price": "0.5",
+      "output_price": "3.6",
+      "cache_read_price": "0.3",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5157,6 +6001,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5170,6 +6015,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5183,6 +6029,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.325",
+          "output_price": "1.95"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5196,6 +6049,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.375",
+          "output_price": "2.25",
+          "cache_creation_5m_price": "0.46875"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5209,6 +6070,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5222,6 +6084,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5235,6 +6098,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.75",
+          "output_price": "3",
+          "cache_creation_5m_price": "0.9375"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5248,6 +6119,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "1.58",
+          "output_price": "9.48",
+          "cache_creation_5m_price": "1.975"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5261,6 +6140,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "1.3",
+          "output_price": "3.9",
+          "cache_creation_5m_price": "1.625"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5274,6 +6161,22 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 32000,
+          "input_price": "0.1",
+          "output_price": "0.4",
+          "cache_read_price": "0.02",
+          "cache_creation_5m_price": "0.125"
+        },
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.2",
+          "output_price": "0.8",
+          "cache_read_price": "0.04",
+          "cache_creation_5m_price": "0.25"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5287,6 +6190,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5300,6 +6204,15 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 256000,
+          "input_price": "0.96",
+          "output_price": "3.84",
+          "cache_read_price": "0.192",
+          "cache_creation_5m_price": "1.2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5313,6 +6226,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5326,6 +6240,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "9.58083832335329",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5339,6 +6254,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "9.58083832335329",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5352,6 +6268,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "59.8802395209581",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5365,6 +6282,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "71.8562874251497",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5378,6 +6296,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "19.1616766467066",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5391,6 +6310,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "8.38323353293413",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5404,6 +6324,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "50.2994011976048",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5417,6 +6338,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "71.8562874251497",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5430,6 +6352,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "8.38323353293413",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5443,6 +6366,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "50.2994011976048",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5456,6 +6380,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "19.1616766467066",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5469,6 +6394,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5482,6 +6408,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5495,6 +6422,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5508,6 +6436,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5521,6 +6450,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5534,6 +6464,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5547,6 +6478,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5560,6 +6492,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5573,6 +6506,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5586,6 +6520,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5599,6 +6534,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5612,6 +6548,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "4.79041916167665",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5625,6 +6562,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "35.9281437125749",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5638,6 +6576,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "4.55089820359281",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5651,6 +6590,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "31.1377245508982",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5664,6 +6604,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "sakana-namazu",
+      "input_price": "0.95",
+      "output_price": "4",
+      "cache_read_price": "0.15",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5677,6 +6632,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "0.5",
+          "output_price": "4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5690,6 +6652,47 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "0.1",
+          "output_price": "0.8"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "seed-2-1-turbo",
+      "input_price": "0.5",
+      "output_price": "2.5",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "seed-2.0-code",
+      "input_price": "0.5",
+      "output_price": "3",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "1",
+          "output_price": "6"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5703,6 +6706,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "0.5",
+          "output_price": "4"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5716,6 +6726,13 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "min_prompt_tokens": 128000,
+          "input_price": "0.2",
+          "output_price": "0.8"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5729,6 +6746,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "9.58083832335329",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5742,6 +6760,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5755,6 +6774,21 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "solar-pro4",
+      "input_price": "0.03",
+      "output_price": "0.12",
+      "cache_read_price": "0.006",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5768,6 +6802,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5781,6 +6816,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5794,6 +6830,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5807,6 +6844,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5820,6 +6858,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5833,6 +6872,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5846,6 +6886,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5859,6 +6900,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5872,6 +6914,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5885,6 +6928,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5898,6 +6942,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5911,6 +6956,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5924,6 +6970,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5937,6 +6984,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5950,6 +6998,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5963,6 +7012,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5976,6 +7026,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -5989,6 +7040,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -6002,6 +7054,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -6015,6 +7068,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -6028,6 +7082,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -6041,6 +7096,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -6054,6 +7110,7 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     }
   ]
