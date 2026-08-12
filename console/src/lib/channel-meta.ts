@@ -97,12 +97,14 @@ const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 
 const DISPLAY_NAMES: Record<string, string> = {
   aistudio: "Google AI Studio", antigravity: "Antigravity", "aws-bedrock": "AWS Bedrock",
-  claudeapi: "Claude API", claudecode: "Claude Code", claudeweb: "Claude Web",
-  cline: "Cline",
+  azure: "Microsoft Azure", claudeapi: "Claude API", claudecode: "Claude Code",
+  claudeweb: "Claude Web", cline: "Cline",
   "cloudflare-ai-gateway": "Cloudflare AI Gateway",
-  copilotcli: "GitHub Copilot CLI", geminicli: "Gemini CLI",
-  grokbuild: "Grok Build", vertexexpress: "Vertex AI Express",
-  opencodezen: "OpenCode Zen", opencodego: "OpenCode Go",
+  codex: "OpenAI Codex", copilotcli: "GitHub Copilot CLI", custom: "Custom", deepseek: "DeepSeek",
+  geminicli: "Gemini CLI", groq: "Groq", grokbuild: "Grok Build", kiro: "Kiro",
+  nvidia: "NVIDIA", openai: "OpenAI", opencodezen: "OpenCode Zen",
+  opencodego: "OpenCode Go", openrouter: "OpenRouter", vercel: "Vercel AI Gateway",
+  vertex: "Google Vertex AI", vertexexpress: "Vertex AI Express",
 };
 function builtinMeta(
   id: string,

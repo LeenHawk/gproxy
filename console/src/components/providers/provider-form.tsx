@@ -194,9 +194,7 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
                   {group.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       <span>{c.displayName}</span>
-                      {c.displayName !== c.id && (
-                        <span className="font-mono text-xs text-muted-foreground">{c.id}</span>
-                      )}
+                      <span className="font-mono text-xs text-muted-foreground">{c.id}</span>
                     </SelectItem>
                   ))}
                 </SelectGroup>
