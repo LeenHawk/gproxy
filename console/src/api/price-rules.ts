@@ -13,6 +13,7 @@ export interface PriceRule {
   cache_creation_30m_price: string;
   cache_creation_1h_price: string;
   image_output_price: string;
+  pricing_tiers_json?: PricingTier[] | null;
   enabled: boolean;
   created_at: number;
   updated_at: number;
@@ -30,7 +31,19 @@ export interface PriceRuleInput {
   cache_creation_30m_price: string;
   cache_creation_1h_price: string;
   image_output_price: string;
+  pricing_tiers_json?: PricingTier[] | null;
   enabled: boolean;
+}
+
+export interface PricingTier {
+  min_prompt_tokens: number;
+  input_price?: string;
+  output_price?: string;
+  cache_read_price?: string;
+  cache_creation_5m_price?: string;
+  cache_creation_30m_price?: string;
+  cache_creation_1h_price?: string;
+  image_output_price?: string;
 }
 
 export const priceRulesQuery = queryOptions({

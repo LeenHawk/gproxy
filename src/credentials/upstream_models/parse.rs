@@ -41,7 +41,7 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
             let display_name = match family {
                 Provider::Gemini => m.get("displayName"),
                 Provider::Claude => m.get("display_name"),
-                Provider::OpenAi => None,
+                Provider::OpenAi => m.get("display_name").or_else(|| m.get("name")),
                 _ => unreachable!(
                     "new non-exhaustive protocol variant requires a lockstep transform update"
                 ),
@@ -81,7 +81,12 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
             };
             let (thinking_supported, thinking_adaptive_supported, thinking_enabled_supported) =
                 match family {
-                    Provider::OpenAi => (supported_parameter("reasoning"), None, None),
+                    Provider::OpenAi => (
+                        bool_at(m, "thinking_supported")
+                            .or_else(|| supported_parameter("reasoning")),
+                        bool_at(m, "thinking_adaptive_supported"),
+                        bool_at(m, "thinking_enabled_supported"),
+                    ),
                     Provider::Claude => {
                         let thinking = m
                             .get("capabilities")

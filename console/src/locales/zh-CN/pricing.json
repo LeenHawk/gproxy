@@ -68,6 +68,8 @@
     "cacheCreation30mPrice": "缓存创建 30m / 每百万 tokens",
     "cacheCreation1hPrice": "缓存创建 1h / 每百万 tokens",
     "imageOutputPrice": "图片输出 / 每百万 tokens",
+    "pricingTiers": "阶梯价格（JSON）",
+    "pricingTiersPlaceholder": "可选：输入 token 阈值及各类别覆盖价格数组",
     "pricesHint": "留空按 0 处理。值是美元 decimal。",
     "enabled": "启用",
     "create": "创建",

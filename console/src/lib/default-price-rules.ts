@@ -24,6 +24,7 @@ export const DEFAULT_RULES: PriceRuleDraft[] = DEFAULT_BUNDLE.price_rules.map((r
   ...rule,
   provider_id: null,
   match_type: "contains",
+  pricing_tiers_json: rule.pricing_tiers_json ?? null,
 }));
 
 export function findDefaultPriceRule(model: string): PriceRuleDraft | undefined {

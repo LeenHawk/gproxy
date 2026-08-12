@@ -63,6 +63,9 @@ export function PriceRuleForm({
   const [cacheCreation30mPrice, setCacheCreation30mPrice] = useState(() => decimalField(rule?.cache_creation_30m_price));
   const [cacheCreation1hPrice, setCacheCreation1hPrice] = useState(() => decimalField(rule?.cache_creation_1h_price));
   const [imageOutputPrice, setImageOutputPrice] = useState(() => decimalField(rule?.image_output_price));
+  const [pricingTiers, setPricingTiers] = useState(() =>
+    rule?.pricing_tiers_json == null ? "" : JSON.stringify(rule.pricing_tiers_json, null, 2),
+  );
   const [formError, setFormError] = useState<string | null>(null);
   const matchOptions = [...new Set(modelMatchOptions.map((v) => v.trim()).filter((v) => v !== ""))];
   const defaultPriceRule = findDefaultPriceRule(modelMatch);
@@ -76,6 +79,7 @@ export function PriceRuleForm({
     setCacheCreation30mPrice(defaultPriceRule.cache_creation_30m_price);
     setCacheCreation1hPrice(defaultPriceRule.cache_creation_1h_price);
     setImageOutputPrice(defaultPriceRule.image_output_price);
+    setPricingTiers(defaultPriceRule.pricing_tiers_json == null ? "" : JSON.stringify(defaultPriceRule.pricing_tiers_json, null, 2));
   };
 
   const mutation = useMutation({
@@ -93,6 +97,7 @@ export function PriceRuleForm({
         cache_creation_30m_price: normalizeDecimal(cacheCreation30mPrice),
         cache_creation_1h_price: normalizeDecimal(cacheCreation1hPrice),
         image_output_price: normalizeDecimal(imageOutputPrice),
+        pricing_tiers_json: pricingTiers.trim() === "" ? null : JSON.parse(pricingTiers),
         enabled,
       });
     },
@@ -196,6 +201,16 @@ export function PriceRuleForm({
               inputMode="decimal"
               value={imageOutputPrice}
               onChange={(e) => setImageOutputPrice(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2 md:col-span-2">
+            <Label htmlFor="price-pricing-tiers">{t("form.pricingTiers")}</Label>
+            <textarea
+              id="price-pricing-tiers"
+              className="min-h-32 rounded-md border bg-transparent px-3 py-2 font-mono text-sm"
+              value={pricingTiers}
+              onChange={(e) => setPricingTiers(e.target.value)}
+              placeholder={t("form.pricingTiersPlaceholder")}
             />
           </div>
         </div>

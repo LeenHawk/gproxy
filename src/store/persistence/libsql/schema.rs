@@ -90,6 +90,7 @@ const TABLES: &[&str] = &[
         cache_creation_30m_price TEXT NOT NULL, \
         cache_creation_1h_price TEXT NOT NULL, \
         image_output_price TEXT NOT NULL DEFAULT '0', \
+        pricing_tiers_json TEXT, \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",

@@ -32,6 +32,8 @@ pub(crate) struct LegacyPriceRule {
     pub cache_creation_1h_price: Decimal,
     #[serde(default, deserialize_with = "deserialize_decimal")]
     pub image_output_price: Decimal,
+    #[serde(default)]
+    pub pricing_tiers_json: Option<serde_json::Value>,
     #[serde(default = "default_true")]
     pub enabled: bool,
 }
@@ -50,6 +52,7 @@ impl From<LegacyPriceRule> for PriceRuleInput {
             cache_creation_30m_price: x.cache_creation_30m_price,
             cache_creation_1h_price: x.cache_creation_1h_price,
             image_output_price: x.image_output_price,
+            pricing_tiers_json: x.pricing_tiers_json,
             enabled: x.enabled,
         }
     }

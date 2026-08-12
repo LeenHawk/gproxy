@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { buildPriceBundle, perMillion } from "./update-openrouter-price-rules.mjs";
+import {
+  applyOfficialPriceOverrides,
+  buildPriceBundle,
+  perMillion,
+} from "./update-openrouter-price-rules.mjs";
 
 const bundledRulesUrl = new URL("../src/data/openrouter-price-rules.json", import.meta.url);
 
@@ -144,37 +148,72 @@ describe("OpenRouter price-rule generator", () => {
       .toThrow("duplicate OpenRouter model basename");
   });
 
+  it("applies current provider-published overrides", () => {
+    const bundle = applyOfficialPriceOverrides(buildPriceBundle({
+      data: [{
+        id: "deepseek/deepseek-v4-flash",
+        architecture: { output_modalities: ["text"] },
+        pricing: { prompt: "0.00000014", completion: "0.00000028", input_cache_read: "0.000000028" },
+      }],
+    }));
+    expect(bundle.source.catalog).toBe("openrouter+official-overrides");
+    expect(bundle.price_rules.find((rule) => rule.model_match === "deepseek-v4-flash")?.cache_read_price).toBe("0.0028");
+    expect(bundle.price_rules.find((rule) => rule.model_match === "grok-4.6")).toMatchObject({
+      input_price: "2",
+      output_price: "6",
+      cache_read_price: "0.5",
+      pricing_tiers_json: [{
+        min_prompt_tokens: 200000,
+        input_price: "4",
+        output_price: "12",
+        cache_read_price: "1",
+      }],
+    });
+  });
+
   it("keeps the checked-in full catalog complete, sorted, and aligned with the generator", async () => {
     const bundle = JSON.parse(await readFile(bundledRulesUrl, "utf8"));
-    const generatedShape = buildPriceBundle({
+    const generatedShape = applyOfficialPriceOverrides(buildPriceBundle({
       data: [{
         id: "test/shape",
         architecture: { output_modalities: ["text"] },
         pricing: { prompt: "0", completion: "0" },
       }],
-    });
-    const expectedFields = Object.keys(generatedShape.price_rules[0]);
+    }));
+    const baseShape = buildPriceBundle({
+      data: [{
+        id: "test/shape",
+        architecture: { output_modalities: ["text"] },
+        pricing: { prompt: "0", completion: "0" },
+      }],
+    }).price_rules[0];
+    const expectedFields = Object.keys(baseShape);
     const priceFields = expectedFields.filter((field) => field.endsWith("_price"));
     const names = bundle.price_rules.map((rule) => rule.model_match);
 
     expect(bundle.schema_version).toBe(generatedShape.schema_version);
     expect(bundle.source).toEqual({
-      catalog: "openrouter",
-      total_models: 525,
-      supported_output_models: 470,
+      catalog: "openrouter+official-overrides",
+      total_models: 533,
+      supported_output_models: 480,
       dynamic_price_models: 5,
-      included_models: 465,
+      included_models: 475,
       embedding_models: 33,
       rerank_models: 6,
-      image_output_priced_models: 40,
+      image_output_priced_models: 41,
     });
-    expect(bundle.price_rules).toHaveLength(465);
+    expect(bundle.price_rules).toHaveLength(475);
     expect(new Set(names).size).toBe(names.length);
     expect(names).toEqual([...names].sort());
-    expect(bundle.price_rules.filter((rule) => rule.image_output_price !== "0")).toHaveLength(40);
+    expect(bundle.price_rules.filter((rule) => rule.image_output_price !== "0")).toHaveLength(41);
+    expect(bundle.price_rules.filter((rule) => rule.pricing_tiers_json != null)).toHaveLength(59);
     expect(bundle.price_rules.filter((rule) => rule.model_match.includes("rerank"))).toHaveLength(6);
     expect(bundle.price_rules.every((rule) => (
-      JSON.stringify(Object.keys(rule)) === JSON.stringify(expectedFields)
+      expectedFields.every((field) => field in rule)
+      && Object.keys(rule).every((field) => (
+        expectedFields.includes(field)
+        || field === "pricing_tiers_json"
+      ))
     ))).toBe(true);
     expect(bundle.price_rules.every((rule) => (
       rule.provider_id === null

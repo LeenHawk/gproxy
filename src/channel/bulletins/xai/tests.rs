@@ -33,3 +33,14 @@ fn prepares_official_api_request() {
     assert_eq!(request.headers()["authorization"], "Bearer xai-test");
     assert_eq!(request.headers()["x-grok-conv-id"], "conversation-1");
 }
+
+#[test]
+fn enriches_grok_46_model_catalogue() {
+    let body =
+        Bytes::from_static(br#"{"object":"list","data":[{"id":"grok-4.6"},{"id":"other"}]}"#);
+    let value: serde_json::Value = serde_json::from_slice(&super::enrich_model_list(body)).unwrap();
+    assert_eq!(value["data"][0]["display_name"], "Grok 4.6");
+    assert_eq!(value["data"][0]["context_length"], 500_000);
+    assert_eq!(value["data"][0]["thinking_supported"], true);
+    assert!(value["data"][1].get("context_length").is_none());
+}

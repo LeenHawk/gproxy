@@ -5,8 +5,12 @@ mod auth;
 #[cfg(test)]
 mod tests;
 
+use bytes::Bytes;
+use serde_json::Value;
+
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
+use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
+use crate::protocol::{Operation, OperationKind, Provider};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.x.ai"),
@@ -77,4 +81,44 @@ impl Channel for XaiChannel {
         auth::apply(&mut req, &key)?;
         Ok(PreparedRequest::new(req))
     }
+
+    fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
+        if !ctx.status.is_success()
+            || ctx.op.operation() != Operation::ListModels
+            || ctx.op.kind() != OperationKind::Provider(Provider::OpenAi)
+        {
+            return body;
+        }
+        enrich_model_list(body)
+    }
+}
+
+fn enrich_model_list(body: Bytes) -> Bytes {
+    let Ok(mut value) = serde_json::from_slice::<Value>(&body) else {
+        return body;
+    };
+    let Some(models) = value.get_mut("data").and_then(Value::as_array_mut) else {
+        return body;
+    };
+    let mut changed = false;
+    for model in models {
+        let Some(object) = model.as_object_mut() else {
+            continue;
+        };
+        if object.get("id").and_then(Value::as_str) != Some("grok-4.6") {
+            continue;
+        }
+        object.insert("display_name".into(), Value::String("Grok 4.6".into()));
+        object.insert("context_length".into(), Value::from(500_000));
+        object.insert(
+            "supported_parameters".into(),
+            serde_json::json!(["reasoning"]),
+        );
+        object.insert("thinking_supported".into(), Value::Bool(true));
+        changed = true;
+    }
+    if !changed {
+        return body;
+    }
+    serde_json::to_vec(&value).map(Bytes::from).unwrap_or(body)
 }
