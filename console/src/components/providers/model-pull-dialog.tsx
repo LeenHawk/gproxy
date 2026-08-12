@@ -1,27 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@/api/http";
-import { upstreamModelsQuery, upsertProviderModel } from "@/api/provider-models";
+import {
+  upstreamModelsQuery,
+  upsertProviderModel,
+  type ProviderModel,
+  type UpstreamModel,
+} from "@/api/provider-models";
+import { upsertPriceRule, type PriceRule } from "@/api/price-rules";
 import { EntityDialog } from "@/components/entity-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { ModelPullList } from "@/components/providers/model-pull-list";
+import { ModelPullPriceOption } from "@/components/providers/model-pull-price-option";
+import {
+  defaultPriceInput,
+  missingMetadataCount,
+  modelSyncInput,
+} from "@/components/providers/model-pull-sync";
 
-/** Pull the provider's upstream model list and let the admin tick which to import
- *  as provider models (already-added ones are shown disabled). A search box
- *  filters the list — some upstreams (aggregators) offer hundreds of models. */
+/** Add new upstream models, fill missing metadata and optionally add default prices. */
 export function ModelPullDialog({
   providerId,
-  existing,
+  existingModels,
+  priceRules,
   open,
   onOpenChange,
 }: {
   providerId: number;
-  existing: Set<string>;
+  existingModels: ProviderModel[];
+  priceRules: PriceRule[];
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
@@ -30,18 +41,41 @@ export function ModelPullDialog({
   const q = useQuery(upstreamModelsQuery(providerId));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [importPrices, setImportPrices] = useState(true);
 
   useEffect(() => {
     if (open) {
       setSelected(new Set());
       setSearch("");
+      setImportPrices(true);
       void q.refetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const models = q.data ?? [];
-  const newModels = models.filter((m) => !existing.has(m.id));
+  const baseActions = useMemo(() => {
+    const existingById = new Map(existingModels.map((model) => [model.model_id, model]));
+    return new Map(models.map((model) => {
+      const existing = existingById.get(model.id);
+      const metadata = missingMetadataCount(existing, model);
+      return [model.id, {
+        existing,
+        metadata,
+        price: defaultPriceInput(providerId, model.id, priceRules),
+        modelWrite: existing == null || metadata > 0,
+      }];
+    }));
+  }, [existingModels, models, priceRules, providerId]);
+  const actionFor = (model: UpstreamModel) => {
+    const base = baseActions.get(model.id);
+    if (!base) throw new Error(`missing pull action for ${model.id}`);
+    return {
+      ...base,
+      actionable: base.modelWrite || (importPrices && base.price != null),
+    };
+  };
+  const actionableModels = models.filter((model) => actionFor(model).actionable);
 
   const term = search.trim().toLowerCase();
   const visible = term
@@ -53,9 +87,9 @@ export function ModelPullDialog({
     : models;
   // "Select all" acts on the new+visible set, so you can search → select-all →
   // search again, accumulating selections across filters.
-  const visibleNew = visible.filter((m) => !existing.has(m.id));
-  const allVisibleNewSelected =
-    visibleNew.length > 0 && visibleNew.every((m) => selected.has(m.id));
+  const visibleActionable = visible.filter((model) => actionFor(model).actionable);
+  const allVisibleSelected =
+    visibleActionable.length > 0 && visibleActionable.every((model) => selected.has(model.id));
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -67,37 +101,47 @@ export function ModelPullDialog({
   const toggleAll = () =>
     setSelected((s) => {
       const n = new Set(s);
-      if (allVisibleNewSelected) visibleNew.forEach((m) => n.delete(m.id));
-      else visibleNew.forEach((m) => n.add(m.id));
+      if (allVisibleSelected) visibleActionable.forEach((model) => n.delete(model.id));
+      else visibleActionable.forEach((model) => n.add(model.id));
       return n;
     });
 
+  const selectedModels = actionableModels.filter((model) => selected.has(model.id));
+
   const importMut = useMutation({
     mutationFn: async () => {
-      const list = newModels.filter((m) => selected.has(m.id));
-      for (const m of list) {
-        await upsertProviderModel(providerId, {
-          id: null,
-          provider_id: providerId,
-          model_id: m.id,
-          display_name: m.display_name,
-          context_window: m.context_window,
-          max_input_tokens: m.max_input_tokens,
-          max_output_tokens: m.max_output_tokens,
-          thinking_supported: m.thinking_supported,
-          thinking_adaptive_supported: m.thinking_adaptive_supported,
-          thinking_enabled_supported: m.thinking_enabled_supported,
-          enabled: true,
-        });
+      let added = 0;
+      let enriched = 0;
+      let priced = 0;
+      for (const model of selectedModels) {
+        const action = actionFor(model);
+        if (action.modelWrite) {
+          await upsertProviderModel(
+            providerId,
+            modelSyncInput(providerId, model, action.existing),
+          );
+          if (action.existing) enriched += 1;
+          else added += 1;
+        }
+        if (importPrices && action.price) {
+          await upsertPriceRule(action.price);
+          priced += 1;
+        }
       }
-      return list.length;
+      return { added, enriched, priced };
     },
-    onSuccess: (n) => {
-      void qc.invalidateQueries({ queryKey: ["providers", providerId, "models"] });
-      toast.success(t("models.imported", { count: n }));
+    onSuccess: ({ added, enriched, priced }) => {
+      toast.success(t("models.synced", { added, enriched, priced }));
       onOpenChange(false);
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : String(e)),
+    onSettled: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["providers", providerId, "models"] }),
+        qc.invalidateQueries({ queryKey: ["price-rules"] }),
+      ]);
+      setSelected(new Set());
+    },
   });
 
   const err = q.error as ApiError | null;
@@ -134,69 +178,45 @@ export function ModelPullDialog({
                 type="button"
                 className="text-xs text-primary hover:underline disabled:opacity-50"
                 onClick={toggleAll}
-                disabled={visibleNew.length === 0}
+                disabled={visibleActionable.length === 0}
               >
-                {allVisibleNewSelected ? t("models.selectNone") : t("models.selectAll")}
+                {allVisibleSelected ? t("models.selectNone") : t("models.selectAll")}
               </button>
               <span className="text-xs text-muted-foreground">
                 {term
                   ? t("models.pullShown", { shown: visible.length, total: models.length })
-                  : t("models.pullCount", { total: models.length, fresh: newModels.length })}
+                  : t("models.pullCount", { total: models.length, actionable: actionableModels.length })}
               </span>
             </div>
+            <ModelPullPriceOption
+              checked={importPrices}
+              onCheckedChange={setImportPrices}
+              disabled={importMut.isPending}
+            />
             <div className="max-h-[50vh] divide-y overflow-y-auto rounded-md border">
-              {visible.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  {t("models.pullNoMatch")}
-                </p>
-              ) : (
-                visible.map((m) => {
-                  const added = existing.has(m.id);
-                  const sel = selected.has(m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      disabled={added}
-                      onClick={() => toggle(m.id)}
-                      className={cn(
-                        "flex w-full items-center gap-3 px-3 py-2 text-left text-sm disabled:opacity-60",
-                        !added && "hover:bg-accent/50",
-                        sel && "bg-primary/5",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "grid size-4 shrink-0 place-items-center rounded border",
-                          sel
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input",
-                        )}
-                      >
-                        {sel && <Check className="size-3" aria-hidden />}
-                      </span>
-                      <span className="flex-1 truncate font-mono text-xs">{m.id}</span>
-                      {m.display_name && (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {m.display_name}
-                        </span>
-                      )}
-                      {added && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {t("models.alreadyAdded")}
-                        </Badge>
-                      )}
-                    </button>
-                  );
-                })
-              )}
+              <ModelPullList
+                models={visible}
+                selected={selected}
+                importPrices={importPrices}
+                pending={importMut.isPending}
+                actionFor={(model) => {
+                  const action = actionFor(model);
+                  return {
+                    existing: action.existing != null,
+                    metadata: action.metadata,
+                    price: action.price != null,
+                    actionable: action.actionable,
+                  };
+                }}
+                onToggle={toggle}
+              />
             </div>
             <Button
-              disabled={selected.size === 0 || importMut.isPending}
+              disabled={selectedModels.length === 0 || importMut.isPending}
               onClick={() => importMut.mutate()}
             >
               {importMut.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />}
-              {t("models.import", { count: selected.size })}
+              {t("models.sync", { count: selectedModels.length })}
             </Button>
           </>
         )}

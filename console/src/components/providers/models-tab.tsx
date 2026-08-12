@@ -79,7 +79,6 @@ export function ModelsTab({ provider }: { provider: Provider }) {
   const [deleteTarget, setDeleteTarget] = useState<ProviderModel | undefined>(undefined);
   const [priceTarget, setPriceTarget] = useState<PriceTarget | undefined>(undefined);
   const [pullOpen, setPullOpen] = useState(false);
-  const existingIds = new Set(rows.map((m) => m.model_id));
 
   const exactPriceRule = (modelMatch: string | undefined): PriceRule | undefined => {
     if (!modelMatch) return undefined;
@@ -205,7 +204,13 @@ export function ModelsTab({ provider }: { provider: Provider }) {
           />
         )}
       </EntityDialog>
-      <ModelPullDialog providerId={provider.id} existing={existingIds} open={pullOpen} onOpenChange={setPullOpen} />
+      <ModelPullDialog
+        providerId={provider.id}
+        existingModels={rows}
+        priceRules={priceRules}
+        open={pullOpen}
+        onOpenChange={setPullOpen}
+      />
       <ConfirmDangerous
         open={deleteTarget !== undefined}
         onOpenChange={(o) => { if (!o) setDeleteTarget(undefined); }}
