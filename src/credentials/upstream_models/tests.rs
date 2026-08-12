@@ -34,6 +34,19 @@ fn parse_openai_and_gemini() {
 }
 
 #[test]
+fn parse_openai_provider_enrichment_fields() {
+    let models = parse_models(
+        Provider::OpenAi,
+        br#"{"data":[{"id":"grok-4.6","display_name":"Grok 4.6","context_length":500000,"thinking_supported":true,"thinking_adaptive_supported":false,"thinking_enabled_supported":true}]}"#,
+    );
+    assert_eq!(models[0].display_name.as_deref(), Some("Grok 4.6"));
+    assert_eq!(models[0].context_window, Some(500_000));
+    assert_eq!(models[0].thinking_supported, Some(true));
+    assert_eq!(models[0].thinking_adaptive_supported, Some(false));
+    assert_eq!(models[0].thinking_enabled_supported, Some(true));
+}
+
+#[test]
 fn merge_models_keeps_first_order_and_fills_missing_display_name() {
     let mut models = vec![UpstreamModel {
         id: "shared".into(),

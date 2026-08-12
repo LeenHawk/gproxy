@@ -19,6 +19,10 @@ fn to_record(m: price_rule::Model) -> anyhow::Result<PriceRule> {
         cache_creation_30m_price: m.cache_creation_30m_price.parse()?,
         cache_creation_1h_price: m.cache_creation_1h_price.parse()?,
         image_output_price: m.image_output_price.parse()?,
+        pricing_tiers_json: m
+            .pricing_tiers_json
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?,
         enabled: m.enabled,
         created_at: m.created_at,
         updated_at: m.updated_at,
@@ -43,6 +47,11 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
     let cache_creation_30m_price = input.cache_creation_30m_price.to_string();
     let cache_creation_1h_price = input.cache_creation_1h_price.to_string();
     let image_output_price = input.image_output_price.to_string();
+    let pricing_tiers_json = input
+        .pricing_tiers_json
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
 
     let model = match input.id {
         Some(id) => match price_rule::Entity::find_by_id(id).one(conn).await? {
@@ -58,6 +67,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
                 am.cache_creation_30m_price = Set(cache_creation_30m_price);
                 am.cache_creation_1h_price = Set(cache_creation_1h_price);
                 am.image_output_price = Set(image_output_price);
+                am.pricing_tiers_json = Set(pricing_tiers_json);
                 am.enabled = Set(input.enabled);
                 am.updated_at = Set(now);
                 am.update(conn).await?
@@ -75,6 +85,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
                     cache_creation_30m_price: Set(cache_creation_30m_price),
                     cache_creation_1h_price: Set(cache_creation_1h_price),
                     image_output_price: Set(image_output_price),
+                    pricing_tiers_json: Set(pricing_tiers_json),
                     enabled: Set(input.enabled),
                     created_at: Set(now),
                     updated_at: Set(now),
@@ -96,6 +107,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
                 cache_creation_30m_price: Set(cache_creation_30m_price),
                 cache_creation_1h_price: Set(cache_creation_1h_price),
                 image_output_price: Set(image_output_price),
+                pricing_tiers_json: Set(pricing_tiers_json),
                 enabled: Set(input.enabled),
                 created_at: Set(now),
                 updated_at: Set(now),

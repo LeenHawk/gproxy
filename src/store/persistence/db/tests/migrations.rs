@@ -507,24 +507,38 @@ async fn repairs_old_price_rules_rates_json_table() {
     assert!(!cols.iter().any(|col| col == "priority"));
     assert!(!cols.iter().any(|col| col == "image_price"));
     assert!(cols.iter().any(|col| col == "image_output_price"));
+    assert!(cols.iter().any(|col| col == "pricing_tiers_json"));
 
-    db.upsert_price_rule(PriceRuleInput {
-        id: None,
-        provider_id: None,
-        match_type: "contains".into(),
-        model_match: "new-model".into(),
-        input_price: Decimal::new(1, 0),
-        output_price: Decimal::new(2, 0),
-        cache_read_price: Decimal::ZERO,
-        cache_creation_5m_price: Decimal::ZERO,
-        cache_creation_30m_price: Decimal::ZERO,
-        cache_creation_1h_price: Decimal::ZERO,
-        image_output_price: Decimal::ZERO,
-        enabled: true,
-    })
-    .await
-    .expect("insert repaired price rule");
-    assert_eq!(db.list_price_rules().await.expect("after insert").len(), 2);
+    let pricing_tiers_json = serde_json::json!([{
+        "min_prompt_tokens": 200_000,
+        "input_price": "4",
+        "output_price": "12"
+    }]);
+    let inserted = db
+        .upsert_price_rule(PriceRuleInput {
+            id: None,
+            provider_id: None,
+            match_type: "contains".into(),
+            model_match: "new-model".into(),
+            input_price: Decimal::new(1, 0),
+            output_price: Decimal::new(2, 0),
+            cache_read_price: Decimal::ZERO,
+            cache_creation_5m_price: Decimal::ZERO,
+            cache_creation_30m_price: Decimal::ZERO,
+            cache_creation_1h_price: Decimal::ZERO,
+            image_output_price: Decimal::ZERO,
+            pricing_tiers_json: Some(pricing_tiers_json.clone()),
+            enabled: true,
+        })
+        .await
+        .expect("insert repaired price rule");
+    assert_eq!(
+        inserted.pricing_tiers_json,
+        Some(pricing_tiers_json.clone())
+    );
+    let rules = db.list_price_rules().await.expect("after insert");
+    assert_eq!(rules.len(), 2);
+    assert_eq!(rules[1].pricing_tiers_json, Some(pricing_tiers_json));
 
     let row = db
         .conn

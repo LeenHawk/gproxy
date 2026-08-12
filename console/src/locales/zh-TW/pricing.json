@@ -68,6 +68,8 @@
     "cacheCreation30mPrice": "快取建立 30m / 每百萬 tokens",
     "cacheCreation1hPrice": "快取建立 1h / 每百萬 tokens",
     "imageOutputPrice": "圖片輸出 / 每百萬 tokens",
+    "pricingTiers": "階梯價格（JSON）",
+    "pricingTiersPlaceholder": "選填：輸入 token 閾值及各類別覆蓋價格陣列",
     "pricesHint": "留空按 0 處理。值是美元 decimal。",
     "enabled": "啟用",
     "create": "建立",
