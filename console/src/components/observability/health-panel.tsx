@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
-  credentialModelStatusesQuery,
   credentialStatusesQuery,
-  type CredentialModelStatus,
   type CredentialStatus,
 } from "@/api/usage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { currentCredentialStatuses, unixNow } from "@/lib/credential-health";
 
 type HealthKind = "recovered" | "breaker" | "rate_limited" | "auth_dead";
-type StatusRow = CredentialStatus | CredentialModelStatus;
 
 const KIND_CLASS: Record<string, string> = {
   recovered:
@@ -26,7 +23,7 @@ const KIND_CLASS: Record<string, string> = {
 
 const ALL_KINDS: HealthKind[] = ["recovered", "breaker", "auth_dead", "rate_limited"];
 
-function countByKind(rows: StatusRow[]): Record<string, number> {
+function countByKind(rows: CredentialStatus[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const row of rows) counts[row.health_kind] = (counts[row.health_kind] ?? 0) + 1;
   return counts;
@@ -36,27 +33,19 @@ function fmtTime(unixSecs: number): string {
   return new Date(unixSecs * 1000).toLocaleString();
 }
 
-function HealthScope({
-  scope,
-  rawRows,
-  now,
-}: {
-  scope: "global" | "model";
-  rawRows: StatusRow[];
-  now: number;
-}) {
+function GlobalHealth({ rawRows, now }: { rawRows: CredentialStatus[]; now: number }) {
   const { t } = useTranslation("observability");
   const rows = currentCredentialStatuses(rawRows, now);
   const counts = countByKind(rows);
   const unhealthy = rows.filter((row) => row.health_kind !== "recovered");
 
   return (
-    <section className="space-y-3" aria-labelledby={`credential-health-${scope}`}>
+    <section className="flex flex-col gap-3" aria-labelledby="credential-health-global">
       <div>
-        <h3 id={`credential-health-${scope}`} className="text-sm font-semibold">
-          {t(`health.${scope}Scope`)}
+        <h3 id="credential-health-global" className="text-sm font-semibold">
+          {t("health.globalScope")}
         </h3>
-        <p className="text-xs text-muted-foreground">{t(`health.${scope}Description`)}</p>
+        <p className="text-xs text-muted-foreground">{t("health.globalDescription")}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -73,12 +62,12 @@ function HealthScope({
 
       {unhealthy.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {t(rawRows.length === 0 ? `health.${scope}NoEvents` : `health.${scope}AllHealthy`)}
+          {t(rawRows.length === 0 ? "health.globalNoEvents" : "health.globalAllHealthy")}
         </p>
       ) : (
         <Card size="sm">
           <CardHeader>
-            <CardTitle>{t(`health.${scope}Issues`)}</CardTitle>
+            <CardTitle>{t("health.globalIssues")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="divide-y divide-border text-sm">
@@ -87,7 +76,6 @@ function HealthScope({
                   <div className="flex items-center justify-between gap-4">
                     <span className="font-mono text-xs text-muted-foreground">
                       credential:{status.credential_id} / {status.channel}
-                      {"model_id" in status ? ` / ${status.model_id}` : ""}
                     </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${KIND_CLASS[status.health_kind] ?? ""}`}
@@ -123,31 +111,18 @@ function HealthScope({
 export function HealthPanel() {
   const { t } = useTranslation("observability");
   const global = useQuery(credentialStatusesQuery);
-  const models = useQuery(credentialModelStatusesQuery);
 
-  if (global.isPending || models.isPending) {
+  if (global.isPending) {
     return (
-      <div aria-busy="true" className="space-y-6">
-        {["global", "model"].map((scope) => (
-          <div key={scope} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {ALL_KINDS.map((kind) => <Skeleton key={kind} className="h-20 rounded-xl" />)}
-          </div>
-        ))}
+      <div aria-busy="true" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {ALL_KINDS.map((kind) => <Skeleton key={kind} className="h-20 rounded-xl" />)}
       </div>
     );
   }
 
-  if (global.isError || models.isError) {
+  if (global.isError) {
     return <p className="text-sm text-destructive">{t("health.loadError")}</p>;
   }
 
-  const now = unixNow();
-  return (
-    <div className="space-y-7">
-      <HealthScope scope="global" rawRows={global.data ?? []} now={now} />
-      <div className="border-t border-border pt-6">
-        <HealthScope scope="model" rawRows={models.data ?? []} now={now} />
-      </div>
-    </div>
-  );
+  return <GlobalHealth rawRows={global.data ?? []} now={unixNow()} />;
 }
