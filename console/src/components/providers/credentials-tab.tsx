@@ -279,7 +279,8 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         open={usageTarget !== undefined}
         onOpenChange={(o) => { if (!o) setUsageTarget(undefined); }}
         title={`${t("usage.title")} — ${usageTarget ? credName(usageTarget, t("creds.unnamed", { id: usageTarget.id })) : ""}`}
-        wide
+        workspace
+        scrollClassName="themed-scrollbar"
       >
         {usageTarget && (
           <UsageCard

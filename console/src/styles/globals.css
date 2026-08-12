@@ -139,6 +139,38 @@
     }
 }
 
+/* Compact, theme-aware scrollbars for dense modal content and wide tables. */
+.themed-scrollbar {
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 50%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.themed-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: color-mix(in oklch, var(--muted) 55%, transparent);
+  border-radius: 999px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--foreground) 55%, transparent);
+  background-clip: padding-box;
+}
+
+.themed-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Respect reduced-motion: neutralize non-essential animation/transition (spec §12.5). */
 @media (prefers-reduced-motion: reduce) {
   *,
