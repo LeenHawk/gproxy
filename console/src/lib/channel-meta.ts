@@ -13,6 +13,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   deepseek: "https://api.deepseek.com",
   groq: "https://api.groq.com/openai",
   nvidia: "https://integrate.api.nvidia.com",
+  xai: "https://api.x.ai",
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
   "cloudflare-ai-gateway": "https://api.cloudflare.com",
@@ -45,6 +46,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
+  xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_compact"],
   opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
   opencodego: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages"],
   cline: ["openai_list_models", "openai_chat_completions", "usage"],
@@ -77,7 +79,7 @@ export interface ChannelMeta {
 }
 
 const API_KEY_IDS = [
-  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "deepseek", "groq", "nvidia",
+  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "deepseek", "groq", "nvidia", "xai",
   "vercel", "custom", "claudeapi", "aistudio", "vertexexpress",
 ] as const;
 
@@ -105,6 +107,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   nvidia: "NVIDIA", openai: "OpenAI", opencodezen: "OpenCode Zen",
   opencodego: "OpenCode Go", openrouter: "OpenRouter", vercel: "Vercel AI Gateway",
   vertex: "Google Vertex AI", vertexexpress: "Vertex AI Express",
+  xai: "xAI",
 };
 function builtinMeta(
   id: string,

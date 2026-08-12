@@ -192,6 +192,7 @@ channels-edge = [
     "channel-vercel",
     "channel-vertex",
     "channel-vertexexpress",
+    "channel-xai",
 ]
 channel-aistudio = []
 channel-antigravity = []
@@ -218,6 +219,7 @@ channel-openrouter = []
 channel-vercel = []
 channel-vertex = []
 channel-vertexexpress = []
+channel-xai = []
 
 # dev convenience: all native backends
 full = ["cache-memory", "cache-redis", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "migrate-file", "channels"]
