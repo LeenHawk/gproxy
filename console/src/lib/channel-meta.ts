@@ -22,6 +22,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   opencodezen: "https://opencode.ai/zen/v1",
   opencodego: "https://opencode.ai/zen/go/v1",
   grokbuild: "https://cli-chat-proxy.grok.com/v1",
+  workbuddy: "https://copilot.tencent.com",
   claudeweb: "https://claude.ai",
 };
 
@@ -63,6 +64,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   claudeweb: ["usage"],
   codex: ["openai_list_models", "openai_get_model", "openai_responses", "openai_realtime", "openai_compact", "usage", "rate_limit_reset"],
   grokbuild: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_compact"],
+  workbuddy: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content", "image_generations", "image_edits", "usage"],
   kiro: ["openai_responses"],
 };
 
@@ -110,6 +112,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   nvidia: "NVIDIA", openai: "OpenAI", opencodezen: "OpenCode Zen",
   opencodego: "OpenCode Go", openrouter: "OpenRouter", vercel: "Vercel AI Gateway",
   vertex: "Google Vertex AI", vertexexpress: "Vertex AI Express",
+  workbuddy: "WorkBuddy",
   xai: "xAI",
 };
 function builtinMeta(
@@ -167,6 +170,15 @@ export const CHANNELS: ChannelMeta[] = [
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
   }),
   oauthMeta("grokbuild", ["device"]),
+  oauthMeta("workbuddy", ["device"], {
+    secretTemplate: {
+      ...OAUTH_TOKENS,
+      user_id: "",
+      enterprise_id: "",
+      department_full_name: "",
+      domain: "",
+    },
+  }),
   oauthMeta("cline", ["device"], {
     secretTemplate: { ...OAUTH_TOKENS, api_key: "" },
   }),

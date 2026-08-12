@@ -42,6 +42,8 @@ pub mod openrouter;
 pub mod vercel;
 #[cfg(feature = "channel-vertexexpress")]
 pub mod vertexexpress;
+#[cfg(feature = "channel-workbuddy")]
+pub mod workbuddy;
 #[cfg(feature = "channel-xai")]
 pub mod xai;
 

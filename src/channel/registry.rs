@@ -176,6 +176,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(crate::channel::bulletins::aistudio::AiStudioChannel),
         #[cfg(feature = "channel-vertexexpress")]
         Arc::new(crate::channel::bulletins::vertexexpress::VertexExpressChannel),
+        #[cfg(feature = "channel-workbuddy")]
+        Arc::new(crate::channel::bulletins::workbuddy::WorkBuddyChannel),
         // ── OAuth / envelope ──
         #[cfg(feature = "channel-vertex")]
         Arc::new(crate::channel::bulletins::vertex::VertexChannel),
@@ -251,6 +253,11 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
         (
             "opencodego",
             Arc::new(crate::channel::bulletins::opencode::OpenCodeGoChannel),
+        ),
+        #[cfg(feature = "channel-workbuddy")]
+        (
+            "workbuddy",
+            Arc::new(crate::channel::bulletins::workbuddy::WorkBuddyChannel),
         ),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
         (
