@@ -56,6 +56,17 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 json!({ "api_key": "", "account_id": "", "gateway_id": "default" });
         }
         "grokbuild" => oauth(&mut metadata, &[LoginMode::Device], true),
+        "workbuddy" => {
+            oauth(&mut metadata, &[LoginMode::Device], true);
+            metadata.secret_template = json!({
+                "access_token": "",
+                "refresh_token": "",
+                "user_id": "",
+                "enterprise_id": "",
+                "department_full_name": "",
+                "domain": ""
+            });
+        }
         // Account tokens from the device login, or a pasted workspace API key —
         // `prepare` accepts either, so the template offers both.
         "cline" => {
@@ -129,6 +140,7 @@ fn display_name(id: &str) -> &str {
         "vercel" => "Vercel AI Gateway",
         "vertex" => "Google Vertex AI",
         "vertexexpress" => "Vertex AI Express",
+        "workbuddy" => "WorkBuddy",
         "xai" => "xAI",
         _ => id,
     }
@@ -307,6 +319,17 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "image_generations",
             "image_edits",
             "openai_compact",
+        ],
+        "workbuddy" => &[
+            "openai_list_models",
+            "openai_chat_completions",
+            "openai_responses",
+            "claude_messages",
+            "gemini_generate_content",
+            "gemini_stream_generate_content",
+            "image_generations",
+            "image_edits",
+            "usage",
         ],
         "kiro" => &["openai_responses"],
         "cline" => &["openai_list_models", "openai_chat_completions", "usage"],

@@ -193,6 +193,7 @@ channels-edge = [
     "channel-vercel",
     "channel-vertex",
     "channel-vertexexpress",
+    "channel-workbuddy",
     "channel-xai",
 ]
 channel-aistudio = []
@@ -221,6 +222,7 @@ channel-openrouter = []
 channel-vercel = []
 channel-vertex = []
 channel-vertexexpress = []
+channel-workbuddy = []
 channel-xai = []
 
 # dev convenience: all native backends
