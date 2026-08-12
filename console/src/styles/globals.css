@@ -90,6 +90,9 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --scrollbar-thumb: color-mix(in oklch, var(--muted-foreground) 42%, transparent);
+    --scrollbar-thumb-hover: color-mix(in oklch, var(--foreground) 58%, transparent);
+    --scrollbar-track: color-mix(in oklch, var(--muted) 38%, transparent);
 }
 
 .dark {
@@ -130,6 +133,8 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
     }
   body {
     @apply bg-background text-foreground;
@@ -139,36 +144,42 @@
     }
 }
 
-/* Compact, theme-aware scrollbars for dense modal content and wide tables. */
-.themed-scrollbar {
-  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 50%, transparent) transparent;
-  scrollbar-width: thin;
-}
-
-.themed-scrollbar::-webkit-scrollbar {
+/* Compact, theme-aware scrollbars across pages, overlays, menus and tables. */
+*::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.themed-scrollbar::-webkit-scrollbar-track {
-  background: color-mix(in oklch, var(--muted) 55%, transparent);
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
   border-radius: 999px;
 }
 
-.themed-scrollbar::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  min-width: 32px;
+  background: var(--scrollbar-thumb);
   background-clip: padding-box;
   border: 2px solid transparent;
   border-radius: 999px;
 }
 
-.themed-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklch, var(--foreground) 55%, transparent);
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 
-.themed-scrollbar::-webkit-scrollbar-corner {
+*::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Chromium supports both APIs, but non-auto standard values take precedence
+   over the WebKit pseudo-elements. Let its richer rounded treatment win. */
+@supports selector(*::-webkit-scrollbar) {
+  * {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
 }
 
 /* Respect reduced-motion: neutralize non-essential animation/transition (spec §12.5). */
