@@ -13,6 +13,9 @@ use crate::channel::shaping::{
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
+const CONTEXT_MANAGEMENT_BETA: &str = "context-management-2025-06-27";
+const COMPACTION_BETA: &str = "compact-2026-01-12";
+
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
         op.kind(),
@@ -23,6 +26,39 @@ fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
 fn is_claude_count_tokens(op: crate::protocol::OperationKey) -> bool {
     op.operation() == Operation::CountTokens
         && op.kind() == OperationKind::Provider(Provider::Claude)
+}
+
+/// Preserve native Claude context-management requests and opt them into the
+/// upstream beta that understands each edit family. Unknown/non-object edits
+/// ride the general context-management beta so Anthropic remains responsible
+/// for validating them.
+fn append_context_management_betas(headers: &mut http::HeaderMap, body: &Value) {
+    let Some(context_management) = body.get("context_management") else {
+        return;
+    };
+    if context_management.is_null() {
+        return;
+    }
+
+    let edits = context_management.get("edits").and_then(Value::as_array);
+    let has_compaction = edits.is_some_and(|edits| {
+        edits
+            .iter()
+            .any(|edit| edit.get("type").and_then(Value::as_str) == Some("compact_20260112"))
+    });
+    let needs_general_beta = edits.is_none_or(|edits| {
+        edits.is_empty()
+            || edits
+                .iter()
+                .any(|edit| edit.get("type").and_then(Value::as_str) != Some("compact_20260112"))
+    });
+
+    if needs_general_beta {
+        shaping::anthropic_beta::append_beta_token(headers, CONTEXT_MANAGEMENT_BETA);
+    }
+    if has_compaction {
+        shaping::anthropic_beta::append_beta_token(headers, COMPACTION_BETA);
+    }
 }
 
 /// Claude Code model calls carry `beta=true`. Preserve any caller query and
@@ -44,7 +80,10 @@ pub(super) fn model_query(query: Option<&str>) -> String {
 /// Apply Claude body hygiene, including unsupported prefill coercion.
 pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
     if is_claude_count_tokens(ctx.op) {
-        shaping::anthropic_beta::append_fast_mode_beta_from_body(headers, &body);
+        if let Ok(value) = serde_json::from_slice::<Value>(&body) {
+            shaping::anthropic_beta::append_fast_mode_beta(headers, &value);
+            append_context_management_betas(headers, &value);
+        }
         return body;
     }
     if !is_claude_messages(ctx.op) {
@@ -59,6 +98,7 @@ pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) 
             claude_fallback::apply_claude_fallback(value, headers, fallbacks);
         }
         shaping::anthropic_beta::append_fast_mode_beta(headers, value);
+        append_context_management_betas(headers, value);
     });
     shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
     body
