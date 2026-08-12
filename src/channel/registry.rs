@@ -148,6 +148,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(crate::channel::bulletins::aws_bedrock::AwsBedrockChannel),
         #[cfg(feature = "channel-openrouter")]
         Arc::new(crate::channel::bulletins::openrouter::OpenRouterChannel),
+        #[cfg(feature = "channel-cloudflare-ai-gateway")]
+        Arc::new(crate::channel::bulletins::cloudflare_ai_gateway::CloudflareAiGatewayChannel),
         #[cfg(feature = "channel-deepseek")]
         Arc::new(crate::channel::bulletins::deepseek::DeepSeekChannel),
         #[cfg(feature = "channel-groq")]

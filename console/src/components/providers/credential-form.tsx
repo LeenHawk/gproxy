@@ -49,14 +49,14 @@ export function CredentialForm({
     if (!editing || !credential.has_secret) return;
     const family = meta.family;
     revealSecret(credential.id).then((secret) => {
-      if (family === "api_key") {
+      if (family === "api_key" && meta.id !== "cloudflare-ai-gateway") {
         const key = (secret as Record<string, string>)?.api_key ?? "";
         setSecretText(key);
       } else {
         setSecretText(JSON.stringify(secret, null, 2));
       }
     }).catch(() => { /* keep empty — user can still type */ });
-  }, [editing, credential?.id, credential?.has_secret, meta.family]);
+  }, [editing, credential?.id, credential?.has_secret, meta.family, meta.id]);
 
   const mutation = useMutation({
     mutationFn: () => {
