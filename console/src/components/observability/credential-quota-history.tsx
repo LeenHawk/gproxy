@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ChevronsUpDown, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Bar,
@@ -13,13 +13,12 @@ import {
   YAxis,
 } from "recharts";
 import {
-  credentialQuotaCycleDetailQuery,
   fetchCredentialQuotaCycles,
   type CredentialQuotaCycle,
   type CredentialQuotaCycleFilter,
 } from "@/api/credentials";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CredentialQuotaCycleList } from "@/components/observability/credential-quota-cycle-list";
 import {
   Select,
   SelectContent,
@@ -29,18 +28,9 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   CHART_AXIS,
   CHART_TOOLTIP_STYLE,
   LegendChips,
-  Meter,
   seriesColor,
 } from "@/components/observability/chart-theme";
 import {
@@ -95,52 +85,6 @@ function formatStamp(unixSeconds: number): string {
   });
 }
 
-function formatCyclePeriod(cycle: CredentialQuotaCycle): string {
-  if (cycle.period_start !== null && cycle.period_end !== null) {
-    return `${formatStamp(cycle.period_start)} – ${formatStamp(cycle.period_end)}`;
-  }
-  if (cycle.period_start !== null) return `${formatStamp(cycle.period_start)} – …`;
-  if (cycle.period_end !== null) return `… – ${formatStamp(cycle.period_end)}`;
-  if (cycle.last_observed_at !== null) return formatStamp(cycle.last_observed_at);
-  return "—";
-}
-
-function formatCycleEstimate(cycle: CredentialQuotaCycle, tokensLabel: string): string {
-  const parts = [
-    cycle.estimated_tokens !== null
-      ? `≈${formatUsageCount(cycle.estimated_tokens)} ${tokensLabel}`
-      : undefined,
-    cycle.estimated_cost !== null
-      ? `≈${formatUsageUsd(cycle.estimated_cost)}`
-      : undefined,
-  ].filter((part): part is string => part !== undefined);
-  return parts.join(" · ") || "—";
-}
-
-function CycleModels({ cycleId }: { cycleId: number }) {
-  const { t } = useTranslation("observability");
-  const detail = useQuery(credentialQuotaCycleDetailQuery(cycleId));
-
-  if (detail.isPending) return <Skeleton className="h-16 w-full" />;
-  if (detail.isError) return <p className="text-xs text-destructive">{t("quotaHistory.modelLoadError")}</p>;
-  if (!detail.data.by_model.length) {
-    return <p className="text-xs text-muted-foreground">{t("quotaHistory.noModels")}</p>;
-  }
-
-  return (
-    <div className="grid gap-1">
-      {detail.data.by_model.map((model) => (
-        <div key={model.id} className="flex flex-wrap items-baseline justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
-          <span className="break-all font-mono font-medium">{model.model}</span>
-          <span className="tabular-nums text-muted-foreground">
-            {formatUsageCount(categorizedTotalTokens(model))} {t("quotaHistory.tokens")} · {formatUsageUsd(model.cost)} · {formatUsageCount(model.requests)} {t("quotaHistory.requests")}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function CredentialQuotaHistory({
   credentialId,
   providerId,
@@ -171,11 +115,9 @@ export function CredentialQuotaHistory({
   const [windowKey, setWindowKey] = useState("__all__");
   const [status, setStatus] = useState("__all__");
   const [metric, setMetric] = useState<CycleMetric>("tokens");
-  const [expandedCycle, setExpandedCycle] = useState<number | null>(null);
 
   useEffect(() => {
     setWindowKey("__all__");
-    setExpandedCycle(null);
   }, [channel, credentialId, providerId]);
 
   const rows = useMemo(() => query.data?.pages.flat() ?? [], [query.data?.pages]);
@@ -343,91 +285,13 @@ export function CredentialQuotaHistory({
             </div>
           </div>
 
-          <div className="min-w-0 overflow-x-auto rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {!credentialId && <TableHead>{t("quotaHistory.columns.credential")}</TableHead>}
-                  <TableHead>{t("quotaHistory.columns.window")}</TableHead>
-                  <TableHead>{t("quotaHistory.columns.period")}</TableHead>
-                  <TableHead>{t("quotaHistory.columns.status")}</TableHead>
-                  <TableHead className="text-right">{t("quotaHistory.columns.percent")}</TableHead>
-                  <TableHead className="text-right">{t("quotaHistory.columns.tokens")}</TableHead>
-                  <TableHead className="text-right">{t("quotaHistory.columns.cost")}</TableHead>
-                  {!compact && <TableHead className="text-right">{t("quotaHistory.columns.estimate")}</TableHead>}
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((cycle) => (
-                  <Fragment key={cycle.id}>
-                    <TableRow>
-                      {!credentialId && (
-                        <TableCell className="font-medium">
-                          {credentialLabel?.(cycle.credential_id) ?? `#${cycle.credential_id}`}
-                        </TableCell>
-                      )}
-                      <TableCell>
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            aria-hidden
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ background: seriesColor(windowSlots.get(cycle.window_key) ?? 0) }}
-                          />
-                          <span className="font-medium">{cycleLabel(cycle)}</span>
-                        </span>
-                        <span className="block pl-3.5 font-mono text-[10px] text-muted-foreground">{cycle.window_key}</span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                        {formatCyclePeriod(cycle)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={cycle.status === "open" ? "secondary" : "outline"}>
-                          {t(`quotaHistory.status.${cycle.status}`, { defaultValue: cycle.status })}
-                        </Badge>
-                        <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                          {t(`quotaHistory.coverage.${cycle.coverage}`, { defaultValue: cycle.coverage })}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {cycle.used_percent !== null ? (
-                          <span className="inline-flex flex-col items-end gap-1">
-                            <span className="font-medium tabular-nums">{Number(cycle.used_percent).toFixed(1)}%</span>
-                            <Meter percent={Number(cycle.used_percent)} className="w-16" />
-                          </span>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{formatUsageCount(categorizedTotalTokens(cycle))}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{formatUsageUsd(cycle.cost)}</TableCell>
-                      {!compact && (
-                        <TableCell className="text-right text-xs text-muted-foreground">
-                          {formatCycleEstimate(cycle, t("quotaHistory.tokens"))}
-                        </TableCell>
-                      )}
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={t("quotaHistory.models")}
-                          aria-expanded={expandedCycle === cycle.id}
-                          onClick={() => setExpandedCycle(expandedCycle === cycle.id ? null : cycle.id)}
-                        >
-                          <ChevronsUpDown className="size-3" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {expandedCycle === cycle.id && (
-                      <TableRow>
-                        <TableCell colSpan={(credentialId ? 7 : 8) + (compact ? 0 : 1)} className="whitespace-normal bg-muted/20">
-                          <CycleModels cycleId={cycle.id} />
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <CredentialQuotaCycleList
+            cycles={filtered}
+            credentialId={credentialId}
+            credentialLabel={credentialLabel}
+            compact={compact}
+            windowSlots={windowSlots}
+          />
 
           {query.hasNextPage && (
             <div className="flex justify-center">
