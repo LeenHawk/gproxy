@@ -24,6 +24,8 @@ pub mod cline;
 pub mod cloudflare_ai_gateway;
 #[cfg(feature = "channel-custom")]
 pub mod custom;
+#[cfg(feature = "channel-dashscope")]
+pub mod dashscope;
 #[cfg(feature = "channel-deepseek")]
 pub mod deepseek;
 #[cfg(feature = "channel-groq")]

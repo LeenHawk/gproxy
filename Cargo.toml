@@ -179,6 +179,7 @@ channels-edge = [
     "channel-copilotcli",
     "channel-cloudflare-ai-gateway",
     "channel-custom",
+    "channel-dashscope",
     "channel-deepseek",
     "channel-geminicli",
     "channel-grokbuild",
@@ -206,6 +207,7 @@ channel-codex = []
 channel-copilotcli = []
 channel-cloudflare-ai-gateway = []
 channel-custom = []
+channel-dashscope = []
 channel-deepseek = []
 channel-geminicli = []
 channel-grokbuild = []
