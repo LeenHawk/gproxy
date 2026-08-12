@@ -20,6 +20,8 @@ pub mod azure;
 pub mod claudeapi;
 #[cfg(feature = "channel-cline")]
 pub mod cline;
+#[cfg(feature = "channel-cloudflare-ai-gateway")]
+pub mod cloudflare_ai_gateway;
 #[cfg(feature = "channel-custom")]
 pub mod custom;
 #[cfg(feature = "channel-deepseek")]

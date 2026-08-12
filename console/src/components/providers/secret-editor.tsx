@@ -12,10 +12,29 @@ interface SecretEditorProps {
   editing: boolean;
 }
 
+function isStructuredApiKey(meta: ChannelMeta): boolean {
+  return meta.source === "builtin" && meta.id === "cloudflare-ai-gateway";
+}
+
 /** Returns the plaintext secret_json for submission, or null when invalid/empty. */
 export function buildSecret(meta: ChannelMeta, text: string): unknown | null {
   const trimmed = text.trim();
   if (trimmed === "") return null;
+  if (isStructuredApiKey(meta)) {
+    const parsed = parseJsonText(trimmed);
+    if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null) return null;
+    const secret = parsed.value as Record<string, unknown>;
+    if (typeof secret.api_key !== "string" || secret.api_key.trim() === "") return null;
+    if (typeof secret.account_id !== "string" || secret.account_id.trim() === "") return null;
+    return {
+      ...secret,
+      api_key: secret.api_key.trim(),
+      account_id: secret.account_id.trim(),
+      gateway_id: typeof secret.gateway_id === "string" && secret.gateway_id.trim() !== ""
+        ? secret.gateway_id.trim()
+        : "default",
+    };
+  }
   if (meta.family === "api_key") return { api_key: trimmed };
   const parsed = parseJsonText(trimmed);
   if (!parsed.ok) return null;
@@ -28,6 +47,7 @@ export function buildSecret(meta: ChannelMeta, text: string): unknown | null {
 }
 
 export function secretTemplateText(meta: ChannelMeta): string {
+  if (isStructuredApiKey(meta)) return JSON.stringify(meta.secretTemplate, null, 2) ?? "";
   if (meta.family === "api_key") {
     const template = meta.secretTemplate;
     if (typeof template !== "object" || template === null || Array.isArray(template)) return "";
@@ -40,6 +60,7 @@ export function secretTemplateText(meta: ChannelMeta): string {
 export function SecretEditor({ meta, value, onChange, editing }: SecretEditorProps) {
   const { t } = useTranslation("providers");
   const family = meta.family;
+  const structuredApiKey = isStructuredApiKey(meta);
 
   const label =
     family === "api_key" ? t("secret.apiKey")
@@ -54,7 +75,7 @@ export function SecretEditor({ meta, value, onChange, editing }: SecretEditorPro
     meta?.hintKey ? t(`secret.${meta.hintKey}`) : null,
   ].filter(Boolean).join(" ");
 
-  if (family === "api_key") {
+  if (family === "api_key" && !structuredApiKey) {
     return (
       <div className="grid gap-2">
         <Label htmlFor="c-secret">{label}</Label>

@@ -15,6 +15,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   nvidia: "https://integrate.api.nvidia.com",
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
+  "cloudflare-ai-gateway": "https://api.cloudflare.com",
   cline: "https://api.cline.bot/api/v1",
   opencodezen: "https://opencode.ai/zen/v1",
   opencodego: "https://opencode.ai/zen/go/v1",
@@ -40,6 +41,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   azure: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "image_generations", "image_edits", "openai_compact"],
   "aws-bedrock": ["openai_list_models", "openai_get_model", "claude_count_tokens", "claude_messages", "openai_compact"],
   openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_rerank"],
+  "cloudflare-ai-gateway": ["openai_chat_completions", "openai_responses", "claude_messages"],
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
@@ -75,7 +77,7 @@ export interface ChannelMeta {
 }
 
 const API_KEY_IDS = [
-  "openai", "azure", "aws-bedrock", "openrouter", "deepseek", "groq", "nvidia",
+  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "deepseek", "groq", "nvidia",
   "vercel", "custom", "claudeapi", "aistudio", "vertexexpress",
 ] as const;
 
@@ -97,6 +99,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   aistudio: "Google AI Studio", antigravity: "Antigravity", "aws-bedrock": "AWS Bedrock",
   claudeapi: "Claude API", claudecode: "Claude Code", claudeweb: "Claude Web",
   cline: "Cline",
+  "cloudflare-ai-gateway": "Cloudflare AI Gateway",
   copilotcli: "GitHub Copilot CLI", geminicli: "Gemini CLI",
   grokbuild: "Grok Build", vertexexpress: "Vertex AI Express",
   opencodezen: "OpenCode Zen", opencodego: "OpenCode Go",
@@ -133,6 +136,9 @@ function oauthMeta(
 export const CHANNELS: ChannelMeta[] = [
   ...API_KEY_IDS.map((id) => builtinMeta(id, "api_key", {
     hintKey: id === "aws-bedrock" ? "bedrockApiKeyHint" : undefined,
+    ...(id === "cloudflare-ai-gateway"
+      ? { secretTemplate: { api_key: "", account_id: "", gateway_id: "default" } }
+      : {}),
   })),
   builtinMeta("vertex", "service_account", {
     secretTemplate: { client_email: "", private_key: "", project_id: "" },

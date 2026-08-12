@@ -51,6 +51,10 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             metadata.secret_template =
                 json!({ "access_token": "", "refresh_token": "", "account_id": "" });
         }
+        "cloudflare-ai-gateway" => {
+            metadata.secret_template =
+                json!({ "api_key": "", "account_id": "", "gateway_id": "default" });
+        }
         "grokbuild" => oauth(&mut metadata, &[LoginMode::Device], true),
         // Account tokens from the device login, or a pasted workspace API key —
         // `prepare` accepts either, so the template offers both.
@@ -106,6 +110,7 @@ fn display_name(id: &str) -> &str {
         "claudecode" => "Claude Code",
         "claudeweb" => "Claude Web",
         "cline" => "Cline",
+        "cloudflare-ai-gateway" => "Cloudflare AI Gateway",
         "copilotcli" => "GitHub Copilot CLI",
         "geminicli" => "Gemini CLI",
         "grokbuild" => "Grok Build",
@@ -155,6 +160,11 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "claude_messages",
             "openai_embeddings",
             "openai_rerank",
+        ],
+        "cloudflare-ai-gateway" => &[
+            "openai_chat_completions",
+            "openai_responses",
+            "claude_messages",
         ],
         "deepseek" => &[
             "openai_list_models",
