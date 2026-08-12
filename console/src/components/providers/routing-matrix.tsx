@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RoutingCellEditor, type CellInitial } from "./routing-cell-editor";
-import { RoutingRuleEnabled, RoutingRuleSortOrder } from "./routing-rule-inline-fields";
+import { RoutingRuleEnabled } from "./routing-rule-inline-fields";
 
 function behaviorBadge(impl: string, destOperation: string | null, destKind: string | null, sourceOperation: string, t: (k: string) => string) {
   const label = t(`implementation.${impl}`);
@@ -105,7 +105,6 @@ export function RoutingMatrix({ providerId }: { providerId: number }) {
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t("routing.columns.operation")}</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t("routing.columns.kind")}</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t("routing.columns.behavior")}</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t("rule.sortOrder")}</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t("rule.enabled")}</th>
                 <th className="w-20 px-3 py-2" />
               </tr>
@@ -120,7 +119,6 @@ export function RoutingMatrix({ providerId }: { providerId: number }) {
                   <td className="px-3 py-2">{t(`operation.${row.operation}`)}</td>
                   <td className="px-3 py-2">{t(`protocolKind.${row.kind}`)}</td>
                   <td className="px-3 py-2">{behaviorBadge(row.implementation, row.dest_operation, row.dest_kind, row.operation, t)}</td>
-                  <td className="px-3 py-2"><RoutingRuleSortOrder providerId={providerId} rule={row} /></td>
                   <td className="px-3 py-2"><RoutingRuleEnabled providerId={providerId} rule={row} /></td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>

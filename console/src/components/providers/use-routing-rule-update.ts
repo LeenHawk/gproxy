@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/api/http";
 import { routingRulesQuery, upsertRoutingRule, type RoutingRule } from "@/api/rules";
 
-type RoutingPatch = Pick<RoutingRule, "enabled"> | Pick<RoutingRule, "sort_order">;
+type RoutingPatch = Pick<RoutingRule, "enabled">;
 
 export function useRoutingRuleUpdate(providerId: number) {
   const queryClient = useQueryClient();
