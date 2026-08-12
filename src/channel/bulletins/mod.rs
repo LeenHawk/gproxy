@@ -40,6 +40,8 @@ pub mod openrouter;
 pub mod vercel;
 #[cfg(feature = "channel-vertexexpress")]
 pub mod vertexexpress;
+#[cfg(feature = "channel-xai")]
+pub mod xai;
 
 // OAuth / envelope channels (functional)
 #[cfg(feature = "channel-antigravity")]

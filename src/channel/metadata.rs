@@ -128,6 +128,7 @@ fn display_name(id: &str) -> &str {
         "vercel" => "Vercel AI Gateway",
         "vertex" => "Google Vertex AI",
         "vertexexpress" => "Vertex AI Express",
+        "xai" => "xAI",
         _ => id,
     }
 }
@@ -195,6 +196,15 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_get_model",
             "openai_chat_completions",
             "openai_embeddings",
+        ],
+        "xai" => &[
+            "openai_list_models",
+            "openai_get_model",
+            "openai_chat_completions",
+            "openai_responses",
+            "image_generations",
+            "image_edits",
+            "openai_compact",
         ],
         "vercel" => &[
             "openai_list_models",
