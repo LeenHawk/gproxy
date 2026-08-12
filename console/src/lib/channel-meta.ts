@@ -17,6 +17,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
   "cloudflare-ai-gateway": "https://api.cloudflare.com",
+  dashscope: "https://dashscope.aliyuncs.com",
   cline: "https://api.cline.bot/api/v1",
   opencodezen: "https://opencode.ai/zen/v1",
   opencodego: "https://opencode.ai/zen/go/v1",
@@ -43,6 +44,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   "aws-bedrock": ["openai_list_models", "openai_get_model", "claude_count_tokens", "claude_messages", "openai_compact"],
   openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_rerank"],
   "cloudflare-ai-gateway": ["openai_chat_completions", "openai_responses", "claude_messages"],
+  dashscope: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_rerank", "image_generations", "image_edits", "openai_compact"],
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
@@ -79,7 +81,7 @@ export interface ChannelMeta {
 }
 
 const API_KEY_IDS = [
-  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "deepseek", "groq", "nvidia", "xai",
+  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "dashscope", "deepseek", "groq", "nvidia", "xai",
   "vercel", "custom", "claudeapi", "aistudio", "vertexexpress",
 ] as const;
 
@@ -102,6 +104,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   azure: "Microsoft Azure", claudeapi: "Claude API", claudecode: "Claude Code",
   claudeweb: "Claude Web", cline: "Cline",
   "cloudflare-ai-gateway": "Cloudflare AI Gateway",
+  dashscope: "Alibaba Qwen",
   codex: "OpenAI Codex", copilotcli: "GitHub Copilot CLI", custom: "Custom", deepseek: "DeepSeek",
   geminicli: "Gemini CLI", groq: "Groq", grokbuild: "Grok Build", kiro: "Kiro",
   nvidia: "NVIDIA", openai: "OpenAI", opencodezen: "OpenCode Zen",
