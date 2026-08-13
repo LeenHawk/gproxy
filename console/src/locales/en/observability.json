@@ -147,6 +147,7 @@
     "empty": "No log records found.",
     "notCaptured": "Logs not captured — request or response logging may not be enabled.",
     "headers": "Headers",
+    "query": "Query",
     "body": "Body",
     "responseBody": "Response body",
     "attempt": "Attempt {{n}}"

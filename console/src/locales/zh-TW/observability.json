@@ -147,6 +147,7 @@
     "empty": "未找到日誌記錄。",
     "notCaptured": "日誌未捕獲——請求或回應日誌可能未啟用。",
     "headers": "請求標頭",
+    "query": "查詢參數",
     "body": "正文",
     "responseBody": "回應正文",
     "attempt": "第 {{n}} 次"
