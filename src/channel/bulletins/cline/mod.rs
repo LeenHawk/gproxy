@@ -168,7 +168,7 @@ impl Channel for ClineChannel {
 /// Only the catalogue is not the chat surface.
 fn upstream_path(op: OperationKey) -> &'static str {
     if op.operation() == Operation::ListModels {
-        "/ai/cline/models"
+        "/ai/cline/recommended-models"
     } else {
         "/chat/completions"
     }
