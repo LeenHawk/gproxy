@@ -1,6 +1,10 @@
 {
   "title": "更新",
   "subtitle": "檢查並套用此 GPROXY 執行個體的二進位更新。",
+  "unavailable": {
+    "title": "自動更新不可用",
+    "description": "自動更新不可用，請從 Serverless 平台更新。"
+  },
   "check": {
     "button": "檢查更新",
     "current": "目前版本",

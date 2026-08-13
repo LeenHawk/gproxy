@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { DownloadCloud, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { updateCheckQuery } from "@/api/update";
+import { updateCheckQuery, updateStatusQuery } from "@/api/update";
 import { Button } from "@/components/ui/button";
 import { dismissUpdate, readDismissedUpdate } from "@/lib/update-banner-dismissal";
 import { ReleaseNotesDialog } from "./release-notes-dialog";
@@ -17,12 +17,14 @@ export function UpdateBanner() {
   const { t } = useTranslation();
   const [dismissedIdentity, setDismissedIdentity] = useState(readDismissedUpdate);
   const [notesOpen, setNotesOpen] = useState(false);
+  const status = useQuery(updateStatusQuery);
   const { data } = useQuery({
     ...updateCheckQuery,
-    enabled: true,
+    enabled: status.isError || (status.data !== undefined && status.data.state !== "unavailable"),
     staleTime: AUTO_CHECK_STALE_TIME_MS,
   });
 
+  if (status.data?.state === "unavailable") return null;
   if (!data?.available || dismissedIdentity === data.latest) return null;
 
   const handleDismiss = () => {
