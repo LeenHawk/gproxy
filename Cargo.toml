@@ -30,7 +30,7 @@ anyhow = "1"
 argon2 = "0.5"
 async-trait = "0.1"
 arc-swap = "1"
-base64 = "0.22"
+base64 = "0.23"
 blake3 = "1"
 bytes = "1"
 chacha20poly1305 = "0.11.0"
@@ -49,7 +49,7 @@ httpdate = "1"
 # in the tree via regex/aho-corasick; pinned here as a direct dep).
 memchr = "2"
 regex = "1"
-jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto", "use_pem"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -119,7 +119,7 @@ getrandom_v02 = { version = "0.2", package = "getrandom", features = ["js"] }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-wasm-streams = "0.4"
+wasm-streams = "0.6"
 js-sys = "0.3"
 tracing-core = "0.1"
 web-sys = { version = "0.3", features = ["AbortSignal", "Headers", "ReadableStream", "Request", "RequestInit", "RequestMode", "RequestRedirect", "Response", "ResponseInit", "WorkerGlobalScope"] }

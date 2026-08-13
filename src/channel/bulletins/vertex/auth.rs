@@ -1,7 +1,7 @@
 //! Vertex service-account auth: parse the SA `secret_json` and sign an RS256
 //! JWT for the OAuth2 JWT-bearer grant.
 //!
-//! Signing uses `jsonwebtoken` v10 with the pure-Rust `rust_crypto` backend
+//! Signing uses `jsonwebtoken` v11 with the pure-Rust `rust_crypto` backend
 //! (no `ring`), so the parse-and-sign path compiles and runs on **all targets
 //! including wasm/edge**. A token is minted ~once per hour, so the pure-Rust
 //! RSA cost is irrelevant.
