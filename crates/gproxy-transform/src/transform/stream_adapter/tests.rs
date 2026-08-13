@@ -338,6 +338,35 @@ fn strict_stream_rejects_unexpected_eof() {
 }
 
 #[test]
+fn skip_invalid_recognizes_terminal_envelope_on_the_cold_path() {
+    let upstream = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiResponses,
+    );
+    let inbound = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChatCompletions,
+    );
+    let pair = crate::transform::resolve(upstream, inbound).unwrap();
+    let options = StreamOptions {
+        error_mode: StreamErrorMode::SkipInvalid,
+        ..StreamOptions::default()
+    };
+    let mut transformer =
+        SseTransformer::with_options(pair, TransformContext::new(upstream, inbound), options)
+            .unwrap();
+
+    // The type is a terminal event, but its body is deliberately too new for
+    // the current strong type. SkipInvalid must retain the old terminal hint.
+    let out = transformer
+        .push(b"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"future\":true}}\n\n")
+        .unwrap();
+    assert!(out.is_empty());
+    assert_eq!(transformer.diagnostics().skipped_frames, 1);
+    assert!(transformer.finish().is_ok());
+}
+
+#[test]
 fn buffered_aggregation_rejects_invalid_frames() {
     let input = b"data: {bad json}\n\ndata: [DONE]\n\n";
     assert!(aggregate_buffered(ContentGenerationKind::OpenAiChatCompletions, input).is_err());

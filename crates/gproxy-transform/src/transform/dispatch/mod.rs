@@ -79,6 +79,11 @@ pub enum StreamEventOut {
     Responses(Box<crate::protocol::openai::ResponseStreamEvent>),
 }
 
+pub(crate) struct StreamEventBatch {
+    pub events: Vec<StreamEventOut>,
+    pub terminal: bool,
+}
+
 /// Stateful `0..N` stream-event converter for one resolved pair.
 ///
 /// Create one converter per upstream response and retain it until
@@ -106,8 +111,25 @@ impl StreamConverter {
         &mut self,
         data: &str,
     ) -> Result<TransformOutput<Vec<StreamEventOut>>, TransformError> {
-        let value = self.inner.push(data)?;
-        Ok(TransformOutput::new(value, self.inner.take_diagnostics()))
+        let output = self.push_detailed_with_status(data)?;
+        Ok(TransformOutput::new(
+            output.value.events,
+            output.diagnostics,
+        ))
+    }
+
+    pub(crate) fn push_detailed_with_status(
+        &mut self,
+        data: &str,
+    ) -> Result<TransformOutput<StreamEventBatch>, TransformError> {
+        let output = self.inner.push(data)?;
+        Ok(TransformOutput::new(
+            StreamEventBatch {
+                events: output.events,
+                terminal: output.terminal,
+            },
+            self.inner.take_diagnostics(),
+        ))
     }
 
     /// Flush pair-specific state into zero or more final inbound events.
