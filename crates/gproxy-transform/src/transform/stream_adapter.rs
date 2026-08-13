@@ -10,6 +10,7 @@ use super::{
 };
 use crate::protocol::openai::ResponseStreamEvent;
 use crate::protocol::{ContentGenerationKind, OperationKind};
+use serde::Deserialize;
 
 use responses::ResponsesStreamState;
 
@@ -214,17 +215,22 @@ impl SseTransformer {
             self.terminal_seen = true;
             return Ok(());
         }
-        self.terminal_seen |= is_terminal_event(self.source, &frame.data);
-        let events = match self.converter.push_detailed(&frame.data) {
+        let events = match self.converter.push_detailed_with_status(&frame.data) {
             Ok(events) => events,
             Err(_) if self.error_mode == StreamErrorMode::SkipInvalid => {
+                // Preserve the old tolerant-stream behavior for a recognizable
+                // terminal envelope whose full typed body has evolved beyond
+                // what this build understands. This cold error path still uses
+                // small typed envelopes rather than a dynamic Value tree.
+                self.terminal_seen |= terminal_hint(self.source, &frame.data);
                 self.skipped += 1;
                 return Ok(());
             }
             Err(error) => return Err(error),
         };
+        self.terminal_seen |= events.value.terminal;
         self.semantic_diagnostics.extend(events.diagnostics);
-        for event in events.value {
+        for event in events.value.events {
             self.encode_converted(event, out)?;
         }
         Ok(())
@@ -253,35 +259,56 @@ impl SseTransformer {
     }
 }
 
-fn is_terminal_event(kind: ContentGenerationKind, data: &str) -> bool {
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(data) else {
-        return false;
-    };
+fn terminal_hint(kind: ContentGenerationKind, data: &str) -> bool {
+    #[derive(Deserialize)]
+    struct TaggedEnvelope {
+        #[serde(rename = "type")]
+        type_: String,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct GeminiEnvelope {
+        #[serde(default)]
+        candidates: Vec<GeminiCandidateEnvelope>,
+        prompt_feedback: Option<GeminiPromptFeedbackEnvelope>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct GeminiCandidateEnvelope {
+        finish_reason: Option<serde::de::IgnoredAny>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct GeminiPromptFeedbackEnvelope {
+        block_reason: Option<serde::de::IgnoredAny>,
+    }
+
     match kind {
         ContentGenerationKind::OpenAiChatCompletions => false,
-        ContentGenerationKind::ClaudeMessages => matches!(
-            value.get("type").and_then(serde_json::Value::as_str),
-            Some("message_stop" | "error")
-        ),
+        ContentGenerationKind::ClaudeMessages => serde_json::from_str::<TaggedEnvelope>(data)
+            .is_ok_and(|event| matches!(event.type_.as_str(), "message_stop" | "error")),
         ContentGenerationKind::OpenAiResponses
-        | ContentGenerationKind::OpenAiResponsesWebSocket => matches!(
-            value.get("type").and_then(serde_json::Value::as_str),
-            Some("response.completed" | "response.incomplete" | "response.failed" | "error")
-        ),
+        | ContentGenerationKind::OpenAiResponsesWebSocket => {
+            serde_json::from_str::<TaggedEnvelope>(data).is_ok_and(|event| {
+                matches!(
+                    event.type_.as_str(),
+                    "response.completed" | "response.incomplete" | "response.failed" | "error"
+                )
+            })
+        }
         ContentGenerationKind::GeminiGenerateContent => {
-            value
-                .get("candidates")
-                .and_then(serde_json::Value::as_array)
-                .is_some_and(|candidates| {
-                    candidates.iter().any(|candidate| {
-                        candidate
-                            .get("finishReason")
-                            .is_some_and(|reason| !reason.is_null())
-                    })
-                })
-                || value
-                    .pointer("/promptFeedback/blockReason")
-                    .is_some_and(|reason| !reason.is_null())
+            serde_json::from_str::<GeminiEnvelope>(data).is_ok_and(|event| {
+                event
+                    .candidates
+                    .iter()
+                    .any(|candidate| candidate.finish_reason.is_some())
+                    || event
+                        .prompt_feedback
+                        .is_some_and(|feedback| feedback.block_reason.is_some())
+            })
         }
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")

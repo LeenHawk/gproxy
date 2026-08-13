@@ -36,6 +36,27 @@ combine upstream providers behind it:
 
 ---
 
+## Performance test
+
+Offline profiling environment:
+
+- AMD Ryzen 7 8745H, using 8 physical cores
+- Release build (`opt-level=z`) with 64 workers
+- In-process, zero-latency mock upstream
+- Streaming `chat → claude` conversion with 100 content events per request
+- Median of three runs, each with a 2-second measurement window
+
+Results:
+
+| Metric | Result |
+|---|---:|
+| Request throughput | 25,600 requests/s |
+| Stream-event throughput | approximately 2.56 million events/s |
+| Data throughput | 456 MB/s |
+| Peak RSS | approximately 20.8 MB |
+
+---
+
 ## Deploy
 
 ### 🐳 Docker (recommended)
