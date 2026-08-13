@@ -29,6 +29,7 @@ pub enum OperationGroup {
     Compact,
     Conversation,
     Realtime,
+    Audio,
 }
 
 /// Provider-neutral operation name.
@@ -50,6 +51,9 @@ pub enum Operation {
     WebSearch,
     Rerank,
     CreateEmbedding,
+    CreateSpeech,
+    CreateTranscription,
+    CreateTranslation,
     CompactContent,
     CreateConversation,
     CreateRealtimeCall,
@@ -66,6 +70,9 @@ impl Operation {
             Self::CreateImage | Self::EditImage => OperationGroup::Images,
             Self::WebSearch | Self::Rerank => OperationGroup::Search,
             Self::CreateEmbedding => OperationGroup::Embeddings,
+            Self::CreateSpeech | Self::CreateTranscription | Self::CreateTranslation => {
+                OperationGroup::Audio
+            }
             Self::CompactContent => OperationGroup::Compact,
             Self::CreateConversation => OperationGroup::Conversation,
             Self::CreateRealtimeCall | Self::ConnectRealtime => OperationGroup::Realtime,

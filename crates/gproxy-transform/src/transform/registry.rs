@@ -105,6 +105,9 @@ pub fn resolve(
         | Operation::CreateImage
         | Operation::EditImage
         | Operation::Rerank
+        | Operation::CreateSpeech
+        | Operation::CreateTranscription
+        | Operation::CreateTranslation
         | Operation::CreateConversation
         | Operation::ConnectRealtime => Err(TransformError::unsupported_pair(source, target)),
         _ => {

@@ -3,6 +3,7 @@
 //! These modules mirror OpenAI JSON wire shapes only. Provider conversion and
 //! routing logic belongs outside this provider model layer.
 
+mod audio;
 mod common;
 mod compact;
 mod conversation;
@@ -11,7 +12,9 @@ mod embeddings;
 pub mod generate_content;
 mod images;
 mod models;
+mod rerank;
 
+pub use audio::*;
 pub use common::*;
 pub use compact::*;
 pub use conversation::*;
@@ -20,3 +23,4 @@ pub use embeddings::*;
 pub use generate_content::*;
 pub use images::*;
 pub use models::*;
+pub use rerank::*;

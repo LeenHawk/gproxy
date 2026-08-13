@@ -228,6 +228,26 @@ pub enum OpenAiModelIdKnown {
     TextEmbedding3Small,
     #[serde(rename = "text-embedding-3-large")]
     TextEmbedding3Large,
+    #[serde(rename = "whisper-1")]
+    Whisper1,
+    #[serde(rename = "gpt-transcribe")]
+    GptTranscribe,
+    #[serde(rename = "gpt-4o-transcribe")]
+    Gpt4oTranscribe,
+    #[serde(rename = "gpt-4o-mini-transcribe")]
+    Gpt4oMiniTranscribe,
+    #[serde(rename = "gpt-4o-mini-transcribe-2025-12-15")]
+    Gpt4oMiniTranscribe20251215,
+    #[serde(rename = "gpt-4o-transcribe-diarize")]
+    Gpt4oTranscribeDiarize,
+    #[serde(rename = "tts-1")]
+    Tts1,
+    #[serde(rename = "tts-1-hd")]
+    Tts1Hd,
+    #[serde(rename = "gpt-4o-mini-tts")]
+    Gpt4oMiniTts,
+    #[serde(rename = "gpt-4o-mini-tts-2025-12-15")]
+    Gpt4oMiniTts20251215,
     #[serde(rename = "gpt-image-1.5")]
     GptImage15,
     #[serde(rename = "dall-e-2")]
