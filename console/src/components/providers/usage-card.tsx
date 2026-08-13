@@ -211,10 +211,8 @@ export function UsageCard({
 
   return (
     <div className="grid min-w-0 gap-4">
-      <CredentialUsageSummaryCard credentialId={credentialId} />
-
       {supportsUpstreamUsage && (
-        <div className="grid min-w-0 gap-3 border-t pt-4">
+        <div className="grid min-w-0 gap-3">
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-medium">{t("usage.upstreamTitle")}</p>
@@ -277,6 +275,8 @@ export function UsageCard({
           )}
         </div>
       )}
+
+      <CredentialUsageSummaryCard credentialId={credentialId} />
 
       <CredentialQuotaHistory
         credentialId={credentialId}
