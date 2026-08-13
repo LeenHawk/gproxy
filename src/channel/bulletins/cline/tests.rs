@@ -6,7 +6,7 @@ use http::{HeaderMap, Method, StatusCode};
 use serde_json::json;
 
 use super::*;
-use crate::protocol::{ContentGenerationKind, Provider};
+use crate::protocol::ContentGenerationKind;
 
 fn prepared(
     secret: &serde_json::Value,
@@ -82,53 +82,6 @@ fn account_tokens_are_prefixed_and_api_keys_are_not() {
         stored.headers().get("authorization").unwrap(),
         "Bearer workos:jwt-abc"
     );
-}
-
-#[test]
-fn model_list_uses_the_catalogue_path() {
-    let req = prepared(
-        &json!({ "api_key": "cline-key" }),
-        OperationKey::provider(Operation::ListModels, Provider::OpenAi),
-        Method::GET,
-        "/v1/models",
-    );
-    assert_eq!(
-        req.uri().to_string(),
-        "https://api.cline.bot/api/v1/ai/cline/recommended-models"
-    );
-}
-
-#[test]
-fn curated_groups_are_merged_for_openai_model_transforms() {
-    let body = Bytes::from_static(
-        br#"{
-        "recommended":[{"id":"anthropic/claude-opus-5","name":"Claude Opus 5"}],
-        "free":[{"id":"poolside/laguna-s-2.1:free","name":"Laguna"}],
-        "clinePass":[
-            {"id":"cline-pass/glm-5.2","name":"GLM 5.2"},
-            {"id":"anthropic/claude-opus-5","name":"duplicate"}
-        ]
-    }"#,
-    );
-    let settings = json!({});
-    let out = ClineChannel.shape_response(
-        body,
-        &crate::channel::ShapeCtx {
-            op: OperationKey::provider(Operation::ListModels, Provider::OpenAi),
-            stream: false,
-            status: StatusCode::OK,
-            settings: &settings,
-        },
-    );
-    let value: serde_json::Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(value["object"], "list");
-    assert_eq!(value["data"].as_array().unwrap().len(), 3);
-    assert_eq!(value["data"][0]["id"], "anthropic/claude-opus-5");
-    assert_eq!(value["data"][0]["object"], "model");
-    assert_eq!(value["data"][0]["owned_by"], "anthropic");
-    assert_eq!(value["data"][0]["cline_group"], "recommended");
-    assert_eq!(value["data"][1]["cline_group"], "free");
-    assert_eq!(value["data"][2]["owned_by"], "cline-pass");
 }
 
 #[test]

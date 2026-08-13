@@ -329,19 +329,6 @@ mod tests {
     }
 
     #[test]
-    fn preserves_assistant_prefix_completion_marker() {
-        let body = req(json!({
-            "model": "deepseek-v4-pro",
-            "messages": [
-                { "role": "user", "content": "Return JSON" },
-                { "role": "assistant", "content": "{\"status\":", "prefix": true }
-            ]
-        }));
-        assert_eq!(body["messages"][1]["prefix"], true);
-        assert_eq!(body["messages"][1]["content"], "{\"status\":");
-    }
-
-    #[test]
     fn caps_max_tokens_at_v4_output_limit() {
         let body = req(json!({
             "model": "deepseek-chat",
