@@ -94,14 +94,21 @@ fn model_list_uses_the_catalogue_path() {
     );
     assert_eq!(
         req.uri().to_string(),
-        "https://api.cline.bot/api/v1/ai/cline/models"
+        "https://api.cline.bot/api/v1/ai/cline/recommended-models"
     );
 }
 
 #[test]
-fn full_catalogue_is_normalized_for_openai_model_transforms() {
+fn curated_groups_are_merged_for_openai_model_transforms() {
     let body = Bytes::from_static(
-        br#"{"data":[{"id":"anthropic/claude-opus-5","name":"Claude Opus 5","context_length":200000}]}"#,
+        br#"{
+        "recommended":[{"id":"anthropic/claude-opus-5","name":"Claude Opus 5"}],
+        "free":[{"id":"poolside/laguna-s-2.1:free","name":"Laguna"}],
+        "clinePass":[
+            {"id":"cline-pass/glm-5.2","name":"GLM 5.2"},
+            {"id":"anthropic/claude-opus-5","name":"duplicate"}
+        ]
+    }"#,
     );
     let settings = json!({});
     let out = ClineChannel.shape_response(
@@ -115,9 +122,13 @@ fn full_catalogue_is_normalized_for_openai_model_transforms() {
     );
     let value: serde_json::Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(value["object"], "list");
+    assert_eq!(value["data"].as_array().unwrap().len(), 3);
+    assert_eq!(value["data"][0]["id"], "anthropic/claude-opus-5");
     assert_eq!(value["data"][0]["object"], "model");
     assert_eq!(value["data"][0]["owned_by"], "anthropic");
-    assert_eq!(value["data"][0]["context_length"], 200_000);
+    assert_eq!(value["data"][0]["cline_group"], "recommended");
+    assert_eq!(value["data"][1]["cline_group"], "free");
+    assert_eq!(value["data"][2]["owned_by"], "cline-pass");
 }
 
 #[test]
