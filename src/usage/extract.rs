@@ -10,6 +10,9 @@ use super::NormalizedUsage;
 use crate::protocol::operation::{ContentGenerationKind, Provider};
 use crate::transform::common::sse::SseFrame;
 
+mod audio;
+pub use audio::{from_transcription_response, from_transcription_stream_frames};
+
 /// Extract usage from a NON-streaming response body of the given family.
 ///
 /// For [`Provider::OpenAi`] both wire shapes are handled: chat completions

@@ -1,6 +1,8 @@
 //! Inbound request classification: `(method, path)` → [`OperationKey`] plus the
 //! streaming flag. M1 ships a hardcoded table (D5); unknown rows → 404.
 
+#[cfg(test)]
+mod audio_tests;
 mod conversation;
 
 use bytes::Bytes;
@@ -79,6 +81,25 @@ pub fn classify(
         ),
         ("POST", "/v1/embeddings") => (
             OperationKey::provider(Operation::CreateEmbedding, Prov::OpenAi),
+            false,
+        ),
+        ("POST", "/v1/audio/speech") => (
+            OperationKey::provider(Operation::CreateSpeech, Prov::OpenAi),
+            body_value
+                .as_ref()
+                .and_then(|value| value.get("stream_format"))
+                .and_then(serde_json::Value::as_str)
+                == Some("sse"),
+        ),
+        ("POST", "/v1/audio/transcriptions") => (
+            OperationKey::provider(Operation::CreateTranscription, Prov::OpenAi),
+            body_value
+                .as_ref()
+                .and_then(|value| value.get("stream"))
+                .is_some_and(json_bool),
+        ),
+        ("POST", "/v1/audio/translations") => (
+            OperationKey::provider(Operation::CreateTranslation, Prov::OpenAi),
             false,
         ),
         ("POST", "/v1/rerank") => (
@@ -216,6 +237,13 @@ fn peek_body(v: &serde_json::Value) -> (bool, Option<String>) {
         .or_else(|| v.get("session")?.get("model")?.as_str())
         .map(str::to_string);
     (stream, model)
+}
+
+fn json_bool(value: &serde_json::Value) -> bool {
+    value
+        .as_bool()
+        .or_else(|| value.as_str().and_then(|value| value.parse().ok()))
+        .unwrap_or(false)
 }
 
 /// Minimal body peek for the `"model"` field (tolerant, as above). Prefer

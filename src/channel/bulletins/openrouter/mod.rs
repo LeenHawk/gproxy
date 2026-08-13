@@ -82,6 +82,9 @@ impl Channel for OpenRouterChannel {
             ),
             // === Rerank ===
             pass(Rerank, pv(P::OpenAi)),
+            // === Audio ===
+            pass(CreateSpeech, pv(P::OpenAi)),
+            pass(CreateTranscription, pv(P::OpenAi)),
             // === Compact -> generate ===
             xform(
                 CompactContent,

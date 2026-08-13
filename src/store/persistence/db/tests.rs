@@ -11,6 +11,7 @@ async fn mem() -> DbPersistence {
         .expect("connect")
 }
 
+mod audio_migration;
 mod import;
 mod migrations;
 mod observability;

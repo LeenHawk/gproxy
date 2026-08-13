@@ -61,4 +61,15 @@ mod tests {
         .unwrap();
         assert!(matches!(event, TranscriptionStreamEvent::Unknown(_)));
     }
+
+    #[test]
+    fn stream_done_accepts_official_usage_without_type_discriminator() {
+        let event: TranscriptionStreamEvent = serde_json::from_value(serde_json::json!({
+            "type": "transcript.text.done",
+            "text": "hello",
+            "usage": {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10}
+        }))
+        .unwrap();
+        assert!(matches!(event, TranscriptionStreamEvent::Known(_)));
+    }
 }

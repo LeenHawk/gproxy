@@ -6,6 +6,9 @@ use bytes::Bytes;
 use http::Request;
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 
+mod audio_multipart;
+pub use audio_multipart::restore_audio_multipart;
+
 use crate::channel::http_util::{
     allow_headers, allow_query, build_request as build_http, exact_url, join_url,
 };
