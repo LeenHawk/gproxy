@@ -53,44 +53,8 @@
     },
     "tab": {
       "usage": "用量",
-      "credentials": "凭证用量",
-      "audit": "审计",
-      "logs": "日志"
-    }
-  },
-  "credentialUsage": {
-    "title": "凭证用量对比",
-    "description": "比较所有凭证经 GPROXY 记录的最近 7 天与累计用量；此页面不会请求上游账户。",
-    "loadError": "加载凭证用量失败。",
-    "retry": "重试",
-    "refresh": "刷新",
-    "empty": "当前筛选条件下暂无凭证用量。",
-    "last7DaysTrend": "各凭证最近 7 天趋势",
-    "chartLimit": "图表显示用量最高的 {{count}} 个凭证；可通过筛选查看其他凭证。",
-    "coverageUnknown": "未知",
-    "filters": {
-      "provider": "供应商",
-      "allProviders": "全部供应商",
-      "channel": "渠道",
-      "allChannels": "全部渠道",
-      "credential": "凭证",
-      "allCredentials": "全部凭证"
-    },
-    "metric": {
-      "total_tokens": "Tokens",
-      "cost_usd": "USD",
-      "requests": "请求数"
-    },
-    "columns": {
-      "credential": "凭证",
-      "provider": "供应商",
-      "channel": "渠道",
-      "last7Tokens": "7 天 tokens",
-      "last7Cost": "7 天 USD",
-      "lifetimeTokens": "已记录累计 tokens",
-      "lifetimeCost": "已记录累计 USD",
-      "quotaWindows": "已保存额度窗口",
-      "coverage": "开始记录"
+      "audit": "管理操作",
+      "logs": "请求审计"
     }
   },
   "quotaHistory": {
@@ -153,7 +117,7 @@
     "attempt": "第 {{n}} 次"
   },
   "audit": {
-    "title": "审计日志",
+    "title": "管理操作",
     "filters": {
       "actor": "操作者",
       "action": "操作",
@@ -170,7 +134,7 @@
       "status": "状态",
       "sourceIp": "来源 IP"
     },
-    "empty": "暂无审计记录。"
+    "empty": "暂无管理操作记录。"
   },
   "health": {
     "loadError": "加载健康状态失败",
@@ -226,12 +190,15 @@
     }
   },
   "logsList": {
-    "empty": "暂无请求日志——在设置里开启上行/下行日志。",
+    "empty": "暂无请求审计——请在设置里开启上游或下游日志。",
+    "attempts": "{{count}} 次上游调用",
     "columns": {
       "at": "时间",
+      "requestId": "请求 ID",
       "method": "方法",
-      "path": "路径",
-      "status": "状态"
+      "target": "目标",
+      "status": "状态",
+      "attempts": "上游调用"
     }
   }
 }

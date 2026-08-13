@@ -182,10 +182,7 @@ export function UsageCard({
   const refreshUpstream = useCallback(async () => {
     const result = await refetch();
     if (result.isSuccess) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["credential-quota-cycles"] }),
-        queryClient.invalidateQueries({ queryKey: ["credential-usage-comparison"] }),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: ["credential-quota-cycles"] });
     }
   }, [queryClient, refetch]);
   const resetMutation = useMutation({

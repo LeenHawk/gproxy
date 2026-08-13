@@ -130,7 +130,7 @@ impl ChannelLogin for GeminiCliChannel {
         Ok(Some(AuthCodeStart {
             authorize_url,
             redirect_uri,
-            extra: None,
+            extra: auth::authcode_extra(ctx.params),
         }))
     }
 
@@ -139,6 +139,13 @@ impl ChannelLogin for GeminiCliChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri).await
+        auth::authcode_exchange(
+            client,
+            ctx.code,
+            ctx.verifier,
+            ctx.redirect_uri,
+            auth::exchange_project_hint(ctx.extra),
+        )
+        .await
     }
 }

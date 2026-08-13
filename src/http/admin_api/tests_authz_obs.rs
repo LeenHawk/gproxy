@@ -87,57 +87,6 @@ async fn observability_page_mode_returns_common_envelope() {
 }
 
 #[tokio::test]
-async fn logs_list_omits_bodies_by_default_and_can_include_them() {
-    let (state, _dir) = state_with(vec![]).await;
-    let admin_id = seed_user(&state, "admin-log-bodies", true).await;
-    let cookie = cookie_for(&state, admin_id).await;
-    state
-        .persistence
-        .append_downstream_request(
-            crate::store::persistence::records::DownstreamRequestInput {
-                request_id: "request-with-body".into(),
-                at: 100,
-                method: "POST".into(),
-                path: "/v1/messages".into(),
-                query: None,
-                status: 200,
-                headers_json: Some(serde_json::json!({ "x-test": "yes" })),
-                body: Some("request body".into()),
-                response_body: Some("response body".into()),
-            },
-        )
-        .await
-        .unwrap();
-
-    let without = run(
-        &state,
-        &parts("GET", "/admin/logs", Some(&cookie), None),
-        b"",
-    )
-    .await
-    .map(|response| parse_json(&response))
-    .unwrap();
-    let with = run(
-        &state,
-        &parts("GET", "/admin/logs?include_bodies=true", Some(&cookie), None),
-        b"",
-    )
-    .await
-    .map(|response| parse_json(&response))
-    .unwrap();
-
-    assert_eq!(
-        serde_json::json!([
-            without[0]["headers_json"], without[0]["body"], without[0]["response_body"],
-            with[0]["headers_json"], with[0]["body"], with[0]["response_body"],
-        ]),
-        serde_json::json!([
-            null, null, null, { "x-test": "yes" }, "request body", "response body"
-        ])
-    );
-}
-
-#[tokio::test]
 async fn numeric_pagination_rejects_invalid_parameters() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-page-invalid", true).await;

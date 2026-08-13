@@ -88,6 +88,17 @@ export interface UpstreamRequest {
   response_body: string | null;
 }
 
+export interface RequestAudit {
+  request_id: string;
+  at: number;
+  method: string;
+  target: string;
+  status: number;
+  provider_id: number | null;
+  upstream_attempts: number;
+  has_downstream: boolean;
+}
+
 export interface AuditLog {
   id: number;
   at: number;
@@ -199,12 +210,12 @@ export const usageSummaryQuery = (
       api<UsageSummary>(`/admin/usage-summary${usageQs(f)}`),
   });
 
-export const logsPageQuery = (
-  f: Omit<UsageFilter, "before_id" | "limit" | "model">,
+export const requestAuditPageQuery = (
+  f: Omit<UsageFilter, "before_id" | "limit" | "model" | "credential_id">,
   page: number,
 ) => queryOptions({
   queryKey: ["logs", "page", f, page],
-  queryFn: () => api<PageResult<DownstreamRequest>>(`/admin/logs${usageQs(f, page)}`),
+  queryFn: () => api<PageResult<RequestAudit>>(`/admin/logs${usageQs(f, page)}`),
   placeholderData: keepPreviousData,
 });
 

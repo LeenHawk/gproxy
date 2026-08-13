@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { logsPageQuery, type DownstreamRequest, type UsageFilter } from "@/api/usage";
+import { requestAuditPageQuery, type RequestAudit, type UsageFilter } from "@/api/usage";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { UsageFilters } from "@/components/observability/usage-filters";
 import { ClearAllButton } from "@/components/observability/clear-all-button";
@@ -15,13 +15,13 @@ function fmtAt(unixSecs: number): string {
   });
 }
 
-/** Recent proxied requests (downstream logs). A row opens the shared request
- *  drawer (downstream + upstream detail) via `onSelect`. */
+/** Logical request audits. Gateway and auxiliary OAuth/refresh calls share the
+ * same request-id based detail drawer. */
 export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void }) {
   const { t } = useTranslation("observability");
   const [filter, setFilter] = useState<Omit<UsageFilter, "before_id" | "limit">>({});
   const [page, setPage] = useState(1);
-  const { data, isFetching, isPending } = useQuery(logsPageQuery(filter, page));
+  const { data, isFetching, isPending } = useQuery(requestAuditPageQuery(filter, page));
   const rows = data?.items ?? [];
 
   function changeFilter(next: Omit<UsageFilter, "before_id" | "limit">) {
@@ -29,17 +29,27 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
     setFilter(next);
   }
 
-  const cols: DataColumn<DownstreamRequest>[] = [
+  const cols: DataColumn<RequestAudit>[] = [
     {
       key: "at",
       header: t("logsList.columns.at"),
       cell: (r) => <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">{fmtAt(r.at)}</span>,
     },
+    {
+      key: "request_id",
+      header: t("logsList.columns.requestId"),
+      cell: (r) => <span className="block max-w-64 truncate font-mono text-xs" title={r.request_id}>{r.request_id}</span>,
+    },
     { key: "method", header: t("logsList.columns.method"), cell: (r) => <span className="font-mono text-xs">{r.method}</span> },
     {
       key: "path",
-      header: t("logsList.columns.path"),
-      cell: (r) => <span className="font-mono text-xs">{r.path}{r.query ? `?${r.query}` : ""}</span>,
+      header: t("logsList.columns.target"),
+      cell: (r) => <span className="block max-w-80 truncate font-mono text-xs" title={r.target}>{r.target}</span>,
+    },
+    {
+      key: "attempts",
+      header: t("logsList.columns.attempts"),
+      cell: (r) => <span className="tabular-nums text-xs">{r.upstream_attempts}</span>,
     },
     {
       key: "status",
@@ -70,18 +80,19 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
       <DataTable
         columns={cols}
         rows={rows}
-        rowKey={(r) => r.id}
+        rowKey={(r) => r.request_id}
         empty={t("logsList.empty")}
         onRowClick={(r) => onSelect(r.request_id)}
         renderCard={(r) => (
           <div className="grid gap-1">
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs">
-                {r.method} {r.path}{r.query ? `?${r.query}` : ""}
+                {r.method} {r.target}
               </span>
               <Badge variant={r.status >= 400 ? "destructive" : "secondary"}>{r.status}</Badge>
             </div>
-            <span className="text-xs text-muted-foreground">{fmtAt(r.at)}</span>
+            <span className="text-xs text-muted-foreground">{fmtAt(r.at)} · {t("logsList.attempts", { count: r.upstream_attempts })}</span>
+            <span className="break-all font-mono text-xs text-muted-foreground">{r.request_id}</span>
           </div>
         )}
       />

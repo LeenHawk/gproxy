@@ -53,44 +53,8 @@
     },
     "tab": {
       "usage": "Usage",
-      "credentials": "Credential usage",
-      "audit": "Audit",
-      "logs": "Logs"
-    }
-  },
-  "credentialUsage": {
-    "title": "Credential usage comparison",
-    "description": "Compare locally recorded 7-day and lifetime usage across every credential. This view never queries upstream accounts.",
-    "loadError": "Failed to load credential usage.",
-    "retry": "Retry",
-    "refresh": "Refresh",
-    "empty": "No credential usage matches the current filters.",
-    "last7DaysTrend": "Last 7 days by credential",
-    "chartLimit": "Showing the top {{count}} credentials; filter to inspect another.",
-    "coverageUnknown": "Unknown",
-    "filters": {
-      "provider": "Provider",
-      "allProviders": "All providers",
-      "channel": "Channel",
-      "allChannels": "All channels",
-      "credential": "Credential",
-      "allCredentials": "All credentials"
-    },
-    "metric": {
-      "total_tokens": "Tokens",
-      "cost_usd": "USD",
-      "requests": "Requests"
-    },
-    "columns": {
-      "credential": "Credential",
-      "provider": "Provider",
-      "channel": "Channel",
-      "last7Tokens": "7-day tokens",
-      "last7Cost": "7-day USD",
-      "lifetimeTokens": "Recorded tokens",
-      "lifetimeCost": "Recorded USD",
-      "quotaWindows": "Stored quota windows",
-      "coverage": "Tracked since"
+      "audit": "Admin actions",
+      "logs": "Request audit"
     }
   },
   "quotaHistory": {
@@ -153,7 +117,7 @@
     "attempt": "Attempt {{n}}"
   },
   "audit": {
-    "title": "Audit log",
+    "title": "Admin actions",
     "filters": {
       "actor": "Actor",
       "action": "Action",
@@ -170,7 +134,7 @@
       "status": "Status",
       "sourceIp": "Source IP"
     },
-    "empty": "No audit records."
+    "empty": "No admin actions."
   },
   "health": {
     "loadError": "Failed to load health status",
@@ -226,12 +190,15 @@
     }
   },
   "logsList": {
-    "empty": "No request logs — enable upstream/downstream logging in Settings.",
+    "empty": "No request audits — enable upstream or downstream logging in Settings.",
+    "attempts": "{{count}} upstream calls",
     "columns": {
       "at": "Time",
+      "requestId": "Request ID",
       "method": "Method",
-      "path": "Path",
-      "status": "Status"
+      "target": "Target",
+      "status": "Status",
+      "attempts": "Upstream calls"
     }
   }
 }

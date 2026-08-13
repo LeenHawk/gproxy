@@ -5,6 +5,24 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// One logical request audit, grouped by `request_id` across downstream and
+/// upstream wire records. Auxiliary flows such as OAuth may have no downstream
+/// half, while gateway requests normally have both.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RequestAudit {
+    pub request_id: String,
+    /// Most recent event time in the request chain (Unix seconds).
+    pub at: i64,
+    pub method: String,
+    /// Downstream path when present, otherwise the upstream URL.
+    pub target: String,
+    /// Downstream status when present, otherwise the latest upstream status.
+    pub status: i64,
+    pub provider_id: Option<i64>,
+    pub upstream_attempts: i64,
+    pub has_downstream: bool,
+}
+
 /// A raw downstream (client → proxy) request log entry (§8-D).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownstreamRequest {

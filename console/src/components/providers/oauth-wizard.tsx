@@ -36,8 +36,9 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
   // Geminicli's two modes are both authcode but differ in redirect + paste UI
   // (callback URL vs bare code), so it gets a dedicated toggle.
   const isGemini = meta.source === "builtin" && provider.channel === "geminicli";
-  const isAntigravity = meta.source === "builtin" && provider.channel === "antigravity";
-  const authcodeParams = isAntigravity && projectId.trim() !== ""
+  const needsProjectHint = meta.source === "builtin"
+    && (provider.channel === "antigravity" || provider.channel === "geminicli");
+  const authcodeParams = needsProjectHint && projectId.trim() !== ""
     ? { ...meta.loginParams, project_id: projectId.trim() }
     : meta.loginParams;
 
@@ -61,7 +62,7 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
         <Label htmlFor="w-name">{t("wizard.credName")}</Label>
         <Input id="w-name" value={credLabel} onChange={(e) => setCredLabel(e.target.value)} />
       </div>
-      {isAntigravity && (
+      {needsProjectHint && (
         <div className="grid gap-2">
           <Label htmlFor="w-gcp-project">{t("wizard.gcpProjectId")}</Label>
           <Input id="w-gcp-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}
@@ -72,7 +73,7 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
       {isKiro ? (
         <KiroWizard provider={provider} credLabel={credLabel} onDone={finish} />
       ) : isGemini ? (
-        <GeminiWizard provider={provider} credLabel={credLabel} onDone={finish} />
+        <GeminiWizard provider={provider} credLabel={credLabel} onDone={finish} projectId={projectId} />
       ) : (
         <>
           {mode === "authcode" && <AuthcodeFlow provider={provider} credLabel={credLabel} onDone={finish} startParams={authcodeParams} />}
@@ -170,7 +171,7 @@ function KiroWizard({ provider, credLabel, onDone }: FlowProps) {
 // ── Geminicli: two authcode modes (callback URL vs bare code) ──────────────────
 // callback URL → loopback redirect (code_only:false), paste the ?code=&state= URL.
 // code only   → codeassist redirect (code_only:true), paste the bare code Google shows.
-function GeminiWizard({ provider, credLabel, onDone }: FlowProps) {
+function GeminiWizard({ provider, credLabel, onDone, projectId }: FlowProps & { projectId: string }) {
   const { t } = useTranslation("providers");
   const [mode, setMode] = useState<"callback" | "code">("callback");
 
@@ -187,11 +188,11 @@ function GeminiWizard({ provider, credLabel, onDone }: FlowProps) {
       </div>
       {mode === "callback" && (
         <AuthcodeFlow key="callback" provider={provider} credLabel={credLabel} onDone={onDone}
-          startParams={{ code_only: false }} />
+          startParams={{ code_only: false, ...(projectId.trim() ? { project_id: projectId.trim() } : {}) }} />
       )}
       {mode === "code" && (
         <CodeOnlyFlow key="code" provider={provider} credLabel={credLabel} onDone={onDone}
-          startParams={{ code_only: true }} />
+          startParams={{ code_only: true, ...(projectId.trim() ? { project_id: projectId.trim() } : {}) }} />
       )}
     </div>
   );
