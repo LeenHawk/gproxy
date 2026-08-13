@@ -34,6 +34,13 @@ function statusVariant(status: number): "default" | "secondary" | "destructive" 
   return "outline";
 }
 
+function urlQuery(url: string): string | null {
+  const start = url.indexOf("?");
+  if (start < 0) return null;
+  const end = url.indexOf("#", start);
+  return url.slice(start + 1, end < 0 ? undefined : end);
+}
+
 function JsonCollapsible({
   label,
   data,
@@ -156,6 +163,9 @@ export function RequestDrawer({ open, onOpenChange, requestId }: RequestDrawerPr
                     <Badge variant={statusVariant(req.status)}>{req.status}</Badge>
                   </div>
                   <JsonCollapsible label={t("logs.headers")} data={req.headers_json} />
+                  {req.query != null && (
+                    <JsonCollapsible label={t("logs.query")} data={req.query} />
+                  )}
                   {req.body != null && (
                     <JsonCollapsible label={t("logs.body")} data={req.body} maxDisplayChars={MAX_BODY_DISPLAY_CHARS} />
                   )}
@@ -188,6 +198,9 @@ export function RequestDrawer({ open, onOpenChange, requestId }: RequestDrawerPr
                       <span className="text-xs text-muted-foreground">{req.latency_ms}ms</span>
                     </div>
                     <JsonCollapsible label={t("logs.headers")} data={req.headers_json} />
+                    {urlQuery(req.url) != null && (
+                      <JsonCollapsible label={t("logs.query")} data={urlQuery(req.url)} />
+                    )}
                     {req.body != null && (
                       <JsonCollapsible label={t("logs.body")} data={req.body} maxDisplayChars={MAX_BODY_DISPLAY_CHARS} />
                     )}

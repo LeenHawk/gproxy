@@ -147,6 +147,7 @@
     "empty": "未找到日志记录。",
     "notCaptured": "日志未捕获——请求或响应日志可能未启用。",
     "headers": "请求头",
+    "query": "查询参数",
     "body": "正文",
     "responseBody": "响应正文",
     "attempt": "第 {{n}} 次"
