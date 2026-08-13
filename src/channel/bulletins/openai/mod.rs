@@ -89,6 +89,9 @@ impl Channel for OpenAiChannel {
             pass(CreateImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::OpenAi)),
             pass(CreateEmbedding, pv(P::OpenAi)),
+            pass(CreateSpeech, pv(P::OpenAi)),
+            pass(CreateTranscription, pv(P::OpenAi)),
+            pass(CreateTranslation, pv(P::OpenAi)),
             xform(
                 CreateEmbedding,
                 pv(P::Gemini),

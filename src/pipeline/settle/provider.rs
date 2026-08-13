@@ -22,7 +22,7 @@ mod image_sse;
 mod stream;
 pub(crate) use stream::StreamGuard;
 
-/// Whether this op settles here (compact / embeddings / rerank / images). Lets the
+/// Whether this op settles here (compact / embeddings / rerank / audio / images). Lets the
 /// caller skip spawning a settle task for every other buffered success.
 pub(crate) fn billable(op: Option<OperationKey>) -> bool {
     matches!(
@@ -31,6 +31,7 @@ pub(crate) fn billable(op: Option<OperationKey>) -> bool {
             Operation::CompactContent
                 | Operation::CreateEmbedding
                 | Operation::Rerank
+                | Operation::CreateTranscription
                 | Operation::CreateImage
                 | Operation::EditImage
         )
@@ -119,12 +120,13 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
     let Some(op) = ctx.op else { return };
     let is_embedding = matches!(op.operation(), Operation::CreateEmbedding);
     let is_rerank = matches!(op.operation(), Operation::Rerank);
+    let is_transcription = matches!(op.operation(), Operation::CreateTranscription);
     let is_compact = matches!(op.operation(), Operation::CompactContent);
     let is_image = matches!(
         op.operation(),
         Operation::CreateImage | Operation::EditImage
     );
-    if !is_embedding && !is_rerank && !is_compact && !is_image {
+    if !is_embedding && !is_rerank && !is_transcription && !is_compact && !is_image {
         return;
     }
 
@@ -136,7 +138,7 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         };
     // Image responses may arrive as a buffered transcript or through the
     // streaming relay guard. Decode the completed event in either case.
-    let stream_frames = (is_image && parsed.is_none())
+    let stream_frames = ((is_image || is_transcription) && parsed.is_none())
         .then(|| super::frames::decode(body).ok())
         .flatten()
         .filter(|frames| !frames.is_empty());
@@ -156,14 +158,20 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
                 extract::from_image_response(*usage_family, value)
             } else if is_rerank {
                 extract::from_rerank_response(*usage_family, value)
+            } else if is_transcription {
+                extract::from_transcription_response(value)
             } else {
                 extract::from_response(*usage_family, value)
             }
         })
         .or_else(|| {
-            stream_frames
-                .as_deref()
-                .and_then(|frames| extract::from_image_stream_frames(*usage_family, frames))
+            stream_frames.as_deref().and_then(|frames| {
+                if is_transcription {
+                    extract::from_transcription_stream_frames(frames)
+                } else {
+                    extract::from_image_stream_frames(*usage_family, frames)
+                }
+            })
         });
     if (parsed.is_some() || stream_frames.is_some()) && extracted.is_none() {
         let operation = if is_compact {
@@ -172,6 +180,8 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
             "create_embedding"
         } else if is_rerank {
             "rerank"
+        } else if is_transcription {
+            "create_transcription"
         } else if matches!(op.operation(), Operation::EditImage) {
             "edit_image"
         } else {

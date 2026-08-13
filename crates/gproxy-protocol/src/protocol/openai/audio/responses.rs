@@ -103,8 +103,10 @@ pub struct AudioTokenUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub total_tokens: u64,
-    #[serde(rename = "type")]
-    pub type_: AudioTokenUsageType,
+    /// Present on buffered transcription responses; the official
+    /// `transcript.text.done` stream event currently omits this discriminator.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub type_: Option<AudioTokenUsageType>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_token_details: Option<AudioInputTokenDetails>,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]

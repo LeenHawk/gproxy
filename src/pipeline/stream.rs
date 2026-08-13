@@ -383,7 +383,7 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
     ))
 }
 
-/// Tee provider-shaped image SSE into its settlement guard while relaying each
+/// Tee provider-shaped image/transcription SSE into its settlement guard while relaying each
 /// chunk unchanged.
 pub(crate) fn instrument_provider_settle_stream(
     s: ByteStream,

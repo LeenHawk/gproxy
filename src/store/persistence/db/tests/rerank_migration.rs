@@ -70,31 +70,35 @@ async fn adds_only_missing_custom_and_openrouter_rerank_cells() {
         db.list_routing_rules(3)
             .await
             .expect("other channel rules")
-            .is_empty()
+            .iter()
+            .all(|rule| rule.operation != "rerank")
     );
 
     let custom_edited = db.list_routing_rules(4).await.expect("custom edited rule");
-    assert_eq!(custom_edited.len(), 1);
-    assert_eq!(custom_edited[0].id, 11);
-    assert_eq!(custom_edited[0].implementation, "transform_to");
-    assert_eq!(
-        custom_edited[0].dest_operation.as_deref(),
-        Some("web_search")
-    );
-    assert_eq!(custom_edited[0].dest_kind.as_deref(), Some("open_ai"));
-    assert_eq!(custom_edited[0].sort_order, 9);
-    assert!(!custom_edited[0].enabled);
-    assert_eq!(custom_edited[0].created_at, 102);
-    assert_eq!(custom_edited[0].updated_at, 103);
+    let custom_edited = custom_edited
+        .iter()
+        .find(|rule| rule.operation == "rerank")
+        .expect("custom edited rerank rule");
+    assert_eq!(custom_edited.id, 11);
+    assert_eq!(custom_edited.implementation, "transform_to");
+    assert_eq!(custom_edited.dest_operation.as_deref(), Some("web_search"));
+    assert_eq!(custom_edited.dest_kind.as_deref(), Some("open_ai"));
+    assert_eq!(custom_edited.sort_order, 9);
+    assert!(!custom_edited.enabled);
+    assert_eq!(custom_edited.created_at, 102);
+    assert_eq!(custom_edited.updated_at, 103);
 
     let openrouter_edited = db
         .list_routing_rules(5)
         .await
         .expect("openrouter edited rule");
-    assert_eq!(openrouter_edited.len(), 1);
-    assert_eq!(openrouter_edited[0].id, 12);
-    assert_eq!(openrouter_edited[0].implementation, "unsupported");
-    assert!(!openrouter_edited[0].enabled);
-    assert_eq!(openrouter_edited[0].created_at, 104);
-    assert_eq!(openrouter_edited[0].updated_at, 105);
+    let openrouter_edited = openrouter_edited
+        .iter()
+        .find(|rule| rule.operation == "rerank")
+        .expect("openrouter edited rerank rule");
+    assert_eq!(openrouter_edited.id, 12);
+    assert_eq!(openrouter_edited.implementation, "unsupported");
+    assert!(!openrouter_edited.enabled);
+    assert_eq!(openrouter_edited.created_at, 104);
+    assert_eq!(openrouter_edited.updated_at, 105);
 }

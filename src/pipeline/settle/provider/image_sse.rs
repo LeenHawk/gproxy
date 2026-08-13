@@ -55,6 +55,7 @@ impl ImageSseCapture {
                     .and_then(serde_json::Value::as_str)
                     .is_some_and(|kind| {
                         matches!(kind, "image_generation.completed" | "image_edit.completed")
+                            || kind == "transcript.text.done"
                     })
             })
     }

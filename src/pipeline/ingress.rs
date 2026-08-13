@@ -320,6 +320,20 @@ fn guess_mime_from_name(name: &str) -> String {
         "image/webp"
     } else if lower.ends_with(".gif") {
         "image/gif"
+    } else if lower.ends_with(".flac") {
+        "audio/flac"
+    } else if lower.ends_with(".mp3") || lower.ends_with(".mpga") {
+        "audio/mpeg"
+    } else if lower.ends_with(".mp4") {
+        "audio/mp4"
+    } else if lower.ends_with(".m4a") {
+        "audio/x-m4a"
+    } else if lower.ends_with(".ogg") || lower.ends_with(".oga") {
+        "audio/ogg"
+    } else if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".webm") {
+        "audio/webm"
     } else {
         "application/octet-stream"
     }

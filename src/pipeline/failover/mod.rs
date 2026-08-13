@@ -468,11 +468,13 @@ pub async fn run_failover(
                 )),
                 (_, _, body) => body,
             };
-            let image_stream_family = match (status.is_success() && ctx.stream, ctx.op) {
+            let provider_stream_family = match (status.is_success() && ctx.stream, ctx.op) {
                 (true, Some(op))
                     if matches!(
                         op.operation(),
-                        Operation::CreateImage | Operation::EditImage
+                        Operation::CreateImage
+                            | Operation::EditImage
+                            | Operation::CreateTranscription
                     ) =>
                 {
                     Some(match op.kind() {
@@ -485,7 +487,7 @@ pub async fn run_failover(
                 }
                 _ => None,
             };
-            let body = match (image_stream_family, body) {
+            let body = match (provider_stream_family, body) {
                 (Some(family), ResponseBody::Stream(stream)) => {
                     let guard = settle::provider::StreamGuard::new(state, ctx, cand, family);
                     ResponseBody::Stream(

@@ -93,6 +93,11 @@ pub(super) async fn attempt(
     let count_body = parts.body.clone();
     let mut req_headers = parts.headers.take().unwrap_or_else(|| ctx.headers.clone());
     parts.body = channel.shape_request(parts.body, &mut req_headers, &shape);
+    parts.body = crate::channel::bulletins::common::restore_audio_multipart(
+        shape.op.operation(),
+        &mut req_headers,
+        parts.body,
+    )?;
     parts.headers = Some(req_headers);
     #[cfg(not(target_arch = "wasm32"))]
     let prepared_body = parts.body.clone();

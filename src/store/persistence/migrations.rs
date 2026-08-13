@@ -51,11 +51,13 @@
 //! }
 //! ```
 
+mod audio_routing;
 mod claude_fallback;
 mod credential_usage_history;
 mod quota_windows;
 mod rerank_routing;
 
+use audio_routing::SQL as AUDIO_ROUTING_SQL;
 use claude_fallback::{
     MYSQL_SQL as CLAUDE_FALLBACK_MYSQL_SQL, POSTGRES_SQL as CLAUDE_FALLBACK_POSTGRES_SQL,
     SQLITE_SQL as CLAUDE_FALLBACK_SQLITE_SQL,
@@ -502,6 +504,11 @@ pub const MIGRATIONS: &[Migration] = &[
             postgres: CREDENTIAL_USAGE_HISTORY_POSTGRES_SQL,
             mysql: CREDENTIAL_USAGE_HISTORY_MYSQL_SQL,
         },
+    },
+    Migration {
+        version: 24,
+        description: "routing_rules: audio passthrough for compatible providers",
+        sql: MigrationSql::Shared(AUDIO_ROUTING_SQL),
     },
 ];
 

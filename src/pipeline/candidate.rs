@@ -354,6 +354,7 @@ fn estimate(cp: &ControlPlaneSnapshot, ctx: &RequestCtx, provider_id: i64, model
         | Operation::CompactContent
         | Operation::CreateEmbedding
         | Operation::Rerank
+        | Operation::CreateTranscription
         | Operation::CreateImage
         | Operation::EditImage => {
             let pricing = pending::model_pricing(cp, provider_id, model_id);
