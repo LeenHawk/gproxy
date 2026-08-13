@@ -13,6 +13,7 @@
  *   api_version       — azure deployment-bound image APIs
  *   enable_openai_magic_cache — OpenAI magic-string prompt cache triggers
  *   enable_claude_magic_cache — Claude magic-string prompt cache triggers
+ *   enable_beta       — DeepSeek beta Chat Completions / prefix completion
  *   claude_fable_fallbacks — claudecode / claudeapi / vercel / openrouter / custom
  *
  * Unknown keys (e.g. tokenizer_map) are preserved via the `base` prop.
@@ -230,6 +231,19 @@ export function SettingsFields({ channel, meta, state, onChange }: SettingsField
             />
           </div>
           <p className="text-xs text-muted-foreground">{t("form.enableClaudeMagicCacheHint")}</p>
+        </div>
+      )}
+      {isBuiltin && channel === "deepseek" && (
+        <div className="grid gap-1">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="sf-deepseek-beta">{t("fields.enableDeepSeekBeta")}</Label>
+            <Switch
+              id="sf-deepseek-beta"
+              checked={state.enableDeepSeekBeta}
+              onCheckedChange={(v) => onChange({ enableDeepSeekBeta: v })}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">{t("form.enableDeepSeekBetaHint")}</p>
         </div>
       )}
       {isBuiltin && CLAUDE_FALLBACK_CHANNELS.has(channel) && (

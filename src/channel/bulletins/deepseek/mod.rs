@@ -9,6 +9,8 @@
 //!
 //! The OpenAI chat path strips a set of request fields DeepSeek rejects and
 //! fixes up a few response fields — see the internal `shape` module.
+//! `settings_json.enable_beta` moves only Chat Completions onto DeepSeek's beta
+//! endpoint, where assistant prefix completion is available.
 
 mod auth;
 mod shape;
@@ -103,7 +105,12 @@ impl Channel for DeepSeekChannel {
         // Anthropic-compat surface before building, so auth keys off the real
         // upstream path. `common::build_request` is inlined here because it
         // consumes `ctx.path` verbatim and we need the rewritten path.
-        let path = auth::upstream_path(ctx.path).to_string();
+        let enable_beta = ctx
+            .provider_settings
+            .get("enable_beta")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let path = auth::upstream_path(ctx.path, enable_beta).to_string();
         let api_key = common::resolve_api_key(&ctx)?;
         let query = allow_query(ctx.query, DEFAULTS.forward_query);
         let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, query.as_deref())?;

@@ -76,6 +76,16 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 json!({ "access_token": "", "refresh_token": "", "api_key": "" });
             metadata.usage = true;
         }
+        "deepseek" => {
+            metadata.settings_fields = vec![ChannelSettingField {
+                key: "enable_beta".into(),
+                control: SettingControl::Boolean,
+                label: Some("Enable beta Chat Completions".into()),
+                required: false,
+                default: Some(json!(false)),
+                placeholder: None,
+            }];
+        }
         "kiro" => oauth(
             &mut metadata,
             &[LoginMode::Authcode, LoginMode::Device],
