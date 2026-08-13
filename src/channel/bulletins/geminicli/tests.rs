@@ -56,7 +56,7 @@ fn prepare_wraps_envelope_and_builds_v1internal() {
     );
     assert_eq!(
         req.headers().get("user-agent").unwrap(),
-        "GeminiCLI-tui/0.46.0/gemini-2.5-pro (linux; x64; terminal) google-api-nodejs-client/9.15.1"
+        "GeminiCLI-tui/0.55.1/gemini-2.5-pro (linux; x64; terminal) google-api-nodejs-client/10.9.0"
     );
 
     let value: Value = serde_json::from_slice(req.body()).unwrap();
