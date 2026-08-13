@@ -17,7 +17,6 @@ import { useUsageColumns } from "@/components/observability/usage-columns";
 import { RequestDrawer } from "@/components/observability/request-drawer";
 import { ClearAllButton } from "@/components/observability/clear-all-button";
 import { AuditTab } from "@/components/observability/audit-tab";
-import { CredentialUsageComparisonTab } from "@/components/observability/credential-usage-comparison";
 import { LogsTab } from "@/components/observability/logs-tab";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { Button } from "@/components/ui/button";
@@ -78,7 +77,6 @@ function UsagePage() {
       <Tabs defaultValue="usage">
         <TabsList>
           <TabsTrigger value="usage">{t("usage.tab.usage")}</TabsTrigger>
-          <TabsTrigger value="credentials">{t("usage.tab.credentials")}</TabsTrigger>
           <TabsTrigger value="logs">{t("usage.tab.logs")}</TabsTrigger>
           <TabsTrigger value="audit">{t("usage.tab.audit")}</TabsTrigger>
         </TabsList>
@@ -160,10 +158,6 @@ function UsagePage() {
               pending={batch.pending}
             />
           )}
-        </TabsContent>
-
-        <TabsContent value="credentials" className="mt-4 space-y-4">
-          <CredentialUsageComparisonTab />
         </TabsContent>
 
         <TabsContent value="logs" className="mt-4 space-y-4">

@@ -198,16 +198,6 @@ export interface CredentialQuotaCycleFilter {
   limit?: number;
 }
 
-export interface CredentialUsageComparison extends CredentialUsageSummary {
-  credential_id: number;
-  credential_label: string;
-  provider_id: number;
-  channel: string;
-  supports_upstream_usage: boolean;
-  /** Last stored quota-window observations, when the channel exposes upstream usage. */
-  current_windows: CredentialQuotaCycle[];
-}
-
 export type RateLimitResetCreditOutcome = "reset" | "nothing_to_reset" | "no_credit" | "already_redeemed";
 
 export interface RateLimitResetCreditConsumeResponse {
@@ -266,14 +256,6 @@ export const credentialUsageSummaryQuery = (credentialId: number) =>
       api<CredentialUsageSummary>(`/admin/credentials/${credentialId}/usage-summary`),
     staleTime: 30_000,
   });
-
-/** Local-only, cross-credential comparison. It must never trigger live upstream usage calls. */
-export const credentialUsageComparisonQuery = queryOptions({
-  queryKey: ["credential-usage-comparison"],
-  queryFn: () =>
-    api<CredentialUsageComparison[]>("/admin/credential-usage-comparison"),
-  staleTime: 30_000,
-});
 
 function credentialQuotaCycleQueryString(filter: CredentialQuotaCycleFilter): string {
   const params = new URLSearchParams();

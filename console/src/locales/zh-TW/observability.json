@@ -53,44 +53,8 @@
     },
     "tab": {
       "usage": "用量",
-      "credentials": "憑證用量",
-      "audit": "稽核",
-      "logs": "日誌"
-    }
-  },
-  "credentialUsage": {
-    "title": "憑證用量比較",
-    "description": "比較所有憑證經 GPROXY 記錄的最近 7 天與累計用量；此頁面不會請求上游帳戶。",
-    "loadError": "載入憑證用量失敗。",
-    "retry": "重試",
-    "refresh": "重新整理",
-    "empty": "目前篩選條件下尚無憑證用量。",
-    "last7DaysTrend": "各憑證最近 7 天趨勢",
-    "chartLimit": "圖表顯示用量最高的 {{count}} 個憑證；可透過篩選查看其他憑證。",
-    "coverageUnknown": "未知",
-    "filters": {
-      "provider": "供應商",
-      "allProviders": "全部供應商",
-      "channel": "渠道",
-      "allChannels": "全部渠道",
-      "credential": "憑證",
-      "allCredentials": "全部憑證"
-    },
-    "metric": {
-      "total_tokens": "Tokens",
-      "cost_usd": "USD",
-      "requests": "請求數"
-    },
-    "columns": {
-      "credential": "憑證",
-      "provider": "供應商",
-      "channel": "渠道",
-      "last7Tokens": "7 天 tokens",
-      "last7Cost": "7 天 USD",
-      "lifetimeTokens": "已記錄累計 tokens",
-      "lifetimeCost": "已記錄累計 USD",
-      "quotaWindows": "已儲存額度視窗",
-      "coverage": "開始記錄"
+      "audit": "管理操作",
+      "logs": "請求稽核"
     }
   },
   "quotaHistory": {
@@ -153,7 +117,7 @@
     "attempt": "第 {{n}} 次"
   },
   "audit": {
-    "title": "稽核日誌",
+    "title": "管理操作",
     "filters": {
       "actor": "操作者",
       "action": "操作",
@@ -170,7 +134,7 @@
       "status": "狀態",
       "sourceIp": "來源 IP"
     },
-    "empty": "尚無稽核記錄。"
+    "empty": "尚無管理操作記錄。"
   },
   "health": {
     "loadError": "載入健康狀態失敗",
@@ -226,12 +190,15 @@
     }
   },
   "logsList": {
-    "empty": "暫無請求日誌——在設定裡開啟上行/下行日誌。",
+    "empty": "暫無請求稽核——請在設定裡啟用上游或下游日誌。",
+    "attempts": "{{count}} 次上游呼叫",
     "columns": {
       "at": "時間",
+      "requestId": "請求 ID",
       "method": "方法",
-      "path": "路徑",
-      "status": "狀態"
+      "target": "目標",
+      "status": "狀態",
+      "attempts": "上游呼叫"
     }
   }
 }

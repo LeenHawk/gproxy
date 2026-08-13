@@ -4,9 +4,9 @@ use crate::store::persistence::metrics::MetricsAggregate;
 use crate::store::persistence::records::{
     AuditLog, AuditLogInput, CredentialQuotaCycle, CredentialQuotaCycleInput,
     CredentialQuotaCycleModel, CredentialQuotaCycleModelInput, CredentialUsageDaily,
-    CredentialUsageDailyInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
-    UpstreamRequestInput, Usage, UsageInput, UsageModelSummary, UsageRollup, UsageRollupInput,
-    UsageSummary,
+    CredentialUsageDailyInput, DownstreamRequest, DownstreamRequestInput, RequestAudit,
+    UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageModelSummary, UsageRollup,
+    UsageRollupInput, UsageSummary,
 };
 use crate::store::persistence::traits::UsagePersistence;
 use crate::store::persistence::{
@@ -142,18 +142,12 @@ impl UsagePersistence for LibsqlPersistence {
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
         logs::downstream_requests::list(&self.client, request_id).await
     }
-    async fn query_downstream_requests(
-        &self,
-        q: &LogQuery,
-    ) -> anyhow::Result<Vec<DownstreamRequest>> {
-        logs::downstream_requests::query(&self.client, q).await
-    }
-    async fn query_downstream_requests_page(
+    async fn query_request_audits_page(
         &self,
         q: &LogQuery,
         page: &PageQuery,
-    ) -> anyhow::Result<PageResult<DownstreamRequest>> {
-        logs::downstream_requests::query_page(&self.client, q, page).await
+    ) -> anyhow::Result<PageResult<RequestAudit>> {
+        logs::request_audits::query_page(&self.client, q, page).await
     }
     async fn update_downstream_response(
         &self,

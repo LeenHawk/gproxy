@@ -99,6 +99,24 @@ pub(super) fn authcode_start(redirect_uri: &str, state: &str, challenge: &str) -
     (url, redirect_uri.to_string())
 }
 
+/// Retain an optional operator-owned GCP project in the server-side OAuth
+/// session. Personal/free accounts still omit it and use automatic discovery.
+pub(super) fn authcode_extra(params: &Value) -> Option<Value> {
+    project_hint_in(params).map(|project_id| serde_json::json!({ "project_id": project_id }))
+}
+
+pub(super) fn exchange_project_hint(extra: Option<&Value>) -> Option<&str> {
+    extra.and_then(project_hint_in)
+}
+
+fn project_hint_in(value: &Value) -> Option<&str> {
+    value
+        .get("project_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|project_id| !project_id.is_empty())
+}
+
 /// Exchange a Google authcode (+PKCE verifier) for the plaintext secret
 /// `{access_token, refresh_token?, expires_at_ms, project_id}`. The Code Assist
 /// `project_id` is resolved via `loadCodeAssist` / `onboardUser` so `prepare`
@@ -108,6 +126,7 @@ pub(super) async fn authcode_exchange(
     code: &str,
     verifier: &str,
     redirect_uri: &str,
+    project_hint: Option<&str>,
 ) -> Result<Value, ChannelError> {
     let mut secret = oauth::google_authcode_exchange(
         client,
@@ -126,9 +145,9 @@ pub(super) async fn authcode_exchange(
         client,
         BASE_URL,
         &access_token,
-        code_assist_metadata(None),
+        code_assist_metadata(project_hint),
         "legacy-tier",
-        None,
+        project_hint,
         Some(&user_agent("")),
     )
     .await?;

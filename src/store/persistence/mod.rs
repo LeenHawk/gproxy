@@ -77,9 +77,8 @@ pub struct CredentialQuotaCycleQuery {
     pub limit: u64,
 }
 
-/// Filter + cursor for the downstream request log explorer. Provider, user,
-/// and route dimensions are resolved through the usage row sharing the same
-/// `request_id`.
+/// Filters for the request-audit explorer. Provider, user, and route dimensions
+/// are resolved through records sharing the same `request_id`.
 #[derive(Debug, Default, Clone)]
 pub struct LogQuery {
     pub at_from: Option<i64>,
@@ -87,9 +86,6 @@ pub struct LogQuery {
     pub provider_id: Option<i64>,
     pub user_id: Option<i64>,
     pub route_name: Option<String>,
-    pub before_id: Option<i64>,
-    pub limit: u64,
-    pub include_bodies: bool,
 }
 
 /// Filters for the admin audit-log explorer.

@@ -21,7 +21,9 @@ pub use authz::{
     Quota, QuotaInput, RateLimit, RateLimitInput, RoutePermission, RoutePermissionInput, Scope,
 };
 pub use identity::{Org, OrgInput, Team, TeamInput, User, UserInput, UserKey, UserKeyInput};
-pub use logs::{DownstreamRequest, DownstreamRequestInput, UpstreamRequest, UpstreamRequestInput};
+pub use logs::{
+    DownstreamRequest, DownstreamRequestInput, RequestAudit, UpstreamRequest, UpstreamRequestInput,
+};
 pub use pricing::{PriceRule, PriceRuleInput};
 pub use provider::{
     Credential, CredentialInput, CredentialModelStatus, CredentialModelStatusInput,

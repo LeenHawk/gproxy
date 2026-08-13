@@ -233,8 +233,7 @@ persistence_backend! {
     UsagePersistence::metrics_aggregate => metrics_aggregate() -> anyhow::Result<MetricsAggregate>;
     UsagePersistence::append_downstream_request => append_downstream_request(input: DownstreamRequestInput) -> anyhow::Result<DownstreamRequest>;
     UsagePersistence::list_downstream_requests => list_downstream_requests(request_id: &str) -> anyhow::Result<Vec<DownstreamRequest>>;
-    UsagePersistence::query_downstream_requests => query_downstream_requests(q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>>;
-    UsagePersistence::query_downstream_requests_page => query_downstream_requests_page(q: &LogQuery, page: &PageQuery) -> anyhow::Result<PageResult<DownstreamRequest>>;
+    UsagePersistence::query_request_audits_page => query_request_audits_page(q: &LogQuery, page: &PageQuery) -> anyhow::Result<PageResult<RequestAudit>>;
     UsagePersistence::update_downstream_response => update_downstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
     UsagePersistence::append_upstream_request => append_upstream_request(input: UpstreamRequestInput) -> anyhow::Result<UpstreamRequest>;
     UsagePersistence::list_upstream_requests => list_upstream_requests(request_id: &str) -> anyhow::Result<Vec<UpstreamRequest>>;

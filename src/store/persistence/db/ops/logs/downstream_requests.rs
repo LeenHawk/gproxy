@@ -2,15 +2,12 @@
 
 use sea_orm::ActiveValue::{NotSet, Set};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, QueryTrait, Select, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
 };
 
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
-use crate::store::persistence::{LogQuery, PageQuery, PageResult};
 
 use crate::store::persistence::db::entities::logs::downstream_request;
-use crate::store::persistence::db::entities::usage::usage;
 
 fn to_record(m: downstream_request::Model) -> anyhow::Result<DownstreamRequest> {
     Ok(DownstreamRequest {
@@ -68,104 +65,12 @@ pub async fn list(
 ) -> anyhow::Result<Vec<DownstreamRequest>> {
     downstream_request::Entity::find()
         .filter(downstream_request::Column::RequestId.eq(request_id))
+        .order_by_asc(downstream_request::Column::Id)
         .all(conn)
         .await?
         .into_iter()
         .map(to_record)
         .collect()
-}
-
-/// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
-pub async fn query(
-    conn: &DatabaseConnection,
-    q: &LogQuery,
-) -> anyhow::Result<Vec<DownstreamRequest>> {
-    let rows = projected(filtered(q, true), q.include_bodies)
-        .order_by_desc(downstream_request::Column::Id)
-        .limit(q.limit)
-        .all(conn)
-        .await?
-        .into_iter()
-        .map(to_record)
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    Ok(rows)
-}
-
-pub async fn query_page(
-    conn: &DatabaseConnection,
-    q: &LogQuery,
-    page: &PageQuery,
-) -> anyhow::Result<PageResult<DownstreamRequest>> {
-    let total = filtered(q, false).count(conn).await?;
-    let items = projected(filtered(q, false), q.include_bodies)
-        .order_by_desc(downstream_request::Column::Id)
-        .offset(page.offset)
-        .limit(page.limit)
-        .all(conn)
-        .await?
-        .into_iter()
-        .map(to_record)
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    Ok(PageResult { items, total })
-}
-
-fn projected(
-    select: Select<downstream_request::Entity>,
-    include_bodies: bool,
-) -> Select<downstream_request::Entity> {
-    if include_bodies {
-        return select;
-    }
-
-    use downstream_request::Column as D;
-    select
-        .select_only()
-        .columns([
-            D::Id,
-            D::RequestId,
-            D::At,
-            D::Method,
-            D::Path,
-            D::Query,
-            D::Status,
-            D::CreatedAt,
-            D::UpdatedAt,
-        ])
-        .expr_as(Expr::value(Option::<String>::None), D::HeadersJson)
-        .expr_as(Expr::value(Option::<String>::None), D::Body)
-        .expr_as(Expr::value(Option::<String>::None), D::ResponseBody)
-}
-
-fn filtered(q: &LogQuery, include_cursor: bool) -> Select<downstream_request::Entity> {
-    use downstream_request::Column as D;
-    use usage::Column as U;
-
-    let mut sel = downstream_request::Entity::find();
-    if let Some(v) = q.at_from {
-        sel = sel.filter(D::At.gte(v));
-    }
-    if let Some(v) = q.at_to {
-        sel = sel.filter(D::At.lte(v));
-    }
-    if include_cursor && let Some(v) = q.before_id {
-        sel = sel.filter(D::Id.lt(v));
-    }
-
-    if q.provider_id.is_some() || q.user_id.is_some() || q.route_name.is_some() {
-        let mut usages = usage::Entity::find().select_only().column(U::RequestId);
-        if let Some(v) = q.provider_id {
-            usages = usages.filter(U::ProviderId.eq(v));
-        }
-        if let Some(v) = q.user_id {
-            usages = usages.filter(U::UserId.eq(v));
-        }
-        if let Some(ref v) = q.route_name {
-            usages = usages.filter(U::RouteName.eq(v.clone()));
-        }
-        sel = sel.filter(D::RequestId.in_subquery(usages.into_query()));
-    }
-
-    sel
 }
 
 /// Backfill `response_body` (and `updated_at`) on rows matching `request_id`.

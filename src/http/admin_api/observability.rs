@@ -71,12 +71,8 @@ pub(crate) struct LogsQuery {
     pub provider_id: Option<i64>,
     pub user_id: Option<i64>,
     pub route_name: Option<String>,
-    pub before_id: Option<i64>,
-    pub limit: Option<u64>,
     pub page: Option<String>,
     pub page_size: Option<String>,
-    #[serde(default)]
-    pub include_bodies: bool,
 }
 
 /// Route an observability request to its handler.
@@ -258,37 +254,22 @@ async fn clear_audit(state: &AppState, parts: &Request) -> Result<Resp, ApiError
 async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: LogsQuery = query(parts)?;
-    let page = pagination::parse(
-        q.page.as_deref(),
-        q.page_size.as_deref(),
-        q.before_id.is_some(),
-    )?;
-    let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    let page = pagination::parse(q.page.as_deref(), q.page_size.as_deref(), false)?
+        .ok_or_else(|| ApiError::BadRequest("page is required".into()))?;
     let store_q = StoreLogQuery {
         at_from: q.at_from,
         at_to: q.at_to,
         provider_id: q.provider_id,
         user_id: q.user_id,
         route_name: q.route_name,
-        before_id: q.before_id,
-        limit,
-        include_bodies: q.include_bodies,
+        ..Default::default()
     };
-    if let Some(page) = page {
-        let result = state
-            .persistence
-            .query_downstream_requests_page(&store_q, &page.store)
-            .await
-            .map_err(internal)?;
-        Resp::json(200, &page.response(result))
-    } else {
-        let rows = state
-            .persistence
-            .query_downstream_requests(&store_q)
-            .await
-            .map_err(internal)?;
-        Resp::json(200, &rows)
-    }
+    let result = state
+        .persistence
+        .query_request_audits_page(&store_q, &page.store)
+        .await
+        .map_err(internal)?;
+    Resp::json(200, &page.response(result))
 }
 
 async fn clear_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {

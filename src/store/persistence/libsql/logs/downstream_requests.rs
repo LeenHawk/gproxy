@@ -6,12 +6,9 @@ use crate::store::persistence::libsql::util::{
     arg_opt_text, exec, last_rowid, now_secs, query as run_query, query_one,
 };
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
-use crate::store::persistence::{LogQuery, PageQuery, PageResult};
 
 const COLS: &str = "id, request_id, at, method, path, query, status, headers_json, body, \
      created_at, updated_at, response_body";
-const BODY_FREE_COLS: &str = "id, request_id, at, method, path, query, status, \
-     NULL AS headers_json, NULL AS body, created_at, updated_at, NULL AS response_body";
 
 fn decode(row: &Row) -> anyhow::Result<DownstreamRequest> {
     Ok(DownstreamRequest {
@@ -81,7 +78,7 @@ pub async fn list(
 ) -> anyhow::Result<Vec<DownstreamRequest>> {
     run_query(
         client,
-        &format!("SELECT {COLS} FROM downstream_requests WHERE request_id = ?"),
+        &format!("SELECT {COLS} FROM downstream_requests WHERE request_id = ? ORDER BY id"),
         &[arg_text(request_id)],
     )
     .await?
@@ -109,118 +106,4 @@ pub async fn update_response_body(
     )
     .await
     .map(|_| ())
-}
-
-/// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
-pub async fn query(client: &LibsqlClient, q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>> {
-    let (where_sql, mut args) = filters(q, true);
-    let mut sql = format!(
-        "SELECT {} FROM downstream_requests{where_sql}",
-        selected_columns(q.include_bodies)
-    );
-    sql.push_str(" ORDER BY id DESC LIMIT ?");
-    args.push(arg_integer(q.limit as i64));
-    run_query(client, &sql, &args)
-        .await?
-        .iter()
-        .map(decode)
-        .collect()
-}
-
-pub async fn query_page(
-    client: &LibsqlClient,
-    q: &LogQuery,
-    page: &PageQuery,
-) -> anyhow::Result<PageResult<DownstreamRequest>> {
-    let (where_sql, mut args) = filters(q, false);
-    let count = query_one(
-        client,
-        &format!("SELECT COUNT(*) FROM downstream_requests{where_sql}"),
-        &args,
-    )
-    .await?
-    .ok_or_else(|| anyhow::anyhow!("downstream request count query returned no row"))?;
-    let total = u64::try_from(col_i64(&count, 0)?)?;
-
-    let sql = format!(
-        "SELECT {} FROM downstream_requests{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?",
-        selected_columns(q.include_bodies)
-    );
-    args.push(arg_integer(i64::try_from(page.limit)?));
-    args.push(arg_integer(i64::try_from(page.offset)?));
-    let items = run_query(client, &sql, &args)
-        .await?
-        .iter()
-        .map(decode)
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    Ok(PageResult { items, total })
-}
-
-fn selected_columns(include_bodies: bool) -> &'static str {
-    if include_bodies { COLS } else { BODY_FREE_COLS }
-}
-
-fn filters(q: &LogQuery, include_cursor: bool) -> (String, Vec<serde_json::Value>) {
-    let mut sql = String::from(" WHERE 1=1");
-    let mut args = Vec::new();
-    if include_cursor && let Some(v) = q.before_id {
-        sql.push_str(" AND id < ?");
-        args.push(arg_integer(v));
-    }
-    if let Some(v) = q.at_from {
-        sql.push_str(" AND at >= ?");
-        args.push(arg_integer(v));
-    }
-    if let Some(v) = q.at_to {
-        sql.push_str(" AND at <= ?");
-        args.push(arg_integer(v));
-    }
-    if q.provider_id.is_some() || q.user_id.is_some() || q.route_name.is_some() {
-        sql.push_str(
-            " AND EXISTS (SELECT 1 FROM usages u WHERE u.request_id = downstream_requests.request_id",
-        );
-        if let Some(v) = q.provider_id {
-            sql.push_str(" AND u.provider_id = ?");
-            args.push(arg_integer(v));
-        }
-        if let Some(v) = q.user_id {
-            sql.push_str(" AND u.user_id = ?");
-            args.push(arg_integer(v));
-        }
-        if let Some(ref v) = q.route_name {
-            sql.push_str(" AND u.route_name = ?");
-            args.push(arg_text(v));
-        }
-        sql.push(')');
-    }
-    (sql, args)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn page_filters_reuse_usage_scope_without_cursor() {
-        let q = LogQuery {
-            at_from: Some(10),
-            user_id: Some(7),
-            before_id: Some(9),
-            ..Default::default()
-        };
-        let (sql, args) = filters(&q, false);
-        assert!(!sql.contains("id <"));
-        assert!(sql.contains("at >= ?"));
-        assert!(sql.contains("u.user_id = ?"));
-        assert_eq!(args.len(), 2);
-        assert_eq!(
-            (selected_columns(false), selected_columns(true)),
-            (
-                "id, request_id, at, method, path, query, status, \
-                 NULL AS headers_json, NULL AS body, created_at, updated_at, NULL AS response_body",
-                "id, request_id, at, method, path, query, status, headers_json, body, \
-                 created_at, updated_at, response_body"
-            )
-        );
-    }
 }

@@ -3,9 +3,9 @@ use crate::store::persistence::metrics::MetricsAggregate;
 use crate::store::persistence::records::{
     AuditLog, AuditLogInput, CredentialQuotaCycle, CredentialQuotaCycleInput,
     CredentialQuotaCycleModel, CredentialQuotaCycleModelInput, CredentialUsageDaily,
-    CredentialUsageDailyInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
-    UpstreamRequestInput, Usage, UsageInput, UsageModelSummary, UsageRollup, UsageRollupInput,
-    UsageSummary,
+    CredentialUsageDailyInput, DownstreamRequest, DownstreamRequestInput, RequestAudit,
+    UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageModelSummary, UsageRollup,
+    UsageRollupInput, UsageSummary,
 };
 use crate::store::persistence::{
     AuditLogQuery, CredentialQuotaCycleQuery, CredentialUsageDailyQuery, LogQuery, PageQuery,
@@ -87,15 +87,11 @@ pub trait UsagePersistence {
         &self,
         request_id: &str,
     ) -> anyhow::Result<Vec<DownstreamRequest>>;
-    async fn query_downstream_requests(
-        &self,
-        q: &LogQuery,
-    ) -> anyhow::Result<Vec<DownstreamRequest>>;
-    async fn query_downstream_requests_page(
+    async fn query_request_audits_page(
         &self,
         q: &LogQuery,
         page: &PageQuery,
-    ) -> anyhow::Result<PageResult<DownstreamRequest>>;
+    ) -> anyhow::Result<PageResult<RequestAudit>>;
     async fn update_downstream_response(
         &self,
         request_id: &str,
@@ -260,18 +256,12 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
         super::PersistenceBackend::list_downstream_requests(self, request_id).await
     }
-    async fn query_downstream_requests(
-        &self,
-        q: &LogQuery,
-    ) -> anyhow::Result<Vec<DownstreamRequest>> {
-        super::PersistenceBackend::query_downstream_requests(self, q).await
-    }
-    async fn query_downstream_requests_page(
+    async fn query_request_audits_page(
         &self,
         q: &LogQuery,
         page: &PageQuery,
-    ) -> anyhow::Result<PageResult<DownstreamRequest>> {
-        super::PersistenceBackend::query_downstream_requests_page(self, q, page).await
+    ) -> anyhow::Result<PageResult<RequestAudit>> {
+        super::PersistenceBackend::query_request_audits_page(self, q, page).await
     }
     async fn update_downstream_response(
         &self,

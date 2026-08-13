@@ -193,7 +193,7 @@
     },
     "credName": "Credential label (optional)",
     "gcpProjectId": "GCP Project ID (optional)",
-    "gcpProjectIdHint": "Use your own GCP project when Antigravity cannot discover one automatically.",
+    "gcpProjectIdHint": "Use your GCP project when automatic discovery fails or Google requires a user-owned project.",
     "start": "Start",
     "starting": "Starting…",
     "openAuthorize": "Open authorization page",

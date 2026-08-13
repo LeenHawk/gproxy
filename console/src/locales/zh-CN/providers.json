@@ -193,7 +193,7 @@
     },
     "credName": "凭证显示名(可选)",
     "gcpProjectId": "GCP Project ID（可选）",
-    "gcpProjectIdHint": "Antigravity 无法自动发现项目时，请填写你自己的 GCP 项目 ID。",
+    "gcpProjectIdHint": "无法自动发现项目，或 Google 要求使用自有项目时，请填写 GCP Project ID。",
     "start": "开始",
     "starting": "启动中…",
     "openAuthorize": "打开授权页面",
