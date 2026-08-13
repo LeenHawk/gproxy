@@ -1,6 +1,10 @@
 {
   "title": "更新",
   "subtitle": "检查并应用此 GPROXY 实例的二进制更新。",
+  "unavailable": {
+    "title": "自更新不可用",
+    "description": "自更新不可用，请从 Serverless 平台更新。"
+  },
   "check": {
     "button": "检查更新",
     "current": "当前版本",

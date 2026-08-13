@@ -63,6 +63,20 @@ export function UpdatePanel() {
   });
   const statusData = status.data;
 
+  if (statusData?.state === "unavailable") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("unavailable.title")}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <p className="text-sm text-muted-foreground">{t("unavailable.description")}</p>
+          <Button variant="outline" disabled>{t("check.button")}</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
@@ -215,6 +229,8 @@ function StatusDisplay({
   switch (statusData.state) {
     case "idle":
       return <p className="text-sm text-muted-foreground">{t("status.idle")}</p>;
+    case "unavailable":
+      return <p className="text-sm text-muted-foreground">{t("unavailable.description")}</p>;
     case "checking":
     case "downloading":
       return (

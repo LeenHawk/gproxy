@@ -1,6 +1,10 @@
 {
   "title": "Updates",
   "subtitle": "Check for and apply binary updates to this GPROXY instance.",
+  "unavailable": {
+    "title": "Self-update unavailable",
+    "description": "Self-update is unavailable. Update this deployment from your serverless platform."
+  },
   "check": {
     "button": "Check for updates",
     "current": "Current version",

@@ -8,6 +8,9 @@
 pub enum UpdateStatus {
     #[default]
     Idle,
+    /// Platform-managed deployments (wasm/edge) cannot replace their own
+    /// executable and must be updated through the serverless host.
+    Unavailable,
     Checking,
     Downloading,
     Staged {
@@ -30,6 +33,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(UpdateStatus::Idle).unwrap(),
             serde_json::json!({"state": "idle"})
+        );
+        assert_eq!(
+            serde_json::to_value(UpdateStatus::Unavailable).unwrap(),
+            serde_json::json!({"state": "unavailable"})
         );
         assert_eq!(
             serde_json::to_value(UpdateStatus::Staged {

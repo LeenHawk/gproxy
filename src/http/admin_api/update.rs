@@ -72,7 +72,7 @@ async fn status(state: &AppState, request: &Request) -> Result<Resp, ApiError> {
         Resp::json(200, &value)
     }
     #[cfg(target_arch = "wasm32")]
-    edge_unavailable()
+    Resp::json(200, &crate::app::update_status::UpdateStatus::Unavailable)
 }
 
 async fn apply(state: &AppState, request: &Request, body: &Bytes) -> Result<Resp, ApiError> {

@@ -30,6 +30,7 @@ export type UpdateSafetyRisk = "missing_sha256" | "missing_signature" | "missing
 
 export type UpdateStatus =
   | { state: "idle" }
+  | { state: "unavailable" }
   | { state: "checking" }
   | { state: "downloading" }
   | { state: "staged"; version: string }
