@@ -13,6 +13,7 @@
 
 mod auth;
 mod login;
+mod model_list;
 mod usage;
 
 use std::sync::Arc;
@@ -154,12 +155,20 @@ impl Channel for ClineChannel {
     ) -> Option<UsageSnapshot> {
         usage::parse(status, body)
     }
+
+    fn shape_response(&self, body: Bytes, ctx: &crate::channel::ShapeCtx) -> Bytes {
+        if ctx.op.operation() == Operation::ListModels {
+            model_list::to_openai(body)
+        } else {
+            body
+        }
+    }
 }
 
 /// Only the catalogue is not the chat surface.
 fn upstream_path(op: OperationKey) -> &'static str {
     if op.operation() == Operation::ListModels {
-        "/models"
+        "/ai/cline/models"
     } else {
         "/chat/completions"
     }

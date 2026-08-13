@@ -1,7 +1,5 @@
-//! The two things that would silently break this channel: the `workos:` prefix
-//! rule (an account token and an API key are presented differently, and getting
-//! it backwards 401s every request) and the `{success, data}` envelope every
-//! Cline reply carries.
+//! Covers Cline's credential families, full model catalogue, and account usage
+//! envelope.
 
 use bytes::Bytes;
 use http::{HeaderMap, Method, StatusCode};
@@ -94,7 +92,32 @@ fn model_list_uses_the_catalogue_path() {
         Method::GET,
         "/v1/models",
     );
-    assert_eq!(req.uri().to_string(), "https://api.cline.bot/api/v1/models");
+    assert_eq!(
+        req.uri().to_string(),
+        "https://api.cline.bot/api/v1/ai/cline/models"
+    );
+}
+
+#[test]
+fn full_catalogue_is_normalized_for_openai_model_transforms() {
+    let body = Bytes::from_static(
+        br#"{"data":[{"id":"anthropic/claude-opus-5","name":"Claude Opus 5","context_length":200000}]}"#,
+    );
+    let settings = json!({});
+    let out = ClineChannel.shape_response(
+        body,
+        &crate::channel::ShapeCtx {
+            op: OperationKey::provider(Operation::ListModels, Provider::OpenAi),
+            stream: false,
+            status: StatusCode::OK,
+            settings: &settings,
+        },
+    );
+    let value: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(value["object"], "list");
+    assert_eq!(value["data"][0]["object"], "model");
+    assert_eq!(value["data"][0]["owned_by"], "anthropic");
+    assert_eq!(value["data"][0]["context_length"], 200_000);
 }
 
 #[test]
