@@ -61,7 +61,7 @@ pub(super) fn user_agent(model: &str) -> String {
     } else {
         format!("/{model}")
     };
-    format!("GeminiCLI-tui/0.46.0{suffix} (linux; x64; terminal) google-api-nodejs-client/9.15.1")
+    format!("GeminiCLI-tui/0.55.1{suffix} (linux; x64; terminal) google-api-nodejs-client/10.9.0")
 }
 /// `x-goog-api-client` on the model path is just the Node runtime tag (the real
 /// CLI sends `gl-node/<nodeversion>`, no genai-sdk prefix).
@@ -271,8 +271,8 @@ mod tests {
     #[test]
     fn user_agent_includes_model_only_when_present() {
         assert!(user_agent("gemini-2.5-pro").contains("/gemini-2.5-pro (linux"));
-        assert!(user_agent("").contains("/0.46.0 (linux"));
-        assert!(!user_agent("").contains("/0.46.0/ (linux"));
+        assert!(user_agent("").contains("/0.55.1 (linux"));
+        assert!(!user_agent("").contains("/0.55.1/ (linux"));
     }
 
     /// The headless / code-only authorize URL: empty redirect_uri falls back to

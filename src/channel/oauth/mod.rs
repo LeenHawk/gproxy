@@ -192,9 +192,9 @@ pub struct GoogleProjectResolution {
 /// loadCodeAssist advertises a default allowed tier, that server-provided id is
 /// used for onboarding instead. `existing` (an
 /// operator-set project) is sent as `cloudaicompanionProject` and used as the
-/// last-resort fallback. The `onboardUser` long-running operation is read once
-/// (not polled across `sleep`, to stay wasm-compilable); a still-pending
-/// onboarding without an immediate project falls back to `existing` or errors.
+/// last-resort fallback. A pending `onboardUser` long-running operation is
+/// polled just like the official Gemini CLI, using the dual-target runtime
+/// timer so this works on native and wasm.
 pub async fn resolve_google_project(
     client: &Arc<dyn UpstreamClient>,
     base_url: &str,
@@ -238,7 +238,7 @@ pub async fn resolve_google_project(
     if let Some(p) = existing {
         onboard_body["cloudaicompanionProject"] = json!(p);
     }
-    let onboarded = post_json_bearer(
+    let mut onboarded = post_json_bearer(
         client,
         &format!("{base}/v1internal:onboardUser"),
         access_token,
@@ -246,6 +246,16 @@ pub async fn resolve_google_project(
         user_agent,
     )
     .await?;
+    if onboarded.get("done").and_then(serde_json::Value::as_bool) == Some(false)
+        && let Some(name) = onboarded
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(ToOwned::to_owned)
+    {
+        onboarded = poll_google_operation(client, base, access_token, &name, user_agent).await?;
+    }
     let project = onboarded
         .get("response")
         .and_then(|r| r.get("cloudaicompanionProject"))
@@ -272,6 +282,29 @@ pub async fn resolve_google_project(
         project_id,
         subscription_tier,
     })
+}
+
+const GOOGLE_OPERATION_POLL_INTERVAL_MS: u64 = 5_000;
+const GOOGLE_OPERATION_MAX_POLLS: usize = 60;
+
+async fn poll_google_operation(
+    client: &Arc<dyn UpstreamClient>,
+    base: &str,
+    access_token: &str,
+    name: &str,
+    user_agent: Option<&str>,
+) -> Result<serde_json::Value, ChannelError> {
+    let operation_url = format!("{base}/v1internal/{}", name.trim_start_matches('/'));
+    for _ in 0..GOOGLE_OPERATION_MAX_POLLS {
+        crate::util::time::sleep_ms(GOOGLE_OPERATION_POLL_INTERVAL_MS).await;
+        let operation = get_json_bearer(client, &operation_url, access_token, user_agent).await?;
+        if operation.get("done").and_then(serde_json::Value::as_bool) != Some(false) {
+            return Ok(operation);
+        }
+    }
+    Err(ChannelError::Build(
+        "code assist onboarding timed out waiting for project".into(),
+    ))
 }
 
 fn google_default_tier(payload: &serde_json::Value) -> Option<&str> {
@@ -335,6 +368,38 @@ async fn post_json_bearer(
     }
     let req = builder
         .body(bytes::Bytes::from(bytes))
+        .map_err(|e| ChannelError::Build(format!("code assist request build: {e}")))?;
+    let resp = client
+        .send(req)
+        .await
+        .map_err(|e| ChannelError::Build(format!("code assist request failed: {e}")))?;
+    let (parts, body) = resp.into_parts();
+    if !parts.status.is_success() {
+        let snippet: String = String::from_utf8_lossy(&body).chars().take(256).collect();
+        return Err(ChannelError::Build(format!(
+            "code assist endpoint {}: {snippet}",
+            parts.status
+        )));
+    }
+    serde_json::from_slice(&body)
+        .map_err(|e| ChannelError::Build(format!("code assist response parse: {e}")))
+}
+
+async fn get_json_bearer(
+    client: &Arc<dyn UpstreamClient>,
+    url: &str,
+    bearer: &str,
+    user_agent: Option<&str>,
+) -> Result<serde_json::Value, ChannelError> {
+    let mut builder = http::Request::get(url)
+        .header(http::header::AUTHORIZATION, format!("Bearer {bearer}"))
+        .header(http::header::CONTENT_TYPE, "application/json")
+        .header(http::header::ACCEPT, "application/json");
+    if let Some(user_agent) = user_agent {
+        builder = builder.header(http::header::USER_AGENT, user_agent);
+    }
+    let req = builder
+        .body(bytes::Bytes::new())
         .map_err(|e| ChannelError::Build(format!("code assist request build: {e}")))?;
     let resp = client
         .send(req)
