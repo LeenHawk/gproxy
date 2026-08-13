@@ -128,6 +128,11 @@ pub fn request_target(
             ))
         }
         (Operation::CreateEmbedding, P::OpenAi) => RequestTarget::post("/v1/embeddings"),
+        (Operation::CreateSpeech, P::OpenAi) => RequestTarget::post("/v1/audio/speech"),
+        (Operation::CreateTranscription, P::OpenAi) => {
+            RequestTarget::post("/v1/audio/transcriptions")
+        }
+        (Operation::CreateTranslation, P::OpenAi) => RequestTarget::post("/v1/audio/translations"),
         (Operation::Rerank, P::OpenAi) => RequestTarget::post("/v1/rerank"),
         // single-embed form; batch (`:batchEmbedContents`) is a separate op
         (Operation::CreateEmbedding, P::Gemini) => {
@@ -239,6 +244,9 @@ mod tests {
             (O::GetModel, [true, true, true]),
             (O::CountTokens, [true, true, true]),
             (O::CreateEmbedding, [true, false, true]),
+            (O::CreateSpeech, [true, false, false]),
+            (O::CreateTranscription, [true, false, false]),
+            (O::CreateTranslation, [true, false, false]),
             (O::Rerank, [true, false, false]),
             (O::CreateImage, [true, false, false]),
             (O::EditImage, [true, false, false]),
