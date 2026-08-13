@@ -89,6 +89,13 @@ Microsoft Foundry, so the Azure channel does not inject `fallbacks`.
 
 ### DeepSeek channel
 
+Enable `settings_json.enable_beta` to route OpenAI Chat Completions requests to
+`POST https://api.deepseek.com/beta/chat/completions`. This opt-in endpoint is
+required for DeepSeek prefix completion: place `"prefix": true` on the final
+assistant message. The switch affects only Chat Completions; model, Responses,
+and Anthropic-compatible requests keep their stable endpoints. An exact
+`endpoints.openai_chat_completions` URL takes precedence over the switch.
+
 The `deepseek` channel supports DeepSeek's native OpenAI-compatible Responses
 API in both non-streaming and HTTP/SSE streaming modes. Clients call GPROXY's
 normal `POST /v1/responses` endpoint; the channel maps it to DeepSeek's

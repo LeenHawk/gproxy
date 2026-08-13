@@ -61,4 +61,13 @@ describe("endpoint settings", () => {
       claude_fable_fallbacks: ["claude-opus-5", "claude-opus-4-8"],
     });
   });
+
+  it("stores the DeepSeek beta switch only for the DeepSeek channel", () => {
+    const meta = channelMeta("deepseek");
+    const state = initSettingsState({ enable_beta: true }, meta);
+    expect(state.enableDeepSeekBeta).toBe(true);
+    expect(assembleSettings({}, state, "deepseek", meta)).toEqual({ enable_beta: true });
+
+    expect(assembleSettings({}, state, "openai", channelMeta("openai"))).toEqual({});
+  });
 });

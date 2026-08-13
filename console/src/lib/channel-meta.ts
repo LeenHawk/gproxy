@@ -101,6 +101,14 @@ const OPENCODE_SETTINGS: ChannelSettingField[] = [
   },
 ];
 
+const DEEPSEEK_SETTINGS: ChannelSettingField[] = [{
+  key: "enable_beta",
+  control: "boolean",
+  label: "Enable beta Chat Completions",
+  required: false,
+  default: false,
+}];
+
 const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -149,6 +157,7 @@ function oauthMeta(
 export const CHANNELS: ChannelMeta[] = [
   ...API_KEY_IDS.map((id) => builtinMeta(id, "api_key", {
     hintKey: id === "aws-bedrock" ? "bedrockApiKeyHint" : undefined,
+    settingsFields: id === "deepseek" ? DEEPSEEK_SETTINGS : [],
     ...(id === "cloudflare-ai-gateway"
       ? { secretTemplate: { api_key: "", account_id: "", gateway_id: "default" } }
       : {}),

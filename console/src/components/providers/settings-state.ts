@@ -15,6 +15,7 @@ export interface SettingsState {
   apiVersion: string;
   enableOpenAiMagicCache: boolean;
   enableClaudeMagicCache: boolean;
+  enableDeepSeekBeta: boolean;
   enableClaudeFableFallback: boolean;
   claudeFableFallbackModels: string[];
 }
@@ -114,6 +115,7 @@ export function initSettingsState(
     apiVersion: typeof settings.api_version === "string" ? settings.api_version : "",
     enableOpenAiMagicCache: settings.enable_openai_magic_cache === true,
     enableClaudeMagicCache: settings.enable_claude_magic_cache === true,
+    enableDeepSeekBeta: settings.enable_beta === true,
     enableClaudeFableFallback:
       settings.claude_fable_fallbacks === "default"
       || Array.isArray(settings.claude_fable_fallbacks),
@@ -203,6 +205,7 @@ export function assembleSettings(
       && state.enableOpenAiMagicCache);
     setEnabled(result, "enable_claude_magic_cache", CLAUDE_MAGIC_CACHE_CHANNELS.has(channel)
       && state.enableClaudeMagicCache);
+    setEnabled(result, "enable_beta", channel === "deepseek" && state.enableDeepSeekBeta);
 
     if (CLAUDE_FALLBACK_CHANNELS.has(channel) && state.enableClaudeFableFallback) {
       const models = state.claudeFableFallbackModels
