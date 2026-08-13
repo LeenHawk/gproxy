@@ -1,11 +1,12 @@
-//! Merge Cline's curated model groups into the OpenAI model-list wire shape.
+//! Merge Cline's free and Cline Pass model groups into the OpenAI model-list
+//! wire shape.
 
 use std::collections::HashSet;
 
 use bytes::Bytes;
 use serde_json::{Map, Value};
 
-const GROUPS: [&str; 3] = ["recommended", "free", "clinePass"];
+const GROUPS: [&str; 2] = ["free", "clinePass"];
 
 pub(super) fn to_openai(body: Bytes) -> Bytes {
     let Ok(value) = serde_json::from_slice::<Value>(&body) else {
