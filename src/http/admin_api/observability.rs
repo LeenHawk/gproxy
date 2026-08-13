@@ -262,7 +262,6 @@ async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> 
         provider_id: q.provider_id,
         user_id: q.user_id,
         route_name: q.route_name,
-        ..Default::default()
     };
     let result = state
         .persistence
