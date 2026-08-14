@@ -11,7 +11,8 @@ pub(in crate::transform::generate_content) fn openai_service_tier_to_claude(
         openai::ServiceTier::Fast
         | openai::ServiceTier::Flex
         | openai::ServiceTier::Scale
-        | openai::ServiceTier::Priority => claude::RequestServiceTierKnown::Auto,
+        | openai::ServiceTier::Priority
+        | openai::ServiceTier::Ultrafast => claude::RequestServiceTierKnown::Auto,
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
@@ -61,9 +62,9 @@ pub(in crate::transform::generate_content) fn openai_service_tier_to_gemini(
             gemini::ServiceTierKnown::Standard
         }
         openai::ServiceTier::Flex => gemini::ServiceTierKnown::Flex,
-        openai::ServiceTier::Fast | openai::ServiceTier::Priority => {
-            gemini::ServiceTierKnown::Priority
-        }
+        openai::ServiceTier::Fast
+        | openai::ServiceTier::Priority
+        | openai::ServiceTier::Ultrafast => gemini::ServiceTierKnown::Priority,
         openai::ServiceTier::Scale => gemini::ServiceTierKnown::Standard,
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")

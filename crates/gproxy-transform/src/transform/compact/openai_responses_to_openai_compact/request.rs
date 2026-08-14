@@ -29,10 +29,25 @@ fn service_tier_to_compact(service_tier: openai::ServiceTier) -> openai::Compact
         openai::ServiceTier::Fast => openai::CompactServiceTier::Fast,
         openai::ServiceTier::Flex => openai::CompactServiceTier::Flex,
         openai::ServiceTier::Priority => openai::CompactServiceTier::Priority,
+        // Compact does not expose `ultrafast`; preserve the closest supported speed tier.
+        openai::ServiceTier::Ultrafast => openai::CompactServiceTier::Fast,
         // `scale` has no compact equivalent; fall back to auto.
         openai::ServiceTier::Scale => openai::CompactServiceTier::Auto,
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ultrafast_falls_back_to_fast_for_compact() {
+        assert_eq!(
+            service_tier_to_compact(openai::ServiceTier::Ultrafast),
+            openai::CompactServiceTier::Fast
+        );
     }
 }

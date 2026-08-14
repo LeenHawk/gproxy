@@ -33,6 +33,7 @@ strict_string_enum!(ServiceTier {
     Flex => "flex",
     Scale => "scale",
     Priority => "priority",
+    Ultrafast => "ultrafast",
     OnDemand => "on_demand",
 });
 
@@ -105,6 +106,23 @@ strict_string_enum!(AudioResponseFormat {
     Opus => "opus",
     Pcm16 => "pcm16",
 });
+
+#[cfg(test)]
+mod tests {
+    use super::ServiceTier;
+
+    #[test]
+    fn ultrafast_service_tier_uses_openai_wire_value() {
+        assert_eq!(
+            serde_json::to_value(ServiceTier::Ultrafast).unwrap(),
+            serde_json::json!("ultrafast")
+        );
+        assert_eq!(
+            serde_json::from_value::<ServiceTier>(serde_json::json!("ultrafast")).unwrap(),
+            ServiceTier::Ultrafast
+        );
+    }
+}
 
 extensible_string_enum!(VoiceName, VoiceNameKnown {
     Alloy => "alloy",
