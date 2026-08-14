@@ -17,6 +17,7 @@ mod model_metadata;
 mod request;
 mod request_shape;
 mod token;
+mod tool_stream;
 mod usage;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -262,19 +263,35 @@ impl Channel for CodexChannel {
 #[derive(Default)]
 struct CodexResponsesStreamDecoder {
     inner: crate::transform::stream_adapter::ResponsesStreamNormalizer,
+    tools: tool_stream::ToolStreamNormalizer,
 }
 
 impl ChannelStreamDecoder for CodexResponsesStreamDecoder {
     fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
-        self.inner
+        let normalized = self
+            .inner
             .push(chunk)
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?;
+        self.tools
+            .push(&normalized)
             .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))
     }
 
     fn finish(&mut self) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
-        self.inner
+        let normalized = self
+            .inner
             .finish()
-            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?;
+        let mut output = self
+            .tools
+            .push(&normalized)
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?;
+        output.extend(
+            self.tools.finish().map_err(|error| {
+                crate::channel::transport::ClientError::Decode(error.to_string())
+            })?,
+        );
+        Ok(output)
     }
 }
 

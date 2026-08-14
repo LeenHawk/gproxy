@@ -295,6 +295,49 @@ fn drops_prompt_cache_options_unsupported_by_codex() {
 }
 
 #[test]
+fn shapes_canonical_agent_tools_for_codex_wire() {
+    let value = shaped_body(
+        br#"{
+            "model":"gpt-5.6-sol",
+            "tools":[
+                {"type":"shell"},
+                {"type":"apply_patch"},
+                {"type":"tool_search","execution":"server","description":"remove me"},
+                {"type":"tool_search","execution":"client"}
+            ],
+            "tool_choice":{"type":"function","name":"bash"},
+            "input":[
+                {"type":"shell_call","id":"s1","call_id":"c1","action":{"commands":["pwd"]},"status":"completed"},
+                {"type":"shell_call_output","call_id":"c1","output":[{"stdout":"/tmp","stderr":""}],"status":"completed"},
+                {"type":"apply_patch_call","id":"p1","call_id":"c2","operation":{"type":"create_file","path":"/tmp/a","diff":"ok\n"},"status":"completed"},
+                {"type":"apply_patch_call_output","call_id":"c2","output":"ok","status":"completed"}
+            ]
+        }"#,
+    );
+
+    assert_eq!(value["tools"][0]["type"], "function");
+    assert_eq!(value["tools"][0]["name"], "shell_command");
+    assert_eq!(value["tools"][1]["type"], "custom");
+    assert_eq!(value["tools"][1]["name"], "apply_patch");
+    assert_eq!(value["tools"][1]["format"]["syntax"], "lark");
+    assert!(value["tools"][2].get("description").is_none());
+    assert!(value["tools"][2].get("parameters").is_none());
+    assert!(value["tools"][3].get("description").is_some());
+    assert!(value["tools"][3].get("parameters").is_some());
+    assert_eq!(value["tool_choice"]["name"], "shell_command");
+    assert_eq!(value["input"][0]["type"], "function_call");
+    assert_eq!(value["input"][0]["name"], "shell_command");
+    assert_eq!(value["input"][1]["type"], "function_call_output");
+    assert_eq!(value["input"][2]["type"], "custom_tool_call");
+    assert!(
+        value["input"][2]["input"]
+            .as_str()
+            .is_some_and(|patch| patch.contains("*** Add File: /tmp/a"))
+    );
+    assert_eq!(value["input"][3]["type"], "custom_tool_call_output");
+}
+
+#[test]
 fn prepare_url_body_and_headers() {
     let secret = json!({ "access_token": "tok-abc", "account_id": "acct-9" });
     let settings = json!({});
