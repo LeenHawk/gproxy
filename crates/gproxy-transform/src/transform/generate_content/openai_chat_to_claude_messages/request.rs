@@ -266,8 +266,12 @@ mod tests {
     }
 
     #[test]
-    fn maps_openai_fast_and_priority_service_tiers_to_claude_speed() {
-        for tier in [openai::ServiceTier::Fast, openai::ServiceTier::Priority] {
+    fn maps_openai_fast_service_tiers_to_claude_speed() {
+        for tier in [
+            openai::ServiceTier::Fast,
+            openai::ServiceTier::Priority,
+            openai::ServiceTier::Ultrafast,
+        ] {
             assert_eq!(
                 common::openai_service_tier_to_claude_speed(Some(tier)),
                 Some(claude::Speed::Known(claude::SpeedKnown::Fast))

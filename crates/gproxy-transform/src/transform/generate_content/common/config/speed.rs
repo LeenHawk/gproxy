@@ -4,9 +4,11 @@ pub(in crate::transform::generate_content) fn openai_service_tier_to_claude_spee
     service_tier: Option<openai::ServiceTier>,
 ) -> Option<claude::Speed> {
     match service_tier {
-        Some(openai::ServiceTier::Fast | openai::ServiceTier::Priority) => {
-            Some(claude::Speed::Known(claude::SpeedKnown::Fast))
-        }
+        Some(
+            openai::ServiceTier::Fast
+            | openai::ServiceTier::Priority
+            | openai::ServiceTier::Ultrafast,
+        ) => Some(claude::Speed::Known(claude::SpeedKnown::Fast)),
         _ => None,
     }
 }
@@ -55,7 +57,11 @@ mod tests {
 
     #[test]
     fn maps_fast_semantics_across_protocols() {
-        for tier in [openai::ServiceTier::Fast, openai::ServiceTier::Priority] {
+        for tier in [
+            openai::ServiceTier::Fast,
+            openai::ServiceTier::Priority,
+            openai::ServiceTier::Ultrafast,
+        ] {
             assert_eq!(
                 openai_service_tier_to_claude_speed(Some(tier)),
                 Some(claude::Speed::Known(claude::SpeedKnown::Fast))

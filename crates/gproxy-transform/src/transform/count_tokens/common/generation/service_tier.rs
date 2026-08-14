@@ -27,9 +27,9 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_gemini(
             gemini::ServiceTierKnown::Standard
         }
         openai::ServiceTier::Flex => gemini::ServiceTierKnown::Flex,
-        openai::ServiceTier::Fast | openai::ServiceTier::Priority => {
-            gemini::ServiceTierKnown::Priority
-        }
+        openai::ServiceTier::Fast
+        | openai::ServiceTier::Priority
+        | openai::ServiceTier::Ultrafast => gemini::ServiceTierKnown::Priority,
         openai::ServiceTier::Scale => gemini::ServiceTierKnown::Standard,
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
@@ -69,7 +69,8 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_claude(
         openai::ServiceTier::Fast
         | openai::ServiceTier::Flex
         | openai::ServiceTier::Scale
-        | openai::ServiceTier::Priority => claude::RequestServiceTierKnown::Auto,
+        | openai::ServiceTier::Priority
+        | openai::ServiceTier::Ultrafast => claude::RequestServiceTierKnown::Auto,
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
@@ -115,9 +116,11 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_claude_speed(
     service_tier: Option<openai::ServiceTier>,
 ) -> Option<claude::Speed> {
     match service_tier {
-        Some(openai::ServiceTier::Fast | openai::ServiceTier::Priority) => {
-            Some(claude::Speed::Known(claude::SpeedKnown::Fast))
-        }
+        Some(
+            openai::ServiceTier::Fast
+            | openai::ServiceTier::Priority
+            | openai::ServiceTier::Ultrafast,
+        ) => Some(claude::Speed::Known(claude::SpeedKnown::Fast)),
         _ => None,
     }
 }
@@ -159,10 +162,16 @@ mod tests {
 
     #[test]
     fn preserves_fast_semantics_for_count_tokens() {
-        assert_eq!(
-            openai_service_tier_to_claude_speed(Some(openai::ServiceTier::Fast)),
-            Some(claude::Speed::Known(claude::SpeedKnown::Fast))
-        );
+        for tier in [
+            openai::ServiceTier::Fast,
+            openai::ServiceTier::Priority,
+            openai::ServiceTier::Ultrafast,
+        ] {
+            assert_eq!(
+                openai_service_tier_to_claude_speed(Some(tier)),
+                Some(claude::Speed::Known(claude::SpeedKnown::Fast))
+            );
+        }
         assert_eq!(
             claude_speed_to_openai(Some(claude::Speed::Known(claude::SpeedKnown::Fast))),
             Some(openai::ServiceTier::Priority)
