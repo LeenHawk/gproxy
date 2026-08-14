@@ -2,6 +2,7 @@ use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::usage::response_usage_to_claude;
 
 pub fn stream_event(
     input: openai::ResponseStreamEvent,
@@ -292,10 +293,6 @@ fn content_part_to_claude(index: u32, part: openai::ResponseContentPart) -> clau
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
-}
-
-fn response_usage_to_claude(usage: Option<openai::ResponseUsage>) -> claude::Usage {
-    common::completion_usage_to_claude(common::response_usage_to_completion(usage))
 }
 
 fn response_stop_reason(response: &openai::ResponseObject) -> claude::StopReason {

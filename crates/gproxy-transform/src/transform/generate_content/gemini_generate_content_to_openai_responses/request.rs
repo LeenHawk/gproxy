@@ -2,13 +2,8 @@ use crate::protocol::{gemini, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
-use super::super::gemini_generate_content_to_openai_chat::tools::{
-    gemini_tool_config_to_chat, gemini_tools_to_chat,
-};
-use super::super::openai_chat_to_openai_responses::tools::{
-    chat_tool_choice_to_response_tool_choice, chat_tools_to_response_tools,
-};
 use super::content::gemini_contents_to_response_items;
+use super::tools::{gemini_tool_config_to_responses, gemini_tools_to_responses};
 
 pub fn request(
     input: gemini::GenerateContentRequest,
@@ -21,9 +16,8 @@ pub fn request(
             .and_then(|config| config.thinking_config.as_ref()),
     );
     let text = gemini_text_config(generation.as_ref());
-    let tools = chat_tools_to_response_tools(Some(gemini_tools_to_chat(input.tools)));
-    let tool_choice =
-        chat_tool_choice_to_response_tool_choice(gemini_tool_config_to_chat(input.tool_config));
+    let tools = gemini_tools_to_responses(input.tools);
+    let tool_choice = gemini_tool_config_to_responses(input.tool_config);
 
     Ok(crate::protocol::wire!(openai::ResponseCreateRequest {
         background: None,

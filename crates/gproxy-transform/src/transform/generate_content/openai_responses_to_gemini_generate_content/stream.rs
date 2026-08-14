@@ -4,6 +4,7 @@ use crate::protocol::{gemini, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::usage::response_usage_to_gemini;
 
 pub fn stream_event(
     input: openai::ResponseStreamEvent,
@@ -342,8 +343,7 @@ fn candidate_chunk(
 
 fn chunk_from_response(response: openai::ResponseObject) -> gemini::GenerateContentResponse {
     let finish_reason = response_finish_reason(&response);
-    let usage_metadata =
-        common::completion_usage_to_gemini(common::response_usage_to_completion(response.usage));
+    let usage_metadata = response_usage_to_gemini(response.usage);
     let mut chunk = finish_chunk(finish_reason, usage_metadata);
     chunk.model_version = response.model.map(common::openai_model_string);
     chunk.response_id = Some(response.id);

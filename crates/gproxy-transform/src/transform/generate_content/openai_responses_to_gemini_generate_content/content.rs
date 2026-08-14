@@ -1,6 +1,6 @@
 use crate::protocol::{gemini, openai};
 
-pub(super) fn response_input_to_gemini_contents(
+pub(in crate::transform) fn response_input_to_gemini_contents(
     input: Option<openai::ResponseInput>,
 ) -> Vec<gemini::Content> {
     match input {

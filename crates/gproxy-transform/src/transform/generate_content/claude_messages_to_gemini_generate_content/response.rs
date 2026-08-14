@@ -54,7 +54,7 @@ fn claude_stop_reason_to_gemini(reason: claude::StopReason) -> gemini::FinishRea
     gemini::FinishReason::Known(known)
 }
 
-fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
+pub(super) fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
     let service_tier = common::claude_speed_to_gemini(usage.speed.clone());
     let cache_creation = usage.cache_creation_total();
     let prompt = (usage.input_tokens.is_some()

@@ -1,6 +1,6 @@
 //! OpenAI Responses -> OpenAI Chat Completions transforms.
 
-mod content;
+pub(in crate::transform) mod content;
 mod request;
 mod response;
 mod stream;

@@ -2,6 +2,7 @@ use crate::protocol::{claude, gemini};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::response::gemini_usage_to_claude;
 
 pub fn stream_event(
     input: gemini::StreamGenerateContentChunk,
@@ -87,16 +88,6 @@ fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude:
         }
     }
     out
-}
-
-fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
-    let speed = common::gemini_service_tier_to_claude_speed(usage.service_tier.clone());
-    let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
-    let mut usage =
-        common::completion_usage_to_claude(Some(common::gemini_usage_to_completion(usage)));
-    usage.service_tier = service_tier;
-    usage.speed = speed;
-    usage
 }
 
 fn gemini_content_to_claude(content: gemini::Content, index: u64) -> Vec<claude::StreamEvent> {

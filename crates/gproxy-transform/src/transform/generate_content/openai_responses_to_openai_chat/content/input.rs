@@ -5,7 +5,7 @@ use crate::transform::generate_content::openai_responses_to_openai_chat::tools::
     custom_call_to_chat_tool_call, function_call_to_chat_tool_call,
 };
 
-pub(in crate::transform::generate_content::openai_responses_to_openai_chat) fn response_input_to_chat_messages(
+pub(in crate::transform) fn response_input_to_chat_messages(
     input: Option<openai::ResponseInput>,
 ) -> Vec<openai::ChatCompletionMessageParam> {
     match input {

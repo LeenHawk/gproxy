@@ -2,13 +2,8 @@ use crate::protocol::{gemini, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
-use super::super::openai_chat_to_gemini_generate_content::tools::{
-    chat_tool_choice_to_gemini, chat_tools_to_gemini,
-};
-use super::super::openai_responses_to_openai_chat::tools::{
-    response_tool_choice_to_chat_tool_choice, response_tools_for_chat,
-};
 use super::content::response_input_to_gemini_contents;
+use super::tools::{response_tool_choice_to_gemini, response_tools_to_gemini};
 
 pub fn request(
     input: openai::ResponseCreateRequest,
@@ -19,13 +14,8 @@ pub fn request(
         .as_ref()
         .and_then(|reasoning| reasoning.effort.clone());
     let (response_mime_type, response_json_schema) = response_format(input.text);
-    let tools_for_chat = response_tools_for_chat(input.tools);
-    let tools = tools_for_chat
-        .tools
-        .map(chat_tools_to_gemini)
-        .unwrap_or_default();
-    let tool_config =
-        chat_tool_choice_to_gemini(response_tool_choice_to_chat_tool_choice(input.tool_choice));
+    let tools = response_tools_to_gemini(input.tools);
+    let tool_config = response_tool_choice_to_gemini(input.tool_choice);
     let system_instruction = input.instructions.map(|text| {
         crate::protocol::wire!(gemini::Content {
             parts: vec![crate::protocol::wire!(gemini::Part {
