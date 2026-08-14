@@ -234,26 +234,46 @@ fn shell_call_to_function(item: &Value) -> Value {
     if let Some(timeout) = action.and_then(|action| action.get("timeout_ms")).cloned() {
         arguments["timeout_ms"] = timeout;
     }
-    let mut output = json!({
+    let output = json!({
         "type": "function_call",
+        "id": mapped_item_id(item, "fc_"),
         "call_id": item.get("call_id").cloned().unwrap_or(Value::Null),
         "name": "shell_command",
         "arguments": serde_json::to_string(&arguments).unwrap_or_else(|_| "{}".to_owned()),
         "status": item.get("status").cloned().unwrap_or_else(|| Value::String("completed".to_owned()))
     });
-    copy_optional(item, &mut output, "id");
     output
 }
 
 fn apply_patch_call_to_custom(item: &Value) -> Value {
-    let mut output = json!({
+    let output = json!({
         "type": "custom_tool_call",
+        "id": mapped_item_id(item, "ctc_"),
         "call_id": item.get("call_id").cloned().unwrap_or(Value::Null),
         "name": "apply_patch",
         "input": patch_text(item.get("operation").unwrap_or(&Value::Null))
     });
-    copy_optional(item, &mut output, "id");
     output
+}
+
+fn mapped_item_id(item: &Value, prefix: &str) -> Value {
+    let source = item
+        .get("id")
+        .and_then(Value::as_str)
+        .or_else(|| item.get("call_id").and_then(Value::as_str));
+    let Some(source) = source else {
+        return Value::Null;
+    };
+    if source.starts_with(prefix) {
+        return Value::String(source.to_owned());
+    }
+
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    Value::String(format!("{prefix}{hash:016x}"))
 }
 
 fn patch_text(operation: &Value) -> String {
