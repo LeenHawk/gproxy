@@ -91,3 +91,66 @@ fn i64_to_i32(value: i64) -> i32 {
         }
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    #[test]
+    fn correlates_tool_result_name_and_preserves_signature() {
+        let input = serde_json::from_value(json!({
+            "model": "gemini-flash-latest",
+            "max_tokens": 64,
+            "messages": [
+                {"role": "assistant", "content": [{
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "get_magic",
+                    "input": {"value": "ok"},
+                    "caller": {"type": "direct", "thought_signature": "ciphertext"}
+                }]},
+                {"role": "user", "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "content": "ok"
+                }]}
+            ]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+        );
+
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+        assert_eq!(
+            output["contents"][0]["parts"][0]["functionCall"]["id"],
+            "call_1"
+        );
+        assert_eq!(
+            output["contents"][0]["parts"][0]["functionCall"]["name"],
+            "get_magic"
+        );
+        assert_eq!(
+            output["contents"][0]["parts"][0]["thoughtSignature"],
+            "ciphertext"
+        );
+        assert_eq!(
+            output["contents"][1]["parts"][0]["functionResponse"]["id"],
+            "call_1"
+        );
+        assert_eq!(
+            output["contents"][1]["parts"][0]["functionResponse"]["name"],
+            "get_magic"
+        );
+    }
+}

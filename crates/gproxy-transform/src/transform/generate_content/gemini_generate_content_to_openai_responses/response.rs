@@ -143,4 +143,43 @@ mod tests {
         assert_eq!(reasoning["encrypted_content"], "ciphertext");
         assert!(reasoning.get("content").is_none());
     }
+
+    #[test]
+    fn function_call_uses_distinct_item_and_call_ids() {
+        let input = serde_json::from_value(json!({
+            "responseId": "response-id",
+            "modelVersion": "gemini-flash-latest",
+            "candidates": [{
+                "finishReason": "STOP",
+                "content": {
+                    "role": "model",
+                    "parts": [{
+                        "functionCall": {"id": "call_1", "name": "get_magic", "args": {}},
+                        "thoughtSignature": "ciphertext"
+                    }]
+                }
+            }]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+
+        let output = serde_json::to_value(response(input, &ctx).unwrap()).unwrap();
+        assert_eq!(output["output"][0]["call_id"], "call_1");
+        assert!(
+            output["output"][0]["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("fc_"))
+        );
+        assert_ne!(output["output"][0]["id"], output["output"][0]["call_id"]);
+        assert_eq!(output["output"][0]["thought_signature"], "ciphertext");
+    }
 }
