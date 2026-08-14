@@ -234,6 +234,14 @@ pub async fn resolve_google_project(
 
     // onboardUser (long-running op; read the immediate response)
     let tier_id = google_default_tier(&loaded).unwrap_or(tier_id);
+    if existing.is_none() && google_tier_requires_user_project(&loaded, tier_id) {
+        let reason = google_ineligible_tier_reason(&loaded)
+            .map(|reason| format!("; upstream eligibility: {reason}"))
+            .unwrap_or_default();
+        return Err(ChannelError::Build(format!(
+            "code assist tier {tier_id} requires a user-owned GCP project; supply project_id when starting login{reason}"
+        )));
+    }
     let mut onboard_body = json!({ "tierId": tier_id, "metadata": metadata });
     if let Some(p) = existing {
         onboard_body["cloudaicompanionProject"] = json!(p);
@@ -317,6 +325,42 @@ fn google_default_tier(payload: &serde_json::Value) -> Option<&str> {
         .as_str()
         .map(str::trim)
         .filter(|id| !id.is_empty())
+}
+
+fn google_tier_requires_user_project(payload: &serde_json::Value, tier_id: &str) -> bool {
+    payload
+        .get("allowedTiers")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|tiers| {
+            tiers.iter().find(|tier| {
+                tier.get("id")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|id| id.trim() == tier_id)
+            })
+        })
+        .and_then(|tier| tier.get("userDefinedCloudaicompanionProject"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+}
+
+fn google_ineligible_tier_reason(payload: &serde_json::Value) -> Option<String> {
+    let tier = payload.get("ineligibleTiers")?.as_array()?.first()?;
+    let code = tier
+        .get("reasonCode")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|code| !code.is_empty());
+    let message = tier
+        .get("reasonMessage")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|message| !message.is_empty());
+    match (code, message) {
+        (Some(code), Some(message)) => Some(format!("{code}: {message}")),
+        (Some(code), None) => Some(code.to_owned()),
+        (None, Some(message)) => Some(message.to_owned()),
+        (None, None) => None,
+    }
 }
 
 fn google_subscription_tier(payload: &serde_json::Value) -> Option<String> {
@@ -518,6 +562,31 @@ mod tests {
         assert_eq!(
             google_subscription_tier(&empty_paid).as_deref(),
             Some("free")
+        );
+    }
+
+    #[test]
+    fn detects_tiers_that_require_an_operator_project() {
+        let payload = serde_json::json!({
+            "allowedTiers": [
+                {"id": "free-tier", "isDefault": false},
+                {
+                    "id": "standard-tier",
+                    "isDefault": true,
+                    "userDefinedCloudaicompanionProject": true
+                }
+            ],
+            "ineligibleTiers": [{
+                "reasonCode": "UNSUPPORTED_LOCATION",
+                "reasonMessage": "not available in this location"
+            }]
+        });
+
+        assert!(google_tier_requires_user_project(&payload, "standard-tier"));
+        assert!(!google_tier_requires_user_project(&payload, "free-tier"));
+        assert_eq!(
+            google_ineligible_tier_reason(&payload).as_deref(),
+            Some("UNSUPPORTED_LOCATION: not available in this location")
         );
     }
 }
