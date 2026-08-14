@@ -3,6 +3,10 @@ use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
 use super::usage::response_usage_to_claude;
+use crate::transform::compact::openai_to_claude::{
+    apply_patch_to_text_editor_input, local_shell_to_bash_input, shell_to_bash_input,
+    web_action_to_claude,
+};
 
 pub fn response(
     input: openai::ResponseObject,
@@ -108,7 +112,116 @@ fn response_item_to_claude_content(item: openai::ResponseOutputItem) -> Vec<clau
                 extra: Default::default(),
             }
         ))],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
+            call_id,
+            input,
+            name,
+            id,
+            ..
+        }) => vec![tool_use_block(
+            id.unwrap_or(call_id),
+            string_input_to_object(input),
+            name,
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::WebSearchCall {
+            id,
+            action,
+            ..
+        }) => {
+            let (name, input) = web_action_to_claude(action);
+            vec![server_tool_use_block(id, input, name)]
+        }
+        openai::ResponseItem::Typed(openai::TypedResponseItem::LocalShellCall {
+            call_id,
+            action,
+            ..
+        }) => vec![tool_use_block(
+            call_id,
+            local_shell_to_bash_input(action),
+            "bash".to_owned(),
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::ShellCall {
+            call_id,
+            action,
+            environment,
+            ..
+        }) => vec![tool_use_block(
+            call_id,
+            shell_to_bash_input(action, environment),
+            "bash".to_owned(),
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::ApplyPatchCall {
+            call_id,
+            operation,
+            ..
+        }) => vec![tool_use_block(
+            call_id,
+            apply_patch_to_text_editor_input(operation),
+            "str_replace_based_edit_tool".to_owned(),
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::ToolSearchCall {
+            arguments,
+            id,
+            call_id,
+            execution,
+            ..
+        }) => vec![server_tool_use_block(
+            id.or(call_id).unwrap_or_else(|| "tool_search".to_owned()),
+            json_value_to_object(arguments),
+            if matches!(execution, Some(openai::ToolSearchExecution::Client)) {
+                claude::ServerToolUseNameKnown::ToolSearchToolRegex
+            } else {
+                claude::ServerToolUseNameKnown::ToolSearchToolBm25
+            },
+        )],
         _ => Vec::new(),
+    }
+}
+
+fn tool_use_block(id: String, input: claude::JsonObject, name: String) -> claude::ContentBlock {
+    claude::ContentBlock::ToolUse(crate::protocol::wire!(claude::ResponseToolUseBlock {
+        id,
+        input,
+        name,
+        type_: claude::ToolUseBlockType::ToolUse,
+        caller: None,
+        extra: Default::default(),
+    }))
+}
+
+fn server_tool_use_block(
+    id: String,
+    input: claude::JsonObject,
+    name: claude::ServerToolUseNameKnown,
+) -> claude::ContentBlock {
+    claude::ContentBlock::ServerToolUse(crate::protocol::wire!(
+        claude::ResponseServerToolUseBlock {
+            id,
+            input,
+            name: claude::ServerToolUseName::Known(name),
+            type_: claude::ServerToolUseBlockType::ServerToolUse,
+            caller: None,
+            extra: Default::default(),
+        }
+    ))
+}
+
+fn string_input_to_object(input: String) -> claude::JsonObject {
+    serde_json::from_str(&input).unwrap_or_else(|_| {
+        let mut object = claude::JsonObject::new();
+        object.insert("input".to_owned(), serde_json::Value::String(input));
+        object
+    })
+}
+
+fn json_value_to_object(value: serde_json::Value) -> claude::JsonObject {
+    match value {
+        serde_json::Value::Object(object) => object.into_iter().collect(),
+        value => {
+            let mut object = claude::JsonObject::new();
+            object.insert("value".to_owned(), value);
+            object
+        }
     }
 }
 
@@ -125,7 +238,15 @@ fn response_stop_reason(response: &openai::ResponseObject) -> claude::StopReason
     if response.output.iter().any(|item| {
         matches!(
             item.0,
-            openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall { .. })
+            openai::ResponseItem::Typed(
+                openai::TypedResponseItem::FunctionCall { .. }
+                    | openai::TypedResponseItem::CustomToolCall { .. }
+                    | openai::TypedResponseItem::WebSearchCall { .. }
+                    | openai::TypedResponseItem::LocalShellCall { .. }
+                    | openai::TypedResponseItem::ShellCall { .. }
+                    | openai::TypedResponseItem::ApplyPatchCall { .. }
+                    | openai::TypedResponseItem::ToolSearchCall { .. }
+            )
         )
     }) {
         return claude::StopReason::Known(claude::StopReasonKnown::ToolUse);

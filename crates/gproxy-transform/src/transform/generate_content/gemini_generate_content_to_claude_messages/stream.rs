@@ -77,12 +77,18 @@ fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude:
             .index
             .map(index_to_u64)
             .unwrap_or_else(|| u64::try_from(fallback_index).unwrap_or_default());
+        let has_tool_call = candidate.content.as_ref().is_some_and(|content| {
+            content
+                .parts
+                .iter()
+                .any(|part| matches!(part.data, Some(gemini::PartData::FunctionCall { .. })))
+        });
         if let Some(content) = candidate.content {
             out.extend(gemini_content_to_claude(content, index));
         }
         if let Some(finish_reason) = candidate.finish_reason {
             out.push(message_delta(
-                Some(gemini_finish_to_claude_stop(finish_reason)),
+                Some(gemini_finish_to_claude_stop(finish_reason, has_tool_call)),
                 (candidate_count == 1).then(|| usage.clone()).flatten(),
             ));
         }
@@ -187,8 +193,11 @@ fn message_delta(
     ))
 }
 
-fn gemini_finish_to_claude_stop(reason: gemini::FinishReason) -> claude::StopReason {
-    match reason {
+fn gemini_finish_to_claude_stop(
+    reason: gemini::FinishReason,
+    has_tool_call: bool,
+) -> claude::StopReason {
+    let stop_reason = match reason {
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens) => {
             claude::StopReason::Known(claude::StopReasonKnown::MaxTokens)
         }
@@ -207,6 +216,16 @@ fn gemini_finish_to_claude_stop(reason: gemini::FinishReason) -> claude::StopRea
             | gemini::FinishReasonKnown::MalformedFunctionCall,
         ) => claude::StopReason::Known(claude::StopReasonKnown::ToolUse),
         _ => claude::StopReason::Known(claude::StopReasonKnown::EndTurn),
+    };
+    if has_tool_call
+        && matches!(
+            stop_reason,
+            claude::StopReason::Known(claude::StopReasonKnown::EndTurn)
+        )
+    {
+        claude::StopReason::Known(claude::StopReasonKnown::ToolUse)
+    } else {
+        stop_reason
     }
 }
 

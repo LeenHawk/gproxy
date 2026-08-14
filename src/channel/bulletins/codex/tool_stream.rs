@@ -207,6 +207,7 @@ fn canonical_item(kind: AliasKind, id: &str, call_id: &str, input: &str) -> Valu
             "type": "shell_call",
             "call_id": call_id,
             "action": shell_action(input),
+            "environment": {"type": "local"},
             "status": "completed"
         }),
         AliasKind::ApplyPatch => json!({
@@ -310,7 +311,12 @@ mod tests {
         let output = String::from_utf8(normalizer.push(input.as_bytes()).unwrap()).unwrap();
         assert!(output.contains("\"type\":\"shell_call\""));
         assert!(output.contains("\"commands\":[\"pwd\"]"));
+        assert!(output.contains("\"environment\":{\"type\":\"local\"}"));
         assert!(output.contains("\"type\":\"apply_patch_call\""));
         assert!(output.contains("\"type\":\"create_file\""));
+        for data in output.lines().filter_map(|line| line.strip_prefix("data: ")) {
+            serde_json::from_str::<crate::protocol::openai::ResponseStreamEvent>(data)
+                .expect("normalized event must remain valid Responses wire");
+        }
     }
 }
