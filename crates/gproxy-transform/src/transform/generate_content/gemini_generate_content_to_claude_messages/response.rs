@@ -11,15 +11,19 @@ pub fn response(
     let mut candidates = input.candidates.into_iter();
     let first = candidates.next();
     let (content, stop_reason, stop_sequence) = if let Some(candidate) = first {
+        let content = candidate
+            .content
+            .map(gemini_content_to_claude_response_blocks)
+            .filter(|blocks| !blocks.is_empty())
+            .unwrap_or_else(empty_text_response);
+        let has_tool_use = content
+            .iter()
+            .any(|block| matches!(block, claude::ContentBlock::ToolUse(_)));
         (
-            candidate
-                .content
-                .map(gemini_content_to_claude_response_blocks)
-                .filter(|blocks| !blocks.is_empty())
-                .unwrap_or_else(empty_text_response),
+            content,
             candidate
                 .finish_reason
-                .map(gemini_finish_reason_to_claude)
+                .map(|reason| gemini_finish_reason_to_claude(reason, has_tool_use))
                 .unwrap_or_else(|| claude::StopReason::Known(claude::StopReasonKnown::EndTurn)),
             candidate.finish_message,
         )
@@ -51,8 +55,11 @@ pub fn response(
     }))
 }
 
-fn gemini_finish_reason_to_claude(reason: gemini::FinishReason) -> claude::StopReason {
-    match reason {
+fn gemini_finish_reason_to_claude(
+    reason: gemini::FinishReason,
+    has_tool_use: bool,
+) -> claude::StopReason {
+    let stop_reason = match reason {
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens) => {
             claude::StopReason::Known(claude::StopReasonKnown::MaxTokens)
         }
@@ -76,6 +83,16 @@ fn gemini_finish_reason_to_claude(reason: gemini::FinishReason) -> claude::StopR
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
+    };
+    if has_tool_use
+        && matches!(
+            stop_reason,
+            claude::StopReason::Known(claude::StopReasonKnown::EndTurn)
+        )
+    {
+        claude::StopReason::Known(claude::StopReasonKnown::ToolUse)
+    } else {
+        stop_reason
     }
 }
 
@@ -146,6 +163,8 @@ fn i32_to_u64(value: i32) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[test]
@@ -165,6 +184,35 @@ mod tests {
                 .output_tokens_details
                 .map(|details| details.thinking_tokens),
             Some(5)
+        );
+    }
+
+    #[test]
+    fn function_call_with_stop_finishes_as_tool_use() {
+        let input = serde_json::from_value(json!({
+            "responseId": "r1",
+            "candidates": [{
+                "finishReason": "STOP",
+                "content": {"role": "model", "parts": [{
+                    "functionCall": {"id": "c1", "name": "echo", "args": {"x": 1}}
+                }]}
+            }]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::GeminiGenerateContent,
+            ),
+            crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::ClaudeMessages,
+            ),
+        );
+        let output = response(input, &ctx).unwrap();
+        assert_eq!(
+            output.stop_reason,
+            claude::StopReason::Known(claude::StopReasonKnown::ToolUse)
         );
     }
 }
