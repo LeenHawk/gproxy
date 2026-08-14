@@ -120,17 +120,20 @@ fn request_block_to_part(block: claude::ContentBlockParam) -> Option<gemini::Par
         })),
         claude::ContentBlockParam::Image(block) => image_source_to_part(block.source),
         claude::ContentBlockParam::Document(block) => document_source_to_part(block.source),
-        claude::ContentBlockParam::ToolUse(block) => Some(crate::protocol::wire!(gemini::Part {
-            data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
-                function_call: crate::protocol::wire!(gemini::FunctionCall {
-                    id: Some(block.id),
-                    name: block.name,
-                    args: Some(block.input),
-                    extra: Default::default(),
-                }),
-            })),
-            ..Default::default()
-        })),
+        claude::ContentBlockParam::ToolUse(mut block) => {
+            Some(crate::protocol::wire!(gemini::Part {
+                thought_signature: take_thought_signature(&mut block.caller),
+                data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
+                    function_call: crate::protocol::wire!(gemini::FunctionCall {
+                        id: Some(block.id),
+                        name: block.name,
+                        args: Some(block.input),
+                        extra: Default::default(),
+                    }),
+                })),
+                ..Default::default()
+            }))
+        }
         claude::ContentBlockParam::ToolResult(block) => Some(tool_result_part(
             Some(block.tool_use_id.clone()),
             block.tool_use_id,
@@ -154,7 +157,8 @@ fn response_block_to_part(block: claude::ContentBlock) -> Option<gemini::Part> {
             }),
             ..Default::default()
         })),
-        claude::ContentBlock::ToolUse(block) => Some(crate::protocol::wire!(gemini::Part {
+        claude::ContentBlock::ToolUse(mut block) => Some(crate::protocol::wire!(gemini::Part {
+            thought_signature: take_thought_signature(&mut block.caller),
             data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
                 function_call: crate::protocol::wire!(gemini::FunctionCall {
                     id: Some(block.id),
@@ -167,6 +171,17 @@ fn response_block_to_part(block: claude::ContentBlock) -> Option<gemini::Part> {
         })),
         _ => None,
     }
+}
+
+fn take_thought_signature(caller: &mut Option<claude::Caller>) -> Option<String> {
+    let claude::Caller::Direct(caller) = caller.as_mut()? else {
+        return None;
+    };
+    let extra = &mut caller.extra;
+    extra
+        .remove("thought_signature")
+        .or_else(|| extra.remove("thoughtSignature"))
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
 }
 
 fn image_source_to_part(source: claude::ImageSource) -> Option<gemini::Part> {

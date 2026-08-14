@@ -77,7 +77,7 @@ fn chat_message_to_compact_items(
     if let Some(reasoning) = message.reasoning_content.filter(|text| !text.is_empty()) {
         items.push(openai::CompactResponseItem::Typed(
             openai::TypedResponseItem::Reasoning {
-                id: Some(format!("reasoning_{index}")),
+                id: Some(format!("rs_{index}")),
                 summary: Vec::new(),
                 content: Some(vec![crate::protocol::wire!(
                     openai::ResponseReasoningTextPart {

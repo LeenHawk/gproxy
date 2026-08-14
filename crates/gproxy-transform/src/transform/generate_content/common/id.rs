@@ -8,6 +8,10 @@ pub(in crate::transform::generate_content) fn response_function_call_item_id(
     prefixed_response_id(original, "fc_")
 }
 
+pub(crate) fn response_reasoning_item_id(signature: &str) -> String {
+    format!("rs_{}", stable_response_id_suffix(signature))
+}
+
 pub(in crate::transform::generate_content) fn indexed_response_call_id(index: u32) -> String {
     format!("call_{index}")
 }

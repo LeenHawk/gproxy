@@ -414,7 +414,7 @@ fn message_item_id(index: u32) -> String {
 }
 
 fn reasoning_item_id(index: u32) -> String {
-    format!("reasoning_{index}")
+    format!("rs_{index}")
 }
 
 fn response_function_ids(chat_call_id: Option<&str>, output_index: u32) -> (String, String) {

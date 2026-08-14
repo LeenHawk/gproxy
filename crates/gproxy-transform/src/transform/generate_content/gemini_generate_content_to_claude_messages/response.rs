@@ -194,7 +194,8 @@ mod tests {
             "candidates": [{
                 "finishReason": "STOP",
                 "content": {"role": "model", "parts": [{
-                    "functionCall": {"id": "c1", "name": "echo", "args": {"x": 1}}
+                    "functionCall": {"id": "c1", "name": "echo", "args": {"x": 1}},
+                    "thoughtSignature": "ciphertext"
                 }]}
             }]
         }))
@@ -213,6 +214,11 @@ mod tests {
         assert_eq!(
             output.stop_reason,
             claude::StopReason::Known(claude::StopReasonKnown::ToolUse)
+        );
+        let output = serde_json::to_value(output).unwrap();
+        assert_eq!(
+            output["content"][0]["caller"]["thought_signature"],
+            "ciphertext"
         );
     }
 }

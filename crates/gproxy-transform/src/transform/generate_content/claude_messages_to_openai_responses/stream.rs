@@ -577,7 +577,7 @@ fn message_id(index: u32) -> String {
 }
 
 fn reasoning_id(index: u32) -> String {
-    format!("reasoning_{index}")
+    format!("rs_{index}")
 }
 
 fn index_to_u32(index: u64) -> u32 {

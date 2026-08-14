@@ -1,7 +1,6 @@
 use crate::protocol::{claude, openai};
 use crate::transform::TransformContext;
 
-use super::DEFAULT_REASONING_ID;
 use super::tools::{
     compact_apply_patch_result_item, compact_function_call_output_item,
     compact_server_tool_use_item, compact_shell_result_item, compact_tool_search_result_item,
@@ -45,7 +44,11 @@ fn claude_content_to_compact_output(
             claude::ContentBlock::Thinking(block) => {
                 output.push(openai::CompactResponseItem::Typed(
                     openai::TypedResponseItem::Reasoning {
-                        id: Some(DEFAULT_REASONING_ID.to_owned()),
+                        id: Some(
+                            crate::transform::generate_content::common::id::response_reasoning_item_id(
+                                &block.signature,
+                            ),
+                        ),
                         summary: Vec::new(),
                         content: Some(vec![crate::protocol::wire!(
                             openai::ResponseReasoningTextPart {
@@ -63,7 +66,11 @@ fn claude_content_to_compact_output(
             claude::ContentBlock::RedactedThinking(block) => {
                 output.push(openai::CompactResponseItem::Typed(
                     openai::TypedResponseItem::Reasoning {
-                        id: Some(DEFAULT_REASONING_ID.to_owned()),
+                        id: Some(
+                            crate::transform::generate_content::common::id::response_reasoning_item_id(
+                                &block.data,
+                            ),
+                        ),
                         summary: Vec::new(),
                         content: None,
                         encrypted_content: Some(block.data),

@@ -181,11 +181,14 @@ fn part_to_response_events(
                     )
                 },
             );
-            let mut events = Vec::new();
+            let mut extra = openai::Extra::new();
             if let Some(signature) = signature {
-                events.push(reasoning_done(output_index, None, signature));
+                extra.insert(
+                    "thought_signature".to_owned(),
+                    serde_json::Value::String(signature),
+                );
             }
-            events.push(known(
+            vec![known(
                 openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
                     item: Box::new(openai::ResponseOutputItem::new(
                         openai::ResponseItem::Typed(crate::protocol::wire!(
@@ -200,7 +203,7 @@ fn part_to_response_events(
                                 caller: None,
                                 namespace: None,
                                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                                extra: Default::default(),
+                                extra,
                             }
                         )),
                     )),
@@ -208,8 +211,7 @@ fn part_to_response_events(
                     sequence_number: None,
                     extra: Default::default(),
                 },
-            ));
-            events
+            )]
         }
         _ => Vec::new(),
     }
@@ -351,7 +353,7 @@ fn message_id(index: u32) -> String {
 }
 
 fn reasoning_id(index: u32) -> String {
-    format!("reasoning_{index}")
+    format!("rs_{index}")
 }
 
 fn known(event: openai::KnownResponseStreamEvent) -> openai::ResponseStreamEvent {
