@@ -150,4 +150,38 @@ mod tests {
         assert_eq!(reasoning["encrypted_content"], "ciphertext");
         assert_eq!(reasoning["content"][0]["text"], "hidden");
     }
+
+    #[test]
+    fn signed_visible_text_stays_an_assistant_message() {
+        let input = serde_json::from_value(json!({
+            "model": "gemini-3.1-flash-lite",
+            "contents": [{
+                "role": "model",
+                "parts": [{"text": "ok", "thoughtSignature": "ciphertext"}]
+            }]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+        let items = output["input"].as_array().unwrap();
+
+        assert!(items.iter().any(|item| {
+            item["type"] == "message" && item["role"] == "assistant" && item["content"] == "ok"
+        }));
+        let reasoning = items
+            .iter()
+            .find(|item| item["type"] == "reasoning")
+            .unwrap();
+        assert_eq!(reasoning["encrypted_content"], "ciphertext");
+        assert!(reasoning.get("content").is_none());
+    }
 }

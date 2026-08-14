@@ -17,9 +17,7 @@ pub(super) fn gemini_content_to_response_output(
     for part in content.parts {
         let signature = part.thought_signature;
         match part.data {
-            Some(gemini::PartData::Text { text })
-                if part.thought == Some(true) || signature.is_some() =>
-            {
+            Some(gemini::PartData::Text { text }) if part.thought == Some(true) => {
                 output.push(openai::ResponseOutputItem::new(reasoning_item(
                     (!text.is_empty()).then_some(text),
                     signature,
@@ -29,6 +27,11 @@ pub(super) fn gemini_content_to_response_output(
                 reasoning_item(None, signature),
             )),
             Some(gemini::PartData::Text { text }) => {
+                if signature.is_some() {
+                    output.push(openai::ResponseOutputItem::new(reasoning_item(
+                        None, signature,
+                    )));
+                }
                 text_parts.push(openai::ResponseMessageOutputContentPart::OutputText {
                     annotations: Vec::new(),
                     logprobs: None,
@@ -88,16 +91,19 @@ fn gemini_content_to_response_items(content: gemini::Content) -> Vec<openai::Res
     for part in content.parts {
         let signature = part.thought_signature;
         match part.data {
-            Some(gemini::PartData::Text { text })
-                if part.thought == Some(true) || signature.is_some() =>
-            {
+            Some(gemini::PartData::Text { text }) if part.thought == Some(true) => {
                 items.push(reasoning_item(
                     (!text.is_empty()).then_some(text),
                     signature,
                 ));
             }
             None if signature.is_some() => items.push(reasoning_item(None, signature)),
-            Some(gemini::PartData::Text { text }) => text_parts.push(text),
+            Some(gemini::PartData::Text { text }) => {
+                if signature.is_some() {
+                    items.push(reasoning_item(None, signature));
+                }
+                text_parts.push(text);
+            }
             Some(gemini::PartData::FunctionCall { function_call }) => {
                 if signature.is_some() {
                     items.push(reasoning_item(None, signature));
