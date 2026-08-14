@@ -133,9 +133,13 @@ fn reasoning_item(
     thinking: Option<String>,
     encrypted_content: Option<String>,
 ) -> openai::ResponseOutputItem {
+    let id_source = encrypted_content
+        .as_deref()
+        .or(thinking.as_deref())
+        .unwrap_or_default();
     openai::ResponseOutputItem::new(openai::ResponseItem::Typed(
         openai::TypedResponseItem::Reasoning {
-            id: Some("reasoning".to_owned()),
+            id: Some(common::response_reasoning_item_id(id_source)),
             summary: Vec::new(),
             content: thinking.map(|text| {
                 vec![crate::protocol::wire!(openai::ResponseReasoningTextPart {

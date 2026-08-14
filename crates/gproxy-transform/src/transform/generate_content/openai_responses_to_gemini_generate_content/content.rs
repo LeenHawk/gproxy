@@ -95,14 +95,26 @@ pub(super) fn response_item_to_gemini_content(
             call_id,
             name,
             arguments,
+            mut extra,
             ..
-        }) => Some(function_call_content(call_id, name, arguments)),
+        }) => Some(function_call_content(
+            call_id,
+            name,
+            arguments,
+            take_thought_signature(&mut extra),
+        )),
         openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
             call_id,
             name,
             input,
+            mut extra,
             ..
-        }) => Some(function_call_content(call_id, name, input)),
+        }) => Some(function_call_content(
+            call_id,
+            name,
+            input,
+            take_thought_signature(&mut extra),
+        )),
         openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCallOutput {
             call_id,
             output,
@@ -157,10 +169,16 @@ fn output_part_to_gemini(part: openai::ResponseMessageOutputContentPart) -> gemi
     }
 }
 
-fn function_call_content(call_id: String, name: String, arguments: String) -> gemini::Content {
+fn function_call_content(
+    call_id: String,
+    name: String,
+    arguments: String,
+    thought_signature: Option<String>,
+) -> gemini::Content {
     content(
         gemini::ContentRoleKnown::Model,
         vec![crate::protocol::wire!(gemini::Part {
+            thought_signature,
             data: Some(gemini::PartData::FunctionCall {
                 function_call: crate::protocol::wire!(gemini::FunctionCall {
                     id: Some(call_id),
@@ -172,6 +190,13 @@ fn function_call_content(call_id: String, name: String, arguments: String) -> ge
             ..Default::default()
         })],
     )
+}
+
+fn take_thought_signature(extra: &mut openai::Extra) -> Option<String> {
+    extra
+        .remove("thought_signature")
+        .or_else(|| extra.remove("thoughtSignature"))
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
 }
 
 fn function_response_content(call_id: String, output: String) -> gemini::Content {

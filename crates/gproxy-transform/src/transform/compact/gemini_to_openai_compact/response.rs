@@ -99,7 +99,7 @@ fn reasoning_item(
     encrypted_content: Option<String>,
 ) -> openai::CompactResponseItem {
     openai::CompactResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-        id: Some(format!("reasoning_{index}")),
+        id: Some(format!("rs_{index}")),
         summary: Vec::new(),
         content: text.map(|text| {
             vec![crate::protocol::wire!(openai::ResponseReasoningTextPart {

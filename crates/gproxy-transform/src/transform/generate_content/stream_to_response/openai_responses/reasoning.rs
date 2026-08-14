@@ -80,10 +80,7 @@ impl ReasoningState {
             .collect::<Vec<_>>();
 
         openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-            id: Some(
-                self.id
-                    .unwrap_or_else(|| format!("reasoning_{}", self.index)),
-            ),
+            id: Some(self.id.unwrap_or_else(|| format!("rs_{}", self.index))),
             summary,
             content: (!content.is_empty()).then_some(content),
             encrypted_content: self.encrypted_content,

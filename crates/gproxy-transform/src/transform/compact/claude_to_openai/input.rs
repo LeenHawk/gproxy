@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use crate::protocol::{claude, openai};
 
-use super::DEFAULT_REASONING_ID;
 use super::tools::{
     ApproximateToolKind, apply_patch_result_item, approximate_tool_result_item,
     function_call_output_item, mcp_tool_result_content_to_text, server_tool_result_output,
@@ -149,7 +148,11 @@ fn claude_request_block_to_openai(
         }
         claude::ContentBlockParam::Thinking(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-                id: Some(DEFAULT_REASONING_ID.to_owned()),
+                id: Some(
+                    crate::transform::generate_content::common::id::response_reasoning_item_id(
+                        &block.signature,
+                    ),
+                ),
                 summary: Vec::new(),
                 content: Some(vec![crate::protocol::wire!(
                     openai::ResponseReasoningTextPart {
@@ -165,7 +168,11 @@ fn claude_request_block_to_openai(
         ),
         claude::ContentBlockParam::RedactedThinking(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-                id: Some(DEFAULT_REASONING_ID.to_owned()),
+                id: Some(
+                    crate::transform::generate_content::common::id::response_reasoning_item_id(
+                        &block.data,
+                    ),
+                ),
                 summary: Vec::new(),
                 content: None,
                 encrypted_content: Some(block.data),

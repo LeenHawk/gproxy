@@ -40,11 +40,6 @@ pub(super) fn gemini_content_to_response_output(
                 });
             }
             Some(gemini::PartData::FunctionCall { function_call }) => {
-                if signature.is_some() {
-                    output.push(openai::ResponseOutputItem::new(reasoning_item(
-                        None, signature,
-                    )));
-                }
                 let call_id = function_call
                     .id
                     .unwrap_or_else(|| format!("call_{}", function_call.name));
@@ -58,7 +53,7 @@ pub(super) fn gemini_content_to_response_output(
                         caller: None,
                         namespace: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                        extra: Default::default(),
+                        extra: thought_signature_extra(signature),
                     }),
                 ));
             }
@@ -105,9 +100,6 @@ fn gemini_content_to_response_items(content: gemini::Content) -> Vec<openai::Res
                 text_parts.push(text);
             }
             Some(gemini::PartData::FunctionCall { function_call }) => {
-                if signature.is_some() {
-                    items.push(reasoning_item(None, signature));
-                }
                 let call_id = function_call
                     .id
                     .unwrap_or_else(|| format!("call_{}", function_call.name));
@@ -121,7 +113,7 @@ fn gemini_content_to_response_items(content: gemini::Content) -> Vec<openai::Res
                         caller: None,
                         namespace: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                        extra: Default::default(),
+                        extra: thought_signature_extra(signature),
                     },
                 ));
             }
@@ -173,6 +165,17 @@ fn gemini_content_to_response_items(content: gemini::Content) -> Vec<openai::Res
     items
 }
 
+fn thought_signature_extra(signature: Option<String>) -> openai::Extra {
+    let mut extra = openai::Extra::new();
+    if let Some(signature) = signature {
+        extra.insert(
+            "thought_signature".to_owned(),
+            serde_json::Value::String(signature),
+        );
+    }
+    extra
+}
+
 fn easy_message(role: openai::ResponseEasyInputMessageRole, text: String) -> openai::ResponseItem {
     openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
         crate::protocol::wire!(openai::ResponseEasyInputMessageItem {
@@ -186,8 +189,14 @@ fn easy_message(role: openai::ResponseEasyInputMessageRole, text: String) -> ope
 }
 
 fn reasoning_item(text: Option<String>, encrypted_content: Option<String>) -> openai::ResponseItem {
+    let id_source = encrypted_content
+        .as_deref()
+        .or(text.as_deref())
+        .unwrap_or_default();
     openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-        id: Some("reasoning".to_owned()),
+        id: Some(
+            crate::transform::generate_content::common::id::response_reasoning_item_id(id_source),
+        ),
         summary: Vec::new(),
         content: text.map(|text| {
             vec![crate::protocol::wire!(openai::ResponseReasoningTextPart {

@@ -245,6 +245,11 @@ mod tests {
             .unwrap();
         assert_eq!(reasoning["encrypted_content"], "ciphertext");
         assert_eq!(reasoning["content"][0]["text"], "hidden");
+        assert!(
+            reasoning["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("rs_"))
+        );
     }
 
     #[test]

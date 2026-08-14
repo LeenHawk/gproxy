@@ -7,7 +7,6 @@ mod tools;
 mod util;
 
 const DEFAULT_MODEL: &str = "unknown";
-const DEFAULT_REASONING_ID: &str = "reasoning";
 
 pub(crate) use input::claude_messages_to_openai_items;
 pub use output::response;

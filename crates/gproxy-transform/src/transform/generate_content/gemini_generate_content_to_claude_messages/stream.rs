@@ -2,6 +2,7 @@ use crate::protocol::{claude, gemini};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::content::thought_signature_caller;
 use super::response::gemini_usage_to_claude;
 
 pub fn stream_event(
@@ -132,7 +133,7 @@ fn part_to_claude(part: gemini::Part, index: u64) -> Vec<claude::StreamEvent> {
                         input: function_call.args.unwrap_or_default(),
                         name: function_call.name,
                         type_: claude::ToolUseBlockType::ToolUse,
-                        caller: None,
+                        caller: thought_signature_caller(signature),
                         extra: Default::default(),
                     }
                 ))),

@@ -60,10 +60,11 @@ fn gemini_content_to_claude_message(
 }
 
 fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam> {
+    let thought_signature = part.thought_signature;
     match part.data? {
         gemini::PartData::Text { text } if part.thought == Some(true) => Some(
             claude::ContentBlockParam::Thinking(crate::protocol::wire!(claude::ThinkingBlock {
-                signature: part.thought_signature.unwrap_or_default(),
+                signature: thought_signature.unwrap_or_default(),
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
             })),
@@ -80,7 +81,7 @@ fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam
                 name: function_call.name,
                 type_: claude::ToolUseBlockType::ToolUse,
                 cache_control: None,
-                caller: None,
+                caller: thought_signature_caller(thought_signature),
             })),
         ),
         gemini::PartData::FunctionResponse { function_response } => {
@@ -141,10 +142,11 @@ fn part_to_request_block(part: gemini::Part) -> Option<claude::ContentBlockParam
 }
 
 fn part_to_response_block(part: gemini::Part) -> Option<claude::ContentBlock> {
+    let thought_signature = part.thought_signature;
     match part.data? {
         gemini::PartData::Text { text } if part.thought == Some(true) => Some(
             claude::ContentBlock::Thinking(crate::protocol::wire!(claude::ThinkingBlock {
-                signature: part.thought_signature.unwrap_or_default(),
+                signature: thought_signature.unwrap_or_default(),
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
             })),
@@ -165,7 +167,7 @@ fn part_to_response_block(part: gemini::Part) -> Option<claude::ContentBlock> {
                 input: function_call.args.unwrap_or_default(),
                 name: function_call.name,
                 type_: claude::ToolUseBlockType::ToolUse,
-                caller: None,
+                caller: thought_signature_caller(thought_signature),
                 extra: Default::default(),
             }),
         )),
@@ -177,6 +179,20 @@ fn part_to_response_block(part: gemini::Part) -> Option<claude::ContentBlock> {
         } => code_execution_result.output.map(response_text_block),
         _ => None,
     }
+}
+
+pub(super) fn thought_signature_caller(signature: Option<String>) -> Option<claude::Caller> {
+    let mut extra = claude::JsonObject::new();
+    extra.insert(
+        "thought_signature".to_owned(),
+        serde_json::Value::String(signature?),
+    );
+    Some(claude::Caller::Direct(crate::protocol::wire!(
+        claude::DirectCaller {
+            type_: claude::DirectCallerType::Direct,
+            extra,
+        }
+    )))
 }
 
 fn inline_data_to_request_block(data: gemini::Blob) -> Option<claude::ContentBlockParam> {

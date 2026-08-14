@@ -1,6 +1,6 @@
 pub(crate) mod cache;
 mod config;
-mod id;
+pub(crate) mod id;
 mod model;
 mod scalar;
 mod stream;
