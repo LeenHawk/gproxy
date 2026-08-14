@@ -16,7 +16,7 @@ enum ClaudeCacheLocation {
     },
 }
 
-pub(in crate::transform::generate_content) fn openai_breakpoint(
+pub(crate) fn openai_breakpoint(
     cache_control: Option<claude::CacheControl>,
 ) -> Option<openai::PromptCacheBreakpoint> {
     cache_control.map(|_| {
@@ -27,7 +27,7 @@ pub(in crate::transform::generate_content) fn openai_breakpoint(
     })
 }
 
-pub(in crate::transform::generate_content) fn claude_cache_control(
+pub(crate) fn claude_cache_control(
     breakpoint: Option<openai::PromptCacheBreakpoint>,
 ) -> Option<claude::CacheControl> {
     breakpoint.map(|_| {

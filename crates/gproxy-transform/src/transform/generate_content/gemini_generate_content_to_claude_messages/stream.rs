@@ -103,21 +103,31 @@ fn gemini_content_to_claude(content: gemini::Content, index: u64) -> Vec<claude:
     content
         .parts
         .into_iter()
-        .filter_map(|part| part_to_claude(part, index))
+        .flat_map(|part| part_to_claude(part, index))
         .collect()
 }
 
-fn part_to_claude(part: gemini::Part, index: u64) -> Option<claude::StreamEvent> {
-    match part.data? {
+fn part_to_claude(part: gemini::Part, index: u64) -> Vec<claude::StreamEvent> {
+    let signature = part.thought_signature;
+    let Some(data) = part.data else {
+        return signature
+            .map(|signature| vec![content_delta(index, signature_delta(signature))])
+            .unwrap_or_default();
+    };
+    match data {
         gemini::PartData::Text { text } => {
             if part.thought.unwrap_or(false) {
-                Some(content_delta(index, thinking_delta(text)))
+                let mut events = vec![content_delta(index, thinking_delta(text))];
+                if let Some(signature) = signature {
+                    events.push(content_delta(index, signature_delta(signature)));
+                }
+                events
             } else {
-                Some(content_delta(index, text_delta(text)))
+                vec![content_delta(index, text_delta(text))]
             }
         }
         gemini::PartData::FunctionCall { function_call } => {
-            Some(known(claude::KnownStreamEvent::ContentBlockStart {
+            vec![known(claude::KnownStreamEvent::ContentBlockStart {
                 index,
                 content_block: Box::new(claude::ContentBlock::ToolUse(crate::protocol::wire!(
                     claude::ResponseToolUseBlock {
@@ -130,9 +140,9 @@ fn part_to_claude(part: gemini::Part, index: u64) -> Option<claude::StreamEvent>
                     }
                 ))),
                 extra: Default::default(),
-            }))
+            })]
         }
-        _ => None,
+        _ => Vec::new(),
     }
 }
 
@@ -155,6 +165,13 @@ fn thinking_delta(thinking: String) -> claude::KnownEventDelta {
     claude::KnownEventDelta::Thinking {
         estimated_tokens: None,
         thinking,
+        extra: Default::default(),
+    }
+}
+
+fn signature_delta(signature: String) -> claude::KnownEventDelta {
+    claude::KnownEventDelta::Signature {
+        signature,
         extra: Default::default(),
     }
 }

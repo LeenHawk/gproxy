@@ -54,9 +54,9 @@ fn known_event_to_claude(event: openai::KnownResponseStreamEvent) -> Vec<claude:
         openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
             item, output_index, ..
         } => output_item_added_to_claude(*item, output_index),
-        openai::KnownResponseStreamEvent::ResponseOutputItemDone { output_index, .. } => {
-            vec![content_block_stop(u64::from(output_index))]
-        }
+        openai::KnownResponseStreamEvent::ResponseOutputItemDone {
+            item, output_index, ..
+        } => output_item_done_to_claude(*item, output_index),
         openai::KnownResponseStreamEvent::ResponseContentPartAdded {
             output_index, part, ..
         } => vec![content_part_to_claude(output_index, part)],
@@ -232,6 +232,49 @@ fn output_item_added_to_claude(
         }
         _ => Vec::new(),
     }
+}
+
+fn output_item_done_to_claude(
+    item: openai::ResponseOutputItem,
+    output_index: u32,
+) -> Vec<claude::StreamEvent> {
+    let index = u64::from(output_index);
+    let openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
+        content,
+        encrypted_content: Some(encrypted_content),
+        ..
+    }) = item.0
+    else {
+        return vec![content_block_stop(index)];
+    };
+    let has_thinking = content
+        .as_ref()
+        .is_some_and(|parts| parts.iter().any(|part| !part.text.is_empty()));
+    if has_thinking {
+        return vec![
+            content_delta(
+                index,
+                claude::KnownEventDelta::Signature {
+                    signature: encrypted_content,
+                    extra: Default::default(),
+                },
+            ),
+            content_block_stop(index),
+        ];
+    }
+    vec![
+        known(claude::KnownStreamEvent::ContentBlockStart {
+            index,
+            content_block: Box::new(claude::ContentBlock::RedactedThinking(
+                crate::protocol::wire!(claude::RedactedThinkingBlock {
+                    data: encrypted_content,
+                    type_: claude::RedactedThinkingBlockType::RedactedThinking,
+                }),
+            )),
+            extra: Default::default(),
+        }),
+        content_block_stop(index),
+    ]
 }
 
 fn content_part_to_claude(index: u32, part: openai::ResponseContentPart) -> claude::StreamEvent {

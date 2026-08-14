@@ -1,12 +1,12 @@
 use crate::protocol::openai;
 
 #[derive(Default)]
-pub(super) struct ResponseToolsForChat {
+pub(in crate::transform::generate_content) struct ResponseToolsForChat {
     pub tools: Option<Vec<openai::ChatTool>>,
     pub web_search_options: Option<openai::ChatWebSearchOptions>,
 }
 
-pub(super) fn response_tools_for_chat(
+pub(in crate::transform::generate_content) fn response_tools_for_chat(
     tools: Option<Vec<openai::ResponseTool>>,
 ) -> ResponseToolsForChat {
     let Some(tools) = tools else {
@@ -64,7 +64,7 @@ pub(super) fn response_tools_for_chat(
     }
 }
 
-pub(super) fn response_tool_choice_to_chat_tool_choice(
+pub(in crate::transform::generate_content) fn response_tool_choice_to_chat_tool_choice(
     choice: Option<openai::ResponseToolChoice>,
 ) -> Option<openai::ChatToolChoice> {
     Some(match choice? {

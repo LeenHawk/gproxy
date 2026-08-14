@@ -63,6 +63,22 @@ pub(in crate::transform::generate_content) fn claude_output_format_to_chat(
     ))
 }
 
+pub(in crate::transform::generate_content) fn claude_output_format_to_response(
+    format: Option<claude::JsonSchemaFormat>,
+) -> Option<openai::ResponseFormat> {
+    let format = format?;
+    Some(openai::ResponseFormat::JsonSchema(crate::protocol::wire!(
+        openai::JsonSchemaResponseFormat {
+            type_: openai::JsonSchemaResponseFormatType::JsonSchema,
+            name: "response".to_owned(),
+            schema: format.schema,
+            description: None,
+            strict: None,
+            extra: Default::default(),
+        }
+    )))
+}
+
 pub(in crate::transform::generate_content) fn chat_response_format_to_gemini(
     format: Option<openai::ChatResponseFormat>,
 ) -> Option<gemini::ResponseMimeType> {

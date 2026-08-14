@@ -111,7 +111,9 @@ fn sanitize_tool_id(value: &str) -> String {
     }
 }
 
-pub(super) fn chat_tools_to_claude(tools: Vec<openai::ChatTool>) -> Vec<claude::Tool> {
+pub(in crate::transform::generate_content) fn chat_tools_to_claude(
+    tools: Vec<openai::ChatTool>,
+) -> Vec<claude::Tool> {
     tools
         .into_iter()
         .map(|tool| match tool {
@@ -186,7 +188,7 @@ fn empty_claude_schema() -> claude::JsonSchema {
     })
 }
 
-pub(super) fn default_web_search_tool() -> claude::Tool {
+pub(in crate::transform::generate_content) fn default_web_search_tool() -> claude::Tool {
     claude::Tool::WebSearch(claude::WebSearchTool::WebSearch20260209(
         crate::protocol::wire!(claude::WebSearchTool20260209 {
             name: claude::WebSearchToolName::WebSearch,
@@ -208,7 +210,9 @@ pub(super) fn default_web_search_tool() -> claude::Tool {
 /// it; 2025-generation server tools and plain custom tools do not, and
 /// `disable_parallel_tool_use: false` is always accepted. Probed against
 /// api.anthropic.com (claude-opus-4-8, 2026-07-29).
-pub(super) fn tools_activate_programmatic_calling(tools: &[claude::Tool]) -> bool {
+pub(in crate::transform::generate_content) fn tools_activate_programmatic_calling(
+    tools: &[claude::Tool],
+) -> bool {
     tools.iter().any(|tool| match tool {
         claude::Tool::WebSearch(
             claude::WebSearchTool::WebSearch20260209(_)
@@ -233,7 +237,7 @@ pub(super) fn tools_activate_programmatic_calling(tools: &[claude::Tool]) -> boo
     })
 }
 
-pub(super) fn chat_tool_choice_to_claude(
+pub(in crate::transform::generate_content) fn chat_tool_choice_to_claude(
     choice: Option<openai::ChatToolChoice>,
     parallel_tool_calls: Option<bool>,
 ) -> Option<claude::ToolChoice> {

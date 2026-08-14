@@ -1,5 +1,6 @@
 //! Gemini GenerateContent -> OpenAI Responses transforms.
 
+mod content;
 mod request;
 mod response;
 mod stream;

@@ -2,7 +2,7 @@ use crate::protocol::{claude, openai};
 
 use super::tools::typed_item_to_claude_message;
 
-pub(super) fn openai_input_to_claude_messages(
+pub(crate) fn openai_input_to_claude_messages(
     input: Option<openai::ResponseInput>,
     system_role: claude::MessageRole,
 ) -> Vec<claude::MessageParam> {
@@ -169,7 +169,11 @@ fn input_part_to_claude_block(
     part: openai::ResponseInputContentPart,
 ) -> Option<claude::ContentBlockParam> {
     match part {
-        openai::ResponseInputContentPart::InputText { text, .. } => text_block(text),
+        openai::ResponseInputContentPart::InputText {
+            text,
+            prompt_cache_breakpoint,
+            ..
+        } => marked_text_block(text, prompt_cache_breakpoint),
         openai::ResponseInputContentPart::InputImage {
             file_id, image_url, ..
         } => image_block(file_id, image_url),
@@ -205,6 +209,13 @@ fn output_parts_to_blocks(
 }
 
 pub(super) fn text_block(text: String) -> Option<claude::ContentBlockParam> {
+    marked_text_block(text, None)
+}
+
+fn marked_text_block(
+    text: String,
+    prompt_cache_breakpoint: Option<openai::PromptCacheBreakpoint>,
+) -> Option<claude::ContentBlockParam> {
     if text.is_empty() {
         return None;
     }
@@ -213,7 +224,9 @@ pub(super) fn text_block(text: String) -> Option<claude::ContentBlockParam> {
         claude::TextBlock {
             text,
             type_: claude::TextBlockType::Text,
-            cache_control: None,
+            cache_control: crate::transform::generate_content::common::cache::claude_cache_control(
+                prompt_cache_breakpoint,
+            ),
             citations: None,
             extra: Default::default(),
         }

@@ -49,7 +49,9 @@ pub(super) fn claude_tool_result_to_text(content: Option<claude::ToolResultConte
     }
 }
 
-pub(super) fn claude_tools_to_chat(tools: Vec<claude::Tool>) -> Vec<openai::ChatTool> {
+pub(in crate::transform::generate_content) fn claude_tools_to_chat(
+    tools: Vec<claude::Tool>,
+) -> Vec<openai::ChatTool> {
     tools
         .into_iter()
         .filter_map(|tool| {
@@ -98,7 +100,7 @@ fn claude_schema_to_openai(schema: claude::JsonSchema) -> openai::JsonSchema {
     parameters
 }
 
-pub(super) fn claude_tool_choice_to_chat(
+pub(in crate::transform::generate_content) fn claude_tool_choice_to_chat(
     choice: Option<claude::ToolChoice>,
 ) -> Option<openai::ChatToolChoice> {
     match choice? {

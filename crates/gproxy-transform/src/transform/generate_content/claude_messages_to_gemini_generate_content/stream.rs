@@ -61,7 +61,10 @@ fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
 fn content_block_to_gemini(block: claude::ContentBlock) -> gemini::GenerateContentResponse {
     match block {
         claude::ContentBlock::Text(block) => text_chunk(block.text, false),
-        claude::ContentBlock::Thinking(block) => text_chunk(block.thinking, true),
+        claude::ContentBlock::Thinking(block) => reasoning_chunk(
+            block.thinking,
+            (!block.signature.is_empty()).then_some(block.signature),
+        ),
         claude::ContentBlock::ToolUse(block) => {
             function_call_chunk(Some(block.id), block.name, Some(block.input))
         }
@@ -77,6 +80,9 @@ fn event_delta_to_gemini(delta: claude::EventDelta) -> gemini::GenerateContentRe
         claude::EventDelta::Known(delta) => match *delta {
             claude::KnownEventDelta::Text { text, .. } => text_chunk(text, false),
             claude::KnownEventDelta::Thinking { thinking, .. } => text_chunk(thinking, true),
+            claude::KnownEventDelta::Signature { signature, .. } => {
+                reasoning_chunk(String::new(), Some(signature))
+            }
             claude::KnownEventDelta::Compaction { content, .. } => text_chunk(content, false),
             _ => empty_chunk(),
         },
@@ -93,6 +99,26 @@ fn text_chunk(text: String, thought: bool) -> gemini::GenerateContentResponse {
             parts: vec![crate::protocol::wire!(gemini::Part {
                 thought: thought.then_some(true),
                 data: Some(gemini::PartData::Text { text }),
+                ..Default::default()
+            })],
+            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
+            extra: Default::default(),
+        })),
+        None,
+        None,
+    )
+}
+
+fn reasoning_chunk(
+    text: String,
+    thought_signature: Option<String>,
+) -> gemini::GenerateContentResponse {
+    candidate_chunk(
+        Some(crate::protocol::wire!(gemini::Content {
+            parts: vec![crate::protocol::wire!(gemini::Part {
+                thought: Some(true),
+                thought_signature,
+                data: (!text.is_empty()).then_some(gemini::PartData::Text { text }),
                 ..Default::default()
             })],
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),

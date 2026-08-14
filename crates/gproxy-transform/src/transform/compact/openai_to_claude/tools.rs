@@ -10,13 +10,12 @@ pub(super) fn typed_item_to_claude_message(
             arguments,
             call_id,
             name,
-            id,
             ..
         } => (
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
             vec![claude::ContentBlockParam::ToolUse(crate::protocol::wire!(
                 claude::ToolUseBlock {
-                    id: id.unwrap_or(call_id),
+                    id: normalized_tool_id(call_id),
                     input: arguments_to_json_object(&arguments),
                     name,
                     type_: claude::ToolUseBlockType::ToolUse,
@@ -29,15 +28,29 @@ pub(super) fn typed_item_to_claude_message(
             call_id,
             input,
             name,
-            id,
             ..
         } => (
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
             vec![claude::ContentBlockParam::ToolUse(crate::protocol::wire!(
                 claude::ToolUseBlock {
-                    id: id.unwrap_or(call_id),
+                    id: normalized_tool_id(call_id),
                     input: string_input_json_object(input),
                     name,
+                    type_: claude::ToolUseBlockType::ToolUse,
+                    cache_control: None,
+                    caller: None,
+                }
+            ))],
+        ),
+        openai::TypedResponseItem::ApplyPatchCall {
+            call_id, operation, ..
+        } => (
+            claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
+            vec![claude::ContentBlockParam::ToolUse(crate::protocol::wire!(
+                claude::ToolUseBlock {
+                    id: normalized_tool_id(call_id),
+                    input: serializable_to_json_object(&operation),
+                    name: "apply_patch".to_owned(),
                     type_: claude::ToolUseBlockType::ToolUse,
                     cache_control: None,
                     caller: None,
@@ -120,10 +133,24 @@ pub(super) fn typed_item_to_claude_message(
             claude::MessageRole::Known(claude::MessageRoleKnown::User),
             vec![claude::ContentBlockParam::ToolResult(
                 crate::protocol::wire!(claude::ToolResultBlock {
-                    tool_use_id: call_id,
+                    tool_use_id: normalized_tool_id(call_id),
                     type_: claude::ToolResultBlockType::ToolResult,
                     cache_control: None,
                     content: response_output_to_tool_result(output),
+                    is_error: None,
+                }),
+            )],
+        ),
+        openai::TypedResponseItem::ApplyPatchCallOutput {
+            call_id, output, ..
+        } => (
+            claude::MessageRole::Known(claude::MessageRoleKnown::User),
+            vec![claude::ContentBlockParam::ToolResult(
+                crate::protocol::wire!(claude::ToolResultBlock {
+                    tool_use_id: normalized_tool_id(call_id),
+                    type_: claude::ToolResultBlockType::ToolResult,
+                    cache_control: None,
+                    content: output.map(claude::ToolResultContent::Text),
                     is_error: None,
                 }),
             )],
@@ -163,7 +190,25 @@ pub(super) fn typed_item_to_claude_message(
             ..
         } => {
             let mut blocks = Vec::new();
-            if let Some(encrypted_content) = encrypted_content {
+            let thinking = content
+                .into_iter()
+                .flatten()
+                .map(|part| part.text)
+                .collect::<Vec<_>>()
+                .join("");
+            if !thinking.is_empty() {
+                if let Some(signature) = encrypted_content.as_ref() {
+                    blocks.push(claude::ContentBlockParam::Thinking(crate::protocol::wire!(
+                        claude::ThinkingBlock {
+                            signature: signature.clone(),
+                            thinking: thinking.clone(),
+                            type_: claude::ThinkingBlockType::Thinking,
+                        }
+                    )));
+                } else {
+                    blocks.extend(text_block(thinking.clone()));
+                }
+            } else if let Some(encrypted_content) = encrypted_content {
                 blocks.push(claude::ContentBlockParam::RedactedThinking(
                     crate::protocol::wire!(claude::RedactedThinkingBlock {
                         data: encrypted_content,
@@ -172,12 +217,6 @@ pub(super) fn typed_item_to_claude_message(
                 ));
             }
             blocks.extend(summary.into_iter().filter_map(|part| text_block(part.text)));
-            blocks.extend(
-                content
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|part| text_block(part.text)),
-            );
             (
                 claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
                 blocks,
@@ -206,6 +245,14 @@ fn response_output_to_tool_result(
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
+    }
+}
+
+fn normalized_tool_id(value: String) -> String {
+    if value.starts_with("toolu_") {
+        value
+    } else {
+        format!("toolu_{value}")
     }
 }
 

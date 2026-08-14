@@ -2,7 +2,9 @@ use serde_json::Value;
 
 use crate::protocol::{gemini, openai};
 
-pub(super) fn gemini_tools_to_chat(tools: Vec<gemini::Tool>) -> Vec<openai::ChatTool> {
+pub(in crate::transform::generate_content) fn gemini_tools_to_chat(
+    tools: Vec<gemini::Tool>,
+) -> Vec<openai::ChatTool> {
     tools
         .into_iter()
         .flat_map(|tool| tool.function_declarations)
@@ -23,7 +25,7 @@ pub(super) fn gemini_tools_to_chat(tools: Vec<gemini::Tool>) -> Vec<openai::Chat
         .collect()
 }
 
-pub(super) fn gemini_tool_config_to_chat(
+pub(in crate::transform::generate_content) fn gemini_tool_config_to_chat(
     config: Option<gemini::ToolConfig>,
 ) -> Option<openai::ChatToolChoice> {
     let config = config?.function_calling_config?;

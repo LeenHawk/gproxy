@@ -79,6 +79,9 @@ impl StreamTransform {
             openai::KnownResponseStreamEvent::ResponseOutputItemAdded { item, .. } => {
                 self.response_item_to_gemini(*item).into_iter().collect()
             }
+            openai::KnownResponseStreamEvent::ResponseOutputItemDone { item, .. } => {
+                self.reasoning_item_to_gemini(*item).into_iter().collect()
+            }
             openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta {
                 delta,
                 item_id,
@@ -210,6 +213,20 @@ impl StreamTransform {
         }
     }
 
+    fn reasoning_item_to_gemini(
+        &self,
+        item: openai::ResponseOutputItem,
+    ) -> Option<gemini::GenerateContentResponse> {
+        let openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
+            encrypted_content: Some(thought_signature),
+            ..
+        }) = item.0
+        else {
+            return None;
+        };
+        Some(reasoning_chunk(String::new(), thought_signature))
+    }
+
     fn remember_response(&mut self, response: &openai::ResponseObject) {
         self.response_id = Some(response.id.clone());
         if let Some(model) = response.model.clone() {
@@ -240,6 +257,23 @@ fn text_chunk(
             extra: Default::default(),
         })),
         finish_reason.map(gemini::FinishReason::Known),
+        None,
+    )
+}
+
+fn reasoning_chunk(text: String, thought_signature: String) -> gemini::GenerateContentResponse {
+    candidate_chunk(
+        Some(crate::protocol::wire!(gemini::Content {
+            parts: vec![crate::protocol::wire!(gemini::Part {
+                thought: Some(true),
+                thought_signature: Some(thought_signature),
+                data: (!text.is_empty()).then_some(gemini::PartData::Text { text }),
+                ..Default::default()
+            })],
+            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
+            extra: Default::default(),
+        })),
+        None,
         None,
     )
 }

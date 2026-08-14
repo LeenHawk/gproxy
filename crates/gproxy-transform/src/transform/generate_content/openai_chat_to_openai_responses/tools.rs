@@ -8,7 +8,7 @@ pub(super) enum ResponseToolOutputKind {
     Custom,
 }
 
-pub(super) fn chat_tools_to_response_tools(
+pub(in crate::transform::generate_content) fn chat_tools_to_response_tools(
     tools: Option<Vec<openai::ChatTool>>,
 ) -> Option<Vec<openai::ResponseTool>> {
     let tools = tools?
@@ -18,7 +18,7 @@ pub(super) fn chat_tools_to_response_tools(
     (!tools.is_empty()).then_some(tools)
 }
 
-pub(super) fn chat_tool_choice_to_response_tool_choice(
+pub(in crate::transform::generate_content) fn chat_tool_choice_to_response_tool_choice(
     choice: Option<openai::ChatToolChoice>,
 ) -> Option<openai::ResponseToolChoice> {
     Some(match choice? {

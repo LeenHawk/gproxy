@@ -240,24 +240,15 @@ fn response_mcp_result_block(
 }
 
 fn reasoning_to_claude_content(
-    id: Option<String>,
+    _id: Option<String>,
     summary: Vec<openai::ResponseReasoningSummaryPart>,
     content: Option<Vec<openai::ResponseReasoningTextPart>>,
     encrypted_content: Option<String>,
 ) -> Vec<claude::ContentBlock> {
     let mut blocks = Vec::new();
-    if let Some(encrypted_content) = encrypted_content {
-        blocks.push(claude::ContentBlock::RedactedThinking(
-            crate::protocol::wire!(claude::RedactedThinkingBlock {
-                data: encrypted_content,
-                type_: claude::RedactedThinkingBlockType::RedactedThinking,
-            }),
-        ));
-    }
-
     let thinking = join_text(content.into_iter().flatten().map(|part| part.text));
     if !thinking.is_empty() {
-        if let Some(signature) = id.filter(|signature| !signature.is_empty()) {
+        if let Some(signature) = encrypted_content.filter(|value| !value.is_empty()) {
             blocks.push(claude::ContentBlock::Thinking(crate::protocol::wire!(
                 claude::ThinkingBlock {
                     signature,
@@ -275,6 +266,13 @@ fn reasoning_to_claude_content(
                 }
             )));
         }
+    } else if let Some(encrypted_content) = encrypted_content {
+        blocks.push(claude::ContentBlock::RedactedThinking(
+            crate::protocol::wire!(claude::RedactedThinkingBlock {
+                data: encrypted_content,
+                type_: claude::RedactedThinkingBlockType::RedactedThinking,
+            }),
+        ));
     }
 
     blocks.extend(summary.into_iter().map(|part| {
