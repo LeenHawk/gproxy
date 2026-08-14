@@ -16,7 +16,7 @@ pub(super) fn is_supported_chat_part(part: &Map<String, Value>) -> bool {
 pub(super) fn is_supported_response_part(part: &Map<String, Value>) -> bool {
     matches!(
         part.get("type").and_then(Value::as_str),
-        Some("input_text" | "input_image" | "input_file")
+        Some("input_text" | "input_image" | "input_file" | "output_text" | "refusal")
     )
 }
 
@@ -42,8 +42,12 @@ pub(super) fn is_cacheable_response_part(part: &Map<String, Value>) -> bool {
         return false;
     }
     match part.get("type").and_then(Value::as_str) {
-        Some("input_text") => part
+        Some("input_text" | "output_text") => part
             .get("text")
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty()),
+        Some("refusal") => part
+            .get("refusal")
             .and_then(Value::as_str)
             .is_some_and(|text| !text.trim().is_empty()),
         _ => true,
@@ -70,6 +74,19 @@ pub(super) fn response_input_text_part(text: String, breakpoint: bool) -> Value 
     part
 }
 
+pub(super) fn response_text_part(role: Option<&str>, text: String, breakpoint: bool) -> Value {
+    let part_type = if role == Some("assistant") {
+        "output_text"
+    } else {
+        "input_text"
+    };
+    let mut part = json!({"type": part_type, "text": text});
+    if breakpoint {
+        part["prompt_cache_breakpoint"] = explicit_breakpoint();
+    }
+    part
+}
+
 pub(super) fn response_message(text: String, breakpoint: bool) -> Value {
     response_message_with_role("user", text, breakpoint)
 }
@@ -78,6 +95,6 @@ pub(super) fn response_message_with_role(role: &str, text: String, breakpoint: b
     json!({
         "type": "message",
         "role": role,
-        "content": [response_input_text_part(text, breakpoint)]
+        "content": [response_text_part(Some(role), text, breakpoint)]
     })
 }

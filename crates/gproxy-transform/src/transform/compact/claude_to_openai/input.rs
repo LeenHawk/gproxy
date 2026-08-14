@@ -39,23 +39,26 @@ fn claude_message_to_openai_items(
     approximate_tools: &mut BTreeMap<String, ApproximateToolKind>,
 ) -> Vec<openai::ResponseItem> {
     let role = claude_role_to_openai(message.role);
+    let assistant = role == openai::ResponseEasyInputMessageRole::Assistant;
     let mut items = Vec::new();
-    let mut message_parts = Vec::new();
+    let mut input_parts = Vec::new();
+    let mut output_parts = Vec::new();
 
     match message.content {
         claude::MessageContent::String(text) => {
             if !text.is_empty() {
-                message_parts.push(openai::ResponseInputContentPart::InputText {
-                    text,
-                    prompt_cache_breakpoint: None,
-                    extra: Default::default(),
-                });
+                if assistant {
+                    output_parts.push(response_output_text(text, None));
+                } else {
+                    input_parts.push(response_input_text(text, None));
+                }
             }
         }
         claude::MessageContent::Array(blocks) => {
             for block in blocks {
-                match claude_request_block_to_openai(block, approximate_tools) {
-                    ClaudeRequestBlockItem::MessagePart(part) => message_parts.push(part),
+                match claude_request_block_to_openai(block, assistant, approximate_tools) {
+                    ClaudeRequestBlockItem::InputMessagePart(part) => input_parts.push(part),
+                    ClaudeRequestBlockItem::OutputMessagePart(part) => output_parts.push(part),
                     ClaudeRequestBlockItem::Item(item) => items.push(item),
                     ClaudeRequestBlockItem::None => {}
                 }
@@ -66,13 +69,19 @@ fn claude_message_to_openai_items(
         }
     }
 
-    if !message_parts.is_empty() {
+    let content = if assistant {
+        (!output_parts.is_empty())
+            .then_some(openai::ResponseEasyInputContent::OutputParts(output_parts))
+    } else {
+        (!input_parts.is_empty()).then_some(openai::ResponseEasyInputContent::Parts(input_parts))
+    };
+    if let Some(content) = content {
         items.push(openai::ResponseItem::Message(
             openai::ResponseMessageItem::EasyInput(crate::protocol::wire!(
                 openai::ResponseEasyInputMessageItem {
                     type_: Some(openai::ResponseMessageItemType::Message),
                     role,
-                    content: openai::ResponseEasyInputContent::Parts(message_parts),
+                    content,
                     phase: None,
                     extra: Default::default(),
                 }
@@ -84,7 +93,8 @@ fn claude_message_to_openai_items(
 }
 
 pub(super) enum ClaudeRequestBlockItem {
-    MessagePart(openai::ResponseInputContentPart),
+    InputMessagePart(openai::ResponseInputContentPart),
+    OutputMessagePart(openai::ResponseMessageOutputContentPart),
     Item(openai::ResponseItem),
     None,
 }
@@ -107,25 +117,32 @@ fn claude_role_to_openai(role: claude::MessageRole) -> openai::ResponseEasyInput
 
 fn claude_request_block_to_openai(
     block: claude::ContentBlockParam,
+    assistant: bool,
     approximate_tools: &mut BTreeMap<String, ApproximateToolKind>,
 ) -> ClaudeRequestBlockItem {
     match block {
-        claude::ContentBlockParam::Text(block) => {
-            ClaudeRequestBlockItem::MessagePart(openai::ResponseInputContentPart::InputText {
-                text: block.text,
-                prompt_cache_breakpoint:
-                    crate::transform::generate_content::common::cache::openai_breakpoint(
-                        block.cache_control,
-                    ),
-                extra: Default::default(),
-            })
-        }
+        claude::ContentBlockParam::Text(block) => match assistant {
+            true => ClaudeRequestBlockItem::OutputMessagePart(response_output_text(
+                block.text,
+                crate::transform::generate_content::common::cache::openai_breakpoint(
+                    block.cache_control,
+                ),
+            )),
+            false => ClaudeRequestBlockItem::InputMessagePart(response_input_text(
+                block.text,
+                crate::transform::generate_content::common::cache::openai_breakpoint(
+                    block.cache_control,
+                ),
+            )),
+        },
         claude::ContentBlockParam::Image(block) => image_source_to_input_part(block.source)
-            .map(ClaudeRequestBlockItem::MessagePart)
+            .filter(|_| !assistant)
+            .map(ClaudeRequestBlockItem::InputMessagePart)
             .unwrap_or(ClaudeRequestBlockItem::None),
         claude::ContentBlockParam::Document(block) => {
             document_source_to_input_part(block.source, block.title)
-                .map(ClaudeRequestBlockItem::MessagePart)
+                .filter(|_| !assistant)
+                .map(ClaudeRequestBlockItem::InputMessagePart)
                 .unwrap_or(ClaudeRequestBlockItem::None)
         }
         claude::ContentBlockParam::ToolUse(block) => {
@@ -185,13 +202,15 @@ fn claude_request_block_to_openai(
                 return block
                     .content
                     .map(|text| {
-                        ClaudeRequestBlockItem::MessagePart(
-                            openai::ResponseInputContentPart::InputText {
-                                text,
-                                prompt_cache_breakpoint: None,
-                                extra: Default::default(),
-                            },
-                        )
+                        if assistant {
+                            ClaudeRequestBlockItem::OutputMessagePart(response_output_text(
+                                text, None,
+                            ))
+                        } else {
+                            ClaudeRequestBlockItem::InputMessagePart(response_input_text(
+                                text, None,
+                            ))
+                        }
                     })
                     .unwrap_or(ClaudeRequestBlockItem::None);
             };
@@ -259,5 +278,35 @@ fn claude_request_block_to_openai(
             }
         }
         _ => ClaudeRequestBlockItem::None,
+    }
+}
+
+fn response_input_text(
+    text: String,
+    prompt_cache_breakpoint: Option<openai::PromptCacheBreakpoint>,
+) -> openai::ResponseInputContentPart {
+    openai::ResponseInputContentPart::InputText {
+        text,
+        prompt_cache_breakpoint,
+        extra: Default::default(),
+    }
+}
+
+fn response_output_text(
+    text: String,
+    prompt_cache_breakpoint: Option<openai::PromptCacheBreakpoint>,
+) -> openai::ResponseMessageOutputContentPart {
+    let mut extra = openai::Extra::new();
+    if let Some(breakpoint) = prompt_cache_breakpoint {
+        extra.insert(
+            "prompt_cache_breakpoint".to_owned(),
+            serde_json::to_value(breakpoint).expect("prompt cache breakpoint serializes"),
+        );
+    }
+    openai::ResponseMessageOutputContentPart::OutputText {
+        annotations: Vec::new(),
+        logprobs: None,
+        text,
+        extra,
     }
 }
