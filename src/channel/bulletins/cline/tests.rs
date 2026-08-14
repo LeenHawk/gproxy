@@ -129,3 +129,22 @@ fn only_account_credentials_refresh() {
         "refresh_token": "rt",
     })));
 }
+
+#[test]
+fn channel_unwraps_buffered_chat_envelope() {
+    let body = Bytes::from_static(
+        br#"{"success":true,"data":{"id":"gen_1","object":"chat.completion","choices":[]}}"#,
+    );
+    let shaped = ClineChannel.shape_response(
+        body,
+        &crate::channel::ShapeCtx {
+            op: chat_op(),
+            stream: false,
+            status: StatusCode::OK,
+            settings: &json!({}),
+        },
+    );
+    let value: serde_json::Value = serde_json::from_slice(&shaped).unwrap();
+    assert_eq!(value["id"], "gen_1");
+    assert!(value.get("data").is_none());
+}
