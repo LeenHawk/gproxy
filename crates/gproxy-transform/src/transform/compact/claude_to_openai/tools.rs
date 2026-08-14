@@ -37,41 +37,40 @@ pub(crate) fn typed_tool_call(
     input: claude::JsonObject,
     name: String,
 ) -> (openai::TypedResponseItem, Option<ApproximateToolKind>) {
-    if name == "bash" {
-        if let Some(action) = shell_action_from_claude(&input) {
-            return (
-                openai::TypedResponseItem::ShellCall {
-                    action,
-                    call_id: id.clone(),
-                    id: Some(id),
-                    caller: None,
-                    environment: None,
-                    status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                    created_by: None,
-                    extra: Default::default(),
-                },
-                Some(ApproximateToolKind::Shell),
-            );
-        }
+    if name == "bash"
+        && let Some(action) = shell_action_from_claude(&input)
+    {
+        return (
+            openai::TypedResponseItem::ShellCall {
+                action,
+                call_id: id.clone(),
+                id: Some(id),
+                caller: None,
+                environment: None,
+                status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                created_by: None,
+                extra: Default::default(),
+            },
+            Some(ApproximateToolKind::Shell),
+        );
     }
     if matches!(
         name.as_str(),
         "str_replace_editor" | "str_replace_based_edit_tool"
-    ) {
-        if let Some(operation) = apply_patch_operation_from_claude(&input) {
-            return (
-                openai::TypedResponseItem::ApplyPatchCall {
-                    call_id: id.clone(),
-                    operation,
-                    status: openai::ResponseApplyPatchCallStatus::Completed,
-                    id: Some(id),
-                    caller: None,
-                    created_by: None,
-                    extra: Default::default(),
-                },
-                Some(ApproximateToolKind::ApplyPatch),
-            );
-        }
+    ) && let Some(operation) = apply_patch_operation_from_claude(&input)
+    {
+        return (
+            openai::TypedResponseItem::ApplyPatchCall {
+                call_id: id.clone(),
+                operation,
+                status: openai::ResponseApplyPatchCallStatus::Completed,
+                id: Some(id),
+                caller: None,
+                created_by: None,
+                extra: Default::default(),
+            },
+            Some(ApproximateToolKind::ApplyPatch),
+        );
     }
     (
         crate::protocol::wire!(openai::TypedResponseItem::FunctionCall {
@@ -300,10 +299,10 @@ fn generic_server_tool_call(
 }
 
 fn web_search_action_from_claude(input: &claude::JsonObject) -> openai::WebSearchAction {
-    if let Some(url) = string_field(input, "url") {
-        if let Some(pattern) = string_field(input, "pattern") {
-            return openai::WebSearchAction::FindInPage { pattern, url };
-        }
+    if let Some(url) = string_field(input, "url")
+        && let Some(pattern) = string_field(input, "pattern")
+    {
+        return openai::WebSearchAction::FindInPage { pattern, url };
     }
     openai::WebSearchAction::Search {
         queries: string_array_field(input, "queries"),
@@ -457,7 +456,7 @@ pub(crate) fn shell_result<T: serde::Serialize>(
         .get("return_code")
         .and_then(serde_json::Value::as_i64)
         .and_then(|value| i32::try_from(value).ok())
-        .unwrap_or_else(|| if stderr.is_empty() { 0 } else { 1 });
+        .unwrap_or(if stderr.is_empty() { 0 } else { 1 });
     openai::TypedResponseItem::ShellCallOutput {
         call_id,
         output: vec![crate::protocol::wire!(openai::ShellCallOutputContent {
