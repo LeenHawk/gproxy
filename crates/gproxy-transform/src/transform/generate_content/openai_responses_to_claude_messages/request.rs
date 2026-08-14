@@ -2,13 +2,7 @@ use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
-use super::super::openai_chat_to_claude_messages::tools::{
-    chat_tool_choice_to_claude, chat_tools_to_claude, default_web_search_tool,
-    tools_activate_programmatic_calling,
-};
-use super::super::openai_responses_to_openai_chat::tools::{
-    response_tool_choice_to_chat_tool_choice, response_tools_for_chat,
-};
+use super::tools::{response_tool_choice_to_claude, response_tools_to_claude};
 use crate::transform::compact::openai_to_claude::openai_input_to_claude_messages;
 
 pub fn request(
@@ -55,22 +49,13 @@ pub fn request(
             })
         });
 
-    let response_tools = response_tools_for_chat(input.tools);
-    let mut tools = response_tools
-        .tools
-        .map(chat_tools_to_claude)
-        .unwrap_or_default();
-    if response_tools.web_search_options.is_some() {
-        tools.push(default_web_search_tool());
-    }
+    let mapped_tools = response_tools_to_claude(input.tools);
+    let tools = mapped_tools.tools.unwrap_or_default();
     let parallel_tool_calls = match input.parallel_tool_calls {
-        Some(false) if tools_activate_programmatic_calling(&tools) => None,
+        Some(false) if mapped_tools.programmatic => None,
         other => other,
     };
-    let tool_choice = chat_tool_choice_to_claude(
-        response_tool_choice_to_chat_tool_choice(input.tool_choice),
-        parallel_tool_calls,
-    );
+    let tool_choice = response_tool_choice_to_claude(input.tool_choice, parallel_tool_calls);
 
     #[allow(deprecated)]
     let output = crate::protocol::wire!(claude::CreateMessageRequestBody {
@@ -87,7 +72,7 @@ pub fn request(
         fallback_credit_token: None,
         fallbacks: None,
         inference_geo: None,
-        mcp_servers: None,
+        mcp_servers: mapped_tools.mcp_servers,
         metadata,
         output_config,
         output_format: None,

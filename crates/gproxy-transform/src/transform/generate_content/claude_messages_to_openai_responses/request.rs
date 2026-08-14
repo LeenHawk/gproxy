@@ -1,13 +1,8 @@
 use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
-use super::super::claude_messages_to_openai_chat::tools::{
-    claude_tool_choice_to_chat, claude_tools_to_chat,
-};
 use super::super::common;
-use super::super::openai_chat_to_openai_responses::tools::{
-    chat_tool_choice_to_response_tool_choice, chat_tools_to_response_tools,
-};
+use super::tools::{claude_tool_choice_to_responses, claude_tools_to_responses};
 use crate::transform::compact::claude_to_openai::claude_messages_to_openai_items;
 
 pub fn request(
@@ -33,10 +28,8 @@ pub fn request(
             extra: Default::default(),
         })
     });
-    let tools = chat_tools_to_response_tools(input.tools.clone().map(claude_tools_to_chat));
-    let tool_choice = chat_tool_choice_to_response_tool_choice(claude_tool_choice_to_chat(
-        input.tool_choice.clone(),
-    ));
+    let tools = claude_tools_to_responses(input.tools.clone(), input.mcp_servers.clone());
+    let tool_choice = claude_tool_choice_to_responses(input.tool_choice.clone());
     let mut items = system_items(input.system);
     items.extend(claude_messages_to_openai_items(input.messages));
 

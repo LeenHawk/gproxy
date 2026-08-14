@@ -1,17 +1,14 @@
 use crate::protocol::{gemini, openai};
 use crate::transform::{TransformContext, TransformError};
 
-use super::super::common;
 use super::content::gemini_content_to_response_output;
+use super::usage::gemini_usage_to_response;
 
 pub fn response(
     input: gemini::GenerateContentResponse,
     _: &TransformContext,
 ) -> Result<openai::ResponseObject, TransformError> {
-    let usage = input
-        .usage_metadata
-        .map(common::gemini_usage_to_completion)
-        .and_then(|usage| common::completion_usage_to_response(Some(usage)));
+    let usage = input.usage_metadata.map(gemini_usage_to_response);
     let mut output = Vec::new();
     let mut status = openai::ResponseStatus::Completed;
     let mut incomplete_details = None;

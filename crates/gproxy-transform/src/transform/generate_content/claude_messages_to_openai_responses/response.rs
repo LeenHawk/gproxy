@@ -2,6 +2,7 @@ use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::usage::claude_usage_to_response;
 
 pub fn response(
     input: claude::CreateMessageResponseBody,
@@ -10,8 +11,7 @@ pub fn response(
     let id = input.id.clone();
     let model = common::claude_model_string(input.model).into();
     let service_tier = common::claude_usage_to_openai_service_tier(&input.usage);
-    let usage =
-        common::completion_usage_to_response(Some(common::claude_usage_to_completion(input.usage)));
+    let usage = Some(claude_usage_to_response(input.usage));
     let (output, output_text) = claude_content_to_openai_output(id.clone(), input.content);
     let (status, incomplete_details) = response_status(input.stop_reason);
 

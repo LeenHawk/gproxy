@@ -79,7 +79,7 @@ fn gemini_finish_reason_to_claude(reason: gemini::FinishReason) -> claude::StopR
     }
 }
 
-fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
+pub(super) fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
     let speed = common::gemini_service_tier_to_claude_speed(usage.service_tier.clone());
     let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
     let cached = usage.cached_content_token_count.map(i32_to_u64);

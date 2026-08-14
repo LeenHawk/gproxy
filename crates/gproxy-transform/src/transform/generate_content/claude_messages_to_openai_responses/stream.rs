@@ -4,6 +4,7 @@ use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::usage::claude_usage_to_response;
 
 pub fn stream_event(
     input: claude::StreamEvent,
@@ -67,7 +68,7 @@ impl StreamTransform {
                 {
                     self.service_tier = Some(tier);
                 }
-                let usage = common::claude_usage_to_completion_option(usage);
+                let usage = usage.map(|usage| claude_usage_to_response(*usage));
                 let (status, incomplete_details) = delta
                     .stop_reason
                     .map(response_status_from_claude_stop)
@@ -241,7 +242,7 @@ fn response_created(
         response: Box::new(response_object(
             message.id,
             common::claude_model_string(message.model).into(),
-            Some(common::claude_usage_to_completion(message.usage)),
+            Some(claude_usage_to_response(message.usage)),
             service_tier,
             openai::ResponseStatus::InProgress,
             None,
@@ -316,7 +317,7 @@ fn output_item_added(output_index: u32, item: openai::ResponseItem) -> openai::R
 fn response_lifecycle_event(
     id: String,
     model: openai::OpenAiModelId,
-    usage: Option<openai::CompletionUsage>,
+    usage: Option<openai::ResponseUsage>,
     service_tier: Option<openai::ServiceTier>,
     status: openai::ResponseStatus,
     incomplete_details: Option<openai::IncompleteDetails>,
@@ -357,7 +358,7 @@ fn response_lifecycle_event(
 fn response_object(
     id: String,
     model: openai::OpenAiModelId,
-    usage: Option<openai::CompletionUsage>,
+    usage: Option<openai::ResponseUsage>,
     service_tier: Option<openai::ServiceTier>,
     status: openai::ResponseStatus,
     incomplete_details: Option<openai::IncompleteDetails>,
@@ -398,7 +399,7 @@ fn response_object(
         top_logprobs: None,
         top_p: None,
         truncation: None,
-        usage: common::completion_usage_to_response(usage),
+        usage,
         user: None,
         extra: Default::default(),
     })

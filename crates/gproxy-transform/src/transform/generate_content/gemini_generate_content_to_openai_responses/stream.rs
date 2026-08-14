@@ -2,6 +2,7 @@ use crate::protocol::{gemini, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::usage::gemini_usage_to_response;
 
 pub fn stream_event(
     input: gemini::StreamGenerateContentChunk,
@@ -43,7 +44,7 @@ fn gemini_chunk_to_response_events(
     let service_tier = usage_metadata
         .as_ref()
         .and_then(|usage| common::gemini_service_tier_to_openai(usage.service_tier.clone()));
-    let usage = usage_metadata.map(common::gemini_usage_to_completion);
+    let usage = usage_metadata.map(gemini_usage_to_response);
     let blocked = input
         .prompt_feedback
         .as_ref()
@@ -245,7 +246,7 @@ fn reasoning_done(
 fn response_lifecycle_event(
     id: String,
     model: openai::OpenAiModelId,
-    usage: Option<openai::CompletionUsage>,
+    usage: Option<openai::ResponseUsage>,
     service_tier: Option<openai::ServiceTier>,
     status: openai::ResponseStatus,
     incomplete_details: Option<openai::IncompleteDetails>,
@@ -287,7 +288,7 @@ fn response_lifecycle_event(
         top_logprobs: None,
         top_p: None,
         truncation: None,
-        usage: common::completion_usage_to_response(usage),
+        usage,
         user: None,
         extra: Default::default(),
     }));

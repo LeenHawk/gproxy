@@ -1,9 +1,11 @@
 //! OpenAI Responses -> Gemini GenerateContent transforms.
 
-mod content;
+pub(in crate::transform) mod content;
 mod request;
 mod response;
 mod stream;
+mod tools;
+mod usage;
 
 pub use request::request;
 pub use response::response;

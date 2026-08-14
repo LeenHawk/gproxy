@@ -3,6 +3,7 @@ use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
 use super::content::response_item_to_gemini_content;
+use super::usage::response_usage_to_gemini;
 
 pub fn response(
     input: openai::ResponseObject,
@@ -40,9 +41,7 @@ pub fn response(
             extra: Default::default(),
         })],
         prompt_feedback: None,
-        usage_metadata: common::completion_usage_to_gemini(common::response_usage_to_completion(
-            input.usage
-        ),),
+        usage_metadata: response_usage_to_gemini(input.usage),
         model_version: input.model.map(common::openai_model_string),
         response_id: Some(input.id),
         extra: Default::default(),

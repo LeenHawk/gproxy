@@ -2,6 +2,7 @@ use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::usage::response_usage_to_claude;
 
 pub fn response(
     input: openai::ResponseObject,
@@ -25,9 +26,7 @@ pub fn response(
         ),
         stop_reason,
         stop_sequence: None,
-        usage: common::completion_usage_to_claude(common::response_usage_to_completion(
-            input.usage,
-        )),
+        usage: response_usage_to_claude(input.usage),
         container: None,
         context_management: None,
         diagnostics: None,
