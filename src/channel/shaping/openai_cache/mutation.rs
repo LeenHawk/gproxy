@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use super::schema::{
     chat_text_part, explicit_breakpoint, is_supported_chat_part, is_supported_response_part,
-    response_input_text_part, response_message, response_message_with_role,
+    response_message, response_message_with_role, response_text_part,
 };
 use super::selection::{ChatLocation, ResponsesLocation};
 
@@ -62,17 +62,19 @@ pub(super) fn stamp_response_location(
             Ok(())
         }
         ResponsesLocation::ContentString(item_index) => {
-            let content = root
+            let item = root
                 .get_mut("input")
                 .and_then(Value::as_array_mut)
                 .and_then(|items| items.get_mut(item_index))
-                .and_then(|message| message.get_mut("content"))
-                .ok_or("target content not found")?;
+                .and_then(Value::as_object_mut)
+                .ok_or("target message not found")?;
+            let role = item.get("role").and_then(Value::as_str).map(str::to_owned);
+            let content = item.get_mut("content").ok_or("target content not found")?;
             let text = content
                 .as_str()
                 .ok_or("target content is not text")?
                 .to_string();
-            *content = Value::Array(vec![response_input_text_part(text, true)]);
+            *content = Value::Array(vec![response_text_part(role.as_deref(), text, true)]);
             Ok(())
         }
         ResponsesLocation::ContentPart(item_index, part_index) => {

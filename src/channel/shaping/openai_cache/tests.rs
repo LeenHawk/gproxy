@@ -54,6 +54,27 @@ fn responses_instruction_magic_uses_prefix_anchor() {
 }
 
 #[test]
+fn responses_assistant_magic_preserves_output_text() {
+    let mut body = json!({"input": [{
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": format!("stable {MAGIC}")}]
+    }]});
+    apply_magic_string_cache_breakpoints(&mut body, ContentGenerationKind::OpenAiResponses);
+
+    assert_eq!(body["input"][0]["content"][0]["type"], "output_text");
+    assert_eq!(body["input"][0]["content"][0]["text"], "stable ");
+    assert_eq!(
+        body["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    serde_json::from_value::<crate::protocol::openai::generate_content::ResponseCreateRequest>(
+        body,
+    )
+    .unwrap();
+}
+
+#[test]
 fn magic_caps_new_markers_without_counting_prior_turns() {
     let marked = |text: &str| {
         json!({

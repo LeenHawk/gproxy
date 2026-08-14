@@ -208,6 +208,29 @@ mod tests {
             output["input"][2]["content"][0]["prompt_cache_breakpoint"]["mode"],
             "explicit"
         );
+        assert_eq!(output["input"][1]["content"][0]["type"], "input_text");
+        assert_eq!(output["input"][2]["role"], "assistant");
+        assert_eq!(output["input"][2]["content"][0]["type"], "output_text");
+    }
+
+    #[test]
+    fn maps_assistant_history_to_responses_output_text() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 32,
+            "messages": [
+                {"role": "assistant", "content": "previous answer"},
+                {"role": "user", "content": "continue"}
+            ]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert_eq!(output["input"][0]["role"], "assistant");
+        assert_eq!(output["input"][0]["content"][0]["type"], "output_text");
+        assert_eq!(output["input"][0]["content"][0]["text"], "previous answer");
+        assert_eq!(output["input"][1]["role"], "user");
+        assert_eq!(output["input"][1]["content"][0]["type"], "input_text");
     }
 
     #[test]

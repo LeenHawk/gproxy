@@ -4,6 +4,7 @@ use super::super::claude_magic_cache;
 use super::mutation::prepend_instruction_anchor;
 use super::schema::{
     PartFamily, chat_text_part, explicit_breakpoint, response_input_text_part, response_message,
+    response_text_part,
 };
 
 pub(super) fn apply_chat(root: &mut Map<String, Value>, remaining: &mut usize) {
@@ -72,12 +73,13 @@ pub(super) fn apply_responses(root: &mut Map<String, Value>, remaining: &mut usi
             let Some(item) = item.as_object_mut() else {
                 continue;
             };
+            let role = item.get("role").and_then(Value::as_str).map(str::to_owned);
             for field in ["content", "output"] {
                 let Some(content) = item.get_mut(field) else {
                     continue;
                 };
                 if let Some(text) = take_magic_string(content, remaining) {
-                    *content = Value::Array(vec![response_input_text_part(text, true)]);
+                    *content = Value::Array(vec![response_text_part(role.as_deref(), text, true)]);
                     continue;
                 }
                 if let Value::Array(parts) = content {
@@ -111,7 +113,8 @@ fn apply_to_part(part: &mut Map<String, Value>, family: PartFamily, remaining: &
     let text_key = match (family, part.get("type").and_then(Value::as_str)) {
         (PartFamily::Chat, Some("text")) => "text",
         (PartFamily::Chat, Some("refusal")) => "refusal",
-        (PartFamily::Responses, Some("input_text")) => "text",
+        (PartFamily::Responses, Some("input_text" | "output_text")) => "text",
+        (PartFamily::Responses, Some("refusal")) => "refusal",
         _ => return,
     };
     let has_breakpoint = part.contains_key("prompt_cache_breakpoint");
