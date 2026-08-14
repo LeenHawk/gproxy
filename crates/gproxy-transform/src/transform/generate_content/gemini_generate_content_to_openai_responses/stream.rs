@@ -120,29 +120,39 @@ fn gemini_content_to_response_events(
     content
         .parts
         .into_iter()
-        .filter_map(|part| part_to_response_event(part, output_index))
+        .flat_map(|part| part_to_response_events(part, output_index))
         .collect()
 }
 
-fn part_to_response_event(
+fn part_to_response_events(
     part: gemini::Part,
     output_index: u32,
-) -> Option<openai::ResponseStreamEvent> {
-    match part.data? {
+) -> Vec<openai::ResponseStreamEvent> {
+    let signature = part.thought_signature.clone();
+    let Some(data) = part.data else {
+        return signature
+            .map(|signature| vec![reasoning_done(output_index, None, signature)])
+            .unwrap_or_default();
+    };
+    match data {
         gemini::PartData::Text { text } => {
             if part.thought.unwrap_or(false) {
-                Some(known(
+                let mut events = vec![known(
                     openai::KnownResponseStreamEvent::ResponseReasoningTextDelta {
                         content_index: 0,
-                        delta: text,
+                        delta: text.clone(),
                         item_id: reasoning_id(output_index),
                         output_index,
                         sequence_number: None,
                         extra: Default::default(),
                     },
-                ))
+                )];
+                if let Some(signature) = signature {
+                    events.push(reasoning_done(output_index, Some(text), signature));
+                }
+                events
             } else {
-                Some(known(
+                vec![known(
                     openai::KnownResponseStreamEvent::ResponseOutputTextDelta {
                         content_index: 0,
                         delta: text,
@@ -152,7 +162,7 @@ fn part_to_response_event(
                         sequence_number: None,
                         extra: Default::default(),
                     },
-                ))
+                )]
             }
         }
         gemini::PartData::FunctionCall { function_call } => {
@@ -170,7 +180,11 @@ fn part_to_response_event(
                     )
                 },
             );
-            Some(known(
+            let mut events = Vec::new();
+            if let Some(signature) = signature {
+                events.push(reasoning_done(output_index, None, signature));
+            }
+            events.push(known(
                 openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
                     item: Box::new(openai::ResponseOutputItem::new(
                         openai::ResponseItem::Typed(crate::protocol::wire!(
@@ -193,10 +207,39 @@ fn part_to_response_event(
                     sequence_number: None,
                     extra: Default::default(),
                 },
-            ))
+            ));
+            events
         }
-        _ => None,
+        _ => Vec::new(),
     }
+}
+
+fn reasoning_done(
+    output_index: u32,
+    text: Option<String>,
+    encrypted_content: String,
+) -> openai::ResponseStreamEvent {
+    known(openai::KnownResponseStreamEvent::ResponseOutputItemDone {
+        item: Box::new(openai::ResponseOutputItem::new(
+            openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
+                id: Some(reasoning_id(output_index)),
+                summary: Vec::new(),
+                content: text.map(|text| {
+                    vec![crate::protocol::wire!(openai::ResponseReasoningTextPart {
+                        text,
+                        type_: openai::ResponseReasoningTextType::ReasoningText,
+                        extra: Default::default(),
+                    })]
+                }),
+                encrypted_content: Some(encrypted_content),
+                status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                extra: Default::default(),
+            }),
+        )),
+        output_index,
+        sequence_number: None,
+        extra: Default::default(),
+    })
 }
 
 fn response_lifecycle_event(

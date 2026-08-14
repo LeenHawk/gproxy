@@ -16,6 +16,7 @@ pub fn stream_event(
 #[derive(Default)]
 pub struct StreamTransform {
     item_ids: BTreeMap<u32, String>,
+    reasoning_text: BTreeMap<u32, String>,
     service_tier: Option<openai::ServiceTier>,
 }
 
@@ -116,11 +117,31 @@ impl StreamTransform {
                 }
             }
             claude::ContentBlock::Thinking(block) => {
+                self.reasoning_text
+                    .entry(output_index)
+                    .or_default()
+                    .push_str(&block.thinking);
                 if block.thinking.is_empty() {
-                    Vec::new()
+                    if block.signature.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![reasoning_done(output_index, None, block.signature)]
+                    }
                 } else {
-                    vec![reasoning_text_delta(output_index, block.thinking)]
+                    let mut events =
+                        vec![reasoning_text_delta(output_index, block.thinking.clone())];
+                    if !block.signature.is_empty() {
+                        events.push(reasoning_done(
+                            output_index,
+                            Some(block.thinking),
+                            block.signature,
+                        ));
+                    }
+                    events
                 }
+            }
+            claude::ContentBlock::RedactedThinking(block) => {
+                vec![reasoning_done(output_index, None, block.data)]
             }
             claude::ContentBlock::ToolUse(block) => {
                 let item_id = common::response_function_call_item_id(&block.id);
@@ -161,7 +182,7 @@ impl StreamTransform {
     }
 
     fn event_delta_to_response(
-        &self,
+        &mut self,
         index: u64,
         delta: claude::EventDelta,
     ) -> Vec<openai::ResponseStreamEvent> {
@@ -172,8 +193,17 @@ impl StreamTransform {
                     vec![output_text_delta(output_index, text)]
                 }
                 claude::KnownEventDelta::Thinking { thinking, .. } => {
+                    self.reasoning_text
+                        .entry(output_index)
+                        .or_default()
+                        .push_str(&thinking);
                     vec![reasoning_text_delta(output_index, thinking)]
                 }
+                claude::KnownEventDelta::Signature { signature, .. } => vec![reasoning_done(
+                    output_index,
+                    self.reasoning_text.get(&output_index).cloned(),
+                    signature,
+                )],
                 claude::KnownEventDelta::InputJson { partial_json, .. } => vec![known(
                     openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta {
                         delta: partial_json,
@@ -244,6 +274,34 @@ fn reasoning_text_delta(output_index: u32, text: String) -> openai::ResponseStre
             extra: Default::default(),
         },
     )
+}
+
+fn reasoning_done(
+    output_index: u32,
+    text: Option<String>,
+    encrypted_content: String,
+) -> openai::ResponseStreamEvent {
+    known(openai::KnownResponseStreamEvent::ResponseOutputItemDone {
+        item: Box::new(openai::ResponseOutputItem::new(
+            openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
+                id: Some(reasoning_id(output_index)),
+                summary: Vec::new(),
+                content: text.map(|text| {
+                    vec![crate::protocol::wire!(openai::ResponseReasoningTextPart {
+                        text,
+                        type_: openai::ResponseReasoningTextType::ReasoningText,
+                        extra: Default::default(),
+                    })]
+                }),
+                encrypted_content: Some(encrypted_content),
+                status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                extra: Default::default(),
+            }),
+        )),
+        output_index,
+        sequence_number: None,
+        extra: Default::default(),
+    })
 }
 
 fn output_item_added(output_index: u32, item: openai::ResponseItem) -> openai::ResponseStreamEvent {

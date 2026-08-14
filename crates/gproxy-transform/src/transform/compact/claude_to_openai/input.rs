@@ -21,7 +21,7 @@ pub(super) fn system_to_openai_item(text: String) -> openai::ResponseItem {
     ))
 }
 
-pub(super) fn claude_messages_to_openai_items(
+pub(crate) fn claude_messages_to_openai_items(
     messages: Vec<claude::MessageParam>,
 ) -> Vec<openai::ResponseItem> {
     messages
@@ -103,7 +103,10 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
         claude::ContentBlockParam::Text(block) => {
             ClaudeRequestBlockItem::MessagePart(openai::ResponseInputContentPart::InputText {
                 text: block.text,
-                prompt_cache_breakpoint: None,
+                prompt_cache_breakpoint:
+                    crate::transform::generate_content::common::cache::openai_breakpoint(
+                        block.cache_control,
+                    ),
                 extra: Default::default(),
             })
         }
@@ -135,7 +138,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
         ),
         claude::ContentBlockParam::Thinking(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-                id: Some(block.signature),
+                id: Some(DEFAULT_REASONING_ID.to_owned()),
                 summary: Vec::new(),
                 content: Some(vec![crate::protocol::wire!(
                     openai::ResponseReasoningTextPart {
@@ -144,7 +147,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
                         extra: Default::default(),
                     }
                 )]),
-                encrypted_content: None,
+                encrypted_content: Some(block.signature),
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 extra: Default::default(),
             }),

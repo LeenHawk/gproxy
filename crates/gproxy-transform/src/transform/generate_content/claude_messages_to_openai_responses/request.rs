@@ -1,12 +1,152 @@
 use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
+use super::super::claude_messages_to_openai_chat::tools::{
+    claude_tool_choice_to_chat, claude_tools_to_chat,
+};
+use super::super::common;
+use super::super::openai_chat_to_openai_responses::tools::{
+    chat_tool_choice_to_response_tool_choice, chat_tools_to_response_tools,
+};
+use crate::transform::compact::claude_to_openai::claude_messages_to_openai_items;
+
 pub fn request(
     input: claude::CreateMessageRequestBody,
-    ctx: &TransformContext,
+    _: &TransformContext,
 ) -> Result<openai::ResponseCreateRequest, TransformError> {
-    let chat = super::super::claude_messages_to_openai_chat::request(input, ctx)?;
-    super::super::openai_chat_to_openai_responses::request(chat, ctx)
+    let prompt_cache_key = common::claude_prompt_cache_key(&input);
+    let effort = input
+        .output_config
+        .as_ref()
+        .and_then(|config| common::claude_effort_to_openai(config.effort.clone()))
+        .or_else(|| common::claude_thinking_to_openai(input.thinking.clone()));
+    #[allow(deprecated)]
+    let format = input
+        .output_config
+        .as_ref()
+        .and_then(|config| config.format.clone())
+        .or(input.output_format.clone());
+    let text = format.map(|format| {
+        crate::protocol::wire!(openai::TextConfig {
+            format: common::claude_output_format_to_response(Some(format)),
+            verbosity: None,
+            extra: Default::default(),
+        })
+    });
+    let tools = chat_tools_to_response_tools(input.tools.clone().map(claude_tools_to_chat));
+    let tool_choice = chat_tool_choice_to_response_tool_choice(claude_tool_choice_to_chat(
+        input.tool_choice.clone(),
+    ));
+    let mut items = system_items(input.system);
+    items.extend(claude_messages_to_openai_items(input.messages));
+
+    Ok(crate::protocol::wire!(openai::ResponseCreateRequest {
+        background: None,
+        context_management: None,
+        conversation: None,
+        include: None,
+        input: Some(openai::ResponseInput::Items(items)),
+        instructions: None,
+        max_output_tokens: Some(u64_to_u32(input.max_tokens)),
+        max_tool_calls: None,
+        metadata: input.metadata.and_then(|metadata| {
+            metadata.user_id.map(|user_id| {
+                let mut metadata = openai::Metadata::new();
+                metadata.insert("user_id".to_owned(), user_id);
+                metadata
+            })
+        }),
+        model: Some(common::claude_model_string(input.model).into()),
+        moderation: None,
+        multi_agent: None,
+        parallel_tool_calls: input
+            .tool_choice
+            .as_ref()
+            .and_then(claude_parallel_tool_calls),
+        previous_response_id: None,
+        prompt_cache_key: Some(prompt_cache_key),
+        prompt_cache_options: Some(common::openai_options_for_claude_root(input.cache_control)),
+        prompt_cache_retention: None,
+        prompt: None,
+        reasoning: effort.map(|effort| crate::protocol::wire!(openai::ReasoningConfig {
+            context: None,
+            effort: Some(effort),
+            mode: None,
+            summary: None,
+            generate_summary: None,
+            extra: Default::default(),
+        })),
+        safety_identifier: None,
+        service_tier: common::claude_speed_to_openai(input.speed)
+            .or_else(|| common::claude_service_tier_to_openai(input.service_tier)),
+        store: None,
+        stream: input.stream,
+        stream_options: None,
+        temperature: input.temperature,
+        text,
+        tool_choice,
+        tools,
+        top_logprobs: None,
+        top_p: input.top_p,
+        truncation: None,
+        user: None,
+        extra: Default::default(),
+    }))
+}
+
+fn system_items(system: Option<claude::SystemPrompt>) -> Vec<openai::ResponseItem> {
+    let blocks = match system {
+        Some(claude::StringOrArray::String(text)) => vec![(text, None)],
+        Some(claude::StringOrArray::Array(blocks)) => blocks
+            .into_iter()
+            .map(|block| (block.text, block.cache_control))
+            .collect(),
+        None => Vec::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
+    };
+    if blocks.is_empty() {
+        return Vec::new();
+    }
+    vec![openai::ResponseItem::Message(
+        openai::ResponseMessageItem::EasyInput(crate::protocol::wire!(
+            openai::ResponseEasyInputMessageItem {
+                type_: Some(openai::ResponseMessageItemType::Message),
+                role: openai::ResponseEasyInputMessageRole::System,
+                content: openai::ResponseEasyInputContent::Parts(
+                    blocks
+                        .into_iter()
+                        .map(|(text, cache_control)| {
+                            openai::ResponseInputContentPart::InputText {
+                                text,
+                                prompt_cache_breakpoint: common::openai_breakpoint(cache_control),
+                                extra: Default::default(),
+                            }
+                        })
+                        .collect(),
+                ),
+                phase: None,
+                extra: Default::default(),
+            }
+        )),
+    )]
+}
+
+fn claude_parallel_tool_calls(choice: &claude::ToolChoice) -> Option<bool> {
+    match choice {
+        claude::ToolChoice::Auto(choice) => choice.disable_parallel_tool_use.map(|value| !value),
+        claude::ToolChoice::Any(choice) => choice.disable_parallel_tool_use.map(|value| !value),
+        claude::ToolChoice::Tool(choice) => choice.disable_parallel_tool_use.map(|value| !value),
+        claude::ToolChoice::None(_) | claude::ToolChoice::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
+    }
+}
+
+fn u64_to_u32(value: u64) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
 }
 
 #[cfg(test)]
@@ -62,5 +202,42 @@ mod tests {
             output["input"][2]["content"][0]["prompt_cache_breakpoint"]["mode"],
             "explicit"
         );
+    }
+
+    #[test]
+    fn maps_claude_signature_directly_to_encrypted_reasoning() {
+        let input = serde_json::from_value(serde_json::json!({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 32,
+            "messages": [{
+                "role": "assistant",
+                "content": [{
+                    "type": "thinking",
+                    "thinking": "hidden",
+                    "signature": "ciphertext"
+                }]
+            }]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+        let reasoning = output["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["type"] == "reasoning")
+            .unwrap();
+        assert_eq!(reasoning["encrypted_content"], "ciphertext");
+        assert_eq!(reasoning["content"][0]["text"], "hidden");
     }
 }

@@ -4,7 +4,7 @@ mod content;
 mod request;
 mod response;
 mod stream;
-mod tools;
+pub(in crate::transform::generate_content) mod tools;
 mod usage;
 
 pub use request::request;
