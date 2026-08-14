@@ -32,19 +32,19 @@ pub(super) fn gemini_tools_to_responses(
                 extra: Default::default(),
             });
         }
-        if tool.google_search.is_some() || tool.google_search_retrieval.is_some() {
-            if !has_web_search {
-                output.push(openai::ResponseTool::WebSearchPreview {
-                    search_content_types: tool
-                        .google_search
-                        .as_ref()
-                        .and_then(gemini_search_content_types),
-                    search_context_size: None,
-                    user_location: None,
-                    extra: Default::default(),
-                });
-                has_web_search = true;
-            }
+        if (tool.google_search.is_some() || tool.google_search_retrieval.is_some())
+            && !has_web_search
+        {
+            output.push(openai::ResponseTool::WebSearchPreview {
+                search_content_types: tool
+                    .google_search
+                    .as_ref()
+                    .and_then(gemini_search_content_types),
+                search_context_size: None,
+                user_location: None,
+                extra: Default::default(),
+            });
+            has_web_search = true;
         }
         if (tool.url_context.is_some() || tool.google_maps.is_some()) && !has_web_search {
             output.push(openai::ResponseTool::WebSearch {
