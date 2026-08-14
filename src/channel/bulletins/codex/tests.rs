@@ -326,9 +326,19 @@ fn shapes_canonical_agent_tools_for_codex_wire() {
     assert!(value["tools"][3].get("parameters").is_some());
     assert_eq!(value["tool_choice"]["name"], "shell_command");
     assert_eq!(value["input"][0]["type"], "function_call");
+    assert!(
+        value["input"][0]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("fc_"))
+    );
     assert_eq!(value["input"][0]["name"], "shell_command");
     assert_eq!(value["input"][1]["type"], "function_call_output");
     assert_eq!(value["input"][2]["type"], "custom_tool_call");
+    assert!(
+        value["input"][2]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("ctc_"))
+    );
     assert!(
         value["input"][2]["input"]
             .as_str()

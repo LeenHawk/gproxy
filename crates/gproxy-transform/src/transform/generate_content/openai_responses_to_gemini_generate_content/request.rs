@@ -136,4 +136,48 @@ mod tests {
         );
         assert_eq!(output["contents"][0]["parts"][0]["text"], "hidden");
     }
+
+    #[test]
+    fn correlates_function_results_as_gemini_user_turns() {
+        let input = serde_json::from_value(json!({
+            "model": "gemini-3-pro",
+            "input": [
+                {
+                    "type": "function_call",
+                    "id": "fc_1",
+                    "call_id": "call_1",
+                    "name": "get_magic",
+                    "arguments": "{\"value\":\"x\"}"
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "x"
+                }
+            ]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+        );
+
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+        assert_eq!(output["contents"][0]["role"], "model");
+        assert_eq!(output["contents"][1]["role"], "user");
+        assert_eq!(
+            output["contents"][1]["parts"][0]["functionResponse"]["name"],
+            "get_magic"
+        );
+        assert_eq!(
+            output["contents"][1]["parts"][0]["functionResponse"]["id"],
+            "call_1"
+        );
+    }
 }

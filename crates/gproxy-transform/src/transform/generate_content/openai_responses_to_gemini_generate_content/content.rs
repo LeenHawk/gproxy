@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::protocol::{gemini, openai};
 
 pub(in crate::transform) fn response_input_to_gemini_contents(
@@ -8,10 +10,29 @@ pub(in crate::transform) fn response_input_to_gemini_contents(
             gemini::ContentRoleKnown::User,
             vec![text_part(text, false, None)],
         )],
-        Some(openai::ResponseInput::Items(items)) => items
-            .into_iter()
-            .filter_map(response_item_to_gemini_content)
-            .collect(),
+        Some(openai::ResponseInput::Items(items)) => {
+            let mut function_names = BTreeMap::new();
+            items
+                .into_iter()
+                .filter_map(|item| {
+                    let function_name = match &item {
+                        openai::ResponseItem::Typed(
+                            openai::TypedResponseItem::FunctionCall { call_id, name, .. }
+                            | openai::TypedResponseItem::CustomToolCall { call_id, name, .. },
+                        ) => {
+                            function_names.insert(call_id.clone(), name.clone());
+                            None
+                        }
+                        openai::ResponseItem::Typed(
+                            openai::TypedResponseItem::FunctionCallOutput { call_id, .. }
+                            | openai::TypedResponseItem::CustomToolCallOutput { call_id, .. },
+                        ) => function_names.get(call_id).cloned(),
+                        _ => None,
+                    };
+                    response_item_to_gemini_content_with_name(item, function_name)
+                })
+                .collect()
+        }
         None => Vec::new(),
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
@@ -21,6 +42,13 @@ pub(in crate::transform) fn response_input_to_gemini_contents(
 
 pub(super) fn response_item_to_gemini_content(
     item: openai::ResponseItem,
+) -> Option<gemini::Content> {
+    response_item_to_gemini_content_with_name(item, None)
+}
+
+fn response_item_to_gemini_content_with_name(
+    item: openai::ResponseItem,
+    function_name: Option<String>,
 ) -> Option<gemini::Content> {
     match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(message)) => {
@@ -124,7 +152,11 @@ pub(super) fn response_item_to_gemini_content(
             call_id,
             output,
             ..
-        }) => Some(function_response_content(call_id, output_text(output))),
+        }) => Some(function_response_content(
+            call_id.clone(),
+            function_name.unwrap_or(call_id),
+            output_text(output),
+        )),
         _ => None,
     }
 }
@@ -199,16 +231,16 @@ fn take_thought_signature(extra: &mut openai::Extra) -> Option<String> {
         .and_then(|value| value.as_str().map(ToOwned::to_owned))
 }
 
-fn function_response_content(call_id: String, output: String) -> gemini::Content {
+fn function_response_content(call_id: String, name: String, output: String) -> gemini::Content {
     let mut response = gemini::JsonMap::new();
     response.insert("output".to_owned(), serde_json::Value::String(output));
     content(
-        gemini::ContentRoleKnown::Function,
+        gemini::ContentRoleKnown::User,
         vec![crate::protocol::wire!(gemini::Part {
             data: Some(gemini::PartData::FunctionResponse {
                 function_response: crate::protocol::wire!(gemini::FunctionResponse {
                     id: Some(call_id.clone()),
-                    name: call_id,
+                    name,
                     response,
                     parts: Vec::new(),
                     will_continue: None,

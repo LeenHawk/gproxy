@@ -345,7 +345,7 @@ impl ContentStreamConverter {
             P::GeminiGenerateContentToOpenAiResponses
             | P::GeminiGenerateContentToOpenAiResponsesWebSocket => {
                 ContentStreamState::GeminiToResponses(
-                    gc::gemini_generate_content_to_openai_responses::StreamTransform,
+                    gc::gemini_generate_content_to_openai_responses::StreamTransform::default(),
                 )
             }
             P::OpenAiChatToOpenAiResponses | P::OpenAiChatToOpenAiResponsesWebSocket => {
