@@ -314,7 +314,10 @@ mod tests {
         assert!(output.contains("\"environment\":{\"type\":\"local\"}"));
         assert!(output.contains("\"type\":\"apply_patch_call\""));
         assert!(output.contains("\"type\":\"create_file\""));
-        for data in output.lines().filter_map(|line| line.strip_prefix("data: ")) {
+        for data in output
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+        {
             serde_json::from_str::<crate::protocol::openai::ResponseStreamEvent>(data)
                 .expect("normalized event must remain valid Responses wire");
         }
