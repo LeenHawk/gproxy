@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-protocol-macros"
-version = "2.6.4"
+version = "2.6.5"
 edition = "2024"
 authors = ["LeenHawk <leenhawk@leenhawk.com>"]
 license = "MIT"
