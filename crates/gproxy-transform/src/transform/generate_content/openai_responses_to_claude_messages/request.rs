@@ -146,9 +146,13 @@ mod tests {
     }
 
     #[test]
-    fn apply_patch_result_reaches_claude_as_tool_result() {
+    fn apply_patch_maps_to_text_editor_with_correlated_result() {
         let input = crate::protocol::wire!(openai::ResponseCreateRequest {
             model: Some(openai::OpenAiModelId::Unknown("test-model".to_owned())),
+            tools: Some(vec![openai::ResponseTool::ApplyPatch {
+                allowed_callers: None,
+                extra: Default::default(),
+            }]),
             input: Some(openai::ResponseInput::Items(vec![
                 serde_json::from_value(json!({
                     "type": "apply_patch_call",
@@ -173,6 +177,10 @@ mod tests {
         });
 
         let out = request(input, &ctx()).unwrap();
+        assert!(matches!(
+            out.tools.as_deref(),
+            Some([claude::Tool::TextEditor(_)])
+        ));
         assert_eq!(out.messages.len(), 2);
 
         let claude::MessageParam { content, .. } = &out.messages[0];
@@ -183,10 +191,10 @@ mod tests {
             panic!("expected apply_patch tool_use");
         };
         assert_eq!(tool_use.id, "toolu_call_patch");
-        assert_eq!(tool_use.name, "apply_patch");
+        assert_eq!(tool_use.name, "str_replace_based_edit_tool");
         assert_eq!(
-            tool_use.input.get("type").and_then(|v| v.as_str()),
-            Some("update_file")
+            tool_use.input.get("command").and_then(|v| v.as_str()),
+            Some("str_replace")
         );
 
         let claude::MessageParam { content, .. } = &out.messages[1];

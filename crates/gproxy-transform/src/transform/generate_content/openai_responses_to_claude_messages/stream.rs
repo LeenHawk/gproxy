@@ -3,6 +3,10 @@ use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
 use super::usage::response_usage_to_claude;
+use crate::transform::compact::openai_to_claude::{
+    apply_patch_to_text_editor_input, local_shell_to_bash_input, shell_to_bash_input,
+    web_action_to_claude,
+};
 
 pub fn stream_event(
     input: openai::ResponseStreamEvent,
@@ -231,6 +235,61 @@ fn output_item_added_to_claude(
             }
             events
         }
+        openai::ResponseItem::Typed(openai::TypedResponseItem::WebSearchCall {
+            id,
+            action,
+            ..
+        }) => {
+            let (name, input) = web_action_to_claude(action);
+            vec![server_tool_block_start(output_index, id, input, name)]
+        }
+        openai::ResponseItem::Typed(openai::TypedResponseItem::LocalShellCall {
+            call_id,
+            action,
+            ..
+        }) => vec![client_tool_block_start(
+            output_index,
+            call_id,
+            local_shell_to_bash_input(action),
+            "bash",
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::ShellCall {
+            call_id,
+            action,
+            environment,
+            ..
+        }) => vec![client_tool_block_start(
+            output_index,
+            call_id,
+            shell_to_bash_input(action, environment),
+            "bash",
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::ApplyPatchCall {
+            call_id,
+            operation,
+            ..
+        }) => vec![client_tool_block_start(
+            output_index,
+            call_id,
+            apply_patch_to_text_editor_input(operation),
+            "str_replace_based_edit_tool",
+        )],
+        openai::ResponseItem::Typed(openai::TypedResponseItem::ToolSearchCall {
+            arguments,
+            id,
+            call_id,
+            execution,
+            ..
+        }) => vec![server_tool_block_start(
+            output_index,
+            id.or(call_id).unwrap_or_else(|| "tool_search".to_owned()),
+            json_value_to_object(arguments),
+            if matches!(execution, Some(openai::ToolSearchExecution::Client)) {
+                claude::ServerToolUseNameKnown::ToolSearchToolRegex
+            } else {
+                claude::ServerToolUseNameKnown::ToolSearchToolBm25
+            },
+        )],
         _ => Vec::new(),
     }
 }
@@ -302,6 +361,11 @@ fn response_stop_reason(response: &openai::ResponseObject) -> claude::StopReason
             openai::ResponseItem::Typed(
                 openai::TypedResponseItem::FunctionCall { .. }
                     | openai::TypedResponseItem::CustomToolCall { .. }
+                    | openai::TypedResponseItem::WebSearchCall { .. }
+                    | openai::TypedResponseItem::LocalShellCall { .. }
+                    | openai::TypedResponseItem::ShellCall { .. }
+                    | openai::TypedResponseItem::ApplyPatchCall { .. }
+                    | openai::TypedResponseItem::ToolSearchCall { .. }
             )
         )
     }) {
@@ -321,6 +385,61 @@ fn response_stop_reason(response: &openai::ResponseObject) -> claude::StopReason
             claude::StopReason::Known(claude::StopReasonKnown::Refusal)
         }
         _ => claude::StopReason::Known(claude::StopReasonKnown::EndTurn),
+    }
+}
+
+fn client_tool_block_start(
+    output_index: u32,
+    id: String,
+    input: claude::JsonObject,
+    name: &str,
+) -> claude::StreamEvent {
+    known(claude::KnownStreamEvent::ContentBlockStart {
+        index: u64::from(output_index),
+        content_block: Box::new(claude::ContentBlock::ToolUse(crate::protocol::wire!(
+            claude::ResponseToolUseBlock {
+                id,
+                input,
+                name: name.to_owned(),
+                type_: claude::ToolUseBlockType::ToolUse,
+                caller: None,
+                extra: Default::default(),
+            }
+        ))),
+        extra: Default::default(),
+    })
+}
+
+fn server_tool_block_start(
+    output_index: u32,
+    id: String,
+    input: claude::JsonObject,
+    name: claude::ServerToolUseNameKnown,
+) -> claude::StreamEvent {
+    known(claude::KnownStreamEvent::ContentBlockStart {
+        index: u64::from(output_index),
+        content_block: Box::new(claude::ContentBlock::ServerToolUse(crate::protocol::wire!(
+            claude::ResponseServerToolUseBlock {
+                id,
+                input,
+                name: claude::ServerToolUseName::Known(name),
+                type_: claude::ServerToolUseBlockType::ServerToolUse,
+                caller: None,
+                extra: Default::default(),
+            }
+        ))),
+        extra: Default::default(),
+    })
+}
+
+fn json_value_to_object(value: serde_json::Value) -> claude::JsonObject {
+    match value {
+        serde_json::Value::Object(map) => map.into_iter().collect(),
+        value => {
+            let mut input = claude::JsonObject::new();
+            input.insert("value".to_owned(), value);
+            input
+        }
     }
 }
 

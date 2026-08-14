@@ -5,6 +5,9 @@ use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
 use super::usage::claude_usage_to_response;
+use crate::transform::compact::claude_to_openai::{
+    prepare_response_output_item, server_tool_call, typed_tool_call,
+};
 
 pub fn stream_event(
     input: claude::StreamEvent,
@@ -18,7 +21,19 @@ pub fn stream_event(
 pub struct StreamTransform {
     item_ids: BTreeMap<u32, String>,
     reasoning_text: BTreeMap<u32, String>,
+    buffered_tools: BTreeMap<u32, BufferedTool>,
     service_tier: Option<openai::ServiceTier>,
+}
+
+struct BufferedTool {
+    id: String,
+    input: String,
+    kind: BufferedToolKind,
+}
+
+enum BufferedToolKind {
+    Client(String),
+    Server(claude::ServerToolUseName),
 }
 
 impl StreamTransform {
@@ -59,6 +74,9 @@ impl StreamTransform {
             } => self.content_block_start_to_response(index, *content_block),
             claude::KnownStreamEvent::ContentBlockDelta { index, delta, .. } => {
                 self.event_delta_to_response(index, *delta)
+            }
+            claude::KnownStreamEvent::ContentBlockStop { index, .. } => {
+                self.content_block_stop_to_response(index)
             }
             claude::KnownStreamEvent::MessageDelta { delta, usage, .. } => {
                 let delta = *delta;
@@ -145,6 +163,17 @@ impl StreamTransform {
                 vec![reasoning_done(output_index, None, block.data)]
             }
             claude::ContentBlock::ToolUse(block) => {
+                if is_approximate_client_tool(&block.name) {
+                    self.buffered_tools.insert(
+                        output_index,
+                        BufferedTool {
+                            id: block.id,
+                            input: initial_tool_input(block.input),
+                            kind: BufferedToolKind::Client(block.name),
+                        },
+                    );
+                    return Vec::new();
+                }
                 let item_id = common::response_function_call_item_id(&block.id);
                 self.item_ids.insert(output_index, item_id.clone());
                 vec![output_item_added(
@@ -178,6 +207,17 @@ impl StreamTransform {
                     }),
                 )]
             }
+            claude::ContentBlock::ServerToolUse(block) => {
+                self.buffered_tools.insert(
+                    output_index,
+                    BufferedTool {
+                        id: block.id,
+                        input: initial_tool_input(block.input),
+                        kind: BufferedToolKind::Server(block.name),
+                    },
+                );
+                Vec::new()
+            }
             _ => Vec::new(),
         }
     }
@@ -206,12 +246,17 @@ impl StreamTransform {
                     signature,
                 )],
                 claude::KnownEventDelta::InputJson { partial_json, .. } => vec![known(
-                    openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta {
-                        delta: partial_json,
-                        item_id: self.item_id_for_index(output_index),
-                        output_index,
-                        sequence_number: None,
-                        extra: Default::default(),
+                    if let Some(tool) = self.buffered_tools.get_mut(&output_index) {
+                        tool.input.push_str(&partial_json);
+                        return Vec::new();
+                    } else {
+                        openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta {
+                            delta: partial_json,
+                            item_id: self.item_id_for_index(output_index),
+                            output_index,
+                            sequence_number: None,
+                            extra: Default::default(),
+                        }
                     },
                 )],
                 claude::KnownEventDelta::Compaction { content, .. } => {
@@ -231,6 +276,70 @@ impl StreamTransform {
             .get(&output_index)
             .cloned()
             .unwrap_or_else(|| common::indexed_response_function_call_item_id(output_index))
+    }
+
+    fn content_block_stop_to_response(&mut self, index: u64) -> Vec<openai::ResponseStreamEvent> {
+        let output_index = index_to_u32(index);
+        let Some(tool) = self.buffered_tools.remove(&output_index) else {
+            return Vec::new();
+        };
+        let input = serde_json::from_str(&tool.input).unwrap_or_default();
+        let completed = match tool.kind {
+            BufferedToolKind::Client(name) => typed_tool_call(tool.id, input, name).0,
+            BufferedToolKind::Server(name) => server_tool_call(tool.id, input, name),
+        };
+        let mut in_progress = completed.clone();
+        set_item_status(
+            &mut in_progress,
+            openai::ResponseItemLifecycleStatus::InProgress,
+        );
+        vec![
+            output_item_added(output_index, openai::ResponseItem::Typed(in_progress)),
+            output_item_done(output_index, openai::ResponseItem::Typed(completed)),
+        ]
+    }
+}
+
+fn is_approximate_client_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "bash" | "str_replace_editor" | "str_replace_based_edit_tool"
+    )
+}
+
+fn initial_tool_input(input: claude::JsonObject) -> String {
+    if input.is_empty() {
+        String::new()
+    } else {
+        serde_json::to_string(&input).unwrap_or_default()
+    }
+}
+
+fn set_item_status(
+    item: &mut openai::TypedResponseItem,
+    status: openai::ResponseItemLifecycleStatus,
+) {
+    match item {
+        openai::TypedResponseItem::FunctionCall { status: value, .. }
+        | openai::TypedResponseItem::ShellCall { status: value, .. }
+        | openai::TypedResponseItem::ToolSearchCall { status: value, .. } => *value = Some(status),
+        openai::TypedResponseItem::ApplyPatchCall { status: value, .. } => {
+            *value = match status {
+                openai::ResponseItemLifecycleStatus::InProgress => {
+                    openai::ResponseApplyPatchCallStatus::InProgress
+                }
+                _ => openai::ResponseApplyPatchCallStatus::Completed,
+            }
+        }
+        openai::TypedResponseItem::WebSearchCall { status: value, .. } => {
+            *value = match status {
+                openai::ResponseItemLifecycleStatus::InProgress => {
+                    openai::ResponseWebSearchCallStatus::InProgress
+                }
+                _ => openai::ResponseWebSearchCallStatus::Completed,
+            }
+        }
+        _ => {}
     }
 }
 
@@ -305,8 +414,29 @@ fn reasoning_done(
     })
 }
 
-fn output_item_added(output_index: u32, item: openai::ResponseItem) -> openai::ResponseStreamEvent {
+fn output_item_added(
+    output_index: u32,
+    mut item: openai::ResponseItem,
+) -> openai::ResponseStreamEvent {
+    if let openai::ResponseItem::Typed(item) = &mut item {
+        prepare_response_output_item(item);
+    }
     known(openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
+        item: Box::new(openai::ResponseOutputItem::new(item)),
+        output_index,
+        sequence_number: None,
+        extra: Default::default(),
+    })
+}
+
+fn output_item_done(
+    output_index: u32,
+    mut item: openai::ResponseItem,
+) -> openai::ResponseStreamEvent {
+    if let openai::ResponseItem::Typed(item) = &mut item {
+        prepare_response_output_item(item);
+    }
+    known(openai::KnownResponseStreamEvent::ResponseOutputItemDone {
         item: Box::new(openai::ResponseOutputItem::new(item)),
         output_index,
         sequence_number: None,
@@ -446,4 +576,84 @@ fn index_to_u32(index: u64) -> u32 {
 
 fn known(event: openai::KnownResponseStreamEvent) -> openai::ResponseStreamEvent {
     openai::ResponseStreamEvent::Known(event)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    #[test]
+    fn streamed_bash_call_becomes_typed_shell_item() {
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+        let mut transform = StreamTransform::default();
+        transform
+            .push(
+                known_claude(claude::KnownStreamEvent::ContentBlockStart {
+                    index: 0,
+                    content_block: Box::new(claude::ContentBlock::ToolUse(crate::protocol::wire!(
+                        claude::ResponseToolUseBlock {
+                            id: "toolu_shell".to_owned(),
+                            input: Default::default(),
+                            name: "bash".to_owned(),
+                            type_: claude::ToolUseBlockType::ToolUse,
+                            caller: None,
+                            extra: Default::default(),
+                        }
+                    ))),
+                    extra: Default::default(),
+                }),
+                &ctx,
+            )
+            .unwrap();
+        transform
+            .push(
+                known_claude(claude::KnownStreamEvent::ContentBlockDelta {
+                    index: 0,
+                    delta: Box::new(claude::EventDelta::Known(Box::new(
+                        claude::KnownEventDelta::InputJson {
+                            partial_json: r#"{"command":"pwd"}"#.to_owned(),
+                            extra: Default::default(),
+                        },
+                    ))),
+                    extra: Default::default(),
+                }),
+                &ctx,
+            )
+            .unwrap();
+        let events = transform
+            .push(
+                known_claude(claude::KnownStreamEvent::ContentBlockStop {
+                    index: 0,
+                    extra: Default::default(),
+                }),
+                &ctx,
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        let openai::ResponseStreamEvent::Known(
+            openai::KnownResponseStreamEvent::ResponseOutputItemAdded { item, .. },
+        ) = &events[0]
+        else {
+            panic!("expected output item added");
+        };
+        assert!(matches!(
+            &item.0,
+            openai::ResponseItem::Typed(openai::TypedResponseItem::ShellCall { .. })
+        ));
+    }
+
+    fn known_claude(event: claude::KnownStreamEvent) -> claude::StreamEvent {
+        claude::StreamEvent::Known(Box::new(event))
+    }
 }

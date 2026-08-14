@@ -149,6 +149,19 @@ mod tests {
     use super::*;
     use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
 
+    fn ctx() -> TransformContext {
+        TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        )
+    }
+
     #[test]
     fn preserves_representable_claude_breakpoints_in_responses() {
         let input = serde_json::from_value(json!({
@@ -232,5 +245,56 @@ mod tests {
             .unwrap();
         assert_eq!(reasoning["encrypted_content"], "ciphertext");
         assert_eq!(reasoning["content"][0]["text"], "hidden");
+    }
+
+    #[test]
+    fn maps_approximate_tools_and_calls_end_to_end() {
+        let input = serde_json::from_value(serde_json::json!({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 32,
+            "tools": [
+                {"type": "bash_20250124", "name": "bash"},
+                {"type": "text_editor_20250728", "name": "str_replace_based_edit_tool"},
+                {"type": "web_fetch_20260209", "name": "web_fetch"},
+                {"type": "tool_search_tool_bm25", "name": "tool_search_tool_bm25"}
+            ],
+            "messages": [
+                {"role": "assistant", "content": [{
+                    "type": "tool_use", "id": "toolu_shell", "name": "bash",
+                    "input": {"command": "pwd"}
+                }]},
+                {"role": "user", "content": [{
+                    "type": "tool_result", "tool_use_id": "toolu_shell", "content": "ok"
+                }]},
+                {"role": "assistant", "content": [{
+                    "type": "server_tool_use", "id": "srv_fetch", "name": "web_fetch",
+                    "input": {"url": "https://example.com"}
+                }]}
+            ]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        let tool_types = output["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["type"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            tool_types,
+            ["shell", "apply_patch", "web_search", "tool_search"]
+        );
+        let item_types = output["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["type"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            item_types,
+            ["shell_call", "shell_call_output", "web_search_call"]
+        );
+        assert_eq!(output["input"][2]["action"]["type"], "open_page");
     }
 }

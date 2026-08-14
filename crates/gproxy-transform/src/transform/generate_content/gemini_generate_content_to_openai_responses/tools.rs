@@ -6,6 +6,7 @@ pub(super) fn gemini_tools_to_responses(
     tools: Vec<gemini::Tool>,
 ) -> Option<Vec<openai::ResponseTool>> {
     let mut output = Vec::new();
+    let mut has_web_search = false;
     for tool in tools {
         output.extend(tool.function_declarations.into_iter().map(|function| {
             openai::ResponseTool::Function {
@@ -32,15 +33,27 @@ pub(super) fn gemini_tools_to_responses(
             });
         }
         if tool.google_search.is_some() || tool.google_search_retrieval.is_some() {
-            output.push(openai::ResponseTool::WebSearchPreview {
-                search_content_types: tool
-                    .google_search
-                    .as_ref()
-                    .and_then(gemini_search_content_types),
+            if !has_web_search {
+                output.push(openai::ResponseTool::WebSearchPreview {
+                    search_content_types: tool
+                        .google_search
+                        .as_ref()
+                        .and_then(gemini_search_content_types),
+                    search_context_size: None,
+                    user_location: None,
+                    extra: Default::default(),
+                });
+                has_web_search = true;
+            }
+        }
+        if (tool.url_context.is_some() || tool.google_maps.is_some()) && !has_web_search {
+            output.push(openai::ResponseTool::WebSearch {
+                filters: None,
                 search_context_size: None,
                 user_location: None,
                 extra: Default::default(),
             });
+            has_web_search = true;
         }
         if tool.code_execution.is_some() {
             output.push(openai::ResponseTool::CodeInterpreter {

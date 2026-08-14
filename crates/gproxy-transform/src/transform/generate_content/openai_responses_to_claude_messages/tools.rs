@@ -12,6 +12,7 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
     let mut output = Vec::new();
     let mut mcp_servers = Vec::new();
     let mut web_search = false;
+    let mut programmatic_tool_calling = false;
     for tool in tools.into_iter().flatten() {
         match tool {
             openai::ResponseTool::Function {
@@ -64,6 +65,7 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
                     filters.and_then(|filters| filters.allowed_domains),
                     user_location.map(response_location_to_claude),
                 ));
+                output.push(web_fetch_tool());
             }
             openai::ResponseTool::WebSearchPreview { user_location, .. }
             | openai::ResponseTool::WebSearchPreview20250311 { user_location, .. } => {
@@ -72,6 +74,11 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
                     None,
                     user_location.map(preview_location_to_claude),
                 ));
+                output.push(web_fetch_tool());
+            }
+            openai::ResponseTool::XSearch { .. } => {
+                web_search = true;
+                output.push(web_search_tool(None, None));
             }
             openai::ResponseTool::CodeInterpreter { .. }
             | openai::ResponseTool::CodeExecution { .. } => {
@@ -82,6 +89,21 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
                 display_width,
                 ..
             } => output.push(computer_tool(display_width, display_height)),
+            openai::ResponseTool::LocalShell { .. } => output.push(bash_tool(None)),
+            openai::ResponseTool::Shell {
+                allowed_callers, ..
+            } => output.push(bash_tool(response_callers_to_claude(allowed_callers))),
+            openai::ResponseTool::ApplyPatch {
+                allowed_callers, ..
+            } => output.push(text_editor_tool(response_callers_to_claude(
+                allowed_callers,
+            ))),
+            openai::ResponseTool::ToolSearch { execution, .. } => {
+                output.push(tool_search_tool(execution))
+            }
+            openai::ResponseTool::ProgrammaticToolCalling { .. } => {
+                programmatic_tool_calling = true
+            }
             openai::ResponseTool::Mcp {
                 server_label,
                 allowed_tools,
@@ -113,7 +135,9 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
             _ => {}
         }
     }
-    let programmatic = web_search || output.iter().any(tool_activates_programmatic_calling);
+    let programmatic = programmatic_tool_calling
+        || web_search
+        || output.iter().any(tool_activates_programmatic_calling);
     ClaudeTools {
         tools: (!output.is_empty()).then_some(output),
         mcp_servers: (!mcp_servers.is_empty()).then_some(mcp_servers),
@@ -310,6 +334,54 @@ fn default_code_execution_tool() -> claude::Tool {
     ))
 }
 
+fn bash_tool(allowed_callers: Option<Vec<claude::ToolCaller>>) -> claude::Tool {
+    claude::Tool::Command(claude::CommandTool::Bash20250124(crate::protocol::wire!(
+        claude::BashTool20250124 {
+            name: claude::BashToolName::Bash,
+            type_: claude::BashTool20250124Type::Bash20250124,
+            common: crate::protocol::wire!(claude::ToolCommon {
+                allowed_callers,
+                ..Default::default()
+            }),
+        }
+    )))
+}
+
+fn text_editor_tool(allowed_callers: Option<Vec<claude::ToolCaller>>) -> claude::Tool {
+    claude::Tool::TextEditor(claude::TextEditorTool::TextEditor20250728(
+        crate::protocol::wire!(claude::TextEditorTool20250728 {
+            name: claude::StrReplaceBasedEditToolName::StrReplaceBasedEditTool,
+            type_: claude::TextEditorTool20250728Type::TextEditor20250728,
+            max_characters: None,
+            common: crate::protocol::wire!(claude::ToolCommon {
+                allowed_callers,
+                ..Default::default()
+            }),
+        }),
+    ))
+}
+
+fn tool_search_tool(execution: Option<openai::ToolSearchExecution>) -> claude::Tool {
+    let common = claude::ToolCommonWithoutInputExamples::default();
+    if matches!(execution, Some(openai::ToolSearchExecution::Client)) {
+        claude::Tool::Command(claude::CommandTool::ToolSearchRegex(
+            crate::protocol::wire!(claude::ToolSearchRegexTool {
+                name: claude::ToolSearchRegexToolName::ToolSearchRegex,
+                type_: claude::ToolSearchRegexToolType::ToolSearchRegex,
+                common,
+            }),
+        ))
+    } else {
+        claude::Tool::Command(claude::CommandTool::ToolSearchBm25(crate::protocol::wire!(
+            claude::ToolSearchBm25Tool {
+                name: claude::ToolSearchBm25ToolName::ToolSearchBm25,
+                type_: claude::ToolSearchBm25ToolType::ToolSearchBm25,
+                common,
+            }
+        )))
+    }
+}
+
 fn computer_tool(display_width: u32, display_height: u32) -> claude::Tool {
     claude::Tool::Computer(claude::ComputerTool::Computer20250124(
         crate::protocol::wire!(claude::ComputerTool20250124 {
@@ -326,6 +398,16 @@ fn computer_tool(display_width: u32, display_height: u32) -> claude::Tool {
 fn tool_activates_programmatic_calling(tool: &claude::Tool) -> bool {
     match tool {
         claude::Tool::Command(claude::CommandTool::CodeExecution20260120(_)) => true,
+        claude::Tool::Command(claude::CommandTool::Bash20250124(tool)) => tool
+            .common
+            .allowed_callers
+            .as_ref()
+            .is_some_and(|callers| !callers.is_empty()),
+        claude::Tool::TextEditor(claude::TextEditorTool::TextEditor20250728(tool)) => tool
+            .common
+            .allowed_callers
+            .as_ref()
+            .is_some_and(|callers| !callers.is_empty()),
         claude::Tool::Custom(custom) => custom
             .common
             .allowed_callers
@@ -348,6 +430,23 @@ fn web_search_tool(
                 blocked_domains: None,
                 max_uses: None,
                 user_location,
+            }),
+            common: Default::default(),
+        }),
+    ))
+}
+
+fn web_fetch_tool() -> claude::Tool {
+    claude::Tool::WebFetch(claude::WebFetchTool::WebFetch20250910(
+        crate::protocol::wire!(claude::WebFetchTool20250910 {
+            name: claude::WebFetchToolName::WebFetch,
+            type_: claude::WebFetchTool20250910Type::WebFetch20250910,
+            params: crate::protocol::wire!(claude::WebFetchToolParams {
+                allowed_domains: None,
+                blocked_domains: None,
+                citations: None,
+                max_content_tokens: None,
+                max_uses: None,
             }),
             common: Default::default(),
         }),

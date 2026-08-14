@@ -3,8 +3,9 @@ use crate::transform::TransformContext;
 
 use super::DEFAULT_MODEL;
 use super::tools::{
-    arguments_to_json_object, code_interpreter_input, response_server_tool_use_block,
-    serializable_to_json_object, shell_input, string_input_json_object,
+    apply_patch_to_text_editor_input, arguments_to_json_object, code_interpreter_input,
+    local_shell_to_bash_input, response_server_tool_use_block, shell_to_bash_input,
+    string_input_json_object, web_action_to_claude,
 };
 use super::util::join_text;
 
@@ -88,13 +89,12 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
             id,
             action,
             ..
-        }) => vec![claude::ContentBlock::ServerToolUse(
-            response_server_tool_use_block(
-                id,
-                serializable_to_json_object(&action),
-                claude::ServerToolUseNameKnown::WebSearch,
-            ),
-        )],
+        }) => {
+            let (name, input) = web_action_to_claude(action);
+            vec![claude::ContentBlock::ServerToolUse(
+                response_server_tool_use_block(id, input, name),
+            )]
+        }
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::CodeInterpreterCall {
             id,
             code,
@@ -111,36 +111,82 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
             action,
             call_id,
             ..
-        }) => vec![claude::ContentBlock::ServerToolUse(
-            response_server_tool_use_block(
-                call_id,
-                serializable_to_json_object(&action),
-                claude::ServerToolUseNameKnown::BashCodeExecution,
-            ),
+        }) => vec![response_tool_use_block(
+            call_id,
+            local_shell_to_bash_input(action),
+            "bash",
         )],
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::ShellCall {
             action,
             call_id,
             environment: None,
             ..
-        }) => vec![claude::ContentBlock::ServerToolUse(
-            response_server_tool_use_block(
-                call_id,
-                serializable_to_json_object(&action),
-                claude::ServerToolUseNameKnown::BashCodeExecution,
-            ),
+        }) => vec![response_tool_use_block(
+            call_id,
+            shell_to_bash_input(action, None),
+            "bash",
         )],
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::ShellCall {
             action,
             call_id,
             environment: Some(environment),
             ..
+        }) => vec![response_tool_use_block(
+            call_id,
+            shell_to_bash_input(action, Some(environment)),
+            "bash",
+        )],
+        openai::CompactResponseItem::Typed(openai::TypedResponseItem::ApplyPatchCall {
+            call_id,
+            operation,
+            ..
+        }) => vec![response_tool_use_block(
+            call_id,
+            apply_patch_to_text_editor_input(operation),
+            "str_replace_based_edit_tool",
+        )],
+        openai::CompactResponseItem::Typed(openai::TypedResponseItem::ToolSearchCall {
+            arguments,
+            id,
+            call_id,
+            execution,
+            ..
         }) => vec![claude::ContentBlock::ServerToolUse(
             response_server_tool_use_block(
-                call_id,
-                shell_input(action, environment),
-                claude::ServerToolUseNameKnown::BashCodeExecution,
+                id.or(call_id).unwrap_or_else(|| "tool_search".to_owned()),
+                match arguments {
+                    serde_json::Value::Object(map) => map.into_iter().collect(),
+                    value => {
+                        let mut input = claude::JsonObject::new();
+                        input.insert("value".to_owned(), value);
+                        input
+                    }
+                },
+                if matches!(execution, Some(openai::ToolSearchExecution::Client)) {
+                    claude::ServerToolUseNameKnown::ToolSearchToolRegex
+                } else {
+                    claude::ServerToolUseNameKnown::ToolSearchToolBm25
+                },
             ),
+        )],
+        openai::CompactResponseItem::Typed(openai::TypedResponseItem::ToolSearchOutput {
+            tools,
+            id,
+            call_id,
+            ..
+        }) => vec![claude::ContentBlock::ToolSearchToolResult(
+            crate::protocol::wire!(claude::ResponseToolSearchToolResultBlock {
+                content: claude::ResponseToolSearchToolResultContent::Result(
+                    crate::protocol::wire!(claude::ResponseToolSearchToolSearchResultBlock {
+                        tool_references: response_tool_references(tools),
+                        type_: claude::ResponseToolSearchToolSearchResultBlockType::ToolSearchToolSearchResult,
+                        extra: Default::default(),
+                    }),
+                ),
+                tool_use_id: call_id.or(id).unwrap_or_else(|| "tool_search".to_owned()),
+                type_: claude::ToolSearchToolResultBlockType::ToolSearchToolResult,
+                extra: Default::default(),
+            }),
         )],
         openai::CompactResponseItem::Typed(openai::TypedResponseItem::McpCall {
             id,
@@ -175,6 +221,41 @@ fn compact_item_to_claude_content(item: openai::CompactResponseItem) -> Vec<clau
         }) => reasoning_to_claude_content(id, summary, content, encrypted_content),
         _ => Vec::new(),
     }
+}
+
+fn response_tool_use_block(
+    id: String,
+    input: claude::JsonObject,
+    name: &str,
+) -> claude::ContentBlock {
+    claude::ContentBlock::ToolUse(crate::protocol::wire!(claude::ResponseToolUseBlock {
+        id,
+        input,
+        name: name.to_owned(),
+        type_: claude::ToolUseBlockType::ToolUse,
+        caller: None,
+        extra: Default::default(),
+    }))
+}
+
+fn response_tool_references(
+    tools: Vec<openai::ResponseTool>,
+) -> Vec<claude::ResponseToolReferenceBlock> {
+    tools
+        .into_iter()
+        .filter_map(|tool| match tool {
+            openai::ResponseTool::Function { name, .. }
+            | openai::ResponseTool::Custom { name, .. } => Some(name),
+            _ => None,
+        })
+        .map(|tool_name| {
+            crate::protocol::wire!(claude::ResponseToolReferenceBlock {
+                tool_name,
+                type_: claude::ResponseToolReferenceBlockType::ToolReference,
+                extra: Default::default(),
+            })
+        })
+        .collect()
 }
 
 fn compact_message_to_claude_content(
