@@ -92,3 +92,55 @@ pub fn response(
         extra: Default::default(),
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    #[test]
+    fn signed_visible_text_stays_output_text() {
+        let input = serde_json::from_value(json!({
+            "responseId": "response-id",
+            "modelVersion": "gemini-3.1-flash-lite",
+            "candidates": [{
+                "finishReason": "STOP",
+                "content": {
+                    "role": "model",
+                    "parts": [{"text": "ok", "thoughtSignature": "ciphertext"}]
+                }
+            }]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+        let output = serde_json::to_value(response(input, &ctx).unwrap()).unwrap();
+
+        assert_eq!(output["output_text"], "ok");
+        assert!(
+            output["output"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| { item["type"] == "message" && item["content"][0]["text"] == "ok" })
+        );
+        let reasoning = output["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["type"] == "reasoning")
+            .unwrap();
+        assert_eq!(reasoning["encrypted_content"], "ciphertext");
+        assert!(reasoning.get("content").is_none());
+    }
+}
