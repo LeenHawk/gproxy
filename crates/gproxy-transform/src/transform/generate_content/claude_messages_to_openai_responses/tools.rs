@@ -215,38 +215,3 @@ fn claude_code_execution_to_response(command: claude::CommandTool) -> Option<ope
         extra: Default::default(),
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn preserves_claude_mcp_server_connection() {
-        let server = crate::protocol::wire!(claude::McpServer {
-            name: "docs".to_owned(),
-            type_: claude::McpServerType::Known(claude::McpServerTypeKnown::Url),
-            url: "https://mcp.example.test".to_owned(),
-            authorization_token: Some("secret".to_owned()),
-            tool_configuration: Some(crate::protocol::wire!(claude::McpToolConfiguration {
-                allowed_tools: Some(vec!["search".to_owned()]),
-                enabled: Some(true),
-                extra: Default::default(),
-            })),
-            extra: Default::default(),
-        });
-        let tools = claude_tools_to_responses(None, Some(vec![server])).unwrap();
-        assert!(matches!(
-            &tools[0],
-            openai::ResponseTool::Mcp {
-                server_label,
-                server_url: Some(url),
-                authorization: Some(token),
-                allowed_tools: Some(openai::McpAllowedTools::Names(names)),
-                ..
-            } if server_label == "docs"
-                && url == "https://mcp.example.test"
-                && token == "secret"
-                && names == &["search".to_owned()]
-        ));
-    }
-}

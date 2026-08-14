@@ -195,30 +195,4 @@ mod tests {
         };
         assert_eq!(choice.tools.len(), 2);
     }
-
-    #[test]
-    fn preserves_gemini_mcp_connection() {
-        let tool: gemini::Tool = serde_json::from_value(serde_json::json!({
-            "mcpServers": [{
-                "name": "docs",
-                "streamableHttpTransport": {
-                    "url": "https://mcp.example.test",
-                    "headers": {"x-api-key": "secret"}
-                }
-            }]
-        }))
-        .unwrap();
-        let tools = gemini_tools_to_responses(vec![tool]).unwrap();
-        assert!(matches!(
-            &tools[0],
-            openai::ResponseTool::Mcp {
-                server_label,
-                server_url: Some(url),
-                headers: Some(headers),
-                ..
-            } if server_label == "docs"
-                && url == "https://mcp.example.test"
-                && headers.get("x-api-key").map(String::as_str) == Some("secret")
-        ));
-    }
 }

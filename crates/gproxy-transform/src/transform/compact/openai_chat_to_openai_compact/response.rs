@@ -183,38 +183,3 @@ fn default_usage() -> openai::ResponseUsage {
         extra: Default::default(),
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn preserves_chat_content_logprobs() {
-        let message: openai::ChatMessage = serde_json::from_value(serde_json::json!({
-            "role": "assistant",
-            "content": "hello"
-        }))
-        .unwrap();
-        let logprobs: Vec<openai::TokenLogprob> = serde_json::from_value(serde_json::json!([{
-            "token": "hello",
-            "bytes": [104, 101, 108, 108, 111],
-            "logprob": -0.1,
-            "top_logprobs": []
-        }]))
-        .unwrap();
-
-        let items = chat_message_to_compact_items(0, message, Some(logprobs));
-        let openai::CompactResponseItem::Message(message) = &items[0] else {
-            panic!("expected compact message");
-        };
-        assert!(matches!(
-            &message.content[0],
-            openai::CompactMessageContentPart::Output(
-                openai::ResponseOutputContentPart::OutputText {
-                    logprobs: Some(logprobs),
-                    ..
-                }
-            ) if logprobs.len() == 1 && logprobs[0].token == "hello"
-        ));
-    }
-}

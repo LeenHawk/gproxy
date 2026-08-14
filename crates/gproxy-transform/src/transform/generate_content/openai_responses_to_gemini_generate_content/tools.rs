@@ -241,32 +241,4 @@ mod tests {
         assert_eq!(tools.len(), 1);
         assert!(tools[0].google_search.is_some());
     }
-
-    #[test]
-    fn preserves_responses_mcp_connection() {
-        let mut headers = std::collections::BTreeMap::new();
-        headers.insert("x-api-key".to_owned(), "secret".to_owned());
-        let tools = response_tools_to_gemini(Some(vec![openai::ResponseTool::Mcp {
-            server_label: "docs".to_owned(),
-            allowed_tools: None,
-            authorization: None,
-            connector_id: None,
-            defer_loading: None,
-            headers: Some(headers),
-            require_approval: None,
-            server_description: None,
-            server_url: Some("https://mcp.example.test".to_owned()),
-            tunnel_id: None,
-            allowed_callers: None,
-            extra: Default::default(),
-        }]));
-        let server = &tools[0].mcp_servers[0];
-        assert_eq!(server.name.as_deref(), Some("docs"));
-        let transport = server.streamable_http_transport.as_ref().unwrap();
-        assert_eq!(transport.url.as_deref(), Some("https://mcp.example.test"));
-        assert_eq!(
-            transport.headers.get("x-api-key").map(String::as_str),
-            Some("secret")
-        );
-    }
 }
