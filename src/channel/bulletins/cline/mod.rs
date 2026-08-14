@@ -4,7 +4,9 @@
 //! namespaced model ids (`anthropic/claude-sonnet-4.6`). It covers both of
 //! Cline's billing products: usage-billed credits and the ClinePass
 //! subscription share a base URL and a credential, differing only in which
-//! models the account may call, so one channel serves both.
+//! models the account may call, so one channel serves both. Buffered inference
+//! replies use Cline's `{success,data}` envelope; streaming replies are already
+//! canonical OpenAI Chat SSE.
 //!
 //! The credential is a Cline account token (device login, refreshable) or a
 //! pasted workspace API key; the internal `auth` module knows which prefix each
@@ -14,6 +16,7 @@
 mod auth;
 mod login;
 mod model_list;
+mod response;
 mod usage;
 
 use std::sync::Arc;
@@ -160,7 +163,7 @@ impl Channel for ClineChannel {
         if ctx.op.operation() == Operation::ListModels {
             model_list::to_openai(body)
         } else {
-            body
+            response::unwrap_chat(body)
         }
     }
 }
