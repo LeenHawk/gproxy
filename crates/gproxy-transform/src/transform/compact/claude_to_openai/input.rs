@@ -1,9 +1,13 @@
+use std::collections::BTreeMap;
+
 use crate::protocol::{claude, openai};
 
 use super::DEFAULT_REASONING_ID;
 use super::tools::{
+    ApproximateToolKind, apply_patch_result_item, approximate_tool_result_item,
     function_call_output_item, mcp_tool_result_content_to_text, server_tool_result_output,
-    server_tool_use_item, tool_result_content_to_openai,
+    server_tool_use_item, shell_result_item, tool_result_content_to_openai,
+    tool_search_result_item, tool_use_item,
 };
 use super::util::{
     document_source_to_input_part, image_source_to_input_part, join_text, json_object_to_string,
@@ -24,13 +28,17 @@ pub(super) fn system_to_openai_item(text: String) -> openai::ResponseItem {
 pub(crate) fn claude_messages_to_openai_items(
     messages: Vec<claude::MessageParam>,
 ) -> Vec<openai::ResponseItem> {
+    let mut approximate_tools = BTreeMap::new();
     messages
         .into_iter()
-        .flat_map(claude_message_to_openai_items)
+        .flat_map(|message| claude_message_to_openai_items(message, &mut approximate_tools))
         .collect()
 }
 
-fn claude_message_to_openai_items(message: claude::MessageParam) -> Vec<openai::ResponseItem> {
+fn claude_message_to_openai_items(
+    message: claude::MessageParam,
+    approximate_tools: &mut BTreeMap<String, ApproximateToolKind>,
+) -> Vec<openai::ResponseItem> {
     let role = claude_role_to_openai(message.role);
     let mut items = Vec::new();
     let mut message_parts = Vec::new();
@@ -47,7 +55,7 @@ fn claude_message_to_openai_items(message: claude::MessageParam) -> Vec<openai::
         }
         claude::MessageContent::Array(blocks) => {
             for block in blocks {
-                match claude_request_block_to_openai(block) {
+                match claude_request_block_to_openai(block, approximate_tools) {
                     ClaudeRequestBlockItem::MessagePart(part) => message_parts.push(part),
                     ClaudeRequestBlockItem::Item(item) => items.push(item),
                     ClaudeRequestBlockItem::None => {}
@@ -98,7 +106,10 @@ fn claude_role_to_openai(role: claude::MessageRole) -> openai::ResponseEasyInput
     }
 }
 
-fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeRequestBlockItem {
+fn claude_request_block_to_openai(
+    block: claude::ContentBlockParam,
+    approximate_tools: &mut BTreeMap<String, ApproximateToolKind>,
+) -> ClaudeRequestBlockItem {
     match block {
         claude::ContentBlockParam::Text(block) => {
             ClaudeRequestBlockItem::MessagePart(openai::ResponseInputContentPart::InputText {
@@ -119,23 +130,23 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
                 .unwrap_or(ClaudeRequestBlockItem::None)
         }
         claude::ContentBlockParam::ToolUse(block) => {
-            ClaudeRequestBlockItem::Item(openai::ResponseItem::Typed(crate::protocol::wire!(
-                openai::TypedResponseItem::FunctionCall {
-                    arguments: json_object_to_string(&block.input),
-                    call_id: block.id.clone(),
-                    name: block.name,
-                    id: Some(block.id),
-                    caller: None,
-                    namespace: None,
-                    status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                    extra: Default::default(),
-                }
-            )))
+            let id = block.id;
+            let (item, kind) = tool_use_item(id.clone(), block.input, block.name);
+            if let Some(kind) = kind {
+                approximate_tools.insert(id, kind);
+            }
+            item
         }
-        claude::ContentBlockParam::ToolResult(block) => function_call_output_item(
-            block.tool_use_id,
-            tool_result_content_to_openai(block.content),
-        ),
+        claude::ContentBlockParam::ToolResult(block) => {
+            if let Some(kind) = approximate_tools.get(&block.tool_use_id).copied() {
+                approximate_tool_result_item(kind, block.tool_use_id, block.content, block.is_error)
+            } else {
+                function_call_output_item(
+                    block.tool_use_id,
+                    tool_result_content_to_openai(block.content),
+                )
+            }
+        }
         claude::ContentBlockParam::Thinking(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
                 id: Some(DEFAULT_REASONING_ID.to_owned()),
@@ -190,10 +201,12 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
             server_tool_use_item(block.id, block.input, block.name)
         }
         claude::ContentBlockParam::WebSearchToolResult(block) => {
-            function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
+            let _ = block;
+            ClaudeRequestBlockItem::None
         }
         claude::ContentBlockParam::WebFetchToolResult(block) => {
-            function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
+            let _ = block;
+            ClaudeRequestBlockItem::None
         }
         claude::ContentBlockParam::AdvisorToolResult(block) => {
             function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
@@ -202,13 +215,13 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
             function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
         }
         claude::ContentBlockParam::BashCodeExecutionToolResult(block) => {
-            function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
+            shell_result_item(block.tool_use_id, &block.content)
         }
         claude::ContentBlockParam::TextEditorCodeExecutionToolResult(block) => {
-            function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
+            apply_patch_result_item(block.tool_use_id, &block.content)
         }
         claude::ContentBlockParam::ToolSearchToolResult(block) => {
-            function_call_output_item(block.tool_use_id, server_tool_result_output(&block.content))
+            tool_search_result_item(block.tool_use_id, &block.content)
         }
         claude::ContentBlockParam::McpToolUse(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::McpCall {

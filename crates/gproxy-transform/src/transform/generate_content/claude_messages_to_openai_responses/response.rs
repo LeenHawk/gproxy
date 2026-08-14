@@ -1,4 +1,8 @@
 use crate::protocol::{claude, openai};
+use crate::transform::compact::claude_to_openai::{
+    apply_patch_result, prepare_response_output_item, server_tool_call, shell_result,
+    tool_search_result, typed_tool_call,
+};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
@@ -82,18 +86,20 @@ fn claude_content_to_openai_output(
             claude::ContentBlock::RedactedThinking(block) => {
                 output.push(reasoning_item(None, Some(block.data)))
             }
-            claude::ContentBlock::ToolUse(block) => output.push(openai::ResponseOutputItem::new(
-                openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-                    arguments: serde_json::to_string(&block.input)
-                        .unwrap_or_else(|_| "{}".to_owned()),
-                    call_id: block.id.clone(),
-                    name: block.name,
-                    id: Some(block.id),
-                    caller: None,
-                    namespace: None,
-                    status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                    extra: Default::default(),
-                }),
+            claude::ContentBlock::ToolUse(block) => output.push(typed_output_item(
+                typed_tool_call(block.id, block.input, block.name).0,
+            )),
+            claude::ContentBlock::ServerToolUse(block) => output.push(typed_output_item(
+                server_tool_call(block.id, block.input, block.name),
+            )),
+            claude::ContentBlock::BashCodeExecutionToolResult(block) => output.push(
+                typed_output_item(shell_result(block.tool_use_id, &block.content)),
+            ),
+            claude::ContentBlock::TextEditorCodeExecutionToolResult(block) => output.push(
+                typed_output_item(apply_patch_result(block.tool_use_id, &block.content)),
+            ),
+            claude::ContentBlock::ToolSearchToolResult(block) => output.push(typed_output_item(
+                tool_search_result(block.tool_use_id, &block.content),
             )),
             _ => {}
         }
@@ -116,6 +122,11 @@ fn claude_content_to_openai_output(
     }
     let output_text = (!text.is_empty()).then(|| text.join(""));
     (output, output_text)
+}
+
+fn typed_output_item(mut item: openai::TypedResponseItem) -> openai::ResponseOutputItem {
+    prepare_response_output_item(&mut item);
+    openai::ResponseOutputItem::new(openai::ResponseItem::Typed(item))
 }
 
 fn reasoning_item(

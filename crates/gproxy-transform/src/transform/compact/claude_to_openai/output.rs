@@ -3,8 +3,9 @@ use crate::transform::TransformContext;
 
 use super::DEFAULT_REASONING_ID;
 use super::tools::{
-    compact_function_call_output_item, compact_server_tool_use_item,
-    response_mcp_tool_result_content_to_text, server_tool_result_output,
+    compact_apply_patch_result_item, compact_function_call_output_item,
+    compact_server_tool_use_item, compact_shell_result_item, compact_tool_search_result_item,
+    compact_tool_use_item, response_mcp_tool_result_content_to_text, server_tool_result_output,
 };
 use super::util::{claude_usage_to_openai, json_object_to_string};
 
@@ -72,18 +73,7 @@ fn claude_content_to_compact_output(
                 ));
             }
             claude::ContentBlock::ToolUse(block) => {
-                output.push(openai::CompactResponseItem::Typed(crate::protocol::wire!(
-                    openai::TypedResponseItem::FunctionCall {
-                        arguments: json_object_to_string(&block.input),
-                        call_id: block.id.clone(),
-                        name: block.name,
-                        id: Some(block.id),
-                        caller: None,
-                        namespace: None,
-                        status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                        extra: Default::default(),
-                    }
-                )));
+                output.push(compact_tool_use_item(block.id, block.input, block.name));
             }
             claude::ContentBlock::ServerToolUse(block) => {
                 output.push(compact_server_tool_use_item(
@@ -93,16 +83,10 @@ fn claude_content_to_compact_output(
                 ));
             }
             claude::ContentBlock::WebSearchToolResult(block) => {
-                output.push(compact_function_call_output_item(
-                    block.tool_use_id,
-                    server_tool_result_output(&block.content),
-                ));
+                let _ = block;
             }
             claude::ContentBlock::WebFetchToolResult(block) => {
-                output.push(compact_function_call_output_item(
-                    block.tool_use_id,
-                    server_tool_result_output(&block.content),
-                ));
+                let _ = block;
             }
             claude::ContentBlock::AdvisorToolResult(block) => {
                 output.push(compact_function_call_output_item(
@@ -117,21 +101,18 @@ fn claude_content_to_compact_output(
                 ));
             }
             claude::ContentBlock::BashCodeExecutionToolResult(block) => {
-                output.push(compact_function_call_output_item(
-                    block.tool_use_id,
-                    server_tool_result_output(&block.content),
-                ));
+                output.push(compact_shell_result_item(block.tool_use_id, &block.content));
             }
             claude::ContentBlock::TextEditorCodeExecutionToolResult(block) => {
-                output.push(compact_function_call_output_item(
+                output.push(compact_apply_patch_result_item(
                     block.tool_use_id,
-                    server_tool_result_output(&block.content),
+                    &block.content,
                 ));
             }
             claude::ContentBlock::ToolSearchToolResult(block) => {
-                output.push(compact_function_call_output_item(
+                output.push(compact_tool_search_result_item(
                     block.tool_use_id,
-                    server_tool_result_output(&block.content),
+                    &block.content,
                 ));
             }
             claude::ContentBlock::McpToolUse(block) => {

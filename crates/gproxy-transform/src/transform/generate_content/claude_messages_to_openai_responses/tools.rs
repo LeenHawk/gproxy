@@ -27,7 +27,8 @@ pub(super) fn claude_tools_to_responses(
             claude::Tool::Computer(_) => Some(openai::ResponseTool::Computer {
                 extra: Default::default(),
             }),
-            claude::Tool::Command(command) => claude_code_execution_to_response(command),
+            claude::Tool::TextEditor(tool) => Some(claude_text_editor_to_response(tool)),
+            claude::Tool::Command(command) => claude_command_to_response(command),
             claude::Tool::McpToolset(toolset) => Some(openai::ResponseTool::Mcp {
                 server_label: toolset.mcp_server_name,
                 allowed_tools: None,
@@ -45,6 +46,7 @@ pub(super) fn claude_tools_to_responses(
             _ => None,
         })
         .collect::<Vec<_>>();
+    merge_duplicate_web_search_tools(&mut output);
     for server in mcp_servers.into_iter().flatten() {
         let allowed_tools = server
             .tool_configuration
@@ -193,15 +195,55 @@ fn claude_location_to_response(location: claude::UserLocation) -> openai::WebSea
     })
 }
 
-fn claude_code_execution_to_response(command: claude::CommandTool) -> Option<openai::ResponseTool> {
-    let common = match command {
-        claude::CommandTool::CodeExecution20250522(tool) => tool.common,
-        claude::CommandTool::CodeExecution20250825(tool) => tool.common,
-        claude::CommandTool::CodeExecution20260120(tool) => tool.common,
-        claude::CommandTool::CodeExecution20260521(tool) => tool.common,
-        _ => return None,
-    };
-    Some(openai::ResponseTool::CodeInterpreter {
+fn claude_command_to_response(command: claude::CommandTool) -> Option<openai::ResponseTool> {
+    match command {
+        claude::CommandTool::Bash20241022(tool) => Some(response_shell(tool.common)),
+        claude::CommandTool::Bash20250124(tool) => Some(response_shell(tool.common)),
+        claude::CommandTool::CodeExecution20250522(tool) => {
+            Some(response_code_interpreter(tool.common.allowed_callers))
+        }
+        claude::CommandTool::CodeExecution20250825(tool) => {
+            Some(response_code_interpreter(tool.common.allowed_callers))
+        }
+        claude::CommandTool::CodeExecution20260120(tool) => {
+            Some(response_code_interpreter(tool.common.allowed_callers))
+        }
+        claude::CommandTool::CodeExecution20260521(tool) => {
+            Some(response_code_interpreter(tool.common.allowed_callers))
+        }
+        claude::CommandTool::ToolSearchBm25(_) => Some(response_tool_search(
+            openai::ToolSearchExecution::Server,
+            "Search deferred tools using natural-language relevance",
+        )),
+        claude::CommandTool::ToolSearchRegex(_) => Some(response_tool_search(
+            openai::ToolSearchExecution::Client,
+            "Search deferred tools using a regular expression",
+        )),
+        claude::CommandTool::Memory20250818(tool) => Some(openai::ResponseTool::Function {
+            name: "memory".to_owned(),
+            parameters: Default::default(),
+            strict: tool.common.strict,
+            defer_loading: tool.common.defer_loading,
+            description: Some("Read or update persistent agent memory".to_owned()),
+            allowed_callers: claude_callers_to_responses(tool.common.allowed_callers),
+            extra: Default::default(),
+        }),
+        _ => None,
+    }
+}
+
+fn response_shell(common: claude::ToolCommon) -> openai::ResponseTool {
+    openai::ResponseTool::Shell {
+        environment: None,
+        allowed_callers: claude_callers_to_responses(common.allowed_callers),
+        extra: Default::default(),
+    }
+}
+
+fn response_code_interpreter(
+    allowed_callers: Option<Vec<claude::ToolCaller>>,
+) -> openai::ResponseTool {
+    openai::ResponseTool::CodeInterpreter {
         container: openai::CodeInterpreterContainer::Auto(crate::protocol::wire!(
             openai::CodeInterpreterAutoContainer {
                 type_: openai::CodeInterpreterContainerType::Auto,
@@ -211,7 +253,73 @@ fn claude_code_execution_to_response(command: claude::CommandTool) -> Option<ope
                 extra: Default::default(),
             }
         )),
-        allowed_callers: claude_callers_to_responses(common.allowed_callers),
+        allowed_callers: claude_callers_to_responses(allowed_callers),
         extra: Default::default(),
-    })
+    }
+}
+
+fn response_tool_search(
+    execution: openai::ToolSearchExecution,
+    description: &str,
+) -> openai::ResponseTool {
+    openai::ResponseTool::ToolSearch {
+        description: Some(description.to_owned()),
+        execution: Some(execution),
+        parameters: None,
+        extra: Default::default(),
+    }
+}
+
+fn claude_text_editor_to_response(tool: claude::TextEditorTool) -> openai::ResponseTool {
+    let allowed_callers = match tool {
+        claude::TextEditorTool::TextEditor20241022(tool) => tool.common.allowed_callers,
+        claude::TextEditorTool::TextEditor20250124(tool) => tool.common.allowed_callers,
+        claude::TextEditorTool::TextEditor20250429(tool) => tool.common.allowed_callers,
+        claude::TextEditorTool::TextEditor20250728(tool) => tool.common.allowed_callers,
+        _ => None,
+    };
+    openai::ResponseTool::ApplyPatch {
+        allowed_callers: claude_callers_to_responses(allowed_callers),
+        extra: Default::default(),
+    }
+}
+
+fn merge_duplicate_web_search_tools(tools: &mut Vec<openai::ResponseTool>) {
+    let mut first = None;
+    let mut index = 0;
+    while index < tools.len() {
+        if matches!(tools[index], openai::ResponseTool::WebSearch { .. }) {
+            if let Some(first_index) = first {
+                let duplicate = tools.remove(index);
+                merge_web_search_tool(&mut tools[first_index], duplicate);
+                continue;
+            }
+            first = Some(index);
+        }
+        index += 1;
+    }
+}
+
+fn merge_web_search_tool(target: &mut openai::ResponseTool, source: openai::ResponseTool) {
+    let (
+        openai::ResponseTool::WebSearch {
+            filters,
+            user_location,
+            ..
+        },
+        openai::ResponseTool::WebSearch {
+            filters: source_filters,
+            user_location: source_location,
+            ..
+        },
+    ) = (target, source)
+    else {
+        return;
+    };
+    if filters.is_none() {
+        *filters = source_filters;
+    }
+    if user_location.is_none() {
+        *user_location = source_location;
+    }
 }

@@ -44,8 +44,28 @@ pub(super) fn response_tools_to_gemini(
                     ..Default::default()
                 }));
             }
+            openai::ResponseTool::CollectionsSearch {
+                vector_store_ids, ..
+            } => {
+                output.push(crate::protocol::wire!(gemini::Tool {
+                    file_search: Some(crate::protocol::wire!(gemini::FileSearch {
+                        file_search_store_names: vector_store_ids,
+                        metadata_filter: None,
+                        top_k: None,
+                        extra: Default::default(),
+                    })),
+                    ..Default::default()
+                }));
+            }
             openai::ResponseTool::WebSearch { .. }
             | openai::ResponseTool::WebSearch20250826 { .. } => {
+                output.push(crate::protocol::wire!(gemini::Tool {
+                    google_search: Some(gemini::GoogleSearch::default()),
+                    url_context: Some(gemini::UrlContext::default()),
+                    ..Default::default()
+                }))
+            }
+            openai::ResponseTool::XSearch { .. } => {
                 output.push(crate::protocol::wire!(gemini::Tool {
                     google_search: Some(gemini::GoogleSearch::default()),
                     ..Default::default()
