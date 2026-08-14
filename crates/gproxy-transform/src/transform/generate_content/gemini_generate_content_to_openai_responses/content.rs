@@ -1,5 +1,7 @@
 use crate::protocol::{gemini, openai};
 
+use super::super::common;
+
 pub(super) fn gemini_contents_to_response_items(
     contents: Vec<gemini::Content>,
 ) -> Vec<openai::ResponseItem> {
@@ -43,13 +45,14 @@ pub(super) fn gemini_content_to_response_output(
                 let call_id = function_call
                     .id
                     .unwrap_or_else(|| format!("call_{}", function_call.name));
+                let item_id = common::response_function_call_item_id(&call_id);
                 output.push(openai::ResponseOutputItem::new(
                     openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
                         arguments: serde_json::to_string(&function_call.args.unwrap_or_default())
                             .unwrap_or_else(|_| "{}".to_owned()),
                         call_id: call_id.clone(),
                         name: function_call.name,
-                        id: Some(call_id),
+                        id: Some(item_id),
                         caller: None,
                         namespace: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
@@ -103,13 +106,14 @@ fn gemini_content_to_response_items(content: gemini::Content) -> Vec<openai::Res
                 let call_id = function_call
                     .id
                     .unwrap_or_else(|| format!("call_{}", function_call.name));
+                let item_id = common::response_function_call_item_id(&call_id);
                 items.push(openai::ResponseItem::Typed(
                     openai::TypedResponseItem::FunctionCall {
                         arguments: serde_json::to_string(&function_call.args.unwrap_or_default())
                             .unwrap_or_else(|_| "{}".to_owned()),
                         call_id: call_id.clone(),
                         name: function_call.name,
-                        id: Some(call_id),
+                        id: Some(item_id),
                         caller: None,
                         namespace: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),

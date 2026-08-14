@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::protocol::{claude, gemini};
 
 pub(super) fn claude_system_to_gemini(
@@ -21,6 +23,7 @@ pub(super) fn claude_messages_to_gemini_contents(
     messages: Vec<claude::MessageParam>,
 ) -> Vec<gemini::Content> {
     let mut contents = Vec::new();
+    let mut function_names = BTreeMap::new();
     for message in messages {
         match message.content {
             claude::StringOrArray::String(text) => {
@@ -32,6 +35,7 @@ pub(super) fn claude_messages_to_gemini_contents(
                 contents.extend(blocks_to_contents(
                     blocks,
                     message_role_to_gemini(message.role),
+                    &mut function_names,
                 ));
             }
             _ => unreachable!(
@@ -59,6 +63,7 @@ pub(super) fn claude_response_blocks_to_gemini_content(
 fn blocks_to_contents(
     blocks: Vec<claude::ContentBlockParam>,
     role: gemini::ContentRoleKnown,
+    function_names: &mut BTreeMap<String, String>,
 ) -> Vec<gemini::Content> {
     let mut contents = Vec::new();
     let mut current_parts = Vec::new();
@@ -81,7 +86,7 @@ fn blocks_to_contents(
                 }
             }
             block => {
-                if let Some(part) = request_block_to_part(block) {
+                if let Some(part) = request_block_to_part(block, function_names) {
                     current_parts.push(part);
                 }
             }
@@ -107,7 +112,10 @@ fn flush_parts(
     }));
 }
 
-fn request_block_to_part(block: claude::ContentBlockParam) -> Option<gemini::Part> {
+fn request_block_to_part(
+    block: claude::ContentBlockParam,
+    function_names: &mut BTreeMap<String, String>,
+) -> Option<gemini::Part> {
     match block {
         claude::ContentBlockParam::Text(block) => Some(text_part(block.text)),
         claude::ContentBlockParam::Thinking(block) => Some(crate::protocol::wire!(gemini::Part {
@@ -121,6 +129,7 @@ fn request_block_to_part(block: claude::ContentBlockParam) -> Option<gemini::Par
         claude::ContentBlockParam::Image(block) => image_source_to_part(block.source),
         claude::ContentBlockParam::Document(block) => document_source_to_part(block.source),
         claude::ContentBlockParam::ToolUse(mut block) => {
+            function_names.insert(block.id.clone(), block.name.clone());
             Some(crate::protocol::wire!(gemini::Part {
                 thought_signature: take_thought_signature(&mut block.caller),
                 data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
@@ -134,14 +143,20 @@ fn request_block_to_part(block: claude::ContentBlockParam) -> Option<gemini::Par
                 ..Default::default()
             }))
         }
-        claude::ContentBlockParam::ToolResult(block) => Some(tool_result_part(
-            Some(block.tool_use_id.clone()),
-            block.tool_use_id,
-            block
-                .content
-                .map(tool_result_content_to_text)
-                .unwrap_or_default(),
-        )),
+        claude::ContentBlockParam::ToolResult(block) => {
+            let name = function_names
+                .get(&block.tool_use_id)
+                .cloned()
+                .unwrap_or_else(|| block.tool_use_id.clone());
+            Some(tool_result_part(
+                Some(block.tool_use_id),
+                name,
+                block
+                    .content
+                    .map(tool_result_content_to_text)
+                    .unwrap_or_default(),
+            ))
+        }
         _ => None,
     }
 }
