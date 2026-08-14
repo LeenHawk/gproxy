@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-channel-api"
-version = "2.6.3"
+version = "2.6.4"
 edition = "2024"
 authors = ["LeenHawk <leenhawk@leenhawk.com>"]
 license = "MIT"
@@ -22,8 +22,8 @@ async-trait = "0.1"
 bytes = "1"
 futures-core = "0.3"
 futures-util = "0.3"
-gproxy-protocol = { path = "../gproxy-protocol", version = "=2.6.3" }
-gproxy-transform = { path = "../gproxy-transform", version = "=2.6.3" }
+gproxy-protocol = { path = "../gproxy-protocol", version = "=2.6.4" }
+gproxy-transform = { path = "../gproxy-transform", version = "=2.6.4" }
 http = "1"
 httpdate = "1"
 linkme = { version = "0.3", optional = true }
