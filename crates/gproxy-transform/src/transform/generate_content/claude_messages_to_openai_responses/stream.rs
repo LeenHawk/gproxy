@@ -23,6 +23,7 @@ pub struct StreamTransform {
     reasoning_text: BTreeMap<u32, String>,
     buffered_tools: BTreeMap<u32, BufferedTool>,
     service_tier: Option<openai::ServiceTier>,
+    terminal_emitted: bool,
 }
 
 struct BufferedTool {
@@ -87,10 +88,12 @@ impl StreamTransform {
                     self.service_tier = Some(tier);
                 }
                 let usage = usage.map(|usage| claude_usage_to_response(*usage));
-                let (status, incomplete_details) = delta
-                    .stop_reason
+                let stop_reason = delta.stop_reason;
+                let terminal = stop_reason.is_some();
+                let (status, incomplete_details) = stop_reason
                     .map(response_status_from_claude_stop)
                     .unwrap_or((openai::ResponseStatus::InProgress, None));
+                self.terminal_emitted |= terminal;
                 vec![response_lifecycle_event(
                     "claude_msg".to_owned(),
                     common::default_openai_model(),
@@ -100,14 +103,21 @@ impl StreamTransform {
                     incomplete_details,
                 )]
             }
-            claude::KnownStreamEvent::MessageStop { .. } => vec![response_lifecycle_event(
-                "claude_msg".to_owned(),
-                common::default_openai_model(),
-                None,
-                self.service_tier.clone(),
-                openai::ResponseStatus::Completed,
-                None,
-            )],
+            claude::KnownStreamEvent::MessageStop { .. } => {
+                if self.terminal_emitted {
+                    Vec::new()
+                } else {
+                    self.terminal_emitted = true;
+                    vec![response_lifecycle_event(
+                        "claude_msg".to_owned(),
+                        common::default_openai_model(),
+                        None,
+                        self.service_tier.clone(),
+                        openai::ResponseStatus::Completed,
+                        None,
+                    )]
+                }
+            }
             claude::KnownStreamEvent::Error { error, .. } => {
                 vec![known(openai::KnownResponseStreamEvent::Error {
                     code: error.type_,
@@ -651,6 +661,56 @@ mod tests {
             &item.0,
             openai::ResponseItem::Typed(openai::TypedResponseItem::ShellCall { .. })
         ));
+    }
+
+    #[test]
+    fn message_stop_does_not_duplicate_terminal_from_message_delta() {
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+        let mut transform = StreamTransform::default();
+        let terminal = transform
+            .push(
+                known_claude(claude::KnownStreamEvent::MessageDelta {
+                    delta: Box::new(crate::protocol::wire!(claude::MessageDelta {
+                        container: None,
+                        stop_reason: Some(claude::StopReason::Known(
+                            claude::StopReasonKnown::ToolUse,
+                        )),
+                        stop_sequence: None,
+                        stop_details: None,
+                        extra: Default::default(),
+                    })),
+                    usage: None,
+                    context_management: None,
+                    extra: Default::default(),
+                }),
+                &ctx,
+            )
+            .unwrap();
+        assert!(matches!(
+            terminal.as_slice(),
+            [openai::ResponseStreamEvent::Known(
+                openai::KnownResponseStreamEvent::ResponseCompleted { .. }
+            )]
+        ));
+
+        let stop = transform
+            .push(
+                known_claude(claude::KnownStreamEvent::MessageStop {
+                    extra: Default::default(),
+                }),
+                &ctx,
+            )
+            .unwrap();
+        assert!(stop.is_empty());
     }
 
     fn known_claude(event: claude::KnownStreamEvent) -> claude::StreamEvent {
