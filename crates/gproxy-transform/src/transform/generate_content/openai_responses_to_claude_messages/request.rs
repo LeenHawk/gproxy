@@ -215,6 +215,27 @@ mod tests {
     }
 
     #[test]
+    fn reports_web_search_expansion_into_two_claude_tools() {
+        let input = crate::protocol::wire!(openai::ResponseCreateRequest {
+            model: Some(openai::OpenAiModelId::Unknown("test-model".to_owned())),
+            tools: Some(vec![openai::ResponseTool::WebSearch {
+                filters: None,
+                search_context_size: None,
+                user_location: None,
+                extra: Default::default(),
+            }]),
+            ..Default::default()
+        });
+        let ctx = ctx();
+
+        let output = ctx.scope(|| request(input, &ctx)).unwrap();
+        assert_eq!(output.tools.as_ref().map(Vec::len), Some(2));
+        assert!(ctx.diagnostics().iter().any(|diagnostic| {
+            diagnostic.field == "tools[].web_search" && diagnostic.reason.contains("expanded")
+        }));
+    }
+
+    #[test]
     fn maps_encrypted_reasoning_directly_to_claude_thinking() {
         let input: openai::ResponseCreateRequest = serde_json::from_value(json!({
             "model": "claude-sonnet-4-6",

@@ -60,6 +60,10 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
                 user_location,
                 ..
             } => {
+                crate::transform::context::report_lossy(
+                    "tools[].web_search",
+                    "one OpenAI web_search tool is expanded into Claude WebSearch and WebFetch definitions",
+                );
                 web_search = true;
                 output.push(web_search_tool(
                     filters.and_then(|filters| filters.allowed_domains),
@@ -69,6 +73,10 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
             }
             openai::ResponseTool::WebSearchPreview { user_location, .. }
             | openai::ResponseTool::WebSearchPreview20250311 { user_location, .. } => {
+                crate::transform::context::report_lossy(
+                    "tools[].web_search_preview",
+                    "one OpenAI web_search preview tool is expanded into Claude WebSearch and WebFetch definitions",
+                );
                 web_search = true;
                 output.push(web_search_tool(
                     None,

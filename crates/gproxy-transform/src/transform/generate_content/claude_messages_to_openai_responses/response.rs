@@ -73,6 +73,16 @@ fn claude_content_to_openai_output(
         match block {
             claude::ContentBlock::Text(block) => {
                 text.push(block.text.clone());
+                if block
+                    .citations
+                    .as_ref()
+                    .is_some_and(|values| !values.is_empty())
+                {
+                    crate::transform::context::report_unsupported(
+                        "content[].text.citations",
+                        "Claude citations identify source spans, while OpenAI output annotations require response-text spans",
+                    );
+                }
                 message_parts.push(openai::ResponseMessageOutputContentPart::OutputText {
                     annotations: Vec::new(),
                     logprobs: None,
@@ -101,6 +111,12 @@ fn claude_content_to_openai_output(
             claude::ContentBlock::ToolSearchToolResult(block) => output.push(typed_output_item(
                 tool_search_result(block.tool_use_id, &block.content),
             )),
+            claude::ContentBlock::WebSearchToolResult(block) => {
+                apply_web_search_result(&mut output, block)
+            }
+            claude::ContentBlock::WebFetchToolResult(block) => {
+                apply_web_fetch_result(&mut output, block)
+            }
             _ => {}
         }
     }
@@ -122,6 +138,140 @@ fn claude_content_to_openai_output(
     }
     let output_text = (!text.is_empty()).then(|| text.join(""));
     (output, output_text)
+}
+
+fn apply_web_search_result(
+    output: &mut [openai::ResponseOutputItem],
+    block: claude::ResponseWebSearchToolResultBlock,
+) {
+    let Some(item) = find_web_search_call(output, &block.tool_use_id) else {
+        crate::transform::context::report_unsupported(
+            "content[].web_search_tool_result",
+            "OpenAI Responses cannot represent a detached web search result without its matching call",
+        );
+        return;
+    };
+    apply_web_search_result_to_item(item, block.content);
+}
+
+pub(super) fn apply_web_search_result_to_item(
+    item: &mut openai::TypedResponseItem,
+    content: claude::ResponseWebSearchToolResultContent,
+) {
+    let openai::TypedResponseItem::WebSearchCall { action, status, .. } = item else {
+        return;
+    };
+    match content {
+        claude::ResponseWebSearchToolResultContent::Results(results) => {
+            *status = openai::ResponseWebSearchCallStatus::Completed;
+            let sources = results
+                .iter()
+                .map(|result| {
+                    crate::protocol::wire!(openai::WebSearchSource {
+                        type_: openai::WebSearchSourceType::Url,
+                        url: result.url.clone(),
+                        extra: Default::default(),
+                    })
+                })
+                .collect();
+            if let openai::WebSearchAction::Search {
+                sources: target, ..
+            } = action
+            {
+                *target = Some(sources);
+            } else {
+                crate::transform::context::report_lossy(
+                    "content[].web_search_tool_result",
+                    "web search result URLs could not be attached to a non-search OpenAI action",
+                );
+            }
+            if !results.is_empty() {
+                crate::transform::context::report_lossy(
+                    "content[].web_search_tool_result.content[]",
+                    "OpenAI web search sources preserve URLs but not Claude titles, page ages, or encrypted content",
+                );
+            }
+        }
+        claude::ResponseWebSearchToolResultContent::Error(_) => {
+            *status = openai::ResponseWebSearchCallStatus::Failed;
+            crate::transform::context::report_unsupported(
+                "content[].web_search_tool_result.error",
+                "OpenAI web_search_call can preserve failed status but has no field for the Claude error code",
+            );
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
+    }
+}
+
+fn apply_web_fetch_result(
+    output: &mut [openai::ResponseOutputItem],
+    block: claude::ResponseWebFetchToolResultBlock,
+) {
+    let Some(item) = find_web_search_call(output, &block.tool_use_id) else {
+        crate::transform::context::report_unsupported(
+            "content[].web_fetch_tool_result",
+            "OpenAI Responses cannot represent a detached web fetch result without its matching call",
+        );
+        return;
+    };
+    apply_web_fetch_result_to_item(item, block.content);
+}
+
+pub(super) fn apply_web_fetch_result_to_item(
+    item: &mut openai::TypedResponseItem,
+    content: claude::ResponseWebFetchToolResultContent,
+) {
+    let openai::TypedResponseItem::WebSearchCall { action, status, .. } = item else {
+        return;
+    };
+    match content {
+        claude::ResponseWebFetchToolResultContent::Result(result) => {
+            *status = openai::ResponseWebSearchCallStatus::Completed;
+            if let openai::WebSearchAction::OpenPage { url } = action {
+                *url = Some(result.url);
+            } else {
+                crate::transform::context::report_lossy(
+                    "content[].web_fetch_tool_result",
+                    "fetched URL could not be attached to a non-open_page OpenAI action",
+                );
+            }
+            crate::transform::context::report_unsupported(
+                "content[].web_fetch_tool_result.content",
+                "OpenAI open_page preserves the fetched URL but has no field for fetched document content, title, citations, or retrieval time",
+            );
+        }
+        claude::ResponseWebFetchToolResultContent::Error(_) => {
+            *status = openai::ResponseWebSearchCallStatus::Failed;
+            crate::transform::context::report_unsupported(
+                "content[].web_fetch_tool_result.error",
+                "OpenAI web_search_call can preserve failed status but has no field for the Claude fetch error code",
+            );
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
+    }
+}
+
+fn find_web_search_call<'a>(
+    output: &'a mut [openai::ResponseOutputItem],
+    id: &str,
+) -> Option<&'a mut openai::TypedResponseItem> {
+    let output_item = output.iter_mut().find(|item| {
+        matches!(
+            &item.0,
+            openai::ResponseItem::Typed(openai::TypedResponseItem::WebSearchCall {
+                id: item_id,
+                ..
+            }) if item_id == id
+        )
+    })?;
+    match &mut output_item.0 {
+        openai::ResponseItem::Typed(item) => Some(item),
+        _ => None,
+    }
 }
 
 fn typed_output_item(mut item: openai::TypedResponseItem) -> openai::ResponseOutputItem {
@@ -175,5 +325,108 @@ fn response_status(
             })),
         ),
         _ => (openai::ResponseStatus::Completed, None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    fn ctx() -> TransformContext {
+        TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        )
+    }
+
+    #[test]
+    fn attaches_claude_web_search_results_to_the_matching_call() {
+        let input = serde_json::from_value(json!({
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "server_tool_use",
+                    "id": "srv_search",
+                    "name": "web_search",
+                    "input": {"query": "gproxy"}
+                },
+                {
+                    "type": "web_search_tool_result",
+                    "tool_use_id": "srv_search",
+                    "content": [{
+                        "type": "web_search_result",
+                        "url": "https://example.com/result",
+                        "title": "Result",
+                        "encrypted_content": "ciphertext",
+                        "page_age": "today"
+                    }]
+                },
+                {
+                    "type": "server_tool_use",
+                    "id": "srv_fetch",
+                    "name": "web_fetch",
+                    "input": {"url": "https://example.com/page"}
+                },
+                {
+                    "type": "web_fetch_tool_result",
+                    "tool_use_id": "srv_fetch",
+                    "content": {
+                        "type": "web_fetch_result",
+                        "url": "https://example.com/page",
+                        "retrieved_at": "2026-08-15T00:00:00Z",
+                        "content": {
+                            "type": "document",
+                            "title": "Page",
+                            "citations": {"enabled": true},
+                            "source": {
+                                "type": "text",
+                                "media_type": "text/plain",
+                                "data": "page body"
+                            }
+                        }
+                    }
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {"input_tokens": 1, "output_tokens": 1}
+        }))
+        .unwrap();
+        let ctx = ctx();
+
+        let output = ctx.scope(|| response(input, &ctx)).unwrap();
+        let value = serde_json::to_value(output).unwrap();
+        assert_eq!(value["output"][0]["type"], "web_search_call");
+        assert_eq!(value["output"][0]["status"], "completed");
+        assert_eq!(
+            value["output"][0]["action"]["sources"][0]["url"],
+            "https://example.com/result"
+        );
+        assert_eq!(value["output"][1]["type"], "web_search_call");
+        assert_eq!(value["output"][1]["action"]["type"], "open_page");
+        assert_eq!(
+            value["output"][1]["action"]["url"],
+            "https://example.com/page"
+        );
+        assert!(ctx.diagnostics().iter().any(|diagnostic| {
+            diagnostic.field == "content[].web_search_tool_result.content[]"
+        }));
+        assert!(
+            ctx.diagnostics().iter().any(|diagnostic| {
+                diagnostic.field == "content[].web_fetch_tool_result.content"
+            })
+        );
     }
 }
