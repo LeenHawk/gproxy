@@ -186,6 +186,7 @@ channels-edge = [
     "channel-groq",
     "channel-kiro",
     "channel-kimiapi",
+    "channel-kimicode",
     "channel-nvidia",
     "channel-openai",
     "channel-opencodego",
@@ -216,6 +217,7 @@ channel-grokbuild = []
 channel-groq = []
 channel-kiro = []
 channel-kimiapi = []
+channel-kimicode = []
 channel-nvidia = []
 channel-openai = []
 channel-opencodego = []

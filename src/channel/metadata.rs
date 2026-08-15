@@ -76,6 +76,19 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 placeholder: Some("https://api.x.ai/v1".into()),
             }];
         }
+        "kimicode" => {
+            oauth(&mut metadata, &[LoginMode::Device], true);
+            metadata.secret_template =
+                json!({ "access_token": "", "refresh_token": "", "device_id": "" });
+            metadata.settings_fields = vec![ChannelSettingField {
+                key: "oauth_host".into(),
+                control: SettingControl::Url,
+                label: Some("Kimi OAuth URL".into()),
+                required: false,
+                default: Some(json!("https://auth.kimi.com")),
+                placeholder: Some("https://auth.kimi.com".into()),
+            }];
+        }
         "workbuddy" => {
             oauth(&mut metadata, &[LoginMode::Device], true);
             metadata.secret_template = json!({
@@ -163,6 +176,7 @@ fn display_name(id: &str) -> &str {
         "grokbuild" => "Grok Build",
         "kiro" => "Kiro",
         "kimiapi" => "Kimi API",
+        "kimicode" => "Kimi Code",
         "nvidia" => "NVIDIA",
         "openai" => "OpenAI",
         "opencodego" => "OpenCode Go",
@@ -280,6 +294,16 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_responses",
         ],
         "kimiapi" => &["openai_list_models", "openai_chat_completions"],
+        "kimicode" => &[
+            "openai_list_models",
+            "openai_chat_completions",
+            "openai_responses",
+            "claude_messages",
+            "gemini_generate_content",
+            "gemini_stream_generate_content",
+            "openai_compact",
+            "usage",
+        ],
         "nvidia" => &[
             "openai_list_models",
             "openai_get_model",

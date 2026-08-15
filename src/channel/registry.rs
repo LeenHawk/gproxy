@@ -24,7 +24,8 @@ pub enum ChannelRegistryError {
 ///
 /// `login` is a parallel map holding the channels that support a §14.5
 /// interactive login (authcode: codex, claudecode, geminicli, antigravity,
-/// kiro; device-code: grokbuild, copilotcli, cline, opencodezen, opencodego;
+/// kiro; device-code: grokbuild, kimicode, copilotcli, cline, opencodezen,
+/// opencodego;
 /// cookie: claudecode, claudeweb); a channel absent from it has no login flow.
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
@@ -158,6 +159,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(crate::channel::bulletins::groq::GroqChannel),
         #[cfg(feature = "channel-kimiapi")]
         Arc::new(crate::channel::bulletins::kimiapi::KimiApiChannel),
+        #[cfg(feature = "channel-kimicode")]
+        Arc::new(crate::channel::bulletins::kimicode::KimiCodeChannel),
         #[cfg(feature = "channel-nvidia")]
         Arc::new(crate::channel::bulletins::nvidia::NvidiaChannel),
         #[cfg(feature = "channel-xai")]
@@ -230,6 +233,11 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
         (
             "grokbuild",
             Arc::new(crate::channel::bulletins::grokbuild::GrokBuildChannel),
+        ),
+        #[cfg(feature = "channel-kimicode")]
+        (
+            "kimicode",
+            Arc::new(crate::channel::bulletins::kimicode::KimiCodeChannel),
         ),
         #[cfg(feature = "channel-kiro")]
         (

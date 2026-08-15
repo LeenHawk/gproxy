@@ -13,6 +13,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   deepseek: "https://api.deepseek.com",
   groq: "https://api.groq.com/openai",
   kimiapi: "https://api.moonshot.cn",
+  kimicode: "https://api.kimi.com/coding/v1",
   nvidia: "https://integrate.api.nvidia.com",
   xai: "https://api.x.ai",
   vercel: "https://ai-gateway.vercel.sh",
@@ -55,6 +56,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   kimiapi: ["openai_list_models", "openai_chat_completions"],
+  kimicode: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content", "openai_compact", "usage"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
   xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_audio_speech", "openai_audio_transcriptions", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],
   opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
@@ -132,6 +134,15 @@ const GROKBUILD_SETTINGS: ChannelSettingField[] = [{
   placeholder: "https://api.x.ai/v1",
 }];
 
+const KIMICODE_SETTINGS: ChannelSettingField[] = [{
+  key: "oauth_host",
+  control: "url",
+  label: "Kimi OAuth URL",
+  required: false,
+  default: "https://auth.kimi.com",
+  placeholder: "https://auth.kimi.com",
+}];
+
 const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -141,7 +152,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   "cloudflare-ai-gateway": "Cloudflare AI Gateway",
   dashscope: "Alibaba Qwen",
   codex: "OpenAI Codex", copilotcli: "GitHub Copilot CLI", custom: "Custom", deepseek: "DeepSeek",
-  geminicli: "Gemini CLI", groq: "Groq", grokbuild: "Grok Build", kiro: "Kiro", kimiapi: "Kimi API",
+  geminicli: "Gemini CLI", groq: "Groq", grokbuild: "Grok Build", kiro: "Kiro", kimiapi: "Kimi API", kimicode: "Kimi Code",
   nvidia: "NVIDIA", openai: "OpenAI", opencodezen: "OpenCode Zen",
   opencodego: "OpenCode Go", openrouter: "OpenRouter", vercel: "Vercel AI Gateway",
   vertex: "Google Vertex AI", vertexexpress: "Vertex AI Express",
@@ -206,6 +217,10 @@ export const CHANNELS: ChannelMeta[] = [
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
   }),
   oauthMeta("grokbuild", ["device"], { settingsFields: GROKBUILD_SETTINGS }),
+  oauthMeta("kimicode", ["device"], {
+    settingsFields: KIMICODE_SETTINGS,
+    secretTemplate: { ...OAUTH_TOKENS, device_id: "" },
+  }),
   oauthMeta("workbuddy", ["device"], {
     secretTemplate: {
       ...OAUTH_TOKENS,
