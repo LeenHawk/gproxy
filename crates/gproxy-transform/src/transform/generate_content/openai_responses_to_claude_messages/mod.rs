@@ -3,6 +3,7 @@
 mod request;
 mod response;
 mod stream;
+mod tool_builders;
 mod tools;
 mod usage;
 

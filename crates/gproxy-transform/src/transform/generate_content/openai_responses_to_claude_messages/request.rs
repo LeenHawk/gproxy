@@ -151,6 +151,7 @@ mod tests {
             model: Some(openai::OpenAiModelId::Unknown("test-model".to_owned())),
             tools: Some(vec![openai::ResponseTool::ApplyPatch {
                 allowed_callers: None,
+                max_characters: None,
                 extra: Default::default(),
             }]),
             input: Some(openai::ResponseInput::Items(vec![
@@ -220,6 +221,7 @@ mod tests {
             model: Some(openai::OpenAiModelId::Unknown("test-model".to_owned())),
             tools: Some(vec![openai::ResponseTool::WebSearch {
                 filters: None,
+                max_uses: None,
                 search_context_size: None,
                 user_location: None,
                 extra: Default::default(),

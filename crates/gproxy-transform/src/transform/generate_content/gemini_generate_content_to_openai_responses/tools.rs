@@ -49,6 +49,7 @@ pub(super) fn gemini_tools_to_responses(
         if (tool.url_context.is_some() || tool.google_maps.is_some()) && !has_web_search {
             output.push(openai::ResponseTool::WebSearch {
                 filters: None,
+                max_uses: None,
                 search_context_size: None,
                 user_location: None,
                 extra: Default::default(),

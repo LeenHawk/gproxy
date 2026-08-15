@@ -29,6 +29,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
             claude::Tool::WebFetch(_) => {
                 output.push(crate::protocol::wire!(openai::ResponseTool::WebSearch {
                     filters: None,
+                    max_uses: None,
                     search_context_size: None,
                     user_location: None,
                     extra: Default::default(),

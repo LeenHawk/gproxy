@@ -25,6 +25,12 @@ pub struct Model {
     // fail on the missing field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created: Option<u64>,
+    // gproxy extension: token limits surfaced from providers that report them
+    // (Claude, Gemini). The official OpenAI model object has no such fields.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_input_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<u64>,
     pub object: ModelObjectType,
     pub owned_by: String,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]

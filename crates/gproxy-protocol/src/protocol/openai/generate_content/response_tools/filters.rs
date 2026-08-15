@@ -132,6 +132,10 @@ pub enum ComputerUseEnvironment {
 pub struct WebSearchFilters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
+    // gproxy extension: forwarded to Claude web_search `blocked_domains`; real
+    // OpenAI upstreams only accept `allowed_domains`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_domains: Option<Vec<String>>,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: Extra,
 }

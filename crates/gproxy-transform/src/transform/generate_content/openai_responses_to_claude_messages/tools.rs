@@ -1,6 +1,6 @@
-use serde_json::Value;
-
 use crate::protocol::{claude, openai};
+
+use super::tool_builders::*;
 
 pub(super) struct ClaudeTools {
     pub tools: Option<Vec<claude::Tool>>,
@@ -9,11 +9,17 @@ pub(super) struct ClaudeTools {
 }
 
 pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>) -> ClaudeTools {
+    let tools: Vec<openai::ResponseTool> = tools.into_iter().flatten().collect();
+    // An explicit web_fetch definition wins over the implicit expansion from
+    // web_search; Claude rejects duplicate tool names.
+    let explicit_web_fetch = tools
+        .iter()
+        .any(|tool| matches!(tool, openai::ResponseTool::WebFetch { .. }));
     let mut output = Vec::new();
     let mut mcp_servers = Vec::new();
     let mut web_search = false;
     let mut programmatic_tool_calling = false;
-    for tool in tools.into_iter().flatten() {
+    for tool in tools {
         match tool {
             openai::ResponseTool::Function {
                 name,
@@ -52,41 +58,66 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
             }
             openai::ResponseTool::WebSearch {
                 filters,
+                max_uses,
                 user_location,
                 ..
             }
             | openai::ResponseTool::WebSearch20250826 {
                 filters,
+                max_uses,
                 user_location,
                 ..
             } => {
-                crate::transform::context::report_lossy(
-                    "tools[].web_search",
-                    "one OpenAI web_search tool is expanded into Claude WebSearch and WebFetch definitions",
-                );
                 web_search = true;
+                let (allowed_domains, blocked_domains) = filters
+                    .map(|filters| (filters.allowed_domains, filters.blocked_domains))
+                    .unwrap_or_default();
                 output.push(web_search_tool(
-                    filters.and_then(|filters| filters.allowed_domains),
+                    allowed_domains,
+                    blocked_domains,
+                    max_uses,
                     user_location.map(response_location_to_claude),
                 ));
-                output.push(web_fetch_tool());
+                if !explicit_web_fetch {
+                    crate::transform::context::report_lossy(
+                        "tools[].web_search",
+                        "one OpenAI web_search tool is expanded into Claude WebSearch and WebFetch definitions",
+                    );
+                    output.push(web_fetch_tool(None, None, None, None));
+                }
             }
             openai::ResponseTool::WebSearchPreview { user_location, .. }
             | openai::ResponseTool::WebSearchPreview20250311 { user_location, .. } => {
-                crate::transform::context::report_lossy(
-                    "tools[].web_search_preview",
-                    "one OpenAI web_search preview tool is expanded into Claude WebSearch and WebFetch definitions",
-                );
                 web_search = true;
                 output.push(web_search_tool(
                     None,
+                    None,
+                    None,
                     user_location.map(preview_location_to_claude),
                 ));
-                output.push(web_fetch_tool());
+                if !explicit_web_fetch {
+                    crate::transform::context::report_lossy(
+                        "tools[].web_search_preview",
+                        "one OpenAI web_search preview tool is expanded into Claude WebSearch and WebFetch definitions",
+                    );
+                    output.push(web_fetch_tool(None, None, None, None));
+                }
             }
+            openai::ResponseTool::WebFetch {
+                allowed_domains,
+                blocked_domains,
+                max_content_tokens,
+                max_uses,
+                ..
+            } => output.push(web_fetch_tool(
+                allowed_domains,
+                blocked_domains,
+                max_content_tokens,
+                max_uses,
+            )),
             openai::ResponseTool::XSearch { .. } => {
                 web_search = true;
-                output.push(web_search_tool(None, None));
+                output.push(web_search_tool(None, None, None, None));
             }
             openai::ResponseTool::CodeInterpreter { .. }
             | openai::ResponseTool::CodeExecution { .. } => {
@@ -102,10 +133,14 @@ pub(super) fn response_tools_to_claude(tools: Option<Vec<openai::ResponseTool>>)
                 allowed_callers, ..
             } => output.push(bash_tool(response_callers_to_claude(allowed_callers))),
             openai::ResponseTool::ApplyPatch {
-                allowed_callers, ..
-            } => output.push(text_editor_tool(response_callers_to_claude(
                 allowed_callers,
-            ))),
+                max_characters,
+                ..
+            } => output.push(text_editor_tool(
+                response_callers_to_claude(allowed_callers),
+                max_characters,
+            )),
+            openai::ResponseTool::Memory { .. } => output.push(memory_tool()),
             openai::ResponseTool::ToolSearch { execution, .. } => {
                 output.push(tool_search_tool(execution))
             }
@@ -258,229 +293,50 @@ fn namespace_tool_to_claude(tool: openai::ResponseNamespaceTool) -> Option<claud
     }
 }
 
-fn custom_tool(
-    name: String,
-    description: Option<String>,
-    parameters: openai::JsonSchema,
-    strict: Option<bool>,
-    defer_loading: Option<bool>,
-    allowed_callers: Option<Vec<claude::ToolCaller>>,
-) -> claude::Tool {
-    claude::Tool::Custom(crate::protocol::wire!(claude::CustomTool {
-        input_schema: claude_schema(parameters),
-        name,
-        type_: Some(claude::CustomToolType::Custom),
-        description,
-        eager_input_streaming: None,
-        common: crate::protocol::wire!(claude::ToolCommon {
-            strict,
-            defer_loading,
-            allowed_callers,
-            ..Default::default()
-        }),
-    }))
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn json_object(value: Value) -> Option<openai::JsonSchema> {
-    match value {
-        Value::Object(map) => Some(map.into_iter().collect()),
-        _ => None,
-    }
-}
-
-fn claude_schema(schema: openai::JsonSchema) -> claude::JsonSchema {
-    serde_json::from_value(Value::Object(schema.into_iter().collect())).unwrap_or_else(|_| {
-        crate::protocol::wire!(claude::JsonSchema {
-            type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object,),
-            properties: Default::default(),
-            required: Vec::new(),
-            extra: Default::default(),
-        })
-    })
-}
-
-fn response_callers_to_claude(
-    callers: Option<Vec<openai::ToolCaller>>,
-) -> Option<Vec<claude::ToolCaller>> {
-    let callers = callers?
-        .into_iter()
-        .map(|caller| match caller {
-            openai::ToolCaller::Direct => claude::ToolCaller::Direct,
-            openai::ToolCaller::Programmatic => claude::ToolCaller::CodeExecution20260120,
-            _ => unreachable!(
-                "new non-exhaustive protocol variant requires a lockstep transform update"
-            ),
-        })
-        .collect::<Vec<_>>();
-    (!callers.is_empty()).then_some(callers)
-}
-
-fn mcp_allowed_tools_to_claude(
-    allowed_tools: openai::McpAllowedTools,
-) -> Option<claude::McpToolConfiguration> {
-    let names = match allowed_tools {
-        openai::McpAllowedTools::Names(names) => names,
-        openai::McpAllowedTools::Filter(filter) => filter.tool_names?,
-        _ => {
-            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
-        }
-    };
-    Some(crate::protocol::wire!(claude::McpToolConfiguration {
-        allowed_tools: Some(names),
-        enabled: None,
-        extra: Default::default(),
-    }))
-}
-
-fn default_code_execution_tool() -> claude::Tool {
-    claude::Tool::Command(claude::CommandTool::CodeExecution20260120(
-        crate::protocol::wire!(claude::CodeExecutionTool20260120 {
-            name: claude::CodeExecutionToolName::CodeExecution,
-            type_: claude::CodeExecutionTool20260120Type::CodeExecution20260120,
-            common: Default::default(),
-        }),
-    ))
-}
-
-fn bash_tool(allowed_callers: Option<Vec<claude::ToolCaller>>) -> claude::Tool {
-    claude::Tool::Command(claude::CommandTool::Bash20250124(crate::protocol::wire!(
-        claude::BashTool20250124 {
-            name: claude::BashToolName::Bash,
-            type_: claude::BashTool20250124Type::Bash20250124,
-            common: crate::protocol::wire!(claude::ToolCommon {
-                allowed_callers,
-                ..Default::default()
-            }),
-        }
-    )))
-}
-
-fn text_editor_tool(allowed_callers: Option<Vec<claude::ToolCaller>>) -> claude::Tool {
-    claude::Tool::TextEditor(claude::TextEditorTool::TextEditor20250728(
-        crate::protocol::wire!(claude::TextEditorTool20250728 {
-            name: claude::StrReplaceBasedEditToolName::StrReplaceBasedEditTool,
-            type_: claude::TextEditorTool20250728Type::TextEditor20250728,
-            max_characters: None,
-            common: crate::protocol::wire!(claude::ToolCommon {
-                allowed_callers,
-                ..Default::default()
-            }),
-        }),
-    ))
-}
-
-fn tool_search_tool(execution: Option<openai::ToolSearchExecution>) -> claude::Tool {
-    let common = claude::ToolCommonWithoutInputExamples::default();
-    if matches!(execution, Some(openai::ToolSearchExecution::Client)) {
-        claude::Tool::Command(claude::CommandTool::ToolSearchRegex(
-            crate::protocol::wire!(claude::ToolSearchRegexTool {
-                name: claude::ToolSearchRegexToolName::ToolSearchRegex,
-                type_: claude::ToolSearchRegexToolType::ToolSearchRegex,
-                common,
-            }),
-        ))
-    } else {
-        claude::Tool::Command(claude::CommandTool::ToolSearchBm25(crate::protocol::wire!(
-            claude::ToolSearchBm25Tool {
-                name: claude::ToolSearchBm25ToolName::ToolSearchBm25,
-                type_: claude::ToolSearchBm25ToolType::ToolSearchBm25,
-                common,
-            }
-        )))
-    }
-}
-
-fn computer_tool(display_width: u32, display_height: u32) -> claude::Tool {
-    claude::Tool::Computer(claude::ComputerTool::Computer20250124(
-        crate::protocol::wire!(claude::ComputerTool20250124 {
-            display_height_px: u64::from(display_height),
-            display_width_px: u64::from(display_width),
-            name: claude::ComputerToolName::Computer,
-            type_: claude::ComputerTool20250124Type::Computer20250124,
-            display_number: None,
-            common: Default::default(),
-        }),
-    ))
-}
-
-fn tool_activates_programmatic_calling(tool: &claude::Tool) -> bool {
-    match tool {
-        claude::Tool::Command(claude::CommandTool::CodeExecution20260120(_)) => true,
-        claude::Tool::Command(claude::CommandTool::Bash20250124(tool)) => tool
-            .common
-            .allowed_callers
-            .as_ref()
-            .is_some_and(|callers| !callers.is_empty()),
-        claude::Tool::TextEditor(claude::TextEditorTool::TextEditor20250728(tool)) => tool
-            .common
-            .allowed_callers
-            .as_ref()
-            .is_some_and(|callers| !callers.is_empty()),
-        claude::Tool::Custom(custom) => custom
-            .common
-            .allowed_callers
-            .as_ref()
-            .is_some_and(|callers| !callers.is_empty()),
-        _ => false,
-    }
-}
-
-fn web_search_tool(
-    allowed_domains: Option<Vec<String>>,
-    user_location: Option<claude::UserLocation>,
-) -> claude::Tool {
-    claude::Tool::WebSearch(claude::WebSearchTool::WebSearch20260209(
-        crate::protocol::wire!(claude::WebSearchTool20260209 {
-            name: claude::WebSearchToolName::WebSearch,
-            type_: claude::WebSearchTool20260209Type::WebSearch20260209,
-            params: crate::protocol::wire!(claude::WebSearchToolParams {
-                allowed_domains,
-                blocked_domains: None,
-                max_uses: None,
-                user_location,
-            }),
-            common: Default::default(),
-        }),
-    ))
-}
-
-fn web_fetch_tool() -> claude::Tool {
-    claude::Tool::WebFetch(claude::WebFetchTool::WebFetch20250910(
-        crate::protocol::wire!(claude::WebFetchTool20250910 {
-            name: claude::WebFetchToolName::WebFetch,
-            type_: claude::WebFetchTool20250910Type::WebFetch20250910,
-            params: crate::protocol::wire!(claude::WebFetchToolParams {
+    /// 显式 web_fetch 定义要抑制 web_search 的隐式展开，否则 Claude 收到重名工具。
+    #[test]
+    fn explicit_web_fetch_overrides_web_search_expansion() {
+        let tools = response_tools_to_claude(Some(vec![
+            openai::ResponseTool::WebSearch {
+                filters: Some(crate::protocol::wire!(openai::WebSearchFilters {
+                    allowed_domains: Some(vec!["a.example".into()]),
+                    blocked_domains: Some(vec!["b.example".into()]),
+                    extra: Default::default(),
+                })),
+                max_uses: Some(3),
+                search_context_size: None,
+                user_location: None,
+                extra: Default::default(),
+            },
+            openai::ResponseTool::WebFetch {
                 allowed_domains: None,
                 blocked_domains: None,
-                citations: None,
-                max_content_tokens: None,
-                max_uses: None,
-            }),
-            common: Default::default(),
-        }),
-    ))
-}
-
-fn response_location_to_claude(location: openai::WebSearchUserLocation) -> claude::UserLocation {
-    crate::protocol::wire!(claude::UserLocation {
-        type_: claude::UserLocationType::Approximate,
-        city: location.city,
-        country: location.country,
-        region: location.region,
-        timezone: location.timezone,
-        extra: Default::default(),
-    })
-}
-
-fn preview_location_to_claude(
-    location: openai::WebSearchPreviewUserLocation,
-) -> claude::UserLocation {
-    crate::protocol::wire!(claude::UserLocation {
-        type_: claude::UserLocationType::Approximate,
-        city: location.city,
-        country: location.country,
-        region: location.region,
-        timezone: location.timezone,
-        extra: Default::default(),
-    })
+                max_content_tokens: Some(2048),
+                max_uses: Some(5),
+                extra: Default::default(),
+            },
+        ]))
+        .tools
+        .unwrap();
+        assert_eq!(tools.len(), 2);
+        let claude::Tool::WebSearch(claude::WebSearchTool::WebSearch20260209(search)) = &tools[0]
+        else {
+            panic!("expected web_search")
+        };
+        assert_eq!(search.params.max_uses, Some(3));
+        assert_eq!(
+            search.params.blocked_domains.as_deref(),
+            Some(&["b.example".to_owned()][..])
+        );
+        let claude::Tool::WebFetch(claude::WebFetchTool::WebFetch20250910(fetch)) = &tools[1]
+        else {
+            panic!("expected web_fetch")
+        };
+        assert_eq!(fetch.params.max_uses, Some(5));
+        assert_eq!(fetch.params.max_content_tokens, Some(2048));
+    }
 }
