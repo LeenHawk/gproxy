@@ -54,7 +54,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
-  xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],
+  xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_audio_speech", "openai_audio_transcriptions", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],
   opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
   opencodego: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages"],
   cline: ["openai_list_models", "openai_chat_completions", "usage"],
@@ -69,7 +69,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   claudecode: ["claude_list_models", "claude_get_model", "claude_count_tokens", "claude_messages", "usage"],
   claudeweb: ["usage"],
   codex: ["openai_list_models", "openai_get_model", "openai_responses", "openai_realtime", "image_generations", "image_edits", "openai_compact", "usage", "rate_limit_reset"],
-  grokbuild: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_compact"],
+  grokbuild: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_audio_speech", "openai_audio_transcriptions", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],
   workbuddy: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content", "image_generations", "image_edits", "usage"],
   kiro: ["openai_responses"],
 };
@@ -119,6 +119,15 @@ const AWS_BEDROCK_SETTINGS: ChannelSettingField[] = [{
   label: "Video output S3 URI",
   required: false,
   placeholder: "s3://bucket/prefix",
+}];
+
+const GROKBUILD_SETTINGS: ChannelSettingField[] = [{
+  key: "xai_api_base_url",
+  control: "url",
+  label: "xAI media API URL",
+  required: false,
+  default: "https://api.x.ai/v1",
+  placeholder: "https://api.x.ai/v1",
 }];
 
 const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
@@ -194,7 +203,7 @@ export const CHANNELS: ChannelMeta[] = [
   oauthMeta("codex", ["authcode", "device"], {
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
   }),
-  oauthMeta("grokbuild", ["device"]),
+  oauthMeta("grokbuild", ["device"], { settingsFields: GROKBUILD_SETTINGS }),
   oauthMeta("workbuddy", ["device"], {
     secretTemplate: {
       ...OAUTH_TOKENS,

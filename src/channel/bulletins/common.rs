@@ -9,6 +9,7 @@ use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 
 mod audio_multipart;
 pub use audio_multipart::restore_media_multipart;
+pub(crate) mod xai_media;
 
 use crate::channel::http_util::{
     allow_headers, allow_query, build_request as build_http, exact_url, join_url,

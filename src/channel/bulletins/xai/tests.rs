@@ -1,7 +1,9 @@
 use super::*;
 use bytes::Bytes;
 use http::{HeaderMap, Method, StatusCode};
-use serde_json::json;
+use serde_json::{Value, json};
+
+use crate::protocol::OperationKey;
 
 #[test]
 fn prepares_official_api_request() {
@@ -140,4 +142,83 @@ fn wraps_uploaded_video_as_xai_url_object() {
     assert_eq!(response["id"], "req_2");
     assert_eq!(response["status"], "completed");
     assert_eq!(response["url"], "https://cdn/video.mp4");
+}
+
+#[test]
+fn prepares_and_shapes_public_audio_requests() {
+    let secret = json!({ "api_key": "xai-test" });
+    let settings = json!({});
+    let headers = HeaderMap::new();
+    for (operation, path, expected) in [
+        (
+            Operation::CreateSpeech,
+            "/v1/audio/speech",
+            "https://api.x.ai/v1/tts",
+        ),
+        (
+            Operation::CreateTranscription,
+            "/v1/audio/transcriptions",
+            "https://api.x.ai/v1/stt",
+        ),
+    ] {
+        let request = XaiChannel
+            .prepare(PrepareCtx {
+                secret: &secret,
+                provider_settings: &settings,
+                op: OperationKey::provider(operation, Provider::OpenAi),
+                stream: false,
+                upstream_model_id: "",
+                method: Method::POST,
+                path,
+                query: None,
+                headers: &headers,
+                body: Bytes::new(),
+            })
+            .unwrap()
+            .into_http()
+            .unwrap();
+        assert_eq!(request.uri().to_string(), expected);
+    }
+
+    let ctx = ShapeCtx {
+        op: OperationKey::provider(Operation::CreateSpeech, Provider::OpenAi),
+        stream: false,
+        status: StatusCode::OK,
+        settings: &settings,
+    };
+    let mut headers = HeaderMap::new();
+    let body = XaiChannel.shape_request(
+        Bytes::from_static(
+            br#"{"model":"grok-tts","input":"hello","voice":"ara","response_format":"mp3"}"#,
+        ),
+        &mut headers,
+        &ctx,
+    );
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["text"], "hello");
+    assert_eq!(body["voice_id"], "ara");
+    assert_eq!(body["output_format"]["codec"], "mp3");
+    assert!(body.get("model").is_none());
+}
+
+#[test]
+fn shapes_openai_image_edit_uploads_as_xai_image_sources() {
+    let settings = json!({});
+    let ctx = ShapeCtx {
+        op: OperationKey::provider(Operation::EditImage, Provider::OpenAi),
+        stream: false,
+        status: StatusCode::OK,
+        settings: &settings,
+    };
+    let mut headers = HeaderMap::new();
+    let body = XaiChannel.shape_request(
+        Bytes::from_static(
+            br#"{"model":"grok-imagine-image","prompt":"night","image":"data:image/png;base64,AAAA","mask":"data:image/png;base64,AQID"}"#,
+        ),
+        &mut headers,
+        &ctx,
+    );
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["image"]["url"], "data:image/png;base64,AAAA");
+    assert!(body.get("mask").is_none());
 }

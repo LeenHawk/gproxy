@@ -11,23 +11,6 @@ pub(super) fn shape_responses_request(body: Bytes) -> Bytes {
     shape_responses_body(body)
 }
 
-pub(super) fn shape_image_request(body: Bytes) -> Bytes {
-    let Ok(mut value) = serde_json::from_slice::<Value>(&body) else {
-        return body;
-    };
-    let Some(map) = value.as_object_mut() else {
-        return body;
-    };
-
-    for key in ["moderation", "partial_images", "size", "stream"] {
-        map.remove(key);
-    }
-
-    serde_json::to_vec(&value)
-        .map(Bytes::from)
-        .unwrap_or_else(|_| body)
-}
-
 fn shape_responses_body(body: Bytes) -> Bytes {
     let Ok(mut value) = serde_json::from_slice::<Value>(&body) else {
         return body;

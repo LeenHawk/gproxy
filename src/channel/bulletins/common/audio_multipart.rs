@@ -18,13 +18,22 @@ pub fn restore_media_multipart(
         return Ok(body);
     }
 
-    let fields: Map<String, Value> = serde_json::from_slice(&body)
+    let mut fields: Map<String, Value> = serde_json::from_slice(&body)
         .map_err(|error| ChannelError::Build(format!("media upload body is not JSON: {error}")))?;
+    // xAI's streaming STT parser only observes option fields placed before the
+    // file part, so emit that upload last for the Grok Build adapter.
+    let trailing_file = (matches!(channel_id, "grokbuild" | "xai")
+        && operation == Operation::CreateTranscription)
+        .then(|| fields.remove("file"))
+        .flatten();
     let digest = blake3::hash(&body).to_hex();
     let boundary = format!("gproxy-media-{}", &digest.as_str()[..24]);
     let mut output = Vec::with_capacity(body.len());
     for (name, value) in fields {
         append_value(&mut output, &boundary, operation, &name, value)?;
+    }
+    if let Some(file) = trailing_file {
+        append_value(&mut output, &boundary, operation, "file", file)?;
     }
     output.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     headers.insert(
@@ -38,9 +47,13 @@ pub fn restore_media_multipart(
 
 fn needs_multipart(channel_id: &str, operation: Operation) -> bool {
     match operation {
-        // These three adapters expose the OpenAI multipart upload surface.
+        // OpenAI-compatible upload surfaces use multipart, while the media
+        // shaping layer can still translate their option fields per channel.
         Operation::CreateTranscription | Operation::CreateTranslation => {
-            matches!(channel_id, "openai" | "custom" | "openrouter")
+            matches!(
+                channel_id,
+                "openai" | "custom" | "openrouter" | "grokbuild" | "xai"
+            )
         }
         Operation::EditImage => matches!(channel_id, "openai" | "azure" | "custom"),
         // AI Studio's Sora-compatible create endpoint is multipart too, while
@@ -260,5 +273,27 @@ mod tests {
             restore_media_multipart("xai", Operation::CreateVideo, &mut headers, video.clone())
                 .unwrap();
         assert_eq!(output, video);
+    }
+
+    #[test]
+    fn grokbuild_places_stt_file_after_all_option_fields() {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from_static(
+            br#"{"file":"data:audio/wav;base64,UklGRg==","language":"en","diarize":true}"#,
+        );
+        let output = restore_media_multipart(
+            "grokbuild",
+            Operation::CreateTranscription,
+            &mut headers,
+            body,
+        )
+        .unwrap();
+        let text = String::from_utf8(output.to_vec()).unwrap();
+        let language = text.find("name=\"language\"").unwrap();
+        let diarize = text.find("name=\"diarize\"").unwrap();
+        let file = text.find("name=\"file\"").unwrap();
+        assert!(language < file);
+        assert!(diarize < file);
+        assert!(text.contains("name=\"file\"; filename=\"audio.wav\""));
     }
 }

@@ -65,7 +65,17 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             metadata.secret_template =
                 json!({ "api_key": "", "account_id": "", "gateway_id": "default" });
         }
-        "grokbuild" => oauth(&mut metadata, &[LoginMode::Device], true),
+        "grokbuild" => {
+            oauth(&mut metadata, &[LoginMode::Device], true);
+            metadata.settings_fields = vec![ChannelSettingField {
+                key: "xai_api_base_url".into(),
+                control: SettingControl::Url,
+                label: Some("xAI media API URL".into()),
+                required: false,
+                default: Some(json!("https://api.x.ai/v1")),
+                placeholder: Some("https://api.x.ai/v1".into()),
+            }];
+        }
         "workbuddy" => {
             oauth(&mut metadata, &[LoginMode::Device], true);
             metadata.secret_template = json!({
@@ -279,6 +289,8 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_get_model",
             "openai_chat_completions",
             "openai_responses",
+            "openai_audio_speech",
+            "openai_audio_transcriptions",
             "image_generations",
             "image_edits",
             "openai_video_create",
@@ -392,6 +404,12 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_responses",
             "image_generations",
             "image_edits",
+            "openai_audio_speech",
+            "openai_audio_transcriptions",
+            "openai_video_create",
+            "openai_video_retrieve",
+            "openai_video_edit",
+            "openai_video_extend",
             "openai_compact",
         ],
         "workbuddy" => &[
