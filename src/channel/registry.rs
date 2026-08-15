@@ -156,6 +156,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(crate::channel::bulletins::deepseek::DeepSeekChannel),
         #[cfg(feature = "channel-groq")]
         Arc::new(crate::channel::bulletins::groq::GroqChannel),
+        #[cfg(feature = "channel-kimiapi")]
+        Arc::new(crate::channel::bulletins::kimiapi::KimiApiChannel),
         #[cfg(feature = "channel-nvidia")]
         Arc::new(crate::channel::bulletins::nvidia::NvidiaChannel),
         #[cfg(feature = "channel-xai")]
