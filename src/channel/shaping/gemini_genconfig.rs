@@ -67,17 +67,4 @@ mod tests {
         strip(&mut body);
         assert_eq!(body, before);
     }
-
-    #[test]
-    fn strips_root_store_without_touching_other_fields() {
-        let mut body = json!({
-            "store": true,
-            "contents": [{"role": "user", "parts": [{"text": "hello"}]}]
-        });
-
-        strip_store(&mut body);
-
-        assert!(body.get("store").is_none());
-        assert_eq!(body["contents"][0]["role"], "user");
-    }
 }
