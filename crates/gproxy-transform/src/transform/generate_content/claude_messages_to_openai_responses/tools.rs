@@ -148,6 +148,18 @@ fn claude_web_search_to_response(tool: claude::WebSearchTool) -> openai::Respons
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     };
+    if params.blocked_domains.is_some() {
+        crate::transform::context::report_unsupported(
+            "tools[].web_search.blocked_domains",
+            "OpenAI Responses web_search filters only support allowed_domains",
+        );
+    }
+    if params.max_uses.is_some() {
+        crate::transform::context::report_unsupported(
+            "tools[].web_search.max_uses",
+            "OpenAI Responses web_search has no per-tool max_uses field",
+        );
+    }
     openai::ResponseTool::WebSearch {
         filters: params.allowed_domains.map(|allowed_domains| {
             crate::protocol::wire!(openai::WebSearchFilters {
@@ -162,15 +174,22 @@ fn claude_web_search_to_response(tool: claude::WebSearchTool) -> openai::Respons
 }
 
 fn claude_web_fetch_to_response(tool: claude::WebFetchTool) -> openai::ResponseTool {
-    let params = match tool {
-        claude::WebFetchTool::WebFetch20250910(tool) => tool.params,
-        claude::WebFetchTool::WebFetch20260209(tool) => tool.params,
-        claude::WebFetchTool::WebFetch20260309(tool) => tool.params,
-        claude::WebFetchTool::WebFetch20260318(tool) => tool.params,
+    let (params, use_cache, response_inclusion) = match tool {
+        claude::WebFetchTool::WebFetch20250910(tool) => (tool.params, None, None),
+        claude::WebFetchTool::WebFetch20260209(tool) => (tool.params, None, None),
+        claude::WebFetchTool::WebFetch20260309(tool) => (tool.params, tool.use_cache, None),
+        claude::WebFetchTool::WebFetch20260318(tool) => {
+            (tool.params, tool.use_cache, tool.response_inclusion)
+        }
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     };
+    crate::transform::context::report_lossy(
+        "tools[].web_fetch",
+        "OpenAI Responses has no WebFetch tool definition; it is approximated as WebSearch",
+    );
+    report_web_fetch_unsupported_fields(&params, use_cache, response_inclusion);
     openai::ResponseTool::WebSearch {
         filters: params.allowed_domains.map(|allowed_domains| {
             crate::protocol::wire!(openai::WebSearchFilters {
@@ -181,6 +200,38 @@ fn claude_web_fetch_to_response(tool: claude::WebFetchTool) -> openai::ResponseT
         search_context_size: None,
         user_location: None,
         extra: Default::default(),
+    }
+}
+
+fn report_web_fetch_unsupported_fields(
+    params: &claude::WebFetchToolParams,
+    use_cache: Option<bool>,
+    response_inclusion: Option<claude::ResponseInclusion>,
+) {
+    let fields = [
+        (
+            params.blocked_domains.is_some(),
+            "tools[].web_fetch.blocked_domains",
+        ),
+        (params.citations.is_some(), "tools[].web_fetch.citations"),
+        (
+            params.max_content_tokens.is_some(),
+            "tools[].web_fetch.max_content_tokens",
+        ),
+        (params.max_uses.is_some(), "tools[].web_fetch.max_uses"),
+        (use_cache.is_some(), "tools[].web_fetch.use_cache"),
+        (
+            response_inclusion.is_some(),
+            "tools[].web_fetch.response_inclusion",
+        ),
+    ];
+    for (present, field) in fields {
+        if present {
+            crate::transform::context::report_unsupported(
+                field,
+                "OpenAI Responses web_search has no corresponding field",
+            );
+        }
     }
 }
 
@@ -219,15 +270,21 @@ fn claude_command_to_response(command: claude::CommandTool) -> Option<openai::Re
             openai::ToolSearchExecution::Client,
             "Search deferred tools using a regular expression",
         )),
-        claude::CommandTool::Memory20250818(tool) => Some(openai::ResponseTool::Function {
-            name: "memory".to_owned(),
-            parameters: Default::default(),
-            strict: tool.common.strict,
-            defer_loading: tool.common.defer_loading,
-            description: Some("Read or update persistent agent memory".to_owned()),
-            allowed_callers: claude_callers_to_responses(tool.common.allowed_callers),
-            extra: Default::default(),
-        }),
+        claude::CommandTool::Memory20250818(tool) => {
+            crate::transform::context::report_lossy(
+                "tools[].memory",
+                "OpenAI Responses has no native Memory tool; it is approximated as a function",
+            );
+            Some(openai::ResponseTool::Function {
+                name: "memory".to_owned(),
+                parameters: Default::default(),
+                strict: tool.common.strict,
+                defer_loading: tool.common.defer_loading,
+                description: Some("Read or update persistent agent memory".to_owned()),
+                allowed_callers: claude_callers_to_responses(tool.common.allowed_callers),
+                extra: Default::default(),
+            })
+        }
         _ => None,
     }
 }
@@ -271,13 +328,21 @@ fn response_tool_search(
 }
 
 fn claude_text_editor_to_response(tool: claude::TextEditorTool) -> openai::ResponseTool {
-    let allowed_callers = match tool {
-        claude::TextEditorTool::TextEditor20241022(tool) => tool.common.allowed_callers,
-        claude::TextEditorTool::TextEditor20250124(tool) => tool.common.allowed_callers,
-        claude::TextEditorTool::TextEditor20250429(tool) => tool.common.allowed_callers,
-        claude::TextEditorTool::TextEditor20250728(tool) => tool.common.allowed_callers,
-        _ => None,
+    let (allowed_callers, max_characters) = match tool {
+        claude::TextEditorTool::TextEditor20241022(tool) => (tool.common.allowed_callers, None),
+        claude::TextEditorTool::TextEditor20250124(tool) => (tool.common.allowed_callers, None),
+        claude::TextEditorTool::TextEditor20250429(tool) => (tool.common.allowed_callers, None),
+        claude::TextEditorTool::TextEditor20250728(tool) => {
+            (tool.common.allowed_callers, tool.max_characters)
+        }
+        _ => (None, None),
     };
+    if max_characters.is_some() {
+        crate::transform::context::report_unsupported(
+            "tools[].text_editor.max_characters",
+            "OpenAI Responses apply_patch has no max_characters field",
+        );
+    }
     openai::ResponseTool::ApplyPatch {
         allowed_callers: claude_callers_to_responses(allowed_callers),
         extra: Default::default(),
@@ -291,6 +356,10 @@ fn merge_duplicate_web_search_tools(tools: &mut Vec<openai::ResponseTool>) {
         if matches!(tools[index], openai::ResponseTool::WebSearch { .. }) {
             if let Some(first_index) = first {
                 let duplicate = tools.remove(index);
+                crate::transform::context::report_lossy(
+                    "tools[].web_search",
+                    "multiple Claude WebSearch/WebFetch definitions collapse into one OpenAI web_search tool",
+                );
                 merge_web_search_tool(&mut tools[first_index], duplicate);
                 continue;
             }

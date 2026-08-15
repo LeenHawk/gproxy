@@ -4,6 +4,7 @@ use crate::protocol::{claude, openai};
 use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
+use super::response::{apply_web_fetch_result_to_item, apply_web_search_result_to_item};
 use super::usage::claude_usage_to_response;
 use crate::transform::compact::claude_to_openai::{
     prepare_response_output_item, server_tool_call, typed_tool_call,
@@ -22,6 +23,7 @@ pub struct StreamTransform {
     item_ids: BTreeMap<u32, String>,
     reasoning_text: BTreeMap<u32, String>,
     buffered_tools: BTreeMap<u32, BufferedTool>,
+    pending_web_calls: BTreeMap<String, PendingWebCall>,
     service_tier: Option<openai::ServiceTier>,
     terminal_emitted: bool,
 }
@@ -30,6 +32,16 @@ struct BufferedTool {
     id: String,
     input: String,
     kind: BufferedToolKind,
+}
+
+struct PendingWebCall {
+    output_index: u32,
+    item: openai::TypedResponseItem,
+}
+
+enum WebResult {
+    Search(claude::ResponseWebSearchToolResultContent),
+    Fetch(claude::ResponseWebFetchToolResultContent),
 }
 
 enum BufferedToolKind {
@@ -56,7 +68,21 @@ impl StreamTransform {
         &mut self,
         _: &TransformContext,
     ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
-        Ok(Vec::new())
+        let mut events = Vec::new();
+        for (_, mut pending) in std::mem::take(&mut self.pending_web_calls) {
+            crate::transform::context::report_lossy(
+                "stream.web_search_call",
+                "Claude stream ended before a matching hosted-tool result block was received",
+            );
+            if let openai::TypedResponseItem::WebSearchCall { status, .. } = &mut pending.item {
+                *status = openai::ResponseWebSearchCallStatus::Failed;
+            }
+            events.push(output_item_done(
+                pending.output_index,
+                openai::ResponseItem::Typed(pending.item),
+            ));
+        }
+        Ok(events)
     }
 
     fn known_event_to_response(
@@ -139,6 +165,13 @@ impl StreamTransform {
         let output_index = index_to_u32(index);
         match block {
             claude::ContentBlock::Text(block) => {
+                if block
+                    .citations
+                    .as_ref()
+                    .is_some_and(|values| !values.is_empty())
+                {
+                    report_stream_citation_loss();
+                }
                 if block.text.is_empty() {
                     Vec::new()
                 } else {
@@ -228,6 +261,12 @@ impl StreamTransform {
                 );
                 Vec::new()
             }
+            claude::ContentBlock::WebSearchToolResult(block) => {
+                self.web_result_to_response(block.tool_use_id, WebResult::Search(block.content))
+            }
+            claude::ContentBlock::WebFetchToolResult(block) => {
+                self.web_result_to_response(block.tool_use_id, WebResult::Fetch(block.content))
+            }
             _ => Vec::new(),
         }
     }
@@ -272,6 +311,10 @@ impl StreamTransform {
                 claude::KnownEventDelta::Compaction { content, .. } => {
                     vec![output_text_delta(output_index, content)]
                 }
+                claude::KnownEventDelta::Citations { .. } => {
+                    report_stream_citation_loss();
+                    Vec::new()
+                }
                 _ => Vec::new(),
             },
             claude::EventDelta::Unknown(_) => Vec::new(),
@@ -293,6 +336,7 @@ impl StreamTransform {
         let Some(tool) = self.buffered_tools.remove(&output_index) else {
             return Vec::new();
         };
+        let tool_id = tool.id.clone();
         let input = serde_json::from_str(&tool.input).unwrap_or_default();
         let completed = match tool.kind {
             BufferedToolKind::Client(name) => typed_tool_call(tool.id, input, name).0,
@@ -303,11 +347,77 @@ impl StreamTransform {
             &mut in_progress,
             openai::ResponseItemLifecycleStatus::InProgress,
         );
-        vec![
-            output_item_added(output_index, openai::ResponseItem::Typed(in_progress)),
-            output_item_done(output_index, openai::ResponseItem::Typed(completed)),
-        ]
+        if matches!(completed, openai::TypedResponseItem::WebSearchCall { .. }) {
+            let id = web_search_item_id(&completed).unwrap_or(tool_id);
+            self.pending_web_calls.insert(
+                id.clone(),
+                PendingWebCall {
+                    output_index,
+                    item: completed,
+                },
+            );
+            vec![
+                output_item_added(output_index, openai::ResponseItem::Typed(in_progress)),
+                web_search_in_progress(output_index, id.clone()),
+                web_search_searching(output_index, id),
+            ]
+        } else {
+            vec![
+                output_item_added(output_index, openai::ResponseItem::Typed(in_progress)),
+                output_item_done(output_index, openai::ResponseItem::Typed(completed)),
+            ]
+        }
     }
+
+    fn web_result_to_response(
+        &mut self,
+        tool_use_id: String,
+        result: WebResult,
+    ) -> Vec<openai::ResponseStreamEvent> {
+        let Some(mut pending) = self.pending_web_calls.remove(&tool_use_id) else {
+            crate::transform::context::report_unsupported(
+                "stream.hosted_tool_result",
+                "received a Claude hosted-tool result without a matching buffered server_tool_use",
+            );
+            return Vec::new();
+        };
+        match result {
+            WebResult::Search(content) => {
+                apply_web_search_result_to_item(&mut pending.item, content)
+            }
+            WebResult::Fetch(content) => apply_web_fetch_result_to_item(&mut pending.item, content),
+        }
+        let succeeded = matches!(
+            pending.item,
+            openai::TypedResponseItem::WebSearchCall {
+                status: openai::ResponseWebSearchCallStatus::Completed,
+                ..
+            }
+        );
+        let mut events = Vec::new();
+        if succeeded {
+            events.push(web_search_completed(pending.output_index, tool_use_id));
+        }
+        events.push(output_item_done(
+            pending.output_index,
+            openai::ResponseItem::Typed(pending.item),
+        ));
+        events
+    }
+}
+
+fn web_search_item_id(item: &openai::TypedResponseItem) -> Option<String> {
+    match item {
+        openai::TypedResponseItem::WebSearchCall { id, .. } => Some(id.clone()),
+        _ => None,
+    }
+}
+
+fn report_stream_citation_loss() {
+    crate::transform::context::report_unsupported(
+        "stream.content[].text.citations",
+        "Claude citations identify source spans, while OpenAI output annotations require response-text spans",
+    );
 }
 
 fn is_approximate_client_tool(name: &str) -> bool {
@@ -452,6 +562,39 @@ fn output_item_done(
         sequence_number: None,
         extra: Default::default(),
     })
+}
+
+fn web_search_in_progress(output_index: u32, item_id: String) -> openai::ResponseStreamEvent {
+    known(
+        openai::KnownResponseStreamEvent::ResponseWebSearchCallInProgress {
+            item_id,
+            output_index,
+            sequence_number: None,
+            extra: Default::default(),
+        },
+    )
+}
+
+fn web_search_searching(output_index: u32, item_id: String) -> openai::ResponseStreamEvent {
+    known(
+        openai::KnownResponseStreamEvent::ResponseWebSearchCallSearching {
+            item_id,
+            output_index,
+            sequence_number: None,
+            extra: Default::default(),
+        },
+    )
+}
+
+fn web_search_completed(output_index: u32, item_id: String) -> openai::ResponseStreamEvent {
+    known(
+        openai::KnownResponseStreamEvent::ResponseWebSearchCallCompleted {
+            item_id,
+            output_index,
+            sequence_number: None,
+            extra: Default::default(),
+        },
+    )
 }
 
 fn response_lifecycle_event(
@@ -711,6 +854,112 @@ mod tests {
             )
             .unwrap();
         assert!(stop.is_empty());
+    }
+
+    #[test]
+    fn streamed_web_search_waits_for_result_and_emits_lifecycle_events() {
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+        );
+        let mut transform = StreamTransform::default();
+        let call = serde_json::from_value(serde_json::json!({
+            "type": "server_tool_use",
+            "id": "srv_search",
+            "name": "web_search",
+            "input": {"query": "gproxy"}
+        }))
+        .unwrap();
+        assert!(
+            transform
+                .push(
+                    known_claude(claude::KnownStreamEvent::ContentBlockStart {
+                        index: 0,
+                        content_block: Box::new(call),
+                        extra: Default::default(),
+                    }),
+                    &ctx,
+                )
+                .unwrap()
+                .is_empty()
+        );
+
+        let call_events = transform
+            .push(
+                known_claude(claude::KnownStreamEvent::ContentBlockStop {
+                    index: 0,
+                    extra: Default::default(),
+                }),
+                &ctx,
+            )
+            .unwrap();
+        assert!(matches!(
+            call_events.as_slice(),
+            [
+                openai::ResponseStreamEvent::Known(
+                    openai::KnownResponseStreamEvent::ResponseOutputItemAdded { .. }
+                ),
+                openai::ResponseStreamEvent::Known(
+                    openai::KnownResponseStreamEvent::ResponseWebSearchCallInProgress { .. }
+                ),
+                openai::ResponseStreamEvent::Known(
+                    openai::KnownResponseStreamEvent::ResponseWebSearchCallSearching { .. }
+                )
+            ]
+        ));
+
+        let result = serde_json::from_value(serde_json::json!({
+            "type": "web_search_tool_result",
+            "tool_use_id": "srv_search",
+            "content": [{
+                "type": "web_search_result",
+                "url": "https://example.com/result",
+                "title": "Result",
+                "encrypted_content": "ciphertext",
+                "page_age": null
+            }]
+        }))
+        .unwrap();
+        let result_events = ctx
+            .scope(|| {
+                transform.push(
+                    known_claude(claude::KnownStreamEvent::ContentBlockStart {
+                        index: 1,
+                        content_block: Box::new(result),
+                        extra: Default::default(),
+                    }),
+                    &ctx,
+                )
+            })
+            .unwrap();
+        assert!(matches!(
+            result_events.as_slice(),
+            [
+                openai::ResponseStreamEvent::Known(
+                    openai::KnownResponseStreamEvent::ResponseWebSearchCallCompleted { .. }
+                ),
+                openai::ResponseStreamEvent::Known(
+                    openai::KnownResponseStreamEvent::ResponseOutputItemDone { .. }
+                )
+            ]
+        ));
+        let openai::ResponseStreamEvent::Known(
+            openai::KnownResponseStreamEvent::ResponseOutputItemDone { item, .. },
+        ) = &result_events[1]
+        else {
+            panic!("expected completed web search output item");
+        };
+        let value = serde_json::to_value(item).unwrap();
+        assert_eq!(
+            value["action"]["sources"][0]["url"],
+            "https://example.com/result"
+        );
     }
 
     fn known_claude(event: claude::KnownStreamEvent) -> claude::StreamEvent {

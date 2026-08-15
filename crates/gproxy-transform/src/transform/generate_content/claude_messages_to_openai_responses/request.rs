@@ -325,4 +325,65 @@ mod tests {
         );
         assert_eq!(output["input"][2]["action"]["type"], "open_page");
     }
+
+    #[test]
+    fn reports_unrepresentable_claude_hosted_tool_fields() {
+        let input = serde_json::from_value(serde_json::json!({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 32,
+            "tools": [
+                {
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "blocked_domains": ["blocked.example"],
+                    "max_uses": 3
+                },
+                {
+                    "type": "web_fetch_20260318",
+                    "name": "web_fetch",
+                    "blocked_domains": ["blocked.example"],
+                    "citations": {"enabled": true},
+                    "max_content_tokens": 1024,
+                    "max_uses": 2,
+                    "use_cache": true,
+                    "response_inclusion": "full"
+                },
+                {
+                    "type": "text_editor_20250728",
+                    "name": "str_replace_based_edit_tool",
+                    "max_characters": 4096
+                },
+                {"type": "memory_20250818", "name": "memory"}
+            ],
+            "messages": [{"role": "user", "content": "hello"}]
+        }))
+        .unwrap();
+        let ctx = ctx();
+
+        let output = ctx.scope(|| request(input, &ctx)).unwrap();
+        assert!(output.tools.is_some());
+        let fields = ctx
+            .take_diagnostics()
+            .into_iter()
+            .map(|diagnostic| diagnostic.field)
+            .collect::<Vec<_>>();
+        for expected in [
+            "tools[].web_search.blocked_domains",
+            "tools[].web_search.max_uses",
+            "tools[].web_fetch",
+            "tools[].web_fetch.blocked_domains",
+            "tools[].web_fetch.citations",
+            "tools[].web_fetch.max_content_tokens",
+            "tools[].web_fetch.max_uses",
+            "tools[].web_fetch.use_cache",
+            "tools[].web_fetch.response_inclusion",
+            "tools[].text_editor.max_characters",
+            "tools[].memory",
+        ] {
+            assert!(
+                fields.iter().any(|field| field == expected),
+                "missing {expected}"
+            );
+        }
+    }
 }
