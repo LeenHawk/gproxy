@@ -32,6 +32,8 @@ pub mod deepseek;
 pub mod groq;
 #[cfg(feature = "channel-kimiapi")]
 pub mod kimiapi;
+#[cfg(feature = "channel-kimicode")]
+pub mod kimicode;
 #[cfg(feature = "channel-nvidia")]
 pub mod nvidia;
 #[cfg(feature = "channel-openai")]

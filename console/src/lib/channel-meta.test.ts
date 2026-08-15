@@ -124,3 +124,18 @@ describe("Kimi API fallback metadata", () => {
     });
   });
 });
+
+describe("Kimi Code fallback metadata", () => {
+  it("uses the managed coding endpoint and device OAuth", () => {
+    expect(DEFAULT_BASE_URL.kimicode).toBe("https://api.kimi.com/coding/v1");
+    expect(channelMeta("kimicode")).toMatchObject({
+      displayName: "Kimi Code",
+      family: "oauth_tokens",
+      loginModes: ["device"],
+      usage: true,
+    });
+    expect(channelMeta("kimicode")?.endpointKinds).toEqual(expect.arrayContaining([
+      "openai_list_models", "openai_chat_completions", "usage",
+    ]));
+  });
+});
