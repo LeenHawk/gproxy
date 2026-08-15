@@ -13,6 +13,7 @@ use bytes::Bytes;
 use http::HeaderMap;
 use serde_json::Value;
 
+use crate::channel::bulletins::common::xai_media;
 use crate::channel::http_util::{allow_headers, build_request, join_url};
 use crate::channel::{
     Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx, PreparedRequest,
@@ -33,6 +34,30 @@ fn is_xai_image(op: OperationKey) -> bool {
         op.operation(),
         Operation::CreateImage | Operation::EditImage
     ) && op.kind() == OperationKind::Provider(Provider::OpenAi)
+}
+
+fn is_xai_media(op: OperationKey) -> bool {
+    op.kind() == OperationKind::Provider(Provider::OpenAi)
+        && matches!(
+            op.operation(),
+            Operation::CreateSpeech
+                | Operation::CreateTranscription
+                | Operation::CreateImage
+                | Operation::EditImage
+                | Operation::CreateVideo
+                | Operation::RetrieveVideo
+                | Operation::EditVideo
+                | Operation::ExtendVideo
+        )
+}
+
+fn xai_media_path(operation: Operation, path: &str) -> &str {
+    match operation {
+        Operation::CreateSpeech => "/tts",
+        Operation::CreateTranscription => "/stt",
+        Operation::CreateVideo => "/videos/generations",
+        _ => path.strip_prefix("/v1").unwrap_or(path),
+    }
 }
 
 pub struct GrokBuildChannel;
@@ -87,6 +112,12 @@ impl Channel for GrokBuildChannel {
             ),
             pass(CreateImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::OpenAi)),
+            pass(CreateSpeech, pv(P::OpenAi)),
+            pass(CreateTranscription, pv(P::OpenAi)),
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
+            pass(EditVideo, pv(P::OpenAi)),
+            pass(ExtendVideo, pv(P::OpenAi)),
             unsupported(CreateEmbedding, pv(P::OpenAi)),
             unsupported(CreateEmbedding, pv(P::Gemini)),
             xform(
@@ -101,13 +132,23 @@ impl Channel for GrokBuildChannel {
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-        let base = auth::base_url(ctx.provider_settings, ctx.secret);
-        let path = auth::upstream_path(base, ctx.path);
-        let uri = match crate::channel::settings::endpoint_url(
+        let media = is_xai_media(ctx.op);
+        let base = if media {
+            auth::xai_api_base_url(ctx.provider_settings)
+        } else {
+            auth::base_url(ctx.provider_settings, ctx.secret)
+        };
+        let path = if media {
+            xai_media_path(ctx.op.operation(), ctx.path).to_owned()
+        } else {
+            auth::upstream_path(base, ctx.path)
+        };
+        let uri = match crate::channel::settings::endpoint_url_for_request(
             ctx.provider_settings,
             ctx.op,
             ctx.stream,
             ctx.upstream_model_id,
+            ctx.path,
         ) {
             Some(url) => crate::channel::http_util::exact_url(&url, ctx.query)?,
             None => join_url(base, &path, ctx.query)?,
@@ -117,7 +158,9 @@ impl Channel for GrokBuildChannel {
         let accept_event_stream =
             ctx.method == http::Method::POST && path == "/responses" && body_streams(&ctx.body);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
-        let accept = if accept_event_stream {
+        let accept = if ctx.op.operation() == Operation::CreateSpeech {
+            auth::AcceptMode::Audio
+        } else if accept_event_stream {
             auth::AcceptMode::EventStream
         } else {
             auth::AcceptMode::Json
@@ -129,8 +172,35 @@ impl Channel for GrokBuildChannel {
     fn shape_request(&self, body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
         if is_xai_responses(ctx.op) {
             shape::shape_responses_request(body)
+        } else if ctx.op.operation() == Operation::EditImage && is_xai_image(ctx.op) {
+            xai_media::image_edit_request(body)
         } else if is_xai_image(ctx.op) {
-            shape::shape_image_request(body)
+            xai_media::image_request(body)
+        } else if ctx.op.operation() == Operation::CreateSpeech {
+            xai_media::speech_request(body)
+        } else if ctx.op.operation() == Operation::CreateTranscription {
+            xai_media::transcription_request(body)
+        } else if matches!(
+            ctx.op.operation(),
+            Operation::CreateVideo | Operation::EditVideo | Operation::ExtendVideo
+        ) {
+            xai_media::video_request(body, ctx.op.operation())
+        } else {
+            body
+        }
+    }
+
+    fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
+        if ctx.status.is_success()
+            && matches!(
+                ctx.op.operation(),
+                Operation::CreateVideo
+                    | Operation::RetrieveVideo
+                    | Operation::EditVideo
+                    | Operation::ExtendVideo
+            )
+        {
+            xai_media::video_response(body)
         } else {
             body
         }

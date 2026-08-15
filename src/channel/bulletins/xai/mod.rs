@@ -70,6 +70,8 @@ impl Channel for XaiChannel {
             ),
             pass(CreateImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::OpenAi)),
+            pass(CreateSpeech, pv(P::OpenAi)),
+            pass(CreateTranscription, pv(P::OpenAi)),
             pass(CreateVideo, pv(P::OpenAi)),
             pass(RetrieveVideo, pv(P::OpenAi)),
             pass(EditVideo, pv(P::OpenAi)),
@@ -82,10 +84,11 @@ impl Channel for XaiChannel {
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         let key = common::resolve_api_key(&ctx)?;
-        let path = if ctx.op.operation() == Operation::CreateVideo {
-            "/v1/videos/generations"
-        } else {
-            ctx.path
+        let path = match ctx.op.operation() {
+            Operation::CreateSpeech => "/v1/tts",
+            Operation::CreateTranscription => "/v1/stt",
+            Operation::CreateVideo => "/v1/videos/generations",
+            _ => ctx.path,
         };
         let uri = common::resolve_uri(&ctx, &DEFAULTS, path, None)?;
         let headers =
@@ -96,34 +99,17 @@ impl Channel for XaiChannel {
     }
 
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
-        if !matches!(
-            ctx.op.operation(),
-            Operation::CreateVideo | Operation::EditVideo | Operation::ExtendVideo
-        ) {
-            return body;
+        use crate::channel::bulletins::common::xai_media;
+        match ctx.op.operation() {
+            Operation::CreateImage => xai_media::image_request(body),
+            Operation::EditImage => xai_media::image_edit_request(body),
+            Operation::CreateSpeech => xai_media::speech_request(body),
+            Operation::CreateTranscription => xai_media::transcription_request(body),
+            Operation::CreateVideo | Operation::EditVideo | Operation::ExtendVideo => {
+                xai_media::video_request(body, ctx.op.operation())
+            }
+            _ => body,
         }
-        crate::channel::shaping::with_json_body(body, |value| {
-            let Some(object) = value.as_object_mut() else {
-                return;
-            };
-            if let Some(seconds) = object.remove("seconds") {
-                let duration = seconds
-                    .as_str()
-                    .and_then(|value| value.parse::<u64>().ok())
-                    .map(Value::from)
-                    .unwrap_or(seconds);
-                object.entry("duration").or_insert(duration);
-            }
-            if ctx.op.operation() == Operation::CreateVideo {
-                return;
-            }
-            let Some(video) = object.get_mut("video") else {
-                return;
-            };
-            if let Some(url) = video.as_str().map(str::to_owned) {
-                *video = serde_json::json!({ "url": url });
-            }
-        })
     }
 
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
@@ -136,7 +122,7 @@ impl Channel for XaiChannel {
                     | Operation::ExtendVideo
             )
         {
-            return reshape_video_response(body);
+            return crate::channel::bulletins::common::xai_media::video_response(body);
         }
         if !ctx.status.is_success()
             || ctx.op.operation() != Operation::ListModels
@@ -146,41 +132,6 @@ impl Channel for XaiChannel {
         }
         enrich_model_list(body)
     }
-}
-
-fn reshape_video_response(body: Bytes) -> Bytes {
-    crate::channel::shaping::with_json_body(body, |value| {
-        let Some(object) = value.as_object_mut() else {
-            return;
-        };
-        if object.get("id").is_none()
-            && let Some(id) = object
-                .get("request_id")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        {
-            object.insert("id".into(), Value::String(id));
-        }
-        let status = match object.get("status").and_then(Value::as_str) {
-            Some("done") => Some("completed"),
-            Some("pending" | "processing") => Some("in_progress"),
-            None if object.get("video").is_some() => Some("completed"),
-            None => Some("queued"),
-            _ => None,
-        };
-        if let Some(status) = status {
-            object.insert("status".into(), Value::String(status.into()));
-        }
-        if object.get("url").is_none()
-            && let Some(url) = object
-                .get("video")
-                .and_then(|video| video.get("url"))
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        {
-            object.insert("url".into(), Value::String(url));
-        }
-    })
 }
 
 fn enrich_model_list(body: Bytes) -> Bytes {

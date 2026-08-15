@@ -15,7 +15,8 @@ use crate::channel::oauth;
 use crate::http::client::UpstreamClient;
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://cli-chat-proxy.grok.com/v1";
-const LEGACY_API_BASE_URL: &str = "https://api.x.ai/v1";
+pub(super) const DEFAULT_XAI_API_BASE_URL: &str = "https://api.x.ai/v1";
+const LEGACY_API_BASE_URL: &str = DEFAULT_XAI_API_BASE_URL;
 const TOKEN_URL: &str = "https://auth.x.ai/oauth2/token";
 const DEVICE_CODE_URL: &str = "https://auth.x.ai/oauth2/device/code";
 const OAUTH_CLIENT_ID: &str = "b1a00492-073a-47ea-816f-4c329264a828";
@@ -28,6 +29,7 @@ const EXPIRY_SKEW_MS: i64 = 60_000;
 pub(super) enum AcceptMode {
     Json,
     EventStream,
+    Audio,
 }
 
 fn pct(s: &str) -> String {
@@ -247,6 +249,15 @@ pub(super) fn base_url<'a>(settings: &'a Value, secret: &'a Value) -> &'a str {
     }
 }
 
+pub(super) fn xai_api_base_url(settings: &Value) -> &str {
+    settings
+        .get("xai_api_base_url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|base| !base.is_empty())
+        .unwrap_or(DEFAULT_XAI_API_BASE_URL)
+}
+
 pub(super) fn upstream_path(base_url: &str, path: &str) -> String {
     if base_url.trim_end_matches('/').ends_with("/v1") {
         path.strip_prefix("/v1").unwrap_or(path).to_owned()
@@ -347,7 +358,9 @@ pub(super) fn apply(
         .map_err(|e| ChannelError::InvalidCredential(format!("bad bearer token: {e}")))?;
     let headers = req.headers_mut();
     headers.insert(AUTHORIZATION, bearer);
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    if !headers.contains_key(CONTENT_TYPE) {
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    }
     apply_proxy_identity(headers)?;
     match accept {
         AcceptMode::Json => {
@@ -355,6 +368,9 @@ pub(super) fn apply(
         }
         AcceptMode::EventStream => {
             headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
+        }
+        AcceptMode::Audio => {
+            headers.insert(ACCEPT, HeaderValue::from_static("audio/*"));
         }
     }
     if let Some(session_id) = session_id {
@@ -459,6 +475,15 @@ mod tests {
     }
 
     #[test]
+    fn public_media_api_has_an_independent_base_url() {
+        assert_eq!(xai_api_base_url(&Value::Null), DEFAULT_XAI_API_BASE_URL);
+        assert_eq!(
+            xai_api_base_url(&json!({ "xai_api_base_url": "https://media.x.ai/v1/" })),
+            "https://media.x.ai/v1/"
+        );
+    }
+
+    #[test]
     fn oauth_request_has_cli_proxy_identity() {
         let secret = json!({ "access_token": "oauth-token", "sub": "user-1" });
         let mut req = Request::post("https://cli-chat-proxy.grok.com/v1/responses")
@@ -482,6 +507,23 @@ mod tests {
                 .unwrap()
                 .starts_with("grok-shell/1.0.0 (")
         );
+    }
+
+    #[test]
+    fn oauth_request_preserves_media_content_type_and_accepts_audio() {
+        let secret = json!({ "access_token": "oauth-token" });
+        let mut req = Request::post("https://api.x.ai/v1/stt")
+            .header(CONTENT_TYPE, "multipart/form-data; boundary=media")
+            .body(Bytes::new())
+            .unwrap();
+
+        apply(&mut req, &secret, AcceptMode::Audio, None).unwrap();
+
+        assert_eq!(
+            req.headers()[CONTENT_TYPE],
+            "multipart/form-data; boundary=media"
+        );
+        assert_eq!(req.headers()[ACCEPT], "audio/*");
     }
 
     #[test]
