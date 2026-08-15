@@ -7,7 +7,7 @@ use bytes::Bytes;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::http_util::{allow_headers, allow_query, build_request};
-use crate::channel::shaping::vertex_normalize;
+use crate::channel::shaping::{self, gemini_genconfig, vertex_normalize};
 use crate::channel::{Channel, ChannelError, ModelCatalog, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 
@@ -129,6 +129,10 @@ impl Channel for VertexExpressChannel {
         Ok(PreparedRequest::new(req))
     }
 
+    fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, _ctx: &ShapeCtx) -> Bytes {
+        shaping::with_json_body(body, gemini_genconfig::strip_store)
+    }
+
     /// Normalize Gemini content responses to AI-Studio shape (citation rename,
     /// block-reason fix). Non-content ops and other kinds pass through.
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
@@ -188,5 +192,34 @@ mod tests {
         };
         let out2 = VertexExpressChannel.shape_response(body.clone(), &count_ctx);
         assert_eq!(out2, body);
+    }
+
+    #[test]
+    fn shape_request_strips_store_from_gemini_body() {
+        use crate::protocol::{Operation, OperationKey};
+
+        let body = Bytes::from(
+            json!({
+                "store": true,
+                "contents": [{"role": "user", "parts": [{"text": "hello"}]}]
+            })
+            .to_string(),
+        );
+        let ctx = ShapeCtx {
+            op: OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+            stream: false,
+            status: http::StatusCode::OK,
+            settings: &Value::Null,
+        };
+        let mut headers = http::HeaderMap::new();
+
+        let output = VertexExpressChannel.shape_request(body, &mut headers, &ctx);
+        let value: Value = serde_json::from_slice(&output).unwrap();
+
+        assert!(value.get("store").is_none());
+        assert_eq!(value["contents"][0]["role"], "user");
     }
 }

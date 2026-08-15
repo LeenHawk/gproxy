@@ -184,9 +184,7 @@ impl Channel for AntigravityChannel {
         // GenerateContentRequest schema. Best-effort (no-op on non-JSON).
         shaping::with_json_body(body, |body| {
             gemini_genconfig::strip(body);
-            if let Some(object) = body.as_object_mut() {
-                object.remove("store");
-            }
+            gemini_genconfig::strip_store(body);
         })
     }
 
