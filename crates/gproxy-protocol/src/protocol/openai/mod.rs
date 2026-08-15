@@ -13,6 +13,7 @@ pub mod generate_content;
 mod images;
 mod models;
 mod rerank;
+mod video;
 
 pub use audio::*;
 pub use common::*;
@@ -24,3 +25,4 @@ pub use generate_content::*;
 pub use images::*;
 pub use models::*;
 pub use rerank::*;
+pub use video::*;

@@ -30,6 +30,7 @@ pub enum OperationGroup {
     Conversation,
     Realtime,
     Audio,
+    Video,
 }
 
 /// Provider-neutral operation name.
@@ -54,6 +55,16 @@ pub enum Operation {
     CreateSpeech,
     CreateTranscription,
     CreateTranslation,
+    CreateVideo,
+    RetrieveVideo,
+    ListVideos,
+    DeleteVideo,
+    DownloadVideoContent,
+    RemixVideo,
+    CreateVideoCharacter,
+    GetVideoCharacter,
+    EditVideo,
+    ExtendVideo,
     CompactContent,
     CreateConversation,
     CreateRealtimeCall,
@@ -73,6 +84,16 @@ impl Operation {
             Self::CreateSpeech | Self::CreateTranscription | Self::CreateTranslation => {
                 OperationGroup::Audio
             }
+            Self::CreateVideo
+            | Self::RetrieveVideo
+            | Self::ListVideos
+            | Self::DeleteVideo
+            | Self::DownloadVideoContent
+            | Self::RemixVideo
+            | Self::CreateVideoCharacter
+            | Self::GetVideoCharacter
+            | Self::EditVideo
+            | Self::ExtendVideo => OperationGroup::Video,
             Self::CompactContent => OperationGroup::Compact,
             Self::CreateConversation => OperationGroup::Conversation,
             Self::CreateRealtimeCall | Self::ConnectRealtime => OperationGroup::Realtime,
@@ -83,7 +104,14 @@ impl Operation {
     pub const fn has_request_body(self) -> bool {
         !matches!(
             self,
-            Self::ListModels | Self::GetModel | Self::ConnectRealtime
+            Self::ListModels
+                | Self::GetModel
+                | Self::RetrieveVideo
+                | Self::ListVideos
+                | Self::DeleteVideo
+                | Self::DownloadVideoContent
+                | Self::GetVideoCharacter
+                | Self::ConnectRealtime
         )
     }
 }
@@ -356,5 +384,32 @@ mod tests {
         assert_eq!(Operation::Rerank.group(), OperationGroup::Search);
         assert!(Operation::Rerank.has_request_body());
         assert!(OperationKey::provider(Operation::Rerank, Provider::OpenAi).is_consistent());
+    }
+
+    #[test]
+    fn video_operations_have_expected_group_and_body_semantics() {
+        for operation in [
+            Operation::CreateVideo,
+            Operation::RetrieveVideo,
+            Operation::ListVideos,
+            Operation::DeleteVideo,
+            Operation::DownloadVideoContent,
+            Operation::RemixVideo,
+            Operation::CreateVideoCharacter,
+            Operation::GetVideoCharacter,
+            Operation::EditVideo,
+            Operation::ExtendVideo,
+        ] {
+            assert_eq!(operation.group(), OperationGroup::Video);
+            assert!(OperationKey::provider(operation, Provider::OpenAi).is_consistent());
+        }
+
+        assert!(Operation::CreateVideo.has_request_body());
+        assert!(Operation::RemixVideo.has_request_body());
+        assert!(!Operation::RetrieveVideo.has_request_body());
+        assert!(!Operation::ListVideos.has_request_body());
+        assert!(!Operation::DeleteVideo.has_request_body());
+        assert!(!Operation::DownloadVideoContent.has_request_body());
+        assert!(!Operation::GetVideoCharacter.has_request_body());
     }
 }
