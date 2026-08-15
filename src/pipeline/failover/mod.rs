@@ -311,6 +311,8 @@ pub async fn run_failover(
                 multi_step,
             } = outcome;
             let latency_ms = send_ms.map(|ms| ms as i64).unwrap_or(0);
+            let actual_service_tier =
+                crate::billing::price::response_service_tier_from_headers(&headers);
             if status.is_success() {
                 balance::record_response_affinity(state.cache.as_ref(), ctx, &headers, cand).await;
             }
@@ -385,6 +387,7 @@ pub async fn run_failover(
                             kind,
                             count_body.clone(),
                             latency_ms,
+                            actual_service_tier.as_deref(),
                         )
                     })
                 })
@@ -489,7 +492,13 @@ pub async fn run_failover(
             };
             let body = match (provider_stream_family, body) {
                 (Some(family), ResponseBody::Stream(stream)) => {
-                    let guard = settle::provider::StreamGuard::new(state, ctx, cand, family);
+                    let guard = settle::provider::StreamGuard::new(
+                        state,
+                        ctx,
+                        cand,
+                        family,
+                        actual_service_tier.as_deref(),
+                    );
                     ResponseBody::Stream(
                         crate::pipeline::stream::instrument_provider_settle_stream(stream, guard),
                     )
@@ -517,7 +526,15 @@ pub async fn run_failover(
                 && settle::provider::billable(ctx.op)
                 && let Some((provider_body, usage_family)) = provider_usage
             {
-                settle::provider::schedule(state, ctx, cand, provider_body, usage_family).await;
+                settle::provider::schedule(
+                    state,
+                    ctx,
+                    cand,
+                    provider_body,
+                    usage_family,
+                    actual_service_tier.as_deref(),
+                )
+                .await;
             }
             sanitize_public_upstream_headers(ctx, &mut headers);
             return Ok(ExecOutcome {

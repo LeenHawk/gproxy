@@ -86,6 +86,143 @@ async fn normal_stream_settles_upstream_usage() {
 }
 
 #[tokio::test]
+async fn service_tier_multiplier_is_applied_to_settled_cost() {
+    let usage_chunk = r#"data: {"id":"c","object":"chat.completion.chunk","created":0,"model":"gpt-test","choices":[],"usage":{"prompt_tokens":1000,"completion_tokens":500}}"#;
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::new(),
+        vec![Bytes::from(format!("{usage_chunk}\n\ndata: [DONE]\n\n"))],
+    ));
+    let mut bundle: Value = serde_json::from_str(&bundle_with(
+        "price_rules",
+        json!([{
+            "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+            "input_price": "3", "output_price": "15",
+            "cache_read_price": "0", "cache_creation_5m_price": "0",
+            "cache_creation_30m_price": "0", "cache_creation_1h_price": "0",
+            "image_output_price": "0",
+            "pricing_tiers_json": [{"service_tier": "ultrafast", "multiplier": "4"}],
+            "enabled": true
+        }]),
+    ))
+    .unwrap();
+    bundle["quotas"] = json!([{
+        "id": 1, "scope": "user", "scope_id": 1,
+        "quota_total": "100.00", "cost_used": "0"
+    }]);
+    let (state, _dir) =
+        state_with_bundle(Arc::clone(&fake), &serde_json::to_string(&bundle).unwrap()).await;
+    let mut ctx = openai_stream_ctx("bill-ultrafast", "claude-test");
+    let mut request: Value = serde_json::from_slice(&ctx.body).unwrap();
+    request["service_tier"] = json!("ultrafast");
+    ctx.body = Bytes::from(serde_json::to_vec(&request).unwrap());
+
+    let outcome = crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("pipeline ok");
+    let ResponseBody::Stream(stream) = outcome.body else {
+        panic!("expected Stream")
+    };
+    let pending = state.cache.incr("qp:user:1", 0, None).await.unwrap();
+    assert!(pending > 0, "tier-adjusted admission estimate was charged");
+    use futures_util::StreamExt;
+    let _: Vec<Bytes> = stream.map(|chunk| chunk.expect("chunk ok")).collect().await;
+
+    let row = wait_usage(&state).await;
+    // Base cost is $0.0105; ultrafast uses the configured ×4 modifier.
+    assert_eq!(row.cost, "0.042".parse().unwrap());
+    let quota = state
+        .persistence
+        .get_quota(crate::store::persistence::records::Scope::User, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(quota.cost_used, row.cost);
+    let pending = state.cache.incr("qp:user:1", 0, None).await.unwrap();
+    assert!(pending <= 1, "pending estimate was refunded: {pending}");
+}
+
+#[tokio::test]
+async fn response_body_tier_can_charge_a_project_level_priority_request() {
+    let usage_chunk = r#"data: {"id":"c","object":"chat.completion.chunk","created":0,"model":"gpt-test","service_tier":"priority","choices":[],"usage":{"prompt_tokens":1000,"completion_tokens":500}}"#;
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::new(),
+        vec![Bytes::from(format!("{usage_chunk}\n\ndata: [DONE]\n\n"))],
+    ));
+    let bundle = bundle_with(
+        "price_rules",
+        json!([{
+            "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+            "input_price": "3", "output_price": "15",
+            "cache_read_price": "0", "cache_creation_5m_price": "0",
+            "cache_creation_30m_price": "0", "cache_creation_1h_price": "0",
+            "image_output_price": "0",
+            "pricing_tiers_json": [{"service_tier": "fast", "multiplier": "2"}],
+            "enabled": true
+        }]),
+    );
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+
+    // The request omits service_tier, as it would when Fast is selected at
+    // the upstream project level. The provider's actual response still bills it.
+    let outcome = crate::pipeline::execute(
+        &state,
+        openai_stream_ctx("bill-response-priority", "claude-test"),
+    )
+    .await
+    .expect("pipeline ok");
+    let ResponseBody::Stream(stream) = outcome.body else {
+        panic!("expected Stream")
+    };
+    use futures_util::StreamExt;
+    let _: Vec<Bytes> = stream.map(|chunk| chunk.expect("chunk ok")).collect().await;
+
+    let row = wait_usage(&state).await;
+    assert_eq!(row.cost, "0.021".parse().unwrap());
+}
+
+#[tokio::test]
+async fn gemini_response_header_downgrade_uses_standard_price() {
+    let usage_chunk = r#"data: {"id":"c","object":"chat.completion.chunk","created":0,"model":"gpt-test","choices":[],"usage":{"prompt_tokens":1000,"completion_tokens":500}}"#;
+    let fake = Arc::new(
+        FakeUpstream::new(
+            Bytes::new(),
+            vec![Bytes::from(format!("{usage_chunk}\n\ndata: [DONE]\n\n"))],
+        )
+        .with_response_header("x-gemini-service-tier", "standard"),
+    );
+    let bundle = bundle_with(
+        "price_rules",
+        json!([{
+            "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+            "input_price": "3", "output_price": "15",
+            "cache_read_price": "0", "cache_creation_5m_price": "0",
+            "cache_creation_30m_price": "0", "cache_creation_1h_price": "0",
+            "image_output_price": "0",
+            "pricing_tiers_json": [{"service_tier": "priority", "multiplier": "2"}],
+            "enabled": true
+        }]),
+    );
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+    let mut ctx = openai_stream_ctx("bill-gemini-downgrade", "claude-test");
+    let mut request: Value = serde_json::from_slice(&ctx.body).unwrap();
+    request["service_tier"] = json!("fast");
+    ctx.body = Bytes::from(serde_json::to_vec(&request).unwrap());
+
+    let outcome = crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("pipeline ok");
+    let ResponseBody::Stream(stream) = outcome.body else {
+        panic!("expected Stream")
+    };
+    use futures_util::StreamExt;
+    let _: Vec<Bytes> = stream.map(|chunk| chunk.expect("chunk ok")).collect().await;
+
+    let row = wait_usage(&state).await;
+    // Requested Fast/Priority was gracefully downgraded by Gemini.
+    assert_eq!(row.cost, "0.0105".parse().unwrap());
+}
+
+#[tokio::test]
 async fn transformed_buffered_settles_provider_usage_before_response_conversion() {
     let chat_response = json!({
         "id": "chatcmpl-1", "object": "chat.completion", "created": 0, "model": "gpt-test",

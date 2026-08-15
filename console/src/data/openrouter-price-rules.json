@@ -2,13 +2,13 @@
   "schema_version": 2,
   "source": {
     "catalog": "openrouter+official-overrides",
-    "total_models": 533,
-    "supported_output_models": 480,
+    "total_models": 547,
+    "supported_output_models": 487,
     "dynamic_price_models": 5,
-    "included_models": 475,
-    "embedding_models": 33,
-    "rerank_models": 6,
-    "image_output_priced_models": 41
+    "included_models": 482,
+    "embedding_models": 34,
+    "rerank_models": 7,
+    "image_output_priced_models": 43
   },
   "price_rules": [
     {
@@ -400,7 +400,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -442,7 +447,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "10",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -868,8 +878,8 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v4-flash",
-      "input_price": "0.14",
-      "output_price": "0.28",
+      "input_price": "0.08106",
+      "output_price": "0.16212",
       "cache_read_price": "0.0028",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
@@ -882,9 +892,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v4-flash-0731",
-      "input_price": "0.08",
-      "output_price": "0.18",
-      "cache_read_price": "0.016",
+      "input_price": "0.14",
+      "output_price": "0.28",
+      "cache_read_price": "0.028",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -896,9 +906,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "deepseek-v4-flash-latest",
-      "input_price": "0.079996",
-      "output_price": "0.252",
-      "cache_read_price": "0.0252",
+      "input_price": "0.0798",
+      "output_price": "0.1596",
+      "cache_read_price": "0.01596",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -1092,7 +1102,20 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.15",
+          "output_price": "1.25",
+          "cache_read_price": "0.03"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "0.54",
+          "output_price": "4.5",
+          "cache_read_price": "0.054"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1120,7 +1143,20 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.05",
+          "output_price": "0.2",
+          "cache_read_price": "0.01"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "0.18",
+          "output_price": "0.72",
+          "cache_read_price": "0.018"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1168,6 +1204,32 @@
           "input_price": "2.5",
           "output_price": "15",
           "cache_read_price": "0.25"
+        },
+        {
+          "service_tier": "flex",
+          "input_price": "0.625",
+          "output_price": "5",
+          "cache_read_price": "0.125"
+        },
+        {
+          "service_tier": "flex",
+          "min_prompt_tokens": 200000,
+          "input_price": "1.25",
+          "output_price": "7.5",
+          "cache_read_price": "0.25"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "2.25",
+          "output_price": "18",
+          "cache_read_price": "0.225"
+        },
+        {
+          "service_tier": "priority",
+          "min_prompt_tokens": 200000,
+          "input_price": "4.5",
+          "output_price": "27",
+          "cache_read_price": "0.45"
         }
       ],
       "enabled": true
@@ -1246,7 +1308,20 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.25",
+          "output_price": "1.5",
+          "cache_read_price": "0.05"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "0.9",
+          "output_price": "5.4",
+          "cache_read_price": "0.09"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1330,7 +1405,20 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.125",
+          "output_price": "0.75",
+          "cache_read_price": "0.0125"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "0.45",
+          "output_price": "2.7",
+          "cache_read_price": "0.045"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1392,6 +1480,32 @@
           "input_price": "4",
           "output_price": "18",
           "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "flex",
+          "input_price": "1",
+          "output_price": "6",
+          "cache_read_price": "0.2"
+        },
+        {
+          "service_tier": "flex",
+          "min_prompt_tokens": 200000,
+          "input_price": "2",
+          "output_price": "9",
+          "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "3.6",
+          "output_price": "21.6",
+          "cache_read_price": "0.36"
+        },
+        {
+          "service_tier": "priority",
+          "min_prompt_tokens": 200000,
+          "input_price": "7.2",
+          "output_price": "32.4",
+          "cache_read_price": "0.72"
         }
       ],
       "enabled": true
@@ -1413,6 +1527,32 @@
           "input_price": "4",
           "output_price": "18",
           "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "flex",
+          "input_price": "1",
+          "output_price": "6",
+          "cache_read_price": "0.2"
+        },
+        {
+          "service_tier": "flex",
+          "min_prompt_tokens": 200000,
+          "input_price": "2",
+          "output_price": "9",
+          "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "3.6",
+          "output_price": "21.6",
+          "cache_read_price": "0.36"
+        },
+        {
+          "service_tier": "priority",
+          "min_prompt_tokens": 200000,
+          "input_price": "7.2",
+          "output_price": "32.4",
+          "cache_read_price": "0.72"
         }
       ],
       "enabled": true
@@ -1448,7 +1588,20 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.75",
+          "output_price": "4.5",
+          "cache_read_price": "0.08"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "2.7",
+          "output_price": "16.2",
+          "cache_read_price": "0.27"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1462,7 +1615,20 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.15",
+          "output_price": "1.25",
+          "cache_read_price": "0.02"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "0.54",
+          "output_price": "4.5",
+          "cache_read_price": "0.05"
+        }
+      ],
       "enabled": true
     },
     {
@@ -1497,10 +1663,37 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gemini-3.6-flash",
-      "input_price": "1.5",
-      "output_price": "7.5",
-      "cache_read_price": "0.15",
-      "cache_creation_5m_price": "0.0833333333333333",
+      "input_price": "0.75",
+      "output_price": "3.75",
+      "cache_read_price": "0.075",
+      "cache_creation_5m_price": "0.0416666666666667",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.375",
+          "output_price": "1.875",
+          "cache_read_price": "0.0375"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "1.35",
+          "output_price": "6.75",
+          "cache_read_price": "0.135"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.6-flash:batch",
+      "input_price": "0.375",
+      "output_price": "1.875",
+      "cache_read_price": "0.0375",
+      "cache_creation_5m_price": "0.0416666666666667",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
@@ -1510,11 +1703,38 @@
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "gemini-3.6-flash:batch",
+      "model_match": "gemini-3.7-flash",
       "input_price": "0.75",
       "output_price": "3.75",
       "cache_read_price": "0.075",
-      "cache_creation_5m_price": "0.0833333333333333",
+      "cache_creation_5m_price": "0.0208333333333333",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "input_price": "0.375",
+          "output_price": "1.875",
+          "cache_read_price": "0.0375"
+        },
+        {
+          "service_tier": "priority",
+          "input_price": "1.35",
+          "output_price": "6.75",
+          "cache_read_price": "0.135"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "gemini-3.7-flash:batch",
+      "input_price": "0.1875",
+      "output_price": "0.9375",
+      "cache_read_price": "0.01875",
+      "cache_creation_5m_price": "0.0208333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
@@ -1567,10 +1787,10 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gemini-flash-latest",
-      "input_price": "1.5",
-      "output_price": "7.5",
-      "cache_read_price": "0.15",
-      "cache_creation_5m_price": "0.0833333333333333",
+      "input_price": "0.375",
+      "output_price": "1.875",
+      "cache_read_price": "0.0375",
+      "cache_creation_5m_price": "0.0208333333333333",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
@@ -1826,9 +2046,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-5",
-      "input_price": "0.95",
-      "output_price": "2.55",
-      "cache_read_price": "0.2",
+      "input_price": "0.6",
+      "output_price": "1.92",
+      "cache_read_price": "0.12",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -1854,9 +2074,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "glm-5.1",
-      "input_price": "1.4",
-      "output_price": "4.4",
-      "cache_read_price": "0.26",
+      "input_price": "0.966",
+      "output_price": "3.036",
+      "cache_read_price": "0.1794",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -2043,7 +2263,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "1.75"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2057,7 +2282,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "1.75"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2085,7 +2315,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2127,7 +2362,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "1.7"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2141,7 +2381,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "1.75"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2155,7 +2400,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "1.7"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2169,7 +2419,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "multiplier": "1.7"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2183,7 +2438,14 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "priority",
+          "input_price": "0.25",
+          "output_price": "1",
+          "cache_read_price": "0.125"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2239,7 +2501,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2295,7 +2566,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "1.8"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2323,7 +2603,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2379,7 +2664,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2449,7 +2743,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2553,6 +2856,14 @@
           "input_price": "5",
           "output_price": "22.5",
           "cache_read_price": "0.5"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -2582,7 +2893,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2610,7 +2930,12 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        }
+      ],
       "enabled": true
     },
     {
@@ -2643,6 +2968,10 @@
           "min_prompt_tokens": 272000,
           "input_price": "60",
           "output_price": "270"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
         }
       ],
       "enabled": true
@@ -2705,6 +3034,14 @@
           "input_price": "10",
           "output_price": "45",
           "cache_read_price": "1"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2.5"
         }
       ],
       "enabled": true
@@ -2725,6 +3062,10 @@
           "min_prompt_tokens": 272000,
           "input_price": "60",
           "output_price": "270"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
         }
       ],
       "enabled": true
@@ -2774,20 +3115,28 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gpt-5.6-luna",
-      "input_price": "0.1",
-      "output_price": "0.6",
-      "cache_read_price": "0.01",
+      "input_price": "0.2",
+      "output_price": "1.2",
+      "cache_read_price": "0.02",
       "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0.125",
+      "cache_creation_30m_price": "0.25",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
       "pricing_tiers_json": [
         {
           "min_prompt_tokens": 272000,
-          "input_price": "0.2",
-          "output_price": "0.9",
-          "cache_read_price": "0.02",
-          "cache_creation_30m_price": "0.25"
+          "input_price": "0.4",
+          "output_price": "1.8",
+          "cache_read_price": "0.04",
+          "cache_creation_30m_price": "0.5"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -2874,6 +3223,14 @@
           "output_price": "45",
           "cache_read_price": "1",
           "cache_creation_30m_price": "12.5"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -2946,20 +3303,28 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "gpt-5.6-terra",
-      "input_price": "1",
-      "output_price": "6",
-      "cache_read_price": "0.1",
+      "input_price": "2",
+      "output_price": "12",
+      "cache_read_price": "0.2",
       "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "1.25",
+      "cache_creation_30m_price": "2.5",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
       "pricing_tiers_json": [
         {
           "min_prompt_tokens": 272000,
-          "input_price": "2",
-          "output_price": "9",
-          "cache_read_price": "0.2",
-          "cache_creation_30m_price": "2.5"
+          "input_price": "4",
+          "output_price": "18",
+          "cache_read_price": "0.4",
+          "cache_creation_30m_price": "5"
+        },
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3263,6 +3628,10 @@
           "input_price": "2.5",
           "output_price": "5",
           "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3284,6 +3653,10 @@
           "input_price": "2.5",
           "output_price": "5",
           "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3305,6 +3678,10 @@
           "input_price": "2.5",
           "output_price": "5",
           "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3326,6 +3703,10 @@
           "input_price": "4",
           "output_price": "12",
           "cache_read_price": "0.6"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3347,6 +3728,10 @@
           "input_price": "4",
           "output_price": "12",
           "cache_read_price": "1"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3368,6 +3753,10 @@
           "input_price": "2",
           "output_price": "4",
           "cache_read_price": "0.4"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3417,6 +3806,10 @@
           "input_price": "4",
           "output_price": "12",
           "cache_read_price": "1"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "2"
         }
       ],
       "enabled": true
@@ -3705,9 +4098,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.6",
-      "input_price": "0.5795",
-      "output_price": "2.44",
-      "cache_read_price": "0.0976",
+      "input_price": "0.65",
+      "output_price": "3.41",
+      "cache_read_price": "0.15",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -3719,8 +4112,8 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "kimi-k2.7-code",
-      "input_price": "0.67",
-      "output_price": "3.4",
+      "input_price": "0.71",
+      "output_price": "3.5",
       "cache_read_price": "0.15",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
@@ -3970,20 +4363,6 @@
     {
       "provider_id": null,
       "match_type": "contains",
-      "model_match": "ling-3.0-tiny:free",
-      "input_price": "0",
-      "output_price": "0",
-      "cache_read_price": "0",
-      "cache_creation_5m_price": "0",
-      "cache_creation_30m_price": "0",
-      "cache_creation_1h_price": "0",
-      "image_output_price": "0",
-      "pricing_tiers_json": null,
-      "enabled": true
-    },
-    {
-      "provider_id": null,
-      "match_type": "contains",
       "model_match": "llama-3.1-70b-instruct",
       "input_price": "0.4",
       "output_price": "0.4",
@@ -4056,7 +4435,7 @@
       "match_type": "contains",
       "model_match": "llama-4-maverick",
       "input_price": "0.2",
-      "output_price": "0.696",
+      "output_price": "0.8",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
@@ -5098,7 +5477,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "1.75"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5210,7 +5598,16 @@
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_output_price": "0",
-      "pricing_tiers_json": null,
+      "pricing_tiers_json": [
+        {
+          "service_tier": "flex",
+          "multiplier": "0.5"
+        },
+        {
+          "service_tier": "priority",
+          "multiplier": "1.818181818181818181818181818"
+        }
+      ],
       "enabled": true
     },
     {
@@ -5812,9 +6209,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-next-80b-a3b-instruct",
-      "input_price": "0.09",
+      "input_price": "0.1",
       "output_price": "1.1",
-      "cache_read_price": "0",
+      "cache_read_price": "0.07",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -5828,6 +6225,20 @@
       "model_match": "qwen3-next-80b-a3b-thinking",
       "input_price": "0.15",
       "output_price": "1.2",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3-reranker-8b",
+      "input_price": "0",
+      "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
@@ -5868,8 +6279,8 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3-vl-30b-a3b-instruct",
-      "input_price": "0.15",
-      "output_price": "0.6",
+      "input_price": "0.13",
+      "output_price": "0.52",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
@@ -5966,9 +6377,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.5-35b-a3b",
-      "input_price": "0.14",
-      "output_price": "1",
-      "cache_read_price": "0",
+      "input_price": "0.225",
+      "output_price": "1.8",
+      "cache_read_price": "0.225",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -5980,9 +6391,9 @@
       "provider_id": null,
       "match_type": "contains",
       "model_match": "qwen3.5-397b-a17b",
-      "input_price": "0.5",
-      "output_price": "3.6",
-      "cache_read_price": "0.3",
+      "input_price": "0.39",
+      "output_price": "2.34",
+      "cache_read_price": "0",
       "cache_creation_5m_price": "0",
       "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
@@ -6213,6 +6624,34 @@
           "cache_creation_5m_price": "1.2"
         }
       ],
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3.8-2.4t-a95b",
+      "input_price": "2",
+      "output_price": "6",
+      "cache_read_price": "0.25",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "qwen3.8-27b",
+      "input_price": "0.45",
+      "output_price": "3.2",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
       "enabled": true
     },
     {
@@ -6752,6 +7191,34 @@
     {
       "provider_id": null,
       "match_type": "contains",
+      "model_match": "seedream-5-0-lite",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "8.38323353293413",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "seedream-5-0-pro",
+      "input_price": "0",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "10.7784431137725",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
       "model_match": "skyfall-36b-v2",
       "input_price": "0.55",
       "output_price": "0.8",
@@ -7062,6 +7529,20 @@
       "match_type": "contains",
       "model_match": "voyage-4-lite",
       "input_price": "0.02",
+      "output_price": "0",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_output_price": "0",
+      "pricing_tiers_json": null,
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "voyage-code-4",
+      "input_price": "0.12",
       "output_price": "0",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",

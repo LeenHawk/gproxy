@@ -36,7 +36,9 @@ export interface PriceRuleInput {
 }
 
 export interface PricingTier {
-  min_prompt_tokens: number;
+  min_prompt_tokens?: number;
+  service_tier?: string;
+  multiplier?: string;
   input_price?: string;
   output_price?: string;
   cache_read_price?: string;

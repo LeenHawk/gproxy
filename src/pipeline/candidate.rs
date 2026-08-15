@@ -219,12 +219,13 @@ fn prepare_request(
         CandidateSource::Route(route) => route.provider_models().collect(),
         CandidateSource::Provider(provider) => vec![provider.provider_model()],
     };
+    let service_tier = crate::billing::price::request_service_tier(&ctx.body);
     let estimates = pairs
         .iter()
         .map(|(provider_id, model)| {
             (
                 (*provider_id, (*model).to_owned()),
-                estimate(cp, ctx, *provider_id, model),
+                estimate(cp, ctx, *provider_id, model, service_tier.as_deref()),
             )
         })
         .collect();
@@ -340,7 +341,13 @@ impl ScopedModels {
 }
 
 /// §17 pre-deduct estimate in micro-dollars for billable operations.
-fn estimate(cp: &ControlPlaneSnapshot, ctx: &RequestCtx, provider_id: i64, model_id: &str) -> i64 {
+fn estimate(
+    cp: &ControlPlaneSnapshot,
+    ctx: &RequestCtx,
+    provider_id: i64,
+    model_id: &str,
+    service_tier: Option<&str>,
+) -> i64 {
     let Some(op) = ctx.op else { return 0 };
     if matches!(
         transform::plan_for(cp, provider_id, op),
@@ -357,7 +364,8 @@ fn estimate(cp: &ControlPlaneSnapshot, ctx: &RequestCtx, provider_id: i64, model
         | Operation::CreateTranscription
         | Operation::CreateImage
         | Operation::EditImage => {
-            let pricing = pending::model_pricing(cp, provider_id, model_id);
+            let pricing =
+                pending::model_pricing(cp, provider_id, model_id).with_service_tier(service_tier);
             pending::estimate_micros(&pricing, ctx.body.len())
         }
         _ => 0,
