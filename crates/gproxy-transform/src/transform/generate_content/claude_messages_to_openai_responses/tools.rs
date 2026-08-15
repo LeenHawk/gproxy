@@ -167,6 +167,7 @@ fn claude_web_search_to_response(tool: claude::WebSearchTool) -> openai::Respons
                 extra: Default::default(),
             })
         }),
+        max_uses: None,
         search_context_size: None,
         user_location: params.user_location.map(claude_location_to_response),
         extra: Default::default(),
@@ -197,6 +198,7 @@ fn claude_web_fetch_to_response(tool: claude::WebFetchTool) -> openai::ResponseT
                 extra: Default::default(),
             })
         }),
+        max_uses: None,
         search_context_size: None,
         user_location: None,
         extra: Default::default(),
@@ -345,6 +347,7 @@ fn claude_text_editor_to_response(tool: claude::TextEditorTool) -> openai::Respo
     }
     openai::ResponseTool::ApplyPatch {
         allowed_callers: claude_callers_to_responses(allowed_callers),
+        max_characters: None,
         extra: Default::default(),
     }
 }

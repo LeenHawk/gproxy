@@ -55,6 +55,10 @@ pub enum ResponseTool {
     WebSearch {
         #[serde(skip_serializing_if = "Option::is_none")]
         filters: Option<WebSearchFilters>,
+        // gproxy extension: forwarded to Claude web_search `max_uses`; real OpenAI
+        // upstreams do not accept it, so OpenAI-bound transforms never set it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_uses: Option<u64>,
         #[serde(skip_serializing_if = "Option::is_none")]
         search_context_size: Option<SearchContextSize>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -66,10 +70,35 @@ pub enum ResponseTool {
     WebSearch20250826 {
         #[serde(skip_serializing_if = "Option::is_none")]
         filters: Option<WebSearchFilters>,
+        // gproxy extension: see `WebSearch::max_uses`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_uses: Option<u64>,
         #[serde(skip_serializing_if = "Option::is_none")]
         search_context_size: Option<SearchContextSize>,
         #[serde(skip_serializing_if = "Option::is_none")]
         user_location: Option<WebSearchUserLocation>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    // gproxy extension: mirrors the Claude web_fetch tool definition so
+    // Responses-format clients can configure fetch behaviour on Claude routes.
+    // Not part of the official OpenAI Responses API.
+    #[serde(rename = "web_fetch")]
+    WebFetch {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        allowed_domains: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        blocked_domains: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_content_tokens: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_uses: Option<u64>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    // gproxy extension: mirrors the Claude memory_20250818 tool definition.
+    #[serde(rename = "memory")]
+    Memory {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -228,6 +257,9 @@ pub enum ResponseTool {
     ApplyPatch {
         #[serde(skip_serializing_if = "Option::is_none")]
         allowed_callers: Option<Vec<ToolCaller>>,
+        // gproxy extension: forwarded to Claude text_editor `max_characters`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_characters: Option<u64>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },

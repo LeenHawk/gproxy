@@ -15,8 +15,8 @@ pub(in crate::transform::models) fn model(
         type_: claude_model_object(),
         created_at: DEFAULT_CREATED_AT.to_owned(),
         display_name: id,
-        max_input_tokens: None,
-        max_tokens: None,
+        max_input_tokens: input.max_input_tokens,
+        max_tokens: input.max_output_tokens,
         capabilities: None,
         extra: Default::default(),
     }))

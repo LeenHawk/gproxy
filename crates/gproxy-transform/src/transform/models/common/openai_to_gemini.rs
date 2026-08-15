@@ -1,7 +1,7 @@
 use crate::protocol::{gemini, openai};
 use crate::transform::{TransformContext, TransformError};
 
-use super::wire_string;
+use super::{u64_to_i32_default, wire_string};
 
 pub(in crate::transform::models) fn model(
     input: openai::Model,
@@ -15,8 +15,8 @@ pub(in crate::transform::models) fn model(
         version: None,
         display_name: Some(id),
         description: None,
-        input_token_limit: None,
-        output_token_limit: None,
+        input_token_limit: input.max_input_tokens.map(u64_to_i32_default),
+        output_token_limit: input.max_output_tokens.map(u64_to_i32_default),
         supported_generation_methods: Vec::new(),
         supported_actions: Vec::new(),
         thinking: None,

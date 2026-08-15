@@ -254,6 +254,7 @@ mod tests {
     fn maps_responses_web_search_directly_to_gemini_search() {
         let tools = response_tools_to_gemini(Some(vec![openai::ResponseTool::WebSearch {
             filters: None,
+            max_uses: None,
             search_context_size: None,
             user_location: None,
             extra: Default::default(),
