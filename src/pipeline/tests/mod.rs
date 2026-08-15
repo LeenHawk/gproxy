@@ -52,6 +52,9 @@ struct FakeUpstream {
     /// canned non-stream response body
     response: Bytes,
     response_content_type: &'static str,
+    /// Optional per-call body/content-type pairs; the base response above is
+    /// used once this list is exhausted.
+    responses: Vec<(Bytes, &'static str)>,
     response_headers: HeaderMap,
     /// canned stream chunks (send_streaming)
     chunks: Vec<Bytes>,
@@ -69,10 +72,15 @@ impl UpstreamClient for FakeUpstream {
             .or_else(|| self.statuses.last())
             .copied()
             .unwrap_or(StatusCode::OK);
+        let (body, content_type) = self
+            .responses
+            .get(i)
+            .map(|(body, content_type)| (body.clone(), *content_type))
+            .unwrap_or_else(|| (self.response.clone(), self.response_content_type));
         let mut response = http::Response::builder()
             .status(status)
-            .header("content-type", self.response_content_type)
-            .body(self.response.clone())
+            .header("content-type", content_type)
+            .body(body)
             .expect("response");
         response.headers_mut().extend(self.response_headers.clone());
         Ok(response)
@@ -123,6 +131,7 @@ impl FakeUpstream {
             statuses: vec![StatusCode::OK],
             response,
             response_content_type: "application/json",
+            responses: Vec::new(),
             response_headers: HeaderMap::new(),
             chunks,
             calls: AtomicUsize::new(0),
@@ -131,6 +140,11 @@ impl FakeUpstream {
 
     fn with_response_content_type(mut self, content_type: &'static str) -> Self {
         self.response_content_type = content_type;
+        self
+    }
+
+    fn with_responses(mut self, responses: Vec<(Bytes, &'static str)>) -> Self {
+        self.responses = responses;
         self
     }
 

@@ -435,6 +435,12 @@ pub async fn run_failover(
                 provider_settle,
                 ..
             } = mat?;
+            if status.is_success()
+                && let ResponseBody::Full(response_body) = &body
+            {
+                balance::record_media_response(state.cache.as_ref(), ctx, response_body, cand)
+                    .await;
+            }
             if let Some(s) = settle {
                 // §17: settle (usage extract + reconcile + usage INSERT) must
                 // not delay the client-visible response — detach it, mirroring

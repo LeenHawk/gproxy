@@ -169,6 +169,16 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_audio_translations",
             "image_generations",
             "image_edits",
+            "openai_video_create",
+            "openai_video_retrieve",
+            "openai_video_list",
+            "openai_video_delete",
+            "openai_video_content",
+            "openai_video_remix",
+            "openai_video_character_create",
+            "openai_video_character_get",
+            "openai_video_edit",
+            "openai_video_extend",
             "openai_compact",
         ],
         "azure" => &[
@@ -181,6 +191,16 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_embeddings",
             "image_generations",
             "image_edits",
+            "openai_video_create",
+            "openai_video_retrieve",
+            "openai_video_list",
+            "openai_video_delete",
+            "openai_video_content",
+            "openai_video_remix",
+            "openai_video_character_create",
+            "openai_video_character_get",
+            "openai_video_edit",
+            "openai_video_extend",
             "openai_compact",
         ],
         "aws-bedrock" => &[
@@ -214,9 +234,6 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "claude_messages",
             "openai_embeddings",
             "openai_rerank",
-            "openai_audio_speech",
-            "openai_audio_transcriptions",
-            "openai_audio_translations",
             "image_generations",
             "image_edits",
             "openai_compact",
@@ -276,8 +293,21 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_embeddings",
             "gemini_embeddings",
             "openai_rerank",
+            "openai_audio_speech",
+            "openai_audio_transcriptions",
+            "openai_audio_translations",
             "image_generations",
             "image_edits",
+            "openai_video_create",
+            "openai_video_retrieve",
+            "openai_video_list",
+            "openai_video_delete",
+            "openai_video_content",
+            "openai_video_remix",
+            "openai_video_character_create",
+            "openai_video_character_get",
+            "openai_video_edit",
+            "openai_video_extend",
             "openai_compact",
         ],
         "claudeapi" => &[
@@ -318,6 +348,8 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_list_models",
             "openai_get_model",
             "openai_responses",
+            "image_generations",
+            "image_edits",
             "openai_compact",
             "openai_search",
             "openai_realtime_call",
@@ -369,5 +401,63 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "claude_messages",
         ],
         _ => &[],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::channel::registry::ChannelRegistry;
+    use crate::protocol::Operation;
+
+    #[test]
+    fn media_endpoint_metadata_matches_routing_tables() {
+        let registry = ChannelRegistry::with_builtin();
+        let mut mismatches = Vec::new();
+        let cases = [
+            ("openai_audio_speech", Operation::CreateSpeech),
+            (
+                "openai_audio_transcriptions",
+                Operation::CreateTranscription,
+            ),
+            ("openai_audio_translations", Operation::CreateTranslation),
+            ("image_generations", Operation::CreateImage),
+            ("image_edits", Operation::EditImage),
+            ("openai_video_create", Operation::CreateVideo),
+            ("openai_video_retrieve", Operation::RetrieveVideo),
+            ("openai_video_list", Operation::ListVideos),
+            ("openai_video_delete", Operation::DeleteVideo),
+            ("openai_video_content", Operation::DownloadVideoContent),
+            ("openai_video_remix", Operation::RemixVideo),
+            (
+                "openai_video_character_create",
+                Operation::CreateVideoCharacter,
+            ),
+            ("openai_video_character_get", Operation::GetVideoCharacter),
+            ("openai_video_edit", Operation::EditVideo),
+            ("openai_video_extend", Operation::ExtendVideo),
+        ];
+
+        for entry in registry.catalog() {
+            let channel = registry.get(&entry.metadata.id).expect("catalog channel");
+            let routes = channel.routing_table();
+            for (endpoint, operation) in cases {
+                let declared = entry
+                    .metadata
+                    .endpoint_kinds
+                    .iter()
+                    .any(|kind| kind == endpoint);
+                let routed = routes.iter().any(|(source, decision)| {
+                    source.operation() == operation
+                        && *decision == crate::routing::RoutingDecision::Passthrough
+                });
+                if declared != routed {
+                    mismatches.push(format!(
+                        "{} {endpoint}: declared={declared} routed={routed}",
+                        entry.metadata.id
+                    ));
+                }
+            }
+        }
+        assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
     }
 }

@@ -23,8 +23,79 @@ pub(crate) fn request_key(ctx: &RequestCtx, user_key_id: i64) -> Option<Arc<str>
         Operation::ConnectRealtime => query_value(ctx.query.as_deref(), "call_id")
             .filter(|id| !id.is_empty())
             .map(|id| key("realtime", user_key_id, &id)),
+        operation if operation.group() == crate::protocol::OperationGroup::Video => {
+            request_resource(ctx).map(|(kind, id)| key(kind, user_key_id, &id))
+        }
         _ => None,
     }
+}
+
+pub(crate) async fn record_media_response(
+    cache: &dyn CacheBackend,
+    ctx: &RequestCtx,
+    body: &[u8],
+    candidate: &Candidate,
+) {
+    let Some(user_key_id) = ctx.identity.as_ref().map(|id| id.user_key.id) else {
+        return;
+    };
+    let Some(operation) = ctx.op.map(|op| op.operation()) else {
+        return;
+    };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return;
+    };
+    let kind = if matches!(
+        operation,
+        Operation::CreateVideoCharacter | Operation::GetVideoCharacter
+    ) {
+        "video_character"
+    } else if operation.group() == crate::protocol::OperationGroup::Video {
+        "video"
+    } else {
+        return;
+    };
+    let ids: Vec<&str> = if operation == Operation::ListVideos {
+        value
+            .get("data")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|video| video.get("id").and_then(serde_json::Value::as_str))
+            .collect()
+    } else {
+        value
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .into_iter()
+            .collect()
+    };
+    let model = ctx.route_name.as_deref().or(ctx.body_model.as_deref());
+    for id in ids.into_iter().filter(|id| !id.is_empty()) {
+        write(cache, &key(kind, user_key_id, id), candidate.credential.id).await;
+        if let Some(model) = model {
+            let _ = cache
+                .set(
+                    &resource_model_key(kind, user_key_id, id),
+                    model.as_bytes().to_vec(),
+                    Some(BINDING_TTL),
+                )
+                .await;
+        }
+    }
+}
+
+pub(crate) async fn media_model(
+    cache: &dyn CacheBackend,
+    ctx: &RequestCtx,
+    user_key_id: i64,
+) -> Option<String> {
+    let (kind, id) = request_resource(ctx)?;
+    cache
+        .get(&resource_model_key(kind, user_key_id, &id))
+        .await
+        .and_then(|value| String::from_utf8(value).ok())
+        .filter(|value| !value.is_empty())
 }
 
 pub(crate) async fn record_response(
@@ -98,6 +169,42 @@ fn model_key(user_key_id: i64, call_id: &str) -> String {
     )
 }
 
+fn resource_model_key(kind: &str, user_key_id: i64, id: &str) -> String {
+    format!(
+        "resource_model:{kind}:{user_key_id}:{}",
+        blake3::hash(id.as_bytes()).to_hex()
+    )
+}
+
+fn request_resource(ctx: &RequestCtx) -> Option<(&'static str, String)> {
+    let operation = ctx.op?.operation();
+    match operation {
+        Operation::RetrieveVideo
+        | Operation::DeleteVideo
+        | Operation::DownloadVideoContent
+        | Operation::RemixVideo => video_id_from_path(&ctx.path)
+            .map(str::to_owned)
+            .map(|id| ("video", id)),
+        Operation::GetVideoCharacter => ctx
+            .path
+            .strip_prefix("/v1/videos/characters/")
+            .filter(|id| !id.is_empty() && !id.contains('/'))
+            .map(str::to_owned)
+            .map(|id| ("video_character", id)),
+        Operation::EditVideo | Operation::ExtendVideo => {
+            body_nested_string(&ctx.body, "video", "id").map(|id| ("video", id))
+        }
+        _ => None,
+    }
+}
+
+fn video_id_from_path(path: &str) -> Option<&str> {
+    path.strip_prefix("/v1/videos/")?
+        .split('/')
+        .next()
+        .filter(|id| !id.is_empty() && *id != "characters")
+}
+
 pub(crate) async fn read(cache: &dyn CacheBackend, key: Option<&str>) -> Option<i64> {
     let key = key?;
     cache
@@ -130,6 +237,17 @@ fn body_string(body: &[u8], field: &str) -> Option<String> {
     serde_json::from_slice::<serde_json::Value>(body)
         .ok()?
         .get(field)?
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn body_nested_string(body: &[u8], field: &str, nested: &str) -> Option<String> {
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()?
+        .get(field)?
+        .get(nested)?
         .as_str()
         .map(str::trim)
         .filter(|value| !value.is_empty())

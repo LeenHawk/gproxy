@@ -17,7 +17,14 @@ use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider}
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: None,
     forward_headers: &["anthropic-beta", "openai-beta"],
-    forward_query: &["api-version", "azure-beta"],
+    forward_query: &[
+        "api-version",
+        "azure-beta",
+        "after",
+        "limit",
+        "order",
+        "variant",
+    ],
 };
 const DEFAULT_IMAGE_API_VERSION: &str = "2025-04-01-preview";
 
@@ -43,11 +50,12 @@ fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
 
 fn query(ctx: &PrepareCtx<'_>) -> Option<String> {
     let mut query = allow_query(ctx.query, DEFAULTS.forward_query);
-    let endpoint_query = crate::channel::settings::endpoint_url(
+    let endpoint_query = crate::channel::settings::endpoint_url_for_request(
         ctx.provider_settings,
         ctx.op,
         ctx.stream,
         ctx.upstream_model_id,
+        ctx.path,
     )
     .and_then(|url| url.split_once('?').map(|(_, query)| query.to_owned()));
     if !matches!(
@@ -128,6 +136,16 @@ impl Channel for AzureChannel {
             ),
             pass(CreateImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::OpenAi)),
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
+            pass(ListVideos, pv(P::OpenAi)),
+            pass(DeleteVideo, pv(P::OpenAi)),
+            pass(DownloadVideoContent, pv(P::OpenAi)),
+            pass(RemixVideo, pv(P::OpenAi)),
+            pass(CreateVideoCharacter, pv(P::OpenAi)),
+            pass(GetVideoCharacter, pv(P::OpenAi)),
+            pass(EditVideo, pv(P::OpenAi)),
+            pass(ExtendVideo, pv(P::OpenAi)),
             pass(CompactContent, pv(P::OpenAi)),
         ];
         routes.extend(responses_ws_to(cg(OpenAiResponses)));
