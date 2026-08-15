@@ -12,6 +12,7 @@ mod embeddings;
 pub mod generate_content;
 mod images;
 mod models;
+pub mod realtime;
 mod rerank;
 mod video;
 
@@ -24,5 +25,6 @@ pub use embeddings::*;
 pub use generate_content::*;
 pub use images::*;
 pub use models::*;
+pub use realtime::*;
 pub use rerank::*;
 pub use video::*;
