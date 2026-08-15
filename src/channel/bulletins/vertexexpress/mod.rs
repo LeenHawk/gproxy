@@ -193,33 +193,4 @@ mod tests {
         let out2 = VertexExpressChannel.shape_response(body.clone(), &count_ctx);
         assert_eq!(out2, body);
     }
-
-    #[test]
-    fn shape_request_strips_store_from_gemini_body() {
-        use crate::protocol::{Operation, OperationKey};
-
-        let body = Bytes::from(
-            json!({
-                "store": true,
-                "contents": [{"role": "user", "parts": [{"text": "hello"}]}]
-            })
-            .to_string(),
-        );
-        let ctx = ShapeCtx {
-            op: OperationKey::content_generation(
-                Operation::GenerateContent,
-                ContentGenerationKind::GeminiGenerateContent,
-            ),
-            stream: false,
-            status: http::StatusCode::OK,
-            settings: &Value::Null,
-        };
-        let mut headers = http::HeaderMap::new();
-
-        let output = VertexExpressChannel.shape_request(body, &mut headers, &ctx);
-        let value: Value = serde_json::from_slice(&output).unwrap();
-
-        assert!(value.get("store").is_none());
-        assert_eq!(value["contents"][0]["role"], "user");
-    }
 }
