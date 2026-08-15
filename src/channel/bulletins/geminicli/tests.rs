@@ -178,7 +178,11 @@ fn normalize_unwraps_and_needs_refresh_expiry() {
     let mut req_headers = HeaderMap::new();
     let out = GeminiCliChannel.shape_request(
         Bytes::from(
-            json!({"generationConfig": {"maxOutputTokens": 8, "temperature": 0.5}}).to_string(),
+            json!({
+                "store": true,
+                "generationConfig": {"maxOutputTokens": 8, "temperature": 0.5}
+            })
+            .to_string(),
         ),
         &mut req_headers,
         &shape,
@@ -192,6 +196,7 @@ fn normalize_unwraps_and_needs_refresh_expiry() {
             .is_none()
     );
     assert_eq!(value["generationConfig"]["temperature"], 0.5);
+    assert!(value.get("store").is_none());
 
     let settings = json!({});
     let headers = HeaderMap::new();

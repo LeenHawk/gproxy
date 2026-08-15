@@ -48,5 +48,8 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
 }
 
 pub(super) fn shape(body: Bytes, _headers: &mut http::HeaderMap, _ctx: &ShapeCtx) -> Bytes {
-    shaping::with_json_body(body, gemini_genconfig::strip)
+    shaping::with_json_body(body, |body| {
+        gemini_genconfig::strip(body);
+        gemini_genconfig::strip_store(body);
+    })
 }

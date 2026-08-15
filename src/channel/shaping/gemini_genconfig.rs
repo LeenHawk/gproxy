@@ -23,6 +23,15 @@ pub fn strip(body: &mut Value) {
     config.remove("response_logprobs");
 }
 
+/// Remove the OpenAI Responses `store` option after conversion to a Gemini
+/// request. Google Code Assist and Vertex AI Express reject this root-level
+/// field because it is not part of GenerateContentRequest.
+pub fn strip_store(body: &mut Value) {
+    if let Some(object) = body.as_object_mut() {
+        object.remove("store");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,5 +66,18 @@ mod tests {
         let before = body.clone();
         strip(&mut body);
         assert_eq!(body, before);
+    }
+
+    #[test]
+    fn strips_root_store_without_touching_other_fields() {
+        let mut body = json!({
+            "store": true,
+            "contents": [{"role": "user", "parts": [{"text": "hello"}]}]
+        });
+
+        strip_store(&mut body);
+
+        assert!(body.get("store").is_none());
+        assert_eq!(body["contents"][0]["role"], "user");
     }
 }
