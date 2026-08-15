@@ -3,6 +3,8 @@
 
 mod auth;
 
+use std::borrow::Cow;
+
 use bytes::Bytes;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
@@ -25,6 +27,23 @@ fn is_gemini_content(ctx: &ShapeCtx) -> bool {
         ctx.op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
     )
+}
+
+/// Express mode v1 expects a fully qualified publisher-model resource. Keep
+/// unrelated Gemini paths unchanged so the channel's other routing behavior
+/// and exact endpoint overrides retain their existing semantics.
+fn default_request_path(path: &str) -> Cow<'_, str> {
+    let Some(model_and_verb) = path.strip_prefix("/v1beta/models/") else {
+        return Cow::Borrowed(path);
+    };
+    if [":generateContent", ":streamGenerateContent", ":countTokens"]
+        .iter()
+        .any(|verb| model_and_verb.ends_with(verb))
+    {
+        Cow::Owned(format!("/v1/publishers/google/models/{model_and_verb}"))
+    } else {
+        Cow::Borrowed(path)
+    }
 }
 
 pub struct VertexExpressChannel;
@@ -123,7 +142,8 @@ impl Channel for VertexExpressChannel {
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         let api_key = common::resolve_api_key(&ctx)?;
         let query = auth::apply_query(allow_query(ctx.query, DEFAULTS.forward_query), &api_key);
-        let uri = common::resolve_uri(&ctx, &DEFAULTS, ctx.path, query.as_deref())?;
+        let path = default_request_path(ctx.path);
+        let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, query.as_deref())?;
         let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
         let req = build_request(ctx.method, uri, headers, ctx.body)?;
         Ok(PreparedRequest::new(req))
@@ -157,6 +177,21 @@ impl Channel for VertexExpressChannel {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    #[test]
+    fn default_content_paths_use_publisher_model_resources() {
+        for verb in ["generateContent", "streamGenerateContent", "countTokens"] {
+            let input = format!("/v1beta/models/gemini-test:{verb}");
+            assert_eq!(
+                default_request_path(&input),
+                format!("/v1/publishers/google/models/gemini-test:{verb}")
+            );
+        }
+        assert_eq!(
+            default_request_path("/v1beta/models/gemini-test:embedContent"),
+            "/v1beta/models/gemini-test:embedContent"
+        );
+    }
 
     #[test]
     fn shape_response_normalizes_gemini_content_only() {
