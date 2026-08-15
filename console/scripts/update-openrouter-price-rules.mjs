@@ -12,26 +12,191 @@ const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
 const SUPPORTED_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings", "rerank"]);
 const OFFICIAL_RULE_OVERRIDES = new Map([
   ["deepseek-v4-flash", { cache_read_price: "0.0028" }],
-]);
-const OFFICIAL_EXTRA_RULES = [{
-  provider_id: null,
-  match_type: "contains",
-  model_match: "grok-4.6",
-  input_price: "2",
-  output_price: "6",
-  cache_read_price: "0.5",
-  cache_creation_5m_price: "0",
-  cache_creation_30m_price: "0",
-  cache_creation_1h_price: "0",
-  image_output_price: "0",
-  pricing_tiers_json: [{
-    min_prompt_tokens: 200000,
-    input_price: "4",
-    output_price: "12",
-    cache_read_price: "1",
+  ["gpt-5.6-sol", {
+    input_price: "5", output_price: "30", cache_read_price: "0.5",
+    cache_creation_30m_price: "6.25",
+    pricing_tiers_json: [{
+      min_prompt_tokens: 272000,
+      input_price: "10", output_price: "45", cache_read_price: "1",
+      cache_creation_30m_price: "12.5",
+    }],
   }],
-  enabled: true,
-}];
+  ["gpt-5.6-terra", {
+    input_price: "2", output_price: "12", cache_read_price: "0.2",
+    cache_creation_30m_price: "2.5",
+    pricing_tiers_json: [{
+      min_prompt_tokens: 272000,
+      input_price: "4", output_price: "18", cache_read_price: "0.4",
+      cache_creation_30m_price: "5",
+    }],
+  }],
+  ["gpt-5.6-luna", {
+    input_price: "0.2", output_price: "1.2", cache_read_price: "0.02",
+    cache_creation_30m_price: "0.25",
+    pricing_tiers_json: [{
+      min_prompt_tokens: 272000,
+      input_price: "0.4", output_price: "1.8", cache_read_price: "0.04",
+      cache_creation_30m_price: "0.5",
+    }],
+  }],
+  ["gemini-3.7-flash", {
+    input_price: "0.75", output_price: "3.75", cache_read_price: "0.075",
+  }],
+  ["gemini-3.6-flash", {
+    input_price: "0.75", output_price: "3.75", cache_read_price: "0.075",
+  }],
+  ["gemini-3.5-flash", {
+    input_price: "1.5", output_price: "9", cache_read_price: "0.15",
+  }],
+  ["gemini-3.5-flash-lite", {
+    input_price: "0.3", output_price: "2.5", cache_read_price: "0.03",
+  }],
+]);
+
+const multiplierTier = (serviceTier, multiplier) => ({
+  service_tier: serviceTier,
+  multiplier,
+});
+const pricedTier = (serviceTier, input, output, cacheRead, minPromptTokens) => ({
+  service_tier: serviceTier,
+  ...(minPromptTokens == null ? {} : { min_prompt_tokens: minPromptTokens }),
+  input_price: input,
+  output_price: output,
+  cache_read_price: cacheRead,
+});
+const flexAndPriority = (priorityMultiplier) => [
+  multiplierTier("flex", "0.5"),
+  multiplierTier("priority", priorityMultiplier),
+];
+
+// Provider-published service-tier prices as of 2026-08-15. These stay
+// model-specific: Fast/Priority is not one universal multiplier.
+const OFFICIAL_SERVICE_TIER_OVERRIDES = new Map([
+  ...["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"].map((model) => (
+    [model, flexAndPriority("2")]
+  )),
+  ["gpt-5.5", flexAndPriority("2.5")],
+  ["gpt-5.5-pro", [multiplierTier("flex", "0.5")]],
+  ["gpt-5.4", flexAndPriority("2")],
+  ["gpt-5.4-mini", flexAndPriority("2")],
+  ["gpt-5.4-nano", [multiplierTier("flex", "0.5")]],
+  ["gpt-5.4-pro", [multiplierTier("flex", "0.5")]],
+  ["gpt-5.2", flexAndPriority("2")],
+  ["gpt-5.1", flexAndPriority("2")],
+  ["gpt-5", flexAndPriority("2")],
+  ["gpt-5-mini", flexAndPriority("1.8")],
+  ["gpt-5-nano", [multiplierTier("flex", "0.5")]],
+  ["gpt-4.1", [multiplierTier("priority", "1.75")]],
+  ["gpt-4.1-mini", [multiplierTier("priority", "1.75")]],
+  ["gpt-4.1-nano", [multiplierTier("priority", "2")]],
+  ["gpt-4o", [multiplierTier("priority", "1.7")]],
+  ["gpt-4o-2024-05-13", [multiplierTier("priority", "1.75")]],
+  ["gpt-4o-2024-08-06", [multiplierTier("priority", "1.7")]],
+  ["gpt-4o-2024-11-20", [multiplierTier("priority", "1.7")]],
+  ["gpt-4o-mini", [pricedTier("priority", "0.25", "1", "0.125")]],
+  ["o3", flexAndPriority("1.75")],
+  ["o4-mini", flexAndPriority("1.818181818181818181818181818")],
+  ["claude-opus-4.8", [multiplierTier("priority", "2")]],
+  ["claude-opus-5", [multiplierTier("priority", "2")]],
+  ["gemini-3.7-flash", [
+    pricedTier("flex", "0.375", "1.875", "0.0375"),
+    pricedTier("priority", "1.35", "6.75", "0.135"),
+  ]],
+  ["gemini-3.6-flash", [
+    pricedTier("flex", "0.375", "1.875", "0.0375"),
+    pricedTier("priority", "1.35", "6.75", "0.135"),
+  ]],
+  ["gemini-3.5-flash", [
+    pricedTier("flex", "0.75", "4.5", "0.08"),
+    pricedTier("priority", "2.7", "16.2", "0.27"),
+  ]],
+  ["gemini-3.5-flash-lite", [
+    pricedTier("flex", "0.15", "1.25", "0.02"),
+    pricedTier("priority", "0.54", "4.5", "0.05"),
+  ]],
+  ["gemini-3.1-flash-lite", [
+    pricedTier("flex", "0.125", "0.75", "0.0125"),
+    pricedTier("priority", "0.45", "2.7", "0.045"),
+  ]],
+  ["gemini-3.1-pro-preview", [
+    pricedTier("flex", "1", "6", "0.2"),
+    pricedTier("flex", "2", "9", "0.4", 200000),
+    pricedTier("priority", "3.6", "21.6", "0.36"),
+    pricedTier("priority", "7.2", "32.4", "0.72", 200000),
+  ]],
+  ["gemini-3.1-pro-preview-customtools", [
+    pricedTier("flex", "1", "6", "0.2"),
+    pricedTier("flex", "2", "9", "0.4", 200000),
+    pricedTier("priority", "3.6", "21.6", "0.36"),
+    pricedTier("priority", "7.2", "32.4", "0.72", 200000),
+  ]],
+  ["gemini-3-flash-preview", [
+    pricedTier("flex", "0.25", "1.5", "0.05"),
+    pricedTier("priority", "0.9", "5.4", "0.09"),
+  ]],
+  ["gemini-2.5-pro", [
+    pricedTier("flex", "0.625", "5", "0.125"),
+    pricedTier("flex", "1.25", "7.5", "0.25", 200000),
+    pricedTier("priority", "2.25", "18", "0.225"),
+    pricedTier("priority", "4.5", "27", "0.45", 200000),
+  ]],
+  ["gemini-2.5-flash", [
+    pricedTier("flex", "0.15", "1.25", "0.03"),
+    pricedTier("priority", "0.54", "4.5", "0.054"),
+  ]],
+  ["gemini-2.5-flash-lite", [
+    pricedTier("flex", "0.05", "0.2", "0.01"),
+    pricedTier("priority", "0.18", "0.72", "0.018"),
+  ]],
+  ...[
+    "grok-4.6",
+    "grok-4.5",
+    "grok-4.3",
+    "grok-4.20-0309-reasoning",
+    "grok-4.20-0309-non-reasoning",
+    "grok-4.20-multi-agent-0309",
+    "grok-4.20",
+    "grok-4.20-multi-agent",
+    "grok-build-0.1",
+    "grok-latest",
+  ].map((model) => [model, [multiplierTier("priority", "2")]]),
+]);
+
+const OFFICIAL_EXTRA_RULES = [
+  {
+    provider_id: null,
+    match_type: "contains",
+    model_match: "grok-4.6",
+    input_price: "2",
+    output_price: "6",
+    cache_read_price: "0.5",
+    cache_creation_5m_price: "0",
+    cache_creation_30m_price: "0",
+    cache_creation_1h_price: "0",
+    image_output_price: "0",
+    pricing_tiers_json: [{
+      min_prompt_tokens: 200000,
+      input_price: "4",
+      output_price: "12",
+      cache_read_price: "1",
+    }],
+    enabled: true,
+  },
+  {
+    provider_id: null,
+    match_type: "contains",
+    model_match: "gemini-3.7-flash",
+    input_price: "0.75",
+    output_price: "3.75",
+    cache_read_price: "0.075",
+    cache_creation_5m_price: "0",
+    cache_creation_30m_price: "0",
+    cache_creation_1h_price: "0",
+    image_output_price: "0",
+    pricing_tiers_json: null,
+    enabled: true,
+  },
+];
 
 /** Convert an OpenRouter USD/token decimal into GPROXY's USD/1M-token form. */
 export function perMillion(value) {
@@ -172,12 +337,29 @@ export function buildPriceBundle(payload) {
 
 /** Apply pricing published directly by providers after the OpenRouter snapshot. */
 export function applyOfficialPriceOverrides(bundle) {
-  const rules = bundle.price_rules.map((rule) => ({
-    ...rule,
-    ...(OFFICIAL_RULE_OVERRIDES.get(rule.model_match) ?? {}),
-  }));
+  const rules = bundle.price_rules.map((rule) => {
+    const overridden = {
+      ...rule,
+      ...(OFFICIAL_RULE_OVERRIDES.get(rule.model_match) ?? {}),
+    };
+    const serviceTiers = OFFICIAL_SERVICE_TIER_OVERRIDES.get(rule.model_match);
+    if (!serviceTiers) return overridden;
+    return {
+      ...overridden,
+      pricing_tiers_json: [
+        ...(overridden.pricing_tiers_json ?? []),
+        ...serviceTiers,
+      ],
+    };
+  });
   for (const rule of OFFICIAL_EXTRA_RULES) {
-    if (!rules.some((candidate) => candidate.model_match === rule.model_match)) rules.push(rule);
+    if (!rules.some((candidate) => candidate.model_match === rule.model_match)) {
+      const serviceTiers = OFFICIAL_SERVICE_TIER_OVERRIDES.get(rule.model_match) ?? [];
+      rules.push({
+        ...rule,
+        pricing_tiers_json: [...(rule.pricing_tiers_json ?? []), ...serviceTiers],
+      });
+    }
   }
   rules.sort((left, right) => (
     left.model_match < right.model_match ? -1 : left.model_match > right.model_match ? 1 : 0

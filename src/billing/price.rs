@@ -16,12 +16,22 @@ pub struct Pricing {
     pub cache_creation_1h: Decimal,
     /// Per-million image-output-token price.
     pub image_output: Decimal,
+    /// Normalized request service/speed tier used to select a modifier.
+    pub service_tier: Option<String>,
     pub tiers: Vec<PricingTier>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PricingTier {
+    /// Optional request service/speed tier. `None` keeps the existing
+    /// prompt-length-only behavior.
+    pub service_tier: Option<String>,
+    /// Minimum total prompt tokens for this entry. Service-tier-only entries
+    /// default to zero.
     pub min_prompt_tokens: u64,
+    /// Multiplier applied after the matching prompt-length rates. Explicit
+    /// category prices below take precedence over the multiplier.
+    pub multiplier: Option<Decimal>,
     pub input: Option<Decimal>,
     pub output: Option<Decimal>,
     pub cache_read: Option<Decimal>,
@@ -29,6 +39,13 @@ pub struct PricingTier {
     pub cache_creation_30m: Option<Decimal>,
     pub cache_creation_1h: Option<Decimal>,
     pub image_output: Option<Decimal>,
+}
+
+impl Pricing {
+    pub fn with_service_tier(mut self, service_tier: Option<&str>) -> Self {
+        self.service_tier = service_tier.and_then(normalize_service_tier);
+        self
+    }
 }
 
 /// Build [`Pricing`] from a structured price rule. All prices are per
@@ -42,6 +59,7 @@ pub fn pricing_from_rule(rule: &PriceRule) -> Pricing {
         cache_creation_30m: rule.cache_creation_30m_price,
         cache_creation_1h: rule.cache_creation_1h_price,
         image_output: rule.image_output_price,
+        service_tier: None,
         tiers: parse_tiers(rule.pricing_tiers_json.as_ref()),
     }
 }
@@ -58,9 +76,24 @@ fn parse_tiers(value: Option<&serde_json::Value>) -> Vec<PricingTier> {
     let mut tiers: Vec<_> = items
         .iter()
         .filter_map(|item| {
-            let min_prompt_tokens = item.get("min_prompt_tokens")?.as_u64()?;
+            let service_tier = item
+                .get("service_tier")
+                .and_then(serde_json::Value::as_str)
+                .and_then(normalize_service_tier);
+            let has_prompt_threshold = item.get("min_prompt_tokens").is_some();
+            let min_prompt_tokens = match item.get("min_prompt_tokens") {
+                Some(value) => value.as_u64()?,
+                None => 0,
+            };
+            // Ignore objects that select neither a prompt threshold nor a
+            // service tier. This preserves the old malformed-entry behavior.
+            if service_tier.is_none() && !has_prompt_threshold {
+                return None;
+            }
             Some(PricingTier {
+                service_tier,
                 min_prompt_tokens,
+                multiplier: decimal(item, "multiplier").filter(|value| *value >= Decimal::ZERO),
                 input: decimal(item, "input_price"),
                 output: decimal(item, "output_price"),
                 cache_read: decimal(item, "cache_read_price"),
@@ -75,17 +108,107 @@ fn parse_tiers(value: Option<&serde_json::Value>) -> Vec<PricingTier> {
     tiers
 }
 
+/// Normalize a provider-defined service tier for matching. Tier names stay
+/// otherwise opaque, so custom providers can use values unknown to gproxy.
+pub fn normalize_service_tier(value: &str) -> Option<String> {
+    let mut normalized = value.trim().to_ascii_lowercase().replace('-', "_");
+    normalized = match normalized.as_str() {
+        // OpenAI and OpenRouter document `fast` as an alias of `priority`;
+        // Claude reports the same accelerated class as `usage.speed = fast`.
+        "fast" => "priority".into(),
+        "ultra_fast" => "ultrafast".into(),
+        // Providers use different names for their ordinary pay-as-you-go tier.
+        "default" | "on_demand" => "standard".into(),
+        _ => normalized,
+    };
+    (!normalized.is_empty()).then_some(normalized)
+}
+
+fn tier_value(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .or_else(|| value.get("type").and_then(serde_json::Value::as_str))
+        .and_then(normalize_service_tier)
+}
+
+/// Read the actual tier reported by a provider response. Supported shapes
+/// include OpenAI/OpenRouter/xAI top-level `service_tier`, Claude/Bedrock
+/// `usage.speed` / `usage.service_tier`, Gemini `usageMetadata.serviceTier`,
+/// and the nested objects used by Responses and Claude stream events.
+pub fn response_service_tier_from_value(value: &serde_json::Value) -> Option<String> {
+    let object = value.as_object()?;
+    ["speed", "service_tier", "serviceTier"]
+        .into_iter()
+        .find_map(|key| object.get(key).and_then(tier_value))
+        .or_else(|| {
+            ["usage", "usageMetadata", "response", "message"]
+                .into_iter()
+                .find_map(|key| object.get(key).and_then(response_service_tier_from_value))
+        })
+}
+
+pub fn response_service_tier(body: &[u8]) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(body).ok()?;
+    response_service_tier_from_value(&value)
+}
+
+/// Gemini reports graceful Priority-to-Standard downgrades in this response
+/// header rather than the JSON body.
+pub fn response_service_tier_from_headers(headers: &http::HeaderMap) -> Option<String> {
+    headers
+        .get("x-gemini-service-tier")
+        .and_then(|value| value.to_str().ok())
+        .and_then(normalize_service_tier)
+}
+
+/// Override request-derived pricing only when the upstream reported an actual
+/// serving tier. An absent report intentionally keeps the request tier as a
+/// best-effort fallback.
+pub fn apply_actual_service_tier(pricing: &mut Pricing, actual: Option<&str>) {
+    if let Some(actual) = actual.and_then(normalize_service_tier) {
+        pricing.service_tier = Some(actual);
+    }
+}
+
+/// Read the requested service/speed tier from any supported JSON wire shape.
+/// `speed` wins because Claude may carry both `service_tier: auto` and the
+/// independently billable `speed: fast` field.
+pub fn request_service_tier(body: &[u8]) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let object = value.as_object()?;
+    ["speed", "service_tier", "serviceTier"]
+        .into_iter()
+        .find_map(|key| {
+            object
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .and_then(normalize_service_tier)
+        })
+}
+
 /// Cost of `u` at rates `p`: Σ tokens × rate / 1_000_000 (exact Decimal math).
 pub fn cost(u: &NormalizedUsage, p: &Pricing) -> Decimal {
     let million = Decimal::from(1_000_000u64);
     let prompt_tokens = u.input + u.cache_read + u.cache_creation();
-    let tier = p
+    let prompt_tier = p
         .tiers
         .iter()
         .rev()
-        .find(|tier| prompt_tokens >= tier.min_prompt_tokens);
+        .find(|tier| tier.service_tier.is_none() && prompt_tokens >= tier.min_prompt_tokens);
+    let service_tier = p.service_tier.as_deref().and_then(|requested| {
+        p.tiers.iter().rev().find(|tier| {
+            tier.service_tier.as_deref() == Some(requested)
+                && prompt_tokens >= tier.min_prompt_tokens
+        })
+    });
     let rate = |base: Decimal, select: fn(&PricingTier) -> Option<Decimal>| {
-        tier.and_then(select).unwrap_or(base)
+        let prompt_rate = prompt_tier.and_then(select).unwrap_or(base);
+        service_tier.and_then(select).unwrap_or_else(|| {
+            prompt_rate
+                * service_tier
+                    .and_then(|tier| tier.multiplier)
+                    .unwrap_or(Decimal::ONE)
+        })
     };
     (Decimal::from(u.input) * rate(p.input, |tier| tier.input)
         + Decimal::from(u.output) * rate(p.output, |tier| tier.output)
@@ -186,5 +309,119 @@ mod tests {
         };
         assert_eq!(cost(&short, &pricing), "0.390998".parse().unwrap());
         assert_eq!(cost(&long, &pricing), "0.779".parse().unwrap());
+    }
+
+    #[test]
+    fn service_tier_multiplier_composes_with_prompt_tier_and_explicit_rates() {
+        let pricing = Pricing {
+            input: Decimal::from(2),
+            output: Decimal::from(6),
+            service_tier: Some("ultrafast".into()),
+            tiers: vec![
+                PricingTier {
+                    min_prompt_tokens: 200_000,
+                    input: Some(Decimal::from(4)),
+                    output: Some(Decimal::from(9)),
+                    ..Default::default()
+                },
+                PricingTier {
+                    service_tier: Some("ultrafast".into()),
+                    min_prompt_tokens: 0,
+                    multiplier: Some(Decimal::from(3)),
+                    output: Some(Decimal::from(30)),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let usage = NormalizedUsage {
+            input: 200_000,
+            output: 1_000_000,
+            ..Default::default()
+        };
+
+        // Long-context input is $4/M, then ×3; explicit ultrafast output
+        // overrides both the base $6/M and long-context $9/M rates.
+        assert_eq!(cost(&usage, &pricing), "32.4".parse().unwrap());
+    }
+
+    #[test]
+    fn parses_and_normalizes_service_tier_entries() {
+        let rule = PriceRule {
+            id: 1,
+            provider_id: None,
+            match_type: "contains".into(),
+            model_match: "model".into(),
+            input_price: Decimal::ONE,
+            output_price: Decimal::ONE,
+            cache_read_price: Decimal::ZERO,
+            cache_creation_5m_price: Decimal::ZERO,
+            cache_creation_30m_price: Decimal::ZERO,
+            cache_creation_1h_price: Decimal::ZERO,
+            image_output_price: Decimal::ZERO,
+            pricing_tiers_json: Some(serde_json::json!([
+                {"service_tier": "Ultra-Fast", "multiplier": "4"}
+            ])),
+            enabled: true,
+            created_at: 0,
+            updated_at: 0,
+        };
+        let pricing = pricing_from_rule(&rule);
+        assert_eq!(pricing.tiers.len(), 1);
+        assert_eq!(pricing.tiers[0].service_tier.as_deref(), Some("ultrafast"));
+        assert_eq!(pricing.tiers[0].min_prompt_tokens, 0);
+        assert_eq!(pricing.tiers[0].multiplier, Some(Decimal::from(4)));
+    }
+
+    #[test]
+    fn extracts_service_tier_across_wire_shapes() {
+        assert_eq!(
+            request_service_tier(br#"{"service_tier":"Ultra-Fast"}"#).as_deref(),
+            Some("ultrafast")
+        );
+        assert_eq!(
+            request_service_tier(br#"{"serviceTier":"PRIORITY"}"#).as_deref(),
+            Some("priority")
+        );
+        assert_eq!(
+            request_service_tier(br#"{"service_tier":"auto","speed":"fast"}"#).as_deref(),
+            Some("priority")
+        );
+        assert_eq!(request_service_tier(b"not json"), None);
+    }
+
+    #[test]
+    fn normalizes_provider_aliases_and_extracts_actual_response_tiers() {
+        assert_eq!(normalize_service_tier("fast").as_deref(), Some("priority"));
+        assert_eq!(
+            normalize_service_tier("on-demand").as_deref(),
+            Some("standard")
+        );
+        assert_eq!(
+            response_service_tier(br#"{"service_tier":"default"}"#).as_deref(),
+            Some("standard")
+        );
+        assert_eq!(
+            response_service_tier(br#"{"usage":{"speed":"fast"}}"#).as_deref(),
+            Some("priority")
+        );
+        assert_eq!(
+            response_service_tier(br#"{"usageMetadata":{"serviceTier":"FLEX"}}"#).as_deref(),
+            Some("flex")
+        );
+        assert_eq!(
+            response_service_tier(
+                br#"{"type":"response.completed","response":{"service_tier":"priority"}}"#
+            )
+            .as_deref(),
+            Some("priority")
+        );
+        assert_eq!(
+            response_service_tier(
+                br#"{"type":"message_start","message":{"usage":{"speed":"standard"}}}"#
+            )
+            .as_deref(),
+            Some("standard")
+        );
     }
 }

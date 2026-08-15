@@ -66,6 +66,61 @@ cost =
 + image_output_tokens * image_output_price / 1_000_000
 ```
 
+## Prompt and service tiers
+
+`pricing_tiers_json` is an optional array of price modifiers. An entry can
+select requests by total prompt tokens, by the requested service/speed tier, or
+by both:
+
+```json
+[
+  {
+    "min_prompt_tokens": 200000,
+    "input_price": "4.00",
+    "output_price": "12.00"
+  },
+  {
+    "service_tier": "fast",
+    "multiplier": "2"
+  },
+  {
+    "service_tier": "ultrafast",
+    "multiplier": "4",
+    "cache_read_price": "1.00"
+  }
+]
+```
+
+For quota admission, GPROXY reads tier names from the supported request-wire
+fields `speed`, `service_tier`, and `serviceTier`. For final settlement it
+prefers the tier that the upstream actually reports: top-level
+`service_tier`, Claude/Bedrock `usage.speed` or `usage.service_tier`, Gemini
+`usageMetadata.serviceTier`, and Gemini's `x-gemini-service-tier` response
+header are recognized in buffered and streaming responses. This matters when a
+Priority/Fast request is gracefully downgraded and billed at the standard rate.
+
+Names are case-insensitive. `fast` matches `priority`, `default` and
+`on_demand` match `standard`, and `ultra-fast` matches `ultrafast`. Other names
+remain provider-defined and use the base price unless a matching entry exists.
+This lets the same mechanism cover OpenAI-compatible tiers, Claude speed tiers,
+Gemini and Bedrock service tiers, Groq, and custom providers.
+
+Pricing is composed in this order:
+
+1. select the highest matching prompt-token threshold without a
+   `service_tier`;
+2. select the highest matching threshold for the request's `service_tier`;
+3. apply the service-tier `multiplier` to the prompt-adjusted rates;
+4. use any explicit `*_price` in the service-tier entry instead of the
+   multiplied category rate.
+
+`min_prompt_tokens` defaults to `0` for service-tier-only entries. A tier
+modifier affects both quota admission estimates and final usage settlement.
+The bundled catalog includes provider-published model-level rates for supported
+OpenAI Fast/Flex, Gemini Priority/Flex, Claude Opus Fast, and xAI Priority
+models. Groq Flex uses its base On-Demand price; Bedrock and enterprise tiers
+can use the same JSON format with rates for the operator's region and contract.
+
 ## Image pricing
 
 Image generation uses the same token-based settlement as other billable
@@ -101,7 +156,8 @@ Before an upstream request is sent, quota admission uses a best-effort estimate:
 - estimated input tokens are the request body length used by the current
   pending-cost estimator;
 - output, cache, and image-output components are not estimated;
-- the estimate is priced with the selected price rule's token pricing;
+- the estimate is priced with the selected price rule's token pricing and the
+  requested service-tier modifier;
 - if the estimate is zero, pending quota pre-deduct is skipped.
 
 For quota-bearing scopes, GPROXY adds the estimated micro-dollar cost to cache

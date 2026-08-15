@@ -178,9 +178,16 @@ impl Channel for AntigravityChannel {
     }
 
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, _ctx: &ShapeCtx) -> Bytes {
-        // Strip generationConfig fields Code Assist rejects, BEFORE the prepare
-        // envelope wrap sees the gemini body. Best-effort (no-op on non-JSON).
-        shaping::with_json_body(body, gemini_genconfig::strip)
+        // Strip fields Code Assist rejects BEFORE the prepare envelope wraps
+        // the Gemini body under `request`. `store` can arrive through an
+        // OpenAI -> Gemini transform, but it is not part of the Code Assist
+        // GenerateContentRequest schema. Best-effort (no-op on non-JSON).
+        shaping::with_json_body(body, |body| {
+            gemini_genconfig::strip(body);
+            if let Some(object) = body.as_object_mut() {
+                object.remove("store");
+            }
+        })
     }
 
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
@@ -426,7 +433,7 @@ mod tests {
     }
 
     #[test]
-    fn shape_request_strips_genconfig() {
+    fn shape_request_strips_unsupported_fields() {
         let shape = ShapeCtx {
             op: crate::protocol::OperationKey::content_generation(
                 crate::protocol::Operation::GenerateContent,
@@ -440,12 +447,14 @@ mod tests {
         let body = Bytes::from(
             json!({
                 "contents": [],
+                "store": true,
                 "generationConfig": {"maxOutputTokens": 1024, "responseLogprobs": true, "temperature": 0.5}
             })
             .to_string(),
         );
         let out = AntigravityChannel.shape_request(body, &mut headers, &shape);
         let v: Value = serde_json::from_slice(&out).unwrap();
+        assert!(v.get("store").is_none());
         let cfg = v["generationConfig"].as_object().unwrap();
         assert!(!cfg.contains_key("maxOutputTokens"));
         assert!(!cfg.contains_key("responseLogprobs"));

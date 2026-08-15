@@ -23,10 +23,11 @@ impl StreamGuard {
         ctx: &RequestCtx,
         cand: &Candidate,
         family: Family,
+        actual_service_tier: Option<&str>,
     ) -> Self {
         Self {
             inner: Some((
-                Captured::new(state, ctx, cand, family),
+                Captured::new(state, ctx, cand, family, actual_service_tier),
                 ImageSseCapture::new(),
             )),
         }

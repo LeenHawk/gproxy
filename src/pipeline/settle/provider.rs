@@ -47,6 +47,7 @@ pub(super) struct Captured {
     pub(super) cand: Candidate,
     usage_family: Family,
     pricing: billing::price::Pricing,
+    actual_service_tier: Option<String>,
     quota_scopes: Vec<(crate::store::persistence::records::Scope, i64)>,
     token_rlt_ids: Vec<i64>,
 }
@@ -57,13 +58,16 @@ impl Captured {
         ctx: &RequestCtx,
         cand: &Candidate,
         usage_family: Family,
+        actual_service_tier: Option<&str>,
     ) -> Self {
         let identity = ctx.identity.as_deref();
         let (pricing, quota_scopes, token_rlt_ids) = {
             let cp = state.cp();
-            let pricing =
+            let mut pricing =
                 billing::pending::resolve_pricing(&cp, cand.provider.id, &cand.upstream_model_id)
-                    .pricing;
+                    .pricing
+                    .with_service_tier(billing::price::request_service_tier(&ctx.body).as_deref());
+            billing::price::apply_actual_service_tier(&mut pricing, actual_service_tier);
             let (scopes, token_rlt_ids) = identity.map_or_else(
                 || (Vec::new(), Vec::new()),
                 |identity| {
@@ -82,6 +86,8 @@ impl Captured {
             cand: cand.clone(),
             usage_family,
             pricing,
+            actual_service_tier: actual_service_tier
+                .and_then(billing::price::normalize_service_tier),
             quota_scopes,
             token_rlt_ids,
         }
@@ -95,8 +101,9 @@ pub(crate) async fn schedule(
     cand: &Candidate,
     body: Bytes,
     usage_family: Family,
+    actual_service_tier: Option<&str>,
 ) {
-    let captured = Captured::new(state, ctx, cand, usage_family);
+    let captured = Captured::new(state, ctx, cand, usage_family, actual_service_tier);
     #[cfg(not(target_arch = "wasm32"))]
     {
         tokio::spawn(async move {
@@ -114,6 +121,7 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         cand,
         usage_family,
         pricing,
+        actual_service_tier,
         quota_scopes,
         token_rlt_ids,
     } = captured;
@@ -201,7 +209,25 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         UsageSource::Upstream
     };
     let usage = extracted.unwrap_or_default();
-    let cost = price::cost(&usage, pricing);
+    let body_service_tier = parsed
+        .as_ref()
+        .and_then(price::response_service_tier_from_value)
+        .or_else(|| {
+            stream_frames.as_deref().and_then(|frames| {
+                frames
+                    .iter()
+                    .rev()
+                    .find_map(|frame| price::response_service_tier(frame.data.as_bytes()))
+            })
+        });
+    let mut settled_pricing = pricing.clone();
+    price::apply_actual_service_tier(
+        &mut settled_pricing,
+        body_service_tier
+            .as_deref()
+            .or(actual_service_tier.as_deref()),
+    );
+    let cost = price::cost(&usage, &settled_pricing);
 
     // Keep provider-shaped operations on the same billing and token-counter
     // path as content generation. Recording may be disabled, but quota and

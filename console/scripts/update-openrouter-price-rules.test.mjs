@@ -167,7 +167,19 @@ describe("OpenRouter price-rule generator", () => {
         input_price: "4",
         output_price: "12",
         cache_read_price: "1",
+      }, {
+        service_tier: "priority",
+        multiplier: "2",
       }],
+    });
+    expect(bundle.price_rules.find((rule) => rule.model_match === "gemini-3.7-flash")).toMatchObject({
+      input_price: "0.75",
+      output_price: "3.75",
+      cache_read_price: "0.075",
+      pricing_tiers_json: [
+        { service_tier: "flex", input_price: "0.375", output_price: "1.875" },
+        { service_tier: "priority", input_price: "1.35", output_price: "6.75" },
+      ],
     });
   });
 
@@ -194,20 +206,39 @@ describe("OpenRouter price-rule generator", () => {
     expect(bundle.schema_version).toBe(generatedShape.schema_version);
     expect(bundle.source).toEqual({
       catalog: "openrouter+official-overrides",
-      total_models: 533,
-      supported_output_models: 480,
+      total_models: 547,
+      supported_output_models: 487,
       dynamic_price_models: 5,
-      included_models: 475,
-      embedding_models: 33,
-      rerank_models: 6,
-      image_output_priced_models: 41,
+      included_models: 482,
+      embedding_models: 34,
+      rerank_models: 7,
+      image_output_priced_models: 43,
     });
-    expect(bundle.price_rules).toHaveLength(475);
+    expect(bundle.price_rules).toHaveLength(482);
     expect(new Set(names).size).toBe(names.length);
     expect(names).toEqual([...names].sort());
-    expect(bundle.price_rules.filter((rule) => rule.image_output_price !== "0")).toHaveLength(41);
-    expect(bundle.price_rules.filter((rule) => rule.pricing_tiers_json != null)).toHaveLength(59);
-    expect(bundle.price_rules.filter((rule) => rule.model_match.includes("rerank"))).toHaveLength(6);
+    expect(bundle.price_rules.filter((rule) => rule.image_output_price !== "0")).toHaveLength(43);
+    expect(bundle.price_rules.filter((rule) => rule.pricing_tiers_json != null)).toHaveLength(86);
+    expect(bundle.price_rules.filter((rule) => rule.model_match.includes("rerank"))).toHaveLength(7);
+    const byName = new Map(bundle.price_rules.map((rule) => [rule.model_match, rule]));
+    expect(byName.get("gpt-5.6-terra")).toMatchObject({
+      input_price: "2",
+      output_price: "12",
+      pricing_tiers_json: expect.arrayContaining([
+        { service_tier: "flex", multiplier: "0.5" },
+        { service_tier: "priority", multiplier: "2" },
+      ]),
+    });
+    expect(byName.get("claude-opus-5")?.pricing_tiers_json).toContainEqual({
+      service_tier: "priority",
+      multiplier: "2",
+    });
+    expect(byName.get("gemini-3.7-flash")?.pricing_tiers_json).toContainEqual({
+      service_tier: "priority",
+      input_price: "1.35",
+      output_price: "6.75",
+      cache_read_price: "0.135",
+    });
     expect(bundle.price_rules.every((rule) => (
       expectedFields.every((field) => field in rule)
       && Object.keys(rule).every((field) => (

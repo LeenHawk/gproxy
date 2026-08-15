@@ -81,6 +81,7 @@ pub struct SettleCtx {
 impl SettleCtx {
     /// Capture billing context for a successful attempt. `None` = nothing to
     /// settle (non-content op).
+    #[allow(clippy::too_many_arguments)]
     pub fn capture(
         state: &AppState,
         ctx: &RequestCtx,
@@ -89,6 +90,7 @@ impl SettleCtx {
         usage_kind: ContentGenerationKind,
         request_body: Bytes,
         latency_ms: i64,
+        actual_service_tier: Option<&str>,
     ) -> Option<Self> {
         let op = ctx.op?;
         let OperationKind::ContentGeneration(_) = op.kind() else {
@@ -99,11 +101,15 @@ impl SettleCtx {
         // this block — the detached settle task never touches the snapshot).
         let (pricing, quota_scopes, token_rlt_ids) = {
             let cp = state.cp();
-            let pricing = crate::billing::pending::model_pricing(
+            let mut pricing = crate::billing::pending::model_pricing(
                 &cp,
                 cand.provider.id,
                 &cand.upstream_model_id,
+            )
+            .with_service_tier(
+                crate::billing::price::request_service_tier(&request_body).as_deref(),
             );
+            crate::billing::price::apply_actual_service_tier(&mut pricing, actual_service_tier);
             let name = ctx.route_name.as_deref().unwrap_or(&cand.provider.name);
             let (scopes, rlt_ids) = match identity {
                 Some(i) => (
@@ -149,8 +155,19 @@ pub async fn settle_body(ctx: SettleCtx, body: &Bytes, stream: bool) {
 
 /// Inline settle for a fully-buffered body. Usage-in-body is the fast path; a miss falls to the counting
 /// ladder (spawned on native so the response isn't delayed).
-async fn settle_full(ctx: SettleCtx, body: &Bytes, stream: bool) {
+async fn settle_full(mut ctx: SettleCtx, body: &Bytes, stream: bool) {
     let stream_frames = stream.then(|| decode_frames_or_warn(body));
+    let actual_service_tier = if stream {
+        stream_frames
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .rev()
+            .find_map(|frame| billing::price::response_service_tier(frame.data.as_bytes()))
+    } else {
+        billing::price::response_service_tier(body)
+    };
+    billing::price::apply_actual_service_tier(&mut ctx.pricing, actual_service_tier.as_deref());
     let extracted = if stream {
         extract::from_stream_frames(ctx.usage_kind, stream_frames.as_deref().unwrap_or_default())
     } else {
@@ -323,7 +340,7 @@ impl Drop for StreamGuard {
     }
 }
 
-async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
+async fn settle_stream(mut ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
     let bytes = buf.concat();
     let log_state = ctx.state.clone();
     let log_request_id = ctx.request_id.clone();
@@ -335,6 +352,11 @@ async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         "settling stream"
     );
     let frames = decode_frames_or_warn(&bytes);
+    let actual_service_tier = frames
+        .iter()
+        .rev()
+        .find_map(|frame| billing::price::response_service_tier(frame.data.as_bytes()));
+    billing::price::apply_actual_service_tier(&mut ctx.pricing, actual_service_tier.as_deref());
     if ended == Ended::Complete
         && let Some(usage) = extract::from_stream_frames(ctx.usage_kind, &frames)
     {
