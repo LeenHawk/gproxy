@@ -12,6 +12,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   vertexexpress: "https://aiplatform.googleapis.com",
   deepseek: "https://api.deepseek.com",
   groq: "https://api.groq.com/openai",
+  kimiapi: "https://api.moonshot.cn",
   nvidia: "https://integrate.api.nvidia.com",
   xai: "https://api.x.ai",
   vercel: "https://ai-gateway.vercel.sh",
@@ -53,6 +54,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   dashscope: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_rerank", "image_generations", "image_edits", "openai_compact"],
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
+  kimiapi: ["openai_list_models", "openai_chat_completions"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
   xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_audio_speech", "openai_audio_transcriptions", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],
   opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
@@ -89,7 +91,7 @@ export interface ChannelMeta {
 }
 
 const API_KEY_IDS = [
-  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "dashscope", "deepseek", "groq", "nvidia", "xai",
+  "openai", "azure", "aws-bedrock", "openrouter", "cloudflare-ai-gateway", "dashscope", "deepseek", "groq", "kimiapi", "nvidia", "xai",
   "vercel", "custom", "claudeapi", "aistudio", "vertexexpress",
 ] as const;
 
@@ -139,7 +141,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   "cloudflare-ai-gateway": "Cloudflare AI Gateway",
   dashscope: "Alibaba Qwen",
   codex: "OpenAI Codex", copilotcli: "GitHub Copilot CLI", custom: "Custom", deepseek: "DeepSeek",
-  geminicli: "Gemini CLI", groq: "Groq", grokbuild: "Grok Build", kiro: "Kiro",
+  geminicli: "Gemini CLI", groq: "Groq", grokbuild: "Grok Build", kiro: "Kiro", kimiapi: "Kimi API",
   nvidia: "NVIDIA", openai: "OpenAI", opencodezen: "OpenCode Zen",
   opencodego: "OpenCode Go", openrouter: "OpenRouter", vercel: "Vercel AI Gateway",
   vertex: "Google Vertex AI", vertexexpress: "Vertex AI Express",

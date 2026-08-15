@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelCatalogDto } from "@/api/channels";
-import { channelMeta, mergeChannelCatalog } from "./channel-meta";
+import { DEFAULT_BASE_URL, channelMeta, mergeChannelCatalog } from "./channel-meta";
 
 function catalogEntry(overrides: Partial<ChannelCatalogDto> = {}): ChannelCatalogDto {
   return {
@@ -111,5 +111,16 @@ describe("built-in media endpoint fallback metadata", () => {
     ]));
     expect(channelMeta("dashscope")?.endpointKinds).not.toContain("openai_audio_speech");
     expect(channelMeta("openrouter")?.endpointKinds).toContain("image_generations");
+  });
+});
+
+describe("Kimi API fallback metadata", () => {
+  it("uses the China platform and declares only native public surfaces", () => {
+    expect(DEFAULT_BASE_URL.kimiapi).toBe("https://api.moonshot.cn");
+    expect(channelMeta("kimiapi")).toMatchObject({
+      displayName: "Kimi API",
+      family: "api_key",
+      endpointKinds: ["openai_list_models", "openai_chat_completions"],
+    });
   });
 });

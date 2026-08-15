@@ -30,6 +30,8 @@ pub mod dashscope;
 pub mod deepseek;
 #[cfg(feature = "channel-groq")]
 pub mod groq;
+#[cfg(feature = "channel-kimiapi")]
+pub mod kimiapi;
 #[cfg(feature = "channel-nvidia")]
 pub mod nvidia;
 #[cfg(feature = "channel-openai")]

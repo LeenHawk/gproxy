@@ -162,6 +162,7 @@ fn display_name(id: &str) -> &str {
         "groq" => "Groq",
         "grokbuild" => "Grok Build",
         "kiro" => "Kiro",
+        "kimiapi" => "Kimi API",
         "nvidia" => "NVIDIA",
         "openai" => "OpenAI",
         "opencodego" => "OpenCode Go",
@@ -278,6 +279,7 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_chat_completions",
             "openai_responses",
         ],
+        "kimiapi" => &["openai_list_models", "openai_chat_completions"],
         "nvidia" => &[
             "openai_list_models",
             "openai_get_model",
