@@ -111,6 +111,117 @@ async fn aggregated_provider_model_direct_addressing_works() {
     assert_openai_chat_request(&seen[0], "gpt-test", false);
 }
 
+fn video_bundle() -> String {
+    let mut bundle: Value = serde_json::from_str(BUNDLE).expect("bundle");
+    bundle["providers"][0]["settings_json"]["endpoints"]["openai_video_create"] =
+        json!("http://fake.local/v1/videos");
+    bundle["providers"][0]["settings_json"]["endpoints"]["openai_video_retrieve"] =
+        json!("http://fake.local/v1/videos/{video_id}");
+    bundle["providers"][0]["settings_json"]["endpoints"]["openai_video_content"] =
+        json!("http://fake.local/v1/videos/{video_id}/content");
+    serde_json::to_string(&bundle).expect("serialize video bundle")
+}
+
+fn video_ctx(method: Method, path: &str, body: Value) -> RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    RequestCtx {
+        request_id: format!("video-{path}"),
+        method,
+        path: path.into(),
+        query: None,
+        headers,
+        body: Bytes::from(serde_json::to_vec(&body).unwrap()),
+        mode: RoutingMode::Aggregated,
+        identity: None,
+        op: None,
+        stream: false,
+        body_model: None,
+        route_name: None,
+        pending_micros: 0,
+    }
+}
+
+#[tokio::test]
+async fn aggregated_video_resource_reuses_creation_route_without_model() {
+    let response = Bytes::from_static(
+        br#"{"id":"video_123","object":"video","model":"sora-2","status":"queued"}"#,
+    );
+    let fake = Arc::new(FakeUpstream::new(response, vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &video_bundle()).await;
+
+    crate::pipeline::execute(
+        &state,
+        video_ctx(
+            Method::POST,
+            "/v1/videos",
+            json!({ "model": "to-openai", "prompt": "a cat" }),
+        ),
+    )
+    .await
+    .expect("create video");
+    crate::pipeline::execute(
+        &state,
+        video_ctx(Method::GET, "/v1/videos/video_123", json!({})),
+    )
+    .await
+    .expect("retrieve bound video");
+
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(seen.len(), 2);
+    assert_eq!(seen[0].uri, "http://fake.local/v1/videos");
+    assert_eq!(seen[1].uri, "http://fake.local/v1/videos/video_123");
+    assert!(
+        seen[0].headers["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("multipart/form-data; boundary=gproxy-media-")
+    );
+}
+
+#[tokio::test]
+async fn video_content_preserves_binary_body_and_media_type() {
+    let video = Bytes::from_static(b"\0\0\0\x18ftypmp42video-bytes");
+    let fake = Arc::new(FakeUpstream::new(Bytes::new(), vec![]).with_responses(vec![
+        (
+            Bytes::from_static(
+                br#"{"id":"video_binary","object":"video","model":"sora-2","status":"completed"}"#,
+            ),
+            "application/json",
+        ),
+        (video.clone(), "video/mp4"),
+    ]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &video_bundle()).await;
+
+    crate::pipeline::execute(
+        &state,
+        video_ctx(
+            Method::POST,
+            "/v1/videos",
+            json!({ "model": "to-openai", "prompt": "a cat" }),
+        ),
+    )
+    .await
+    .expect("create video");
+    let mut content = video_ctx(Method::GET, "/v1/videos/video_binary/content", json!({}));
+    content.query = Some("variant=thumbnail&ignored=x".into());
+    let outcome = crate::pipeline::execute(&state, content)
+        .await
+        .expect("download video content");
+
+    assert_eq!(outcome.headers["content-type"], "video/mp4");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("video content should remain buffered bytes");
+    };
+    assert_eq!(body, video);
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(
+        seen[1].uri,
+        "http://fake.local/v1/videos/video_binary/content?variant=thumbnail"
+    );
+}
+
 #[tokio::test]
 async fn aggregated_global_alias_then_provider_alias() {
     let bundle = bundle_with(

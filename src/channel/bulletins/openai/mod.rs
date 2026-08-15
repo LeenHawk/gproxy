@@ -12,7 +12,7 @@ use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCt
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.openai.com"),
     forward_headers: &["openai-beta", "openai-organization", "openai-project"],
-    forward_query: &[],
+    forward_query: &["after", "limit", "order", "variant"],
 };
 
 const REALTIME_FORWARD_HEADERS: &[&str] = &[
@@ -92,6 +92,16 @@ impl Channel for OpenAiChannel {
             pass(CreateSpeech, pv(P::OpenAi)),
             pass(CreateTranscription, pv(P::OpenAi)),
             pass(CreateTranslation, pv(P::OpenAi)),
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
+            pass(ListVideos, pv(P::OpenAi)),
+            pass(DeleteVideo, pv(P::OpenAi)),
+            pass(DownloadVideoContent, pv(P::OpenAi)),
+            pass(RemixVideo, pv(P::OpenAi)),
+            pass(CreateVideoCharacter, pv(P::OpenAi)),
+            pass(GetVideoCharacter, pv(P::OpenAi)),
+            pass(EditVideo, pv(P::OpenAi)),
+            pass(ExtendVideo, pv(P::OpenAi)),
             xform(
                 CreateEmbedding,
                 pv(P::Gemini),
@@ -275,6 +285,48 @@ mod tests {
         assert_eq!(request.headers()["openai-beta"], "feature=v1");
         assert!(request.headers().get("openai-alpha").is_none());
         assert!(request.headers().get("x-session-id").is_none());
+    }
+
+    #[test]
+    fn video_requests_forward_only_documented_query_parameters() {
+        let secret = json!({ "api_key": "sk-test" });
+        let settings = json!({});
+        let headers = HeaderMap::new();
+        for (operation, path, query, expected) in [
+            (
+                Operation::ListVideos,
+                "/v1/videos",
+                "after=video_1&limit=20&order=desc&key=downstream&ignored=x",
+                "https://api.openai.com/v1/videos?after=video_1&limit=20&order=desc",
+            ),
+            (
+                Operation::DownloadVideoContent,
+                "/v1/videos/video_1/content",
+                "variant=thumbnail&ignored=x",
+                "https://api.openai.com/v1/videos/video_1/content?variant=thumbnail",
+            ),
+        ] {
+            let request = OpenAiChannel
+                .prepare(PrepareCtx {
+                    secret: &secret,
+                    provider_settings: &settings,
+                    op: crate::protocol::OperationKey::provider(
+                        operation,
+                        crate::protocol::Provider::OpenAi,
+                    ),
+                    stream: false,
+                    upstream_model_id: "",
+                    method: Method::GET,
+                    path,
+                    query: Some(query),
+                    headers: &headers,
+                    body: Bytes::new(),
+                })
+                .unwrap()
+                .into_http()
+                .unwrap();
+            assert_eq!(request.uri().to_string(), expected);
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

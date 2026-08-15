@@ -4,6 +4,8 @@
 #[cfg(test)]
 mod audio_tests;
 mod conversation;
+#[cfg(test)]
+mod video_tests;
 
 use bytes::Bytes;
 use http::{HeaderMap, Method};
@@ -114,6 +116,13 @@ pub fn classify(
             OperationKey::provider(Operation::EditImage, Prov::OpenAi),
             image_stream,
         ),
+        (method, path) if video_operation(method, path).is_some() => (
+            OperationKey::provider(
+                video_operation(method, path).expect("guard matched"),
+                Prov::OpenAi,
+            ),
+            false,
+        ),
         ("POST", "/v1/alpha/search") => (
             OperationKey::provider(Operation::WebSearch, Prov::OpenAi),
             false,
@@ -153,6 +162,43 @@ pub fn classify(
         body_model,
         conversation_fingerprint,
     })
+}
+
+fn video_operation(method: &str, path: &str) -> Option<Operation> {
+    match (method, path) {
+        ("POST", "/v1/videos") => Some(Operation::CreateVideo),
+        ("GET", "/v1/videos") => Some(Operation::ListVideos),
+        ("POST", "/v1/videos/characters") => Some(Operation::CreateVideoCharacter),
+        ("POST", "/v1/videos/edits") => Some(Operation::EditVideo),
+        ("POST", "/v1/videos/extensions") => Some(Operation::ExtendVideo),
+        ("GET", path) => video_resource_operation(path, "GET"),
+        ("POST", path) => video_resource_operation(path, "POST"),
+        ("DELETE", path) => video_resource_operation(path, "DELETE"),
+        _ => None,
+    }
+}
+
+fn video_resource_operation(path: &str, method: &str) -> Option<Operation> {
+    if let Some(character_id) = path.strip_prefix("/v1/videos/characters/")
+        && !character_id.is_empty()
+        && !character_id.contains('/')
+    {
+        return (method == "GET").then_some(Operation::GetVideoCharacter);
+    }
+
+    let resource = path.strip_prefix("/v1/videos/")?;
+    let mut segments = resource.split('/');
+    let video_id = segments.next()?;
+    if video_id.is_empty() {
+        return None;
+    }
+    match (method, segments.next(), segments.next()) {
+        ("GET", None, None) => Some(Operation::RetrieveVideo),
+        ("DELETE", None, None) => Some(Operation::DeleteVideo),
+        ("GET", Some("content"), None) => Some(Operation::DownloadVideoContent),
+        ("POST", Some("remix"), None) => Some(Operation::RemixVideo),
+        _ => None,
+    }
 }
 
 const fn content_operation(stream: bool) -> Operation {

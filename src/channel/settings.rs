@@ -43,6 +43,16 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
         (O::CreateSpeech, P::OpenAi) => "openai_audio_speech",
         (O::CreateTranscription, P::OpenAi) => "openai_audio_transcriptions",
         (O::CreateTranslation, P::OpenAi) => "openai_audio_translations",
+        (O::CreateVideo, P::OpenAi) => "openai_video_create",
+        (O::RetrieveVideo, P::OpenAi) => "openai_video_retrieve",
+        (O::ListVideos, P::OpenAi) => "openai_video_list",
+        (O::DeleteVideo, P::OpenAi) => "openai_video_delete",
+        (O::DownloadVideoContent, P::OpenAi) => "openai_video_content",
+        (O::RemixVideo, P::OpenAi) => "openai_video_remix",
+        (O::CreateVideoCharacter, P::OpenAi) => "openai_video_character_create",
+        (O::GetVideoCharacter, P::OpenAi) => "openai_video_character_get",
+        (O::EditVideo, P::OpenAi) => "openai_video_edit",
+        (O::ExtendVideo, P::OpenAi) => "openai_video_extend",
         (O::CreateImage, _) => "image_generations",
         (O::EditImage, _) => "image_edits",
         (O::WebSearch, _) => "openai_search",
@@ -67,6 +77,40 @@ pub fn endpoint_url(
     model: &str,
 ) -> Option<String> {
     endpoint_by_key(settings, endpoint_key(op, stream), model)
+}
+
+/// Resolve an exact endpoint for a concrete request, including resource-id
+/// slots used by OpenAI video endpoints.
+pub fn endpoint_url_for_request(
+    settings: &Value,
+    op: OperationKey,
+    stream: bool,
+    model: &str,
+    path: &str,
+) -> Option<String> {
+    let url = endpoint_url(settings, op, stream, model)?;
+    let resource = match op.operation() {
+        Operation::RetrieveVideo
+        | Operation::DeleteVideo
+        | Operation::DownloadVideoContent
+        | Operation::RemixVideo => video_id(path).map(|id| ("{video_id}", id)),
+        Operation::GetVideoCharacter => path
+            .strip_prefix("/v1/videos/characters/")
+            .filter(|id| !id.is_empty() && !id.contains('/'))
+            .map(|id| ("{character_id}", id)),
+        _ => None,
+    };
+    match resource {
+        Some((slot, id)) => Some(url.replace(slot, &crate::channel::oauth::percent_encode(id))),
+        None => Some(url),
+    }
+}
+
+fn video_id(path: &str) -> Option<&str> {
+    path.strip_prefix("/v1/videos/")?
+        .split('/')
+        .next()
+        .filter(|id| !id.is_empty() && *id != "characters")
 }
 
 pub fn endpoint_by_key(settings: &Value, key: &str, model: &str) -> Option<String> {
@@ -118,4 +162,39 @@ where
     D: Deserializer<'de>,
 {
     Ok(Value::deserialize(deserializer)?.as_bool().unwrap_or(false))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn video_endpoint_substitutes_resource_identifier() {
+        let settings = json!({
+            "endpoints": {
+                "openai_video_content": "https://media.example/videos/{video_id}/content",
+                "openai_video_character_get": "https://media.example/characters/{character_id}"
+            }
+        });
+        let video = OperationKey::provider(Operation::DownloadVideoContent, Provider::OpenAi);
+        assert_eq!(
+            endpoint_url_for_request(&settings, video, false, "", "/v1/videos/video 123/content")
+                .as_deref(),
+            Some("https://media.example/videos/video%20123/content")
+        );
+        let character = OperationKey::provider(Operation::GetVideoCharacter, Provider::OpenAi);
+        assert_eq!(
+            endpoint_url_for_request(
+                &settings,
+                character,
+                false,
+                "",
+                "/v1/videos/characters/char_123"
+            )
+            .as_deref(),
+            Some("https://media.example/characters/char_123")
+        );
+    }
 }

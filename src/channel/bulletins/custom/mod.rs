@@ -17,7 +17,7 @@ use crate::protocol::{ContentGenerationKind, OperationKind};
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: None,
     forward_headers: &[],
-    forward_query: &[],
+    forward_query: &["after", "limit", "order", "variant"],
 };
 
 pub struct CustomChannel;
@@ -69,6 +69,16 @@ impl Channel for CustomChannel {
             pass(EditImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::Claude)),
             pass(EditImage, pv(P::Gemini)),
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
+            pass(ListVideos, pv(P::OpenAi)),
+            pass(DeleteVideo, pv(P::OpenAi)),
+            pass(DownloadVideoContent, pv(P::OpenAi)),
+            pass(RemixVideo, pv(P::OpenAi)),
+            pass(CreateVideoCharacter, pv(P::OpenAi)),
+            pass(GetVideoCharacter, pv(P::OpenAi)),
+            pass(EditVideo, pv(P::OpenAi)),
+            pass(ExtendVideo, pv(P::OpenAi)),
             pass(CompactContent, pv(P::OpenAi)),
             pass(CompactContent, pv(P::Claude)),
             pass(CompactContent, pv(P::Gemini)),

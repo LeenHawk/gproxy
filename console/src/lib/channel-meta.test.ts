@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelCatalogDto } from "@/api/channels";
-import { mergeChannelCatalog } from "./channel-meta";
+import { channelMeta, mergeChannelCatalog } from "./channel-meta";
 
 function catalogEntry(overrides: Partial<ChannelCatalogDto> = {}): ChannelCatalogDto {
   return {
@@ -80,5 +80,25 @@ describe("mergeChannelCatalog", () => {
       endpointKinds: ["acme_messages"],
       usage: true,
     });
+  });
+});
+
+describe("built-in media endpoint fallback metadata", () => {
+  it("exposes video endpoints only on native passthrough channels", () => {
+    for (const id of ["openai", "azure", "custom"]) {
+      expect(channelMeta(id)?.endpointKinds).toContain("openai_video_create");
+      expect(channelMeta(id)?.endpointKinds).toContain("openai_video_content");
+    }
+    expect(channelMeta("openrouter")?.endpointKinds).not.toContain("openai_video_create");
+  });
+
+  it("keeps image and audio fallback declarations aligned", () => {
+    expect(channelMeta("codex")?.endpointKinds).toEqual(expect.arrayContaining([
+      "image_generations", "image_edits",
+    ]));
+    expect(channelMeta("custom")?.endpointKinds).toEqual(expect.arrayContaining([
+      "openai_audio_speech", "openai_audio_transcriptions", "openai_audio_translations",
+    ]));
+    expect(channelMeta("dashscope")?.endpointKinds).not.toContain("openai_audio_speech");
   });
 });

@@ -21,8 +21,10 @@ use crate::util::time::unix_now;
 
 pub(crate) use affinity::MemberAffinityPlan;
 pub(crate) use affinity::take_session_id;
+pub(crate) use credential_affinity::media_model as bound_media_model;
 pub(crate) use credential_affinity::read as read_credential_binding;
 pub(crate) use credential_affinity::realtime_model as bound_realtime_model;
+pub(crate) use credential_affinity::record_media_response;
 pub(crate) use credential_affinity::record_response as record_response_affinity;
 pub(crate) use credential_affinity::request_key as credential_binding_key;
 

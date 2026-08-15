@@ -80,10 +80,10 @@ pub async fn execute(state: &AppState, ctx: RequestCtx) -> Result<ExecOutcome, P
 /// body tail inside [`failover`](crate::pipeline::failover).
 async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, PipelineError> {
     let span = tracing::Span::current();
-    // One synchronous snapshot scope covers auth and every control-plane lookup
-    // needed by this request. The returned plans own their data; no ArcSwap
-    // guard reaches cache, persistence, or network I/O below.
-    let prepared = {
+    // Authenticate and resolve named addressing from one immutable snapshot.
+    // Candidate planning uses a fresh short-lived snapshot after any async
+    // stateful-resource lookup below.
+    {
         let cp = state.cp();
         ctx.identity = Some(auth::authenticate(&cp, &ctx.headers, ctx.query.as_deref())?);
         if let RoutingMode::Named { name } = &ctx.mode {
@@ -95,26 +95,44 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                 RoutingMode::Scoped { provider: name }
             };
         }
-        let affinity_session_id = balance::take_session_id(&mut ctx.headers);
-        ingress::apply_global_blacklist(&mut ctx);
-        ingress::normalize_multipart_form_body(&mut ctx)?;
-        let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
-        let conversation_fingerprint = classified.conversation_fingerprint;
-        ctx.op = Some(classified.op);
-        ctx.stream = classified.stream;
-        ctx.body_model = classified.body_model;
-        span.record(
-            "operation",
-            tracing::field::debug(classified.op.operation()),
-        );
-        span.record("kind", tracing::field::debug(classified.op.kind()));
-        span.record("stream", classified.stream);
-        if let Some(model) = ctx.body_model.as_deref() {
-            span.record("model", model);
-        } else if let Some(model) = classify::path_model_id(&ctx.path) {
-            span.record("model", model.as_str());
-        }
+    }
+    let affinity_session_id = balance::take_session_id(&mut ctx.headers);
+    ingress::apply_global_blacklist(&mut ctx);
+    ingress::normalize_multipart_form_body(&mut ctx)?;
+    let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
+    let conversation_fingerprint = classified.conversation_fingerprint;
+    ctx.op = Some(classified.op);
+    ctx.stream = classified.stream;
+    ctx.body_model = classified.body_model;
+    span.record(
+        "operation",
+        tracing::field::debug(classified.op.operation()),
+    );
+    span.record("kind", tracing::field::debug(classified.op.kind()));
+    span.record("stream", classified.stream);
 
+    // Follow-up video resource calls do not carry `model`. Restore the public
+    // route/provider model captured from the successful response that created
+    // the resource before aggregated/namespace candidate resolution.
+    if ctx.body_model.is_none()
+        && matches!(
+            ctx.mode,
+            RoutingMode::Aggregated | RoutingMode::Namespace { .. }
+        )
+        && let Some(user_key_id) = ctx.identity.as_ref().map(|id| id.user_key.id)
+    {
+        ctx.body_model = balance::bound_media_model(state.cache.as_ref(), &ctx, user_key_id).await;
+    }
+    if let Some(model) = ctx.body_model.as_deref() {
+        span.record("model", model);
+    } else if let Some(model) = classify::path_model_id(&ctx.path) {
+        span.record("model", model.as_str());
+    }
+
+    // Candidate plans own all snapshot-derived state; no guard crosses async
+    // admission, balancing, persistence, or network work.
+    let prepared = {
+        let cp = state.cp();
         if matches!(
             ctx.mode,
             RoutingMode::Aggregated | RoutingMode::Namespace { .. }

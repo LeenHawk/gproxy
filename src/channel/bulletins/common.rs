@@ -7,12 +7,12 @@ use http::Request;
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 
 mod audio_multipart;
-pub use audio_multipart::restore_audio_multipart;
+pub use audio_multipart::restore_media_multipart;
 
 use crate::channel::http_util::{
     allow_headers, allow_query, build_request as build_http, exact_url, join_url,
 };
-use crate::channel::settings::endpoint_url;
+use crate::channel::settings::endpoint_url_for_request;
 use crate::channel::{ChannelError, PrepareCtx};
 
 /// Per-channel defaults consumed by [`build_request`] / [`resolve_uri`].
@@ -33,11 +33,12 @@ pub fn resolve_uri(
     fallback_path: &str,
     query: Option<&str>,
 ) -> Result<http::Uri, ChannelError> {
-    if let Some(url) = endpoint_url(
+    if let Some(url) = endpoint_url_for_request(
         ctx.provider_settings,
         ctx.op,
         ctx.stream,
         ctx.upstream_model_id,
+        ctx.path,
     ) {
         return exact_url(&url, query);
     }
