@@ -19,6 +19,7 @@ use http::HeaderMap;
 use http::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
+use crate::channel::bulletins::common;
 use crate::channel::http_util::{allow_headers, build_request, join_url};
 use crate::channel::shaping::vertex_normalize;
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
@@ -116,6 +117,10 @@ impl Channel for VertexChannel {
                 GenerateContent,
                 cg(GeminiGenerateContent),
             ),
+            // Veo uses Vertex's native long-running prediction API; request
+            // and operation responses are normalized in this adapter.
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
             pass(CreateEmbedding, pv(P::Gemini)),
             xform(
                 CreateEmbedding,
@@ -152,6 +157,59 @@ impl Channel for VertexChannel {
 
         let location = Self::location(ctx.provider_settings, ctx.secret);
         let host = Self::host(&location);
+        if matches!(
+            ctx.op.operation(),
+            Operation::CreateVideo | Operation::RetrieveVideo
+        ) {
+            let creating = ctx.op.operation() == Operation::CreateVideo;
+            let verb = if creating {
+                ":predictLongRunning"
+            } else {
+                ":fetchPredictOperation"
+            };
+            let path = format!(
+                "/v1/projects/{project_id}/locations/{location}/publishers/google/models/{}{verb}",
+                ctx.upstream_model_id,
+            );
+            let uri = if let Some(url) = crate::channel::settings::endpoint_url_for_request(
+                ctx.provider_settings,
+                ctx.op,
+                ctx.stream,
+                ctx.upstream_model_id,
+                ctx.path,
+            ) {
+                crate::channel::http_util::exact_url(&url, None)?
+            } else {
+                join_url(&host, &path, None)?
+            };
+            let headers = allow_headers(ctx.headers, &[]);
+            let (method, body) = if creating {
+                (ctx.method, ctx.body)
+            } else {
+                let id = ctx
+                    .path
+                    .strip_prefix("/v1/videos/")
+                    .filter(|id| !id.is_empty() && !id.contains('/'))
+                    .ok_or_else(|| ChannelError::Build("invalid Vertex video id".into()))?;
+                let operation_name = common::decode_video_task_id(id)?;
+                (
+                    http::Method::POST,
+                    Bytes::from(
+                        serde_json::to_vec(&serde_json::json!({
+                            "operationName": operation_name
+                        }))
+                        .map_err(|error| ChannelError::Build(error.to_string()))?,
+                    ),
+                )
+            };
+            let mut req = build_request(method, uri, headers, body)?;
+            let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
+                .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
+            req.headers_mut().insert(AUTHORIZATION, bearer);
+            req.headers_mut()
+                .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+            return Ok(PreparedRequest::new(req));
+        }
         // Native Claude paths use Vertex's Anthropic partner-model surface.
         // Everything else continues through the Google publisher surface.
         let claude_path = claude::target_path(
@@ -215,7 +273,11 @@ impl Channel for VertexChannel {
     }
 
     fn shape_request(&self, body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
-        claude::shape_request(body, ctx)
+        match ctx.op.operation() {
+            Operation::CreateVideo => shape_vertex_video_create(body),
+            Operation::RetrieveVideo => shape_vertex_video_poll(body, ctx),
+            _ => claude::shape_request(body, ctx),
+        }
     }
 
     /// Normalize Gemini content responses to AI-Studio shape (citation rename,
@@ -224,6 +286,12 @@ impl Channel for VertexChannel {
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
         if ctx.op.operation() == Operation::ListModels {
             model_list::normalize_vertex_model_list(body)
+        } else if matches!(
+            ctx.op.operation(),
+            Operation::CreateVideo | Operation::RetrieveVideo
+        ) && ctx.status.is_success()
+        {
+            shape_vertex_video_response(body)
         } else if is_gemini_content(ctx) {
             vertex_normalize::normalize_vertex_response(body)
         } else {
@@ -257,6 +325,157 @@ impl Channel for VertexChannel {
         // edge), so refresh works everywhere — no native gate.
         exchange_token(client, ctx.secret).await
     }
+}
+
+fn shape_vertex_video_create(body: Bytes) -> Bytes {
+    crate::channel::shaping::with_json_body(body, |value| {
+        let Some(input) = value.as_object_mut() else {
+            return;
+        };
+        let prompt = input
+            .remove("prompt")
+            .unwrap_or(Value::String(String::new()));
+        input.remove("model");
+        let reference = input.remove("input_reference");
+        let mut instance = serde_json::Map::new();
+        instance.insert("prompt".into(), prompt);
+        if let Some(image) = reference.and_then(vertex_reference_image) {
+            instance.insert("image".into(), image);
+        }
+
+        let mut parameters = input
+            .remove("parameters")
+            .and_then(|value| value.as_object().cloned())
+            .unwrap_or_default();
+        for (source, target) in [
+            ("aspect_ratio", "aspectRatio"),
+            ("duration_seconds", "durationSeconds"),
+            ("generate_audio", "generateAudio"),
+            ("resolution", "resolution"),
+            ("seed", "seed"),
+            ("storage_uri", "storageUri"),
+        ] {
+            if let Some(value) = input.remove(source) {
+                parameters.entry(target).or_insert(value);
+            }
+        }
+        if let Some(seconds) = input.remove("seconds") {
+            let duration = seconds
+                .as_str()
+                .and_then(|value| value.parse::<u64>().ok())
+                .map(Value::from)
+                .unwrap_or(seconds);
+            parameters.entry("durationSeconds").or_insert(duration);
+        }
+        if let Some(count) = input.remove("n") {
+            parameters.entry("sampleCount").or_insert(count);
+        }
+        *value = serde_json::json!({
+            "instances": [Value::Object(instance)],
+            "parameters": Value::Object(parameters),
+        });
+    })
+}
+
+fn vertex_reference_image(reference: Value) -> Option<Value> {
+    let url = reference
+        .as_str()
+        .map(str::to_owned)
+        .or_else(|| reference.get("image_url")?.as_str().map(str::to_owned))?;
+    if let Some(data) = url.strip_prefix("data:") {
+        let (mime, payload) = data.split_once(",")?;
+        let mime = mime.strip_suffix(";base64")?;
+        Some(serde_json::json!({
+            "bytesBase64Encoded": payload,
+            "mimeType": mime,
+        }))
+    } else if url.starts_with("gs://") {
+        Some(serde_json::json!({ "gcsUri": url }))
+    } else {
+        None
+    }
+}
+
+fn shape_vertex_video_poll(body: Bytes, ctx: &ShapeCtx) -> Bytes {
+    let _ = ctx;
+    // RetrieveVideo has no public request body. The native fetch operation
+    // body is completed in `prepare`, where the path identifier is available.
+    body
+}
+
+fn shape_vertex_video_response(body: Bytes) -> Bytes {
+    crate::channel::shaping::with_json_body(body, |value| {
+        let name = value.get("name").and_then(Value::as_str).map(str::to_owned);
+        let done = value.get("done").and_then(Value::as_bool).unwrap_or(false);
+        let failed = value.get("error").is_some();
+        let url = vertex_video_url(value);
+        let Some(object) = value.as_object_mut() else {
+            return;
+        };
+        if let Some(name) = name {
+            object.insert(
+                "id".into(),
+                Value::String(common::encode_video_task_id(&name)),
+            );
+            object.insert("operation_name".into(), Value::String(name));
+        }
+        object.insert(
+            "status".into(),
+            Value::String(
+                if failed {
+                    "failed"
+                } else if done {
+                    "completed"
+                } else if object.contains_key("done") {
+                    "in_progress"
+                } else {
+                    "queued"
+                }
+                .into(),
+            ),
+        );
+        if let Some(url) = url {
+            object.insert("url".into(), Value::String(url));
+        }
+    })
+}
+
+fn vertex_video_url(value: &Value) -> Option<String> {
+    let response = value.get("response")?;
+    for path in [
+        &["videos", "0", "gcsUri"][..],
+        &["videos", "0", "uri"][..],
+        &["generateVideoResponse", "generatedSamples", "0"][..],
+        &["generatedSamples", "0"][..],
+        &["generatedSamples", "0", "video", "uri"][..],
+        &["generatedVideos", "0", "video", "uri"][..],
+    ] {
+        let mut current = response;
+        let mut found = true;
+        for segment in path {
+            current = if let Ok(index) = segment.parse::<usize>() {
+                match current.get(index) {
+                    Some(value) => value,
+                    None => {
+                        found = false;
+                        break;
+                    }
+                }
+            } else {
+                match current.get(*segment) {
+                    Some(value) => value,
+                    None => {
+                        found = false;
+                        break;
+                    }
+                }
+            };
+        }
+        if found && let Some(url) = current.as_str() {
+            return Some(url.to_owned());
+        }
+    }
+    None
 }
 
 /// Sign the SA assertion, exchange it at the token endpoint, and return the
@@ -479,5 +698,103 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
         };
         let out2 = VertexChannel.shape_response(body.clone(), &list_ctx);
         assert_eq!(out2, body);
+    }
+
+    #[test]
+    fn prepares_veo_create_and_poll_requests() {
+        use crate::protocol::{Operation, OperationKey, Provider as P};
+
+        let mut secret = sa_secret();
+        secret["access_token"] = json!("tok-abc");
+        let settings = json!({});
+        let headers = HeaderMap::new();
+        let op = OperationKey::provider(Operation::CreateVideo, P::OpenAi);
+        let shape = ShapeCtx {
+            op,
+            stream: false,
+            status: http::StatusCode::OK,
+            settings: &settings,
+        };
+        let mut shape_headers = HeaderMap::new();
+        let body = VertexChannel.shape_request(
+            Bytes::from_static(
+                br#"{"model":"veo-3.1-generate-001","prompt":"cat","seconds":"8","aspect_ratio":"16:9"}"#,
+            ),
+            &mut shape_headers,
+            &shape,
+        );
+        let value: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["instances"][0]["prompt"], "cat");
+        assert_eq!(value["parameters"]["durationSeconds"], 8);
+        assert_eq!(value["parameters"]["aspectRatio"], "16:9");
+
+        let create = VertexChannel
+            .prepare(PrepareCtx {
+                secret: &secret,
+                provider_settings: &settings,
+                op,
+                stream: false,
+                upstream_model_id: "veo-3.1-generate-001",
+                method: Method::POST,
+                path: "/v1/videos",
+                query: None,
+                headers: &headers,
+                body,
+            })
+            .unwrap()
+            .into_http()
+            .unwrap();
+        assert_eq!(
+            create.uri().to_string(),
+            "https://us-central1-aiplatform.googleapis.com/v1/projects/proj-123/locations/us-central1/publishers/google/models/veo-3.1-generate-001:predictLongRunning"
+        );
+
+        let operation_name = "projects/proj-123/locations/us-central1/publishers/google/models/veo-3.1-generate-001/operations/op-1";
+        let id = common::encode_video_task_id(operation_name);
+        let poll = VertexChannel
+            .prepare(PrepareCtx {
+                secret: &secret,
+                provider_settings: &settings,
+                op: OperationKey::provider(Operation::RetrieveVideo, P::OpenAi),
+                stream: false,
+                upstream_model_id: "veo-3.1-generate-001",
+                method: Method::GET,
+                path: &format!("/v1/videos/{id}"),
+                query: None,
+                headers: &headers,
+                body: Bytes::new(),
+            })
+            .unwrap()
+            .into_http()
+            .unwrap();
+        assert_eq!(poll.method(), Method::POST);
+        let value: Value = serde_json::from_slice(poll.body()).unwrap();
+        assert_eq!(value["operationName"], operation_name);
+    }
+
+    #[test]
+    fn reshapes_vertex_operation_response() {
+        use crate::protocol::{Operation, OperationKey, Provider as P};
+
+        let settings = json!({});
+        let ctx = ShapeCtx {
+            op: OperationKey::provider(Operation::RetrieveVideo, P::OpenAi),
+            stream: false,
+            status: http::StatusCode::OK,
+            settings: &settings,
+        };
+        let output = VertexChannel.shape_response(
+            Bytes::from_static(
+                br#"{"name":"projects/p/operations/op-1","done":true,"response":{"videos":[{"gcsUri":"gs://bucket/video.mp4"}]}}"#,
+            ),
+            &ctx,
+        );
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["status"], "completed");
+        assert_eq!(value["url"], "gs://bucket/video.mp4");
+        assert_eq!(
+            common::decode_video_task_id(value["id"].as_str().unwrap()).unwrap(),
+            "projects/p/operations/op-1"
+        );
     }
 }

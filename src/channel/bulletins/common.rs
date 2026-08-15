@@ -2,6 +2,7 @@
 //! request assembly (auth-free), and auth-header injection primitives. Each
 //! channel folder's `auth.rs` composes these into its own auth.
 
+use base64::Engine as _;
 use bytes::Bytes;
 use http::Request;
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
@@ -114,4 +115,25 @@ pub fn with_key_query(query: Option<String>, api_key: &str) -> Option<String> {
         Some(q) if !q.is_empty() => format!("{q}&{pair}"),
         _ => pair,
     })
+}
+
+/// Encode provider-native long-running operation identifiers as one safe
+/// OpenAI video path segment. Vertex operation names and Bedrock ARNs contain
+/// slashes, so returning them verbatim would make `/v1/videos/{id}` ambiguous.
+pub fn encode_video_task_id(native_id: &str) -> String {
+    format!(
+        "gpx_{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(native_id)
+    )
+}
+
+pub fn decode_video_task_id(id: &str) -> Result<String, ChannelError> {
+    let encoded = id
+        .strip_prefix("gpx_")
+        .ok_or_else(|| ChannelError::Build("invalid native video task id".into()))?;
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded)
+        .map_err(|error| ChannelError::Build(format!("invalid native video task id: {error}")))?;
+    String::from_utf8(bytes)
+        .map_err(|error| ChannelError::Build(format!("invalid native video task id: {error}")))
 }

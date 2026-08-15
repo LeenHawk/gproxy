@@ -76,6 +76,9 @@ impl Channel for AiStudioChannel {
                 GenerateContent,
                 cg(GeminiGenerateContent),
             ),
+            // Gemini exposes these through its Sora-compatible OpenAI surface.
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
             pass(CreateEmbedding, pv(P::Gemini)),
             xform(
                 CreateEmbedding,
@@ -96,10 +99,82 @@ impl Channel for AiStudioChannel {
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         let api_key = common::resolve_api_key(&ctx)?;
+        if matches!(
+            ctx.op.operation(),
+            crate::protocol::Operation::CreateVideo | crate::protocol::Operation::RetrieveVideo
+        ) {
+            let suffix = ctx
+                .path
+                .strip_prefix("/v1/videos")
+                .ok_or_else(|| ChannelError::Build("invalid AI Studio video path".into()))?;
+            let path = format!("/v1beta/openai/videos{suffix}");
+            let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, None)?;
+            let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
+            let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
+            // The OpenAI-compatible surface documents bearer API-key auth,
+            // unlike native Gemini endpoints which use the `key` query.
+            common::inject_bearer(&mut req, &api_key)?;
+            return Ok(PreparedRequest::new(req));
+        }
         let query = auth::apply_query(allow_query(ctx.query, DEFAULTS.forward_query), &api_key);
         let uri = common::resolve_uri(&ctx, &DEFAULTS, ctx.path, query.as_deref())?;
         let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
         let req = build_request(ctx.method, uri, headers, ctx.body)?;
         Ok(PreparedRequest::new(req))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use http::{HeaderMap, Method};
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{Operation, OperationKey, Provider};
+
+    #[test]
+    fn prepares_sora_compatible_video_endpoints_with_bearer_auth() {
+        let secret = json!({ "api_key": "gemini-test" });
+        let settings = json!({});
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            "multipart/form-data; boundary=test".parse().unwrap(),
+        );
+        for (operation, method, path, expected) in [
+            (
+                Operation::CreateVideo,
+                Method::POST,
+                "/v1/videos",
+                "https://generativelanguage.googleapis.com/v1beta/openai/videos",
+            ),
+            (
+                Operation::RetrieveVideo,
+                Method::GET,
+                "/v1/videos/op_1",
+                "https://generativelanguage.googleapis.com/v1beta/openai/videos/op_1",
+            ),
+        ] {
+            let request = AiStudioChannel
+                .prepare(PrepareCtx {
+                    secret: &secret,
+                    provider_settings: &settings,
+                    op: OperationKey::provider(operation, Provider::OpenAi),
+                    stream: false,
+                    upstream_model_id: "veo-3.1-generate-preview",
+                    method,
+                    path,
+                    query: None,
+                    headers: &headers,
+                    body: Bytes::new(),
+                })
+                .unwrap()
+                .into_http()
+                .unwrap();
+            assert_eq!(request.uri().to_string(), expected);
+            assert_eq!(request.headers()["authorization"], "Bearer gemini-test");
+            assert!(request.uri().query().is_none());
+        }
     }
 }

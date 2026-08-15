@@ -9,20 +9,12 @@ use crate::protocol::Operation;
 /// Restore the public multipart wire shape after ingress normalized an OpenAI
 /// audio, image, or video upload to JSON/data URLs for routing and transforms.
 pub fn restore_media_multipart(
+    channel_id: &str,
     operation: Operation,
     headers: &mut HeaderMap,
     body: Bytes,
 ) -> Result<Bytes, ChannelError> {
-    if !matches!(
-        operation,
-        Operation::CreateTranscription
-            | Operation::CreateTranslation
-            | Operation::EditImage
-            | Operation::CreateVideo
-            | Operation::CreateVideoCharacter
-            | Operation::EditVideo
-            | Operation::ExtendVideo
-    ) {
+    if !needs_multipart(channel_id, operation) {
         return Ok(body);
     }
 
@@ -42,6 +34,25 @@ pub fn restore_media_multipart(
     );
     headers.remove(header::CONTENT_LENGTH);
     Ok(Bytes::from(output))
+}
+
+fn needs_multipart(channel_id: &str, operation: Operation) -> bool {
+    match operation {
+        // These three adapters expose the OpenAI multipart upload surface.
+        Operation::CreateTranscription | Operation::CreateTranslation => {
+            matches!(channel_id, "openai" | "custom" | "openrouter")
+        }
+        Operation::EditImage => matches!(channel_id, "openai" | "azure" | "custom"),
+        // AI Studio's Sora-compatible create endpoint is multipart too, while
+        // OpenRouter, xAI, Vertex and Bedrock use JSON for video requests.
+        Operation::CreateVideo => {
+            matches!(channel_id, "openai" | "azure" | "custom" | "aistudio")
+        }
+        Operation::CreateVideoCharacter | Operation::EditVideo | Operation::ExtendVideo => {
+            matches!(channel_id, "openai" | "azure" | "custom")
+        }
+        _ => false,
+    }
 }
 
 fn append_value(
@@ -174,7 +185,8 @@ mod tests {
             br#"{"file":"data:audio/wav;base64,UklGRg==","model":"whisper-1","timestamp_granularities":["word","segment"],"stream":"true"}"#,
         );
         let output =
-            restore_media_multipart(Operation::CreateTranscription, &mut headers, body).unwrap();
+            restore_media_multipart("openai", Operation::CreateTranscription, &mut headers, body)
+                .unwrap();
         let text = String::from_utf8(output.to_vec()).unwrap();
         assert!(
             headers[header::CONTENT_TYPE]
@@ -197,7 +209,8 @@ mod tests {
         let body = Bytes::from_static(
             br#"{"prompt":"extend","seconds":"8","video":"data:video/mp4;base64,AAAA"}"#,
         );
-        let output = restore_media_multipart(Operation::ExtendVideo, &mut headers, body).unwrap();
+        let output =
+            restore_media_multipart("openai", Operation::ExtendVideo, &mut headers, body).unwrap();
         let text = String::from_utf8(output.to_vec()).unwrap();
         assert!(text.contains("name=\"video\"; filename=\"video.mp4\""));
         assert!(text.contains("Content-Type: video/mp4\r\n\r\n\0\0\0"));
@@ -205,7 +218,8 @@ mod tests {
         let reference =
             Bytes::from_static(br#"{"prompt":"extend","seconds":"8","video":{"id":"video_123"}}"#);
         let output =
-            restore_media_multipart(Operation::ExtendVideo, &mut headers, reference).unwrap();
+            restore_media_multipart("openai", Operation::ExtendVideo, &mut headers, reference)
+                .unwrap();
         let text = String::from_utf8(output.to_vec()).unwrap();
         assert!(text.contains("name=\"video\"\r\n\r\n{\"id\":\"video_123\"}"));
         assert!(!text.contains("filename=\"video.mp4\""));
@@ -217,12 +231,34 @@ mod tests {
         let body = Bytes::from_static(
             br#"{"image":["data:image/png;base64,AAAA","data:image/png;base64,AQID"],"prompt":"edit"}"#,
         );
-        let output = restore_media_multipart(Operation::EditImage, &mut headers, body).unwrap();
+        let output =
+            restore_media_multipart("openai", Operation::EditImage, &mut headers, body).unwrap();
         let text = String::from_utf8(output.to_vec()).unwrap();
         assert_eq!(
             text.matches("name=\"image[]\"; filename=\"image.png\"")
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn keeps_json_for_native_json_media_apis() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        let body = Bytes::from_static(br#"{"image":"data:image/png;base64,AAAA","prompt":"edit"}"#);
+        let output =
+            restore_media_multipart("xai", Operation::EditImage, &mut headers, body.clone())
+                .unwrap();
+        assert_eq!(output, body);
+        assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+
+        let video = Bytes::from_static(br#"{"model":"grok-imagine-video","prompt":"cat"}"#);
+        let output =
+            restore_media_multipart("xai", Operation::CreateVideo, &mut headers, video.clone())
+                .unwrap();
+        assert_eq!(output, video);
     }
 }

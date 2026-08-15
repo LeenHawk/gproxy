@@ -94,6 +94,7 @@ pub(super) async fn attempt(
     let mut req_headers = parts.headers.take().unwrap_or_else(|| ctx.headers.clone());
     parts.body = channel.shape_request(parts.body, &mut req_headers, &shape);
     parts.body = crate::channel::bulletins::common::restore_media_multipart(
+        channel.id(),
         shape.op.operation(),
         &mut req_headers,
         parts.body,

@@ -84,12 +84,22 @@ describe("mergeChannelCatalog", () => {
 });
 
 describe("built-in media endpoint fallback metadata", () => {
-  it("exposes video endpoints only on native passthrough channels", () => {
+  it("exposes each channel's implemented video surface", () => {
     for (const id of ["openai", "azure", "custom"]) {
       expect(channelMeta(id)?.endpointKinds).toContain("openai_video_create");
       expect(channelMeta(id)?.endpointKinds).toContain("openai_video_content");
     }
-    expect(channelMeta("openrouter")?.endpointKinds).not.toContain("openai_video_create");
+    expect(channelMeta("openrouter")?.endpointKinds).toEqual(expect.arrayContaining([
+      "openai_video_create", "openai_video_retrieve", "openai_video_content",
+    ]));
+    expect(channelMeta("xai")?.endpointKinds).toEqual(expect.arrayContaining([
+      "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend",
+    ]));
+    for (const id of ["aistudio", "vertex", "aws-bedrock"]) {
+      expect(channelMeta(id)?.endpointKinds).toEqual(expect.arrayContaining([
+        "openai_video_create", "openai_video_retrieve",
+      ]));
+    }
   });
 
   it("keeps image and audio fallback declarations aligned", () => {
@@ -100,5 +110,6 @@ describe("built-in media endpoint fallback metadata", () => {
       "openai_audio_speech", "openai_audio_transcriptions", "openai_audio_translations",
     ]));
     expect(channelMeta("dashscope")?.endpointKinds).not.toContain("openai_audio_speech");
+    expect(channelMeta("openrouter")?.endpointKinds).toContain("image_generations");
   });
 });

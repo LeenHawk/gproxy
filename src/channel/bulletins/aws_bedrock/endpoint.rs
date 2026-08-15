@@ -6,6 +6,12 @@ use crate::protocol::Operation;
 use super::{DEFAULT_REGION, is_count_tokens};
 
 pub(super) fn resolve(ctx: &PrepareCtx<'_>, compact: bool) -> Result<http::Uri, ChannelError> {
+    if matches!(
+        ctx.op.operation(),
+        Operation::CreateVideo | Operation::RetrieveVideo
+    ) {
+        return resolve_video(ctx);
+    }
     let model = crate::channel::oauth::percent_encode(ctx.upstream_model_id);
     let (control, path) = if ctx.op.operation() == Operation::ListModels {
         (true, "/foundation-models".to_owned())
@@ -50,6 +56,41 @@ pub(super) fn resolve(ctx: &PrepareCtx<'_>, compact: bool) -> Result<http::Uri, 
     } else {
         format!("https://bedrock-runtime.{region}.amazonaws.com")
     };
+    join_url(configured.unwrap_or(&generated), &path, None)
+}
+
+fn resolve_video(ctx: &PrepareCtx<'_>) -> Result<http::Uri, ChannelError> {
+    if let Some(url) = crate::channel::settings::endpoint_url_for_request(
+        ctx.provider_settings,
+        ctx.op,
+        ctx.stream,
+        ctx.upstream_model_id,
+        ctx.path,
+    ) {
+        return exact_url(&url, None);
+    }
+    let path = if ctx.op.operation() == Operation::CreateVideo {
+        "/async-invoke".to_owned()
+    } else {
+        let id = ctx
+            .path
+            .strip_prefix("/v1/videos/")
+            .filter(|id| !id.is_empty() && !id.contains('/'))
+            .ok_or_else(|| ChannelError::Build("invalid Bedrock video id".into()))?;
+        let arn = crate::channel::bulletins::common::decode_video_task_id(id)?;
+        format!(
+            "/async-invoke/{}",
+            crate::channel::oauth::percent_encode(&arn)
+        )
+    };
+    let configured = ctx
+        .provider_settings
+        .get("base_url")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|base| !base.is_empty());
+    let region = region(ctx.provider_settings)?;
+    let generated = format!("https://bedrock-runtime.{region}.amazonaws.com");
     join_url(configured.unwrap_or(&generated), &path, None)
 }
 

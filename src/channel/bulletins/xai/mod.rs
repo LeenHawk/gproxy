@@ -70,6 +70,10 @@ impl Channel for XaiChannel {
             ),
             pass(CreateImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::OpenAi)),
+            pass(CreateVideo, pv(P::OpenAi)),
+            pass(RetrieveVideo, pv(P::OpenAi)),
+            pass(EditVideo, pv(P::OpenAi)),
+            pass(ExtendVideo, pv(P::OpenAi)),
             pass(CompactContent, pv(P::OpenAi)),
         ];
         routes.extend(responses_ws_to(cg(OpenAiResponses)));
@@ -77,12 +81,63 @@ impl Channel for XaiChannel {
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-        let (mut req, key) = common::build_request(ctx, &DEFAULTS)?;
+        let key = common::resolve_api_key(&ctx)?;
+        let path = if ctx.op.operation() == Operation::CreateVideo {
+            "/v1/videos/generations"
+        } else {
+            ctx.path
+        };
+        let uri = common::resolve_uri(&ctx, &DEFAULTS, path, None)?;
+        let headers =
+            crate::channel::http_util::allow_headers(ctx.headers, DEFAULTS.forward_headers);
+        let mut req = crate::channel::http_util::build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut req, &key)?;
         Ok(PreparedRequest::new(req))
     }
 
+    fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        if !matches!(
+            ctx.op.operation(),
+            Operation::CreateVideo | Operation::EditVideo | Operation::ExtendVideo
+        ) {
+            return body;
+        }
+        crate::channel::shaping::with_json_body(body, |value| {
+            let Some(object) = value.as_object_mut() else {
+                return;
+            };
+            if let Some(seconds) = object.remove("seconds") {
+                let duration = seconds
+                    .as_str()
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .map(Value::from)
+                    .unwrap_or(seconds);
+                object.entry("duration").or_insert(duration);
+            }
+            if ctx.op.operation() == Operation::CreateVideo {
+                return;
+            }
+            let Some(video) = object.get_mut("video") else {
+                return;
+            };
+            if let Some(url) = video.as_str().map(str::to_owned) {
+                *video = serde_json::json!({ "url": url });
+            }
+        })
+    }
+
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
+        if ctx.status.is_success()
+            && matches!(
+                ctx.op.operation(),
+                Operation::CreateVideo
+                    | Operation::RetrieveVideo
+                    | Operation::EditVideo
+                    | Operation::ExtendVideo
+            )
+        {
+            return reshape_video_response(body);
+        }
         if !ctx.status.is_success()
             || ctx.op.operation() != Operation::ListModels
             || ctx.op.kind() != OperationKind::Provider(Provider::OpenAi)
@@ -91,6 +146,41 @@ impl Channel for XaiChannel {
         }
         enrich_model_list(body)
     }
+}
+
+fn reshape_video_response(body: Bytes) -> Bytes {
+    crate::channel::shaping::with_json_body(body, |value| {
+        let Some(object) = value.as_object_mut() else {
+            return;
+        };
+        if object.get("id").is_none()
+            && let Some(id) = object
+                .get("request_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        {
+            object.insert("id".into(), Value::String(id));
+        }
+        let status = match object.get("status").and_then(Value::as_str) {
+            Some("done") => Some("completed"),
+            Some("pending" | "processing") => Some("in_progress"),
+            None if object.get("video").is_some() => Some("completed"),
+            None => Some("queued"),
+            _ => None,
+        };
+        if let Some(status) = status {
+            object.insert("status".into(), Value::String(status.into()));
+        }
+        if object.get("url").is_none()
+            && let Some(url) = object
+                .get("video")
+                .and_then(|video| video.get("url"))
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        {
+            object.insert("url".into(), Value::String(url));
+        }
+    })
 }
 
 fn enrich_model_list(body: Bytes) -> Bytes {
