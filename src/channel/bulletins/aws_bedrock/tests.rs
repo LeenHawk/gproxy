@@ -211,3 +211,109 @@ fn compact_transform_becomes_bedrock_invoke_body() {
         "compact_20260112"
     );
 }
+
+#[test]
+fn shapes_and_prepares_nova_reel_async_invoke() {
+    let op = OperationKey::provider(Operation::CreateVideo, Provider::OpenAi);
+    let settings = json!({
+        "region": "us-west-2",
+        "video_output_s3_uri": "s3://video-output/jobs"
+    });
+    let ctx = ShapeCtx {
+        op,
+        stream: false,
+        status: StatusCode::OK,
+        settings: &settings,
+    };
+    let shaped = AwsBedrockChannel.shape_request(
+        Bytes::from_static(
+            br#"{"model":"amazon.nova-reel-v1:1","prompt":"cat","seconds":"6","size":"1280x720","seed":7}"#,
+        ),
+        &mut HeaderMap::new(),
+        &ctx,
+    );
+    let value: Value = serde_json::from_slice(&shaped).unwrap();
+    assert_eq!(value["modelId"], "amazon.nova-reel-v1:1");
+    assert_eq!(value["modelInput"]["taskType"], "TEXT_VIDEO");
+    assert_eq!(
+        value["modelInput"]["videoGenerationConfig"]["durationSeconds"],
+        6
+    );
+    assert_eq!(
+        value["outputDataConfig"]["s3OutputDataConfig"]["s3Uri"],
+        "s3://video-output/jobs"
+    );
+
+    let secret = json!({ "api_key": "bedrock-key" });
+    let request = AwsBedrockChannel
+        .prepare(PrepareCtx {
+            secret: &secret,
+            provider_settings: &settings,
+            op,
+            stream: false,
+            upstream_model_id: "amazon.nova-reel-v1:1",
+            method: Method::POST,
+            path: "/v1/videos",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: shaped,
+        })
+        .unwrap()
+        .into_http()
+        .unwrap();
+    assert_eq!(
+        request.uri(),
+        "https://bedrock-runtime.us-west-2.amazonaws.com/async-invoke"
+    );
+}
+
+#[test]
+fn reshapes_and_polls_bedrock_video_job() {
+    let settings = json!({ "region": "us-west-2" });
+    let arn = "arn:aws:bedrock:us-west-2:123:async-invoke/job-1";
+    let id = common::encode_video_task_id(arn);
+    let op = OperationKey::provider(Operation::RetrieveVideo, Provider::OpenAi);
+    let secret = json!({ "api_key": "bedrock-key" });
+    let request = AwsBedrockChannel
+        .prepare(PrepareCtx {
+            secret: &secret,
+            provider_settings: &settings,
+            op,
+            stream: false,
+            upstream_model_id: "amazon.nova-reel-v1:1",
+            method: Method::GET,
+            path: &format!("/v1/videos/{id}"),
+            query: None,
+            headers: &HeaderMap::new(),
+            body: Bytes::new(),
+        })
+        .unwrap()
+        .into_http()
+        .unwrap();
+    assert_eq!(request.method(), Method::GET);
+    assert!(request.uri().path().contains("arn%3Aaws%3Abedrock"));
+
+    let ctx = ShapeCtx {
+        op,
+        stream: false,
+        status: StatusCode::OK,
+        settings: &settings,
+    };
+    let response = AwsBedrockChannel.shape_response(
+        Bytes::from(
+            json!({
+                "invocationArn": arn,
+                "status": "Completed",
+                "outputDataConfig": {
+                    "s3OutputDataConfig": { "s3Uri": "s3://video-output/jobs" }
+                }
+            })
+            .to_string(),
+        ),
+        &ctx,
+    );
+    let value: Value = serde_json::from_slice(&response).unwrap();
+    assert_eq!(value["id"], id);
+    assert_eq!(value["status"], "completed");
+    assert_eq!(value["url"], "s3://video-output/jobs/job-1/output.mp4");
+}

@@ -70,6 +70,10 @@ export function SettingsFields({ channel, meta, state, onChange }: SettingsField
   const circuitBreakerField = resolvedMeta?.source === "external"
     ? resolvedMeta.settingsFields.find((field) => field.key === "circuit_breaker")
     : undefined;
+  const builtinGenericFields = isBuiltin && AWS_CHANNELS.has(channel)
+    ? genericSettingFields(resolvedMeta.settingsFields)
+        .filter((field) => field.key === "video_output_s3_uri")
+    : [];
 
   return (
     <div className="grid gap-3">
@@ -99,6 +103,14 @@ export function SettingsFields({ channel, meta, state, onChange }: SettingsField
       {resolvedMeta?.source === "external" && (
         <GenericSettingsFields
           fields={genericSettingFields(resolvedMeta.settingsFields)}
+          values={state.genericSettings}
+          onChange={(genericSettings) => onChange({ genericSettings })}
+        />
+      )}
+
+      {builtinGenericFields.length > 0 && (
+        <GenericSettingsFields
+          fields={builtinGenericFields}
           values={state.genericSettings}
           onChange={(genericSettings) => onChange({ genericSettings })}
         />

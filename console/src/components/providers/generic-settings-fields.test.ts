@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChannelMeta, ChannelSettingField } from "@/lib/channel-meta";
+import { channelMeta, type ChannelMeta, type ChannelSettingField } from "@/lib/channel-meta";
 import {
   assembleGenericSettings,
   genericSettingFields,
@@ -118,6 +118,16 @@ describe("external settings", () => {
     state.genericSettings.region = "external-control";
     expect(assembleSettings({}, state, meta.id, meta)).toEqual({
       region: "external-control",
+    });
+  });
+
+  it("persists the built-in Bedrock video output S3 setting", () => {
+    const meta = channelMeta("aws-bedrock");
+    expect(meta).toBeDefined();
+    const state = initSettingsState({}, meta);
+    state.genericSettings.video_output_s3_uri = " s3://video-output/jobs ";
+    expect(assembleSettings({}, state, "aws-bedrock", meta)).toMatchObject({
+      video_output_s3_uri: "s3://video-output/jobs",
     });
   });
 

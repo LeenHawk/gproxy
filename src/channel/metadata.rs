@@ -21,6 +21,16 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             metadata.secret_template =
                 json!({ "client_email": "", "private_key": "", "project_id": "" });
         }
+        "aws-bedrock" => {
+            metadata.settings_fields = vec![ChannelSettingField {
+                key: "video_output_s3_uri".into(),
+                control: SettingControl::Text,
+                label: Some("Video output S3 URI".into()),
+                required: false,
+                default: None,
+                placeholder: Some("s3://bucket/prefix".into()),
+            }];
+        }
         "geminicli" | "antigravity" => {
             metadata.credential_family = CredentialFamily::OauthTokens;
             metadata.login_modes = vec![LoginMode::Authcode];
@@ -209,6 +219,8 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "claude_count_tokens",
             "claude_messages",
             "openai_compact",
+            "openai_video_create",
+            "openai_video_retrieve",
         ],
         "openrouter" => &[
             "openai_list_models",
@@ -220,6 +232,11 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_audio_speech",
             "openai_audio_transcriptions",
             "openai_rerank",
+            "image_generations",
+            "image_edits",
+            "openai_video_create",
+            "openai_video_retrieve",
+            "openai_video_content",
         ],
         "cloudflare-ai-gateway" => &[
             "openai_chat_completions",
@@ -264,6 +281,10 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_responses",
             "image_generations",
             "image_edits",
+            "openai_video_create",
+            "openai_video_retrieve",
+            "openai_video_edit",
+            "openai_video_extend",
             "openai_compact",
         ],
         "vercel" => &[
@@ -329,7 +350,10 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "gemini_generate_content",
             "gemini_stream_generate_content",
             "gemini_embeddings",
+            "openai_video_create",
+            "openai_video_retrieve",
         ],
+        "vertex" => &["openai_video_create", "openai_video_retrieve"],
         "vertexexpress" => &[
             "gemini_count_tokens",
             "gemini_generate_content",

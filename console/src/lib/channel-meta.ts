@@ -47,21 +47,22 @@ const CUSTOM_ENDPOINTS = ENDPOINT_KINDS.filter(
 const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   openai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_realtime", "openai_embeddings", "openai_audio_speech", "openai_audio_transcriptions", "openai_audio_translations", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_list", "openai_video_delete", "openai_video_content", "openai_video_remix", "openai_video_character_create", "openai_video_character_get", "openai_video_edit", "openai_video_extend", "openai_compact"],
   azure: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_list", "openai_video_delete", "openai_video_content", "openai_video_remix", "openai_video_character_create", "openai_video_character_get", "openai_video_edit", "openai_video_extend", "openai_compact"],
-  "aws-bedrock": ["openai_list_models", "openai_get_model", "claude_count_tokens", "claude_messages", "openai_compact"],
-  openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_audio_speech", "openai_audio_transcriptions", "openai_rerank"],
+  "aws-bedrock": ["openai_list_models", "openai_get_model", "claude_count_tokens", "claude_messages", "openai_compact", "openai_video_create", "openai_video_retrieve"],
+  openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_audio_speech", "openai_audio_transcriptions", "openai_rerank", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_content"],
   "cloudflare-ai-gateway": ["openai_chat_completions", "openai_responses", "claude_messages"],
   dashscope: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "openai_rerank", "image_generations", "image_edits", "openai_compact"],
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
   nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
-  xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_compact"],
+  xai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],
   opencodezen: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages", "gemini_generate_content", "gemini_stream_generate_content"],
   opencodego: ["openai_list_models", "openai_chat_completions", "openai_responses", "claude_messages"],
   cline: ["openai_list_models", "openai_chat_completions", "usage"],
   vercel: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
   custom: CUSTOM_ENDPOINTS,
   claudeapi: ["openai_list_models", "claude_list_models", "openai_get_model", "claude_get_model", "claude_count_tokens", "openai_chat_completions", "claude_messages"],
-  aistudio: ["openai_list_models", "gemini_list_models", "openai_get_model", "gemini_get_model", "gemini_count_tokens", "openai_chat_completions", "gemini_generate_content", "gemini_stream_generate_content", "gemini_embeddings"],
+  aistudio: ["openai_list_models", "gemini_list_models", "openai_get_model", "gemini_get_model", "gemini_count_tokens", "openai_chat_completions", "gemini_generate_content", "gemini_stream_generate_content", "gemini_embeddings", "openai_video_create", "openai_video_retrieve"],
+  vertex: ["openai_video_create", "openai_video_retrieve"],
   vertexexpress: ["gemini_count_tokens", "gemini_generate_content", "gemini_stream_generate_content", "gemini_embeddings"],
   geminicli: ["usage"],
   antigravity: ["usage"],
@@ -112,6 +113,14 @@ const DEEPSEEK_SETTINGS: ChannelSettingField[] = [{
   default: false,
 }];
 
+const AWS_BEDROCK_SETTINGS: ChannelSettingField[] = [{
+  key: "video_output_s3_uri",
+  control: "text",
+  label: "Video output S3 URI",
+  required: false,
+  placeholder: "s3://bucket/prefix",
+}];
+
 const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -160,7 +169,9 @@ function oauthMeta(
 export const CHANNELS: ChannelMeta[] = [
   ...API_KEY_IDS.map((id) => builtinMeta(id, "api_key", {
     hintKey: id === "aws-bedrock" ? "bedrockApiKeyHint" : undefined,
-    settingsFields: id === "deepseek" ? DEEPSEEK_SETTINGS : [],
+    settingsFields: id === "deepseek"
+      ? DEEPSEEK_SETTINGS
+      : id === "aws-bedrock" ? AWS_BEDROCK_SETTINGS : [],
     ...(id === "cloudflare-ai-gateway"
       ? { secretTemplate: { api_key: "", account_id: "", gateway_id: "default" } }
       : {}),

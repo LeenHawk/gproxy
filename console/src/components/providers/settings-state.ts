@@ -218,9 +218,19 @@ export function assembleSettings(
     }
   }
 
-  return isExternal && meta
-    ? assembleGenericSettings(result, state.genericSettings, genericSettingFields(meta.settingsFields))
-    : result;
+  if (isExternal && meta) {
+    return assembleGenericSettings(
+      result,
+      state.genericSettings,
+      genericSettingFields(meta.settingsFields),
+    );
+  }
+  if (isBuiltin && AWS_CHANNELS.has(channel) && meta) {
+    const fields = genericSettingFields(meta.settingsFields)
+      .filter((field) => field.key === "video_output_s3_uri");
+    return assembleGenericSettings(result, state.genericSettings, fields);
+  }
+  return result;
 }
 
 function setString(result: Record<string, unknown>, key: string, value: string) {
