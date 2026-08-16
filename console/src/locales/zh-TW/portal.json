@@ -34,13 +34,7 @@
     "cost": "費用",
     "latency": "延遲",
     "route": "路由",
-    "clearFilters": "清除篩選",
-    "preset": {
-      "1h": "最近 1 小時",
-      "24h": "最近 24 小時",
-      "7d": "最近 7 天",
-      "all": "全部"
-    }
+    "clearFilters": "清除篩選"
   },
   "limits": {
     "quota": "配額",

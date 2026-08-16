@@ -21,6 +21,22 @@
     "expand": "Expand",
     "update": "Updates"
   },
+  "timeRange": {
+    "label": "Time range",
+    "anyTime": "All time",
+    "start": "Start",
+    "end": "End",
+    "after": "From {{time}}",
+    "before": "Until {{time}}",
+    "clear": "Clear time range",
+    "invalid": "Start time must be before end time.",
+    "quick": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "thisMonth": "This month"
+    }
+  },
   "actions": {
     "cancel": "Cancel",
     "save": "Save",

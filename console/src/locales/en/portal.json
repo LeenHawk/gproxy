@@ -34,13 +34,7 @@
     "cost": "Cost",
     "latency": "Latency",
     "route": "Route",
-    "clearFilters": "Clear filters",
-    "preset": {
-      "1h": "Last hour",
-      "24h": "Last 24 h",
-      "7d": "Last 7 days",
-      "all": "All time"
-    }
+    "clearFilters": "Clear filters"
   },
   "limits": {
     "quota": "Quota",
