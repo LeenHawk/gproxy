@@ -31,6 +31,7 @@ fn assert_claude_lifecycle(text: &str) {
     let events = sse_values(text);
     let mut started = false;
     let mut open_block = None;
+    let mut seen_blocks = std::collections::HashSet::new();
     let mut stopped = false;
     for event in &events {
         match event["type"].as_str().unwrap() {
@@ -40,7 +41,12 @@ fn assert_claude_lifecycle(text: &str) {
             }
             "content_block_start" => {
                 assert!(started && open_block.is_none());
-                open_block = event["index"].as_u64();
+                let index = event["index"].as_u64().unwrap();
+                assert!(
+                    seen_blocks.insert(index),
+                    "reused Claude block index {index}"
+                );
+                open_block = Some(index);
             }
             "content_block_delta" => {
                 assert_eq!(open_block, event["index"].as_u64());
@@ -61,6 +67,34 @@ fn assert_claude_lifecycle(text: &str) {
         events.last().and_then(|event| event["type"].as_str()),
         Some("message_stop")
     );
+}
+
+#[test]
+fn thinking_to_text_allocates_distinct_claude_block_indices() {
+    let input = concat!(
+        "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"deepseek/deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"思考\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"deepseek/deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"OK\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"deepseek/deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+        "data: [DONE]\n\n",
+    );
+    let text = transform_sse(
+        ContentGenerationKind::OpenAiChatCompletions,
+        ContentGenerationKind::ClaudeMessages,
+        input,
+    );
+    assert_claude_lifecycle(&text);
+    let values = sse_values(&text);
+    let starts: Vec<(u64, &str)> = values
+        .iter()
+        .filter(|event| event["type"] == "content_block_start")
+        .map(|event| {
+            (
+                event["index"].as_u64().unwrap(),
+                event["content_block"]["type"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(starts, vec![(0, "thinking"), (1, "text")]);
 }
 
 #[test]

@@ -100,13 +100,11 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 "domain": ""
             });
         }
-        // Account tokens from the device login, or a pasted workspace API key —
-        // `prepare` accepts either, so the template offers both.
+        // The request credential is an API key. Device login is an additional
+        // way to obtain one and may retain refresh fields alongside it, just as
+        // OpenCode Zen/Go do.
         "cline" => {
-            metadata.credential_family = CredentialFamily::OauthTokens;
             metadata.login_modes = vec![LoginMode::Device];
-            metadata.secret_template =
-                json!({ "access_token": "", "refresh_token": "", "api_key": "" });
             metadata.usage = true;
         }
         "kiro" => oauth(
@@ -283,14 +281,23 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_chat_completions",
             "openai_responses",
         ],
-        "kimiapi" => &["openai_list_models", "openai_chat_completions"],
+        "kimiapi" => &[
+            "openai_list_models",
+            "openai_get_model",
+            "openai_chat_completions",
+            "openai_responses",
+            "openai_embeddings",
+            "image_generations",
+        ],
         "kimicode" => &[
             "openai_list_models",
+            "claude_count_tokens",
             "openai_chat_completions",
             "openai_responses",
             "claude_messages",
             "gemini_generate_content",
             "gemini_stream_generate_content",
+            "openai_embeddings",
             "openai_compact",
             "usage",
         ],
