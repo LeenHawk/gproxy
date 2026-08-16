@@ -68,12 +68,6 @@ Foundry 不提供 Anthropic 服务端回退，因此 Azure channel 不会注入 
 
 ### DeepSeek 渠道
 
-开启 `settings_json.enable_beta` 后，OpenAI Chat Completions 请求会发送至
-`POST https://api.deepseek.com/beta/chat/completions`。DeepSeek 的预填充续写必须使用该
-Beta 接口，并在最后一条 assistant 消息中设置 `"prefix": true`。此开关只影响 Chat
-Completions；模型、Responses 与 Anthropic-compatible 请求仍使用正式接口。若配置了精确的
-`endpoints.openai_chat_completions` URL，则该 URL 优先于 Beta 开关。
-
 `deepseek` channel 已支持 DeepSeek 原生 OpenAI-compatible Responses API，包括非流式与
 HTTP/SSE 流式调用。客户端仍调用 GPROXY 标准的 `POST /v1/responses`；channel 会将其映射到
 DeepSeek 官方的 `POST https://api.deepseek.com/responses`，并使用
