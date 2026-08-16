@@ -21,20 +21,13 @@ const ANTHROPIC_MESSAGES_PATH: &str = "/anthropic/v1/messages";
 const OPENAI_RESPONSES_PATH: &str = "/v1/responses";
 /// DeepSeek's documented Responses path.
 const DEEPSEEK_RESPONSES_PATH: &str = "/responses";
-/// GPROXY's public OpenAI Chat Completions path.
-const OPENAI_CHAT_COMPLETIONS_PATH: &str = "/v1/chat/completions";
-/// DeepSeek's beta Chat Completions path. Prefix completion is only available
-/// on this surface.
-const DEEPSEEK_BETA_CHAT_COMPLETIONS_PATH: &str = "/beta/chat/completions";
 
 /// Map GPROXY's public Claude Messages and OpenAI Responses paths to DeepSeek's
-/// documented upstream paths. Chat Completions is also moved to the beta path
-/// when explicitly enabled; every other path is already accepted upstream.
-pub(super) fn upstream_path(path: &str, enable_beta: bool) -> &str {
+/// documented upstream paths; every other path is already accepted upstream.
+pub(super) fn upstream_path(path: &str) -> &str {
     match path {
         CLAUDE_MESSAGES_PATH => ANTHROPIC_MESSAGES_PATH,
         OPENAI_RESPONSES_PATH => DEEPSEEK_RESPONSES_PATH,
-        OPENAI_CHAT_COMPLETIONS_PATH if enable_beta => DEEPSEEK_BETA_CHAT_COMPLETIONS_PATH,
         _ => path,
     }
 }

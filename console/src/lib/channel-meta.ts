@@ -109,14 +109,6 @@ const OPENCODE_SETTINGS: ChannelSettingField[] = [
   },
 ];
 
-const DEEPSEEK_SETTINGS: ChannelSettingField[] = [{
-  key: "enable_beta",
-  control: "boolean",
-  label: "Enable beta Chat Completions",
-  required: false,
-  default: false,
-}];
-
 const AWS_BEDROCK_SETTINGS: ChannelSettingField[] = [{
   key: "video_output_s3_uri",
   control: "text",
@@ -191,9 +183,7 @@ function oauthMeta(
 export const CHANNELS: ChannelMeta[] = [
   ...API_KEY_IDS.map((id) => builtinMeta(id, "api_key", {
     hintKey: id === "aws-bedrock" ? "bedrockApiKeyHint" : undefined,
-    settingsFields: id === "deepseek"
-      ? DEEPSEEK_SETTINGS
-      : id === "aws-bedrock" ? AWS_BEDROCK_SETTINGS : [],
+    settingsFields: id === "aws-bedrock" ? AWS_BEDROCK_SETTINGS : [],
     ...(id === "cloudflare-ai-gateway"
       ? { secretTemplate: { api_key: "", account_id: "", gateway_id: "default" } }
       : {}),
