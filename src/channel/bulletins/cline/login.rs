@@ -177,6 +177,7 @@ fn secret_from(tokens: ClineTokens, previous: &Value) -> Value {
         out = json!({});
     }
     let obj = out.as_object_mut().expect("object");
+    obj.insert("api_key".into(), Value::String(tokens.access_token.clone()));
     obj.insert("access_token".into(), Value::String(tokens.access_token));
     if let Some(token) = tokens.refresh_token.filter(|t| !t.is_empty()) {
         obj.insert("refresh_token".into(), Value::String(token));

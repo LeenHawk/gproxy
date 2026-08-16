@@ -42,6 +42,20 @@ fn chat_op() -> OperationKey {
 }
 
 #[test]
+fn credentials_use_api_key_family_even_with_device_login() {
+    let metadata = crate::channel::metadata::builtin(&ClineChannel);
+    assert_eq!(
+        metadata.credential_family,
+        crate::channel::CredentialFamily::ApiKey
+    );
+    assert_eq!(
+        metadata.login_modes,
+        vec![crate::channel::LoginMode::Device]
+    );
+    assert_eq!(metadata.secret_template, json!({ "api_key": "" }));
+}
+
+#[test]
 fn account_tokens_are_prefixed_and_api_keys_are_not() {
     let token = prepared(
         &json!({ "access_token": "jwt-abc", "refresh_token": "rt" }),
