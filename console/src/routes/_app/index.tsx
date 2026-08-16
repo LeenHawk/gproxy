@@ -1,19 +1,22 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { rollupsQuery } from "@/api/usage";
 import { UsageChart, type Metric } from "@/components/observability/usage-chart";
 import { HealthPanel } from "@/components/observability/health-panel";
+import { TimeRangePicker } from "@/components/time-range-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { aggregateRollups } from "@/lib/rollups";
+import { pickGranularity, type BoundedTimeRange } from "@/lib/time-range";
 
-const RANGES = [
-  { key: "7d", secs: 7 * 86_400 },
-  { key: "30d", secs: 30 * 86_400 },
-] as const;
-type RangeKey = (typeof RANGES)[number]["key"];
+const DEFAULT_SPAN_SECS = 7 * 86_400;
+
+function defaultRange(): BoundedTimeRange {
+  const now = Math.floor(Date.now() / 1000);
+  return { from: now - DEFAULT_SPAN_SECS, to: now };
+}
 
 export const Route = createFileRoute("/_app/")({
   component: DashboardPage,
@@ -21,17 +24,13 @@ export const Route = createFileRoute("/_app/")({
 
 function DashboardPage() {
   const { t } = useTranslation(["common", "observability"]);
-  const [range, setRange] = useState<RangeKey>("7d");
+  // Initializer, not useMemo — the snapshot must not move between renders.
+  const [range, setRange] = useState<BoundedTimeRange>(defaultRange);
   const [metric, setMetric] = useState<Metric>("requests");
 
-  const rangeDays = RANGES.find((r) => r.key === range)?.secs ?? 7 * 86_400;
-  const { from, to } = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
-    return { from: now - rangeDays, to: now };
-  }, [rangeDays]);
-
+  const granularity = pickGranularity(range.from, range.to);
   const { data: rollupRows, isPending: rollupsPending } = useQuery(
-    rollupsQuery("day", from, to),
+    rollupsQuery(granularity, range.from, range.to),
   );
 
   const points = rollupRows ? aggregateRollups(rollupRows) : [];
@@ -46,27 +45,19 @@ function DashboardPage() {
             {t("observability:dashboard.subtitle")}
           </p>
         </div>
-        {/* Time range selector */}
+        {/* Time range */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">
             {t("observability:dashboard.range.label")}
           </span>
-          <div className="flex gap-1">
-            {RANGES.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => setRange(r.key)}
-                className={
-                  r.key === range
-                    ? "rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
-                    : "rounded-md border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                }
-              >
-                {t(`observability:dashboard.range.${r.key}`)}
-              </button>
-            ))}
-          </div>
+          <TimeRangePicker
+            required
+            align="end"
+            value={range}
+            onChange={(next) =>
+              setRange({ from: next.from ?? range.from, to: next.to ?? range.to })
+            }
+          />
         </div>
       </div>
 
@@ -82,7 +73,12 @@ function DashboardPage() {
               <Skeleton className="h-64" />
             </div>
           ) : (
-            <UsageChart data={points} metric={metric} onMetricChange={setMetric} />
+            <UsageChart
+              data={points}
+              metric={metric}
+              onMetricChange={setMetric}
+              granularity={granularity}
+            />
           )}
         </CardContent>
       </Card>

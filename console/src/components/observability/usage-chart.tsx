@@ -11,16 +11,31 @@ import {
 } from "recharts";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import type { ChartPoint } from "@/lib/rollups";
+import type { Granularity } from "@/lib/time-range";
 
 type Metric = "requests" | "input_tokens" | "output_tokens" | "image_output_tokens" | "cache_write_tokens" | "cache_read_tokens" | "cost";
 
 const METRICS: Metric[] = ["requests", "input_tokens", "output_tokens", "image_output_tokens", "cache_write_tokens", "cache_read_tokens", "cost"];
 
-function fmtDate(unixSecs: number): string {
-  return new Date(unixSecs * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+/** Axis ticks stay terse — hourly buckets only need the clock time. */
+function fmtTick(unixSecs: number, granularity: Granularity): string {
+  const d = new Date(unixSecs * 1000);
+  return granularity === "hour"
+    ? d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** Tooltips carry the date too, since ticks drop it at hour granularity. */
+function fmtTooltipLabel(unixSecs: number, granularity: Granularity): string {
+  const d = new Date(unixSecs * 1000);
+  return granularity === "hour"
+    ? d.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function fmtMetricValue(value: number, metric: Metric): string {
@@ -34,9 +49,15 @@ interface UsageChartProps {
   data: ChartPoint[];
   metric: Metric;
   onMetricChange: (m: Metric) => void;
+  granularity?: Granularity;
 }
 
-export function UsageChart({ data, metric, onMetricChange }: UsageChartProps) {
+export function UsageChart({
+  data,
+  metric,
+  onMetricChange,
+  granularity = "day",
+}: UsageChartProps) {
   const { t } = useTranslation("observability");
   const reducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const gid = useId();
@@ -82,7 +103,7 @@ export function UsageChart({ data, metric, onMetricChange }: UsageChartProps) {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="t"
-              tickFormatter={fmtDate}
+              tickFormatter={(v: number) => fmtTick(v, granularity)}
               tick={{ fontSize: 11 }}
               stroke="var(--muted-foreground)"
             />
@@ -101,7 +122,7 @@ export function UsageChart({ data, metric, onMetricChange }: UsageChartProps) {
                 borderRadius: "0.5rem",
                 fontSize: 12,
               }}
-              labelFormatter={(label) => fmtDate(Number(label))}
+              labelFormatter={(label) => fmtTooltipLabel(Number(label), granularity)}
               formatter={(value) => [fmtMetricValue(Number(value), metric), t(`chart.metric.${metric}`)]}
             />
             <Area

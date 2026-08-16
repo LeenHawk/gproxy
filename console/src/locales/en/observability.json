@@ -3,11 +3,7 @@
     "title": "Dashboard",
     "subtitle": "Usage overview and system health",
     "range": {
-      "label": "Time range",
-      "7d": "Last 7 days",
-      "30d": "Last 30 days",
-      "24h": "Last 24 hours",
-      "1h": "Last hour"
+      "label": "Time range"
     }
   },
   "usage": {
@@ -45,12 +41,6 @@
     "summary": "Usage summary",
     "cacheHitRate": "Cache hit rate",
     "columnToggle": "Columns",
-    "presets": {
-      "all": "All",
-      "1h": "1h",
-      "24h": "24h",
-      "7d": "7d"
-    },
     "tab": {
       "usage": "Usage",
       "audit": "Admin actions",

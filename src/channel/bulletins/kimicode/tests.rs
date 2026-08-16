@@ -83,28 +83,112 @@ fn prepares_managed_chat_request_with_complete_identity() {
 }
 
 #[test]
-fn converts_other_content_protocols_to_openai_chat() {
+fn prepares_native_anthropic_request_with_anthropic_auth() {
+    let request = KimiCodeChannel
+        .prepare(PrepareCtx {
+            secret: &json!({
+                "access_token": "oauth-token",
+                "device_id": "device-1",
+            }),
+            provider_settings: &json!({}),
+            op: OperationKey::content_generation(Operation::GenerateContent, Kind::ClaudeMessages),
+            stream: false,
+            upstream_model_id: "kimi-for-coding",
+            method: Method::POST,
+            path: "/v1/messages",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: Bytes::from_static(b"{}"),
+        })
+        .unwrap()
+        .into_http()
+        .unwrap();
+
+    assert_eq!(request.uri(), "https://api.kimi.com/coding/v1/messages");
+    assert_eq!(request.headers()["x-api-key"], "oauth-token");
+    assert_eq!(request.headers()["anthropic-version"], "2023-06-01");
+    assert!(!request.headers().contains_key("authorization"));
+}
+
+#[test]
+fn routes_native_content_protocols_without_chat_conversion() {
     let routes = KimiCodeChannel.routing_table();
-    for kind in [
-        Kind::OpenAiResponses,
-        Kind::ClaudeMessages,
-        Kind::GeminiGenerateContent,
-    ] {
-        let decision = routes
+    let decision = |operation, kind| {
+        routes
             .iter()
             .find(|(source, _)| {
-                source.operation() == Operation::GenerateContent
+                source.operation() == operation
                     && source.kind() == OperationKind::ContentGeneration(kind)
             })
             .map(|(_, decision)| *decision)
-            .expect("missing Kimi Code route");
+            .expect("missing Kimi Code route")
+    };
+
+    for kind in [
+        Kind::OpenAiResponses,
+        Kind::OpenAiChatCompletions,
+        Kind::ClaudeMessages,
+    ] {
+        assert_eq!(
+            decision(Operation::GenerateContent, kind),
+            RoutingDecision::Passthrough
+        );
+        assert_eq!(
+            decision(Operation::StreamGenerateContent, kind),
+            RoutingDecision::Passthrough
+        );
+    }
+
+    for operation in [Operation::GenerateContent, Operation::StreamGenerateContent] {
         assert!(matches!(
-            decision,
+            decision(operation, Kind::GeminiGenerateContent),
             RoutingDecision::TransformTo(target)
                 if target.kind()
                     == OperationKind::ContentGeneration(Kind::OpenAiChatCompletions)
         ));
     }
+}
+
+#[test]
+fn routes_native_count_tokens_and_embeddings() {
+    let routes = KimiCodeChannel.routing_table();
+    let decision = |operation, kind| {
+        let decision = routes
+            .iter()
+            .find(|(source, _)| source.operation() == operation && source.kind() == kind)
+            .map(|(_, decision)| *decision)
+            .expect("missing Kimi Code route");
+        decision
+    };
+
+    assert_eq!(
+        decision(
+            Operation::CountTokens,
+            OperationKind::Provider(crate::protocol::Provider::Claude),
+        ),
+        RoutingDecision::Passthrough
+    );
+    for provider in [
+        crate::protocol::Provider::OpenAi,
+        crate::protocol::Provider::Gemini,
+    ] {
+        assert!(matches!(
+            decision(
+                Operation::CountTokens,
+                OperationKind::Provider(provider),
+            ),
+            RoutingDecision::TransformTo(target)
+                if target.kind()
+                    == OperationKind::Provider(crate::protocol::Provider::Claude)
+        ));
+    }
+    assert_eq!(
+        decision(
+            Operation::CreateEmbedding,
+            OperationKind::Provider(crate::protocol::Provider::OpenAi),
+        ),
+        RoutingDecision::Passthrough
+    );
 }
 
 #[tokio::test]
