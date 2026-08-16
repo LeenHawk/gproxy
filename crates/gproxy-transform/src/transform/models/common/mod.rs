@@ -60,9 +60,12 @@ pub(in crate::transform::models) fn claude_model_id(input: &claude::ModelInfo) -
 }
 
 pub(in crate::transform::models) fn gemini_model_id(input: &gemini::Model) -> String {
-    input
+    let id = input
         .base_model_id
         .clone()
         .or_else(|| input.name.clone())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Align with upstream-catalogue ingestion: ids are bare, `models/` is a
+    // resource-name wrapper that only belongs on the Gemini wire.
+    id.strip_prefix("models/").unwrap_or(&id).to_owned()
 }
