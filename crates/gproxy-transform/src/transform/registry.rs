@@ -39,6 +39,8 @@ pub enum TransformPair {
     GeminiToClaudeModels,
     OpenAiToGeminiEmbeddings,
     GeminiToOpenAiEmbeddings,
+    OpenAiToGeminiVideos,
+    GeminiToOpenAiVideos,
     OpenAiCreateImageToGemini,
     GeminiToOpenAiCreateImage,
     OpenAiCreateImageToOpenAiResponses,
@@ -101,6 +103,9 @@ pub fn resolve(
         // Compaction and image generation are never same-operation routes: OpenAI
         // is the only provider with dedicated compact/image endpoints, and every
         // such conversion is handled cross-operation above.
+        Operation::CreateVideo | Operation::RetrieveVideo => {
+            resolve_provider_pair(source, target, videos_pair)
+        }
         Operation::CompactContent
         | Operation::CreateImage
         | Operation::EditImage
@@ -109,7 +114,17 @@ pub fn resolve(
         | Operation::CreateTranscription
         | Operation::CreateTranslation
         | Operation::CreateConversation
-        | Operation::ConnectRealtime => Err(TransformError::unsupported_pair(source, target)),
+        | Operation::CreateRealtimeCall
+        | Operation::ConnectRealtime
+        | Operation::WebSearch
+        | Operation::ListVideos
+        | Operation::DeleteVideo
+        | Operation::DownloadVideoContent
+        | Operation::RemixVideo
+        | Operation::CreateVideoCharacter
+        | Operation::GetVideoCharacter
+        | Operation::EditVideo
+        | Operation::ExtendVideo => Err(TransformError::unsupported_pair(source, target)),
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
@@ -216,6 +231,15 @@ fn count_tokens_pair(source: Provider, target: Provider) -> Option<TransformPair
             gemini_to_claude: TransformPair::GeminiToClaudeCountTokens,
         },
     )
+}
+
+/// Videos convert only between OpenAI jobs and Gemini Veo operations.
+fn videos_pair(source: Provider, target: Provider) -> Option<TransformPair> {
+    match (source, target) {
+        (Provider::OpenAi, Provider::Gemini) => Some(TransformPair::OpenAiToGeminiVideos),
+        (Provider::Gemini, Provider::OpenAi) => Some(TransformPair::GeminiToOpenAiVideos),
+        _ => None,
+    }
 }
 
 fn models_pair(source: Provider, target: Provider) -> Option<TransformPair> {

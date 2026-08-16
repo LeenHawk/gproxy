@@ -5,7 +5,7 @@
 use super::{not_wired, run, run_ok};
 use crate::protocol::Operation;
 use crate::transform::{TransformContext, TransformError, TransformPair};
-use crate::transform::{compact, count_tokens as ct, embeddings, images, models};
+use crate::transform::{compact, count_tokens as ct, embeddings, images, models, videos};
 
 /// Whether this pair has at least one wired direction below.
 pub(super) fn is_wired(pair: TransformPair) -> bool {
@@ -29,6 +29,9 @@ pub(super) fn is_wired(pair: TransformPair) -> bool {
             // embeddings (single-embed form)
             | P::OpenAiToGeminiEmbeddings
             | P::GeminiToOpenAiEmbeddings
+            // videos (each serves CreateVideo and RetrieveVideo)
+            | P::OpenAiToGeminiVideos
+            | P::GeminiToOpenAiVideos
             // images
             | P::OpenAiCreateImageToGemini
             | P::GeminiToOpenAiCreateImage
@@ -78,6 +81,15 @@ pub(super) fn request_bytes(
         P::GeminiToOpenAiEmbeddings => {
             run(embeddings::single::gemini_to_openai::request, ctx, body)
         }
+        // videos: create converts the body; retrieve is GET/no-body passthrough
+        P::OpenAiToGeminiVideos if ctx.source.operation() == Operation::RetrieveVideo => {
+            Ok(body.to_vec())
+        }
+        P::GeminiToOpenAiVideos if ctx.source.operation() == Operation::RetrieveVideo => {
+            Ok(body.to_vec())
+        }
+        P::OpenAiToGeminiVideos => run(videos::create::openai_to_gemini::request, ctx, body),
+        P::GeminiToOpenAiVideos => run(videos::create::gemini_to_openai::request, ctx, body),
         // images
         P::OpenAiCreateImageToGemini => run(images::create::openai_to_gemini::request, ctx, body),
         P::GeminiToOpenAiCreateImage => run(images::create::gemini_to_openai::request, ctx, body),
@@ -140,6 +152,9 @@ pub(super) fn response_bytes(
         P::GeminiToOpenAiEmbeddings => {
             run(embeddings::single::gemini_to_openai::response, ctx, body)
         }
+        // videos: create and retrieve share the job-status mapping
+        P::OpenAiToGeminiVideos => run(videos::create::openai_to_gemini::response, ctx, body),
+        P::GeminiToOpenAiVideos => run(videos::create::gemini_to_openai::response, ctx, body),
         // images
         P::OpenAiCreateImageToGemini => run(images::create::openai_to_gemini::response, ctx, body),
         P::GeminiToOpenAiCreateImage => run(images::create::gemini_to_openai::response, ctx, body),

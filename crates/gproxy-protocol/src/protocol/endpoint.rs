@@ -147,6 +147,60 @@ pub fn request_target(
         (Operation::WebSearch, P::OpenAi) => RequestTarget::post("/v1/alpha/search"),
         (Operation::CompactContent, P::OpenAi) => RequestTarget::post("/v1/responses/compact"),
         (Operation::CreateConversation, P::OpenAi) => RequestTarget::post("/v1/conversations"),
+        // Video: resource identifiers (video id, operation name, file id)
+        // travel in the `model` argument slot, like `GetModel`.
+        (Operation::CreateVideo, P::OpenAi) => RequestTarget::post("/v1/videos"),
+        (Operation::ListVideos, P::OpenAi) => RequestTarget::get("/v1/videos"),
+        (Operation::RetrieveVideo, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/videos/{}", encode_component(model)))
+        }
+        (Operation::DeleteVideo, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget {
+                method: HttpMethod::Delete,
+                path: format!("/v1/videos/{}", encode_component(model)),
+                query: None,
+            }
+        }
+        (Operation::DownloadVideoContent, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/videos/{}/content", encode_component(model)))
+        }
+        (Operation::RemixVideo, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::post(format!("/v1/videos/{}/remix", encode_component(model)))
+        }
+        (Operation::CreateVideoCharacter, P::OpenAi) => {
+            RequestTarget::post("/v1/videos/characters")
+        }
+        (Operation::GetVideoCharacter, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/videos/characters/{}", encode_component(model)))
+        }
+        (Operation::EditVideo, P::OpenAi) => RequestTarget::post("/v1/videos/edits"),
+        (Operation::ExtendVideo, P::OpenAi) => RequestTarget::post("/v1/videos/extensions"),
+        (Operation::CreateVideo, P::Gemini) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::post(format!(
+                "/v1beta/models/{}:predictLongRunning",
+                encode_component(model)
+            ))
+        }
+        // The poll target is the operation resource name
+        // (`models/<model>/operations/<id>`); slashes are structural.
+        (Operation::RetrieveVideo, P::Gemini) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1beta/{}", model.trim_start_matches('/')))
+        }
+        (Operation::DownloadVideoContent, P::Gemini) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget {
+                method: HttpMethod::Get,
+                path: format!("/v1beta/files/{}:download", encode_component(model)),
+                query: Some("alt=media".to_owned()),
+            }
+        }
         (Operation::CreateRealtimeCall, P::OpenAi) => RequestTarget::post("/v1/realtime/calls"),
         (Operation::ConnectRealtime, P::OpenAi) => {
             require_model(target.operation(), provider, model)?;
@@ -255,6 +309,16 @@ mod tests {
             (O::CreateConversation, [true, false, false]),
             (O::CreateRealtimeCall, [true, false, false]),
             (O::ConnectRealtime, [true, false, false]),
+            (O::CreateVideo, [true, false, true]),
+            (O::RetrieveVideo, [true, false, true]),
+            (O::ListVideos, [true, false, false]),
+            (O::DeleteVideo, [true, false, false]),
+            (O::DownloadVideoContent, [true, false, true]),
+            (O::RemixVideo, [true, false, false]),
+            (O::CreateVideoCharacter, [true, false, false]),
+            (O::GetVideoCharacter, [true, false, false]),
+            (O::EditVideo, [true, false, false]),
+            (O::ExtendVideo, [true, false, false]),
         ];
         for (operation, supported) in rows {
             for (provider, expected) in [P::OpenAi, P::Claude, P::Gemini].into_iter().zip(supported)
