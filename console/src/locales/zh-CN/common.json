@@ -21,6 +21,22 @@
     "expand": "展开",
     "update": "更新"
   },
+  "timeRange": {
+    "label": "时间范围",
+    "anyTime": "全部时间",
+    "start": "开始",
+    "end": "结束",
+    "after": "{{time}} 起",
+    "before": "截至 {{time}}",
+    "clear": "清空时间范围",
+    "invalid": "开始时间必须早于结束时间。",
+    "quick": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "thisWeek": "本周",
+      "thisMonth": "本月"
+    }
+  },
   "actions": {
     "cancel": "取消",
     "save": "保存",
