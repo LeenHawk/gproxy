@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -10,18 +10,21 @@ import {
   UsageMobileCard,
 } from "@/components/observability/usage-mobile-card";
 import { MyUsageFilters } from "@/components/portal/my-usage-filters";
+import { TimeRangePicker } from "@/components/time-range-picker";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { Pagination } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { aggregateRollups } from "@/lib/rollups";
+import { pickGranularity, type BoundedTimeRange } from "@/lib/time-range";
 
-const RANGES = [
-  { key: "7d", secs: 7 * 86_400 },
-  { key: "30d", secs: 30 * 86_400 },
-] as const;
-type RangeKey = (typeof RANGES)[number]["key"];
+const DEFAULT_SPAN_SECS = 7 * 86_400;
+
+function defaultRange(): BoundedTimeRange {
+  const now = Math.floor(Date.now() / 1000);
+  return { from: now - DEFAULT_SPAN_SECS, to: now };
+}
 
 export const Route = createFileRoute("/_portal/account/usage/")({
   loader: ({ context }) => {
@@ -37,20 +40,15 @@ function MyUsagePage() {
   const { t } = useTranslation("portal");
   const { t: tObs } = useTranslation("observability");
 
-  const [range, setRange] = useState<RangeKey>("7d");
+  // Initializer, not useMemo — the snapshot must not move between renders.
+  const [range, setRange] = useState<BoundedTimeRange>(defaultRange);
   const [metric, setMetric] = useState<Metric>("requests");
   const [filter, setFilter] = useState<MyUsageFilter>({});
   const [page, setPage] = useState(1);
 
-  // Stable from/to snapshot — avoids re-querying on every render (Dashboard pattern)
-  const rangeSecs = RANGES.find((r) => r.key === range)?.secs ?? 7 * 86_400;
-  const { from, to: toUnix } = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
-    return { from: now - rangeSecs, to: now };
-  }, [rangeSecs]);
-
+  const granularity = pickGranularity(range.from, range.to);
   const { data: rollupRows, isPending: rollupsPending } = useQuery(
-    myRollupsQuery("day", from, toUnix),
+    myRollupsQuery(granularity, range.from, range.to),
   );
   const points = rollupRows ? aggregateRollups(rollupRows) : [];
 
@@ -162,23 +160,14 @@ function MyUsagePage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle>{tObs(`chart.metric.${metric}`)}</CardTitle>
-            {/* Range selector */}
-            <div className="flex gap-1">
-              {RANGES.map((r) => (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={() => setRange(r.key)}
-                  className={
-                    r.key === range
-                      ? "rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
-                      : "rounded-md border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  }
-                >
-                  {tObs(`dashboard.range.${r.key}`)}
-                </button>
-              ))}
-            </div>
+            <TimeRangePicker
+              required
+              align="end"
+              value={range}
+              onChange={(next) =>
+                setRange({ from: next.from ?? range.from, to: next.to ?? range.to })
+              }
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -188,7 +177,12 @@ function MyUsagePage() {
               <Skeleton className="h-64" />
             </div>
           ) : (
-            <UsageChart data={points} metric={metric} onMetricChange={setMetric} />
+            <UsageChart
+              data={points}
+              metric={metric}
+              onMetricChange={setMetric}
+              granularity={granularity}
+            />
           )}
         </CardContent>
       </Card>

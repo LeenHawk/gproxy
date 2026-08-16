@@ -6,6 +6,7 @@ import { providersQuery } from "@/api/providers";
 import { usersQuery } from "@/api/identity";
 import { routesQuery } from "@/api/routes";
 import type { UsageFilter } from "@/api/usage";
+import { TimeRangePicker } from "@/components/time-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,20 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const TIME_PRESETS = [
-  { key: "1h", secs: 3_600 },
-  { key: "24h", secs: 86_400 },
-  { key: "7d", secs: 7 * 86_400 },
-] as const;
-type PresetKey = (typeof TIME_PRESETS)[number]["key"] | "all";
-
-// Derives at_from from a preset key (undefined = no filter)
-function presetToAtFrom(key: PresetKey): number | undefined {
-  if (key === "all") return undefined;
-  const secs = TIME_PRESETS.find((p) => p.key === key)?.secs;
-  return secs !== undefined ? Math.floor(Date.now() / 1000) - secs : undefined;
-}
 
 interface UsageFiltersProps {
   value: Omit<UsageFilter, "before_id" | "limit">;
@@ -58,46 +45,16 @@ export function UsageFilters({
     onChange({ ...value, [k]: v });
   }
 
-  // Detect current time preset from at_from (approximate; "all" if unset)
-  function detectPreset(): PresetKey {
-    if (value.at_from == null) return "all";
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - value.at_from;
-    for (const p of TIME_PRESETS) {
-      if (Math.abs(diff - p.secs) < 60) return p.key;
-    }
-    return "all";
-  }
-
-  function onPresetChange(key: PresetKey) {
-    onChange({ ...value, at_from: presetToAtFrom(key), at_to: undefined });
-  }
-
   function reset() {
     onChange({});
   }
 
-  const currentPreset = detectPreset();
-
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Time range presets */}
-      <div className="flex rounded-md border">
-        {(["1h", "24h", "7d", "all"] as PresetKey[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onPresetChange(key)}
-            className={
-              key === currentPreset
-                ? "px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground first:rounded-l-md last:rounded-r-md"
-                : "px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground first:rounded-l-md last:rounded-r-md"
-            }
-          >
-            {key === "all" ? t("usage.presets.all", { defaultValue: "All" }) : t(`usage.presets.${key}`, { defaultValue: key })}
-          </button>
-        ))}
-      </div>
+      <TimeRangePicker
+        value={{ from: value.at_from, to: value.at_to }}
+        onChange={(r) => onChange({ ...value, at_from: r.from, at_to: r.to })}
+      />
 
       {/* Provider */}
       <Select
