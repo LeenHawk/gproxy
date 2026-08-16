@@ -220,8 +220,9 @@ export const CHANNELS: ChannelMeta[] = [
       domain: "",
     },
   }),
-  oauthMeta("cline", ["device"], {
-    secretTemplate: { ...OAUTH_TOKENS, api_key: "" },
+  builtinMeta("cline", "api_key", {
+    loginModes: ["device"],
+    usage: true,
   }),
   oauthMeta("kiro", ["authcode", "device"]),
   builtinMeta("copilotcli", "github_token", {
