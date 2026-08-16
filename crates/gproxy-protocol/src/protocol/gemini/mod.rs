@@ -7,6 +7,7 @@ pub mod count_tokens;
 pub mod embeddings;
 pub mod generate_content;
 pub mod models;
+pub mod video;
 
 pub use batch::*;
 pub use caching::*;
@@ -15,3 +16,4 @@ pub use count_tokens::*;
 pub use embeddings::*;
 pub use generate_content::*;
 pub use models::*;
+pub use video::*;
