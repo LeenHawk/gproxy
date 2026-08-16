@@ -41,6 +41,8 @@ pub enum TransformPair {
     GeminiToOpenAiEmbeddings,
     OpenAiToGeminiVideos,
     GeminiToOpenAiVideos,
+    OpenAiToGeminiImagen,
+    GeminiImagenToOpenAi,
     OpenAiCreateImageToGemini,
     GeminiToOpenAiCreateImage,
     OpenAiCreateImageToOpenAiResponses,
@@ -106,8 +108,10 @@ pub fn resolve(
         Operation::CreateVideo | Operation::RetrieveVideo => {
             resolve_provider_pair(source, target, videos_pair)
         }
+        // Imagen models expose a native predict endpoint; gemini-*-image models
+        // are served by the cross-operation generate-content route above.
+        Operation::CreateImage => resolve_provider_pair(source, target, imagen_pair),
         Operation::CompactContent
-        | Operation::CreateImage
         | Operation::EditImage
         | Operation::Rerank
         | Operation::CreateSpeech
@@ -231,6 +235,15 @@ fn count_tokens_pair(source: Provider, target: Provider) -> Option<TransformPair
             gemini_to_claude: TransformPair::GeminiToClaudeCountTokens,
         },
     )
+}
+
+/// Native image generation converts only between OpenAI and Imagen predict.
+fn imagen_pair(source: Provider, target: Provider) -> Option<TransformPair> {
+    match (source, target) {
+        (Provider::OpenAi, Provider::Gemini) => Some(TransformPair::OpenAiToGeminiImagen),
+        (Provider::Gemini, Provider::OpenAi) => Some(TransformPair::GeminiImagenToOpenAi),
+        _ => None,
+    }
 }
 
 /// Videos convert only between OpenAI jobs and Gemini Veo operations.

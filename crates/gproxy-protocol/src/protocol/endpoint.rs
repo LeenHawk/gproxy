@@ -143,6 +143,15 @@ pub fn request_target(
             ))
         }
         (Operation::CreateImage, P::OpenAi) => RequestTarget::post("/v1/images/generations"),
+        // Imagen-native generation; `gemini-*-image` models route through
+        // generate-content instead.
+        (Operation::CreateImage, P::Gemini) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::post(format!(
+                "/v1beta/models/{}:predict",
+                encode_component(model)
+            ))
+        }
         (Operation::EditImage, P::OpenAi) => RequestTarget::post("/v1/images/edits"),
         (Operation::WebSearch, P::OpenAi) => RequestTarget::post("/v1/alpha/search"),
         (Operation::CompactContent, P::OpenAi) => RequestTarget::post("/v1/responses/compact"),
@@ -302,7 +311,7 @@ mod tests {
             (O::CreateTranscription, [true, false, false]),
             (O::CreateTranslation, [true, false, false]),
             (O::Rerank, [true, false, false]),
-            (O::CreateImage, [true, false, false]),
+            (O::CreateImage, [true, false, true]),
             (O::EditImage, [true, false, false]),
             (O::WebSearch, [true, false, false]),
             (O::CompactContent, [true, false, false]),

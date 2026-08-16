@@ -32,6 +32,8 @@ pub(super) fn is_wired(pair: TransformPair) -> bool {
             // videos (each serves CreateVideo and RetrieveVideo)
             | P::OpenAiToGeminiVideos
             | P::GeminiToOpenAiVideos
+            | P::OpenAiToGeminiImagen
+            | P::GeminiImagenToOpenAi
             // images
             | P::OpenAiCreateImageToGemini
             | P::GeminiToOpenAiCreateImage
@@ -90,6 +92,12 @@ pub(super) fn request_bytes(
         }
         P::OpenAiToGeminiVideos => run(videos::create::openai_to_gemini::request, ctx, body),
         P::GeminiToOpenAiVideos => run(videos::create::gemini_to_openai::request, ctx, body),
+        P::OpenAiToGeminiImagen => {
+            run(images::create::imagen::openai_to_gemini::request, ctx, body)
+        }
+        P::GeminiImagenToOpenAi => {
+            run(images::create::imagen::gemini_to_openai::request, ctx, body)
+        }
         // images
         P::OpenAiCreateImageToGemini => run(images::create::openai_to_gemini::request, ctx, body),
         P::GeminiToOpenAiCreateImage => run(images::create::gemini_to_openai::request, ctx, body),
@@ -155,6 +163,16 @@ pub(super) fn response_bytes(
         // videos: create and retrieve share the job-status mapping
         P::OpenAiToGeminiVideos => run(videos::create::openai_to_gemini::response, ctx, body),
         P::GeminiToOpenAiVideos => run(videos::create::gemini_to_openai::response, ctx, body),
+        P::OpenAiToGeminiImagen => run(
+            images::create::imagen::openai_to_gemini::response,
+            ctx,
+            body,
+        ),
+        P::GeminiImagenToOpenAi => run(
+            images::create::imagen::gemini_to_openai::response,
+            ctx,
+            body,
+        ),
         // images
         P::OpenAiCreateImageToGemini => run(images::create::openai_to_gemini::response, ctx, body),
         P::GeminiToOpenAiCreateImage => run(images::create::gemini_to_openai::response, ctx, body),
