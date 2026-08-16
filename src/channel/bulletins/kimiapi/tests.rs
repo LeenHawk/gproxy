@@ -61,7 +61,7 @@ fn supports_global_platform_base_url_override() {
 }
 
 #[test]
-fn routes_only_documented_native_surfaces_as_passthrough() {
+fn routes_all_available_openai_surfaces_as_passthrough() {
     let routes = KimiApiChannel.routing_table();
     let decision = |operation, kind| {
         routes
@@ -85,17 +85,29 @@ fn routes_only_documented_native_surfaces_as_passthrough() {
         ),
         RoutingDecision::Passthrough
     );
-    assert!(matches!(
+    assert_eq!(
         decision(
             Operation::GenerateContent,
             OperationKind::ContentGeneration(Kind::OpenAiResponses),
         ),
-        RoutingDecision::TransformTo(target)
-            if target.kind() == OperationKind::ContentGeneration(Kind::OpenAiChatCompletions)
-    ));
+        RoutingDecision::Passthrough
+    );
     assert_eq!(
         decision(
             Operation::GetModel,
+            OperationKind::Provider(Provider::OpenAi)
+        ),
+        RoutingDecision::Passthrough
+    );
+    for operation in [Operation::CreateEmbedding, Operation::CreateImage] {
+        assert_eq!(
+            decision(operation, OperationKind::Provider(Provider::OpenAi)),
+            RoutingDecision::Passthrough
+        );
+    }
+    assert_eq!(
+        decision(
+            Operation::CountTokens,
             OperationKind::Provider(Provider::OpenAi)
         ),
         RoutingDecision::Local

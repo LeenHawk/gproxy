@@ -21,7 +21,7 @@ pub(super) fn request(
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
     let uri = join_url(auth::base_url(settings, secret), "/usages", None)?;
     let mut request = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
-    auth::apply(&mut request, secret)?;
+    auth::apply(&mut request, secret, false)?;
     Ok(Some(request))
 }
 

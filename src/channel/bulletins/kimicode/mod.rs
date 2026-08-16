@@ -2,7 +2,9 @@
 //!
 //! This is deliberately separate from `kimiapi`: Kimi Open Platform API keys
 //! use `api.moonshot.cn`, while Kimi Code subscriptions use device OAuth and
-//! `api.kimi.com/coding/v1` with a stable CLI device identity.
+//! `api.kimi.com/coding/v1` with a stable CLI device identity. The managed API
+//! natively serves OpenAI Chat Completions, OpenAI Responses, and Anthropic
+//! Messages.
 
 mod auth;
 mod usage;
@@ -22,6 +24,21 @@ use crate::http::client::UpstreamClient;
 
 pub struct KimiCodeChannel;
 
+fn uses_anthropic_auth(op: crate::protocol::OperationKey) -> bool {
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
+
+    matches!(
+        (op.operation(), op.kind()),
+        (
+            Operation::GenerateContent | Operation::StreamGenerateContent,
+            OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+        ) | (
+            Operation::CountTokens,
+            OperationKind::Provider(Provider::Claude)
+        )
+    )
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for KimiCodeChannel {
@@ -39,55 +56,42 @@ impl Channel for KimiCodeChannel {
             local(GetModel, pv(P::OpenAi)),
             local(GetModel, pv(P::Claude)),
             local(GetModel, pv(P::Gemini)),
-            local(CountTokens, pv(P::OpenAi)),
-            local(CountTokens, pv(P::Claude)),
-            local(CountTokens, pv(P::Gemini)),
+            xform(CountTokens, pv(P::OpenAi), CountTokens, pv(P::Claude)),
+            pass(CountTokens, pv(P::Claude)),
+            xform(CountTokens, pv(P::Gemini), CountTokens, pv(P::Claude)),
+            pass(GenerateContent, cg(OpenAiResponses)),
             pass(GenerateContent, cg(OpenAiChatCompletions)),
-            xform(
-                GenerateContent,
-                cg(OpenAiResponses),
-                GenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
-            xform(
-                GenerateContent,
-                cg(ClaudeMessages),
-                GenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
+            pass(GenerateContent, cg(ClaudeMessages)),
             xform(
                 GenerateContent,
                 cg(GeminiGenerateContent),
                 GenerateContent,
                 cg(OpenAiChatCompletions),
             ),
+            pass(StreamGenerateContent, cg(OpenAiResponses)),
             pass(StreamGenerateContent, cg(OpenAiChatCompletions)),
-            xform(
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-                StreamGenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
-            xform(
-                StreamGenerateContent,
-                cg(ClaudeMessages),
-                StreamGenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
+            pass(StreamGenerateContent, cg(ClaudeMessages)),
             xform(
                 StreamGenerateContent,
                 cg(GeminiGenerateContent),
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
+            ),
+            pass(CreateEmbedding, pv(P::OpenAi)),
+            xform(
+                CreateEmbedding,
+                pv(P::Gemini),
+                CreateEmbedding,
+                pv(P::OpenAi),
             ),
             xform(
                 CompactContent,
                 pv(P::OpenAi),
                 GenerateContent,
-                cg(OpenAiChatCompletions),
+                cg(OpenAiResponses),
             ),
         ];
-        routes.extend(responses_ws_to(cg(OpenAiChatCompletions)));
+        routes.extend(responses_ws_to(cg(OpenAiResponses)));
         routes
     }
 
@@ -106,7 +110,7 @@ impl Channel for KimiCodeChannel {
         };
         let headers = allow_headers(ctx.headers, &[]);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
-        auth::apply(&mut req, ctx.secret)?;
+        auth::apply(&mut req, ctx.secret, uses_anthropic_auth(ctx.op))?;
         Ok(PreparedRequest::new(req))
     }
 

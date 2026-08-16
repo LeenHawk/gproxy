@@ -115,12 +115,15 @@ describe("built-in media endpoint fallback metadata", () => {
 });
 
 describe("Kimi API fallback metadata", () => {
-  it("uses the China platform and declares only native public surfaces", () => {
+  it("uses the China platform and declares its native OpenAI surfaces", () => {
     expect(DEFAULT_BASE_URL.kimiapi).toBe("https://api.moonshot.cn");
     expect(channelMeta("kimiapi")).toMatchObject({
       displayName: "Kimi API",
       family: "api_key",
-      endpointKinds: ["openai_list_models", "openai_chat_completions"],
+      endpointKinds: [
+        "openai_list_models", "openai_get_model", "openai_chat_completions",
+        "openai_responses", "openai_embeddings", "image_generations",
+      ],
     });
   });
 });
@@ -145,7 +148,8 @@ describe("Kimi Code fallback metadata", () => {
       usage: true,
     });
     expect(channelMeta("kimicode")?.endpointKinds).toEqual(expect.arrayContaining([
-      "openai_list_models", "openai_chat_completions", "usage",
+      "openai_list_models", "claude_count_tokens", "openai_chat_completions",
+      "openai_responses", "claude_messages", "openai_embeddings", "usage",
     ]));
   });
 });

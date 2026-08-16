@@ -252,16 +252,32 @@ pub(super) async fn refresh(
     Ok(out)
 }
 
-pub(super) fn apply(req: &mut Request<Bytes>, secret: &Value) -> Result<(), ChannelError> {
+pub(super) fn apply(
+    req: &mut Request<Bytes>,
+    secret: &Value,
+    anthropic: bool,
+) -> Result<(), ChannelError> {
     let access_token = field(secret, "access_token")
         .ok_or_else(|| ChannelError::InvalidCredential("missing Kimi access_token".into()))?;
     let device_id = field(secret, "device_id")
         .ok_or_else(|| ChannelError::InvalidCredential("missing Kimi device_id".into()))?;
-    let authorization = HeaderValue::from_str(&format!("Bearer {access_token}"))
+    let credential = HeaderValue::from_str(access_token)
         .map_err(|error| ChannelError::InvalidCredential(format!("bad Kimi token: {error}")))?;
     let is_get = req.method() == http::Method::GET;
     let headers = req.headers_mut();
-    headers.insert(AUTHORIZATION, authorization);
+    if anthropic {
+        headers.insert(HeaderName::from_static("x-api-key"), credential);
+        headers.insert(
+            HeaderName::from_static("anthropic-version"),
+            HeaderValue::from_static("2023-06-01"),
+        );
+        headers.remove(AUTHORIZATION);
+    } else {
+        let authorization = HeaderValue::from_str(&format!("Bearer {access_token}"))
+            .map_err(|error| ChannelError::InvalidCredential(format!("bad Kimi token: {error}")))?;
+        headers.insert(AUTHORIZATION, authorization);
+        headers.remove(HeaderName::from_static("x-api-key"));
+    }
     if !headers.contains_key(CONTENT_TYPE) && !is_get {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     }
@@ -440,6 +456,6 @@ mod unit_tests {
         let mut request = Request::post("https://api.kimi.com/coding/v1/chat/completions")
             .body(Bytes::new())
             .unwrap();
-        assert!(apply(&mut request, &json!({"access_token": "token"})).is_err());
+        assert!(apply(&mut request, &json!({"access_token": "token"}), false).is_err());
     }
 }

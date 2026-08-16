@@ -1,6 +1,7 @@
 //! Kimi Open Platform channel.
 //!
-//! Kimi exposes an OpenAI-compatible Chat Completions API and model catalogue.
+//! Kimi exposes OpenAI-compatible Chat Completions, Responses, embeddings,
+//! image generation, and model catalogue APIs.
 //! The default host is the China platform because `kimiapi` represents keys
 //! issued by `platform.kimi.com`; global-platform deployments can override
 //! `settings_json.base_url` with `https://api.moonshot.ai`.
@@ -29,27 +30,22 @@ impl Channel for KimiApiChannel {
         use crate::channel::routes::{cg, local, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
         let mut routes = vec![
-            // Kimi publishes one OpenAI-shaped catalogue, but no per-model GET.
+            // Kimi publishes an OpenAI-shaped model catalogue.
             pass(ListModels, pv(P::OpenAi)),
             xform(ListModels, pv(P::Claude), ListModels, pv(P::OpenAi)),
             xform(ListModels, pv(P::Gemini), ListModels, pv(P::OpenAi)),
-            local(GetModel, pv(P::OpenAi)),
-            local(GetModel, pv(P::Claude)),
-            local(GetModel, pv(P::Gemini)),
+            pass(GetModel, pv(P::OpenAi)),
+            xform(GetModel, pv(P::Claude), GetModel, pv(P::OpenAi)),
+            xform(GetModel, pv(P::Gemini), GetModel, pv(P::OpenAi)),
             // Kimi has a native estimate endpoint with a provider-specific
             // request shape; the gateway's protocol-neutral counters stay local.
             local(CountTokens, pv(P::OpenAi)),
             local(CountTokens, pv(P::Claude)),
             local(CountTokens, pv(P::Gemini)),
+            pass(GenerateContent, cg(OpenAiResponses)),
             pass(GenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 GenerateContent,
-                cg(OpenAiResponses),
-                GenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
-            xform(
-                GenerateContent,
                 cg(ClaudeMessages),
                 GenerateContent,
                 cg(OpenAiChatCompletions),
@@ -60,15 +56,10 @@ impl Channel for KimiApiChannel {
                 GenerateContent,
                 cg(OpenAiChatCompletions),
             ),
+            pass(StreamGenerateContent, cg(OpenAiResponses)),
             pass(StreamGenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 StreamGenerateContent,
-                cg(OpenAiResponses),
-                StreamGenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
-            xform(
-                StreamGenerateContent,
                 cg(ClaudeMessages),
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
@@ -79,14 +70,22 @@ impl Channel for KimiApiChannel {
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
             ),
+            pass(CreateEmbedding, pv(P::OpenAi)),
+            xform(
+                CreateEmbedding,
+                pv(P::Gemini),
+                CreateEmbedding,
+                pv(P::OpenAi),
+            ),
+            pass(CreateImage, pv(P::OpenAi)),
             xform(
                 CompactContent,
                 pv(P::OpenAi),
                 GenerateContent,
-                cg(OpenAiChatCompletions),
+                cg(OpenAiResponses),
             ),
         ];
-        routes.extend(responses_ws_to(cg(OpenAiChatCompletions)));
+        routes.extend(responses_ws_to(cg(OpenAiResponses)));
         routes
     }
 
