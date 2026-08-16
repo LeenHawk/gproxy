@@ -125,6 +125,16 @@ describe("Kimi API fallback metadata", () => {
   });
 });
 
+describe("Cline fallback metadata", () => {
+  it("treats pasted credentials as API keys while retaining device login", () => {
+    expect(channelMeta("cline")).toMatchObject({
+      family: "api_key",
+      loginModes: ["device"],
+      secretTemplate: { api_key: "" },
+    });
+  });
+});
+
 describe("Kimi Code fallback metadata", () => {
   it("uses the managed coding endpoint and device OAuth", () => {
     expect(DEFAULT_BASE_URL.kimicode).toBe("https://api.kimi.com/coding/v1");

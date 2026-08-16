@@ -525,6 +525,14 @@ pub const MIGRATIONS: &[Migration] = &[
             ],
         },
     },
+    Migration {
+        version: 26,
+        description: "classify Cline credentials as API keys",
+        sql: MigrationSql::Shared(&["UPDATE credentials SET kind = 'api_key' \
+             WHERE kind = 'oauth_tokens' AND provider_id IN (\
+                 SELECT id FROM providers WHERE channel = 'cline'\
+             )"]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

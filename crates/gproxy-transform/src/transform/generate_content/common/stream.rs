@@ -41,7 +41,8 @@ enum ClaudeBlockKind {
 #[derive(Default)]
 pub(in crate::transform::generate_content) struct ClaudeStreamLifecycle {
     message_started: bool,
-    open_blocks: BTreeMap<u64, ClaudeBlockKind>,
+    open_blocks: BTreeMap<u64, (ClaudeBlockKind, u64)>,
+    next_block_index: u64,
     terminated: bool,
 }
 
@@ -58,12 +59,12 @@ impl ClaudeStreamLifecycle {
             if self.terminated {
                 break;
             }
-            match &event {
-                claude::StreamEvent::Known(known) => match known.as_ref() {
+            match event {
+                claude::StreamEvent::Known(mut known) => match known.as_mut() {
                     claude::KnownStreamEvent::MessageStart { .. } => {
                         if !self.message_started {
                             self.message_started = true;
-                            out.push(event);
+                            out.push(claude::StreamEvent::Known(known));
                         }
                     }
                     claude::KnownStreamEvent::ContentBlockStart {
@@ -74,30 +75,45 @@ impl ClaudeStreamLifecycle {
                         self.ensure_message_start(&mut out, &mut fallback_start);
                         self.close_blocks(&mut out);
                         if let Some(kind) = claude_block_kind(content_block) {
-                            self.open_blocks.insert(*index, kind);
+                            let source_index = *index;
+                            let output_index = self.allocate_block_index();
+                            self.open_blocks.insert(source_index, (kind, output_index));
+                            *index = output_index;
                         }
-                        out.push(event);
+                        out.push(claude::StreamEvent::Known(known));
                     }
                     claude::KnownStreamEvent::ContentBlockDelta { index, delta, .. } => {
                         self.ensure_message_start(&mut out, &mut fallback_start);
+                        let source_index = *index;
                         let kind = claude_delta_kind(delta).unwrap_or(ClaudeBlockKind::Text);
-                        if self.open_blocks.get(index) != Some(&kind) {
+                        let output_index = if let Some((_, output_index)) = self
+                            .open_blocks
+                            .get(&source_index)
+                            .filter(|(open_kind, _)| *open_kind == kind)
+                        {
+                            *output_index
+                        } else {
                             self.close_blocks(&mut out);
-                            out.push(claude_block_start(*index, kind));
-                            self.open_blocks.insert(*index, kind);
-                        }
-                        out.push(event);
+                            let output_index = self.allocate_block_index();
+                            out.push(claude_block_start(output_index, kind));
+                            self.open_blocks.insert(source_index, (kind, output_index));
+                            output_index
+                        };
+                        *index = output_index;
+                        out.push(claude::StreamEvent::Known(known));
                     }
                     claude::KnownStreamEvent::ContentBlockStop { index, .. } => {
-                        if self.open_blocks.remove(index).is_some() {
-                            out.push(event);
+                        let source_index = *index;
+                        if let Some((_, output_index)) = self.open_blocks.remove(&source_index) {
+                            *index = output_index;
+                            out.push(claude::StreamEvent::Known(known));
                         }
                     }
                     claude::KnownStreamEvent::MessageDelta { delta, .. } => {
                         self.ensure_message_start(&mut out, &mut fallback_start);
                         self.close_blocks(&mut out);
                         let terminal = delta.stop_reason.is_some();
-                        out.push(event);
+                        out.push(claude::StreamEvent::Known(known));
                         if terminal {
                             out.push(claude_message_stop());
                             self.terminated = true;
@@ -106,20 +122,24 @@ impl ClaudeStreamLifecycle {
                     claude::KnownStreamEvent::MessageStop { .. } => {
                         self.ensure_message_start(&mut out, &mut fallback_start);
                         self.close_blocks(&mut out);
-                        out.push(event);
+                        out.push(claude::StreamEvent::Known(known));
                         self.terminated = true;
                     }
                     claude::KnownStreamEvent::Error { .. } => {
                         self.close_blocks(&mut out);
-                        out.push(event);
+                        out.push(claude::StreamEvent::Known(known));
                         self.terminated = true;
                     }
-                    claude::KnownStreamEvent::Ping { .. } => out.push(event),
+                    claude::KnownStreamEvent::Ping { .. } => {
+                        out.push(claude::StreamEvent::Known(known));
+                    }
                     _ => unreachable!(
                         "new non-exhaustive protocol variant requires a lockstep transform update"
                     ),
                 },
-                claude::StreamEvent::Unknown(_) => out.push(event),
+                claude::StreamEvent::Unknown(event) => {
+                    out.push(claude::StreamEvent::Unknown(event));
+                }
                 _ => unreachable!(
                     "new non-exhaustive protocol variant requires a lockstep transform update"
                 ),
@@ -157,9 +177,15 @@ impl ClaudeStreamLifecycle {
     }
 
     fn close_blocks(&mut self, out: &mut Vec<claude::StreamEvent>) {
-        for index in std::mem::take(&mut self.open_blocks).into_keys() {
-            out.push(claude_content_block_stop(index));
+        for (_, (_, output_index)) in std::mem::take(&mut self.open_blocks) {
+            out.push(claude_content_block_stop(output_index));
         }
+    }
+
+    fn allocate_block_index(&mut self) -> u64 {
+        let index = self.next_block_index;
+        self.next_block_index = self.next_block_index.saturating_add(1);
+        index
     }
 }
 
