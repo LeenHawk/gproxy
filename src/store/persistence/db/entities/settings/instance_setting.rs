@@ -20,6 +20,7 @@ pub struct Model {
     pub disable_log_redaction: bool,
     pub enable_tokenizer_download: bool,
     pub update_channel: Option<String>,
+    pub enable_auto_update_check: bool,
     pub retention_days: Option<i64>,
     pub max_database_size_mb: Option<i64>,
     pub created_at: i64,

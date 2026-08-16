@@ -88,7 +88,7 @@ async fn instance_settings_get_post_roundtrip() {
         "enable_usage": false, "enable_upstream_log": false, "enable_upstream_log_body": false,
         "enable_downstream_log": false, "enable_downstream_log_body": false,
         "disable_log_redaction": false, "enable_tokenizer_download": false,
-        "update_channel": null, "retention_days": null,
+        "update_channel": null, "enable_auto_update_check": true, "retention_days": null,
     })
     .to_string()
     .into_bytes();
@@ -96,6 +96,7 @@ async fn instance_settings_get_post_roundtrip() {
     let resp = run(&state, &p, &body).await.expect("upsert");
     assert_eq!(resp.status, http::StatusCode::OK);
     assert_eq!(parse_json(&resp)["instance_name"], "primary");
+    assert_eq!(parse_json(&resp)["enable_auto_update_check"], true);
 
     // Now GET shows the record.
     let p = parts("GET", "/admin/instance-settings", Some(&cookie), None);
@@ -103,4 +104,5 @@ async fn instance_settings_get_post_roundtrip() {
     let list = parse_json(&resp);
     assert_eq!(list.as_array().unwrap().len(), 1);
     assert_eq!(list[0]["instance_name"], "primary");
+    assert_eq!(list[0]["enable_auto_update_check"], true);
 }

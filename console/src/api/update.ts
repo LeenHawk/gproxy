@@ -38,7 +38,7 @@ export type UpdateStatus =
   | { state: "failed"; error: string };
 
 // Disabled by default for the manual Updates page. The global admin banner
-// explicitly enables this query once when Console opens.
+// enables it only when the database-backed automatic-check preference is on.
 export const updateCheckQuery = queryOptions({
   queryKey: ["update", "check"],
   queryFn: () => api<CheckReport>("/admin/update/check"),

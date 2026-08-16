@@ -69,5 +69,10 @@
     "staging": "Staging (pre-release)",
     "saved": "Update channel saved",
     "noSettings": "Configure instance settings first."
+  },
+  "automaticCheck": {
+    "label": "Automatically check for updates",
+    "hint": "When enabled, the Console checks on startup and shows a notice when an update is available. Disabled by default.",
+    "saved": "Automatic update check preference saved"
   }
 }

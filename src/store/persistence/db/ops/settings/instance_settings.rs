@@ -21,6 +21,7 @@ fn to_record(m: instance_setting::Model) -> InstanceSettings {
         disable_log_redaction: m.disable_log_redaction,
         enable_tokenizer_download: m.enable_tokenizer_download,
         update_channel: m.update_channel,
+        enable_auto_update_check: m.enable_auto_update_check,
         retention_days: m.retention_days,
         max_database_size_mb: m.max_database_size_mb,
         created_at: m.created_at,
@@ -75,6 +76,7 @@ pub async fn upsert(
                 am.disable_log_redaction = Set(input.disable_log_redaction);
                 am.enable_tokenizer_download = Set(input.enable_tokenizer_download);
                 am.update_channel = Set(input.update_channel);
+                am.enable_auto_update_check = Set(input.enable_auto_update_check);
                 am.retention_days = Set(input.retention_days);
                 am.max_database_size_mb = Set(input.max_database_size_mb);
                 am.updated_at = Set(now);
@@ -96,6 +98,7 @@ pub async fn upsert(
                     disable_log_redaction: Set(input.disable_log_redaction),
                     enable_tokenizer_download: Set(input.enable_tokenizer_download),
                     update_channel: Set(input.update_channel),
+                    enable_auto_update_check: Set(input.enable_auto_update_check),
                     retention_days: Set(input.retention_days),
                     max_database_size_mb: Set(input.max_database_size_mb),
                     created_at: Set(now),
@@ -119,6 +122,7 @@ pub async fn upsert(
             disable_log_redaction: Set(input.disable_log_redaction),
             enable_tokenizer_download: Set(input.enable_tokenizer_download),
             update_channel: Set(input.update_channel),
+            enable_auto_update_check: Set(input.enable_auto_update_check),
             retention_days: Set(input.retention_days),
             max_database_size_mb: Set(input.max_database_size_mb),
             created_at: Set(now),

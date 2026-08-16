@@ -31,6 +31,10 @@ pub struct InstanceSettings {
     pub enable_tokenizer_download: bool,
     /// Update channel, e.g. `stable` | `beta`; `None` = default.
     pub update_channel: Option<String>,
+    /// Check for updates when the admin Console opens and show an available
+    /// update banner. Disabled by default so update checks are opt-in.
+    #[serde(default)]
+    pub enable_auto_update_check: bool,
     /// Purge usage/request-log rows older than this many days (§8-D). `None`
     /// or `<= 0` = retain forever (the historical behaviour).
     #[serde(default)]
@@ -63,6 +67,8 @@ pub struct InstanceSettingsInput {
     #[serde(default)]
     pub enable_tokenizer_download: bool,
     pub update_channel: Option<String>,
+    #[serde(default)]
+    pub enable_auto_update_check: bool,
     #[serde(default)]
     pub retention_days: Option<i64>,
     #[serde(default)]

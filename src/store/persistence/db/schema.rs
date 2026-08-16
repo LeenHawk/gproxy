@@ -299,6 +299,18 @@ async fn repair_instance_settings_schema(
         ))
         .await?;
     }
+    if !cols.is_empty() && !cols.contains("enable_auto_update_check") {
+        let definition = match dialect {
+            MigrationDialect::Sqlite => "INTEGER NOT NULL DEFAULT 0",
+            MigrationDialect::Postgres | MigrationDialect::MySql => {
+                "BOOLEAN NOT NULL DEFAULT FALSE"
+            }
+        };
+        conn.execute_unprepared(&format!(
+            "ALTER TABLE instance_settings ADD COLUMN enable_auto_update_check {definition}"
+        ))
+        .await?;
+    }
     Ok(())
 }
 

@@ -4,26 +4,31 @@ import { Link } from "@tanstack/react-router";
 import { DownloadCloud, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { updateCheckQuery, updateStatusQuery } from "@/api/update";
+import { instanceSettingsQuery } from "@/api/settings";
 import { Button } from "@/components/ui/button";
 import { dismissUpdate, readDismissedUpdate } from "@/lib/update-banner-dismissal";
 import { ReleaseNotesDialog } from "./release-notes-dialog";
 
 const AUTO_CHECK_STALE_TIME_MS = 15 * 60 * 1000;
 
-/** Checks once when the admin Console opens and stays quiet unless an update
- *  is available. Errors remain on the dedicated Updates page instead of
- *  interrupting normal Console use. */
+/** When enabled in instance settings, checks once when the admin Console opens
+ *  and stays quiet unless an update is available. Errors remain on the
+ *  dedicated Updates page instead of interrupting normal Console use. */
 export function UpdateBanner() {
   const { t } = useTranslation();
   const [dismissedIdentity, setDismissedIdentity] = useState(readDismissedUpdate);
   const [notesOpen, setNotesOpen] = useState(false);
-  const status = useQuery(updateStatusQuery);
+  const { data: settings = [] } = useQuery(instanceSettingsQuery);
+  const autoCheckEnabled = settings[0]?.enable_auto_update_check === true;
+  const status = useQuery({ ...updateStatusQuery, enabled: autoCheckEnabled });
   const { data } = useQuery({
     ...updateCheckQuery,
-    enabled: status.isError || (status.data !== undefined && status.data.state !== "unavailable"),
+    enabled: autoCheckEnabled
+      && (status.isError || (status.data !== undefined && status.data.state !== "unavailable")),
     staleTime: AUTO_CHECK_STALE_TIME_MS,
   });
 
+  if (!autoCheckEnabled) return null;
   if (status.data?.state === "unavailable") return null;
   if (!data?.available || dismissedIdentity === data.latest) return null;
 
