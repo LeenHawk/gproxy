@@ -53,7 +53,7 @@ const BUNDLE: &str = r#"{
   ],
   "provider_rule_sets": [{ "id": 1, "provider_id": 1, "rule_set_id": 1, "sort_order": 0, "enabled": true }],
   "instance_settings": [
-    { "id": 1, "instance_name": "node-a", "proxy": null, "spoof_emulation": null, "enable_usage": true, "enable_upstream_log": false, "enable_upstream_log_body": false, "enable_downstream_log": false, "enable_downstream_log_body": false, "disable_log_redaction": false, "enable_tokenizer_download": true, "update_channel": null }
+    { "id": 1, "instance_name": "node-a", "proxy": null, "spoof_emulation": null, "enable_usage": true, "enable_upstream_log": false, "enable_upstream_log_body": false, "enable_downstream_log": false, "enable_downstream_log_body": false, "disable_log_redaction": false, "enable_tokenizer_download": true, "update_channel": null, "enable_auto_update_check": true }
   ]
 }"#;
 

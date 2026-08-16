@@ -85,6 +85,8 @@ pub(crate) struct LegacyInstanceSettings {
     #[serde(default)]
     pub update_channel: Option<String>,
     #[serde(default)]
+    pub enable_auto_update_check: bool,
+    #[serde(default)]
     pub retention_days: Option<i64>,
 }
 
@@ -103,6 +105,7 @@ impl From<LegacyInstanceSettings> for InstanceSettingsInput {
             disable_log_redaction: x.disable_log_redaction,
             enable_tokenizer_download: x.enable_tokenizer_download,
             update_channel: x.update_channel,
+            enable_auto_update_check: x.enable_auto_update_check,
             retention_days: x.retention_days,
             max_database_size_mb: None,
         }

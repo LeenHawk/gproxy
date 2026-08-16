@@ -14,6 +14,7 @@ export interface InstanceSettings {
   disable_log_redaction: boolean;
   enable_tokenizer_download: boolean;
   update_channel: string | null;
+  enable_auto_update_check: boolean;
   retention_days: number | null;
   max_database_size_mb: number | null;
   created_at: number;
@@ -33,6 +34,7 @@ export interface InstanceSettingsInput {
   disable_log_redaction: boolean;
   enable_tokenizer_download: boolean;
   update_channel?: string | null;
+  enable_auto_update_check?: boolean;
   retention_days?: number | null;
   max_database_size_mb?: number | null;
 }
@@ -81,6 +83,7 @@ export function settingsToInput(s: InstanceSettings): InstanceSettingsInput {
     disable_log_redaction: s.disable_log_redaction,
     enable_tokenizer_download: s.enable_tokenizer_download,
     update_channel: s.update_channel,
+    enable_auto_update_check: s.enable_auto_update_check,
     retention_days: s.retention_days,
     max_database_size_mb: s.max_database_size_mb,
   };

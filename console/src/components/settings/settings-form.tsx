@@ -101,6 +101,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
         disable_log_redaction: f.disableLogRedaction,
         enable_tokenizer_download: f.enableTokenizerDownload,
         update_channel: f.updateChannel === "default" ? null : f.updateChannel,
+        enable_auto_update_check: settings?.enable_auto_update_check ?? false,
         retention_days: retDays,
         max_database_size_mb: maxDbMb,
       };

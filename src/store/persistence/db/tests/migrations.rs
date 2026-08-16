@@ -67,7 +67,7 @@ async fn repairs_provider_model_limit_columns_without_migration_stamp() {
 }
 
 #[tokio::test]
-async fn migrates_instance_settings_size_limit_column() {
+async fn migrates_instance_settings_optional_columns() {
     use sea_orm::{ConnectionTrait, Database};
 
     let dir = tempfile::tempdir().expect("tempdir");
@@ -86,6 +86,14 @@ async fn migrates_instance_settings_size_limit_column() {
     )
     .await
     .expect("old instance_settings table");
+    conn.execute_unprepared(
+        "INSERT INTO instance_settings (id, instance_name, enable_usage, enable_upstream_log, \
+            enable_upstream_log_body, enable_downstream_log, enable_downstream_log_body, \
+            disable_log_redaction, enable_tokenizer_download, created_at, updated_at) \
+         VALUES (1, 'legacy', 1, 0, 0, 0, 0, 0, 0, 0, 0)",
+    )
+    .await
+    .expect("old instance settings row");
     conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
         .await
         .unwrap();
@@ -95,9 +103,13 @@ async fn migrates_instance_settings_size_limit_column() {
     conn.close().await.unwrap();
 
     let db = DbPersistence::connect(&dsn).await.expect("migrate");
-    db.list_instance_settings()
+    let settings = db
+        .list_instance_settings()
         .await
         .expect("new column readable");
+    assert_eq!(settings.len(), 1);
+    assert_eq!(settings[0].max_database_size_mb, None);
+    assert!(!settings[0].enable_auto_update_check);
 }
 
 #[tokio::test]

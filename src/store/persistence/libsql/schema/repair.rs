@@ -22,6 +22,15 @@ pub(super) async fn instance_settings(client: &LibsqlClient) -> anyhow::Result<(
             .await
             .map_err(|e| anyhow::anyhow!("libsql repair instance_settings size limit: {e}"))?;
     }
+    if !cols.is_empty() && !cols.contains("enable_auto_update_check") {
+        client
+            .execute(
+                "ALTER TABLE instance_settings ADD COLUMN enable_auto_update_check INTEGER NOT NULL DEFAULT 0",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair automatic update check setting: {e}"))?;
+    }
     Ok(())
 }
 

@@ -11,8 +11,8 @@ use crate::store::persistence::records::{InstanceSettings, InstanceSettingsInput
 
 const COLS: &str = "id, instance_name, proxy, spoof_emulation, enable_usage, enable_upstream_log, \
      enable_upstream_log_body, enable_downstream_log, enable_downstream_log_body, \
-     disable_log_redaction, enable_tokenizer_download, update_channel, retention_days, \
-     max_database_size_mb, created_at, updated_at";
+     disable_log_redaction, enable_tokenizer_download, update_channel, \
+     enable_auto_update_check, retention_days, max_database_size_mb, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<InstanceSettings> {
     Ok(InstanceSettings {
@@ -28,10 +28,11 @@ fn decode(row: &Row) -> anyhow::Result<InstanceSettings> {
         disable_log_redaction: col_bool(row, 9)?,
         enable_tokenizer_download: col_bool(row, 10)?,
         update_channel: col_opt_str(row, 11)?,
-        retention_days: col_opt_i64(row, 12)?,
-        max_database_size_mb: col_opt_i64(row, 13)?,
-        created_at: col_i64(row, 14)?,
-        updated_at: col_i64(row, 15)?,
+        enable_auto_update_check: col_bool(row, 12)?,
+        retention_days: col_opt_i64(row, 13)?,
+        max_database_size_mb: col_opt_i64(row, 14)?,
+        created_at: col_i64(row, 15)?,
+        updated_at: col_i64(row, 16)?,
     })
 }
 
@@ -87,7 +88,7 @@ pub async fn upsert(
                     "UPDATE instance_settings SET instance_name=?, proxy=?, spoof_emulation=?, \
                      enable_usage=?, enable_upstream_log=?, enable_upstream_log_body=?, \
                      enable_downstream_log=?, enable_downstream_log_body=?, disable_log_redaction=?, \
-                     enable_tokenizer_download=?, update_channel=?, retention_days=?, \
+                     enable_tokenizer_download=?, update_channel=?, enable_auto_update_check=?, retention_days=?, \
                      max_database_size_mb=?, updated_at=? \
                      WHERE id=?",
                     &[
@@ -102,6 +103,7 @@ pub async fn upsert(
                         arg_bool(input.disable_log_redaction),
                         arg_bool(input.enable_tokenizer_download),
                         arg_opt_text(input.update_channel.as_deref()),
+                        arg_bool(input.enable_auto_update_check),
                         arg_opt_i64(input.retention_days),
                         arg_opt_i64(input.max_database_size_mb),
                         arg_integer(now),
@@ -123,10 +125,10 @@ pub async fn upsert(
                      (id, instance_name, proxy, spoof_emulation, enable_usage, \
                       enable_upstream_log, enable_upstream_log_body, enable_downstream_log, \
                       enable_downstream_log_body, disable_log_redaction, \
-                       enable_tokenizer_download, update_channel, retention_days, \
+                       enable_tokenizer_download, update_channel, enable_auto_update_check, retention_days, \
                        max_database_size_mb, \
                        created_at, updated_at) \
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_text(&input.instance_name),
@@ -140,6 +142,7 @@ pub async fn upsert(
                         arg_bool(input.disable_log_redaction),
                         arg_bool(input.enable_tokenizer_download),
                         arg_opt_text(input.update_channel.as_deref()),
+                        arg_bool(input.enable_auto_update_check),
                         arg_opt_i64(input.retention_days),
                         arg_opt_i64(input.max_database_size_mb),
                         arg_integer(now),

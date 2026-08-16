@@ -510,6 +510,21 @@ pub const MIGRATIONS: &[Migration] = &[
         description: "routing_rules: audio passthrough for compatible providers",
         sql: MigrationSql::Shared(AUDIO_ROUTING_SQL),
     },
+    Migration {
+        version: 25,
+        description: "instance_settings.enable_auto_update_check: opt-in Console update notices",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "ALTER TABLE instance_settings ADD COLUMN enable_auto_update_check INTEGER NOT NULL DEFAULT 0",
+            ],
+            postgres: &[
+                "ALTER TABLE instance_settings ADD COLUMN enable_auto_update_check BOOLEAN NOT NULL DEFAULT FALSE",
+            ],
+            mysql: &[
+                "ALTER TABLE instance_settings ADD COLUMN enable_auto_update_check BOOLEAN NOT NULL DEFAULT FALSE",
+            ],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

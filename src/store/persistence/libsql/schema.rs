@@ -389,6 +389,7 @@ const TABLES: &[&str] = &[
         disable_log_redaction INTEGER NOT NULL, \
         enable_tokenizer_download INTEGER NOT NULL, \
         update_channel TEXT, \
+        enable_auto_update_check INTEGER NOT NULL DEFAULT 0, \
         retention_days INTEGER, \
         max_database_size_mb INTEGER, \
         created_at INTEGER NOT NULL, \

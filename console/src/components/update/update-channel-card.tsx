@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import { ApiError } from "@/api/http";
 import { instanceSettingsQuery, settingsToInput, upsertInstanceSettings } from "@/api/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
-/** Release-channel selector for self-update; edits the (single) instance
- *  settings row's `update_channel` and auto-saves, preserving other fields. */
+/** Self-update preferences backed by the single instance-settings row. */
 export function UpdateChannelCard() {
   const { t } = useTranslation("update");
   const qc = useQueryClient();
@@ -18,9 +19,13 @@ export function UpdateChannelCard() {
   const s = list[0];
 
   const [channel, setChannel] = useState("default");
+  const [autoCheck, setAutoCheck] = useState(false);
   useEffect(() => {
-    if (s) setChannel(s.update_channel ?? "default");
-  }, [s?.id, s?.update_channel]);
+    if (s) {
+      setChannel(s.update_channel ?? "default");
+      setAutoCheck(s.enable_auto_update_check);
+    }
+  }, [s?.id, s?.update_channel, s?.enable_auto_update_check]);
 
   const save = useMutation({
     mutationFn: (next: string) =>
@@ -31,6 +36,19 @@ export function UpdateChannelCard() {
       toast.success(t("channel.saved"));
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : String(e)),
+  });
+
+  const saveAutoCheck = useMutation({
+    mutationFn: (enabled: boolean) =>
+      upsertInstanceSettings({ ...settingsToInput(s!), enable_auto_update_check: enabled }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instance-settings"] });
+      toast.success(t("automaticCheck.saved"));
+    },
+    onError: (e) => {
+      setAutoCheck(s?.enable_auto_update_check ?? false);
+      toast.error(e instanceof ApiError ? e.message : String(e));
+    },
   });
 
   return (
@@ -45,7 +63,7 @@ export function UpdateChannelCard() {
               <Select
                 value={channel}
                 onValueChange={(v) => { setChannel(v); save.mutate(v); }}
-                disabled={save.isPending}
+                disabled={save.isPending || saveAutoCheck.isPending}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -56,6 +74,23 @@ export function UpdateChannelCard() {
               </Select>
             </div>
             <p className="text-xs text-muted-foreground">{t("channel.hint")}</p>
+            <div className="mt-3 grid gap-1 border-t pt-4">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="auto-update-check" className="cursor-pointer">
+                  {t("automaticCheck.label")}
+                </Label>
+                <Switch
+                  id="auto-update-check"
+                  checked={autoCheck}
+                  onCheckedChange={(enabled) => {
+                    setAutoCheck(enabled);
+                    saveAutoCheck.mutate(enabled);
+                  }}
+                  disabled={save.isPending || saveAutoCheck.isPending}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">{t("automaticCheck.hint")}</p>
+            </div>
           </>
         ) : (
           <p className="text-sm text-muted-foreground">{t("channel.noSettings")}</p>

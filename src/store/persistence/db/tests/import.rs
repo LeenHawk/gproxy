@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::persistence::traits::{
-    IdentityPersistence, ProviderPersistence, RoutingPersistence,
+    IdentityPersistence, ProviderPersistence, RoutingPersistence, SettingsPersistence,
 };
 
 /// A fully-pinned config bundle (explicit ids on every record) covering all 18
@@ -40,7 +40,7 @@ const IMPORT_BUNDLE: &str = r#"{
   ],
   "provider_rule_sets": [{ "id": 1, "provider_id": 1, "rule_set_id": 1, "sort_order": 0, "enabled": true }],
   "instance_settings": [
-    { "id": 1, "instance_name": "node-a", "proxy": null, "spoof_emulation": null, "enable_usage": true, "enable_upstream_log": false, "enable_upstream_log_body": false, "enable_downstream_log": false, "enable_downstream_log_body": false, "disable_log_redaction": false, "enable_tokenizer_download": true, "update_channel": null }
+    { "id": 1, "instance_name": "node-a", "proxy": null, "spoof_emulation": null, "enable_usage": true, "enable_upstream_log": false, "enable_upstream_log_body": false, "enable_downstream_log": false, "enable_downstream_log_body": false, "disable_log_redaction": false, "enable_tokenizer_download": true, "update_channel": null, "enable_auto_update_check": true }
   ]
 }"#;
 
@@ -60,6 +60,7 @@ async fn import_seeds_empty_db() {
     assert_eq!(db.list_providers().await.unwrap().len(), 1);
     assert_eq!(db.list_users().await.unwrap().len(), 1);
     assert_eq!(db.list_rule_sets().await.unwrap().len(), 1);
+    assert!(db.list_instance_settings().await.unwrap()[0].enable_auto_update_check);
     assert_eq!(
         db.list_price_rules().await.unwrap()[0].image_output_price,
         "32".parse().unwrap()
