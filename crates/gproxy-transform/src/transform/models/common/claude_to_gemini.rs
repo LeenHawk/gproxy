@@ -10,7 +10,7 @@ pub(in crate::transform::models) fn model(
     let id = wire_string(&input.id, "id")?;
 
     Ok(crate::protocol::wire!(gemini::Model {
-        name: Some(id.clone()),
+        name: Some(format!("models/{id}")),
         base_model_id: Some(id),
         version: None,
         display_name: Some(input.display_name),
