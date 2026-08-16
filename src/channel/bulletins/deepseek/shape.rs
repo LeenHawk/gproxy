@@ -37,7 +37,7 @@ pub(super) fn shape_model_list(body: Bytes) -> Bytes {
             serde_json::json!(["reasoning"]),
         );
         object.insert("thinking_supported".into(), Value::Bool(true));
-        object.insert("thinking_adaptive_supported".into(), Value::Bool(false));
+        object.insert("thinking_adaptive_supported".into(), Value::Bool(true));
         object.insert("thinking_enabled_supported".into(), Value::Bool(true));
         changed = true;
     }
