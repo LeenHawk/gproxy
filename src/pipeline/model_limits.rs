@@ -7,19 +7,13 @@ use crate::store::persistence::records::ProviderModel;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ModelLimits {
     pub context_window: Option<i64>,
-    pub max_input_tokens: Option<i64>,
     pub max_output_tokens: Option<i64>,
 }
 
 impl ModelLimits {
-    pub fn new(
-        context_window: Option<i64>,
-        max_input_tokens: Option<i64>,
-        max_output_tokens: Option<i64>,
-    ) -> Self {
+    pub fn new(context_window: Option<i64>, max_output_tokens: Option<i64>) -> Self {
         Self {
             context_window: positive(context_window),
-            max_input_tokens: positive(max_input_tokens),
             max_output_tokens: positive(max_output_tokens),
         }
     }
@@ -27,7 +21,6 @@ impl ModelLimits {
     fn strict_min(self, other: Self) -> Self {
         Self {
             context_window: min_if_both(self.context_window, other.context_window),
-            max_input_tokens: min_if_both(self.max_input_tokens, other.max_input_tokens),
             max_output_tokens: min_if_both(self.max_output_tokens, other.max_output_tokens),
         }
     }
@@ -86,13 +79,7 @@ pub fn for_provider_model(
     exposed_id: &str,
 ) -> ModelLimits {
     provider_model(cp, provider_id, exposed_id)
-        .map(|model| {
-            ModelLimits::new(
-                model.context_window,
-                model.max_input_tokens,
-                model.max_output_tokens,
-            )
-        })
+        .map(|model| ModelLimits::new(model.context_window, model.max_output_tokens))
         .unwrap_or_default()
 }
 

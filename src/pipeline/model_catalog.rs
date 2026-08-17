@@ -88,7 +88,6 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
             }
             if let Some(saved) = current.iter().find(|saved| saved.model_id == id) {
                 let context_window = saved.context_window.or(model.limits.context_window);
-                let max_input_tokens = saved.max_input_tokens.or(model.limits.max_input_tokens);
                 let max_output_tokens = saved.max_output_tokens.or(model.limits.max_output_tokens);
                 let thinking_supported = saved.thinking_supported.or(model.thinking.supported);
                 let thinking_adaptive_supported = saved
@@ -98,7 +97,6 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                     .thinking_enabled_supported
                     .or(model.thinking.enabled_supported);
                 if context_window != saved.context_window
-                    || max_input_tokens != saved.max_input_tokens
                     || max_output_tokens != saved.max_output_tokens
                     || thinking_supported != saved.thinking_supported
                     || thinking_adaptive_supported != saved.thinking_adaptive_supported
@@ -113,7 +111,6 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                             display_name: saved.display_name.clone(),
                             variants_json: saved.variants_json.clone(),
                             context_window,
-                            max_input_tokens,
                             max_output_tokens,
                             thinking_supported,
                             thinking_adaptive_supported,
@@ -137,7 +134,6 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
                     display_name: model.display_name.clone(),
                     variants_json: None,
                     context_window: model.limits.context_window,
-                    max_input_tokens: model.limits.max_input_tokens,
                     max_output_tokens: model.limits.max_output_tokens,
                     thinking_supported: model.thinking.supported,
                     thinking_adaptive_supported: model.thinking.adaptive_supported,
@@ -249,11 +245,7 @@ async fn fetch_live(state: &AppState, provider: &Provider) -> Option<Vec<ModelEn
                 .map(|model| ModelEntry {
                     id: model.id,
                     display_name: model.display_name,
-                    limits: ModelLimits::new(
-                        model.context_window,
-                        model.max_input_tokens,
-                        model.max_output_tokens,
-                    ),
+                    limits: ModelLimits::new(model.context_window, model.max_output_tokens),
                     thinking: ModelThinking::new(
                         model.thinking_supported,
                         model.thinking_adaptive_supported,

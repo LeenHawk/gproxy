@@ -18,7 +18,6 @@ fn to_record(m: provider_model::Model) -> anyhow::Result<ProviderModel> {
             .map(|s| serde_json::from_str(&s))
             .transpose()?,
         context_window: m.context_window,
-        max_input_tokens: m.max_input_tokens,
         max_output_tokens: m.max_output_tokens,
         thinking_supported: m.thinking_supported,
         thinking_adaptive_supported: m.thinking_adaptive_supported,
@@ -70,7 +69,6 @@ pub async fn upsert(
                 am.display_name = Set(input.display_name);
                 am.variants_json = Set(variants);
                 am.context_window = Set(input.context_window);
-                am.max_input_tokens = Set(input.max_input_tokens);
                 am.max_output_tokens = Set(input.max_output_tokens);
                 am.thinking_supported = Set(input.thinking_supported);
                 am.thinking_adaptive_supported = Set(input.thinking_adaptive_supported);
@@ -89,7 +87,6 @@ pub async fn upsert(
                     display_name: Set(input.display_name),
                     variants_json: Set(variants),
                     context_window: Set(input.context_window),
-                    max_input_tokens: Set(input.max_input_tokens),
                     max_output_tokens: Set(input.max_output_tokens),
                     thinking_supported: Set(input.thinking_supported),
                     thinking_adaptive_supported: Set(input.thinking_adaptive_supported),
@@ -110,7 +107,6 @@ pub async fn upsert(
                 display_name: Set(input.display_name),
                 variants_json: Set(variants),
                 context_window: Set(input.context_window),
-                max_input_tokens: Set(input.max_input_tokens),
                 max_output_tokens: Set(input.max_output_tokens),
                 thinking_supported: Set(input.thinking_supported),
                 thinking_adaptive_supported: Set(input.thinking_adaptive_supported),

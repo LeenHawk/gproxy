@@ -9,7 +9,6 @@ import { findDefaultPriceRule } from "@/lib/default-price-rules";
 const METADATA_FIELDS = [
   "display_name",
   "context_window",
-  "max_input_tokens",
   "max_output_tokens",
   "thinking_supported",
   "thinking_adaptive_supported",
@@ -38,7 +37,6 @@ export function modelSyncInput(
     model_id: upstream.id,
     display_name: existing?.display_name ?? upstream.display_name,
     context_window: existing?.context_window ?? upstream.context_window,
-    max_input_tokens: existing?.max_input_tokens ?? upstream.max_input_tokens,
     max_output_tokens: existing?.max_output_tokens ?? upstream.max_output_tokens,
     thinking_supported: existing?.thinking_supported ?? upstream.thinking_supported,
     thinking_adaptive_supported:

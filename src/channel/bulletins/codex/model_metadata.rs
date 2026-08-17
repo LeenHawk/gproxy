@@ -13,9 +13,8 @@ pub(super) const CODEX_VERSION: &str = "0.147.0";
 /// imposes no client-side default, so the ceiling is the real capability:
 /// GPT-5.6 defaults to 272k but permits 872k. Prefer it, fall back to the
 /// default, and drop non-positive values rather than reporting a bogus limit.
-fn context_window(model: &Value) -> Option<i64> {
-    let at = |key: &str| model.get(key).and_then(Value::as_i64).filter(|v| *v > 0);
-    at("max_context_window").or_else(|| at("context_window"))
+fn positive(model: &Value, key: &str) -> Option<i64> {
+    model.get(key).and_then(Value::as_i64).filter(|v| *v > 0)
 }
 
 fn normalize_entry(model: &Value) -> Option<Value> {
@@ -36,10 +35,15 @@ fn normalize_entry(model: &Value) -> Option<Value> {
     if let Some(name) = model.get("display_name").and_then(Value::as_str) {
         object.insert("display_name".into(), Value::from(name));
     }
-    if let Some(window) = context_window(model) {
+    let ceiling = positive(model, "max_context_window");
+    if let Some(window) = ceiling.or_else(|| positive(model, "context_window")) {
         object.insert("context_window".into(), Value::from(window));
     }
-    if let Some(max_output) = model.get("max_output_tokens").and_then(Value::as_i64) {
+    // Kept verbatim alongside the resolved window so the headroom stays visible.
+    if let Some(max_window) = ceiling {
+        object.insert("max_context_window".into(), Value::from(max_window));
+    }
+    if let Some(max_output) = positive(model, "max_output_tokens") {
         object.insert("max_output_tokens".into(), Value::from(max_output));
     }
     // Every codex model is a reasoning model; it advertises the efforts it

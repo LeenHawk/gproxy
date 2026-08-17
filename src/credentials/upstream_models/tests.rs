@@ -22,12 +22,14 @@ fn parse_openai_and_gemini() {
     let g = parse_models(Provider::Gemini, gm);
     assert_eq!(g[0].id, "gemini-1.5-pro");
     assert_eq!(g[0].display_name.as_deref(), Some("Gemini 1.5 Pro"));
-    assert_eq!(g[0].max_input_tokens, Some(1_048_576));
+    assert_eq!(g[0].context_window, Some(1_048_576));
     assert_eq!(g[0].max_output_tokens, Some(8_192));
     assert_eq!(g[0].thinking_supported, Some(true));
 
     let cl = br#"{"data":[{"id":"claude-test","display_name":"Claude Test","max_input_tokens":200000,"max_tokens":32000,"capabilities":{"thinking":{"supported":true,"types":{"adaptive":{"supported":true},"enabled":{"supported":false}}}}}]}"#;
     let c = parse_models(Provider::Claude, cl);
+    // Claude names its input allowance max_input_tokens; it folds into context_window.
+    assert_eq!(c[0].context_window, Some(200_000));
     assert_eq!(c[0].thinking_supported, Some(true));
     assert_eq!(c[0].thinking_adaptive_supported, Some(true));
     assert_eq!(c[0].thinking_enabled_supported, Some(false));
@@ -52,7 +54,6 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
         id: "shared".into(),
         display_name: None,
         context_window: None,
-        max_input_tokens: None,
         max_output_tokens: None,
         thinking_supported: None,
         thinking_adaptive_supported: None,
@@ -68,7 +69,6 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
                 id: "shared".into(),
                 display_name: Some("Shared model".into()),
                 context_window: Some(100_000),
-                max_input_tokens: None,
                 max_output_tokens: Some(8_000),
                 thinking_supported: Some(true),
                 thinking_adaptive_supported: Some(false),
@@ -77,8 +77,7 @@ fn merge_models_keeps_first_order_and_fills_missing_display_name() {
             UpstreamModel {
                 id: "new".into(),
                 display_name: Some("New model".into()),
-                context_window: None,
-                max_input_tokens: Some(64_000),
+                context_window: Some(64_000),
                 max_output_tokens: None,
                 thinking_supported: None,
                 thinking_adaptive_supported: None,

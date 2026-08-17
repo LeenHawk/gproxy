@@ -25,12 +25,25 @@ pub struct Model {
     // fail on the missing field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created: Option<u64>,
-    // gproxy extension: token limits surfaced from providers that report them
-    // (Claude, Gemini). The official OpenAI model object has no such fields.
+    // gproxy extension: limits and capabilities surfaced from providers that
+    // report them (Claude, Gemini, Codex). The official OpenAI model object has
+    // no such fields.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_input_tokens: Option<u64>,
+    pub display_name: Option<String>,
+    /// Input allowance. OpenAI has no separate input limit — the context window
+    /// *is* the accepted input size — so peers that split the two (Claude's
+    /// `max_input_tokens`, Gemini's `inputTokenLimit`) map onto this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_window: Option<u64>,
+    /// Codex reports the override ceiling separately from the default budget;
+    /// kept verbatim so a client can see the headroom, while `context_window`
+    /// carries the value the catalogue consumes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_context_window: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_supported: Option<bool>,
     pub object: ModelObjectType,
     pub owned_by: String,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]

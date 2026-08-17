@@ -70,7 +70,6 @@ const TABLES: &[&str] = &[
         display_name TEXT, \
         variants_json TEXT, \
         context_window INTEGER, \
-        max_input_tokens INTEGER, \
         max_output_tokens INTEGER, \
         thinking_supported INTEGER, \
         thinking_adaptive_supported INTEGER, \

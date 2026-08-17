@@ -190,9 +190,6 @@ fn merge_models(
             if models[index].context_window.is_none() {
                 models[index].context_window = model.context_window;
             }
-            if models[index].max_input_tokens.is_none() {
-                models[index].max_input_tokens = model.max_input_tokens;
-            }
             if models[index].max_output_tokens.is_none() {
                 models[index].max_output_tokens = model.max_output_tokens;
             }

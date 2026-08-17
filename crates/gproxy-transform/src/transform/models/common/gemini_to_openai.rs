@@ -10,8 +10,10 @@ pub(in crate::transform::models) fn model(
     crate::protocol::wire!(openai::Model {
         id: gemini_model_id(&input).into(),
         created: None,
-        max_input_tokens: input.input_token_limit.map(i32_to_u64_default),
+        display_name: input.display_name,
+        context_window: input.input_token_limit.map(i32_to_u64_default),
         max_output_tokens: input.output_token_limit.map(i32_to_u64_default),
+        thinking_supported: input.thinking,
         object: openai_model_object(),
         owned_by: DEFAULT_OPENAI_OWNED_BY.to_owned(),
         extra: Default::default(),
