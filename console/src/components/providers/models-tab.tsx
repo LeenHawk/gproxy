@@ -23,7 +23,7 @@ import { useBatch } from "@/hooks/use-batch";
 import { parseVariantNames } from "@/lib/variant-sync";
 
 function limitsText(model: ProviderModel): string {
-  const values = [model.context_window, model.max_input_tokens, model.max_output_tokens];
+  const values = [model.context_window, model.max_output_tokens];
   return values.every((value) => value == null)
     ? "—"
     : values.map((value) => value?.toLocaleString() ?? "—").join(" / ");

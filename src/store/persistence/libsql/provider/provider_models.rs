@@ -10,7 +10,7 @@ use crate::store::persistence::libsql::util::{
 use crate::store::persistence::records::{ProviderModel, ProviderModelInput};
 
 const COLS: &str = "id, provider_id, model_id, display_name, variants_json, \
-     context_window, max_input_tokens, max_output_tokens, thinking_supported, \
+     context_window, max_output_tokens, thinking_supported, \
      thinking_adaptive_supported, thinking_enabled_supported, enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
@@ -21,14 +21,13 @@ fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
         display_name: col_opt_str(row, 3)?,
         variants_json: col_opt_json(row, 4)?,
         context_window: crate::store::persistence::libsql::row::col_opt_i64(row, 5)?,
-        max_input_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 6)?,
-        max_output_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 7)?,
-        thinking_supported: col_opt_bool(row, 8)?,
-        thinking_adaptive_supported: col_opt_bool(row, 9)?,
-        thinking_enabled_supported: col_opt_bool(row, 10)?,
-        enabled: col_bool(row, 11)?,
-        created_at: col_i64(row, 12)?,
-        updated_at: col_i64(row, 13)?,
+        max_output_tokens: crate::store::persistence::libsql::row::col_opt_i64(row, 6)?,
+        thinking_supported: col_opt_bool(row, 7)?,
+        thinking_adaptive_supported: col_opt_bool(row, 8)?,
+        thinking_enabled_supported: col_opt_bool(row, 9)?,
+        enabled: col_bool(row, 10)?,
+        created_at: col_i64(row, 11)?,
+        updated_at: col_i64(row, 12)?,
     })
 }
 
@@ -80,7 +79,7 @@ pub async fn upsert(
             exec(
                 client,
                 "UPDATE provider_models SET provider_id=?, model_id=?, display_name=?, \
-                 variants_json=?, context_window=?, max_input_tokens=?, max_output_tokens=?, \
+                 variants_json=?, context_window=?, max_output_tokens=?, \
                  thinking_supported=?, thinking_adaptive_supported=?, thinking_enabled_supported=?, \
                  enabled=?, updated_at=? WHERE id=?",
                 &[
@@ -89,7 +88,6 @@ pub async fn upsert(
                     arg_opt_text(input.display_name.as_deref()),
                     arg_opt_text(variants.as_deref()),
                     arg_opt_i64(input.context_window),
-                    arg_opt_i64(input.max_input_tokens),
                     arg_opt_i64(input.max_output_tokens),
                     arg_opt_bool(input.thinking_supported),
                     arg_opt_bool(input.thinking_adaptive_supported),
@@ -107,9 +105,9 @@ pub async fn upsert(
                 .execute(
                     "INSERT INTO provider_models \
                      (id, provider_id, model_id, display_name, variants_json, \
-                      context_window, max_input_tokens, max_output_tokens, thinking_supported, \
+                      context_window, max_output_tokens, thinking_supported, \
                       thinking_adaptive_supported, thinking_enabled_supported, enabled, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_integer(input.provider_id),
@@ -117,7 +115,6 @@ pub async fn upsert(
                         arg_opt_text(input.display_name.as_deref()),
                         arg_opt_text(variants.as_deref()),
                         arg_opt_i64(input.context_window),
-                        arg_opt_i64(input.max_input_tokens),
                         arg_opt_i64(input.max_output_tokens),
                         arg_opt_bool(input.thinking_supported),
                         arg_opt_bool(input.thinking_adaptive_supported),

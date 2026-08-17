@@ -325,7 +325,6 @@
     "modelId": "Model ID",
     "displayName": "Display name",
     "contextWindow": "Context window",
-    "maxInputTokens": "Max input tokens",
     "maxOutputTokens": "Max output tokens",
     "limits": "Context / input / output",
     "limitsHint": "Optional token limits. Leave unknown values blank.",

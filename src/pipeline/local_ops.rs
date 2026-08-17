@@ -108,7 +108,7 @@ pub fn entries_from(models: &[ExposedModel]) -> Vec<ModelEntry> {
         .map(|m| ModelEntry {
             id: m.full_id.clone(),
             display_name: m.display_name.clone(),
-            limits: ModelLimits::new(m.context_window, m.max_input_tokens, m.max_output_tokens),
+            limits: ModelLimits::new(m.context_window, m.max_output_tokens),
             thinking: ModelThinking::new(
                 m.thinking_supported,
                 m.thinking_adaptive_supported,
@@ -191,7 +191,7 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
                 "display_name": e.display_name.as_deref().unwrap_or(&e.id),
                 "created_at": "1970-01-01T00:00:00Z",
             });
-            if let Some(limit) = e.limits.max_input_tokens {
+            if let Some(limit) = e.limits.context_window {
                 model["max_input_tokens"] = json!(limit);
             }
             if let Some(limit) = e.limits.max_output_tokens {
@@ -222,7 +222,7 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
             if let Some(d) = &e.display_name {
                 model["displayName"] = json!(d);
             }
-            if let Some(limit) = e.limits.max_input_tokens {
+            if let Some(limit) = e.limits.context_window {
                 model["inputTokenLimit"] = json!(limit);
             }
             if let Some(limit) = e.limits.max_output_tokens {
@@ -260,7 +260,7 @@ mod tests {
         ModelEntry {
             id: "test-model".into(),
             display_name: Some("Test Model".into()),
-            limits: ModelLimits::new(Some(128_000), Some(120_000), Some(8_000)),
+            limits: ModelLimits::new(Some(128_000), Some(8_000)),
             thinking: ModelThinking::new(Some(true), Some(true), Some(false)),
         }
     }
@@ -283,7 +283,7 @@ mod tests {
 
         let claude: Value =
             serde_json::from_slice(&render_model(Provider::Claude, &entry())).unwrap();
-        assert_eq!(claude["max_input_tokens"], 120_000);
+        assert_eq!(claude["max_input_tokens"], 128_000);
         assert_eq!(claude["max_tokens"], 8_000);
         assert!(claude.get("context_window").is_none());
         assert_eq!(claude["capabilities"]["thinking"]["supported"], true);
@@ -298,7 +298,7 @@ mod tests {
 
         let gemini: Value =
             serde_json::from_slice(&render_model(Provider::Gemini, &entry())).unwrap();
-        assert_eq!(gemini["inputTokenLimit"], 120_000);
+        assert_eq!(gemini["inputTokenLimit"], 128_000);
         assert_eq!(gemini["outputTokenLimit"], 8_000);
         assert!(gemini.get("context_window").is_none());
         assert_eq!(gemini["thinking"], true);

@@ -153,12 +153,11 @@ fn routes_native_content_protocols_without_chat_conversion() {
 fn routes_native_count_tokens_and_embeddings() {
     let routes = KimiCodeChannel.routing_table();
     let decision = |operation, kind| {
-        let decision = routes
+        routes
             .iter()
             .find(|(source, _)| source.operation() == operation && source.kind() == kind)
             .map(|(_, decision)| *decision)
-            .expect("missing Kimi Code route");
-        decision
+            .expect("missing Kimi Code route")
     };
 
     assert_eq!(

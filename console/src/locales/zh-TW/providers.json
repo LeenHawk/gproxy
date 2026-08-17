@@ -325,7 +325,6 @@
     "modelId": "模型 ID",
     "displayName": "顯示名稱",
     "contextWindow": "總上下文",
-    "maxInputTokens": "最大輸入 Token",
     "maxOutputTokens": "最大輸出 Token",
     "limits": "上下文 / 輸入 / 輸出",
     "limitsHint": "Token 限制均可留空，未知時不要猜測。",
