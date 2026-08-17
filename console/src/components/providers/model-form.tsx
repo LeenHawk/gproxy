@@ -47,7 +47,6 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
   const [modelId, setModelId] = useState(model?.model_id ?? "");
   const [displayName, setDisplayName] = useState(model?.display_name ?? "");
   const [contextWindow, setContextWindow] = useState(String(model?.context_window ?? ""));
-  const [maxInputTokens, setMaxInputTokens] = useState(String(model?.max_input_tokens ?? ""));
   const [maxOutputTokens, setMaxOutputTokens] = useState(String(model?.max_output_tokens ?? ""));
   const [thinkingSupported, setThinkingSupported] = useState<boolean | null>(model?.thinking_supported ?? null);
   const [thinkingAdaptive, setThinkingAdaptive] = useState<boolean | null>(model?.thinking_adaptive_supported ?? null);
@@ -80,7 +79,6 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
       const variants = buildVariantsJson(variantRows, exposeBase);
       const invalidLimit = t("models.limitInvalid");
       const parsedContextWindow = positiveInteger(contextWindow, invalidLimit);
-      const parsedMaxInputTokens = positiveInteger(maxInputTokens, invalidLimit);
       const parsedMaxOutputTokens = positiveInteger(maxOutputTokens, invalidLimit);
       const newNames = variantRows.map((r) => r.name.trim()).filter((n) => n !== "");
       const presetActions = new Map<string, SuffixAction[]>();
@@ -95,7 +93,6 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         display_name: displayName.trim() === "" ? null : displayName.trim(),
         ...(variants !== null ? { variants_json: variants } : {}),
         context_window: parsedContextWindow,
-        max_input_tokens: parsedMaxInputTokens,
         max_output_tokens: parsedMaxOutputTokens,
         thinking_supported: thinkingSupported,
         thinking_adaptive_supported: thinkingAdaptive,
@@ -133,14 +130,10 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         <Input id="md-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-2">
           <Label htmlFor="md-context-window">{t("models.contextWindow")}</Label>
           <Input id="md-context-window" type="number" min={1} step={1} value={contextWindow} onChange={(e) => setContextWindow(e.target.value)} />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="md-max-input">{t("models.maxInputTokens")}</Label>
-          <Input id="md-max-input" type="number" min={1} step={1} value={maxInputTokens} onChange={(e) => setMaxInputTokens(e.target.value)} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="md-max-output">{t("models.maxOutputTokens")}</Label>

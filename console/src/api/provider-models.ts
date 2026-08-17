@@ -8,7 +8,6 @@ export interface ProviderModel {
   display_name: string | null;
   variants_json: unknown;
   context_window: number | null;
-  max_input_tokens: number | null;
   max_output_tokens: number | null;
   thinking_supported: boolean | null;
   thinking_adaptive_supported: boolean | null;
@@ -27,7 +26,6 @@ export interface ProviderModelInput {
    *  Some(Value::Null), so omit the key rather than send null. */
   variants_json?: unknown;
   context_window?: number | null;
-  max_input_tokens?: number | null;
   max_output_tokens?: number | null;
   thinking_supported?: boolean | null;
   thinking_adaptive_supported?: boolean | null;
@@ -56,7 +54,6 @@ export interface UpstreamModel {
   id: string;
   display_name: string | null;
   context_window: number | null;
-  max_input_tokens: number | null;
   max_output_tokens: number | null;
   thinking_supported: boolean | null;
   thinking_adaptive_supported: boolean | null;

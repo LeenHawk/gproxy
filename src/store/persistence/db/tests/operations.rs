@@ -119,7 +119,6 @@ async fn cascade_deletes() {
         display_name: None,
         variants_json: None,
         context_window: Some(128_000),
-        max_input_tokens: Some(120_000),
         max_output_tokens: Some(8_000),
         thinking_supported: Some(true),
         thinking_adaptive_supported: Some(false),
