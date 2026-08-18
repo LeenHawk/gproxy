@@ -310,7 +310,14 @@ impl CandidateRequest {
             .copied()
             .max()
             .unwrap_or(0);
-        authz::precheck_quota(&self.quota, state.cache.as_ref(), est_micros, now).await?;
+        // Quota rows are read LIVE here (not off the snapshot): settle writes
+        // each request's actual cost into them, and the snapshot only rebuilds
+        // on config invalidation.
+        if !self.quota.is_empty() {
+            let quotas = state.quotas.current(state.persistence.as_ref()).await;
+            authz::precheck_quota(&self.quota, &quotas, state.cache.as_ref(), est_micros, now)
+                .await?;
+        }
         let quota_scopes = if est_micros > 0 {
             authz::prepared_quota_scopes(&self.quota)
         } else {
