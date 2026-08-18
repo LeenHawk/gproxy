@@ -7,11 +7,12 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::app::quota_state::QuotaTable;
 use crate::app::snapshot::{ControlPlaneSnapshot, KeyIdentity};
 use crate::billing::pending;
 use crate::pipeline::error::PipelineError;
 use crate::store::cache::CacheBackend;
-use crate::store::persistence::records::{Quota, RateLimit, Scope};
+use crate::store::persistence::records::{RateLimit, Scope};
 use crate::util::glob;
 use crate::util::timewindow;
 
@@ -27,12 +28,20 @@ pub(crate) struct AuthorizationPlan {
 struct QuotaEntry {
     scope: Scope,
     scope_id: i64,
-    quota: Arc<Quota>,
 }
 
-/// Snapshot-owned quota rows for one identity's scope chain.
+/// The identity's quota-bearing scopes. Membership comes from the snapshot
+/// (creating/deleting a quota is a config change, which invalidates); the
+/// billing counters on each row are read live at check time from
+/// [`QuotaTable`], never from the snapshot.
 pub(crate) struct QuotaPlan {
     entries: Vec<QuotaEntry>,
+}
+
+impl QuotaPlan {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 /// The identity's scope chain, most-specific first (check order §8-C).
@@ -230,8 +239,14 @@ async fn precheck_limits(
 /// the `qp:*` counter holds after `pending::charge`, so admission, settle and
 /// refund all reconcile against the same number. Negative pending (stray
 /// refunds) never grants extra budget.
+///
+/// `quotas` MUST be the live table ([`crate::app::quota_state::QuotaState`]),
+/// not the snapshot: settle writes each request's actual cost into these rows,
+/// and the snapshot only rebuilds on config invalidation, so reading spend
+/// there lets a key run arbitrarily far past its limit.
 pub(crate) async fn precheck_quota(
     plan: &QuotaPlan,
+    quotas: &QuotaTable,
     cache: &dyn CacheBackend,
     est_micros: i64,
     now_unix: i64,
@@ -255,10 +270,13 @@ pub(crate) async fn precheck_quota(
         let in_flight = in_flight
             .map_err(|_| PipelineError::CounterUnavailable)?
             .max(0);
+        // Deleted between plan and check → nothing left to enforce.
+        let Some(quota) = quotas.get(&(entry.scope, entry.scope_id)) else {
+            continue;
+        };
         let pending_cost = pending::micros_to_cost(in_flight);
         let projected_cost = pending::micros_to_cost(in_flight + est_micros.max(0));
         let exceeds = |used, limit| used + pending_cost >= limit || used + projected_cost > limit;
-        let quota = &entry.quota;
         let day_used = if quota.day_anchor == day_key {
             quota.day_used
         } else {
@@ -292,17 +310,9 @@ pub(crate) async fn precheck_quota(
 }
 
 pub(crate) fn prepare_quota(cp: &ControlPlaneSnapshot, identity: &KeyIdentity) -> QuotaPlan {
-    let entries = scopes(identity)
+    let entries = quota_scopes(cp, identity)
         .into_iter()
-        .filter_map(|(scope, scope_id)| {
-            cp.quotas_by_scope
-                .get(&(scope, scope_id))
-                .map(|quota| QuotaEntry {
-                    scope,
-                    scope_id,
-                    quota: Arc::clone(quota),
-                })
-        })
+        .map(|(scope, scope_id)| QuotaEntry { scope, scope_id })
         .collect();
     QuotaPlan { entries }
 }

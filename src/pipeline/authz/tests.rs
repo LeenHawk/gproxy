@@ -70,6 +70,55 @@ async fn org_level_grant_unions_down() {
     ));
 }
 
+/// Regression: `cost_used` is billing-owned — settle writes it on every
+/// request, and the control-plane snapshot only rebuilds on config
+/// invalidation, so its copy freezes. Reading spend from the snapshot let keys
+/// run hundreds of dollars past their limit without the gate ever tripping;
+/// the gate must judge on the live rows instead.
+#[tokio::test]
+async fn quota_gate_reads_live_rows_not_the_stale_snapshot() {
+    let identity = test_identity();
+    let mut cp = ControlPlaneSnapshot::empty(1);
+    let mut quota = Quota {
+        id: 1,
+        scope: Scope::User,
+        scope_id: 1,
+        quota_total: "10".parse().unwrap(),
+        quota_daily: None,
+        quota_weekly: None,
+        quota_monthly: None,
+        cost_used: "0".parse().unwrap(),
+        day_used: Default::default(),
+        day_anchor: 0,
+        week_used: Default::default(),
+        week_anchor: 0,
+        month_used: Default::default(),
+        month_anchor: 0,
+        created_at: 0,
+        updated_at: 0,
+    };
+    // Snapshot froze at boot, when nothing had been spent yet.
+    cp.quotas_by_scope
+        .insert((Scope::User, 1), Arc::new(quota.clone()));
+    let plan = prepare_quota(&cp, &identity);
+    let cache = MemoryCache::new();
+
+    // Live rows say the $10 budget is spent → refuse, despite the snapshot.
+    quota.cost_used = "10".parse().unwrap();
+    let live: QuotaTable = [((Scope::User, 1), Arc::new(quota))].into_iter().collect();
+    assert!(matches!(
+        precheck_quota(&plan, &live, &cache, 0, 0).await,
+        Err(PipelineError::QuotaExceeded)
+    ));
+    // Sanity: the same plan against the snapshot's own (stale) view admits —
+    // that divergence IS the bug.
+    assert!(
+        precheck_quota(&plan, &cp.quotas_by_scope, &cache, 0, 0)
+            .await
+            .is_ok()
+    );
+}
+
 #[tokio::test]
 async fn quota_admission_is_estimate_aware() {
     let identity = test_identity();
@@ -100,15 +149,23 @@ async fn quota_admission_is_estimate_aware() {
     let plan = prepare_quota(&cp, &identity);
 
     // An estimate that exactly fits the remainder is admitted.
-    assert!(precheck_quota(&plan, &cache, 1_000_000, 0).await.is_ok());
+    assert!(
+        precheck_quota(&plan, &cp.quotas_by_scope, &cache, 1_000_000, 0)
+            .await
+            .is_ok()
+    );
     // Regression: an estimate over the remainder is rejected up front
     // (previously admitted and blew through the quota).
     assert!(matches!(
-        precheck_quota(&plan, &cache, 1_000_001, 0).await,
+        precheck_quota(&plan, &cp.quotas_by_scope, &cache, 1_000_001, 0).await,
         Err(PipelineError::QuotaExceeded)
     ));
     // est = 0 reduces to the plain exhaustion check: remaining > 0 admits.
-    assert!(precheck_quota(&plan, &cache, 0, 0).await.is_ok());
+    assert!(
+        precheck_quota(&plan, &cp.quotas_by_scope, &cache, 0, 0)
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -138,16 +195,29 @@ async fn daily_quota_uses_only_the_current_window() {
     cp.quotas_by_scope
         .insert((Scope::User, 1), Arc::new(quota.clone()));
     assert!(matches!(
-        precheck_quota(&prepare_quota(&cp, &identity), &cache, 0, now).await,
+        precheck_quota(
+            &prepare_quota(&cp, &identity),
+            &cp.quotas_by_scope,
+            &cache,
+            0,
+            now
+        )
+        .await,
         Err(PipelineError::QuotaExceeded)
     ));
 
     quota.day_anchor -= 1;
     cp.quotas_by_scope.insert((Scope::User, 1), Arc::new(quota));
     assert!(
-        precheck_quota(&prepare_quota(&cp, &identity), &cache, 0, now)
-            .await
-            .is_ok()
+        precheck_quota(
+            &prepare_quota(&cp, &identity),
+            &cp.quotas_by_scope,
+            &cache,
+            0,
+            now
+        )
+        .await
+        .is_ok()
     );
 }
 

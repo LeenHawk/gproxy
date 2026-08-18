@@ -133,7 +133,7 @@ async fn counter_outage_fails_closed() {
         Err(PipelineError::CounterUnavailable)
     ));
     assert!(matches!(
-        precheck_quota(&quota, &DownCache, 0, 0).await,
+        precheck_quota(&quota, &cp.quotas_by_scope, &DownCache, 0, 0).await,
         Err(PipelineError::CounterUnavailable)
     ));
 }
