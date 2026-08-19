@@ -217,6 +217,16 @@ fn embeddings_default_to_unsupported() {
 }
 
 #[test]
+fn subscription_only_http_surfaces_default_to_passthrough() {
+    for operation in [Operation::WebSearch, Operation::CreateRealtimeCall] {
+        assert_eq!(
+            provider_route(operation, Provider::OpenAi),
+            RoutingDecision::Passthrough
+        );
+    }
+}
+
+#[test]
 fn prepare_responses_websocket_returns_custom_stream() {
     let secret = json!({ "access_token": "tok-abc" });
     let settings = json!({});

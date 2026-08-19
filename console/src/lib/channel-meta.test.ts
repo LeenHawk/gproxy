@@ -104,7 +104,7 @@ describe("built-in media endpoint fallback metadata", () => {
 
   it("keeps image and audio fallback declarations aligned", () => {
     expect(channelMeta("codex")?.endpointKinds).toEqual(expect.arrayContaining([
-      "image_generations", "image_edits",
+      "image_generations", "image_edits", "openai_search", "openai_realtime_call",
     ]));
     expect(channelMeta("custom")?.endpointKinds).toEqual(expect.arrayContaining([
       "openai_audio_speech", "openai_audio_transcriptions", "openai_audio_translations",

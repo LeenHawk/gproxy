@@ -124,6 +124,8 @@
       "image_edits": "Image edits",
       "openai_compact": "OpenAI compact",
       "openai_conversations": "OpenAI conversations",
+      "openai_search": "OpenAI standalone web search",
+      "openai_realtime_call": "OpenAI Realtime WebRTC call",
       "usage": "Usage",
       "rate_limit_reset": "Rate-limit reset"
     }

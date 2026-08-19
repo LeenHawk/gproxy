@@ -124,6 +124,8 @@
       "image_edits": "圖片編輯",
       "openai_compact": "OpenAI 壓縮",
       "openai_conversations": "OpenAI 對話",
+      "openai_search": "OpenAI 獨立網頁搜尋",
+      "openai_realtime_call": "OpenAI 即時 WebRTC 通話",
       "usage": "用量",
       "rate_limit_reset": "限流重設"
     }
