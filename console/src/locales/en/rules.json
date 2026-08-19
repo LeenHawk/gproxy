@@ -92,10 +92,12 @@
     "stream_generate_content": "Stream Generate Content",
     "create_image": "Create Image",
     "edit_image": "Edit Image",
+    "web_search": "Standalone Web Search",
     "create_embedding": "Create Embedding",
     "rerank": "Rerank",
     "compact_content": "Compact Content",
     "create_conversation": "Create Conversation",
+    "create_realtime_call": "Create Realtime Call",
     "connect_realtime": "Connect Realtime"
   },
   "implementation": {
