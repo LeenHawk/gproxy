@@ -6,9 +6,10 @@ use crate::store::persistence::libsql::util::{
     arg_bool, arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query, query_one,
 };
 use crate::store::persistence::records::{UserKey, UserKeyInput};
+use crate::util::api_key::KEY_DIGEST_VERSION;
 
-const COLS: &str = "id, user_id, api_key_ciphertext, api_key_digest, label, enabled, \
-     created_at, updated_at";
+const COLS: &str = "id, user_id, api_key_ciphertext, api_key_digest, \
+     api_key_digest_version, label, enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<UserKey> {
     Ok(UserKey {
@@ -16,10 +17,11 @@ fn decode(row: &Row) -> anyhow::Result<UserKey> {
         user_id: col_i64(row, 1)?,
         api_key_ciphertext: col_str(row, 2)?,
         api_key_digest: col_str(row, 3)?,
-        label: col_opt_str(row, 4)?,
-        enabled: col_bool(row, 5)?,
-        created_at: col_i64(row, 6)?,
-        updated_at: col_i64(row, 7)?,
+        api_key_digest_version: col_i64(row, 4)?,
+        label: col_opt_str(row, 5)?,
+        enabled: col_bool(row, 6)?,
+        created_at: col_i64(row, 7)?,
+        updated_at: col_i64(row, 8)?,
     })
 }
 
@@ -77,12 +79,13 @@ pub async fn upsert(client: &LibsqlClient, input: UserKeyInput) -> anyhow::Resul
         Some(id) if get(client, id).await?.is_some() => {
             client
                 .execute(
-                    "UPDATE user_keys SET user_id=?, api_key_ciphertext=?, api_key_digest=?, label=?, \
-                     enabled=?, updated_at=? WHERE id=?",
+                    "UPDATE user_keys SET user_id=?, api_key_ciphertext=?, api_key_digest=?, \
+                     api_key_digest_version=?, label=?, enabled=?, updated_at=? WHERE id=?",
                     &[
                         arg_integer(input.user_id),
                         arg_text(&input.api_key_ciphertext),
                         arg_text(&input.api_key_digest),
+                        arg_integer(KEY_DIGEST_VERSION),
                         arg_opt_text(input.label.as_deref()),
                         arg_bool(input.enabled),
                         arg_integer(now),
@@ -101,13 +104,14 @@ pub async fn upsert(client: &LibsqlClient, input: UserKeyInput) -> anyhow::Resul
             let qr = client
                 .execute(
                     "INSERT INTO user_keys \
-                     (id, user_id, api_key_ciphertext, api_key_digest, label, enabled, \
-                      created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                     (id, user_id, api_key_ciphertext, api_key_digest, api_key_digest_version, \
+                      label, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_integer(input.user_id),
                         arg_text(&input.api_key_ciphertext),
                         arg_text(&input.api_key_digest),
+                        arg_integer(KEY_DIGEST_VERSION),
                         arg_opt_text(input.label.as_deref()),
                         arg_bool(input.enabled),
                         arg_integer(now),
@@ -130,6 +134,28 @@ pub async fn upsert(client: &LibsqlClient, input: UserKeyInput) -> anyhow::Resul
     get(client, id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("user_key vanished after upsert"))
+}
+
+pub async fn update_digest(
+    client: &LibsqlClient,
+    id: i64,
+    digest: &str,
+    digest_version: i64,
+) -> anyhow::Result<()> {
+    let n = exec(
+        client,
+        "UPDATE user_keys SET api_key_digest = ?, api_key_digest_version = ? WHERE id = ?",
+        &[
+            arg_text(digest),
+            arg_integer(digest_version),
+            arg_integer(id),
+        ],
+    )
+    .await?;
+    if n == 0 {
+        anyhow::bail!("user key {id} vanished during digest migration");
+    }
+    Ok(())
 }
 
 pub async fn delete(client: &LibsqlClient, id: i64) -> anyhow::Result<bool> {

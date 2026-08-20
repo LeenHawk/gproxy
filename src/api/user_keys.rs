@@ -56,6 +56,25 @@ fn default_true() -> bool {
     true
 }
 
+/// Presentation/auth-mode prefix for a server-generated user key. The prefix
+/// is not part of key identity; `sk-X` and `at-X` hash to the same payload.
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UserKeyPrefix {
+    #[default]
+    Sk,
+    At,
+}
+
+impl UserKeyPrefix {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sk => "sk",
+            Self::At => "at",
+        }
+    }
+}
+
 /// Write-side user-key shape. `id = None` creates (the key material is
 /// GENERATED server-side), `Some(id)` updates label/enabled
 /// (key material is immutable — rotate by create + delete). `api_key` is kept
@@ -72,6 +91,9 @@ pub struct UserKeyUpsert {
     /// Rejected if present (400) — keys are server-generated.
     #[serde(default)]
     pub api_key: Option<String>,
+    /// Create-only key presentation prefix. Missing defaults to `sk`.
+    #[serde(default)]
+    pub prefix: Option<UserKeyPrefix>,
     #[serde(default)]
     pub label: Option<String>,
     #[serde(default = "default_true")]
@@ -93,6 +115,7 @@ mod tests {
             user_id: 3,
             api_key_ciphertext,
             api_key_digest: "1234567890abcdef".into(),
+            api_key_digest_version: 2,
             label: Some("test".into()),
             enabled: true,
             created_at: 1,

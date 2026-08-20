@@ -87,12 +87,19 @@ pub(super) async fn dispatch_user_keys(
                             .into(),
                     ));
                 }
+                if body.id.is_some() && body.prefix.is_some() {
+                    return Err(ApiError::BadRequest(
+                        "prefix is create-only: rotate the key to change its presentation prefix"
+                            .into(),
+                    ));
+                }
 
                 // Resolve (digest, ciphertext, bare) — mirrors native user_keys.rs.
                 let (digest, ciphertext, bare) = match body.id {
                     // Create → mint the key here (CSPRNG).
                     None => {
-                        let bare = crate::util::rand::api_key();
+                        let prefix = body.prefix.unwrap_or_default();
+                        let bare = crate::util::rand::api_key_with_prefix(prefix.as_str());
                         let digest = key_digest(&bare);
                         let sealed = state
                             .cipher

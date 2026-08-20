@@ -12,6 +12,7 @@ fn test_identity() -> KeyIdentity {
             user_id: 1,
             api_key_ciphertext: String::new(),
             api_key_digest: "d".into(),
+            api_key_digest_version: 2,
             label: None,
             enabled: true,
             created_at: 0,

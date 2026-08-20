@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   userKeysQuery, createUserKey, deleteUserKey, type UserView, type UserKeyView,
+  type UserKeyPrefix,
 } from "@/api/identity";
 import { ApiError } from "@/api/http";
 import { BatchToolbar } from "@/components/batch-toolbar";
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useBatch } from "@/hooks/use-batch";
 import { useUserKeyToggle } from "./use-user-key-toggle";
 
@@ -31,14 +33,16 @@ export function UserKeysTab({ user }: { user: UserView }) {
 
   const [generateOpen, setGenerateOpen] = useState(false);
   const [label, setLabel] = useState("");
+  const [prefix, setPrefix] = useState<UserKeyPrefix>("sk");
   const [deleteTarget, setDeleteTarget] = useState<UserKeyView | undefined>(undefined);
 
   const generate = useMutation({
-    mutationFn: () => createUserKey(user.id, { label: label.trim() || null, enabled: true }),
+    mutationFn: () => createUserKey(user.id, { label: label.trim() || null, enabled: true, prefix }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeysQuery(user.id).queryKey });
       setGenerateOpen(false);
       setLabel("");
+      setPrefix("sk");
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : String(error));
@@ -103,7 +107,7 @@ export function UserKeysTab({ user }: { user: UserView }) {
         <p className="text-xs text-muted-foreground">{t("keys.rotateHint")}</p>
         <div className="flex items-center gap-2">
           {!batch.mode && (
-            <Button onClick={() => { setLabel(""); setGenerateOpen(true); }}>
+            <Button onClick={() => { setLabel(""); setPrefix("sk"); setGenerateOpen(true); }}>
               <Plus className="size-4" aria-hidden />
               {t("keys.add")}
             </Button>
@@ -172,6 +176,16 @@ export function UserKeysTab({ user }: { user: UserView }) {
               onChange={(e) => setLabel(e.target.value)}
               placeholder={t("keys.label")}
             />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="key-prefix">{t("keys.prefix")}</Label>
+            <Select value={prefix} onValueChange={(value) => setPrefix(value as UserKeyPrefix)}>
+              <SelectTrigger id="key-prefix"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sk">{t("keys.prefixOptions.sk")}</SelectItem>
+                <SelectItem value="at">{t("keys.prefixOptions.at")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button type="submit" disabled={generate.isPending}>{t("keys.add")}</Button>
         </form>

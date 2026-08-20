@@ -28,5 +28,11 @@ pub trait IdentityPersistence {
     async fn get_user_key(&self, id: i64) -> anyhow::Result<Option<UserKey>>;
     async fn find_user_key_by_digest(&self, digest: &str) -> anyhow::Result<Option<UserKey>>;
     async fn upsert_user_key(&self, input: UserKeyInput) -> anyhow::Result<UserKey>;
+    async fn update_user_key_digest(
+        &self,
+        id: i64,
+        digest: &str,
+        digest_version: i64,
+    ) -> anyhow::Result<()>;
     async fn delete_user_key(&self, id: i64) -> anyhow::Result<bool>;
 }

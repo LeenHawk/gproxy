@@ -70,6 +70,14 @@ impl IdentityPersistence for LibsqlPersistence {
     async fn upsert_user_key(&self, input: UserKeyInput) -> anyhow::Result<UserKey> {
         identity::user_keys::upsert(&self.client, input).await
     }
+    async fn update_user_key_digest(
+        &self,
+        id: i64,
+        digest: &str,
+        digest_version: i64,
+    ) -> anyhow::Result<()> {
+        identity::user_keys::update_digest(&self.client, id, digest, digest_version).await
+    }
     async fn delete_user_key(&self, id: i64) -> anyhow::Result<bool> {
         identity::user_keys::delete(&self.client, id).await
     }

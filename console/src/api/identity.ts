@@ -8,7 +8,8 @@ export interface TeamInput { id?: number | null; org_id: number; name: string; e
 export interface UserView { id: number; name: string; org_id: number; team_id: number | null; has_password: boolean; enabled: boolean; is_admin: boolean; created_at: number; updated_at: number; }
 export interface UserUpsert { id?: number | null; name: string; org_id: number; team_id?: number | null; password?: string; enabled: boolean; is_admin: boolean; }
 export interface UserKeyView { id: number; user_id: number; label: string | null; enabled: boolean; api_key: string; }
-export interface UserKeyUpsert { id?: number | null; label?: string | null; enabled: boolean; }
+export type UserKeyPrefix = "sk" | "at";
+export interface UserKeyUpsert { id?: number | null; label?: string | null; enabled: boolean; prefix?: UserKeyPrefix; }
 
 export const orgsQuery = queryOptions({ queryKey: ["orgs"], queryFn: () => api<Org[]>("/admin/orgs") });
 export const orgQuery = (id: number) => queryOptions({ queryKey: ["orgs", id], queryFn: () => api<Org>(`/admin/orgs/${id}`) });

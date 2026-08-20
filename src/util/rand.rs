@@ -27,9 +27,15 @@ pub fn password() -> String {
 /// chars). Keys are generated server-side ONLY — the admin create endpoint
 /// never accepts caller key material (import is the sole external-key path).
 pub fn api_key() -> String {
+    api_key_with_prefix("sk")
+}
+
+/// A fresh user API key with a validated caller-selected presentation prefix.
+pub fn api_key_with_prefix(prefix: &str) -> String {
     use base64::Engine as _;
+    assert!(matches!(prefix, "sk" | "at"), "unsupported API-key prefix");
     format!(
-        "sk-{}",
+        "{prefix}-{}",
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes::<32>())
     )
 }

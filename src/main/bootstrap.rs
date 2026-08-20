@@ -152,6 +152,14 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
         "persistence backend: {} healthy",
         PersistenceBackend::kind(persistence.as_ref())
     );
+    let migrated_keys = gproxy::app::key_digest_migration::normalize_user_key_digests(
+        persistence.as_ref(),
+        cipher.as_ref(),
+    )
+    .await?;
+    if migrated_keys > 0 {
+        tracing::info!(migrated_keys, "normalized user API-key digests");
+    }
 
     // Config subcommands: import / export, then exit — no server started.
     match cli.command {

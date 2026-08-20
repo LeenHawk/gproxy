@@ -61,6 +61,16 @@ pub async fn init(
             .await
             .map_err(js_err)?,
     );
+    let cipher = crate::crypto::cipher_from_master_key(master_key.as_deref()).map_err(js_err)?;
+    let migrated_keys = crate::app::key_digest_migration::normalize_user_key_digests(
+        persistence.as_ref(),
+        cipher.as_ref(),
+    )
+    .await
+    .map_err(js_err)?;
+    if migrated_keys > 0 {
+        tracing::info!(migrated_keys, "normalized user API-key digests");
+    }
 
     let (cache, cache_cfg): (Arc<dyn CacheBackend>, CacheConfig) =
         match (upstash_url, upstash_token) {
@@ -149,7 +159,7 @@ pub async fn init(
         channels,
         // Host-supplied master key (base64) unseals stored secrets; absent →
         // NoopCipher (plaintext), for a plaintext-secret edge deployment.
-        crate::crypto::cipher_from_master_key(master_key.as_deref()).map_err(js_err)?,
+        cipher,
     ));
     Ok(())
 }

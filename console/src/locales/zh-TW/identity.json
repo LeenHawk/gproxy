@@ -28,7 +28,8 @@
   },
   "keys": {
     "title": "API 金鑰", "add": "產生金鑰", "empty": "尚無 API 金鑰。",
-    "label": "顯示名稱", "key": "API 金鑰", "enabled": "啟用", "enable": "啟用金鑰", "disable": "停用金鑰",
+    "label": "顯示名稱", "key": "API 金鑰", "prefix": "金鑰類型", "enabled": "啟用", "enable": "啟用金鑰", "disable": "停用金鑰",
+    "prefixOptions": { "sk": "標準 API 金鑰（sk-）", "at": "Codex PAT（at-）" },
     "delete": "刪除金鑰", "deleteConfirm": "刪除此 API 金鑰？使用它的用戶端將停止運作。",
     "rotateHint": "金鑰不可編輯——輪換請產生新金鑰後刪除舊金鑰。"
   },

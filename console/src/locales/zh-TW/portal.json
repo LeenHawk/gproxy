@@ -17,6 +17,8 @@
     "empty": "尚無 API 金鑰。",
     "label": "標籤",
     "key": "API 金鑰",
+    "prefix": "金鑰類型",
+    "prefixOptions": { "sk": "標準 API 金鑰（sk-）", "at": "Codex PAT（at-）" },
     "enabled": "已啟用",
     "disabled": "已停用",
     "enable": "啟用",

@@ -4,6 +4,7 @@ use sea_orm::ActiveValue::{NotSet, Set};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use crate::store::persistence::records::{UserKey, UserKeyInput};
+use crate::util::api_key::KEY_DIGEST_VERSION;
 
 use crate::store::persistence::db::entities::identity::user_key;
 
@@ -13,6 +14,7 @@ fn to_record(m: user_key::Model) -> UserKey {
         user_id: m.user_id,
         api_key_ciphertext: m.api_key_ciphertext,
         api_key_digest: m.api_key_digest,
+        api_key_digest_version: m.api_key_digest_version,
         label: m.label,
         enabled: m.enabled,
         created_at: m.created_at,
@@ -73,6 +75,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: UserKeyInput) -> anyhow::R
                 am.user_id = Set(input.user_id);
                 am.api_key_ciphertext = Set(input.api_key_ciphertext);
                 am.api_key_digest = Set(input.api_key_digest);
+                am.api_key_digest_version = Set(KEY_DIGEST_VERSION);
                 am.label = Set(input.label);
                 am.enabled = Set(input.enabled);
                 am.updated_at = Set(now);
@@ -86,6 +89,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: UserKeyInput) -> anyhow::R
                     user_id: Set(input.user_id),
                     api_key_ciphertext: Set(input.api_key_ciphertext),
                     api_key_digest: Set(input.api_key_digest),
+                    api_key_digest_version: Set(KEY_DIGEST_VERSION),
                     label: Set(input.label),
                     enabled: Set(input.enabled),
                     created_at: Set(now),
@@ -101,6 +105,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: UserKeyInput) -> anyhow::R
             user_id: Set(input.user_id),
             api_key_ciphertext: Set(input.api_key_ciphertext),
             api_key_digest: Set(input.api_key_digest),
+            api_key_digest_version: Set(KEY_DIGEST_VERSION),
             label: Set(input.label),
             enabled: Set(input.enabled),
             created_at: Set(now),
@@ -112,6 +117,22 @@ pub async fn upsert(conn: &DatabaseConnection, input: UserKeyInput) -> anyhow::R
     };
 
     Ok(to_record(model))
+}
+
+pub async fn update_digest(
+    conn: &DatabaseConnection,
+    id: i64,
+    digest: &str,
+    digest_version: i64,
+) -> anyhow::Result<()> {
+    let Some(existing) = user_key::Entity::find_by_id(id).one(conn).await? else {
+        anyhow::bail!("user key {id} vanished during digest migration");
+    };
+    let mut am: user_key::ActiveModel = existing.into();
+    am.api_key_digest = Set(digest.to_owned());
+    am.api_key_digest_version = Set(digest_version);
+    am.update(conn).await?;
+    Ok(())
 }
 
 pub async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> {

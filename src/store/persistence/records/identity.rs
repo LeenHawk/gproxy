@@ -113,6 +113,9 @@ pub struct UserKey {
     pub user_id: i64,
     pub api_key_ciphertext: String,
     pub api_key_digest: String,
+    /// Digest format: 1 hashes the complete legacy key; 2 hashes the payload
+    /// after removing a recognized `sk-` / `at-` presentation prefix.
+    pub api_key_digest_version: i64,
     pub label: Option<String>,
     pub enabled: bool,
     pub created_at: i64,
@@ -127,6 +130,7 @@ impl std::fmt::Debug for UserKey {
             .field("user_id", &self.user_id)
             .field("api_key_ciphertext", &"<redacted>")
             .field("api_key_digest", &self.api_key_digest)
+            .field("api_key_digest_version", &self.api_key_digest_version)
             .field("label", &self.label)
             .field("enabled", &self.enabled)
             .field("created_at", &self.created_at)

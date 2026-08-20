@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use http::HeaderMap;
 use http::header::AUTHORIZATION;
 
+pub const KEY_DIGEST_VERSION: i64 = 2;
+
 /// Extract the inbound API token. Accepts the four credential presentations a
 /// multi-protocol gateway sees, in priority order:
 /// 1. `Authorization: Bearer <tok>` (OpenAI; prefix stripped, ASCII case-insensitive)
@@ -45,9 +47,21 @@ pub fn extract_bearer(headers: &HeaderMap, query: Option<&str>) -> Option<String
     None
 }
 
-/// Digest used to index API-key identities: lowercase hex of `blake3(token)`.
+/// Identity-bearing key material. `sk-` and `at-` are presentation/auth-mode
+/// prefixes only, so both forms of the same payload resolve to one identity.
+pub fn key_payload(token: &str) -> &str {
+    token
+        .strip_prefix("sk-")
+        .or_else(|| token.strip_prefix("at-"))
+        .unwrap_or(token)
+}
+
+/// Digest used to index API-key identities: lowercase hex of the BLAKE3 hash
+/// of the prefix-free key payload.
 pub fn key_digest(bare_token: &str) -> String {
-    blake3::hash(bare_token.as_bytes()).to_hex().to_string()
+    blake3::hash(key_payload(bare_token).as_bytes())
+        .to_hex()
+        .to_string()
 }
 
 /// Verify an inbound API key against a digest-indexed identity map.

@@ -194,6 +194,7 @@ persistence_backend! {
     IdentityPersistence::get_user_key => get_user_key(id: i64) -> anyhow::Result<Option<UserKey>>;
     IdentityPersistence::find_user_key_by_digest => find_user_key_by_digest(digest: &str) -> anyhow::Result<Option<UserKey>>;
     IdentityPersistence::upsert_user_key => upsert_user_key(input: UserKeyInput) -> anyhow::Result<UserKey>;
+    IdentityPersistence::update_user_key_digest => update_user_key_digest(id: i64, digest: &str, digest_version: i64) -> anyhow::Result<()>;
     IdentityPersistence::delete_user_key => delete_user_key(id: i64) -> anyhow::Result<bool>;
 
     AuthzPersistence::list_route_permissions => list_route_permissions(scope: Scope, scope_id: i64) -> anyhow::Result<Vec<RoutePermission>>;
