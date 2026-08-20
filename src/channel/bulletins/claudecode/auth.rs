@@ -38,8 +38,8 @@ pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
 pub(super) const USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
 pub(super) const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.112";
 
-/// Match Claude Code's five-minute proactive refresh window.
-const EXPIRY_SKEW_MS: i64 = 300_000;
+/// Refresh OAuth access tokens thirty minutes before expiry.
+const EXPIRY_SKEW_MS: i64 = 30 * 60 * 1000;
 const PROJECT_SCOPES: [&str; 2] = ["user:projects:read", "user:projects:write"];
 
 /// Read a trimmed, non-empty string field from the secret.
