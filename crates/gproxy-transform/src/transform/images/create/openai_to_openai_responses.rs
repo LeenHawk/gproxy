@@ -56,12 +56,14 @@ pub fn response(
             openai::ResponseItem::Typed(openai::TypedResponseItem::ImageGenerationCall {
                 result,
                 ..
-            }) => Some(crate::protocol::wire!(openai::Image {
-                b64_json: Some(result),
-                revised_prompt: None,
-                url: None,
-                extra: Default::default(),
-            })),
+            }) => result.map(|result| {
+                crate::protocol::wire!(openai::Image {
+                    b64_json: Some(result),
+                    revised_prompt: None,
+                    url: None,
+                    extra: Default::default(),
+                })
+            }),
             _ => None,
         })
         .collect();

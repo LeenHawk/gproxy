@@ -160,7 +160,8 @@ pub enum TypedResponseItem {
     #[serde(rename = "image_generation_call")]
     ImageGenerationCall {
         id: String,
-        result: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<String>,
         status: ResponseImageGenerationCallStatus,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
