@@ -219,6 +219,38 @@ export function perMillion(value) {
   return decimal ? `${integer}.${decimal}` : integer;
 }
 
+function metricRate(metric, unit, value, sortOrder) {
+  if (value == null || value === "0") return null;
+  if (typeof value !== "string" || !DECIMAL.test(value)) {
+    throw new Error(`invalid ${metric} price: ${String(value)}`);
+  }
+  return {
+    metric,
+    unit,
+    unit_size: 1,
+    price_usd: value,
+    conditions_json: null,
+    sort_order: sortOrder,
+  };
+}
+
+function modelRates(pricing, author) {
+  return [
+    metricRate("input_tokens", "token", pricing.prompt, 0),
+    metricRate("output_tokens", "token", pricing.completion, 1),
+    metricRate("cache_read_tokens", "token", pricing.input_cache_read, 2),
+    metricRate(author === "openai" ? "cache_creation_30m_tokens" : "cache_creation_5m_tokens", "token", pricing.input_cache_write, 3),
+    metricRate("cache_creation_1h_tokens", "token", pricing.input_cache_write_1h, 4),
+    metricRate("image_output_tokens", "token", pricing.image_output, 5),
+    metricRate("audio_input_tokens", "token", pricing.audio, 6),
+    metricRate("audio_output_tokens", "token", pricing.audio_output, 7),
+    metricRate("cached_audio_input_tokens", "token", pricing.input_audio_cache, 8),
+    metricRate("image_inputs", "image", pricing.image, 10),
+    metricRate("web_searches", "request", pricing.web_search, 11),
+    metricRate("request", "request", pricing.request, 12),
+  ].filter(Boolean);
+}
+
 export function buildPriceBundle(payload) {
   if (!payload || !Array.isArray(payload.data)) {
     throw new Error("OpenRouter response does not contain a data array");
@@ -306,6 +338,7 @@ export function buildPriceBundle(payload) {
       // input-image or flat-image rate depending on the upstream model.
       image_output_price: perMillion(pricing.image_output),
       pricing_tiers_json: pricingTiers?.length ? pricingTiers : null,
+      rates: modelRates(pricing, author),
       enabled: true,
     });
   }

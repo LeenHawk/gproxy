@@ -19,6 +19,7 @@ pub struct Pricing {
     /// Normalized request service/speed tier used to select a modifier.
     pub service_tier: Option<String>,
     pub tiers: Vec<PricingTier>,
+    pub metric_rates: Vec<crate::store::persistence::records::PriceRate>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -51,16 +52,30 @@ impl Pricing {
 /// Build [`Pricing`] from a structured price rule. All prices are per
 /// 1,000,000 tokens.
 pub fn pricing_from_rule(rule: &PriceRule) -> Pricing {
+    let rates = rule.effective_rates();
+    let rate = |metric: &str, fallback: Decimal| {
+        rates
+            .iter()
+            .enumerate()
+            .filter(|(_, rate)| rate.metric == metric && rate.conditions_json.is_none())
+            .max_by_key(|(index, rate)| (rate.sort_order, *index))
+            .map(|(_, rate)| rate)
+            .map(|rate| {
+                rate.price_usd * Decimal::from(1_000_000u64) / Decimal::from(rate.unit_size)
+            })
+            .unwrap_or(fallback)
+    };
     Pricing {
-        input: rule.input_price,
-        output: rule.output_price,
-        cache_read: rule.cache_read_price,
-        cache_creation_5m: rule.cache_creation_5m_price,
-        cache_creation_30m: rule.cache_creation_30m_price,
-        cache_creation_1h: rule.cache_creation_1h_price,
-        image_output: rule.image_output_price,
+        input: rate("input_tokens", rule.input_price),
+        output: rate("output_tokens", rule.output_price),
+        cache_read: rate("cache_read_tokens", rule.cache_read_price),
+        cache_creation_5m: rate("cache_creation_5m_tokens", rule.cache_creation_5m_price),
+        cache_creation_30m: rate("cache_creation_30m_tokens", rule.cache_creation_30m_price),
+        cache_creation_1h: rate("cache_creation_1h_tokens", rule.cache_creation_1h_price),
+        image_output: rate("image_output_tokens", rule.image_output_price),
         service_tier: None,
         tiers: parse_tiers(rule.pricing_tiers_json.as_ref()),
+        metric_rates: rates,
     }
 }
 
@@ -210,17 +225,156 @@ pub fn cost(u: &NormalizedUsage, p: &Pricing) -> Decimal {
                     .unwrap_or(Decimal::ONE)
         })
     };
-    (Decimal::from(u.input) * rate(p.input, |tier| tier.input)
-        + Decimal::from(u.output) * rate(p.output, |tier| tier.output)
-        + Decimal::from(u.cache_read) * rate(p.cache_read, |tier| tier.cache_read)
+    let metric_price = |metric: &str, fallback: Decimal| {
+        selected_metric_rate(metric, u, p)
+            .map(|selected| selected.price_usd * million / Decimal::from(selected.unit_size.max(1)))
+            .unwrap_or(fallback)
+    };
+    let token_cost = (Decimal::from(u.input)
+        * rate(metric_price("input_tokens", p.input), |tier| tier.input)
+        + Decimal::from(u.output)
+            * rate(metric_price("output_tokens", p.output), |tier| tier.output)
+        + Decimal::from(u.cache_read)
+            * rate(metric_price("cache_read_tokens", p.cache_read), |tier| {
+                tier.cache_read
+            })
         + Decimal::from(u.cache_creation_5m)
-            * rate(p.cache_creation_5m, |tier| tier.cache_creation_5m)
+            * rate(
+                metric_price("cache_creation_5m_tokens", p.cache_creation_5m),
+                |tier| tier.cache_creation_5m,
+            )
         + Decimal::from(u.cache_creation_30m)
-            * rate(p.cache_creation_30m, |tier| tier.cache_creation_30m)
+            * rate(
+                metric_price("cache_creation_30m_tokens", p.cache_creation_30m),
+                |tier| tier.cache_creation_30m,
+            )
         + Decimal::from(u.cache_creation_1h)
-            * rate(p.cache_creation_1h, |tier| tier.cache_creation_1h)
-        + Decimal::from(u.image_output) * rate(p.image_output, |tier| tier.image_output))
-        / million
+            * rate(
+                metric_price("cache_creation_1h_tokens", p.cache_creation_1h),
+                |tier| tier.cache_creation_1h,
+            )
+        + Decimal::from(u.image_output)
+            * rate(
+                metric_price("image_output_tokens", p.image_output),
+                |tier| tier.image_output,
+            ))
+        / million;
+    let mut dimensional = Decimal::ZERO;
+    let mut minimum = Decimal::ZERO;
+    let mut metrics: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for item in &p.metric_rates {
+        if token_metric(&item.metric) || !metrics.insert(&item.metric) {
+            continue;
+        }
+        let Some(item) = selected_metric_rate(&item.metric, u, p) else {
+            continue;
+        };
+        if item.metric == "minimum_cost" {
+            minimum = minimum.max(item.price_usd);
+            continue;
+        }
+        let quantity = if item.metric == "request" {
+            Decimal::ONE
+        } else {
+            u.metric(&item.metric)
+        };
+        if quantity > Decimal::ZERO && item.unit_size > 0 {
+            dimensional += quantity * item.price_usd / Decimal::from(item.unit_size);
+        }
+    }
+    (token_cost + dimensional).max(minimum)
+}
+
+fn selected_metric_rate<'a>(
+    metric: &str,
+    usage: &NormalizedUsage,
+    pricing: &'a Pricing,
+) -> Option<&'a crate::store::persistence::records::PriceRate> {
+    pricing
+        .metric_rates
+        .iter()
+        .enumerate()
+        .filter(|(_, rate)| rate.metric == metric && rate_conditions_match(rate, usage, pricing))
+        .max_by_key(|(index, rate)| (rate.sort_order, *index))
+        .map(|(_, rate)| rate)
+}
+
+fn token_metric(metric: &str) -> bool {
+    matches!(
+        metric,
+        "input_tokens"
+            | "output_tokens"
+            | "cache_read_tokens"
+            | "cache_creation_5m_tokens"
+            | "cache_creation_30m_tokens"
+            | "cache_creation_1h_tokens"
+            | "image_output_tokens"
+    )
+}
+
+fn rate_conditions_match(
+    rate: &crate::store::persistence::records::PriceRate,
+    usage: &NormalizedUsage,
+    pricing: &Pricing,
+) -> bool {
+    let Some(conditions) = rate
+        .conditions_json
+        .as_ref()
+        .and_then(serde_json::Value::as_object)
+    else {
+        return true;
+    };
+    for (key, expected) in conditions {
+        if key == "service_tier" {
+            if expected.as_str() != pricing.service_tier.as_deref() {
+                return false;
+            }
+        } else if key == "min_prompt_tokens" {
+            if expected.as_u64().is_some_and(|minimum| {
+                usage.input + usage.cache_read + usage.cache_creation() <= minimum
+            }) {
+                return false;
+            }
+        } else if key == "utc_start" || key == "utc_end" {
+            let start = conditions
+                .get("utc_start")
+                .and_then(serde_json::Value::as_u64);
+            let end = conditions
+                .get("utc_end")
+                .and_then(serde_json::Value::as_u64);
+            if key == "utc_start" && !utc_window_matches(start, end) {
+                return false;
+            }
+        } else {
+            let expected = match expected {
+                serde_json::Value::String(value) => Some(value.clone()),
+                serde_json::Value::Bool(value) => Some(value.to_string()),
+                serde_json::Value::Number(value) => Some(value.to_string()),
+                _ => None,
+            };
+            if let Some(expected) = expected
+                && usage.dimensions.get(key) != Some(&expected)
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn utc_window_matches(start: Option<u64>, end: Option<u64>) -> bool {
+    let (Some(start), Some(end)) = (start, end) else {
+        return true;
+    };
+    let clock_minutes = |hhmm: u64| (hhmm / 100) * 60 + hhmm % 100;
+    let start = clock_minutes(start);
+    let end = clock_minutes(end);
+    let now = crate::util::time::unix_now().rem_euclid(86_400) as u64 / 60;
+    if start <= end {
+        now >= start && now < end
+    } else {
+        now >= start || now < end
+    }
 }
 
 #[cfg(test)]
@@ -242,6 +396,7 @@ mod tests {
             cache_creation_1h_price: Decimal::from(6),
             image_output_price: Decimal::from(40),
             pricing_tiers_json: None,
+            rates: Vec::new(),
             enabled: true,
             created_at: 0,
             updated_at: 0,
@@ -265,6 +420,7 @@ mod tests {
             cache_creation_1h: 300,
             image_output: 100,
             reasoning: 0,
+            ..Default::default()
         };
         let expected: Decimal = "0.04555".parse().unwrap();
         assert_eq!(cost(&u, &p), expected);
@@ -362,6 +518,7 @@ mod tests {
             pricing_tiers_json: Some(serde_json::json!([
                 {"service_tier": "Ultra-Fast", "multiplier": "4"}
             ])),
+            rates: Vec::new(),
             enabled: true,
             created_at: 0,
             updated_at: 0,
@@ -388,6 +545,44 @@ mod tests {
             Some("priority")
         );
         assert_eq!(request_service_tier(b"not json"), None);
+    }
+
+    #[test]
+    fn independent_metric_rates_add_media_and_request_costs() {
+        use crate::store::persistence::records::PriceRate;
+        let pricing = Pricing {
+            metric_rates: vec![
+                PriceRate {
+                    metric: "audio_seconds".into(),
+                    unit: "second".into(),
+                    unit_size: 1,
+                    price_usd: "0.005".parse().unwrap(),
+                    conditions_json: None,
+                    sort_order: 0,
+                },
+                PriceRate {
+                    metric: "audio_seconds".into(),
+                    unit: "second".into(),
+                    unit_size: 1,
+                    price_usd: "0.01".parse().unwrap(),
+                    conditions_json: Some(serde_json::json!({"quality": "hd"})),
+                    sort_order: 1,
+                },
+                PriceRate {
+                    metric: "request".into(),
+                    unit: "request".into(),
+                    unit_size: 1,
+                    price_usd: "0.002".parse().unwrap(),
+                    conditions_json: None,
+                    sort_order: 2,
+                },
+            ],
+            ..Default::default()
+        };
+        let mut usage = NormalizedUsage::default();
+        usage.set_metric("audio_seconds", Decimal::from(12));
+        usage.dimensions.insert("quality".into(), "hd".into());
+        assert_eq!(cost(&usage, &pricing), "0.122".parse().unwrap());
     }
 
     #[test]

@@ -431,7 +431,6 @@ pub async fn run_failover(
             }
             let Materialized {
                 body,
-                settle,
                 provider_settle,
                 ..
             } = mat?;
@@ -441,17 +440,11 @@ pub async fn run_failover(
                 balance::record_media_response(state.cache.as_ref(), ctx, response_body, cand)
                     .await;
             }
-            if let Some(s) = settle {
-                // §17: settle (usage extract + reconcile + usage INSERT) must
-                // not delay the client-visible response — detach it, mirroring
-                // the streaming StreamGuard. wasm has no detached tasks, so the
-                // inline await is the platform cost there.
-                #[cfg(not(target_arch = "wasm32"))]
-                tokio::spawn(async move { settle::settle_body(s.ctx, &s.body, s.stream).await });
-                #[cfg(target_arch = "wasm32")]
-                settle::settle_body(s.ctx, &s.body, s.stream).await;
-            }
-            if plan.is_transform() || plan.is_aggregate_stream() {
+            if plan.is_transform()
+                || plan.is_aggregate_stream()
+                || (status.is_success()
+                    && (usage_kind.is_some() || settle::provider::billable(ctx.op)))
+            {
                 // converted bytes no longer match the upstream framing
                 headers.remove(http::header::CONTENT_LENGTH);
             }
@@ -496,8 +489,9 @@ pub async fn run_failover(
                 }
                 _ => None,
             };
-            let body = match (provider_stream_family, body) {
+            let mut body = match (provider_stream_family, body) {
                 (Some(family), ResponseBody::Stream(stream)) => {
+                    let signal = settle::SettlementSignal::default();
                     let guard = settle::provider::StreamGuard::new(
                         state,
                         ctx,
@@ -505,9 +499,15 @@ pub async fn run_failover(
                         family,
                         actual_service_tier.as_deref(),
                     );
-                    ResponseBody::Stream(
-                        crate::pipeline::stream::instrument_provider_settle_stream(stream, guard),
-                    )
+                    let stream = crate::pipeline::stream::instrument_provider_settle_stream(
+                        stream,
+                        guard,
+                        signal.clone(),
+                    );
+                    ResponseBody::Stream(match ctx.op {
+                        Some(op) => settle::response_cost::inject_stream(stream, op, signal),
+                        None => stream,
+                    })
                 }
                 (_, body) => body,
             };
@@ -529,10 +529,16 @@ pub async fn run_failover(
                     Some((body.clone(), family))
                 });
             if status.is_success()
-                && settle::provider::billable(ctx.op)
+                && settle::provider::should_settle(
+                    ctx.op,
+                    provider_usage
+                        .as_ref()
+                        .map(|(body, _)| body.as_ref())
+                        .unwrap_or_default(),
+                )
                 && let Some((provider_body, usage_family)) = provider_usage
             {
-                settle::provider::schedule(
+                let settlement = settle::provider::settle(
                     state,
                     ctx,
                     cand,
@@ -541,6 +547,11 @@ pub async fn run_failover(
                     actual_service_tier.as_deref(),
                 )
                 .await;
+                if let ResponseBody::Full(full) = &mut body
+                    && let Some(op) = ctx.op
+                {
+                    *full = settle::response_cost::inject_full(full.clone(), op, &settlement);
+                }
             }
             sanitize_public_upstream_headers(ctx, &mut headers);
             return Ok(ExecOutcome {

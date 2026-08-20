@@ -23,14 +23,7 @@ use crate::protocol::ContentGenerationKind;
 pub(in crate::pipeline::failover) struct Materialized {
     pub body: ResponseBody,
     pub upstream_raw: Option<Bytes>,
-    pub settle: Option<BufferedSettle>,
     pub provider_settle: Option<ProviderSettle>,
-}
-
-pub(in crate::pipeline::failover) struct BufferedSettle {
-    pub ctx: settle::SettleCtx,
-    pub body: Bytes,
-    pub stream: bool,
 }
 
 pub(in crate::pipeline::failover) struct ProviderSettle {
@@ -110,12 +103,12 @@ pub(in crate::pipeline::failover) async fn materialize(
             } else {
                 None
             };
-            let settle_stream = plan.settle_stream(ctx);
-            let settle = settle_ctx.map(|settle_ctx| BufferedSettle {
-                ctx: settle_ctx,
-                body: b.clone(),
-                stream: settle_stream,
-            });
+            let settlement = match settle_ctx {
+                Some(settle_ctx) => {
+                    Some(settle::settle_body(settle_ctx, &b, plan.settle_stream(ctx)).await)
+                }
+                None => None,
+            };
             // A force-streamed image call collapses into a provider-native
             // Responses object before it is transformed back to the Images
             // response returned to the client. Preserve that object for
@@ -144,16 +137,25 @@ pub(in crate::pipeline::failover) async fn materialize(
                     _ => unreachable!("new non-exhaustive protocol variant requires a lockstep transform update"),
 },
                 });
-            let body = match aggregate {
+            let mut body = match aggregate {
                 Some(aggregate) => {
                     ResponseBody::Full(transform_step::aggregate_response_body(plan, aggregate)?)
                 }
                 None => materialize_buffered(plan, ctx, status, b)?,
             };
+            if let (Some(settlement), ResponseBody::Full(full)) = (settlement.as_ref(), &mut body)
+                && let Some(op) = ctx.op
+            {
+                *full = if ctx.stream && (full.starts_with(b"data:") || full.starts_with(b"event:"))
+                {
+                    settle::response_cost::inject_buffered_stream(full.clone(), op, settlement)
+                } else {
+                    settle::response_cost::inject_full(full.clone(), op, settlement)
+                };
+            }
             Ok(Materialized {
                 body,
                 upstream_raw,
-                settle,
                 provider_settle,
             })
         }
@@ -172,7 +174,6 @@ pub(in crate::pipeline::failover) async fn materialize(
                 return Ok(Materialized {
                     body: ResponseBody::Stream(st),
                     upstream_raw: None,
-                    settle: None,
                     provider_settle: None,
                 });
             }
@@ -203,12 +204,17 @@ pub(in crate::pipeline::failover) async fn materialize(
                 Some(dec) => crate::pipeline::stream::channel_decode_stream(st, dec),
                 None => st,
             };
-            let st = match settle_ctx {
-                Some(ctx) => crate::pipeline::stream::instrument_settle_stream(
-                    st,
-                    settle::StreamGuard::new(ctx),
-                ),
-                None => st,
+            let (st, settlement_signal) = match settle_ctx {
+                Some(settle_ctx) => {
+                    let signal = settle::SettlementSignal::default();
+                    let stream = crate::pipeline::stream::instrument_settle_stream(
+                        st,
+                        settle::StreamGuard::new(settle_ctx),
+                        signal.clone(),
+                    );
+                    (stream, Some(signal))
+                }
+                None => (st, None),
             };
             // Tee the post-decode (provider-native) bytes for upstream logging
             // BEFORE any cross-protocol transform.
@@ -240,7 +246,6 @@ pub(in crate::pipeline::failover) async fn materialize(
                 return Ok(Materialized {
                     body: ResponseBody::Full(transform_step::aggregate_response_body(plan, agg)?),
                     upstream_raw: None,
-                    settle: None,
                     provider_settle,
                 });
             }
@@ -250,10 +255,15 @@ pub(in crate::pipeline::failover) async fn materialize(
                     ResponseBody::Stream(crate::pipeline::stream::transform_byte_stream(st, t))
                 }
             };
+            let body = match (body, settlement_signal, ctx.op) {
+                (ResponseBody::Stream(stream), Some(signal), Some(op)) => {
+                    ResponseBody::Stream(settle::response_cost::inject_stream(stream, op, signal))
+                }
+                (body, _, _) => body,
+            };
             Ok(Materialized {
                 body,
                 upstream_raw: None,
-                settle: None,
                 provider_settle: None,
             })
         }

@@ -3,20 +3,34 @@ use serde_json::Value;
 use super::{field, frame_json, numeric};
 use crate::transform::common::sse::SseFrame;
 use crate::usage::NormalizedUsage;
+use rust_decimal::Decimal;
+use std::str::FromStr as _;
 
 /// Extract token-billed transcription usage. Duration-billed Whisper usage is
 /// intentionally not projected into tokens.
 pub fn from_transcription_response(body: &Value) -> Option<NormalizedUsage> {
     let usage = body.get("usage").filter(|usage| usage.is_object())?;
     let usage_type = usage.get("type").and_then(Value::as_str);
-    (usage_type != Some("duration")
+    let tokens = usage_type != Some("duration")
         && numeric(usage, "input_tokens")
-        && numeric(usage, "output_tokens"))
-    .then(|| NormalizedUsage {
+        && numeric(usage, "output_tokens");
+    let seconds = usage.get("seconds").and_then(|value| {
+        value
+            .as_number()
+            .and_then(|number| Decimal::from_str(&number.to_string()).ok())
+    });
+    if !tokens && seconds.is_none() {
+        return None;
+    }
+    let mut normalized = NormalizedUsage {
         input: field(usage, "input_tokens"),
         output: field(usage, "output_tokens"),
         ..Default::default()
-    })
+    };
+    if let Some(seconds) = seconds {
+        normalized.set_metric("audio_seconds", seconds);
+    }
+    Some(normalized)
 }
 
 pub fn from_transcription_stream_frames(frames: &[SseFrame]) -> Option<NormalizedUsage> {
@@ -52,11 +66,10 @@ mod tests {
         let usage = from_transcription_stream_frames(&frames).unwrap();
         assert_eq!((usage.input, usage.output), (7, 3));
 
-        assert!(
-            from_transcription_response(&json!({
-                "usage": {"type": "duration", "seconds": 9}
-            }))
-            .is_none()
-        );
+        let duration = from_transcription_response(&json!({
+            "usage": {"type": "duration", "seconds": 9}
+        }))
+        .expect("duration usage");
+        assert_eq!(duration.metric("audio_seconds"), Decimal::from(9));
     }
 }

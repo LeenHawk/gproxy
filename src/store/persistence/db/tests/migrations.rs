@@ -539,6 +539,7 @@ async fn repairs_old_price_rules_rates_json_table() {
             cache_creation_1h_price: Decimal::ZERO,
             image_output_price: Decimal::ZERO,
             pricing_tiers_json: Some(pricing_tiers_json.clone()),
+            rates: Vec::new(),
             enabled: true,
         })
         .await
@@ -547,6 +548,9 @@ async fn repairs_old_price_rules_rates_json_table() {
         inserted.pricing_tiers_json,
         Some(pricing_tiers_json.clone())
     );
+    assert_eq!(inserted.rates.len(), 7);
+    assert_eq!(inserted.rates[0].metric, "input_tokens");
+    assert_eq!(inserted.rates[0].unit_size, 1_000_000);
     let rules = db.list_price_rules().await.expect("after insert");
     assert_eq!(rules.len(), 2);
     assert_eq!(rules[1].pricing_tiers_json, Some(pricing_tiers_json));

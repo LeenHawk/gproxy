@@ -1,5 +1,6 @@
 //! Unit tests for §8-C authz (split out to keep `authz.rs` within size limits).
 
+use rust_decimal::Decimal;
 use std::sync::Arc;
 
 use super::*;

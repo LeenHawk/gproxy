@@ -92,6 +92,12 @@ pub async fn record_success(
         cache_creation_5m_tokens: tok(rec.usage.cache_creation_5m),
         cache_creation_30m_tokens: tok(rec.usage.cache_creation_30m),
         cache_creation_1h_tokens: tok(rec.usage.cache_creation_1h),
+        metrics_json: serde_json::json!({
+            "quantities": rec.usage.metrics.iter().map(|(key, value)| {
+                (key.clone(), serde_json::Value::String(value.normalize().to_string()))
+            }).collect::<serde_json::Map<_, _>>(),
+            "dimensions": rec.usage.dimensions,
+        }),
         cost: rec.cost,
         latency_ms: rec.latency_ms,
         usage_source: rec.source.as_str().to_owned(),

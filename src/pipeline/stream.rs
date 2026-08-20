@@ -3,7 +3,7 @@
 
 use crate::http::client::{ByteStreamDecoder, RespStream};
 use crate::pipeline::outcome::ByteStream;
-use crate::pipeline::settle::StreamGuard;
+use crate::pipeline::settle::{SettlementSignal, StreamGuard};
 use crate::transform::stream_adapter::SseTransformer;
 #[cfg(not(target_arch = "wasm32"))]
 use tracing::Instrument as _;
@@ -336,12 +336,17 @@ pub fn channel_decode_stream(s: RespStream, decoder: Box<dyn ByteStreamDecoder>)
 /// Tee provider-native chunks into the §17 settlement guard while passing them
 /// through unchanged. This is spliced after channel shaping/response rules and
 /// before any protocol transform, so usage is extracted from upstream semantics.
-pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream {
+pub fn instrument_settle_stream(
+    s: ByteStream,
+    guard: StreamGuard,
+    signal: SettlementSignal,
+) -> ByteStream {
     use futures_util::StreamExt;
 
     struct State {
         inner: Option<ByteStream>,
         guard: Option<StreamGuard>,
+        signal: SettlementSignal,
         request_id: String,
     }
 
@@ -350,6 +355,7 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
         State {
             inner: Some(s),
             guard: Some(guard),
+            signal,
             request_id,
         },
         |mut st| async move {
@@ -374,7 +380,8 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
                 None => {
                     st.inner = None;
                     if let Some(g) = st.guard.take() {
-                        finish_stream_guard(g).await;
+                        let settlement = g.finish_inline().await;
+                        st.signal.publish(settlement);
                     }
                     None
                 }
@@ -388,12 +395,14 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
 pub(crate) fn instrument_provider_settle_stream(
     s: ByteStream,
     guard: crate::pipeline::settle::provider::StreamGuard,
+    signal: SettlementSignal,
 ) -> ByteStream {
     use futures_util::StreamExt;
 
     struct State {
         inner: Option<ByteStream>,
         guard: Option<crate::pipeline::settle::provider::StreamGuard>,
+        signal: SettlementSignal,
         request_id: String,
     }
 
@@ -402,6 +411,7 @@ pub(crate) fn instrument_provider_settle_stream(
         State {
             inner: Some(s),
             guard: Some(guard),
+            signal,
             request_id,
         },
         |mut state| async move {
@@ -426,33 +436,14 @@ pub(crate) fn instrument_provider_settle_stream(
                 None => {
                     state.inner = None;
                     if let Some(guard) = state.guard.take() {
-                        finish_provider_stream_guard(guard).await;
+                        let settlement = guard.finish_inline().await;
+                        state.signal.publish(settlement);
                     }
                     None
                 }
             }
         },
     ))
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn finish_provider_stream_guard(guard: crate::pipeline::settle::provider::StreamGuard) {
-    guard.finish();
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn finish_provider_stream_guard(guard: crate::pipeline::settle::provider::StreamGuard) {
-    guard.finish().await;
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn finish_stream_guard(guard: StreamGuard) {
-    guard.finish();
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn finish_stream_guard(guard: StreamGuard) {
-    guard.finish().await;
 }
 
 /// Convert a mid-stream transport error into one protocol-shaped downstream

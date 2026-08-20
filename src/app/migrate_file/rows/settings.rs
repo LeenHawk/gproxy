@@ -53,6 +53,7 @@ impl From<LegacyPriceRule> for PriceRuleInput {
             cache_creation_1h_price: x.cache_creation_1h_price,
             image_output_price: x.image_output_price,
             pricing_tiers_json: x.pricing_tiers_json,
+            rates: Vec::new(),
             enabled: x.enabled,
         }
     }

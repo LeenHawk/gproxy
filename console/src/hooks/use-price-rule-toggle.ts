@@ -21,6 +21,7 @@ export function usePriceRuleToggle() {
         cache_creation_1h_price: rule.cache_creation_1h_price,
         image_output_price: rule.image_output_price,
         pricing_tiers_json: rule.pricing_tiers_json,
+        rates: rule.rates,
         enabled,
       }),
     onMutate: async ({ rule, enabled }) => {

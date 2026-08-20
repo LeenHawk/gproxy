@@ -23,6 +23,10 @@ export interface Usage {
   cache_creation_5m_tokens: number;
   cache_creation_30m_tokens: number;
   cache_creation_1h_tokens: number;
+  metrics_json?: {
+    quantities?: Record<string, string>;
+    dimensions?: Record<string, string>;
+  };
   cost: string;
   latency_ms: number;
   usage_source: string;

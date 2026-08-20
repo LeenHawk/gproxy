@@ -3,14 +3,17 @@
 
 pub mod extract;
 
+use std::collections::BTreeMap;
 use std::fmt;
+
+use rust_decimal::Decimal;
 
 /// Canonical token usage, normalized across provider families.
 ///
 /// `input` counts only NON-cached input tokens; cache reads/creations are
 /// recorded in their own columns. Upstream-reported totals are never trusted —
 /// [`NormalizedUsage::total`] recomputes from the parts.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NormalizedUsage {
     pub input: u64,
     pub output: u64,
@@ -23,6 +26,12 @@ pub struct NormalizedUsage {
     pub cache_creation_1h: u64,
     /// Informational subset of `output` (already billed there).
     pub reasoning: u64,
+    /// Non-token billable quantities (seconds, characters, requests, images,
+    /// search units, video tokens, and future provider metrics).
+    pub metrics: BTreeMap<String, Decimal>,
+    /// Conditions used to select dimensional rates (resolution, mode, audio,
+    /// provider SKU, and similar categorical attributes).
+    pub dimensions: BTreeMap<String, String>,
 }
 
 impl NormalizedUsage {
@@ -32,6 +41,14 @@ impl NormalizedUsage {
 
     pub fn total(&self) -> u64 {
         self.input + self.output + self.image_output + self.cache_read + self.cache_creation()
+    }
+
+    pub fn metric(&self, name: &str) -> Decimal {
+        self.metrics.get(name).copied().unwrap_or(Decimal::ZERO)
+    }
+
+    pub fn set_metric(&mut self, name: impl Into<String>, quantity: Decimal) {
+        self.metrics.insert(name.into(), quantity);
     }
 }
 

@@ -61,6 +61,9 @@ pub fn from_image_response(family: Provider, body: &Value) -> Option<NormalizedU
             normalized.output = 0;
         }
     }
+    if let Some(count) = body.get("data").and_then(Value::as_array).map(Vec::len) {
+        normalized.set_metric("image_outputs", rust_decimal::Decimal::from(count));
+    }
     Some(normalized)
 }
 
@@ -71,17 +74,19 @@ pub fn from_image_response(family: Provider, body: &Value) -> Option<NormalizedU
 /// aggregate as input usage. Prefer the ordinary OpenAI aliases when a
 /// compatible backend provides a more detailed shape.
 pub fn from_rerank_response(family: Provider, body: &Value) -> Option<NormalizedUsage> {
-    if let Some(usage) = from_response(family, body) {
-        return Some(usage);
+    let usage_value = body.get("usage").filter(|usage| usage.is_object())?;
+    let mut normalized = from_response(family, body).or_else(|| {
+        (family == Provider::OpenAi && numeric(usage_value, "total_tokens")).then(|| {
+            NormalizedUsage {
+                input: field(usage_value, "total_tokens"),
+                ..Default::default()
+            }
+        })
+    })?;
+    if let Some(search_units) = usage_value.get("search_units").and_then(Value::as_u64) {
+        normalized.set_metric("search_units", rust_decimal::Decimal::from(search_units));
     }
-    if family != Provider::OpenAi {
-        return None;
-    }
-    let usage = body.get("usage").filter(|usage| usage.is_object())?;
-    numeric(usage, "total_tokens").then(|| NormalizedUsage {
-        input: field(usage, "total_tokens"),
-        ..Default::default()
-    })
+    Some(normalized)
 }
 
 /// Extract the final usage-bearing event from a provider-shaped image SSE
@@ -176,6 +181,7 @@ fn claude_usage(usage: &Value) -> NormalizedUsage {
         cache_creation_30m: 0,
         cache_creation_1h,
         reasoning: 0,
+        ..Default::default()
     }
 }
 
@@ -208,7 +214,7 @@ fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
             (field(d, "reasoning_tokens"), field(d, "image_tokens"))
         });
     let image_output = reported_image_output.min(completion);
-    NormalizedUsage {
+    let mut normalized = NormalizedUsage {
         input: prompt.saturating_sub(cached).saturating_sub(cache_write),
         output: completion.saturating_sub(image_output),
         image_output,
@@ -216,7 +222,21 @@ fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
         cache_creation_30m: cache_write,
         reasoning,
         ..Default::default()
+    };
+    if let Some(audio) = usage
+        .pointer("/prompt_tokens_details/audio_tokens")
+        .and_then(Value::as_u64)
+    {
+        normalized.set_metric("audio_input_tokens", rust_decimal::Decimal::from(audio));
     }
+    if let Some(audio) = usage
+        .pointer("/completion_tokens_details/audio_tokens")
+        .and_then(Value::as_u64)
+    {
+        normalized.set_metric("audio_output_tokens", rust_decimal::Decimal::from(audio));
+    }
+    add_server_tool_metrics(&mut normalized, usage);
+    normalized
 }
 
 /// OpenAI responses: `input_tokens` INCLUDES cache reads/writes → subtract.
@@ -232,7 +252,7 @@ fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
             (field(d, "reasoning_tokens"), field(d, "image_tokens"))
         });
     let image_output = reported_image_output.min(output);
-    NormalizedUsage {
+    let mut normalized = NormalizedUsage {
         input: input.saturating_sub(cached).saturating_sub(cache_write),
         output: output.saturating_sub(image_output),
         image_output,
@@ -240,6 +260,32 @@ fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
         cache_creation_30m: cache_write,
         reasoning,
         ..Default::default()
+    };
+    if let Some(audio) = usage
+        .pointer("/input_tokens_details/audio_tokens")
+        .and_then(Value::as_u64)
+    {
+        normalized.set_metric("audio_input_tokens", rust_decimal::Decimal::from(audio));
+    }
+    if let Some(audio) = usage
+        .pointer("/output_tokens_details/audio_tokens")
+        .and_then(Value::as_u64)
+    {
+        normalized.set_metric("audio_output_tokens", rust_decimal::Decimal::from(audio));
+    }
+    add_server_tool_metrics(&mut normalized, usage);
+    normalized
+}
+
+fn add_server_tool_metrics(normalized: &mut NormalizedUsage, usage: &Value) {
+    let details = usage
+        .get("server_tool_use_details")
+        .or_else(|| usage.get("server_tool_use"));
+    if let Some(count) = details
+        .and_then(|details| details.get("web_search_requests"))
+        .and_then(Value::as_u64)
+    {
+        normalized.set_metric("web_searches", rust_decimal::Decimal::from(count));
     }
 }
 

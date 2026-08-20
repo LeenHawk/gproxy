@@ -807,7 +807,7 @@ async fn finalize_hosted_file(
                 "hosted file upload not ready".into(),
             ));
         }
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        crate::util::time::sleep_ms(250).await;
     }
     unreachable!()
 }

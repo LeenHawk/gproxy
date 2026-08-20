@@ -93,6 +93,15 @@ const TABLES: &[&str] = &[
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS price_rule_rates (\
+        id INTEGER PRIMARY KEY, \
+        price_rule_id INTEGER NOT NULL, \
+        metric TEXT NOT NULL, \
+        unit TEXT NOT NULL, \
+        unit_size INTEGER NOT NULL, \
+        price_usd TEXT NOT NULL, \
+        conditions_json TEXT, \
+        sort_order INTEGER NOT NULL DEFAULT 0)",
     // ── routing ──
     "CREATE TABLE IF NOT EXISTS routes (\
         id INTEGER PRIMARY KEY, \
@@ -277,6 +286,7 @@ const TABLES: &[&str] = &[
         cache_creation_5m_tokens INTEGER NOT NULL, \
         cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0, \
         cache_creation_1h_tokens INTEGER NOT NULL, \
+        metrics_json TEXT NOT NULL DEFAULT '{}', \
         cost TEXT NOT NULL, \
         latency_ms INTEGER NOT NULL DEFAULT 0, \
         usage_source TEXT NOT NULL DEFAULT '', \
