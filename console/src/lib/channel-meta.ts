@@ -70,7 +70,7 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   vertexexpress: ["gemini_count_tokens", "gemini_generate_content", "gemini_stream_generate_content", "gemini_embeddings"],
   geminicli: ["usage"],
   antigravity: ["usage"],
-  claudecode: ["claude_list_models", "claude_get_model", "claude_count_tokens", "claude_messages", "usage"],
+  claudecode: ["claude_list_models", "claude_get_model", "claude_count_tokens", "claude_messages", "openai_compact", "claude_files", "claude_skills", "usage"],
   claudeweb: ["usage"],
   codex: ["openai_list_models", "openai_get_model", "openai_responses", "openai_realtime", "image_generations", "image_edits", "openai_compact", "openai_search", "openai_realtime_call", "usage", "rate_limit_reset"],
   grokbuild: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_audio_speech", "openai_audio_transcriptions", "image_generations", "image_edits", "openai_video_create", "openai_video_retrieve", "openai_video_edit", "openai_video_extend", "openai_compact"],

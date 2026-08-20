@@ -10,7 +10,9 @@ use crate::channel::shaping::{
     self, claude_cache_control, claude_fallback, claude_magic_cache, claude_prefill,
     claude_sampling,
 };
-use crate::channel::{ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
+use crate::channel::{
+    ChannelError, CredentialControlOperation, PrepareCtx, PreparedRequest, ShapeCtx,
+};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
@@ -123,4 +125,48 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let mut request = build_request(ctx.method, uri, headers, body)?;
     auth::apply(&mut request, &access_token, &session_id)?;
     Ok(PreparedRequest::new(request))
+}
+
+pub(super) fn prepare_control(
+    operation: &CredentialControlOperation,
+    secret: &Value,
+    settings: &Value,
+) -> Result<http::Request<Bytes>, ChannelError> {
+    let CredentialControlOperation::ClaudeRaw {
+        method,
+        path,
+        query,
+        headers,
+        body,
+        ..
+    } = operation
+    else {
+        return Err(ChannelError::Unsupported("claude control operation"));
+    };
+    let access_token = auth::access_token(secret)?;
+    let base = settings
+        .get("base_url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|base| !base.is_empty())
+        .unwrap_or(auth::DEFAULT_BASE_URL);
+    let uri = join_url(base, path, query.as_deref())?;
+    let mut request = build_request(method.clone(), uri, headers.clone(), body.clone())?;
+    let content_type = headers.get(http::header::CONTENT_TYPE).cloned();
+    let accept = headers.get(http::header::ACCEPT).cloned();
+    let session_id = cch::session_id(
+        &auth::device_id(secret),
+        None,
+        crate::util::time::unix_now_ms(),
+    );
+    auth::apply(&mut request, access_token, &session_id)?;
+    if let Some(value) = content_type {
+        request
+            .headers_mut()
+            .insert(http::header::CONTENT_TYPE, value);
+    }
+    if let Some(value) = accept {
+        request.headers_mut().insert(http::header::ACCEPT, value);
+    }
+    Ok(request)
 }

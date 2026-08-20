@@ -47,6 +47,14 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             );
             #[cfg(target_arch = "wasm32")]
             oauth(&mut metadata, &[LoginMode::Authcode], true);
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "file_upload_max_in_flight".into(),
+                control: SettingControl::Integer,
+                label: Some("File/skill upload concurrency".into()),
+                required: false,
+                default: Some(json!(0)),
+                placeholder: Some("0 (unlimited)".into()),
+            });
         }
         "claudeweb" => {
             oauth(&mut metadata, &[LoginMode::Cookie], true);
@@ -432,6 +440,9 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "claude_get_model",
             "claude_count_tokens",
             "claude_messages",
+            "openai_compact",
+            "claude_files",
+            "claude_skills",
             "usage",
         ],
         "codex" => &[

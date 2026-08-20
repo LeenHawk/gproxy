@@ -60,6 +60,7 @@ pub fn router(state: AppState) -> Router {
             .route("/v1/{*rest}", any(gateway::aggregated))
             .route("/{provider}/v1/{*rest}", any(gateway::scoped))
             .route("/{provider}/api/codex/{*rest}", any(gateway::scoped))
+            .route("/{provider}/api/{*rest}", any(gateway::scoped))
             .route("/{provider}/backend-api/{*rest}", any(gateway::scoped))
             .route("/{provider}/codex/{*rest}", any(gateway::scoped))
             .route("/{provider}/ps/{*rest}", any(gateway::scoped))
