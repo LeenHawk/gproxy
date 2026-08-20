@@ -14,18 +14,40 @@ use crate::usage::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
 pub enum CredentialControlOperation {
     Usage,
     ListRateLimitResetCredits,
-    ConsumeRateLimitResetCredit { idempotency_key: String },
+    ConsumeRateLimitResetCredit {
+        idempotency_key: String,
+    },
     Account,
     Profile,
     Settings,
-    ListTasks { query: Option<String> },
-    GetTask { task_id: String },
-    ListSiblingTurns { task_id: String, turn_id: String },
-    CreateTask { body: Value },
+    ListTasks {
+        query: Option<String>,
+    },
+    GetTask {
+        task_id: String,
+    },
+    ListSiblingTurns {
+        task_id: String,
+        turn_id: String,
+    },
+    CreateTask {
+        body: Value,
+    },
     /// Explicitly allowlisted Codex backend operation used by the public PAT
     /// service surface. The Codex bulletin rehomes it onto the selected
     /// subscription account and injects that credential's auth headers.
     CodexRaw {
+        label: &'static str,
+        method: Method,
+        path: String,
+        query: Option<String>,
+        headers: HeaderMap,
+        body: Bytes,
+    },
+    /// Allowlisted Claude API operation used by the scoped Claude Code
+    /// compatibility service. The channel injects the selected OAuth
+    /// credential and preserves only explicitly forwarded headers.
+    ClaudeRaw {
         label: &'static str,
         method: Method,
         path: String,
@@ -49,6 +71,7 @@ impl CredentialControlOperation {
             Self::ListSiblingTurns { .. } => "task_sibling_turns",
             Self::CreateTask { .. } => "task_create",
             Self::CodexRaw { label, .. } => label,
+            Self::ClaudeRaw { label, .. } => label,
         }
     }
 }

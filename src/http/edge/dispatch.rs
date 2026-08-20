@@ -201,6 +201,12 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
             Err(error) => bridge::error_to_ws(&error, &request_id),
         };
     }
+    if let Some(result) = crate::http::claude_service::execute(state, ctx.clone()).await {
+        return match result {
+            Ok(outcome) => bridge::outcome_to_ws(outcome, &request_id),
+            Err(error) => bridge::error_to_ws(&error, &request_id),
+        };
+    }
     match crate::pipeline::execute(state, ctx).await {
         Ok(outcome) => bridge::outcome_to_ws(outcome, &request_id),
         Err(error) => bridge::error_to_ws(&error, &request_id),

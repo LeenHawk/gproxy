@@ -20,6 +20,7 @@ use crate::util::time::unix_now;
 
 pub const FILE_UPLOAD_MAX_BYTES: usize = 512 * 1024 * 1024;
 const FILE_REQUEST_MAX_BYTES: usize = FILE_UPLOAD_MAX_BYTES + 1024 * 1024;
+const CLAUDE_FILE_REQUEST_MAX_BYTES: usize = 500 * 1024 * 1024 + 1024 * 1024;
 static FILE_UPLOADS_IN_FLIGHT: LazyLock<Mutex<HashMap<String, usize>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -27,6 +28,9 @@ fn scoped_file_provider_name(path: &str) -> Option<&str> {
     let segments = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
     match segments.as_slice() {
         [name, "v1", "files"] => Some(*name),
+        [name, "v1", "skills"] => Some(*name),
+        [name, "v1", "skills", _, "versions"] => Some(*name),
+        [name, "api", "oauth", "file_upload"] => Some(*name),
         _ => None,
     }
 }
@@ -37,12 +41,19 @@ pub fn request_body_limit(state: &AppState, method: &str, path: &str) -> usize {
         .flatten()
         .and_then(|name| state.cp().providers_by_name.get(name).cloned())
         .is_some_and(|provider| {
-            provider.enabled && matches!(provider.channel.as_str(), "openai" | "codex")
+            provider.enabled
+                && matches!(provider.channel.as_str(), "openai" | "codex" | "claudecode")
         });
-    if upload_provider {
-        FILE_REQUEST_MAX_BYTES
-    } else {
-        crate::config::MAX_BODY_BYTES
+    match upload_provider {
+        true if path.contains("file")
+            && scoped_file_provider_name(path)
+                .and_then(|name| state.cp().providers_by_name.get(name).cloned())
+                .is_some_and(|provider| provider.channel == "claudecode") =>
+        {
+            CLAUDE_FILE_REQUEST_MAX_BYTES
+        }
+        true => FILE_REQUEST_MAX_BYTES,
+        false => crate::config::MAX_BODY_BYTES,
     }
 }
 
@@ -89,7 +100,8 @@ pub fn try_file_upload_permits(
         .providers_by_name
         .get(provider_name)
         .filter(|provider| {
-            provider.enabled && matches!(provider.channel.as_str(), "openai" | "codex")
+            provider.enabled
+                && matches!(provider.channel.as_str(), "openai" | "codex" | "claudecode")
         })
         .cloned()
     else {

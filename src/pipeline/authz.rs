@@ -398,8 +398,18 @@ pub(crate) fn prepare_provider_service(
     provider: &str,
     service: &str,
 ) -> Result<AuthorizationPlan, PipelineError> {
+    prepare_provider_service_namespace(cp, identity, provider, "codex", service)
+}
+
+pub(crate) fn prepare_provider_service_namespace(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &str,
+    namespace: &str,
+    service: &str,
+) -> Result<AuthorizationPlan, PipelineError> {
     identity_scopes_enabled(cp, identity)?;
-    let full = format!("{provider}/api/codex/{service}");
+    let full = format!("{provider}/api/{namespace}/{service}");
     if !effective_patterns(cp, identity)
         .any(|pattern| glob::matches(pattern, provider) || glob::matches(pattern, &full))
     {

@@ -114,6 +114,12 @@ async fn handle(
             Err(error) => pipeline_error_response(error, &trace.request_id),
         };
     }
+    if let Some(result) = crate::http::claude_service::execute(&state, ctx.clone()).await {
+        return match result {
+            Ok(outcome) => egress(outcome, &trace.request_id),
+            Err(error) => pipeline_error_response(error, &trace.request_id),
+        };
+    }
     match pipeline::execute(&state, ctx).await {
         Ok(outcome) => egress(outcome, &trace.request_id),
         Err(error) => pipeline_error_response(error, &trace.request_id),
