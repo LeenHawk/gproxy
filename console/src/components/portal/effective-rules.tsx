@@ -27,6 +27,8 @@ const QUOTA_WINDOWS = [
   { window: "day", limit: "quota_daily", label: "dailyLimit" },
   { window: "week", limit: "quota_weekly", label: "weeklyLimit" },
   { window: "month", limit: "quota_monthly", label: "monthlyLimit" },
+  { window: "five_hour", limit: "quota_5h", label: "fiveHourLimit" },
+  { window: "seven_day", limit: "quota_7d", label: "sevenDayLimit" },
 ] as const satisfies ReadonlyArray<{ window: QuotaWindow; limit: keyof EffQuota; label: string }>;
 
 function quotaPercent(used: string, limit: string) {

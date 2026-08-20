@@ -60,6 +60,14 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             );
             metadata.secret_template =
                 json!({ "access_token": "", "refresh_token": "", "account_id": "" });
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "codex_pat_plan_type".into(),
+                control: SettingControl::Text,
+                label: Some("Codex PAT plan type".into()),
+                required: false,
+                default: Some(json!("pro")),
+                placeholder: Some("pro".into()),
+            });
         }
         "cloudflare-ai-gateway" => {
             metadata.secret_template =

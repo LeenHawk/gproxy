@@ -22,12 +22,18 @@ pub(super) async fn run(
         ("quota_daily", decimal_type.to_owned()),
         ("quota_weekly", decimal_type.to_owned()),
         ("quota_monthly", decimal_type.to_owned()),
+        ("quota_5h", decimal_type.to_owned()),
+        ("quota_7d", decimal_type.to_owned()),
         ("day_used", format!("{decimal_type} NOT NULL DEFAULT '0'")),
         ("day_anchor", format!("{integer_type} NOT NULL DEFAULT 0")),
         ("week_used", format!("{decimal_type} NOT NULL DEFAULT '0'")),
         ("week_anchor", format!("{integer_type} NOT NULL DEFAULT 0")),
         ("month_used", format!("{decimal_type} NOT NULL DEFAULT '0'")),
         ("month_anchor", format!("{integer_type} NOT NULL DEFAULT 0")),
+        ("five_hour_used", format!("{decimal_type} NOT NULL DEFAULT '0'")),
+        ("five_hour_anchor", format!("{integer_type} NOT NULL DEFAULT 0")),
+        ("seven_day_used", format!("{decimal_type} NOT NULL DEFAULT '0'")),
+        ("seven_day_anchor", format!("{integer_type} NOT NULL DEFAULT 0")),
     ] {
         if !cols.contains(column) {
             conn.execute_unprepared(&format!(

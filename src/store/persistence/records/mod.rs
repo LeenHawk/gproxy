@@ -20,7 +20,10 @@ pub use audit::{AuditLog, AuditLogInput};
 pub use authz::{
     Quota, QuotaInput, RateLimit, RateLimitInput, RoutePermission, RoutePermissionInput, Scope,
 };
-pub use identity::{Org, OrgInput, Team, TeamInput, User, UserInput, UserKey, UserKeyInput};
+pub use identity::{
+    CodexTaskBinding, CodexTaskBindingInput, Org, OrgInput, Team, TeamInput, User, UserInput,
+    UserKey, UserKeyInput,
+};
 pub use logs::{
     DownstreamRequest, DownstreamRequestInput, RequestAudit, UpstreamRequest, UpstreamRequestInput,
 };

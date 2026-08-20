@@ -44,6 +44,8 @@
     "dailyLimit": "Daily limit",
     "weeklyLimit": "Weekly limit",
     "monthlyLimit": "Monthly limit",
+    "fiveHourLimit": "5-hour limit",
+    "sevenDayLimit": "7-day limit",
     "rpm": "RPM",
     "rpd": "RPD",
     "totalTokens": "Total tokens",

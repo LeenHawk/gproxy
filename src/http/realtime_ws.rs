@@ -91,6 +91,24 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
     session.record_usage(duration_ms, terminal.1).await;
 }
 
+pub(crate) async fn relay_raw(
+    mut downstream: WebSocket,
+    mut upstream: Box<dyn ConduitSocket>,
+) {
+    loop {
+        tokio::select! {
+            inbound = downstream.recv() => match forward_downstream(inbound, upstream.as_mut()).await {
+                Ok(Flow::Continue) => {}
+                _ => { let _ = upstream.close().await; return; }
+            },
+            outbound = upstream.recv_frame() => match forward_upstream(outbound, &mut downstream).await {
+                Ok(Flow::Continue) => {}
+                _ => { let _ = downstream.send(Message::Close(None)).await; return; }
+            },
+        }
+    }
+}
+
 enum Flow {
     Continue,
     Closed,

@@ -21,6 +21,7 @@ pub struct Model {
     pub team_id: Option<i64>,
     pub user_id: Option<i64>,
     pub user_key_id: Option<i64>,
+    pub thread_id: Option<String>,
     pub operation: String,
     pub kind: String,
     pub model: Option<String>,

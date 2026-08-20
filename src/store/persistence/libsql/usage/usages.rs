@@ -12,7 +12,7 @@ use crate::store::persistence::{PageQuery, PageResult, UsageQuery};
 use serde_json::Value;
 
 const COLS: &str = "id, request_id, at, route_name, provider_id, credential_id, org_id, team_id, \
-     user_id, user_key_id, operation, kind, model, input_tokens, output_tokens, \
+     user_id, user_key_id, thread_id, operation, kind, model, input_tokens, output_tokens, \
      image_output_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
      cache_creation_1h_tokens, cost, latency_ms, \
      usage_source, ended, created_at, updated_at";
@@ -29,22 +29,23 @@ fn decode(row: &Row) -> anyhow::Result<Usage> {
         team_id: col_opt_i64(row, 7)?,
         user_id: col_opt_i64(row, 8)?,
         user_key_id: col_opt_i64(row, 9)?,
-        operation: col_str(row, 10)?,
-        kind: col_str(row, 11)?,
-        model: col_opt_str(row, 12)?,
-        input_tokens: col_i64(row, 13)?,
-        output_tokens: col_i64(row, 14)?,
-        image_output_tokens: col_i64(row, 15)?,
-        cache_read_tokens: col_i64(row, 16)?,
-        cache_creation_5m_tokens: col_i64(row, 17)?,
-        cache_creation_30m_tokens: col_i64(row, 18)?,
-        cache_creation_1h_tokens: col_i64(row, 19)?,
-        cost: col_decimal(row, 20)?,
-        latency_ms: col_i64(row, 21)?,
-        usage_source: col_str(row, 22)?,
-        ended: col_str(row, 23)?,
-        created_at: col_i64(row, 24)?,
-        updated_at: col_i64(row, 25)?,
+        thread_id: col_opt_str(row, 10)?,
+        operation: col_str(row, 11)?,
+        kind: col_str(row, 12)?,
+        model: col_opt_str(row, 13)?,
+        input_tokens: col_i64(row, 14)?,
+        output_tokens: col_i64(row, 15)?,
+        image_output_tokens: col_i64(row, 16)?,
+        cache_read_tokens: col_i64(row, 17)?,
+        cache_creation_5m_tokens: col_i64(row, 18)?,
+        cache_creation_30m_tokens: col_i64(row, 19)?,
+        cache_creation_1h_tokens: col_i64(row, 20)?,
+        cost: col_decimal(row, 21)?,
+        latency_ms: col_i64(row, 22)?,
+        usage_source: col_str(row, 23)?,
+        ended: col_str(row, 24)?,
+        created_at: col_i64(row, 25)?,
+        updated_at: col_i64(row, 26)?,
     })
 }
 
@@ -67,11 +68,11 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
         .execute(
             "INSERT INTO usages \
              (request_id, at, route_name, provider_id, credential_id, org_id, team_id, user_id, \
-              user_key_id, operation, kind, model, input_tokens, output_tokens, \
+              user_key_id, thread_id, operation, kind, model, input_tokens, output_tokens, \
               image_output_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
               cache_creation_1h_tokens, cost, \
               latency_ms, usage_source, ended, created_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             &[
                 arg_text(&input.request_id),
                 arg_integer(input.at),
@@ -82,6 +83,7 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
                 arg_opt_i64(input.team_id),
                 arg_opt_i64(input.user_id),
                 arg_opt_i64(input.user_key_id),
+                arg_opt_text(input.thread_id.as_deref()),
                 arg_text(&input.operation),
                 arg_text(&input.kind),
                 arg_opt_text(input.model.as_deref()),
@@ -199,6 +201,10 @@ fn filters(q: &UsageQuery, include_cursor: bool) -> (String, Vec<Value>) {
     if let Some(v) = q.user_id {
         sql.push_str(" AND user_id = ?");
         args.push(arg_opt_i64(Some(v)));
+    }
+    if let Some(ref v) = q.thread_id {
+        sql.push_str(" AND thread_id = ?");
+        args.push(arg_opt_text(Some(v.as_str())));
     }
     if let Some(ref v) = q.route_name {
         sql.push_str(" AND route_name = ?");

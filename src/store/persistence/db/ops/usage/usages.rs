@@ -25,6 +25,7 @@ fn to_record(m: usage::Model) -> anyhow::Result<Usage> {
         team_id: m.team_id,
         user_id: m.user_id,
         user_key_id: m.user_key_id,
+        thread_id: m.thread_id,
         operation: m.operation,
         kind: m.kind,
         model: m.model,
@@ -68,6 +69,7 @@ pub async fn append(conn: &DatabaseConnection, input: UsageInput) -> anyhow::Res
         team_id: Set(input.team_id),
         user_id: Set(input.user_id),
         user_key_id: Set(input.user_key_id),
+        thread_id: Set(input.thread_id),
         operation: Set(input.operation),
         kind: Set(input.kind),
         model: Set(input.model),
@@ -157,6 +159,9 @@ fn filtered(q: &UsageQuery, include_cursor: bool) -> Select<usage::Entity> {
     }
     if let Some(v) = q.user_id {
         sel = sel.filter(C::UserId.eq(v));
+    }
+    if let Some(v) = &q.thread_id {
+        sel = sel.filter(C::ThreadId.eq(v));
     }
     if let Some(ref v) = q.route_name {
         sel = sel.filter(C::RouteName.eq(v.clone()));

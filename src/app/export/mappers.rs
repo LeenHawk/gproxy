@@ -71,6 +71,8 @@ pub(super) fn quota_to_input(r: Quota) -> QuotaInput {
         quota_daily: r.quota_daily,
         quota_weekly: r.quota_weekly,
         quota_monthly: r.quota_monthly,
+        quota_5h: r.quota_5h,
+        quota_7d: r.quota_7d,
         cost_used: r.cost_used,
     }
 }

@@ -93,6 +93,12 @@ async fn handle(
             return early_response(error.into_response(), &trace, Some(&message));
         }
     };
+    if let Some(result) = crate::http::codex_service::execute(&state, ctx.clone()).await {
+        return match result {
+            Ok(outcome) => egress(outcome, &trace.request_id),
+            Err(error) => pipeline_error_response(error, &trace.request_id),
+        };
+    }
     match pipeline::execute(&state, ctx).await {
         Ok(outcome) => egress(outcome, &trace.request_id),
         Err(error) => pipeline_error_response(error, &trace.request_id),
@@ -106,6 +112,26 @@ async fn handle_websocket(
     scoped: bool,
     trace: RequestTrace,
 ) -> Response {
+    #[cfg(not(target_arch = "wasm32"))]
+    if crate::http::codex_service::is_remote_control_websocket_ingress(&trace.path) {
+        if !scoped {
+            return early_response(StatusCode::NOT_FOUND.into_response(), &trace, Some("unsupported websocket path"));
+        }
+        let (parts, _body) = req.into_parts();
+        let ctx = match build_ctx_with_request_id(parts, bytes::Bytes::new(), true, trace.request_id.clone()) {
+            Ok(ctx) => ctx,
+            Err(error) => return early_response(error.into_response(), &trace, Some("invalid remote control websocket request")),
+        };
+        let upstream = match crate::http::codex_service::open_remote_control_websocket(&state, ctx).await {
+            Ok(upstream) => upstream,
+            Err(error) => return early_response(error.into_response(), &trace, Some("remote control websocket upstream failed")),
+        };
+        return early_response(
+            ws.on_upgrade(move |socket| crate::http::realtime_ws::relay_raw(socket, upstream)),
+            &trace,
+            None,
+        );
+    }
     #[cfg(not(target_arch = "wasm32"))]
     if crate::http::realtime_ws::is_path(&trace.path) {
         if scoped != crate::http::realtime_ws::is_scoped_path(&trace.path) {
