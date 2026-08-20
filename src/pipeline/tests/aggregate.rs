@@ -183,6 +183,8 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
     let sse = concat!(
         "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"created_at\":1,",
         "\"object\":\"response\",\"output\":[],\"status\":\"in_progress\"}}\n\n",
+        "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":",
+        "{\"type\":\"image_generation_call\",\"id\":\"ig_1\",\"status\":\"in_progress\"}}\n\n",
         "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":",
         "{\"type\":\"image_generation_call\",\"id\":\"ig_1\",\"result\":\"AAAA\",\"status\":\"completed\"}}\n\n",
         "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"created_at\":1,",
