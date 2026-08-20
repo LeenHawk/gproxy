@@ -124,6 +124,8 @@
       "image_edits": "图片编辑",
       "openai_compact": "OpenAI 压缩",
       "openai_conversations": "OpenAI 会话",
+      "openai_search": "OpenAI 独立网页搜索",
+      "openai_realtime_call": "OpenAI 实时 WebRTC 通话",
       "usage": "用量",
       "rate_limit_reset": "限流重置"
     }
@@ -325,7 +327,6 @@
     "modelId": "模型 ID",
     "displayName": "显示名",
     "contextWindow": "总上下文",
-    "maxInputTokens": "最大输入 Token",
     "maxOutputTokens": "最大输出 Token",
     "limits": "上下文 / 输入 / 输出",
     "limitsHint": "Token 限制均可留空，未知时不要猜测。",

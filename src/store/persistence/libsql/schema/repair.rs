@@ -47,7 +47,7 @@ pub(super) async fn provider_models(client: &LibsqlClient) -> anyhow::Result<()>
     if cols.is_empty() {
         return Ok(());
     }
-    for column in ["context_window", "max_input_tokens", "max_output_tokens"] {
+    for column in ["context_window", "max_output_tokens"] {
         if !cols.contains(column) {
             client
                 .execute(
@@ -72,6 +72,27 @@ pub(super) async fn provider_models(client: &LibsqlClient) -> anyhow::Result<()>
                 .await
                 .map_err(|e| anyhow::anyhow!("libsql repair provider_models add {column}: {e}"))?;
         }
+    }
+    // `max_input_tokens` was merged into `context_window` — the context window
+    // *is* the input allowance. Backfill before dropping: Claude/Gemini rows
+    // kept their limit here with `context_window` NULL. Conditional on the
+    // column existing, so a DB already at the current baseline is a no-op.
+    if cols.contains("max_input_tokens") {
+        client
+            .execute(
+                "UPDATE provider_models SET context_window = max_input_tokens \
+                 WHERE context_window IS NULL AND max_input_tokens IS NOT NULL",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair provider_models backfill: {e}"))?;
+        client
+            .execute(
+                "ALTER TABLE provider_models DROP COLUMN max_input_tokens",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair provider_models drop: {e}"))?;
     }
     Ok(())
 }

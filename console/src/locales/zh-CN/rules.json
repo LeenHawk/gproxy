@@ -92,10 +92,12 @@
     "stream_generate_content": "流式生成内容",
     "create_image": "创建图像",
     "edit_image": "编辑图像",
+    "web_search": "独立网页搜索",
     "create_embedding": "创建嵌入",
     "rerank": "重排序",
     "compact_content": "压缩内容",
     "create_conversation": "创建对话",
+    "create_realtime_call": "创建实时通话",
     "connect_realtime": "连接实时会话"
   },
   "implementation": {
