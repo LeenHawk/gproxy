@@ -147,6 +147,16 @@ extensible_string_enum!(CitationType, CitationTypeKnown {
 });
 extensible_string_enum!(MessageObjectType, MessageObjectTypeKnown { Message => "message" });
 extensible_string_enum!(ModelObjectType, ModelObjectTypeKnown { Model => "model" });
+extensible_string_enum!(FileObjectType, FileObjectTypeKnown { File => "file" });
+extensible_string_enum!(DeletedFileObjectType, DeletedFileObjectTypeKnown { FileDeleted => "file_deleted" });
+extensible_string_enum!(SkillObjectType, SkillObjectTypeKnown { Skill => "skill" });
+extensible_string_enum!(DeletedSkillObjectType, DeletedSkillObjectTypeKnown { SkillDeleted => "skill_deleted" });
+extensible_string_enum!(SkillVersionObjectType, SkillVersionObjectTypeKnown { SkillVersion => "skill_version" });
+extensible_string_enum!(DeletedSkillVersionObjectType, DeletedSkillVersionObjectTypeKnown { SkillVersionDeleted => "skill_version_deleted" });
+extensible_string_enum!(SkillSourceType, SkillSourceTypeKnown {
+    Custom => "custom", Anthropic => "anthropic", AnthropicExample => "anthropic_example",
+    Plugin => "plugin",
+});
 extensible_string_enum!(JsonSchemaObjectType, JsonSchemaObjectTypeKnown { Object => "object" });
 extensible_string_enum!(JsonSchemaFormatType, JsonSchemaFormatTypeKnown { JsonSchema => "json_schema" });
 extensible_string_enum!(McpServerType, McpServerTypeKnown { Url => "url" });
