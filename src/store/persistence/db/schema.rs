@@ -13,7 +13,7 @@ use crate::store::persistence::migrations::{
 use super::entities::authz::{quota, rate_limit, route_permission};
 use super::entities::identity::{codex_task_binding, org, team, user, user_key};
 use super::entities::logs::{audit_log, downstream_request, upstream_request};
-use super::entities::pricing::price_rule;
+use super::entities::pricing::{price_rule, price_rule_rate};
 use super::entities::provider::{
     credential, credential_model_status, credential_status, provider, provider_model,
 };
@@ -39,6 +39,7 @@ pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> 
     create_table(conn, &schema, credential_model_status::Entity).await?;
     create_table(conn, &schema, provider_model::Entity).await?;
     create_table(conn, &schema, price_rule::Entity).await?;
+    create_table(conn, &schema, price_rule_rate::Entity).await?;
     create_table(conn, &schema, route::Entity).await?;
     create_table(conn, &schema, route_member::Entity).await?;
     create_table(conn, &schema, alias::Entity).await?;

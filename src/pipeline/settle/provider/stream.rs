@@ -49,18 +49,13 @@ impl StreamGuard {
             .request_id
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn finish(mut self) {
+    pub(crate) async fn finish_inline(mut self) -> super::super::Settlement {
         let ended = self.eof_ended();
-        self.complete(ended);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) async fn finish(mut self) {
-        let ended = self.eof_ended();
-        if let Some(parts) = self.inner.take() {
-            settle_stream(parts, ended).await;
-        }
+        let parts = self
+            .inner
+            .take()
+            .expect("provider stream settle guard is active");
+        settle_stream(parts, ended).await
     }
 
     fn eof_ended(&self) -> Ended {
@@ -100,20 +95,23 @@ impl Drop for StreamGuard {
         self.complete(Ended::Interrupted);
         #[cfg(target_arch = "wasm32")]
         if let Some(parts) = self.inner.take() {
-            wasm_bindgen_futures::spawn_local(settle_stream(parts, Ended::Interrupted));
+            wasm_bindgen_futures::spawn_local(async move {
+                let _ = settle_stream(parts, Ended::Interrupted).await;
+            });
         }
     }
 }
 
 type StreamParts = (Captured, ImageSseCapture);
 
-async fn settle_stream((captured, capture): StreamParts, ended: Ended) {
+async fn settle_stream((captured, capture): StreamParts, ended: Ended) -> super::super::Settlement {
     let body = capture.settlement_body();
-    super::settle_ended(&captured, &body, ended).await;
+    let settlement = super::settle_ended(&captured, &body, ended).await;
     crate::pipeline::capture::record_downstream_response(
         &captured.state,
         &captured.ctx.request_id,
         &capture.log_body(),
     )
     .await;
+    settlement
 }

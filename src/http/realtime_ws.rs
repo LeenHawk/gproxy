@@ -54,7 +54,7 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                 }
             }
             outbound = session.socket.recv_frame() => {
-                match forward_upstream(outbound, &mut downstream).await {
+                match forward_upstream(outbound, &mut downstream, Some(&mut session)).await {
                     Ok(Flow::Continue) => {}
                     Ok(Flow::Closed) => {
                         let _ = downstream.send(Message::Close(None)).await;
@@ -101,7 +101,7 @@ pub(crate) async fn relay_raw(
                 Ok(Flow::Continue) => {}
                 _ => { let _ = upstream.close().await; return; }
             },
-            outbound = upstream.recv_frame() => match forward_upstream(outbound, &mut downstream).await {
+            outbound = upstream.recv_frame() => match forward_upstream(outbound, &mut downstream, None).await {
                 Ok(Flow::Continue) => {}
                 _ => { let _ = downstream.send(Message::Close(None)).await; return; }
             },
@@ -140,13 +140,17 @@ async fn forward_downstream(
 async fn forward_upstream(
     frame: Option<Result<ConduitFrame, crate::http::client::ClientError>>,
     downstream: &mut WebSocket,
+    session: Option<&mut RealtimeSession>,
 ) -> Result<Flow, String> {
     match frame {
-        Some(Ok(ConduitFrame::Text(text))) => downstream
-            .send(Message::Text(text.into()))
-            .await
-            .map(|_| Flow::Continue)
-            .map_err(|error| error.to_string()),
+        Some(Ok(ConduitFrame::Text(text))) => {
+            let text = session.map_or(text.clone(), |session| session.decorate_usage(&text));
+            downstream
+                .send(Message::Text(text.into()))
+                .await
+                .map(|_| Flow::Continue)
+                .map_err(|error| error.to_string())
+        }
         Some(Ok(ConduitFrame::Binary(bytes))) => downstream
             .send(Message::Binary(bytes))
             .await

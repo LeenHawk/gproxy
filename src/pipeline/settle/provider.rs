@@ -22,7 +22,7 @@ mod image_sse;
 mod stream;
 pub(crate) use stream::StreamGuard;
 
-/// Whether this op settles here (compact / embeddings / rerank / audio / images). Lets the
+/// Whether this op settles here (non-content billable operations). Lets the
 /// caller skip spawning a settle task for every other buffered success.
 pub(crate) fn billable(op: Option<OperationKey>) -> bool {
     matches!(
@@ -30,12 +30,29 @@ pub(crate) fn billable(op: Option<OperationKey>) -> bool {
         Some(
             Operation::CompactContent
                 | Operation::CreateEmbedding
+                | Operation::WebSearch
                 | Operation::Rerank
+                | Operation::CreateSpeech
                 | Operation::CreateTranscription
+                | Operation::CreateTranslation
                 | Operation::CreateImage
                 | Operation::EditImage
+                | Operation::RetrieveVideo
         )
     )
+}
+
+pub(crate) fn should_settle(op: Option<OperationKey>, body: &[u8]) -> bool {
+    if !billable(op) {
+        return false;
+    }
+    if !op.is_some_and(|op| op.operation() == Operation::RetrieveVideo) {
+        return true;
+    }
+    serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|value| value.get("status")?.as_str().map(str::to_owned))
+        .is_some_and(|status| status == "completed")
 }
 
 /// Provider settlement facts fixed before a response body is detached or
@@ -94,27 +111,21 @@ impl Captured {
     }
 }
 
-/// Detach provider-op settlement on native; edge request contexts must await it.
-pub(crate) async fn schedule(
+/// Settle a provider-shaped operation and return the same authoritative result
+/// that was reconciled and persisted.
+pub(crate) async fn settle(
     state: &AppState,
     ctx: &RequestCtx,
     cand: &Candidate,
     body: Bytes,
     usage_family: Family,
     actual_service_tier: Option<&str>,
-) {
+) -> super::Settlement {
     let captured = Captured::new(state, ctx, cand, usage_family, actual_service_tier);
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        tokio::spawn(async move {
-            settle_ended(&captured, &body, Ended::Complete).await;
-        });
-    }
-    #[cfg(target_arch = "wasm32")]
-    settle_ended(&captured, &body, Ended::Complete).await;
+    settle_ended(&captured, &body, Ended::Complete).await
 }
 
-async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
+async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) -> super::Settlement {
     let Captured {
         state,
         ctx,
@@ -125,17 +136,32 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         quota_scopes,
         token_rlt_ids,
     } = captured;
-    let Some(op) = ctx.op else { return };
+    let op = ctx
+        .op
+        .expect("provider settlement requires a classified operation");
     let is_embedding = matches!(op.operation(), Operation::CreateEmbedding);
     let is_rerank = matches!(op.operation(), Operation::Rerank);
+    let is_search = matches!(op.operation(), Operation::WebSearch);
+    let is_speech = matches!(op.operation(), Operation::CreateSpeech);
     let is_transcription = matches!(op.operation(), Operation::CreateTranscription);
+    let is_translation = matches!(op.operation(), Operation::CreateTranslation);
     let is_compact = matches!(op.operation(), Operation::CompactContent);
     let is_image = matches!(
         op.operation(),
         Operation::CreateImage | Operation::EditImage
     );
-    if !is_embedding && !is_rerank && !is_transcription && !is_compact && !is_image {
-        return;
+    let is_video = matches!(op.operation(), Operation::RetrieveVideo);
+    if !is_embedding
+        && !is_rerank
+        && !is_search
+        && !is_speech
+        && !is_transcription
+        && !is_translation
+        && !is_compact
+        && !is_image
+        && !is_video
+    {
+        unreachable!("provider settlement called for a non-billable operation");
     }
 
     let identity = ctx.identity.as_deref();
@@ -168,6 +194,8 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
                 extract::from_rerank_response(*usage_family, value)
             } else if is_transcription {
                 extract::from_transcription_response(value)
+            } else if is_video {
+                video_usage(value)
             } else {
                 extract::from_response(*usage_family, value)
             }
@@ -186,10 +214,16 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
             "compact_content"
         } else if is_embedding {
             "create_embedding"
+        } else if is_search {
+            "web_search"
         } else if is_rerank {
             "rerank"
+        } else if is_speech {
+            "create_speech"
         } else if is_transcription {
             "create_transcription"
+        } else if is_translation {
+            "create_translation"
         } else if matches!(op.operation(), Operation::EditImage) {
             "edit_image"
         } else {
@@ -203,12 +237,31 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
             "provider usage missing; using zero usage"
         );
     }
-    let source = if is_compact && extracted.is_none() {
-        UsageSource::Estimated
-    } else {
+    let source = if extracted.is_some() {
         UsageSource::Upstream
+    } else {
+        UsageSource::Estimated
     };
-    let usage = extracted.unwrap_or_default();
+    let mut usage = extracted.unwrap_or_else(|| {
+        let produced = parsed
+            .as_ref()
+            .map(|value| crate::tokenize::harvest(&serde_json::to_vec(value).unwrap_or_default()).0)
+            .unwrap_or_default()
+            .join("\n");
+        super::ladder::local_estimate(
+            state,
+            &cand.upstream_model_id,
+            cand.provider.settings_json.get("tokenizer_map"),
+            &ctx.body,
+            &produced,
+        )
+    });
+    if is_speech && let Some(seconds) = speech_seconds(body, &ctx.body) {
+        usage.set_metric("audio_seconds", seconds);
+    }
+    usage
+        .dimensions
+        .insert("operation".into(), super::enum_str(&op.operation()));
     let body_service_tier = parsed
         .as_ref()
         .and_then(price::response_service_tier_from_value)
@@ -228,6 +281,33 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
             .or(actual_service_tier.as_deref()),
     );
     let cost = price::cost(&usage, &settled_pricing);
+    let settlement = super::Settlement {
+        usage: usage.clone(),
+        cost,
+        source,
+        ended,
+    };
+
+    if is_video {
+        let dedupe_key = format!(
+            "video_settle:{}:{}:{}",
+            cand.provider.id,
+            cand.credential.id,
+            blake3::hash(ctx.path.as_bytes()).to_hex()
+        );
+        let seen = state
+            .cache
+            .incr(
+                &dedupe_key,
+                1,
+                Some(std::time::Duration::from_secs(7 * 24 * 3600)),
+            )
+            .await
+            .unwrap_or(1);
+        if seen > 1 {
+            return settlement;
+        }
+    }
 
     // Keep provider-shaped operations on the same billing and token-counter
     // path as content generation. Recording may be disabled, but quota and
@@ -258,7 +338,10 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         team_id: identity.and_then(|i| i.user.team_id),
         user_id: identity.map(|i| i.user.id),
         user_key_id: identity.map(|i| i.user_key.id),
-        thread_id: ctx.headers.get("thread-id").and_then(|value| value.to_str().ok()),
+        thread_id: ctx
+            .headers
+            .get("thread-id")
+            .and_then(|value| value.to_str().ok()),
         operation: &operation,
         kind: &kind,
         model: Some(&cand.upstream_model_id),
@@ -285,4 +368,115 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         cost = %cost,
         "provider usage settled"
     );
+    settlement
+}
+
+fn video_usage(value: &Value) -> Option<crate::usage::NormalizedUsage> {
+    use std::str::FromStr as _;
+    let usage = value.get("usage").and_then(Value::as_object);
+    let mut normalized = crate::usage::NormalizedUsage::default();
+    if let Some(tokens) = usage
+        .and_then(|usage| usage.get("video_tokens"))
+        .and_then(Value::as_u64)
+    {
+        normalized.set_metric("video_tokens", rust_decimal::Decimal::from(tokens));
+    }
+    let seconds = usage
+        .and_then(|usage| usage.get("seconds"))
+        .or_else(|| value.get("seconds"))
+        .or_else(|| value.get("duration"))
+        .and_then(|seconds| match seconds {
+            Value::String(seconds) => rust_decimal::Decimal::from_str(seconds).ok(),
+            Value::Number(seconds) => rust_decimal::Decimal::from_str(&seconds.to_string()).ok(),
+            _ => None,
+        });
+    if let Some(seconds) = seconds {
+        normalized.set_metric("video_seconds", seconds);
+    }
+    for key in ["resolution", "size", "quality"] {
+        if let Some(dimension) = value.get(key).and_then(Value::as_str) {
+            normalized.dimensions.insert(key.into(), dimension.into());
+        }
+    }
+    for key in ["with_audio", "generate_audio"] {
+        if let Some(dimension) = value.get(key).and_then(Value::as_bool) {
+            normalized
+                .dimensions
+                .insert("with_audio".into(), dimension.to_string());
+        }
+    }
+    Some(normalized)
+}
+
+fn speech_seconds(body: &[u8], request: &[u8]) -> Option<rust_decimal::Decimal> {
+    use std::str::FromStr as _;
+    let format = serde_json::from_slice::<Value>(request)
+        .ok()
+        .and_then(|value| value.get("response_format")?.as_str().map(str::to_owned))
+        .unwrap_or_else(|| "mp3".into());
+    let (bytes, bytes_per_second) = match format.as_str() {
+        // OpenAI-compatible PCM is 24 kHz, mono, signed 16-bit little-endian.
+        "pcm" => (body.len(), 48_000usize),
+        "wav" if body.len() >= 44 && &body[..4] == b"RIFF" => {
+            let byte_rate = u32::from_le_bytes(body[28..32].try_into().ok()?) as usize;
+            (body.len().saturating_sub(44), byte_rate)
+        }
+        _ => return None,
+    };
+    if bytes_per_second == 0 {
+        return None;
+    }
+    rust_decimal::Decimal::from_str(&format!(
+        "{}.{:06}",
+        bytes / bytes_per_second,
+        (bytes % bytes_per_second) * 1_000_000 / bytes_per_second
+    ))
+    .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{Operation, OperationKey, Provider};
+
+    #[test]
+    fn video_settlement_waits_for_completed_poll_and_extracts_dimensions() {
+        let op = Some(OperationKey::provider(
+            Operation::RetrieveVideo,
+            Provider::OpenAi,
+        ));
+        assert!(!should_settle(op, br#"{"id":"job","status":"pending"}"#));
+        assert!(should_settle(
+            op,
+            br#"{"id":"job","status":"completed","usage":{"video_tokens":10,"seconds":5},"resolution":"1080p"}"#,
+        ));
+        let usage = video_usage(&serde_json::json!({
+            "status": "completed",
+            "usage": {"video_tokens": 10, "seconds": 5},
+            "resolution": "1080p",
+        }))
+        .unwrap();
+        assert_eq!(
+            usage.metric("video_tokens"),
+            rust_decimal::Decimal::from(10)
+        );
+        assert_eq!(
+            usage.metric("video_seconds"),
+            rust_decimal::Decimal::from(5)
+        );
+        assert_eq!(usage.dimensions["resolution"], "1080p");
+    }
+
+    #[test]
+    fn speech_duration_supports_pcm_and_wav_without_touching_other_formats() {
+        let pcm = vec![0u8; 96_000];
+        assert_eq!(
+            speech_seconds(&pcm, br#"{"response_format":"pcm"}"#),
+            Some(rust_decimal::Decimal::from(2))
+        );
+        assert_eq!(
+            speech_seconds(b"ID3", br#"{"response_format":"mp3"}"#),
+            None
+        );
+    }
 }

@@ -2,7 +2,7 @@
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
 use crate::store::persistence::libsql::row::{
-    Row, col_decimal, col_i64, col_opt_i64, col_opt_str, col_str,
+    Row, col_decimal, col_i64, col_json, col_opt_i64, col_opt_str, col_str,
 };
 use crate::store::persistence::libsql::util::{
     arg_opt_i64, arg_opt_text, last_rowid, now_secs, query as run_query, query_one,
@@ -14,7 +14,7 @@ use serde_json::Value;
 const COLS: &str = "id, request_id, at, route_name, provider_id, credential_id, org_id, team_id, \
      user_id, user_key_id, thread_id, operation, kind, model, input_tokens, output_tokens, \
      image_output_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
-     cache_creation_1h_tokens, cost, latency_ms, \
+     cache_creation_1h_tokens, metrics_json, cost, latency_ms, \
      usage_source, ended, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<Usage> {
@@ -40,12 +40,13 @@ fn decode(row: &Row) -> anyhow::Result<Usage> {
         cache_creation_5m_tokens: col_i64(row, 18)?,
         cache_creation_30m_tokens: col_i64(row, 19)?,
         cache_creation_1h_tokens: col_i64(row, 20)?,
-        cost: col_decimal(row, 21)?,
-        latency_ms: col_i64(row, 22)?,
-        usage_source: col_str(row, 23)?,
-        ended: col_str(row, 24)?,
-        created_at: col_i64(row, 25)?,
-        updated_at: col_i64(row, 26)?,
+        metrics_json: col_json(row, 21)?,
+        cost: col_decimal(row, 22)?,
+        latency_ms: col_i64(row, 23)?,
+        usage_source: col_str(row, 24)?,
+        ended: col_str(row, 25)?,
+        created_at: col_i64(row, 26)?,
+        updated_at: col_i64(row, 27)?,
     })
 }
 
@@ -70,9 +71,9 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
              (request_id, at, route_name, provider_id, credential_id, org_id, team_id, user_id, \
               user_key_id, thread_id, operation, kind, model, input_tokens, output_tokens, \
               image_output_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
-              cache_creation_1h_tokens, cost, \
+              cache_creation_1h_tokens, metrics_json, cost, \
               latency_ms, usage_source, ended, created_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             &[
                 arg_text(&input.request_id),
                 arg_integer(input.at),
@@ -94,6 +95,7 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
                 arg_integer(input.cache_creation_5m_tokens),
                 arg_integer(input.cache_creation_30m_tokens),
                 arg_integer(input.cache_creation_1h_tokens),
+                arg_text(&serde_json::to_string(&input.metrics_json)?),
                 arg_text(&input.cost.to_string()),
                 arg_integer(input.latency_ms),
                 arg_text(&input.usage_source),

@@ -57,10 +57,11 @@ async fn custom_rerank_routes_and_preserves_opaque_payloads() {
     let ResponseBody::Full(body) = outcome.body else {
         panic!("rerank must be buffered")
     };
-    assert_eq!(
-        serde_json::from_slice::<Value>(&body).unwrap(),
-        rerank_response
-    );
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(response["usage"]["cost"], 0);
+    let mut expected = rerank_response;
+    expected["usage"]["cost"] = Value::from(0);
+    assert_eq!(response, expected);
 
     let seen = fake.seen.lock().unwrap();
     assert_eq!(seen.len(), 1);

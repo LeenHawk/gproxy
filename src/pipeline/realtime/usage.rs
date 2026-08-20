@@ -23,6 +23,9 @@ pub(super) struct UsageContext {
     user_key_id: Option<i64>,
     operation: String,
     kind: String,
+    pricing: billing::price::Pricing,
+    usage: NormalizedUsage,
+    cost: Decimal,
 }
 
 impl UsageContext {
@@ -45,14 +48,71 @@ impl UsageContext {
             user_key_id: Some(identity.user_key.id),
             operation: crate::pipeline::settle::enum_str(&op.operation()),
             kind: crate::pipeline::settle::enum_str(&op.kind()),
+            pricing: billing::pending::model_pricing(
+                &state.cp(),
+                candidate.provider.id,
+                &candidate.upstream_model_id,
+            ),
+            usage: NormalizedUsage::default(),
+            cost: Decimal::ZERO,
         }
+    }
+
+    pub(super) fn decorate_response_done(&mut self, text: &str) -> String {
+        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) else {
+            return text.to_owned();
+        };
+        if value.get("type").and_then(serde_json::Value::as_str) != Some("response.done") {
+            return text.to_owned();
+        }
+        let Some(usage) = value
+            .pointer("/response/usage")
+            .filter(|usage| usage.is_object())
+        else {
+            return text.to_owned();
+        };
+        let input = usage
+            .get("input_tokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0);
+        let output = usage
+            .get("output_tokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0);
+        let cached = usage
+            .pointer("/input_token_details/cached_tokens")
+            .or_else(|| usage.pointer("/input_tokens_details/cached_tokens"))
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+            .min(input);
+        let normalized = NormalizedUsage {
+            input: input.saturating_sub(cached),
+            output,
+            cache_read: cached,
+            ..Default::default()
+        };
+        let cost = billing::price::cost(&normalized, &self.pricing);
+        self.usage.input += normalized.input;
+        self.usage.output += normalized.output;
+        self.usage.cache_read += normalized.cache_read;
+        self.cost += cost;
+        if let Some(target) = value
+            .pointer_mut("/response/usage")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            target.insert(
+                "cost".into(),
+                serde_json::from_str(&cost.normalize().to_string())
+                    .unwrap_or(serde_json::Value::from(0)),
+            );
+        }
+        value.to_string()
     }
 
     pub(super) async fn record(&self, model: &str, latency_ms: i64, ended: Ended) {
         if !self.state.cp().log_settings.enable_usage {
             return;
         }
-        let usage = NormalizedUsage::default();
         let rec = UsageRecord {
             request_id: &self.request_id,
             at: self.at,
@@ -67,8 +127,8 @@ impl UsageContext {
             operation: &self.operation,
             kind: &self.kind,
             model: Some(model),
-            usage: &usage,
-            cost: Decimal::ZERO,
+            usage: &self.usage,
+            cost: self.cost,
             latency_ms,
             source: UsageSource::Estimated,
             ended,
@@ -84,6 +144,10 @@ impl UsageContext {
 }
 
 impl RealtimeSession {
+    pub(crate) fn decorate_usage(&mut self, text: &str) -> String {
+        self.usage.decorate_response_done(text)
+    }
+
     pub(crate) async fn record_usage(self, latency_ms: i64, ended: Ended) {
         let Self { model, usage, .. } = self;
         usage.record(&model, latency_ms, ended).await;

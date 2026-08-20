@@ -1,13 +1,17 @@
 //! Pricing rule ops for the `db` backend.
 
+use std::collections::HashMap;
+
 use sea_orm::ActiveValue::{NotSet, Set};
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+};
 
-use crate::store::persistence::db::entities::pricing::price_rule;
-use crate::store::persistence::records::{PriceRule, PriceRuleInput};
+use crate::store::persistence::db::entities::pricing::{price_rule, price_rule_rate};
+use crate::store::persistence::records::{PriceRate, PriceRule, PriceRuleInput};
 
-fn to_record(m: price_rule::Model) -> anyhow::Result<PriceRule> {
-    Ok(PriceRule {
+fn to_record(m: price_rule::Model, rates: Vec<PriceRate>) -> anyhow::Result<PriceRule> {
+    let mut record = PriceRule {
         id: m.id,
         provider_id: m.provider_id,
         match_type: m.match_type,
@@ -23,22 +27,52 @@ fn to_record(m: price_rule::Model) -> anyhow::Result<PriceRule> {
             .pricing_tiers_json
             .map(|value| serde_json::from_str(&value))
             .transpose()?,
+        rates,
         enabled: m.enabled,
         created_at: m.created_at,
         updated_at: m.updated_at,
-    })
+    };
+    record.apply_rate_projections();
+    Ok(record)
 }
 
 pub async fn list(conn: &DatabaseConnection) -> anyhow::Result<Vec<PriceRule>> {
+    let mut rates: HashMap<i64, Vec<PriceRate>> = HashMap::new();
+    for rate in price_rule_rate::Entity::find()
+        .order_by_asc(price_rule_rate::Column::SortOrder)
+        .order_by_asc(price_rule_rate::Column::Id)
+        .all(conn)
+        .await?
+    {
+        rates
+            .entry(rate.price_rule_id)
+            .or_default()
+            .push(PriceRate {
+                metric: rate.metric,
+                unit: rate.unit,
+                unit_size: u64::try_from(rate.unit_size).unwrap_or(1),
+                price_usd: rate.price_usd.parse()?,
+                conditions_json: rate
+                    .conditions_json
+                    .map(|value| serde_json::from_str(&value))
+                    .transpose()?,
+                sort_order: rate.sort_order,
+            });
+    }
     price_rule::Entity::find()
         .all(conn)
         .await?
         .into_iter()
-        .map(to_record)
+        .map(|rule| {
+            let rule_rates = rates.remove(&rule.id).unwrap_or_default();
+            to_record(rule, rule_rates)
+        })
         .collect()
 }
 
 pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow::Result<PriceRule> {
+    input.validate_rates()?;
+    let rates = input.effective_rates();
     let now = crate::store::persistence::db::ops::now_secs();
     let input_price = input.input_price.to_string();
     let output_price = input.output_price.to_string();
@@ -117,10 +151,36 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
         }
     };
 
-    to_record(model)
+    price_rule_rate::Entity::delete_many()
+        .filter(price_rule_rate::Column::PriceRuleId.eq(model.id))
+        .exec(conn)
+        .await?;
+    for rate in &rates {
+        price_rule_rate::ActiveModel {
+            id: NotSet,
+            price_rule_id: Set(model.id),
+            metric: Set(rate.metric.clone()),
+            unit: Set(rate.unit.clone()),
+            unit_size: Set(i64::try_from(rate.unit_size).unwrap_or(i64::MAX)),
+            price_usd: Set(rate.price_usd.to_string()),
+            conditions_json: Set(rate
+                .conditions_json
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?),
+            sort_order: Set(rate.sort_order),
+        }
+        .insert(conn)
+        .await?;
+    }
+    to_record(model, rates)
 }
 
 pub async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> {
+    price_rule_rate::Entity::delete_many()
+        .filter(price_rule_rate::Column::PriceRuleId.eq(id))
+        .exec(conn)
+        .await?;
     let res = price_rule::Entity::delete_by_id(id).exec(conn).await?;
     Ok(res.rows_affected > 0)
 }

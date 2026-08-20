@@ -108,6 +108,14 @@ describe("OpenRouter price-rule generator", () => {
       cache_read_price: "0.1",
       cache_creation_30m_price: "1.25",
     });
+    expect(bundle.price_rules[3].rates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ metric: "input_tokens", unit: "token", price_usd: "0.000001" }),
+      expect.objectContaining({ metric: "cache_creation_30m_tokens", price_usd: "0.00000125" }),
+    ]));
+    expect(bundle.price_rules[4].rates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ metric: "image_inputs", unit: "image", price_usd: "123" }),
+      expect.objectContaining({ metric: "image_output_tokens", price_usd: "0.0000075" }),
+    ]));
     expect(bundle.price_rules[4]).toMatchObject({
       input_price: "0",
       output_price: "0",
@@ -240,10 +248,11 @@ describe("OpenRouter price-rule generator", () => {
       cache_read_price: "0.135",
     });
     expect(bundle.price_rules.every((rule) => (
-      expectedFields.every((field) => field in rule)
+      expectedFields.filter((field) => field !== "rates").every((field) => field in rule)
       && Object.keys(rule).every((field) => (
         expectedFields.includes(field)
         || field === "pricing_tiers_json"
+        || field === "rates"
       ))
     ))).toBe(true);
     expect(bundle.price_rules.every((rule) => (

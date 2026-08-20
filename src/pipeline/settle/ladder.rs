@@ -5,16 +5,11 @@
 
 use serde_json::{Value, json};
 
-use super::{SettleCtx, record};
+use super::SettleCtx;
 use crate::app::AppState;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::protocol::Provider as Family;
-use crate::usage::{Ended, NormalizedUsage, UsageSource};
-
-pub(super) async fn count_and_record(ctx: SettleCtx, text: String, ended: Ended) {
-    let (usage, source) = ladder(&ctx, text).await;
-    record(&ctx, usage, source, ended).await;
-}
+use crate::usage::{NormalizedUsage, UsageSource};
 
 /// §17 counting ladder: gpt family → local tiktoken; claude/gemini upstream
 /// family → upstream count endpoint (bounded concurrency + timeout, same
@@ -82,30 +77,47 @@ fn local_ladder(
     request_body: &[u8],
     text: &str,
 ) -> (NormalizedUsage, UsageSource) {
-    let input = local_count(state, model, map, request_body);
-    let output = if text.is_empty() {
-        0
-    } else {
-        let body = serde_json::to_vec(&json!({
-            "messages": [{ "role": "user", "content": text }]
-        }))
-        .unwrap_or_default();
-        local_count(state, model, map, &body)
-    };
+    let usage = local_estimate(state, model, map, request_body, text);
     // tiktoken is exact for gpt families; everything else is an estimate
     let source = if cfg!(feature = "count-local") && crate::tokenize::is_gpt_family(model) {
         UsageSource::Counted
     } else {
         UsageSource::Estimated
     };
-    (
-        NormalizedUsage {
-            input,
-            output,
-            ..Default::default()
-        },
-        source,
-    )
+    (usage, source)
+}
+
+/// Provider-operation fallback shared with embeddings, search, audio and
+/// media settlement. The tokenizer facade is intentionally total: its last
+/// rung is the chars/2 estimate.
+pub(super) fn local_estimate(
+    state: &AppState,
+    model: &str,
+    map: Option<&Value>,
+    request_body: &[u8],
+    produced_text: &str,
+) -> NormalizedUsage {
+    let input = local_count(state, model, map, request_body);
+    let output = if produced_text.is_empty() {
+        0
+    } else {
+        let body = serde_json::to_vec(&json!({
+            "messages": [{ "role": "user", "content": produced_text }]
+        }))
+        .unwrap_or_default();
+        local_count(state, model, map, &body)
+    };
+    let mut usage = NormalizedUsage {
+        input,
+        output,
+        ..Default::default()
+    };
+    let input_text = crate::tokenize::harvest(request_body).0.join("\n");
+    usage.set_metric(
+        "input_characters",
+        rust_decimal::Decimal::from(input_text.chars().count()),
+    );
+    usage
 }
 
 fn local_count(state: &AppState, model: &str, map: Option<&Value>, body: &[u8]) -> u64 {

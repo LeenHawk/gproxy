@@ -27,7 +27,7 @@ pub use identity::{
 pub use logs::{
     DownstreamRequest, DownstreamRequestInput, RequestAudit, UpstreamRequest, UpstreamRequestInput,
 };
-pub use pricing::{PriceRule, PriceRuleInput};
+pub use pricing::{PriceRate, PriceRule, PriceRuleInput};
 pub use provider::{
     Credential, CredentialInput, CredentialModelStatus, CredentialModelStatusInput,
     CredentialStatus, CredentialStatusInput, Provider, ProviderInput, ProviderModel,

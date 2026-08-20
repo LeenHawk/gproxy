@@ -183,6 +183,7 @@ async fn portal_usage_page_items_and_total_are_session_scoped() {
                 cache_creation_5m_tokens: 0,
                 cache_creation_30m_tokens: 0,
                 cache_creation_1h_tokens: 0,
+                metrics_json: serde_json::json!({}),
                 cost: rust_decimal::Decimal::ZERO,
                 latency_ms: 0,
                 usage_source: "counted".into(),

@@ -14,6 +14,7 @@ export interface PriceRule {
   cache_creation_1h_price: string;
   image_output_price: string;
   pricing_tiers_json?: PricingTier[] | null;
+  rates?: PriceRate[];
   enabled: boolean;
   created_at: number;
   updated_at: number;
@@ -32,7 +33,17 @@ export interface PriceRuleInput {
   cache_creation_1h_price: string;
   image_output_price: string;
   pricing_tiers_json?: PricingTier[] | null;
+  rates?: PriceRate[];
   enabled: boolean;
+}
+
+export interface PriceRate {
+  metric: string;
+  unit: string;
+  unit_size: number;
+  price_usd: string;
+  conditions_json?: Record<string, unknown> | null;
+  sort_order: number;
 }
 
 export interface PricingTier {

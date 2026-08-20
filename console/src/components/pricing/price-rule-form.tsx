@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { providersQuery } from "@/api/providers";
-import { upsertPriceRule, type PriceRule } from "@/api/price-rules";
+import { upsertPriceRule, type PriceRate, type PriceRule } from "@/api/price-rules";
 import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -19,6 +21,48 @@ import { Switch } from "@/components/ui/switch";
 import { findDefaultPriceRule } from "@/lib/default-price-rules";
 
 const GLOBAL = "__global__";
+
+const RATE_METRICS = [
+  "input_tokens",
+  "output_tokens",
+  "cache_read_tokens",
+  "cache_creation_5m_tokens",
+  "cache_creation_30m_tokens",
+  "cache_creation_1h_tokens",
+  "image_output_tokens",
+  "audio_input_tokens",
+  "audio_output_tokens",
+  "image_inputs",
+  "image_outputs",
+  "image_megapixels",
+  "input_characters",
+  "audio_seconds",
+  "search_units",
+  "web_searches",
+  "request",
+  "video_tokens",
+  "video_seconds",
+  "minimum_cost",
+] as const;
+
+const RATE_UNITS = [
+  "token",
+  "character",
+  "request",
+  "image",
+  "megapixel",
+  "second",
+  "search_unit",
+] as const;
+
+type EditableRate = Omit<PriceRate, "conditions_json"> & { conditions: string };
+
+function editableRates(rates: PriceRate[] | undefined): EditableRate[] {
+  return (rates ?? []).map((rate) => ({
+    ...rate,
+    conditions: rate.conditions_json == null ? "" : JSON.stringify(rate.conditions_json),
+  }));
+}
 
 function decimalField(value: string | undefined): string {
   return value == null || value.trim() === "" ? "0" : value;
@@ -66,6 +110,7 @@ export function PriceRuleForm({
   const [pricingTiers, setPricingTiers] = useState(() =>
     rule?.pricing_tiers_json == null ? "" : JSON.stringify(rule.pricing_tiers_json, null, 2),
   );
+  const [rates, setRates] = useState<EditableRate[]>(() => editableRates(rule?.rates));
   const [formError, setFormError] = useState<string | null>(null);
   const matchOptions = [...new Set(modelMatchOptions.map((v) => v.trim()).filter((v) => v !== ""))];
   const defaultPriceRule = findDefaultPriceRule(modelMatch);
@@ -80,6 +125,22 @@ export function PriceRuleForm({
     setCacheCreation1hPrice(defaultPriceRule.cache_creation_1h_price);
     setImageOutputPrice(defaultPriceRule.image_output_price);
     setPricingTiers(defaultPriceRule.pricing_tiers_json == null ? "" : JSON.stringify(defaultPriceRule.pricing_tiers_json, null, 2));
+    setRates(editableRates(defaultPriceRule.rates));
+  };
+
+  const updateRate = (index: number, patch: Partial<EditableRate>) => {
+    setRates((current) => current.map((rate, itemIndex) => itemIndex === index ? { ...rate, ...patch } : rate));
+  };
+
+  const addRate = () => {
+    setRates((current) => [...current, {
+      metric: "request",
+      unit: "request",
+      unit_size: 1,
+      price_usd: "0",
+      conditions: "",
+      sort_order: current.length,
+    }]);
   };
 
   const mutation = useMutation({
@@ -98,6 +159,14 @@ export function PriceRuleForm({
         cache_creation_1h_price: normalizeDecimal(cacheCreation1hPrice),
         image_output_price: normalizeDecimal(imageOutputPrice),
         pricing_tiers_json: pricingTiers.trim() === "" ? null : JSON.parse(pricingTiers),
+        rates: rates.map((rate, index) => ({
+          metric: rate.metric,
+          unit: rate.unit,
+          unit_size: rate.unit_size,
+          price_usd: normalizeDecimal(rate.price_usd),
+          conditions_json: rate.conditions.trim() === "" ? null : JSON.parse(rate.conditions),
+          sort_order: index,
+        })),
         enabled,
       });
     },
@@ -116,12 +185,14 @@ export function PriceRuleForm({
         <Select value={provider} onValueChange={setProvider} disabled={lockedTarget}>
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={GLOBAL}>{t("scope.global")}</SelectItem>
-            {providers.map((p) => (
-              <SelectItem key={p.id} value={String(p.id)}>
-                {p.label ?? p.name}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              <SelectItem value={GLOBAL}>{t("scope.global")}</SelectItem>
+              {providers.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.label ?? p.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </div>
@@ -132,8 +203,10 @@ export function PriceRuleForm({
           <Select value={matchType} onValueChange={(v) => setMatchType(v as "exact" | "contains")} disabled={lockedTarget}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="exact">{t("match.exact")}</SelectItem>
-              <SelectItem value="contains">{t("match.contains")}</SelectItem>
+              <SelectGroup>
+                <SelectItem value="exact">{t("match.exact")}</SelectItem>
+                <SelectItem value="contains">{t("match.contains")}</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
@@ -149,9 +222,11 @@ export function PriceRuleForm({
             >
               <SelectTrigger id="price-model" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {matchOptions.map((option) => (
-                  <SelectItem key={option} value={option}>{option}</SelectItem>
-                ))}
+                <SelectGroup>
+                  {matchOptions.map((option) => (
+                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           ) : (
@@ -170,6 +245,8 @@ export function PriceRuleForm({
           )}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
+          {rates.length === 0 && (
+            <>
           <div className="grid gap-2">
             <Label htmlFor="price-input">{t("form.inputPrice")}</Label>
             <Input id="price-input" inputMode="decimal" value={inputPrice} onChange={(e) => setInputPrice(e.target.value)} />
@@ -203,6 +280,8 @@ export function PriceRuleForm({
               onChange={(e) => setImageOutputPrice(e.target.value)}
             />
           </div>
+            </>
+          )}
           <div className="grid gap-2 md:col-span-2">
             <Label htmlFor="price-pricing-tiers">{t("form.pricingTiers")}</Label>
             <textarea
@@ -215,6 +294,37 @@ export function PriceRuleForm({
           </div>
         </div>
         <p className="text-xs text-muted-foreground">{t("form.pricesHint")}</p>
+      </div>
+
+      <div className="grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label>{t("form.metricRates")}</Label>
+            <p className="text-xs text-muted-foreground">{t("form.metricRatesHint")}</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={addRate}>
+            <PlusIcon data-icon="inline-start" />
+            {t("form.addRate")}
+          </Button>
+        </div>
+        {rates.map((rate, index) => (
+          <div key={`${rate.metric}-${index}`} className="grid gap-2 rounded-md border p-3 md:grid-cols-[1.5fr_1fr_110px_130px_1.5fr_auto]">
+            <Select value={rate.metric} onValueChange={(metric) => updateRate(index, { metric })}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectGroup>{RATE_METRICS.map((metric) => <SelectItem key={metric} value={metric}>{metric}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+            <Select value={rate.unit} onValueChange={(unit) => updateRate(index, { unit })}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectGroup>{RATE_UNITS.map((unit) => <SelectItem key={unit} value={unit}>{unit}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+            <Input aria-label={t("form.unitSize")} inputMode="numeric" value={rate.unit_size} onChange={(event) => updateRate(index, { unit_size: Math.max(1, Number(event.target.value) || 1) })} />
+            <Input aria-label={t("form.priceUsd")} inputMode="decimal" value={rate.price_usd} onChange={(event) => updateRate(index, { price_usd: event.target.value })} />
+            <Input aria-label={t("form.conditions")} value={rate.conditions} placeholder='{"resolution":"1080p"}' onChange={(event) => updateRate(index, { conditions: event.target.value })} />
+            <Button type="button" variant="ghost" size="icon" aria-label={t("form.removeRate")} onClick={() => setRates((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+              <Trash2Icon />
+            </Button>
+          </div>
+        ))}
       </div>
 
       <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
