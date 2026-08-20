@@ -17,6 +17,8 @@
     "empty": "No API keys.",
     "label": "Label",
     "key": "API key",
+    "prefix": "Key type",
+    "prefixOptions": { "sk": "Standard API key (sk-)", "at": "Codex PAT (at-)" },
     "enabled": "Enabled",
     "disabled": "Disabled",
     "enable": "Enable",

@@ -71,6 +71,14 @@ impl IdentityPersistence for DbPersistence {
     async fn upsert_user_key(&self, input: UserKeyInput) -> anyhow::Result<UserKey> {
         ops::identity::user_keys::upsert(&self.conn, input).await
     }
+    async fn update_user_key_digest(
+        &self,
+        id: i64,
+        digest: &str,
+        digest_version: i64,
+    ) -> anyhow::Result<()> {
+        ops::identity::user_keys::update_digest(&self.conn, id, digest, digest_version).await
+    }
     async fn delete_user_key(&self, id: i64) -> anyhow::Result<bool> {
         ops::identity::user_keys::delete(&self.conn, id).await
     }

@@ -11,6 +11,7 @@ pub struct Model {
     pub api_key_ciphertext: String,
     #[sea_orm(unique)]
     pub api_key_digest: String,
+    pub api_key_digest_version: i64,
     pub label: Option<String>,
     pub enabled: bool,
     pub created_at: i64,

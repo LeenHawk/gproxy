@@ -195,6 +195,7 @@ const TABLES: &[&str] = &[
         user_id INTEGER NOT NULL, \
         api_key_ciphertext TEXT NOT NULL, \
         api_key_digest TEXT NOT NULL UNIQUE, \
+        api_key_digest_version INTEGER NOT NULL, \
         label TEXT, \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \

@@ -3,7 +3,7 @@ import { api } from "./http";
 import { PAGE_SIZE, type PageResult } from "./pagination";
 import type { Usage, UsageRollup } from "./usage";
 import type { RoutePermission, RateLimit, Quota } from "./authz";
-import type { UserKeyView } from "./identity";
+import type { UserKeyPrefix, UserKeyView } from "./identity";
 
 export interface UserMe { id: number; name: string; is_admin: boolean; org_id: number; org_name?: string | null; team_id: number | null; team_name?: string | null; }
 // F7a returns Effective<T> = { source, ...flattened rule fields } — add its source discriminator:
@@ -21,8 +21,8 @@ export const portalSessionQuery = queryOptions({
 
 // keys
 export const myKeysQuery = queryOptions({ queryKey: ["my-keys"], queryFn: () => api<UserKeyView[]>("/user/keys") });
-export const createMyKey = (label: string | null) =>
-  api<UserKeyView>("/user/keys", { method: "POST", body: JSON.stringify({ label }) });
+export const createMyKey = (label: string | null, prefix: UserKeyPrefix = "sk") =>
+  api<UserKeyView>("/user/keys", { method: "POST", body: JSON.stringify({ label, prefix }) });
 export const updateMyKey = (id: number, body: { label?: string | null; enabled: boolean }) =>
   api<UserKeyView>(`/user/keys/${id}`, { method: "PATCH", body: JSON.stringify(body) });
 export const deleteMyKey = (id: number) => api<void>(`/user/keys/${id}`, { method: "DELETE" });

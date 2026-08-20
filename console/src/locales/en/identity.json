@@ -28,7 +28,8 @@
   },
   "keys": {
     "title": "API keys", "add": "Generate key", "empty": "No API keys.",
-    "label": "Label", "key": "API key", "enabled": "Enabled", "enable": "Enable key", "disable": "Disable key",
+    "label": "Label", "key": "API key", "prefix": "Key type", "enabled": "Enabled", "enable": "Enable key", "disable": "Disable key",
+    "prefixOptions": { "sk": "Standard API key (sk-)", "at": "Codex PAT (at-)" },
     "delete": "Delete key", "deleteConfirm": "Delete this API key? Clients using it stop working.",
     "rotateHint": "Keys can't be edited — to rotate, generate a new one and delete the old."
   },

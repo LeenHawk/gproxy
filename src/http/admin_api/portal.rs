@@ -18,7 +18,7 @@ use serde::Deserialize;
 use crate::admin::guard::guard_session;
 use crate::admin::invalidate;
 use crate::api::error::ApiError;
-use crate::api::user_keys::UserKeyView;
+use crate::api::user_keys::{UserKeyPrefix, UserKeyView};
 use crate::app::AppState;
 use crate::pipeline::auth::key_digest;
 use crate::store::persistence::records::{Scope, UserInput, UserKeyInput};
@@ -27,11 +27,13 @@ use super::{Request, Resp, internal, json_body, parse_i64, segments};
 
 // ── /user/keys ────────────────────────────────────────────────────────────────
 
-/// Body accepted by `POST /user/keys` (create). Only `label` is accepted;
-/// supplying `api_key` is a 400 (keys are generated server-side).
+/// Body accepted by `POST /user/keys` (create). The optional prefix selects
+/// `sk-` or `at-`; supplying complete key material remains a 400.
 #[derive(Deserialize)]
 struct CreateKeyBody {
     pub label: Option<String>,
+    #[serde(default)]
+    pub prefix: Option<UserKeyPrefix>,
     /// Presence-only sentinel — rejected with 400.
     #[serde(default)]
     pub api_key: Option<String>,
@@ -133,7 +135,8 @@ async fn create_key(state: &AppState, parts: &Request, body: &Bytes) -> Result<R
     }
 
     // Mint the key server-side (CSPRNG).
-    let bare = crate::util::rand::api_key();
+    let prefix = b.prefix.unwrap_or_default();
+    let bare = crate::util::rand::api_key_with_prefix(prefix.as_str());
     let digest = key_digest(&bare);
     let sealed = state
         .cipher

@@ -5,6 +5,7 @@ pub mod export;
 pub mod import;
 pub mod install_setup;
 pub mod invalidation;
+pub mod key_digest_migration;
 #[cfg(any(feature = "migrate-v1", feature = "migrate-file"))]
 pub(crate) mod migration;
 // MIGRATE-FILE (temporary 2.x bridge, remove in 2.3): one-shot legacy JSON-file migration.

@@ -41,6 +41,7 @@ pub(super) fn to_bundle(data: LegacyData, cipher: &dyn SecretCipher) -> anyhow::
                     user_id: x.user_id,
                     api_key_ciphertext: x.api_key_ciphertext,
                     api_key_digest: x.api_key_digest,
+                    api_key_digest_version: 1,
                     label: x.label,
                     enabled: x.enabled,
                     created_at: 0,

@@ -533,6 +533,21 @@ pub const MIGRATIONS: &[Migration] = &[
                  SELECT id FROM providers WHERE channel = 'cline'\
              )"]),
     },
+    Migration {
+        version: 27,
+        description: "user_keys: version normalized sk-/at- payload digests",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "ALTER TABLE user_keys ADD COLUMN api_key_digest_version INTEGER NOT NULL DEFAULT 1",
+            ],
+            postgres: &[
+                "ALTER TABLE user_keys ADD COLUMN api_key_digest_version BIGINT NOT NULL DEFAULT 1",
+            ],
+            mysql: &[
+                "ALTER TABLE user_keys ADD COLUMN api_key_digest_version BIGINT NOT NULL DEFAULT 1",
+            ],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

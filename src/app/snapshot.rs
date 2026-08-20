@@ -338,6 +338,18 @@ impl ControlPlaneSnapshot {
 
         // users (enabled) + their keys (enabled), indexed by digest;
         // collect ids for the authz scope universe below.
+        if let Some(key) = user_keys
+            .iter()
+            .find(|key| {
+                key.api_key_digest_version != crate::util::api_key::KEY_DIGEST_VERSION
+            })
+        {
+            anyhow::bail!(
+                "user key {} has unmigrated api_key_digest_version {}",
+                key.id,
+                key.api_key_digest_version
+            );
+        }
         let mut keys_by_user = group_by(user_keys.into_iter().filter(|k| k.enabled), |k| k.user_id);
         let mut user_ids: Vec<i64> = Vec::new();
         for user in users.into_iter().filter(|u| u.enabled) {

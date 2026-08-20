@@ -28,7 +28,8 @@
   },
   "keys": {
     "title": "API 密钥", "add": "生成密钥", "empty": "还没有 API 密钥。",
-    "label": "显示名", "key": "API 密钥", "enabled": "启用", "enable": "启用密钥", "disable": "禁用密钥",
+    "label": "显示名", "key": "API 密钥", "prefix": "密钥类型", "enabled": "启用", "enable": "启用密钥", "disable": "禁用密钥",
+    "prefixOptions": { "sk": "标准 API 密钥（sk-）", "at": "Codex PAT（at-）" },
     "delete": "删除密钥", "deleteConfirm": "删除此 API 密钥？使用它的客户端将停止工作。",
     "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
   },
