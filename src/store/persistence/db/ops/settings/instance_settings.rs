@@ -24,6 +24,7 @@ fn to_record(m: instance_setting::Model) -> InstanceSettings {
         enable_auto_update_check: m.enable_auto_update_check,
         retention_days: m.retention_days,
         max_database_size_mb: m.max_database_size_mb,
+        file_upload_max_in_flight: m.file_upload_max_in_flight,
         created_at: m.created_at,
         updated_at: m.updated_at,
     }
@@ -79,6 +80,7 @@ pub async fn upsert(
                 am.enable_auto_update_check = Set(input.enable_auto_update_check);
                 am.retention_days = Set(input.retention_days);
                 am.max_database_size_mb = Set(input.max_database_size_mb);
+                am.file_upload_max_in_flight = Set(input.file_upload_max_in_flight.max(0));
                 am.updated_at = Set(now);
                 am.update(conn).await.map_err(conflict)?
             }
@@ -101,6 +103,7 @@ pub async fn upsert(
                     enable_auto_update_check: Set(input.enable_auto_update_check),
                     retention_days: Set(input.retention_days),
                     max_database_size_mb: Set(input.max_database_size_mb),
+                    file_upload_max_in_flight: Set(input.file_upload_max_in_flight.max(0)),
                     created_at: Set(now),
                     updated_at: Set(now),
                 }
@@ -125,6 +128,7 @@ pub async fn upsert(
             enable_auto_update_check: Set(input.enable_auto_update_check),
             retention_days: Set(input.retention_days),
             max_database_size_mb: Set(input.max_database_size_mb),
+            file_upload_max_in_flight: Set(input.file_upload_max_in_flight.max(0)),
             created_at: Set(now),
             updated_at: Set(now),
         }

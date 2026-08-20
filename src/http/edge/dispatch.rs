@@ -46,9 +46,11 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
     // shared config-version stamp (throttled) and rebuild when it moved.
     init::refresh_snapshot_if_stale(state).await;
 
-    // Body cap (shared with native's DefaultBodyLimit): reject via
+    // Path-aware body cap: reject via
     // content-length before buffering when the header is present.
-    if content_length_exceeds(&req, crate::config::MAX_BODY_BYTES) {
+    let body_limit =
+        crate::http::codex_service::request_body_limit(state, &inbound_method, &inbound_path);
+    if content_length_exceeds(&req, body_limit) {
         complete_early(
             &request_id,
             &inbound_method,
@@ -59,10 +61,18 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
         );
         return bridge::payload_too_large(&request_id);
     }
+    let _file_upload_permits = match crate::http::codex_service::try_file_upload_permits(
+        state,
+        &inbound_method,
+        &inbound_path,
+    ) {
+        Ok(permit) => permit,
+        Err(error) => return bridge::error_to_ws(&error, &request_id),
+    };
     let (parts, body) = ws_request_to_parts(req).await?;
     // Re-check actual buffered length because content-length can be absent or
     // incorrect. Both paths produce a clean 413 rather than a JS exception.
-    if body.len() > crate::config::MAX_BODY_BYTES {
+    if body.len() > body_limit {
         complete_early(
             &request_id,
             &inbound_method,

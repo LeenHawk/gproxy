@@ -31,6 +31,7 @@ pub enum OperationGroup {
     Realtime,
     Audio,
     Video,
+    Files,
 }
 
 /// Provider-neutral operation name.
@@ -65,6 +66,11 @@ pub enum Operation {
     GetVideoCharacter,
     EditVideo,
     ExtendVideo,
+    CreateFile,
+    ListFiles,
+    RetrieveFile,
+    DeleteFile,
+    DownloadFileContent,
     CompactContent,
     CreateConversation,
     CreateRealtimeCall,
@@ -94,6 +100,11 @@ impl Operation {
             | Self::GetVideoCharacter
             | Self::EditVideo
             | Self::ExtendVideo => OperationGroup::Video,
+            Self::CreateFile
+            | Self::ListFiles
+            | Self::RetrieveFile
+            | Self::DeleteFile
+            | Self::DownloadFileContent => OperationGroup::Files,
             Self::CompactContent => OperationGroup::Compact,
             Self::CreateConversation => OperationGroup::Conversation,
             Self::CreateRealtimeCall | Self::ConnectRealtime => OperationGroup::Realtime,
@@ -112,6 +123,10 @@ impl Operation {
                 | Self::DownloadVideoContent
                 | Self::GetVideoCharacter
                 | Self::ConnectRealtime
+                | Self::ListFiles
+                | Self::RetrieveFile
+                | Self::DeleteFile
+                | Self::DownloadFileContent
         )
     }
 }

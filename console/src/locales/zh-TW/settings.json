@@ -22,6 +22,7 @@
     "enableTokenizerDownload": "啟用分詞器下載",
     "retentionDays": "日誌保留天數",
     "maxDatabaseSizeMb": "資料庫大小上限（MiB）",
+    "fileUploadMaxInFlight": "檔案上傳並行數",
     "autostart": "登入系統時自動啟動 GPROXY"
   },
   "spoof": {
@@ -30,7 +31,8 @@
   },
   "retention": {
     "forever": "留空表示永久保留日誌",
-    "databaseSizeHelp": "僅適用於本機 SQLite。超過上限後會刪除最舊的請求日誌和稽核記錄，並壓縮至上限的 90%；用量資料一律保留。留空表示不限制。"
+    "databaseSizeHelp": "僅適用於本機 SQLite。超過上限後會刪除最舊的請求日誌和稽核記錄，並壓縮至上限的 90%；用量資料一律保留。留空表示不限制。",
+    "fileUploadConcurrencyHelp": "填 0 或留空表示不限制 /v1/files 並行上傳數。"
   },
   "warnings": {
     "sensitive": "警告：已啟用一個或多個敏感選項。日誌可能包含未遮蔽的內容或請求/回應體，其中可能含有密鑰與個人資料。請僅在排查問題時啟用這些選項。"

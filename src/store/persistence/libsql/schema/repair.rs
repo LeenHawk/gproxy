@@ -31,6 +31,10 @@ pub(super) async fn instance_settings(client: &LibsqlClient) -> anyhow::Result<(
             .await
             .map_err(|e| anyhow::anyhow!("libsql repair automatic update check setting: {e}"))?;
     }
+    if !cols.is_empty() && !cols.contains("file_upload_max_in_flight") {
+        client.execute("ALTER TABLE instance_settings ADD COLUMN file_upload_max_in_flight INTEGER NOT NULL DEFAULT 0", &[]).await
+            .map_err(|e| anyhow::anyhow!("libsql repair file upload concurrency setting: {e}"))?;
+    }
     Ok(())
 }
 

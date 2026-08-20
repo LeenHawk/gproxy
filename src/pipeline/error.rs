@@ -47,6 +47,8 @@ pub enum PipelineError {
     QuotaExceeded,
     #[error("rate-limit/quota counters unavailable")]
     CounterUnavailable,
+    #[error("request body too large")]
+    PayloadTooLarge,
 }
 
 impl PipelineError {
@@ -66,6 +68,7 @@ impl PipelineError {
             // The limiter backend is down: enforced limits/quotas can't be
             // checked, so the request is refused (fail-closed), not waved through.
             CounterUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+            PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
         }
     }
 

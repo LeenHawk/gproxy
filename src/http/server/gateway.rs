@@ -11,7 +11,6 @@ use futures_util::StreamExt as _;
 use http::request::Parts;
 
 use crate::app::AppState;
-use crate::config::MAX_BODY_BYTES;
 use crate::http::responses_ws::{ResponsesWsRequestBase, WsFrameError};
 use crate::http::server::extract::build_ctx_with_request_id;
 use crate::http::telemetry;
@@ -76,7 +75,23 @@ async fn handle(
     }
 
     let (parts, body) = req.into_parts();
-    let bytes = match axum::body::to_bytes(body, MAX_BODY_BYTES).await {
+    let _file_upload_permits = match crate::http::codex_service::try_file_upload_permits(
+        &state,
+        trace.method.as_str(),
+        &trace.path,
+    ) {
+        Ok(permit) => permit,
+        Err(error) => {
+            return early_response(
+                error.into_response(),
+                &trace,
+                Some("file upload concurrency limit reached"),
+            );
+        }
+    };
+    let body_limit =
+        crate::http::codex_service::request_body_limit(&state, trace.method.as_str(), &trace.path);
+    let bytes = match axum::body::to_bytes(body, body_limit).await {
         Ok(b) => b,
         Err(_) => {
             return early_response(
@@ -115,17 +130,39 @@ async fn handle_websocket(
     #[cfg(not(target_arch = "wasm32"))]
     if crate::http::codex_service::is_remote_control_websocket_ingress(&trace.path) {
         if !scoped {
-            return early_response(StatusCode::NOT_FOUND.into_response(), &trace, Some("unsupported websocket path"));
+            return early_response(
+                StatusCode::NOT_FOUND.into_response(),
+                &trace,
+                Some("unsupported websocket path"),
+            );
         }
         let (parts, _body) = req.into_parts();
-        let ctx = match build_ctx_with_request_id(parts, bytes::Bytes::new(), true, trace.request_id.clone()) {
+        let ctx = match build_ctx_with_request_id(
+            parts,
+            bytes::Bytes::new(),
+            true,
+            trace.request_id.clone(),
+        ) {
             Ok(ctx) => ctx,
-            Err(error) => return early_response(error.into_response(), &trace, Some("invalid remote control websocket request")),
+            Err(error) => {
+                return early_response(
+                    error.into_response(),
+                    &trace,
+                    Some("invalid remote control websocket request"),
+                );
+            }
         };
-        let upstream = match crate::http::codex_service::open_remote_control_websocket(&state, ctx).await {
-            Ok(upstream) => upstream,
-            Err(error) => return early_response(error.into_response(), &trace, Some("remote control websocket upstream failed")),
-        };
+        let upstream =
+            match crate::http::codex_service::open_remote_control_websocket(&state, ctx).await {
+                Ok(upstream) => upstream,
+                Err(error) => {
+                    return early_response(
+                        error.into_response(),
+                        &trace,
+                        Some("remote control websocket upstream failed"),
+                    );
+                }
+            };
         return early_response(
             ws.on_upgrade(move |socket| crate::http::realtime_ws::relay_raw(socket, upstream)),
             &trace,

@@ -23,6 +23,8 @@ pub struct Model {
     pub enable_auto_update_check: bool,
     pub retention_days: Option<i64>,
     pub max_database_size_mb: Option<i64>,
+    #[sea_orm(default_value = 0)]
+    pub file_upload_max_in_flight: i64,
     pub created_at: i64,
     pub updated_at: i64,
 }

@@ -72,7 +72,8 @@ pub fn normalize_multipart_form_body(ctx: &mut RequestCtx) -> Result<(), Pipelin
         return Ok(());
     }
 
-    let body = multipart_form_to_json(&ctx.body, &ctx.headers)?;
+    let preserve_file_name = ctx.path == "/v1/files";
+    let body = multipart_form_to_json(&ctx.body, &ctx.headers, preserve_file_name)?;
     ctx.body = body;
     ctx.headers.insert(
         header::CONTENT_TYPE,
@@ -102,19 +103,30 @@ fn is_multipart_form(headers: &HeaderMap) -> bool {
         })
 }
 
-fn multipart_form_to_json(body: &Bytes, headers: &HeaderMap) -> Result<Bytes, PipelineError> {
+fn multipart_form_to_json(
+    body: &Bytes,
+    headers: &HeaderMap,
+    preserve_file_name: bool,
+) -> Result<Bytes, PipelineError> {
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok());
     let parts = parse_multipart(body, content_type).map_err(invalid_multipart_form)?;
     let mut map = Map::new();
 
+    let mut file_name = None;
     for part in parts {
         let Some(name) = part.name.as_deref().filter(|name| !name.is_empty()) else {
             continue;
         };
+        if preserve_file_name && name == "file" {
+            file_name = part.filename.clone();
+        }
         let (name, force_array) = canonical_form_name(name);
         insert_form_value(&mut map, name, part_value(part), force_array);
+    }
+    if let Some(file_name) = file_name {
+        map.insert("__gproxy_file_name".to_owned(), Value::String(file_name));
     }
 
     serde_json::to_vec(&Value::Object(map))
@@ -140,6 +152,41 @@ struct MultipartPart<'a> {
     /// Borrowed from the original body — parts are never copied; the only
     /// owned derivative is the base64 data-URL built in [`part_value`].
     body: &'a [u8],
+}
+
+pub(crate) struct FileMultipart {
+    pub file: Bytes,
+    pub filename: String,
+    pub mime_type: String,
+    pub purpose: String,
+}
+
+pub(crate) fn parse_file_multipart(
+    body: &Bytes,
+    headers: &HeaderMap,
+) -> Result<FileMultipart, PipelineError> {
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok());
+    let parts = parse_multipart(body, content_type).map_err(invalid_multipart_form)?;
+    let purpose = parts
+        .iter()
+        .find(|part| part.name.as_deref() == Some("purpose"))
+        .and_then(|part| std::str::from_utf8(part.body).ok())
+        .unwrap_or("assistants")
+        .to_owned();
+    let file = parts
+        .into_iter()
+        .find(|part| part.name.as_deref() == Some("file"))
+        .ok_or_else(|| invalid_multipart_form("missing file field"))?;
+    Ok(FileMultipart {
+        file: Bytes::copy_from_slice(file.body),
+        filename: file.filename.unwrap_or_else(|| "upload.bin".to_owned()),
+        mime_type: file
+            .content_type
+            .unwrap_or_else(|| "application/octet-stream".to_owned()),
+        purpose,
+    })
 }
 
 fn parse_multipart<'a>(

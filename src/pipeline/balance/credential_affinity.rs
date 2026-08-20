@@ -26,6 +26,9 @@ pub(crate) fn request_key(ctx: &RequestCtx, user_key_id: i64) -> Option<Arc<str>
         operation if operation.group() == crate::protocol::OperationGroup::Video => {
             request_resource(ctx).map(|(kind, id)| key(kind, user_key_id, &id))
         }
+        operation if operation.group() == crate::protocol::OperationGroup::Files => {
+            request_resource(ctx).map(|(kind, id)| key(kind, user_key_id, &id))
+        }
         _ => None,
     }
 }
@@ -50,12 +53,14 @@ pub(crate) async fn record_media_response(
         Operation::CreateVideoCharacter | Operation::GetVideoCharacter
     ) {
         "video_character"
+    } else if matches!(operation, Operation::CreateFile | Operation::ListFiles) {
+        "openai_file"
     } else if operation.group() == crate::protocol::OperationGroup::Video {
         "video"
     } else {
         return;
     };
-    let ids: Vec<&str> = if operation == Operation::ListVideos {
+    let ids: Vec<&str> = if matches!(operation, Operation::ListVideos | Operation::ListFiles) {
         value
             .get("data")
             .and_then(serde_json::Value::as_array)
@@ -194,6 +199,13 @@ fn request_resource(ctx: &RequestCtx) -> Option<(&'static str, String)> {
         Operation::EditVideo | Operation::ExtendVideo => {
             body_nested_string(&ctx.body, "video", "id").map(|id| ("video", id))
         }
+        Operation::RetrieveFile | Operation::DeleteFile | Operation::DownloadFileContent => ctx
+            .path
+            .strip_prefix("/v1/files/")
+            .and_then(|rest| rest.strip_suffix("/content").or(Some(rest)))
+            .filter(|id| !id.is_empty() && !id.contains('/'))
+            .map(str::to_owned)
+            .map(|id| ("openai_file", id)),
         _ => None,
     }
 }

@@ -43,6 +43,8 @@ pub struct InstanceSettings {
     /// logs and audit rows are removed until a compacted DB reaches 90%.
     #[serde(default)]
     pub max_database_size_mb: Option<i64>,
+    #[serde(default)]
+    pub file_upload_max_in_flight: i64,
     /// Unix seconds.
     pub created_at: i64,
     /// Unix seconds.
@@ -73,4 +75,6 @@ pub struct InstanceSettingsInput {
     pub retention_days: Option<i64>,
     #[serde(default)]
     pub max_database_size_mb: Option<i64>,
+    #[serde(default)]
+    pub file_upload_max_in_flight: i64,
 }
