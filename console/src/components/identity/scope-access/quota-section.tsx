@@ -16,6 +16,8 @@ const WINDOWS = [
   { window: "day", limit: "quota_daily", label: "dailyLimit" },
   { window: "week", limit: "quota_weekly", label: "weeklyLimit" },
   { window: "month", limit: "quota_monthly", label: "monthlyLimit" },
+  { window: "five_hour", limit: "quota_5h", label: "fiveHourLimit" },
+  { window: "seven_day", limit: "quota_7d", label: "sevenDayLimit" },
 ] as const satisfies ReadonlyArray<{ window: QuotaWindow; limit: keyof Quota; label: string }>;
 
 interface QuotaFormValues {
@@ -23,6 +25,8 @@ interface QuotaFormValues {
   daily: string | null;
   weekly: string | null;
   monthly: string | null;
+  fiveHour: string | null;
+  sevenDay: string | null;
 }
 
 function isNumeric(value: string) {
@@ -44,7 +48,9 @@ function QuotaForm({
   const [daily, setDaily] = useState(quota?.quota_daily ?? "");
   const [weekly, setWeekly] = useState(quota?.quota_weekly ?? "");
   const [monthly, setMonthly] = useState(quota?.quota_monthly ?? "");
-  const windowsValid = [daily, weekly, monthly].every((value) => !value.trim() || isNumeric(value));
+  const [fiveHour, setFiveHour] = useState(quota?.quota_5h ?? "");
+  const [sevenDay, setSevenDay] = useState(quota?.quota_7d ?? "");
+  const windowsValid = [daily, weekly, monthly, fiveHour, sevenDay].every((value) => !value.trim() || isNumeric(value));
   const valid = isNumeric(total) && windowsValid;
 
   const optionalValue = (value: string) => value.trim() || null;
@@ -60,6 +66,8 @@ function QuotaForm({
           daily: optionalValue(daily),
           weekly: optionalValue(weekly),
           monthly: optionalValue(monthly),
+          fiveHour: optionalValue(fiveHour),
+          sevenDay: optionalValue(sevenDay),
         });
       }}
     >
@@ -67,6 +75,8 @@ function QuotaForm({
       <QuotaInput id={`q-day-${scope}-${scopeId}`} label={t("access.dailyLimit")} value={daily} onChange={setDaily} />
       <QuotaInput id={`q-week-${scope}-${scopeId}`} label={t("access.weeklyLimit")} value={weekly} onChange={setWeekly} />
       <QuotaInput id={`q-month-${scope}-${scopeId}`} label={t("access.monthlyLimit")} value={monthly} onChange={setMonthly} />
+      <QuotaInput id={`q-5h-${scope}-${scopeId}`} label={t("access.fiveHourLimit")} value={fiveHour} onChange={setFiveHour} />
+      <QuotaInput id={`q-7d-${scope}-${scopeId}`} label={t("access.sevenDayLimit")} value={sevenDay} onChange={setSevenDay} />
       <div className="flex items-center gap-2 sm:col-span-2 xl:col-span-4">
         <Button type="submit" disabled={pending || !valid}>{t("access.setQuota")}</Button>
         {quota && (
@@ -118,6 +128,8 @@ export function QuotaSection({ scope, scopeId }: { scope: Scope; scopeId: number
         quota_daily: values.daily,
         quota_weekly: values.weekly,
         quota_monthly: values.monthly,
+        quota_5h: values.fiveHour,
+        quota_7d: values.sevenDay,
         cost_used: fresh?.cost_used ?? "0",
       });
     },

@@ -47,6 +47,7 @@ pub struct SettleCtx {
     team_id: Option<i64>,
     user_id: Option<i64>,
     user_key_id: Option<i64>,
+    thread_id: Option<String>,
     operation: String,
     kind: String,
     /// Upstream member model (`cand.upstream_model_id`).
@@ -129,6 +130,7 @@ impl SettleCtx {
             team_id: identity.and_then(|i| i.user.team_id),
             user_id: identity.map(|i| i.user.id),
             user_key_id: identity.map(|i| i.user_key.id),
+            thread_id: ctx.headers.get("thread-id").and_then(|value| value.to_str().ok()).map(str::to_owned),
             operation: enum_str(&op.operation()),
             kind: enum_str(&op.kind()),
             model: cand.upstream_model_id.clone(),
@@ -424,6 +426,7 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
         team_id: ctx.team_id,
         user_id: ctx.user_id,
         user_key_id: ctx.user_key_id,
+        thread_id: ctx.thread_id.as_deref(),
         operation: &ctx.operation,
         kind: &ctx.kind,
         model: Some(&ctx.model),

@@ -172,6 +172,7 @@ async fn portal_usage_page_items_and_total_are_session_scoped() {
                 team_id: None,
                 user_id: Some(user_id),
                 user_key_id: None,
+                thread_id: None,
                 operation: "chat".into(),
                 kind: "openai".into(),
                 model: None,

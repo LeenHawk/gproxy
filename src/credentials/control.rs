@@ -9,6 +9,71 @@ use crate::channel::{
 use crate::http::client::UpstreamClient;
 use crate::store::persistence::records::{Credential, Provider};
 
+pub struct RawControlResponse {
+    pub status: http::StatusCode,
+    pub headers: http::HeaderMap,
+    pub body: bytes::Bytes,
+    pub disposition: Disposition,
+}
+
+pub struct RawControlStreamResponse {
+    pub status: http::StatusCode,
+    pub headers: http::HeaderMap,
+    pub body: crate::http::client::RespStream,
+    pub disposition: Disposition,
+}
+
+pub async fn execute_raw_streaming(
+    state: &AppState,
+    credential_id: i64,
+    operation: CredentialControlOperation,
+) -> Result<RawControlStreamResponse, ControlError> {
+    let credential = state.persistence.get_credential(credential_id).await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?
+        .ok_or(ControlError::CredentialNotFound)?;
+    let provider = state.persistence.get_provider(credential.provider_id).await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?
+        .ok_or(ControlError::ProviderNotFound)?;
+    let channel = state.channels.get(&provider.channel)
+        .ok_or_else(|| ControlError::UnknownChannel(provider.channel.clone()))?;
+    let opened = state.cipher.open(&credential.secret_json)
+        .map_err(|error| ControlError::Decrypt(error.to_string()))?;
+    let secret = state.ensure_fresh_credential(&channel, &credential, &provider, opened, false).await?;
+    let request = channel.prepare_credential_control_request(&operation, &secret, &provider.settings_json)?
+        .ok_or_else(|| ControlError::Unsupported(operation.name()))?;
+    let client = state.upstream_client_for_credential(&channel, &credential, &provider)
+        .map_err(|error| ControlError::Upstream(error.to_string()))?;
+    let (status, headers, body) = client.send_streaming(request).await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?;
+    let disposition = channel.classify(status, &headers, &bytes::Bytes::new());
+    record(state, &provider, &credential, &disposition);
+    Ok(RawControlStreamResponse { status, headers, body, disposition })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn open_raw_websocket(
+    state: &AppState,
+    credential_id: i64,
+    operation: CredentialControlOperation,
+) -> Result<Box<dyn crate::http::client::ConduitSocket>, ControlError> {
+    let credential = state.persistence.get_credential(credential_id).await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?
+        .ok_or(ControlError::CredentialNotFound)?;
+    let provider = state.persistence.get_provider(credential.provider_id).await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?
+        .ok_or(ControlError::ProviderNotFound)?;
+    let channel = state.channels.get(&provider.channel)
+        .ok_or_else(|| ControlError::UnknownChannel(provider.channel.clone()))?;
+    let opened = state.cipher.open(&credential.secret_json)
+        .map_err(|error| ControlError::Decrypt(error.to_string()))?;
+    let secret = state.ensure_fresh_credential(&channel, &credential, &provider, opened, false).await?;
+    let request = channel.prepare_credential_control_request(&operation, &secret, &provider.settings_json)?
+        .ok_or_else(|| ControlError::Unsupported(operation.name()))?;
+    let client = state.upstream_client_for_credential(&channel, &credential, &provider)
+        .map_err(|error| ControlError::Upstream(error.to_string()))?;
+    client.open_websocket(request).await.map_err(|error| ControlError::Upstream(error.to_string()))
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ControlError {
     #[error("credential not found")]
@@ -116,6 +181,92 @@ pub async fn execute(
         .map(|failure| failure.error.to_string());
     audit.persist(error.as_deref()).await;
     finish(state, &provider, &credential, result)
+}
+
+/// Execute one control request against a concrete credential while preserving
+/// the upstream wire response for the public Codex PAT service surface.
+pub async fn execute_raw(
+    state: &AppState,
+    credential_id: i64,
+    operation: CredentialControlOperation,
+) -> Result<RawControlResponse, ControlError> {
+    let credential = state
+        .persistence
+        .get_credential(credential_id)
+        .await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?
+        .ok_or(ControlError::CredentialNotFound)?;
+    let provider = state
+        .persistence
+        .get_provider(credential.provider_id)
+        .await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?
+        .ok_or(ControlError::ProviderNotFound)?;
+    let channel = state
+        .channels
+        .get(&provider.channel)
+        .ok_or_else(|| ControlError::UnknownChannel(provider.channel.clone()))?;
+    let opened = state
+        .cipher
+        .open(&credential.secret_json)
+        .map_err(|error| ControlError::Decrypt(error.to_string()))?;
+    let mut secret = state
+        .ensure_fresh_credential(&channel, &credential, &provider, opened, false)
+        .await?;
+    let client = state
+        .upstream_client_for_credential(&channel, &credential, &provider)
+        .map_err(|error| ControlError::Upstream(error.to_string()))?;
+    let audit = crate::credentials::usage::audit_sequence(state, &credential, operation.name());
+    let client = audit.wrap_client(client);
+
+    let mut result = send_raw(&channel, &secret, &provider, &operation, &client).await;
+    if result
+        .as_ref()
+        .is_ok_and(|response| response.disposition == Disposition::AuthDead)
+    {
+        secret = state
+            .ensure_fresh_credential(&channel, &credential, &provider, secret, true)
+            .await?;
+        result = send_raw(&channel, &secret, &provider, &operation, &client).await;
+    }
+    match result {
+        Ok(response) => {
+            audit.persist(None).await;
+            record(state, &provider, &credential, &response.disposition);
+            Ok(response)
+        }
+        Err(error) => {
+            audit.persist(Some(&error.to_string())).await;
+            record(state, &provider, &credential, &Disposition::Transient);
+            Err(error)
+        }
+    }
+}
+
+async fn send_raw(
+    channel: &Arc<dyn Channel>,
+    secret: &serde_json::Value,
+    provider: &Provider,
+    operation: &CredentialControlOperation,
+    client: &Arc<dyn UpstreamClient>,
+) -> Result<RawControlResponse, ControlError> {
+    let request = channel
+        .prepare_credential_control_request(operation, secret, &provider.settings_json)?
+        .ok_or_else(|| ControlError::Unsupported(operation.name()))?;
+    let response = client
+        .send(request)
+        .await
+        .map_err(|error| ControlError::Upstream(error.to_string()))?;
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = response.into_body();
+    let disposition = channel.classify(status, &headers, &body);
+    Ok(RawControlResponse {
+        status,
+        headers,
+        body,
+        disposition,
+    })
 }
 
 struct Failure {

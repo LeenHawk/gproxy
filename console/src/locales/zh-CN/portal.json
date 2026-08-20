@@ -44,6 +44,8 @@
     "dailyLimit": "日限额",
     "weeklyLimit": "周限额",
     "monthlyLimit": "月限额",
+    "fiveHourLimit": "5 小时限额",
+    "sevenDayLimit": "7 天限额",
     "rpm": "每分钟请求数",
     "rpd": "每日请求数",
     "totalTokens": "总 Token 数",

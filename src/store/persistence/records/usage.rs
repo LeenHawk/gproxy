@@ -19,6 +19,8 @@ pub struct Usage {
     pub team_id: Option<i64>,
     pub user_id: Option<i64>,
     pub user_key_id: Option<i64>,
+    #[serde(default)]
+    pub thread_id: Option<String>,
     pub operation: String,
     pub kind: String,
     pub model: Option<String>,
@@ -62,6 +64,8 @@ pub struct UsageInput {
     pub team_id: Option<i64>,
     pub user_id: Option<i64>,
     pub user_key_id: Option<i64>,
+    #[serde(default)]
+    pub thread_id: Option<String>,
     pub operation: String,
     pub kind: String,
     pub model: Option<String>,

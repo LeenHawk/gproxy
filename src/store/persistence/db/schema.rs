@@ -11,7 +11,7 @@ use crate::store::persistence::migrations::{
 };
 
 use super::entities::authz::{quota, rate_limit, route_permission};
-use super::entities::identity::{org, team, user, user_key};
+use super::entities::identity::{codex_task_binding, org, team, user, user_key};
 use super::entities::logs::{audit_log, downstream_request, upstream_request};
 use super::entities::pricing::price_rule;
 use super::entities::provider::{
@@ -54,6 +54,7 @@ pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> 
     create_table(conn, &schema, team::Entity).await?;
     create_table(conn, &schema, user::Entity).await?;
     create_table(conn, &schema, user_key::Entity).await?;
+    create_table(conn, &schema, codex_task_binding::Entity).await?;
     create_table(conn, &schema, route_permission::Entity).await?;
     create_table(conn, &schema, rate_limit::Entity).await?;
     create_table(conn, &schema, quota::Entity).await?;
@@ -168,6 +169,26 @@ pub(super) async fn create_composite_unique_indexes(
             Err(e) if mysql && e.to_string().contains("1061") => {}
             Err(e) => return Err(e.into()),
         }
+    }
+    let task_index = if mysql {
+        "CREATE UNIQUE INDEX uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id(191))"
+    } else {
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id)"
+    };
+    match conn.execute_unprepared(task_index).await {
+        Ok(_) => {}
+        Err(e) if mysql && e.to_string().contains("1061") => {}
+        Err(e) => return Err(e.into()),
+    }
+    let task_owner_index = if mysql {
+        "CREATE INDEX ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)"
+    } else {
+        "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)"
+    };
+    match conn.execute_unprepared(task_owner_index).await {
+        Ok(_) => {}
+        Err(e) if mysql && e.to_string().contains("1061") => {}
+        Err(e) => return Err(e.into()),
     }
 
     // Nullable models need NULL folded to one stable bucket. Keep this

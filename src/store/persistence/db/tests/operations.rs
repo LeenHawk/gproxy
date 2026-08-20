@@ -282,6 +282,8 @@ async fn quota_decimal_exact_round_trip() {
             quota_daily: None,
             quota_weekly: None,
             quota_monthly: None,
+            quota_5h: None,
+            quota_7d: None,
             cost_used,
         })
         .await
@@ -311,6 +313,8 @@ async fn add_quota_cost_accumulates() {
         quota_daily: Some(Decimal::from(10)),
         quota_weekly: Some(Decimal::from(20)),
         quota_monthly: Some(Decimal::from(30)),
+        quota_5h: Some(Decimal::from(5)),
+        quota_7d: Some(Decimal::from(70)),
         cost_used: Decimal::ZERO,
     })
     .await

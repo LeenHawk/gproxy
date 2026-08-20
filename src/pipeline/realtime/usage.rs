@@ -63,6 +63,7 @@ impl UsageContext {
             team_id: self.team_id,
             user_id: self.user_id,
             user_key_id: self.user_key_id,
+            thread_id: None,
             operation: &self.operation,
             kind: &self.kind,
             model: Some(model),

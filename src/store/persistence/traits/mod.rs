@@ -196,6 +196,9 @@ persistence_backend! {
     IdentityPersistence::upsert_user_key => upsert_user_key(input: UserKeyInput) -> anyhow::Result<UserKey>;
     IdentityPersistence::update_user_key_digest => update_user_key_digest(id: i64, digest: &str, digest_version: i64) -> anyhow::Result<()>;
     IdentityPersistence::delete_user_key => delete_user_key(id: i64) -> anyhow::Result<bool>;
+    IdentityPersistence::get_codex_task_binding => get_codex_task_binding(provider_id: i64, task_id: &str) -> anyhow::Result<Option<CodexTaskBinding>>;
+    IdentityPersistence::list_codex_task_bindings => list_codex_task_bindings(provider_id: i64, owner_user_id: i64) -> anyhow::Result<Vec<CodexTaskBinding>>;
+    IdentityPersistence::upsert_codex_task_binding => upsert_codex_task_binding(input: CodexTaskBindingInput) -> anyhow::Result<CodexTaskBinding>;
 
     AuthzPersistence::list_route_permissions => list_route_permissions(scope: Scope, scope_id: i64) -> anyhow::Result<Vec<RoutePermission>>;
     AuthzPersistence::list_all_route_permissions => list_all_route_permissions() -> anyhow::Result<Vec<RoutePermission>>;

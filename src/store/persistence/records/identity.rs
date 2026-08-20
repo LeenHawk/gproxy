@@ -1,6 +1,7 @@
 //! Identity records (§8-C): orgs, teams, users, and user keys.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// An organization — the top of the identity hierarchy (§8-C).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -148,4 +149,27 @@ pub struct UserKeyInput {
     pub api_key_digest: String,
     pub label: Option<String>,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CodexTaskBinding {
+    pub id: i64,
+    pub provider_id: i64,
+    pub task_id: String,
+    pub credential_id: i64,
+    pub owner_user_id: i64,
+    pub environment_id: Option<String>,
+    pub summary_json: Value,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CodexTaskBindingInput {
+    pub provider_id: i64,
+    pub task_id: String,
+    pub credential_id: i64,
+    pub owner_user_id: i64,
+    pub environment_id: Option<String>,
+    pub summary_json: Value,
 }

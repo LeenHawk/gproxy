@@ -4,6 +4,7 @@
 //! - `edge` — inbound WinterCG `fetch` entry (wasm)
 
 pub mod client;
+pub(crate) mod codex_service;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod cors;
 pub(crate) mod egress;

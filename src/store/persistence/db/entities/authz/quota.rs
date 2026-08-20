@@ -20,6 +20,10 @@ pub struct Model {
     pub quota_weekly: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub quota_monthly: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub quota_5h: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub quota_7d: Option<String>,
     #[sea_orm(column_type = "Text")]
     pub cost_used: String,
     #[sea_orm(column_type = "Text", default_value = "0")]
@@ -34,6 +38,12 @@ pub struct Model {
     pub month_used: String,
     #[sea_orm(default_value = 0)]
     pub month_anchor: i64,
+    #[sea_orm(column_type = "Text")]
+    pub five_hour_used: String,
+    pub five_hour_anchor: i64,
+    #[sea_orm(column_type = "Text")]
+    pub seven_day_used: String,
+    pub seven_day_anchor: i64,
     pub created_at: i64,
     pub updated_at: i64,
 }

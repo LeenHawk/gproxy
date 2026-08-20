@@ -92,6 +92,42 @@ pub(crate) fn prepare_provider(
     }
 }
 
+/// Health-filtered credential order for non-model Codex service operations.
+/// User stickiness is intentionally excluded: only an explicit resource pin
+/// may constrain the pool.
+pub(crate) fn service_credentials(
+    cp: &ControlPlaneSnapshot,
+    provider: &Arc<Provider>,
+    health: &HealthState,
+    hard_pinned_credential: Option<i64>,
+) -> Vec<Arc<Credential>> {
+    let now = unix_now();
+    let pool = cp
+        .credentials_by_provider
+        .get(&provider.id)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    if let Some(id) = hard_pinned_credential {
+        return pool
+            .iter()
+            .find(|credential| credential.id == id)
+            .filter(|credential| health.credential_available(credential.id, now) != CredAdmit::No)
+            .cloned()
+            .into_iter()
+            .collect();
+    }
+    let filtered = pool
+        .iter()
+        .filter(|credential| health.credential_available(credential.id, now) != CredAdmit::No)
+        .cloned()
+        .collect::<Vec<_>>();
+    strategy::order_credentials(
+        &filtered,
+        health.next_credential_rotation(provider.id),
+        /*pinned*/ None,
+    )
+}
+
 impl PreparedProvider {
     pub(crate) fn provider_model(&self) -> (i64, &str) {
         (self.provider.id, &self.upstream_model_id)

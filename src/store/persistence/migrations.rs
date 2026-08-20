@@ -548,6 +548,62 @@ pub const MIGRATIONS: &[Migration] = &[
             ],
         },
     },
+    Migration {
+        version: 28,
+        description: "quotas: anchored 5-hour and 7-day spend windows",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "ALTER TABLE quotas ADD COLUMN quota_5h TEXT",
+                "ALTER TABLE quotas ADD COLUMN quota_7d TEXT",
+                "ALTER TABLE quotas ADD COLUMN five_hour_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN five_hour_anchor INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE quotas ADD COLUMN seven_day_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN seven_day_anchor INTEGER NOT NULL DEFAULT 0",
+            ],
+            postgres: &[
+                "ALTER TABLE quotas ADD COLUMN quota_5h VARCHAR(64)",
+                "ALTER TABLE quotas ADD COLUMN quota_7d VARCHAR(64)",
+                "ALTER TABLE quotas ADD COLUMN five_hour_used VARCHAR(64) NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN five_hour_anchor BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE quotas ADD COLUMN seven_day_used VARCHAR(64) NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN seven_day_anchor BIGINT NOT NULL DEFAULT 0",
+            ],
+            mysql: &[
+                "ALTER TABLE quotas ADD COLUMN quota_5h TEXT",
+                "ALTER TABLE quotas ADD COLUMN quota_7d TEXT",
+                "ALTER TABLE quotas ADD COLUMN five_hour_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN five_hour_anchor BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE quotas ADD COLUMN seven_day_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN seven_day_anchor BIGINT NOT NULL DEFAULT 0",
+            ],
+        },
+    },
+    Migration {
+        version: 29,
+        description: "usages.thread_id: Codex thread-level virtual usage",
+        sql: MigrationSql::Shared(&["ALTER TABLE usages ADD COLUMN thread_id TEXT"]),
+    },
+    Migration {
+        version: 30,
+        description: "codex_task_bindings: persistent PAT task ownership and credential affinity",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "CREATE TABLE IF NOT EXISTS codex_task_bindings (id INTEGER PRIMARY KEY, provider_id INTEGER NOT NULL, task_id TEXT NOT NULL, credential_id INTEGER NOT NULL, owner_user_id INTEGER NOT NULL, environment_id TEXT, summary_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id)",
+                "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
+            ],
+            postgres: &[
+                "CREATE TABLE IF NOT EXISTS codex_task_bindings (id BIGSERIAL PRIMARY KEY, provider_id BIGINT NOT NULL, task_id TEXT NOT NULL, credential_id BIGINT NOT NULL, owner_user_id BIGINT NOT NULL, environment_id TEXT, summary_json TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id)",
+                "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
+            ],
+            mysql: &[
+                "CREATE TABLE IF NOT EXISTS codex_task_bindings (id BIGINT PRIMARY KEY AUTO_INCREMENT, provider_id BIGINT NOT NULL, task_id TEXT NOT NULL, credential_id BIGINT NOT NULL, owner_user_id BIGINT NOT NULL, environment_id TEXT, summary_json TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)",
+                "CREATE UNIQUE INDEX uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id(191))",
+                "CREATE INDEX ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
+            ],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

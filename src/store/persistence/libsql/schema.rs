@@ -200,6 +200,18 @@ const TABLES: &[&str] = &[
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS codex_task_bindings (\
+        id INTEGER PRIMARY KEY, \
+        provider_id INTEGER NOT NULL, \
+        task_id TEXT NOT NULL, \
+        credential_id INTEGER NOT NULL, \
+        owner_user_id INTEGER NOT NULL, \
+        environment_id TEXT, \
+        summary_json TEXT NOT NULL, \
+        created_at INTEGER NOT NULL, \
+        updated_at INTEGER NOT NULL, \
+        UNIQUE(provider_id, task_id))",
+    "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
     // ── authz ──
     "CREATE TABLE IF NOT EXISTS route_permissions (\
         id INTEGER PRIMARY KEY, \
@@ -226,6 +238,8 @@ const TABLES: &[&str] = &[
         quota_daily TEXT, \
         quota_weekly TEXT, \
         quota_monthly TEXT, \
+        quota_5h TEXT, \
+        quota_7d TEXT, \
         cost_used TEXT NOT NULL, \
         day_used TEXT NOT NULL DEFAULT '0', \
         day_anchor INTEGER NOT NULL DEFAULT 0, \
@@ -233,6 +247,10 @@ const TABLES: &[&str] = &[
         week_anchor INTEGER NOT NULL DEFAULT 0, \
         month_used TEXT NOT NULL DEFAULT '0', \
         month_anchor INTEGER NOT NULL DEFAULT 0, \
+        five_hour_used TEXT NOT NULL DEFAULT '0', \
+        five_hour_anchor INTEGER NOT NULL DEFAULT 0, \
+        seven_day_used TEXT NOT NULL DEFAULT '0', \
+        seven_day_anchor INTEGER NOT NULL DEFAULT 0, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL, \
         UNIQUE(scope, scope_id))",
@@ -248,6 +266,7 @@ const TABLES: &[&str] = &[
         team_id INTEGER, \
         user_id INTEGER, \
         user_key_id INTEGER, \
+        thread_id TEXT, \
         operation TEXT NOT NULL, \
         kind TEXT NOT NULL, \
         model TEXT, \

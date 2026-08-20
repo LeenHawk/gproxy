@@ -258,6 +258,7 @@ async fn settle_ended(captured: &Captured, body: &Bytes, ended: Ended) {
         team_id: identity.and_then(|i| i.user.team_id),
         user_id: identity.map(|i| i.user.id),
         user_key_id: identity.map(|i| i.user_key.id),
+        thread_id: ctx.headers.get("thread-id").and_then(|value| value.to_str().ok()),
         operation: &operation,
         kind: &kind,
         model: Some(&cand.upstream_model_id),

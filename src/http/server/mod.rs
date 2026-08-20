@@ -60,6 +60,10 @@ pub fn router(state: AppState) -> Router {
         let mut gateway = Router::new()
             .route("/v1/{*rest}", any(gateway::aggregated))
             .route("/{provider}/v1/{*rest}", any(gateway::scoped))
+            .route("/{provider}/api/codex/{*rest}", any(gateway::scoped))
+            .route("/{provider}/backend-api/{*rest}", any(gateway::scoped))
+            .route("/{provider}/codex/{*rest}", any(gateway::scoped))
+            .route("/{provider}/ps/{*rest}", any(gateway::scoped))
             // Gemini speaks `/v1beta/...` rather than `/v1/...`; register the
             // parallel surface so the gemini inbound spec reaches `classify`
             // (which already handles these paths) instead of a router 404.

@@ -91,6 +91,22 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
             &request_id,
         );
     }
+    if crate::http::codex_service::is_remote_control_websocket_ingress(&path) {
+        complete_early(
+            &request_id,
+            &inbound_method,
+            &path,
+            ::http::StatusCode::NOT_IMPLEMENTED,
+            started_ms,
+            "remote control websocket unsupported on edge",
+        );
+        return bridge::text_response_with_request_id(
+            501,
+            "text/plain",
+            b"Codex Remote Control WebSocket passthrough is not supported on edge",
+            &request_id,
+        );
+    }
 
     // Operational endpoints share the admin auth used by /admin/*.
     match path.as_str() {
@@ -169,6 +185,12 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
             return bridge::error_to_ws(&error, &request_id);
         }
     };
+    if let Some(result) = crate::http::codex_service::execute(state, ctx.clone()).await {
+        return match result {
+            Ok(outcome) => bridge::outcome_to_ws(outcome, &request_id),
+            Err(error) => bridge::error_to_ws(&error, &request_id),
+        };
+    }
     match crate::pipeline::execute(state, ctx).await {
         Ok(outcome) => bridge::outcome_to_ws(outcome, &request_id),
         Err(error) => bridge::error_to_ws(&error, &request_id),

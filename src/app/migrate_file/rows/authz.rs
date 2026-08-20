@@ -87,6 +87,8 @@ impl From<LegacyQuota> for QuotaInput {
             quota_daily: None,
             quota_weekly: None,
             quota_monthly: None,
+            quota_5h: None,
+            quota_7d: None,
             cost_used: x.cost_used,
         }
     }

@@ -97,6 +97,10 @@ pub struct Quota {
     pub quota_weekly: Option<Decimal>,
     #[serde(default, with = "rust_decimal::serde::str_option")]
     pub quota_monthly: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_5h: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_7d: Option<Decimal>,
     #[serde(with = "rust_decimal::serde::str")]
     pub cost_used: Decimal,
     #[serde(default, with = "rust_decimal::serde::str")]
@@ -111,6 +115,14 @@ pub struct Quota {
     pub month_used: Decimal,
     #[serde(default)]
     pub month_anchor: i64,
+    #[serde(default, with = "rust_decimal::serde::str")]
+    pub five_hour_used: Decimal,
+    #[serde(default)]
+    pub five_hour_anchor: i64,
+    #[serde(default, with = "rust_decimal::serde::str")]
+    pub seven_day_used: Decimal,
+    #[serde(default)]
+    pub seven_day_anchor: i64,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -129,6 +141,10 @@ pub struct QuotaInput {
     pub quota_weekly: Option<Decimal>,
     #[serde(default, with = "rust_decimal::serde::str_option")]
     pub quota_monthly: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_5h: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_7d: Option<Decimal>,
     #[serde(with = "rust_decimal::serde::str")]
     pub cost_used: Decimal,
 }

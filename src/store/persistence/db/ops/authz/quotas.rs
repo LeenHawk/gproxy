@@ -18,6 +18,8 @@ fn to_record(m: quota::Model) -> anyhow::Result<Quota> {
         quota_daily: m.quota_daily.map(|v| v.parse()).transpose()?,
         quota_weekly: m.quota_weekly.map(|v| v.parse()).transpose()?,
         quota_monthly: m.quota_monthly.map(|v| v.parse()).transpose()?,
+        quota_5h: m.quota_5h.map(|v| v.parse()).transpose()?,
+        quota_7d: m.quota_7d.map(|v| v.parse()).transpose()?,
         cost_used: m.cost_used.parse::<rust_decimal::Decimal>()?,
         day_used: m.day_used.parse()?,
         day_anchor: m.day_anchor,
@@ -25,6 +27,10 @@ fn to_record(m: quota::Model) -> anyhow::Result<Quota> {
         week_anchor: m.week_anchor,
         month_used: m.month_used.parse()?,
         month_anchor: m.month_anchor,
+        five_hour_used: m.five_hour_used.parse()?,
+        five_hour_anchor: m.five_hour_anchor,
+        seven_day_used: m.seven_day_used.parse()?,
+        seven_day_anchor: m.seven_day_anchor,
         created_at: m.created_at,
         updated_at: m.updated_at,
     })
@@ -94,6 +100,8 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
                 am.quota_daily = Set(input.quota_daily.map(|v| v.to_string()));
                 am.quota_weekly = Set(input.quota_weekly.map(|v| v.to_string()));
                 am.quota_monthly = Set(input.quota_monthly.map(|v| v.to_string()));
+                am.quota_5h = Set(input.quota_5h.map(|v| v.to_string()));
+                am.quota_7d = Set(input.quota_7d.map(|v| v.to_string()));
                 // cost_used is billing-owned (accumulated via add_cost). An admin
                 // edit of an EXISTING quota must NOT clobber it — keep the stored
                 // value (am.cost_used stays Set to `existing` from `.into()`).
@@ -113,6 +121,8 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
                     quota_daily: Set(input.quota_daily.map(|v| v.to_string())),
                     quota_weekly: Set(input.quota_weekly.map(|v| v.to_string())),
                     quota_monthly: Set(input.quota_monthly.map(|v| v.to_string())),
+                    quota_5h: Set(input.quota_5h.map(|v| v.to_string())),
+                    quota_7d: Set(input.quota_7d.map(|v| v.to_string())),
                     cost_used: Set(input.cost_used.to_string()),
                     day_used: Set("0".to_owned()),
                     day_anchor: Set(0),
@@ -120,6 +130,10 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
                     week_anchor: Set(0),
                     month_used: Set("0".to_owned()),
                     month_anchor: Set(0),
+                    five_hour_used: Set("0".to_owned()),
+                    five_hour_anchor: Set(0),
+                    seven_day_used: Set("0".to_owned()),
+                    seven_day_anchor: Set(0),
                     created_at: Set(now),
                     updated_at: Set(now),
                 }
@@ -136,6 +150,8 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
             quota_daily: Set(input.quota_daily.map(|v| v.to_string())),
             quota_weekly: Set(input.quota_weekly.map(|v| v.to_string())),
             quota_monthly: Set(input.quota_monthly.map(|v| v.to_string())),
+            quota_5h: Set(input.quota_5h.map(|v| v.to_string())),
+            quota_7d: Set(input.quota_7d.map(|v| v.to_string())),
             cost_used: Set(input.cost_used.to_string()),
             day_used: Set("0".to_owned()),
             day_anchor: Set(0),
@@ -143,6 +159,10 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
             week_anchor: Set(0),
             month_used: Set("0".to_owned()),
             month_anchor: Set(0),
+            five_hour_used: Set("0".to_owned()),
+            five_hour_anchor: Set(0),
+            seven_day_used: Set("0".to_owned()),
+            seven_day_anchor: Set(0),
             created_at: Set(now),
             updated_at: Set(now),
         }
@@ -198,6 +218,20 @@ pub async fn add_cost(
             month_key,
             delta,
         )?;
+        let (five_hour_anchor, five_hour_used) = timewindow::accumulate_anchored(
+            existing.five_hour_anchor,
+            &existing.five_hour_used,
+            now,
+            timewindow::FIVE_HOURS_SECS,
+            delta,
+        )?;
+        let (seven_day_anchor, seven_day_used) = timewindow::accumulate_anchored(
+            existing.seven_day_anchor,
+            &existing.seven_day_used,
+            now,
+            timewindow::SEVEN_DAYS_SECS,
+            delta,
+        )?;
         let res = quota::Entity::update_many()
             .col_expr(quota::Column::CostUsed, Expr::value(updated.to_string()))
             .col_expr(quota::Column::DayUsed, Expr::value(day_used.to_string()))
@@ -209,6 +243,16 @@ pub async fn add_cost(
                 Expr::value(month_used.to_string()),
             )
             .col_expr(quota::Column::MonthAnchor, Expr::value(month_anchor))
+            .col_expr(
+                quota::Column::FiveHourUsed,
+                Expr::value(five_hour_used.to_string()),
+            )
+            .col_expr(quota::Column::FiveHourAnchor, Expr::value(five_hour_anchor))
+            .col_expr(
+                quota::Column::SevenDayUsed,
+                Expr::value(seven_day_used.to_string()),
+            )
+            .col_expr(quota::Column::SevenDayAnchor, Expr::value(seven_day_anchor))
             .col_expr(quota::Column::UpdatedAt, Expr::value(now))
             .filter(quota::Column::Id.eq(existing.id))
             .filter(quota::Column::CostUsed.eq(existing.cost_used.clone()))
