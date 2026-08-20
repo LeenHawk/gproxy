@@ -217,6 +217,16 @@ fn embeddings_default_to_unsupported() {
 }
 
 #[test]
+fn subscription_only_http_surfaces_default_to_passthrough() {
+    for operation in [Operation::WebSearch, Operation::CreateRealtimeCall] {
+        assert_eq!(
+            provider_route(operation, Provider::OpenAi),
+            RoutingDecision::Passthrough
+        );
+    }
+}
+
+#[test]
 fn prepare_responses_websocket_returns_custom_stream() {
     let secret = json!({ "access_token": "tok-abc" });
     let settings = json!({});
@@ -492,14 +502,18 @@ async fn codex_authcode_start_url() {
 
 #[test]
 fn shapes_codex_model_metadata() {
+    // gpt-5.6 reports a 272k default under an 872k override ceiling; the
+    // ceiling is the real capability, so it must win over `context_window`.
     let list = Bytes::from_static(
-        br#"{"models":[{"slug":"gpt-5.4-codex"},{"id":"gpt-5.4"},{"name":"no-id"}]}"#,
+        br#"{"models":[{"slug":"gpt-5.4-codex","context_window":272000,"max_context_window":872000},{"id":"gpt-5.4"},{"name":"no-id"}]}"#,
     );
     let value: Value = serde_json::from_slice(&model_metadata::shape_model_list(list)).unwrap();
     assert_eq!(value["object"], "list");
     assert_eq!(value["data"].as_array().unwrap().len(), 2);
     assert_eq!(value["data"][0]["id"], "gpt-5.4-codex");
+    assert_eq!(value["data"][0]["context_window"], 872_000);
     assert_eq!(value["data"][1]["id"], "gpt-5.4");
+    assert!(value["data"][1].get("context_window").is_none());
 
     let get = Bytes::from_static(br#"{"models":[{"slug":"gpt-5.4-codex"}]}"#);
     let value: Value = serde_json::from_slice(&model_metadata::shape_model_get(get)).unwrap();

@@ -13,7 +13,6 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub variants_json: Option<String>,
     pub context_window: Option<i64>,
-    pub max_input_tokens: Option<i64>,
     pub max_output_tokens: Option<i64>,
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,

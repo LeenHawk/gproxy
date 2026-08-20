@@ -14,6 +14,7 @@ pub mod migrate_file;
 #[cfg(feature = "migrate-v1")]
 pub mod migrate_v1;
 pub mod models_index;
+pub mod quota_state;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod retention;
 pub mod snapshot;
@@ -109,6 +110,10 @@ pub struct AppState {
     pub upstream: Arc<dyn UpstreamClient>,
     /// Sole control-plane snapshot (§7.2); replaced wholesale on invalidation.
     pub snapshot: Arc<ArcSwap<ControlPlaneSnapshot>>,
+    /// §17 quota rows, refreshed on their own cadence. Settle mutates their
+    /// billing counters on every request, so — unlike the rest of the control
+    /// plane — they must NOT be read off the invalidation-driven snapshot.
+    pub quotas: Arc<crate::app::quota_state::QuotaState>,
     /// Channel adapters keyed by id (§6.3).
     pub channels: Arc<ChannelRegistry>,
     /// Envelope cipher for stored secrets (§14.1): seals at import, opens at
@@ -176,6 +181,9 @@ impl AppState {
             cache,
             persistence,
             upstream,
+            quotas: Arc::new(crate::app::quota_state::QuotaState::new(
+                snapshot.load().quotas_by_scope.clone(),
+            )),
             snapshot,
             channels,
             cipher,
@@ -462,6 +470,9 @@ impl AppState {
     pub async fn reload_snapshot(&self) -> anyhow::Result<()> {
         let next = self.cp().version.wrapping_add(1);
         let snap = ControlPlaneSnapshot::build(self.persistence.as_ref(), next).await?;
+        // The rebuild just read the quota rows — adopt them and restart the
+        // refresh window rather than paying for the same query again.
+        self.quotas.store(snap.quotas_by_scope.clone());
         self.snapshot.store(Arc::new(snap));
         Ok(())
     }

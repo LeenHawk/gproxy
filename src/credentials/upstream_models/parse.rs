@@ -9,7 +9,6 @@ pub struct UpstreamModel {
     pub id: String,
     pub display_name: Option<String>,
     pub context_window: Option<i64>,
-    pub max_input_tokens: Option<i64>,
     pub max_output_tokens: Option<i64>,
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
@@ -62,7 +61,9 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                     .and_then(Value::as_array)
                     .map(|parameters| parameters.iter().any(|value| value.as_str() == Some(name)))
             };
-            let (context_window, max_input_tokens, max_output_tokens) = match family {
+            // The context window *is* the input allowance; peers that name it
+            // separately (Claude, Gemini) fold into the same field.
+            let (context_window, max_output_tokens) = match family {
                 Provider::OpenAi => (
                     int("context_length")
                         .or_else(|| int("context_window"))
@@ -70,11 +71,10 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                         .or_else(|| int("max_model_len"))
                         .or_else(|| int("n_ctx"))
                         .or_else(|| meta_int("n_ctx")),
-                    None,
                     int("max_completion_tokens").or_else(|| int("max_output_tokens")),
                 ),
-                Provider::Claude => (None, int("max_input_tokens"), int("max_tokens")),
-                Provider::Gemini => (None, int("inputTokenLimit"), int("outputTokenLimit")),
+                Provider::Claude => (int("max_input_tokens"), int("max_tokens")),
+                Provider::Gemini => (int("inputTokenLimit"), int("outputTokenLimit")),
                 _ => unreachable!(
                     "new non-exhaustive protocol variant requires a lockstep transform update"
                 ),
@@ -111,7 +111,6 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                 id,
                 display_name,
                 context_window,
-                max_input_tokens,
                 max_output_tokens,
                 thinking_supported,
                 thinking_adaptive_supported,

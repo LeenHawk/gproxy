@@ -89,8 +89,6 @@ pub(crate) struct LegacyProviderModel {
     #[serde(default)]
     pub context_window: Option<i64>,
     #[serde(default)]
-    pub max_input_tokens: Option<i64>,
-    #[serde(default)]
     pub max_output_tokens: Option<i64>,
     #[serde(default)]
     pub thinking_supported: Option<bool>,
@@ -111,7 +109,6 @@ impl From<LegacyProviderModel> for ProviderModelInput {
             display_name: x.display_name,
             variants_json: x.variants_json,
             context_window: x.context_window,
-            max_input_tokens: x.max_input_tokens,
             max_output_tokens: x.max_output_tokens,
             thinking_supported: x.thinking_supported,
             thinking_adaptive_supported: x.thinking_adaptive_supported,

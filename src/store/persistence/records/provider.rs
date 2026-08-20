@@ -184,8 +184,6 @@ pub struct ProviderModel {
     #[serde(default)]
     pub context_window: Option<i64>,
     #[serde(default)]
-    pub max_input_tokens: Option<i64>,
-    #[serde(default)]
     pub max_output_tokens: Option<i64>,
     #[serde(default)]
     pub thinking_supported: Option<bool>,
@@ -210,8 +208,6 @@ pub struct ProviderModelInput {
     pub variants_json: Option<Value>,
     #[serde(default)]
     pub context_window: Option<i64>,
-    #[serde(default)]
-    pub max_input_tokens: Option<i64>,
     #[serde(default)]
     pub max_output_tokens: Option<i64>,
     #[serde(default)]
