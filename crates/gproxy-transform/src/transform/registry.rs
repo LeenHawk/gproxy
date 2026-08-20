@@ -129,6 +129,11 @@ pub fn resolve(
         | Operation::GetVideoCharacter
         | Operation::EditVideo
         | Operation::ExtendVideo => Err(TransformError::unsupported_pair(source, target)),
+        Operation::CreateFile
+        | Operation::ListFiles
+        | Operation::RetrieveFile
+        | Operation::DeleteFile
+        | Operation::DownloadFileContent => Err(TransformError::unsupported_pair(source, target)),
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }

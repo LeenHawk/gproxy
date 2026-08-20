@@ -19,6 +19,7 @@ console, admin API, or JSON import/export.
 | `GPROXY_HOST` | `127.0.0.1` | Bind host. IPv6 addresses need bracket notation when passed as a CLI flag, for example `[::1]`. |
 | `GPROXY_PORT` | `8787` | Bind port. |
 | `GPROXY_MAX_IN_FLIGHT` | `1024` | Maximum concurrent gateway requests. Excess gateway requests are load-shed with `503`; admin and ops endpoints remain outside this gateway limiter. |
+| `GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT` | `0` | Maximum concurrent scoped `/v1/files` uploads for this process. `0` is unlimited. When set, this overrides the persisted global upload limit; the provider limit still applies in addition. |
 | `GPROXY_MAX_ATTEMPTS` | `6` | Per-request failover attempt cap. A forced credential refresh for an auth-dead candidate does not count as a new logical candidate. |
 | `GPROXY_INSTANCE_ID` | `0` | Numeric instance identifier used where rows need per-instance partitioning. Use distinct values in a multi-node fleet. |
 | `GPROXY_TRUSTED_PROXIES` | Empty | Comma-separated IP addresses whose `x-forwarded-for` / `x-real-ip` headers are trusted, in addition to loopback. |

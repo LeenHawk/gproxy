@@ -20,6 +20,10 @@ pub fn restore_media_multipart(
 
     let mut fields: Map<String, Value> = serde_json::from_slice(&body)
         .map_err(|error| ChannelError::Build(format!("media upload body is not JSON: {error}")))?;
+    let file_name = (operation == Operation::CreateFile)
+        .then(|| fields.remove("__gproxy_file_name"))
+        .flatten()
+        .and_then(|value| value.as_str().map(str::to_owned));
     // xAI's streaming STT parser only observes option fields placed before the
     // file part, so emit that upload last for the Grok Build adapter.
     let trailing_file = (matches!(channel_id, "grokbuild" | "xai")
@@ -30,10 +34,13 @@ pub fn restore_media_multipart(
     let boundary = format!("gproxy-media-{}", &digest.as_str()[..24]);
     let mut output = Vec::with_capacity(body.len());
     for (name, value) in fields {
-        append_value(&mut output, &boundary, operation, &name, value)?;
+        let file_name = (operation == Operation::CreateFile && name == "file")
+            .then_some(file_name.as_deref())
+            .flatten();
+        append_value(&mut output, &boundary, operation, &name, value, file_name)?;
     }
     if let Some(file) = trailing_file {
-        append_value(&mut output, &boundary, operation, "file", file)?;
+        append_value(&mut output, &boundary, operation, "file", file, None)?;
     }
     output.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     headers.insert(
@@ -64,6 +71,7 @@ fn needs_multipart(channel_id: &str, operation: Operation) -> bool {
         Operation::CreateVideoCharacter | Operation::EditVideo | Operation::ExtendVideo => {
             matches!(channel_id, "openai" | "azure" | "custom")
         }
+        Operation::CreateFile => channel_id == "openai",
         _ => false,
     }
 }
@@ -74,11 +82,12 @@ fn append_value(
     operation: Operation,
     name: &str,
     value: Value,
+    file_name: Option<&str>,
 ) -> Result<(), ChannelError> {
     if let Value::Array(values) = value {
         let array_name = format!("{name}[]");
         for value in values {
-            append_value(output, boundary, operation, &array_name, value)?;
+            append_value(output, boundary, operation, &array_name, value, file_name)?;
         }
         return Ok(());
     }
@@ -87,7 +96,10 @@ fn append_value(
             .as_str()
             .ok_or_else(|| ChannelError::Build("media file must be a data URL".into()))?;
         let (mime, data) = decode_data_url(data_url)?;
-        append_header(output, boundary, name, Some(filename(mime)), Some(mime))?;
+        let file_name = file_name
+            .filter(|name| safe_filename(name))
+            .unwrap_or_else(|| filename(mime));
+        append_header(output, boundary, name, Some(file_name), Some(mime))?;
         output.extend_from_slice(&data);
     } else {
         let text = match value {
@@ -104,6 +116,14 @@ fn append_value(
     Ok(())
 }
 
+fn safe_filename(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 1024
+        && !value
+            .bytes()
+            .any(|byte| matches!(byte, b'\r' | b'\n' | b'"' | b'\\'))
+}
+
 fn is_file_value(operation: Operation, name: &str, value: &Value) -> bool {
     let name = name.strip_suffix("[]").unwrap_or(name);
     let upload_field = match operation {
@@ -113,6 +133,7 @@ fn is_file_value(operation: Operation, name: &str, value: &Value) -> bool {
         Operation::CreateVideoCharacter | Operation::EditVideo | Operation::ExtendVideo => {
             name == "video"
         }
+        Operation::CreateFile => name == "file",
         _ => false,
     };
     upload_field

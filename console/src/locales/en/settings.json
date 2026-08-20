@@ -22,6 +22,7 @@
     "enableTokenizerDownload": "Enable Tokenizer Download",
     "retentionDays": "Retention Period (days)",
     "maxDatabaseSizeMb": "Maximum Database Size (MiB)",
+    "fileUploadMaxInFlight": "File Upload Concurrency",
     "autostart": "Start GPROXY automatically at login"
   },
   "spoof": {
@@ -30,7 +31,8 @@
   },
   "retention": {
     "forever": "Leave blank to retain logs forever",
-    "databaseSizeHelp": "Native SQLite only. When exceeded, the oldest request and audit logs are removed until the compacted database reaches 90% of this size. Usage data is always preserved. Leave blank for no limit."
+    "databaseSizeHelp": "Native SQLite only. When exceeded, the oldest request and audit logs are removed until the compacted database reaches 90% of this size. Usage data is always preserved. Leave blank for no limit.",
+    "fileUploadConcurrencyHelp": "0 or blank allows unlimited concurrent /v1/files uploads."
   },
   "warnings": {
     "sensitive": "Warning: one or more sensitive options are enabled. Logs may contain unredacted content or request/response bodies, which can include secrets and PII. Enable these options for troubleshooting only."

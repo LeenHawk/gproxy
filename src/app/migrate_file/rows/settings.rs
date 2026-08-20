@@ -108,6 +108,7 @@ impl From<LegacyInstanceSettings> for InstanceSettingsInput {
             enable_auto_update_check: x.enable_auto_update_check,
             retention_days: x.retention_days,
             max_database_size_mb: None,
+            file_upload_max_in_flight: 0,
         }
     }
 }

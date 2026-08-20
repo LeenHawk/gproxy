@@ -60,6 +60,11 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
         (O::CreateConversation, _) => "openai_conversations",
         (O::CreateRealtimeCall, _) => "openai_realtime_call",
         (O::ConnectRealtime, _) => "openai_realtime",
+        (O::CreateFile, P::OpenAi) => "openai_file_create",
+        (O::ListFiles, P::OpenAi) => "openai_file_list",
+        (O::RetrieveFile, P::OpenAi) => "openai_file_retrieve",
+        (O::DeleteFile, P::OpenAi) => "openai_file_delete",
+        (O::DownloadFileContent, P::OpenAi) => "openai_file_content",
         (O::GenerateContent | O::StreamGenerateContent, _) => {
             unreachable!("content operations must carry a content kind")
         }
@@ -98,6 +103,11 @@ pub fn endpoint_url_for_request(
             .strip_prefix("/v1/videos/characters/")
             .filter(|id| !id.is_empty() && !id.contains('/'))
             .map(|id| ("{character_id}", id)),
+        Operation::RetrieveFile | Operation::DeleteFile | Operation::DownloadFileContent => path
+            .strip_prefix("/v1/files/")
+            .and_then(|rest| rest.strip_suffix("/content").or(Some(rest)))
+            .filter(|id| !id.is_empty() && !id.contains('/'))
+            .map(|id| ("{file_id}", id)),
         _ => None,
     };
     match resource {

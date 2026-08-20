@@ -52,6 +52,16 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             oauth(&mut metadata, &[LoginMode::Cookie], true);
             metadata.secret_template = json!({ "cookie": "", "account_uuid": "" });
         }
+        "openai" => {
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "file_upload_max_in_flight".into(),
+                control: SettingControl::Integer,
+                label: Some("File upload concurrency".into()),
+                required: false,
+                default: Some(json!(0)),
+                placeholder: Some("0 (unlimited)".into()),
+            });
+        }
         "codex" => {
             oauth(
                 &mut metadata,
@@ -67,6 +77,14 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 required: false,
                 default: Some(json!("pro")),
                 placeholder: Some("pro".into()),
+            });
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "file_upload_max_in_flight".into(),
+                control: SettingControl::Integer,
+                label: Some("File upload concurrency".into()),
+                required: false,
+                default: Some(json!(0)),
+                placeholder: Some("0 (unlimited)".into()),
             });
         }
         "cloudflare-ai-gateway" => {
@@ -211,6 +229,11 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_video_edit",
             "openai_video_extend",
             "openai_compact",
+            "openai_file_create",
+            "openai_file_list",
+            "openai_file_retrieve",
+            "openai_file_delete",
+            "openai_file_content",
         ],
         "azure" => &[
             "openai_list_models",

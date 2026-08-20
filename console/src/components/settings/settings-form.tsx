@@ -50,6 +50,7 @@ interface FormState {
   enableDownstreamLog: boolean; enableDownstreamLogBody: boolean;
   disableLogRedaction: boolean; enableTokenizerDownload: boolean;
   updateChannel: string; retentionDays: string; maxDatabaseSizeMb: string;
+  fileUploadMaxInFlight: string;
 }
 
 function initState(s?: InstanceSettings): FormState {
@@ -65,6 +66,7 @@ function initState(s?: InstanceSettings): FormState {
     updateChannel: s?.update_channel ?? "default",
     retentionDays: s?.retention_days != null ? String(s.retention_days) : "",
     maxDatabaseSizeMb: s?.max_database_size_mb != null ? String(s.max_database_size_mb) : "",
+    fileUploadMaxInFlight: s?.file_upload_max_in_flight ? String(s.file_upload_max_in_flight) : "",
   };
 }
 
@@ -88,6 +90,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
       if (!f.instanceName.trim()) throw new ApiError(0, "bad_request", nameRequired);
       const retDays = f.retentionDays.trim() === "" || Number(f.retentionDays) <= 0 ? null : Number(f.retentionDays);
       const maxDbMb = f.maxDatabaseSizeMb.trim() === "" || Number(f.maxDatabaseSizeMb) <= 0 ? null : Number(f.maxDatabaseSizeMb);
+      const fileUploadMaxInFlight = f.fileUploadMaxInFlight.trim() === "" || Number(f.fileUploadMaxInFlight) <= 0 ? 0 : Number(f.fileUploadMaxInFlight);
       const input: InstanceSettingsInput = {
         id: settings?.id ?? null,
         instance_name: f.instanceName.trim(),
@@ -104,6 +107,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
         enable_auto_update_check: settings?.enable_auto_update_check ?? false,
         retention_days: retDays,
         max_database_size_mb: maxDbMb,
+        file_upload_max_in_flight: fileUploadMaxInFlight,
       };
       return upsertInstanceSettings(input);
     },
@@ -171,6 +175,9 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
           <Label htmlFor="settings-db-size">{t("fields.maxDatabaseSizeMb")}</Label>
           <Input id="settings-db-size" type="number" min="0" value={f.maxDatabaseSizeMb} onChange={(e) => set("maxDatabaseSizeMb")(e.target.value)} />
           <p className="text-xs text-muted-foreground">{t("retention.databaseSizeHelp")}</p>
+          <Label htmlFor="settings-file-upload-concurrency">{t("fields.fileUploadMaxInFlight")}</Label>
+          <Input id="settings-file-upload-concurrency" type="number" min="0" value={f.fileUploadMaxInFlight} onChange={(e) => set("fileUploadMaxInFlight")(e.target.value)} />
+          <p className="text-xs text-muted-foreground">{t("retention.fileUploadConcurrencyHelp")}</p>
         </Section>
 
         <Section title={t("sections.tokenizer")}>

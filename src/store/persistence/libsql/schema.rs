@@ -411,6 +411,7 @@ const TABLES: &[&str] = &[
         enable_auto_update_check INTEGER NOT NULL DEFAULT 0, \
         retention_days INTEGER, \
         max_database_size_mb INTEGER, \
+        file_upload_max_in_flight INTEGER NOT NULL DEFAULT 0, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
     // ── tokenizer vocabs ──

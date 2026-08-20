@@ -604,6 +604,13 @@ pub const MIGRATIONS: &[Migration] = &[
             ],
         },
     },
+    Migration {
+        version: 31,
+        description: "instance_settings: file upload concurrency limit",
+        sql: MigrationSql::Shared(&[
+            "ALTER TABLE instance_settings ADD COLUMN file_upload_max_in_flight BIGINT NOT NULL DEFAULT 0",
+        ]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

@@ -223,5 +223,6 @@ pub(super) fn settings_to_input(r: InstanceSettings) -> InstanceSettingsInput {
         enable_auto_update_check: r.enable_auto_update_check,
         retention_days: r.retention_days,
         max_database_size_mb: r.max_database_size_mb,
+        file_upload_max_in_flight: r.file_upload_max_in_flight,
     }
 }

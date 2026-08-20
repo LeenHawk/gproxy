@@ -211,6 +211,24 @@ pub fn request_target(
             }
         }
         (Operation::CreateRealtimeCall, P::OpenAi) => RequestTarget::post("/v1/realtime/calls"),
+        (Operation::CreateFile, P::OpenAi) => RequestTarget::post("/v1/files"),
+        (Operation::ListFiles, P::OpenAi) => RequestTarget::get("/v1/files"),
+        (Operation::RetrieveFile, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/files/{}", encode_component(model)))
+        }
+        (Operation::DeleteFile, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget {
+                method: HttpMethod::Delete,
+                path: format!("/v1/files/{}", encode_component(model)),
+                query: None,
+            }
+        }
+        (Operation::DownloadFileContent, P::OpenAi) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/files/{}/content", encode_component(model)))
+        }
         (Operation::ConnectRealtime, P::OpenAi) => {
             require_model(target.operation(), provider, model)?;
             RequestTarget {

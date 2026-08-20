@@ -47,7 +47,6 @@ pub fn router(state: AppState) -> Router {
     #[cfg(not(target_arch = "wasm32"))]
     {
         use axum::error_handling::HandleErrorLayer;
-        use axum::extract::DefaultBodyLimit;
         use axum::routing::any;
         use tower::ServiceBuilder;
         use tower::limit::GlobalConcurrencyLimitLayer;
@@ -69,7 +68,6 @@ pub fn router(state: AppState) -> Router {
             // (which already handles these paths) instead of a router 404.
             .route("/v1beta/{*rest}", any(gateway::aggregated))
             .route("/{provider}/v1beta/{*rest}", any(gateway::scoped))
-            .layer(DefaultBodyLimit::max(crate::config::MAX_BODY_BYTES))
             .layer(
                 ServiceBuilder::new()
                     .layer(HandleErrorLayer::new(handle_overload))
