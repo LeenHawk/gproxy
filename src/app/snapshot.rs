@@ -341,17 +341,27 @@ impl ControlPlaneSnapshot {
 
         // users (enabled) + their keys (enabled), indexed by digest;
         // collect ids for the authz scope universe below.
-        if let Some(key) = user_keys
-            .iter()
-            .find(|key| key.api_key_digest_version != crate::util::api_key::KEY_DIGEST_VERSION)
-        {
-            anyhow::bail!(
-                "user key {} has unmigrated api_key_digest_version {}",
-                key.id,
-                key.api_key_digest_version
-            );
-        }
-        let mut keys_by_user = group_by(user_keys.into_iter().filter(|k| k.enabled), |k| k.user_id);
+        //
+        // A key left unmigrated by `normalize_user_key_digests` still holds a
+        // legacy full-token digest, so a lookup could never match it. Drop it
+        // from the identity map instead of failing the whole snapshot: one
+        // contested row must not take the instance down, and the key fails
+        // closed rather than authenticating under the wrong scheme.
+        let mut keys_by_user = group_by(
+            user_keys.into_iter().filter(|key| {
+                if key.api_key_digest_version != crate::util::api_key::KEY_DIGEST_VERSION {
+                    tracing::warn!(
+                        user_key = key.id,
+                        version = key.api_key_digest_version,
+                        "skipping user key with unmigrated api_key_digest_version; \
+                         it cannot authenticate until its digest is normalized"
+                    );
+                    return false;
+                }
+                key.enabled
+            }),
+            |k| k.user_id,
+        );
         let mut user_ids: Vec<i64> = Vec::new();
         for user in users.into_iter().filter(|u| u.enabled) {
             user_ids.push(user.id);

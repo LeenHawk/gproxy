@@ -67,13 +67,14 @@ async fn refresh_rotates_tokens() {
 #[test]
 fn refresh_uses_official_window_and_preserves_project_scopes() {
     let now_ms = crate::util::time::unix_now().saturating_mul(1000);
+    // Anchored to the window itself so widening it can't silently stale this out.
     assert!(!auth::needs_refresh(&json!({
         "access_token": "token",
-        "expires_at_ms": now_ms + 301_000,
+        "expires_at_ms": now_ms + auth::EXPIRY_SKEW_MS + 1_000,
     })));
     assert!(auth::needs_refresh(&json!({
         "access_token": "token",
-        "expires_at_ms": now_ms + 299_000,
+        "expires_at_ms": now_ms + auth::EXPIRY_SKEW_MS - 1_000,
     })));
     assert_eq!(
         auth::refresh_scope(&json!({
