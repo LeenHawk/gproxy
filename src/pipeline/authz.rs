@@ -176,14 +176,11 @@ async fn precheck_limits(
 ) -> Result<(), PipelineError> {
     let mut checks: Vec<LimitCheck> = Vec::new();
     for rows in &plan.rate_limits {
-        for row in rows
-            .iter()
-            .filter(|r| {
-                plan.names
-                    .iter()
-                    .any(|name| glob::matches(&r.route_pattern, name))
-            })
-        {
+        for row in rows.iter().filter(|r| {
+            plan.names
+                .iter()
+                .any(|name| glob::matches(&r.route_pattern, name))
+        }) {
             if let Some(limit) = row.rpm {
                 checks.push(LimitCheck {
                     key: format!("rl:{}:m{}", row.id, now_unix / MINUTE),
