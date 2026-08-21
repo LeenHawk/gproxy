@@ -51,12 +51,7 @@ pub(crate) fn accumulate(
 }
 
 /// Effective spend for a first-use-anchored duration window.
-pub(crate) fn anchored_used(
-    anchor: i64,
-    used: Decimal,
-    now: i64,
-    duration_secs: i64,
-) -> Decimal {
+pub(crate) fn anchored_used(anchor: i64, used: Decimal, now: i64, duration_secs: i64) -> Decimal {
     if anchor > 0 && now < anchor.saturating_add(duration_secs) {
         used
     } else {

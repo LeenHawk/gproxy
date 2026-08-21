@@ -28,26 +28,47 @@ pub async fn execute_raw_streaming(
     credential_id: i64,
     operation: CredentialControlOperation,
 ) -> Result<RawControlStreamResponse, ControlError> {
-    let credential = state.persistence.get_credential(credential_id).await
+    let credential = state
+        .persistence
+        .get_credential(credential_id)
+        .await
         .map_err(|error| ControlError::Upstream(error.to_string()))?
         .ok_or(ControlError::CredentialNotFound)?;
-    let provider = state.persistence.get_provider(credential.provider_id).await
+    let provider = state
+        .persistence
+        .get_provider(credential.provider_id)
+        .await
         .map_err(|error| ControlError::Upstream(error.to_string()))?
         .ok_or(ControlError::ProviderNotFound)?;
-    let channel = state.channels.get(&provider.channel)
+    let channel = state
+        .channels
+        .get(&provider.channel)
         .ok_or_else(|| ControlError::UnknownChannel(provider.channel.clone()))?;
-    let opened = state.cipher.open(&credential.secret_json)
+    let opened = state
+        .cipher
+        .open(&credential.secret_json)
         .map_err(|error| ControlError::Decrypt(error.to_string()))?;
-    let secret = state.ensure_fresh_credential(&channel, &credential, &provider, opened, false).await?;
-    let request = channel.prepare_credential_control_request(&operation, &secret, &provider.settings_json)?
+    let secret = state
+        .ensure_fresh_credential(&channel, &credential, &provider, opened, false)
+        .await?;
+    let request = channel
+        .prepare_credential_control_request(&operation, &secret, &provider.settings_json)?
         .ok_or_else(|| ControlError::Unsupported(operation.name()))?;
-    let client = state.upstream_client_for_credential(&channel, &credential, &provider)
+    let client = state
+        .upstream_client_for_credential(&channel, &credential, &provider)
         .map_err(|error| ControlError::Upstream(error.to_string()))?;
-    let (status, headers, body) = client.send_streaming(request).await
+    let (status, headers, body) = client
+        .send_streaming(request)
+        .await
         .map_err(|error| ControlError::Upstream(error.to_string()))?;
     let disposition = channel.classify(status, &headers, &bytes::Bytes::new());
     record(state, &provider, &credential, &disposition);
-    Ok(RawControlStreamResponse { status, headers, body, disposition })
+    Ok(RawControlStreamResponse {
+        status,
+        headers,
+        body,
+        disposition,
+    })
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -56,22 +77,39 @@ pub async fn open_raw_websocket(
     credential_id: i64,
     operation: CredentialControlOperation,
 ) -> Result<Box<dyn crate::http::client::ConduitSocket>, ControlError> {
-    let credential = state.persistence.get_credential(credential_id).await
+    let credential = state
+        .persistence
+        .get_credential(credential_id)
+        .await
         .map_err(|error| ControlError::Upstream(error.to_string()))?
         .ok_or(ControlError::CredentialNotFound)?;
-    let provider = state.persistence.get_provider(credential.provider_id).await
+    let provider = state
+        .persistence
+        .get_provider(credential.provider_id)
+        .await
         .map_err(|error| ControlError::Upstream(error.to_string()))?
         .ok_or(ControlError::ProviderNotFound)?;
-    let channel = state.channels.get(&provider.channel)
+    let channel = state
+        .channels
+        .get(&provider.channel)
         .ok_or_else(|| ControlError::UnknownChannel(provider.channel.clone()))?;
-    let opened = state.cipher.open(&credential.secret_json)
+    let opened = state
+        .cipher
+        .open(&credential.secret_json)
         .map_err(|error| ControlError::Decrypt(error.to_string()))?;
-    let secret = state.ensure_fresh_credential(&channel, &credential, &provider, opened, false).await?;
-    let request = channel.prepare_credential_control_request(&operation, &secret, &provider.settings_json)?
+    let secret = state
+        .ensure_fresh_credential(&channel, &credential, &provider, opened, false)
+        .await?;
+    let request = channel
+        .prepare_credential_control_request(&operation, &secret, &provider.settings_json)?
         .ok_or_else(|| ControlError::Unsupported(operation.name()))?;
-    let client = state.upstream_client_for_credential(&channel, &credential, &provider)
+    let client = state
+        .upstream_client_for_credential(&channel, &credential, &provider)
         .map_err(|error| ControlError::Upstream(error.to_string()))?;
-    client.open_websocket(request).await.map_err(|error| ControlError::Upstream(error.to_string()))
+    client
+        .open_websocket(request)
+        .await
+        .map_err(|error| ControlError::Upstream(error.to_string()))
 }
 
 #[derive(Debug, thiserror::Error)]
