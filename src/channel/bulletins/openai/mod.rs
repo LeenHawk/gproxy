@@ -12,7 +12,7 @@ use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCt
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.openai.com"),
     forward_headers: &["openai-beta", "openai-organization", "openai-project"],
-    forward_query: &["after", "limit", "order", "variant"],
+    forward_query: &["after", "limit", "order", "purpose", "variant"],
 };
 
 const REALTIME_FORWARD_HEADERS: &[&str] = &[
@@ -102,6 +102,11 @@ impl Channel for OpenAiChannel {
             pass(GetVideoCharacter, pv(P::OpenAi)),
             pass(EditVideo, pv(P::OpenAi)),
             pass(ExtendVideo, pv(P::OpenAi)),
+            pass(CreateFile, pv(P::OpenAi)),
+            pass(ListFiles, pv(P::OpenAi)),
+            pass(RetrieveFile, pv(P::OpenAi)),
+            pass(DeleteFile, pv(P::OpenAi)),
+            pass(DownloadFileContent, pv(P::OpenAi)),
             xform(
                 CreateEmbedding,
                 pv(P::Gemini),

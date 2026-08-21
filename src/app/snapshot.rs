@@ -74,6 +74,8 @@ pub struct ControlPlaneSnapshot {
     /// Whether to apply channel built-in TLS/HTTP2 impersonation when no
     /// provider/credential TLS fingerprint is configured. Defaults off.
     pub spoof_emulation: bool,
+    /// Maximum concurrent file uploads for this instance. `0` is unlimited.
+    pub file_upload_max_in_flight: u64,
     /// Console-editable self-update channel override. `None` falls back to the
     /// server startup default.
     pub update_channel: Option<String>,
@@ -145,6 +147,7 @@ impl ControlPlaneSnapshot {
             log_settings: LogSettings::default(),
             proxy: None,
             spoof_emulation: false,
+            file_upload_max_in_flight: 0,
             update_channel: None,
             version,
         }
@@ -338,6 +341,16 @@ impl ControlPlaneSnapshot {
 
         // users (enabled) + their keys (enabled), indexed by digest;
         // collect ids for the authz scope universe below.
+        if let Some(key) = user_keys
+            .iter()
+            .find(|key| key.api_key_digest_version != crate::util::api_key::KEY_DIGEST_VERSION)
+        {
+            anyhow::bail!(
+                "user key {} has unmigrated api_key_digest_version {}",
+                key.id,
+                key.api_key_digest_version
+            );
+        }
         let mut keys_by_user = group_by(user_keys.into_iter().filter(|k| k.enabled), |k| k.user_id);
         let mut user_ids: Vec<i64> = Vec::new();
         for user in users.into_iter().filter(|u| u.enabled) {
@@ -377,6 +390,7 @@ impl ControlPlaneSnapshot {
             };
             snap.proxy = s.proxy.clone().filter(|p| !p.trim().is_empty());
             snap.spoof_emulation = s.spoof_emulation.unwrap_or(false);
+            snap.file_upload_max_in_flight = s.file_upload_max_in_flight.max(0) as u64;
             snap.update_channel = s.update_channel.clone().filter(|c| !c.trim().is_empty());
         }
 

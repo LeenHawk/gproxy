@@ -1,5 +1,6 @@
 //! Unit tests for §8-C authz (split out to keep `authz.rs` within size limits).
 
+use rust_decimal::Decimal;
 use std::sync::Arc;
 
 use super::*;
@@ -13,6 +14,7 @@ fn test_identity() -> KeyIdentity {
             user_id: 1,
             api_key_ciphertext: String::new(),
             api_key_digest: "d".into(),
+            api_key_digest_version: 2,
             label: None,
             enabled: true,
             created_at: 0,
@@ -87,6 +89,8 @@ async fn quota_gate_reads_live_rows_not_the_stale_snapshot() {
         quota_daily: None,
         quota_weekly: None,
         quota_monthly: None,
+        quota_5h: None,
+        quota_7d: None,
         cost_used: "0".parse().unwrap(),
         day_used: Default::default(),
         day_anchor: 0,
@@ -94,6 +98,10 @@ async fn quota_gate_reads_live_rows_not_the_stale_snapshot() {
         week_anchor: 0,
         month_used: Default::default(),
         month_anchor: 0,
+        five_hour_used: Decimal::ZERO,
+        five_hour_anchor: 0,
+        seven_day_used: Decimal::ZERO,
+        seven_day_anchor: 0,
         created_at: 0,
         updated_at: 0,
     };
@@ -134,6 +142,8 @@ async fn quota_admission_is_estimate_aware() {
             quota_daily: None,
             quota_weekly: None,
             quota_monthly: None,
+            quota_5h: None,
+            quota_7d: None,
             cost_used: "9".parse().unwrap(),
             day_used: Default::default(),
             day_anchor: 0,
@@ -141,6 +151,10 @@ async fn quota_admission_is_estimate_aware() {
             week_anchor: 0,
             month_used: Default::default(),
             month_anchor: 0,
+            five_hour_used: Decimal::ZERO,
+            five_hour_anchor: 0,
+            seven_day_used: Decimal::ZERO,
+            seven_day_anchor: 0,
             created_at: 0,
             updated_at: 0,
         }),
@@ -180,6 +194,8 @@ async fn daily_quota_uses_only_the_current_window() {
         quota_daily: Some("5".parse().unwrap()),
         quota_weekly: None,
         quota_monthly: None,
+        quota_5h: None,
+        quota_7d: None,
         cost_used: "1".parse().unwrap(),
         day_used: "5".parse().unwrap(),
         day_anchor: timewindow::day_key(now),
@@ -187,6 +203,10 @@ async fn daily_quota_uses_only_the_current_window() {
         week_anchor: 0,
         month_used: Default::default(),
         month_anchor: 0,
+        five_hour_used: Decimal::ZERO,
+        five_hour_anchor: 0,
+        seven_day_used: Decimal::ZERO,
+        seven_day_anchor: 0,
         created_at: 0,
         updated_at: 0,
     };

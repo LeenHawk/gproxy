@@ -17,6 +17,7 @@ export interface InstanceSettings {
   enable_auto_update_check: boolean;
   retention_days: number | null;
   max_database_size_mb: number | null;
+  file_upload_max_in_flight: number;
   created_at: number;
   updated_at: number;
 }
@@ -37,6 +38,7 @@ export interface InstanceSettingsInput {
   enable_auto_update_check?: boolean;
   retention_days?: number | null;
   max_database_size_mb?: number | null;
+  file_upload_max_in_flight?: number;
 }
 
 export const instanceSettingsQuery = queryOptions({
@@ -86,5 +88,6 @@ export function settingsToInput(s: InstanceSettings): InstanceSettingsInput {
     enable_auto_update_check: s.enable_auto_update_check,
     retention_days: s.retention_days,
     max_database_size_mb: s.max_database_size_mb,
+    file_upload_max_in_flight: s.file_upload_max_in_flight,
   };
 }

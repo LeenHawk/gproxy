@@ -54,7 +54,7 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                 }
             }
             outbound = session.socket.recv_frame() => {
-                match forward_upstream(outbound, &mut downstream).await {
+                match forward_upstream(outbound, &mut downstream, Some(&mut session)).await {
                     Ok(Flow::Continue) => {}
                     Ok(Flow::Closed) => {
                         let _ = downstream.send(Message::Close(None)).await;
@@ -91,6 +91,24 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
     session.record_usage(duration_ms, terminal.1).await;
 }
 
+pub(crate) async fn relay_raw(
+    mut downstream: WebSocket,
+    mut upstream: Box<dyn ConduitSocket>,
+) {
+    loop {
+        tokio::select! {
+            inbound = downstream.recv() => match forward_downstream(inbound, upstream.as_mut()).await {
+                Ok(Flow::Continue) => {}
+                _ => { let _ = upstream.close().await; return; }
+            },
+            outbound = upstream.recv_frame() => match forward_upstream(outbound, &mut downstream, None).await {
+                Ok(Flow::Continue) => {}
+                _ => { let _ = downstream.send(Message::Close(None)).await; return; }
+            },
+        }
+    }
+}
+
 enum Flow {
     Continue,
     Closed,
@@ -122,13 +140,17 @@ async fn forward_downstream(
 async fn forward_upstream(
     frame: Option<Result<ConduitFrame, crate::http::client::ClientError>>,
     downstream: &mut WebSocket,
+    session: Option<&mut RealtimeSession>,
 ) -> Result<Flow, String> {
     match frame {
-        Some(Ok(ConduitFrame::Text(text))) => downstream
-            .send(Message::Text(text.into()))
-            .await
-            .map(|_| Flow::Continue)
-            .map_err(|error| error.to_string()),
+        Some(Ok(ConduitFrame::Text(text))) => {
+            let text = session.map_or(text.clone(), |session| session.decorate_usage(&text));
+            downstream
+                .send(Message::Text(text.into()))
+                .await
+                .map(|_| Flow::Continue)
+                .map_err(|error| error.to_string())
+        }
         Some(Ok(ConduitFrame::Binary(bytes))) => downstream
             .send(Message::Binary(bytes))
             .await

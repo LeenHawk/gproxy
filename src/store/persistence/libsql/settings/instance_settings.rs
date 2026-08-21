@@ -12,7 +12,7 @@ use crate::store::persistence::records::{InstanceSettings, InstanceSettingsInput
 const COLS: &str = "id, instance_name, proxy, spoof_emulation, enable_usage, enable_upstream_log, \
      enable_upstream_log_body, enable_downstream_log, enable_downstream_log_body, \
      disable_log_redaction, enable_tokenizer_download, update_channel, \
-     enable_auto_update_check, retention_days, max_database_size_mb, created_at, updated_at";
+     enable_auto_update_check, retention_days, max_database_size_mb, file_upload_max_in_flight, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<InstanceSettings> {
     Ok(InstanceSettings {
@@ -31,8 +31,9 @@ fn decode(row: &Row) -> anyhow::Result<InstanceSettings> {
         enable_auto_update_check: col_bool(row, 12)?,
         retention_days: col_opt_i64(row, 13)?,
         max_database_size_mb: col_opt_i64(row, 14)?,
-        created_at: col_i64(row, 15)?,
-        updated_at: col_i64(row, 16)?,
+        file_upload_max_in_flight: col_i64(row, 15)?,
+        created_at: col_i64(row, 16)?,
+        updated_at: col_i64(row, 17)?,
     })
 }
 
@@ -89,7 +90,7 @@ pub async fn upsert(
                      enable_usage=?, enable_upstream_log=?, enable_upstream_log_body=?, \
                      enable_downstream_log=?, enable_downstream_log_body=?, disable_log_redaction=?, \
                      enable_tokenizer_download=?, update_channel=?, enable_auto_update_check=?, retention_days=?, \
-                     max_database_size_mb=?, updated_at=? \
+                     max_database_size_mb=?, file_upload_max_in_flight=?, updated_at=? \
                      WHERE id=?",
                     &[
                         arg_text(&input.instance_name),
@@ -106,6 +107,7 @@ pub async fn upsert(
                         arg_bool(input.enable_auto_update_check),
                         arg_opt_i64(input.retention_days),
                         arg_opt_i64(input.max_database_size_mb),
+                        arg_integer(input.file_upload_max_in_flight.max(0)),
                         arg_integer(now),
                         arg_integer(id),
                     ],
@@ -126,9 +128,9 @@ pub async fn upsert(
                       enable_upstream_log, enable_upstream_log_body, enable_downstream_log, \
                       enable_downstream_log_body, disable_log_redaction, \
                        enable_tokenizer_download, update_channel, enable_auto_update_check, retention_days, \
-                       max_database_size_mb, \
+                       max_database_size_mb, file_upload_max_in_flight, \
                        created_at, updated_at) \
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_text(&input.instance_name),
@@ -145,6 +147,7 @@ pub async fn upsert(
                         arg_bool(input.enable_auto_update_check),
                         arg_opt_i64(input.retention_days),
                         arg_opt_i64(input.max_database_size_mb),
+                        arg_integer(input.file_upload_max_in_flight.max(0)),
                         arg_integer(now),
                         arg_integer(now),
                     ],

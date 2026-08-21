@@ -25,6 +25,7 @@ fn to_record(m: usage::Model) -> anyhow::Result<Usage> {
         team_id: m.team_id,
         user_id: m.user_id,
         user_key_id: m.user_key_id,
+        thread_id: m.thread_id,
         operation: m.operation,
         kind: m.kind,
         model: m.model,
@@ -35,6 +36,7 @@ fn to_record(m: usage::Model) -> anyhow::Result<Usage> {
         cache_creation_5m_tokens: m.cache_creation_5m_tokens,
         cache_creation_30m_tokens: m.cache_creation_30m_tokens,
         cache_creation_1h_tokens: m.cache_creation_1h_tokens,
+        metrics_json: serde_json::from_str(&m.metrics_json)?,
         cost: m.cost.parse::<rust_decimal::Decimal>()?,
         latency_ms: m.latency_ms,
         usage_source: m.usage_source,
@@ -68,6 +70,7 @@ pub async fn append(conn: &DatabaseConnection, input: UsageInput) -> anyhow::Res
         team_id: Set(input.team_id),
         user_id: Set(input.user_id),
         user_key_id: Set(input.user_key_id),
+        thread_id: Set(input.thread_id),
         operation: Set(input.operation),
         kind: Set(input.kind),
         model: Set(input.model),
@@ -78,6 +81,7 @@ pub async fn append(conn: &DatabaseConnection, input: UsageInput) -> anyhow::Res
         cache_creation_5m_tokens: Set(input.cache_creation_5m_tokens),
         cache_creation_30m_tokens: Set(input.cache_creation_30m_tokens),
         cache_creation_1h_tokens: Set(input.cache_creation_1h_tokens),
+        metrics_json: Set(serde_json::to_string(&input.metrics_json)?),
         cost: Set(input.cost.to_string()),
         latency_ms: Set(input.latency_ms),
         usage_source: Set(input.usage_source),
@@ -157,6 +161,9 @@ fn filtered(q: &UsageQuery, include_cursor: bool) -> Select<usage::Entity> {
     }
     if let Some(v) = q.user_id {
         sel = sel.filter(C::UserId.eq(v));
+    }
+    if let Some(v) = &q.thread_id {
+        sel = sel.filter(C::ThreadId.eq(v));
     }
     if let Some(ref v) = q.route_name {
         sel = sel.filter(C::RouteName.eq(v.clone()));

@@ -28,7 +28,8 @@
   },
   "keys": {
     "title": "API 密钥", "add": "生成密钥", "empty": "还没有 API 密钥。",
-    "label": "显示名", "key": "API 密钥", "enabled": "启用", "enable": "启用密钥", "disable": "禁用密钥",
+    "label": "显示名", "key": "API 密钥", "prefix": "密钥类型", "enabled": "启用", "enable": "启用密钥", "disable": "禁用密钥",
+    "prefixOptions": { "sk": "标准 API 密钥（sk-）", "at": "Codex PAT（at-）" },
     "delete": "删除密钥", "deleteConfirm": "删除此 API 密钥？使用它的客户端将停止工作。",
     "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
   },
@@ -38,8 +39,8 @@
     "rateLimits": "限流规则", "rateLimitsHint": "按 scope 设定限流；org/team/user 中最严格的生效。",
     "addRateLimit": "添加限流", "rpm": "RPM", "rpd": "RPD", "totalTokens": "总 token 数", "noRateLimits": "此 scope 暂无限流规则。",
     "quota": "配额", "quotaHint": "此 scope 的费用上限（十进制）。cost_used 由计费系统累积。",
-    "quotaTotal": "配额总量", "dailyLimit": "日限额", "weeklyLimit": "周限额", "monthlyLimit": "月限额",
-    "windowQuotaHint": "日、周和月限额为可选项；留空即不设置。",
+    "quotaTotal": "配额总量", "dailyLimit": "日限额", "weeklyLimit": "周限额", "monthlyLimit": "月限额", "fiveHourLimit": "5 小时限额", "sevenDayLimit": "7 天限额",
+    "windowQuotaHint": "自然周期与首次使用锚定的 5 小时/7 天限额均为可选；留空即不设置。",
     "costUsed": "已用", "setQuota": "设置配额", "clearQuota": "清除配额", "noQuota": "未设置配额。",
     "deletePermission": "删除权限", "deleteRateLimit": "删除限流",
     "deletePermissionConfirm": "删除此路由权限?", "deleteRateLimitConfirm": "删除此限流规则?",

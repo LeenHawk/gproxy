@@ -19,6 +19,8 @@ pub struct Usage {
     pub team_id: Option<i64>,
     pub user_id: Option<i64>,
     pub user_key_id: Option<i64>,
+    #[serde(default)]
+    pub thread_id: Option<String>,
     pub operation: String,
     pub kind: String,
     pub model: Option<String>,
@@ -32,6 +34,8 @@ pub struct Usage {
     #[serde(default)]
     pub cache_creation_30m_tokens: i64,
     pub cache_creation_1h_tokens: i64,
+    #[serde(default)]
+    pub metrics_json: Value,
     #[serde(with = "rust_decimal::serde::str")]
     pub cost: Decimal,
     /// §15.3: upstream latency (ms, time-to-first-response) of the settled
@@ -62,6 +66,8 @@ pub struct UsageInput {
     pub team_id: Option<i64>,
     pub user_id: Option<i64>,
     pub user_key_id: Option<i64>,
+    #[serde(default)]
+    pub thread_id: Option<String>,
     pub operation: String,
     pub kind: String,
     pub model: Option<String>,
@@ -74,6 +80,8 @@ pub struct UsageInput {
     #[serde(default)]
     pub cache_creation_30m_tokens: i64,
     pub cache_creation_1h_tokens: i64,
+    #[serde(default)]
+    pub metrics_json: Value,
     #[serde(with = "rust_decimal::serde::str")]
     pub cost: Decimal,
     /// §15.3: upstream latency (ms) of the settled attempt; 0 when unmeasured.

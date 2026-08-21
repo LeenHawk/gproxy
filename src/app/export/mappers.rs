@@ -71,6 +71,8 @@ pub(super) fn quota_to_input(r: Quota) -> QuotaInput {
         quota_daily: r.quota_daily,
         quota_weekly: r.quota_weekly,
         quota_monthly: r.quota_monthly,
+        quota_5h: r.quota_5h,
+        quota_7d: r.quota_7d,
         cost_used: r.cost_used,
     }
 }
@@ -119,6 +121,7 @@ pub(super) fn price_rule_to_input(r: PriceRule) -> PriceRuleInput {
         cache_creation_1h_price: r.cache_creation_1h_price,
         image_output_price: r.image_output_price,
         pricing_tiers_json: r.pricing_tiers_json,
+        rates: r.rates,
         enabled: r.enabled,
     }
 }
@@ -221,5 +224,6 @@ pub(super) fn settings_to_input(r: InstanceSettings) -> InstanceSettingsInput {
         enable_auto_update_check: r.enable_auto_update_check,
         retention_days: r.retention_days,
         max_database_size_mb: r.max_database_size_mb,
+        file_upload_max_in_flight: r.file_upload_max_in_flight,
     }
 }

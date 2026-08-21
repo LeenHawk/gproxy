@@ -105,6 +105,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: UserInput) -> anyhow::Resu
 pub async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> {
     // cascade: keys and scope-bound permissions / rate limits / quotas.
     super::user_keys::delete_by_user(conn, id).await?;
+    super::codex_task_bindings::delete_by_user(conn, id).await?;
     crate::store::persistence::db::ops::authz::route_permissions::delete_by_scope(
         conn,
         Scope::User,
@@ -128,6 +129,7 @@ pub async fn delete_by_org(conn: &DatabaseConnection, org_id: i64) -> anyhow::Re
         .await?;
     for u in users {
         super::user_keys::delete_by_user(conn, u.id).await?;
+        super::codex_task_bindings::delete_by_user(conn, u.id).await?;
         crate::store::persistence::db::ops::authz::route_permissions::delete_by_scope(
             conn,
             Scope::User,

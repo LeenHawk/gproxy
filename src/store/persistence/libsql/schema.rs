@@ -93,6 +93,15 @@ const TABLES: &[&str] = &[
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS price_rule_rates (\
+        id INTEGER PRIMARY KEY, \
+        price_rule_id INTEGER NOT NULL, \
+        metric TEXT NOT NULL, \
+        unit TEXT NOT NULL, \
+        unit_size INTEGER NOT NULL, \
+        price_usd TEXT NOT NULL, \
+        conditions_json TEXT, \
+        sort_order INTEGER NOT NULL DEFAULT 0)",
     // ── routing ──
     "CREATE TABLE IF NOT EXISTS routes (\
         id INTEGER PRIMARY KEY, \
@@ -195,10 +204,23 @@ const TABLES: &[&str] = &[
         user_id INTEGER NOT NULL, \
         api_key_ciphertext TEXT NOT NULL, \
         api_key_digest TEXT NOT NULL UNIQUE, \
+        api_key_digest_version INTEGER NOT NULL, \
         label TEXT, \
         enabled INTEGER NOT NULL, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS codex_task_bindings (\
+        id INTEGER PRIMARY KEY, \
+        provider_id INTEGER NOT NULL, \
+        task_id TEXT NOT NULL, \
+        credential_id INTEGER NOT NULL, \
+        owner_user_id INTEGER NOT NULL, \
+        environment_id TEXT, \
+        summary_json TEXT NOT NULL, \
+        created_at INTEGER NOT NULL, \
+        updated_at INTEGER NOT NULL, \
+        UNIQUE(provider_id, task_id))",
+    "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
     // ── authz ──
     "CREATE TABLE IF NOT EXISTS route_permissions (\
         id INTEGER PRIMARY KEY, \
@@ -225,6 +247,8 @@ const TABLES: &[&str] = &[
         quota_daily TEXT, \
         quota_weekly TEXT, \
         quota_monthly TEXT, \
+        quota_5h TEXT, \
+        quota_7d TEXT, \
         cost_used TEXT NOT NULL, \
         day_used TEXT NOT NULL DEFAULT '0', \
         day_anchor INTEGER NOT NULL DEFAULT 0, \
@@ -232,6 +256,10 @@ const TABLES: &[&str] = &[
         week_anchor INTEGER NOT NULL DEFAULT 0, \
         month_used TEXT NOT NULL DEFAULT '0', \
         month_anchor INTEGER NOT NULL DEFAULT 0, \
+        five_hour_used TEXT NOT NULL DEFAULT '0', \
+        five_hour_anchor INTEGER NOT NULL DEFAULT 0, \
+        seven_day_used TEXT NOT NULL DEFAULT '0', \
+        seven_day_anchor INTEGER NOT NULL DEFAULT 0, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL, \
         UNIQUE(scope, scope_id))",
@@ -247,6 +275,7 @@ const TABLES: &[&str] = &[
         team_id INTEGER, \
         user_id INTEGER, \
         user_key_id INTEGER, \
+        thread_id TEXT, \
         operation TEXT NOT NULL, \
         kind TEXT NOT NULL, \
         model TEXT, \
@@ -257,6 +286,7 @@ const TABLES: &[&str] = &[
         cache_creation_5m_tokens INTEGER NOT NULL, \
         cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0, \
         cache_creation_1h_tokens INTEGER NOT NULL, \
+        metrics_json TEXT NOT NULL DEFAULT '{}', \
         cost TEXT NOT NULL, \
         latency_ms INTEGER NOT NULL DEFAULT 0, \
         usage_source TEXT NOT NULL DEFAULT '', \
@@ -391,6 +421,7 @@ const TABLES: &[&str] = &[
         enable_auto_update_check INTEGER NOT NULL DEFAULT 0, \
         retention_days INTEGER, \
         max_database_size_mb INTEGER, \
+        file_upload_max_in_flight INTEGER NOT NULL DEFAULT 0, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
     // ── tokenizer vocabs ──

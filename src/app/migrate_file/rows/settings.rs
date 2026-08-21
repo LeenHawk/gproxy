@@ -53,6 +53,7 @@ impl From<LegacyPriceRule> for PriceRuleInput {
             cache_creation_1h_price: x.cache_creation_1h_price,
             image_output_price: x.image_output_price,
             pricing_tiers_json: x.pricing_tiers_json,
+            rates: Vec::new(),
             enabled: x.enabled,
         }
     }
@@ -108,6 +109,7 @@ impl From<LegacyInstanceSettings> for InstanceSettingsInput {
             enable_auto_update_check: x.enable_auto_update_check,
             retention_days: x.retention_days,
             max_database_size_mb: None,
+            file_upload_max_in_flight: 0,
         }
     }
 }

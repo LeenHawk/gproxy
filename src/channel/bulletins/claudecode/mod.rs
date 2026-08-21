@@ -23,7 +23,8 @@ use bytes::Bytes;
 use serde_json::{Value, json};
 
 use crate::channel::{
-    AuthCodeStart, Channel, ChannelError, ChannelLogin, PrepareCtx, PreparedRequest, ShapeCtx,
+    AuthCodeStart, Channel, ChannelError, ChannelLogin, CredentialControlOperation, PrepareCtx,
+    PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
 
@@ -81,6 +82,21 @@ impl Channel for ClaudeCodeChannel {
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         request::prepare(ctx)
+    }
+
+    fn prepare_credential_control_request(
+        &self,
+        operation: &CredentialControlOperation,
+        secret: &Value,
+        settings: &Value,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        match operation {
+            CredentialControlOperation::Usage => usage::request(secret, settings),
+            CredentialControlOperation::ClaudeRaw { .. } => {
+                request::prepare_control(operation, secret, settings).map(Some)
+            }
+            _ => Ok(None),
+        }
     }
 
     fn needs_refresh(&self, secret: &Value) -> bool {

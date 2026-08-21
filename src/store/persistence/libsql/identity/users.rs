@@ -124,6 +124,7 @@ pub async fn upsert(client: &LibsqlClient, input: UserInput) -> anyhow::Result<U
 pub async fn delete(client: &LibsqlClient, id: i64) -> anyhow::Result<bool> {
     // cascade: keys and user-scoped authz rows.
     super::user_keys::delete_by_user(client, id).await?;
+    super::codex_task_bindings::delete_by_user(client, id).await?;
     crate::store::persistence::libsql::authz::delete_scope_rows(client, Scope::User, id).await?;
 
     let n = exec(client, "DELETE FROM users WHERE id = ?", &[arg_integer(id)]).await?;
@@ -140,6 +141,7 @@ pub async fn delete_by_org(client: &LibsqlClient, org_id: i64) -> anyhow::Result
     for r in &rows {
         let uid = col_i64(r, 0)?;
         super::user_keys::delete_by_user(client, uid).await?;
+        super::codex_task_bindings::delete_by_user(client, uid).await?;
         crate::store::persistence::libsql::authz::delete_scope_rows(client, Scope::User, uid)
             .await?;
     }

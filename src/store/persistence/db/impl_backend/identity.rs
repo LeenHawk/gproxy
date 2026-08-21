@@ -2,7 +2,8 @@ use async_trait::async_trait;
 
 use super::super::{DbPersistence, ops};
 use crate::store::persistence::records::{
-    Org, OrgInput, Team, TeamInput, User, UserInput, UserKey, UserKeyInput,
+    CodexTaskBinding, CodexTaskBindingInput, Org, OrgInput, Team, TeamInput, User, UserInput,
+    UserKey, UserKeyInput,
 };
 use crate::store::persistence::traits::IdentityPersistence;
 
@@ -71,7 +72,35 @@ impl IdentityPersistence for DbPersistence {
     async fn upsert_user_key(&self, input: UserKeyInput) -> anyhow::Result<UserKey> {
         ops::identity::user_keys::upsert(&self.conn, input).await
     }
+    async fn update_user_key_digest(
+        &self,
+        id: i64,
+        digest: &str,
+        digest_version: i64,
+    ) -> anyhow::Result<()> {
+        ops::identity::user_keys::update_digest(&self.conn, id, digest, digest_version).await
+    }
     async fn delete_user_key(&self, id: i64) -> anyhow::Result<bool> {
         ops::identity::user_keys::delete(&self.conn, id).await
+    }
+    async fn get_codex_task_binding(
+        &self,
+        provider_id: i64,
+        task_id: &str,
+    ) -> anyhow::Result<Option<CodexTaskBinding>> {
+        ops::identity::codex_task_bindings::get(&self.conn, provider_id, task_id).await
+    }
+    async fn list_codex_task_bindings(
+        &self,
+        provider_id: i64,
+        owner_user_id: i64,
+    ) -> anyhow::Result<Vec<CodexTaskBinding>> {
+        ops::identity::codex_task_bindings::list(&self.conn, provider_id, owner_user_id).await
+    }
+    async fn upsert_codex_task_binding(
+        &self,
+        input: CodexTaskBindingInput,
+    ) -> anyhow::Result<CodexTaskBinding> {
+        ops::identity::codex_task_bindings::upsert(&self.conn, input).await
     }
 }

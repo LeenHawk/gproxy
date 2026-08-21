@@ -211,6 +211,24 @@ pub fn request_target(
             }
         }
         (Operation::CreateRealtimeCall, P::OpenAi) => RequestTarget::post("/v1/realtime/calls"),
+        (Operation::CreateFile, P::OpenAi | P::Claude) => RequestTarget::post("/v1/files"),
+        (Operation::ListFiles, P::OpenAi | P::Claude) => RequestTarget::get("/v1/files"),
+        (Operation::RetrieveFile, P::OpenAi | P::Claude) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/files/{}", encode_component(model)))
+        }
+        (Operation::DeleteFile, P::OpenAi | P::Claude) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget {
+                method: HttpMethod::Delete,
+                path: format!("/v1/files/{}", encode_component(model)),
+                query: None,
+            }
+        }
+        (Operation::DownloadFileContent, P::OpenAi | P::Claude) => {
+            require_model(target.operation(), provider, model)?;
+            RequestTarget::get(format!("/v1/files/{}/content", encode_component(model)))
+        }
         (Operation::ConnectRealtime, P::OpenAi) => {
             require_model(target.operation(), provider, model)?;
             RequestTarget {
@@ -328,6 +346,11 @@ mod tests {
             (O::GetVideoCharacter, [true, false, false]),
             (O::EditVideo, [true, false, false]),
             (O::ExtendVideo, [true, false, false]),
+            (O::CreateFile, [true, true, false]),
+            (O::ListFiles, [true, true, false]),
+            (O::RetrieveFile, [true, true, false]),
+            (O::DeleteFile, [true, true, false]),
+            (O::DownloadFileContent, [true, true, false]),
         ];
         for (operation, supported) in rows {
             for (provider, expected) in [P::OpenAi, P::Claude, P::Gemini].into_iter().zip(supported)

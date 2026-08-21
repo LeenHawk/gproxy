@@ -12,11 +12,10 @@ pub(crate) mod frames;
 mod ladder;
 pub(crate) mod provider;
 mod reconcile;
+pub(crate) mod response_cost;
 #[cfg(not(target_arch = "wasm32"))]
 mod upstream_count;
 
-use ladder::count_and_record;
-#[cfg(not(target_arch = "wasm32"))]
 use ladder::ladder;
 
 pub use audit::{FailedAttempt, audit_failure};
@@ -35,6 +34,31 @@ use crate::store::persistence::records::{Credential, Provider as ProviderRecord,
 use crate::usage::{Ended, NormalizedUsage, UsageSource, extract};
 use crate::util::time::unix_now;
 
+/// The single authoritative result of settling one billable response.
+///
+/// Response decoration, quota reconciliation, and persistence all consume this
+/// value so the amount shown to callers cannot drift from the amount charged.
+#[derive(Debug, Clone)]
+pub struct Settlement {
+    pub usage: NormalizedUsage,
+    pub cost: rust_decimal::Decimal,
+    pub source: UsageSource,
+    pub ended: Ended,
+}
+
+#[derive(Clone, Default)]
+pub struct SettlementSignal(std::sync::Arc<std::sync::Mutex<Option<Settlement>>>);
+
+impl SettlementSignal {
+    pub fn publish(&self, settlement: Settlement) {
+        *self.0.lock().expect("settlement signal poisoned") = Some(settlement);
+    }
+
+    pub fn get(&self) -> Option<Settlement> {
+        self.0.lock().expect("settlement signal poisoned").clone()
+    }
+}
+
 /// Everything one settle needs, captured at success time so the (possibly
 /// detached) settle task never touches the control-plane snapshot. Secrets
 /// stay SEALED — `credential.secret_json` is opened at count time only.
@@ -47,6 +71,7 @@ pub struct SettleCtx {
     team_id: Option<i64>,
     user_id: Option<i64>,
     user_key_id: Option<i64>,
+    thread_id: Option<String>,
     operation: String,
     kind: String,
     /// Upstream member model (`cand.upstream_model_id`).
@@ -129,6 +154,11 @@ impl SettleCtx {
             team_id: identity.and_then(|i| i.user.team_id),
             user_id: identity.map(|i| i.user.id),
             user_key_id: identity.map(|i| i.user_key.id),
+            thread_id: ctx
+                .headers
+                .get("thread-id")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned),
             operation: enum_str(&op.operation()),
             kind: enum_str(&op.kind()),
             model: cand.upstream_model_id.clone(),
@@ -149,13 +179,13 @@ impl SettleCtx {
 
 /// Settle a fully-buffered provider-native response body. `stream` means the
 /// body is an SSE transcript that should be decoded as stream frames.
-pub async fn settle_body(ctx: SettleCtx, body: &Bytes, stream: bool) {
-    settle_full(ctx, body, stream).await;
+pub async fn settle_body(ctx: SettleCtx, body: &Bytes, stream: bool) -> Settlement {
+    settle_full(ctx, body, stream).await
 }
 
 /// Inline settle for a fully-buffered body. Usage-in-body is the fast path; a miss falls to the counting
 /// ladder (spawned on native so the response isn't delayed).
-async fn settle_full(mut ctx: SettleCtx, body: &Bytes, stream: bool) {
+async fn settle_full(mut ctx: SettleCtx, body: &Bytes, stream: bool) -> Settlement {
     let stream_frames = stream.then(|| decode_frames_or_warn(body));
     let actual_service_tier = if stream {
         stream_frames
@@ -183,10 +213,8 @@ async fn settle_full(mut ctx: SettleCtx, body: &Bytes, stream: bool) {
             } else {
                 crate::tokenize::harvest(body).0.join("\n")
             };
-            #[cfg(not(target_arch = "wasm32"))]
-            tokio::spawn(count_and_record(ctx, text, Ended::Complete));
-            #[cfg(target_arch = "wasm32")]
-            count_and_record(ctx, text, Ended::Complete).await;
+            let (usage, source) = ladder(&ctx, text).await;
+            record(&ctx, usage, source, Ended::Complete).await
         }
     }
 }
@@ -298,6 +326,13 @@ impl StreamGuard {
             .request_id
     }
 
+    /// Complete settlement inline so a downstream terminal-event decorator can
+    /// publish the exact same cost before the stream closes.
+    pub async fn finish_inline(mut self) -> Settlement {
+        let (ctx, buf) = self.inner.take().expect("settle guard is active");
+        settle_stream(ctx, buf, Ended::Complete).await
+    }
+
     /// Explicit normal end — settles `Complete` without delaying native EOF.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn finish(mut self) {
@@ -335,12 +370,14 @@ impl Drop for StreamGuard {
         self.complete(Ended::Interrupted);
         #[cfg(target_arch = "wasm32")]
         if let Some((ctx, buf)) = self.inner.take() {
-            wasm_bindgen_futures::spawn_local(settle_stream(ctx, buf, Ended::Interrupted));
+            wasm_bindgen_futures::spawn_local(async move {
+                let _ = settle_stream(ctx, buf, Ended::Interrupted).await;
+            });
         }
     }
 }
 
-async fn settle_stream(mut ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
+async fn settle_stream(mut ctx: SettleCtx, buf: RelayBuffer, ended: Ended) -> Settlement {
     let bytes = buf.concat();
     let log_state = ctx.state.clone();
     let log_request_id = ctx.request_id.clone();
@@ -357,20 +394,23 @@ async fn settle_stream(mut ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         .rev()
         .find_map(|frame| billing::price::response_service_tier(frame.data.as_bytes()));
     billing::price::apply_actual_service_tier(&mut ctx.pricing, actual_service_tier.as_deref());
-    if ended == Ended::Complete
+    let settlement = if ended == Ended::Complete
         && let Some(usage) = extract::from_stream_frames(ctx.usage_kind, &frames)
     {
-        record(&ctx, usage, UsageSource::Upstream, ended).await;
+        record(&ctx, usage, UsageSource::Upstream, ended).await
     } else {
         let text = frames::produced_text(ctx.usage_kind, &frames);
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (usage, source) = ladder(&ctx, text).await;
-            record(&ctx, usage, source, ended).await;
+            record(&ctx, usage, source, ended).await
         }
         #[cfg(target_arch = "wasm32")]
-        count_and_record(ctx, text, ended).await;
-    }
+        {
+            let (usage, source) = ladder(&ctx, text).await;
+            record(&ctx, usage, source, ended).await
+        }
+    };
     // §8-D: backfill the captured downstream response body (the row was
     // appended at execute() return; this UPDATE lands after it). Gated inside.
     // `concat_for_log` surfaces head-drop truncation on >4MB streams.
@@ -380,6 +420,7 @@ async fn settle_stream(mut ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         &buf.concat_for_log(),
     )
     .await;
+    settlement
 }
 
 fn decode_frames_or_warn(bytes: &[u8]) -> Vec<crate::transform::common::sse::SseFrame> {
@@ -391,7 +432,16 @@ fn decode_frames_or_warn(bytes: &[u8]) -> Vec<crate::transform::common::sse::Sse
 
 // ── recording ────────────────────────────────────────────────────────────────
 
-async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, ended: Ended) {
+async fn record(
+    ctx: &SettleCtx,
+    mut usage: NormalizedUsage,
+    source: UsageSource,
+    ended: Ended,
+) -> Settlement {
+    usage
+        .dimensions
+        .entry("operation".into())
+        .or_insert_with(|| ctx.operation.clone());
     let cost = billing::price::cost(&usage, &ctx.pricing);
     // §17 reconcile first (pending refund + quota cost_used + counter feeds):
     // the usage row may be idempotently skipped, but the settle path runs
@@ -411,8 +461,14 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
     );
     // §8-E: `enable_usage` gates the RECORDING only — reconcile above is
     // billing correctness (pending refund / quota feed) and always runs.
+    let settlement = Settlement {
+        usage: usage.clone(),
+        cost,
+        source,
+        ended,
+    };
     if !ctx.state.cp().log_settings.enable_usage {
-        return;
+        return settlement;
     }
     let rec = UsageRecord {
         request_id: &ctx.request_id,
@@ -424,6 +480,7 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
         team_id: ctx.team_id,
         user_id: ctx.user_id,
         user_key_id: ctx.user_key_id,
+        thread_id: ctx.thread_id.as_deref(),
         operation: &ctx.operation,
         kind: &ctx.kind,
         model: Some(&ctx.model),
@@ -436,6 +493,7 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
     if let Err(e) = billing::record_success(ctx.state.persistence.as_ref(), rec).await {
         tracing::warn!(request_id = %ctx.request_id, error = %e, "usage settle write failed");
     }
+    settlement
 }
 
 /// snake_case wire string of a serde unit-enum value.

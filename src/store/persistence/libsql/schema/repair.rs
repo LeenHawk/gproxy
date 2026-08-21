@@ -31,6 +31,10 @@ pub(super) async fn instance_settings(client: &LibsqlClient) -> anyhow::Result<(
             .await
             .map_err(|e| anyhow::anyhow!("libsql repair automatic update check setting: {e}"))?;
     }
+    if !cols.is_empty() && !cols.contains("file_upload_max_in_flight") {
+        client.execute("ALTER TABLE instance_settings ADD COLUMN file_upload_max_in_flight INTEGER NOT NULL DEFAULT 0", &[]).await
+            .map_err(|e| anyhow::anyhow!("libsql repair file upload concurrency setting: {e}"))?;
+    }
     Ok(())
 }
 
@@ -166,12 +170,18 @@ pub(super) async fn quotas(client: &LibsqlClient) -> anyhow::Result<()> {
         ("quota_daily", "TEXT"),
         ("quota_weekly", "TEXT"),
         ("quota_monthly", "TEXT"),
+        ("quota_5h", "TEXT"),
+        ("quota_7d", "TEXT"),
         ("day_used", "TEXT NOT NULL DEFAULT '0'"),
         ("day_anchor", "INTEGER NOT NULL DEFAULT 0"),
         ("week_used", "TEXT NOT NULL DEFAULT '0'"),
         ("week_anchor", "INTEGER NOT NULL DEFAULT 0"),
         ("month_used", "TEXT NOT NULL DEFAULT '0'"),
         ("month_anchor", "INTEGER NOT NULL DEFAULT 0"),
+        ("five_hour_used", "TEXT NOT NULL DEFAULT '0'"),
+        ("five_hour_anchor", "INTEGER NOT NULL DEFAULT 0"),
+        ("seven_day_used", "TEXT NOT NULL DEFAULT '0'"),
+        ("seven_day_anchor", "INTEGER NOT NULL DEFAULT 0"),
     ] {
         if !cols.contains(column) {
             client

@@ -21,6 +21,7 @@ pub struct Model {
     pub team_id: Option<i64>,
     pub user_id: Option<i64>,
     pub user_key_id: Option<i64>,
+    pub thread_id: Option<String>,
     pub operation: String,
     pub kind: String,
     pub model: Option<String>,
@@ -33,6 +34,8 @@ pub struct Model {
     #[sea_orm(default_value = 0)]
     pub cache_creation_30m_tokens: i64,
     pub cache_creation_1h_tokens: i64,
+    #[sea_orm(column_type = "Text", default_value = "{}")]
+    pub metrics_json: String,
     #[sea_orm(column_type = "Text")]
     pub cost: String,
     /// §15.3: upstream latency (ms) of the settled attempt; 0 when unmeasured.

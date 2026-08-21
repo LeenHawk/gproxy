@@ -1,6 +1,7 @@
 //! Identity records (§8-C): orgs, teams, users, and user keys.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// An organization — the top of the identity hierarchy (§8-C).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,6 +114,9 @@ pub struct UserKey {
     pub user_id: i64,
     pub api_key_ciphertext: String,
     pub api_key_digest: String,
+    /// Digest format: 1 hashes the complete legacy key; 2 hashes the payload
+    /// after removing a recognized `sk-` / `at-` presentation prefix.
+    pub api_key_digest_version: i64,
     pub label: Option<String>,
     pub enabled: bool,
     pub created_at: i64,
@@ -127,6 +131,7 @@ impl std::fmt::Debug for UserKey {
             .field("user_id", &self.user_id)
             .field("api_key_ciphertext", &"<redacted>")
             .field("api_key_digest", &self.api_key_digest)
+            .field("api_key_digest_version", &self.api_key_digest_version)
             .field("label", &self.label)
             .field("enabled", &self.enabled)
             .field("created_at", &self.created_at)
@@ -144,4 +149,27 @@ pub struct UserKeyInput {
     pub api_key_digest: String,
     pub label: Option<String>,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CodexTaskBinding {
+    pub id: i64,
+    pub provider_id: i64,
+    pub task_id: String,
+    pub credential_id: i64,
+    pub owner_user_id: i64,
+    pub environment_id: Option<String>,
+    pub summary_json: Value,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CodexTaskBindingInput {
+    pub provider_id: i64,
+    pub task_id: String,
+    pub credential_id: i64,
+    pub owner_user_id: i64,
+    pub environment_id: Option<String>,
+    pub summary_json: Value,
 }

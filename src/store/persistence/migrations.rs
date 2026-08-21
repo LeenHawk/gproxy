@@ -533,6 +533,115 @@ pub const MIGRATIONS: &[Migration] = &[
                  SELECT id FROM providers WHERE channel = 'cline'\
              )"]),
     },
+    Migration {
+        version: 27,
+        description: "user_keys: version normalized sk-/at- payload digests",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "ALTER TABLE user_keys ADD COLUMN api_key_digest_version INTEGER NOT NULL DEFAULT 1",
+            ],
+            postgres: &[
+                "ALTER TABLE user_keys ADD COLUMN api_key_digest_version BIGINT NOT NULL DEFAULT 1",
+            ],
+            mysql: &[
+                "ALTER TABLE user_keys ADD COLUMN api_key_digest_version BIGINT NOT NULL DEFAULT 1",
+            ],
+        },
+    },
+    Migration {
+        version: 28,
+        description: "quotas: anchored 5-hour and 7-day spend windows",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "ALTER TABLE quotas ADD COLUMN quota_5h TEXT",
+                "ALTER TABLE quotas ADD COLUMN quota_7d TEXT",
+                "ALTER TABLE quotas ADD COLUMN five_hour_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN five_hour_anchor INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE quotas ADD COLUMN seven_day_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN seven_day_anchor INTEGER NOT NULL DEFAULT 0",
+            ],
+            postgres: &[
+                "ALTER TABLE quotas ADD COLUMN quota_5h VARCHAR(64)",
+                "ALTER TABLE quotas ADD COLUMN quota_7d VARCHAR(64)",
+                "ALTER TABLE quotas ADD COLUMN five_hour_used VARCHAR(64) NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN five_hour_anchor BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE quotas ADD COLUMN seven_day_used VARCHAR(64) NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN seven_day_anchor BIGINT NOT NULL DEFAULT 0",
+            ],
+            mysql: &[
+                "ALTER TABLE quotas ADD COLUMN quota_5h TEXT",
+                "ALTER TABLE quotas ADD COLUMN quota_7d TEXT",
+                "ALTER TABLE quotas ADD COLUMN five_hour_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN five_hour_anchor BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE quotas ADD COLUMN seven_day_used TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE quotas ADD COLUMN seven_day_anchor BIGINT NOT NULL DEFAULT 0",
+            ],
+        },
+    },
+    Migration {
+        version: 29,
+        description: "usages.thread_id: Codex thread-level virtual usage",
+        sql: MigrationSql::Shared(&["ALTER TABLE usages ADD COLUMN thread_id TEXT"]),
+    },
+    Migration {
+        version: 30,
+        description: "codex_task_bindings: persistent PAT task ownership and credential affinity",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "CREATE TABLE IF NOT EXISTS codex_task_bindings (id INTEGER PRIMARY KEY, provider_id INTEGER NOT NULL, task_id TEXT NOT NULL, credential_id INTEGER NOT NULL, owner_user_id INTEGER NOT NULL, environment_id TEXT, summary_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id)",
+                "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
+            ],
+            postgres: &[
+                "CREATE TABLE IF NOT EXISTS codex_task_bindings (id BIGSERIAL PRIMARY KEY, provider_id BIGINT NOT NULL, task_id TEXT NOT NULL, credential_id BIGINT NOT NULL, owner_user_id BIGINT NOT NULL, environment_id TEXT, summary_json TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id)",
+                "CREATE INDEX IF NOT EXISTS ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
+            ],
+            mysql: &[
+                "CREATE TABLE IF NOT EXISTS codex_task_bindings (id BIGINT PRIMARY KEY AUTO_INCREMENT, provider_id BIGINT NOT NULL, task_id TEXT NOT NULL, credential_id BIGINT NOT NULL, owner_user_id BIGINT NOT NULL, environment_id TEXT, summary_json TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)",
+                "CREATE UNIQUE INDEX uq_codex_task_bindings_resource ON codex_task_bindings (provider_id, task_id(191))",
+                "CREATE INDEX ix_codex_task_bindings_owner ON codex_task_bindings (provider_id, owner_user_id, updated_at)",
+            ],
+        },
+    },
+    Migration {
+        version: 31,
+        description: "instance_settings: file upload concurrency limit",
+        sql: MigrationSql::Shared(&[
+            "ALTER TABLE instance_settings ADD COLUMN file_upload_max_in_flight BIGINT NOT NULL DEFAULT 0",
+        ]),
+    },
+    Migration {
+        version: 32,
+        description: "price_rule_rates: independent metric pricing dimensions",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "CREATE TABLE IF NOT EXISTS price_rule_rates (id INTEGER PRIMARY KEY, price_rule_id INTEGER NOT NULL, metric TEXT NOT NULL, unit TEXT NOT NULL, unit_size INTEGER NOT NULL, price_usd TEXT NOT NULL, conditions_json TEXT, sort_order INTEGER NOT NULL DEFAULT 0)",
+                "CREATE INDEX IF NOT EXISTS ix_price_rule_rates_rule ON price_rule_rates (price_rule_id, sort_order, id)",
+            ],
+            postgres: &[
+                "CREATE TABLE IF NOT EXISTS price_rule_rates (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, price_rule_id BIGINT NOT NULL, metric TEXT NOT NULL, unit TEXT NOT NULL, unit_size BIGINT NOT NULL, price_usd TEXT NOT NULL, conditions_json TEXT, sort_order BIGINT NOT NULL DEFAULT 0)",
+                "CREATE INDEX IF NOT EXISTS ix_price_rule_rates_rule ON price_rule_rates (price_rule_id, sort_order, id)",
+            ],
+            mysql: &[
+                "CREATE TABLE IF NOT EXISTS price_rule_rates (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, price_rule_id BIGINT NOT NULL, metric VARCHAR(64) NOT NULL, unit VARCHAR(32) NOT NULL, unit_size BIGINT NOT NULL, price_usd VARCHAR(64) NOT NULL, conditions_json TEXT, sort_order BIGINT NOT NULL DEFAULT 0)",
+                "CREATE INDEX ix_price_rule_rates_rule ON price_rule_rates (price_rule_id, sort_order, id)",
+            ],
+        },
+    },
+    Migration {
+        version: 33,
+        description: "usages.metrics_json: arbitrary billable quantities and dimensions",
+        sql: MigrationSql::ByDialect {
+            sqlite: &["ALTER TABLE usages ADD COLUMN metrics_json TEXT NOT NULL DEFAULT '{}'"],
+            postgres: &["ALTER TABLE usages ADD COLUMN metrics_json TEXT NOT NULL DEFAULT '{}'"],
+            mysql: &[
+                "ALTER TABLE usages ADD COLUMN metrics_json TEXT",
+                "UPDATE usages SET metrics_json = '{}' WHERE metrics_json IS NULL",
+                "ALTER TABLE usages MODIFY metrics_json TEXT NOT NULL",
+            ],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

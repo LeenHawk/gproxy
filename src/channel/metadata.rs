@@ -47,10 +47,28 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             );
             #[cfg(target_arch = "wasm32")]
             oauth(&mut metadata, &[LoginMode::Authcode], true);
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "file_upload_max_in_flight".into(),
+                control: SettingControl::Integer,
+                label: Some("File/skill upload concurrency".into()),
+                required: false,
+                default: Some(json!(0)),
+                placeholder: Some("0 (unlimited)".into()),
+            });
         }
         "claudeweb" => {
             oauth(&mut metadata, &[LoginMode::Cookie], true);
             metadata.secret_template = json!({ "cookie": "", "account_uuid": "" });
+        }
+        "openai" => {
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "file_upload_max_in_flight".into(),
+                control: SettingControl::Integer,
+                label: Some("File upload concurrency".into()),
+                required: false,
+                default: Some(json!(0)),
+                placeholder: Some("0 (unlimited)".into()),
+            });
         }
         "codex" => {
             oauth(
@@ -60,6 +78,22 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
             );
             metadata.secret_template =
                 json!({ "access_token": "", "refresh_token": "", "account_id": "" });
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "codex_pat_plan_type".into(),
+                control: SettingControl::Text,
+                label: Some("Codex PAT plan type".into()),
+                required: false,
+                default: Some(json!("pro")),
+                placeholder: Some("pro".into()),
+            });
+            metadata.settings_fields.push(ChannelSettingField {
+                key: "file_upload_max_in_flight".into(),
+                control: SettingControl::Integer,
+                label: Some("File upload concurrency".into()),
+                required: false,
+                default: Some(json!(0)),
+                placeholder: Some("0 (unlimited)".into()),
+            });
         }
         "cloudflare-ai-gateway" => {
             metadata.secret_template =
@@ -203,6 +237,11 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_video_edit",
             "openai_video_extend",
             "openai_compact",
+            "openai_file_create",
+            "openai_file_list",
+            "openai_file_retrieve",
+            "openai_file_delete",
+            "openai_file_content",
         ],
         "azure" => &[
             "openai_list_models",
@@ -401,6 +440,9 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "claude_get_model",
             "claude_count_tokens",
             "claude_messages",
+            "openai_compact",
+            "claude_files",
+            "claude_skills",
             "usage",
         ],
         "codex" => &[

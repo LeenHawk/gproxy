@@ -119,6 +119,8 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             quota_daily: None,
             quota_weekly: None,
             quota_monthly: None,
+            quota_5h: None,
+            quota_7d: None,
             cost_used: dec(q.cost_used),
         });
     }
@@ -163,6 +165,7 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             enable_auto_update_check: false,
             retention_days: None,
             max_database_size_mb: None,
+            file_upload_max_in_flight: 0,
         });
     }
 

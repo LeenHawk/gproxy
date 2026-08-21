@@ -40,7 +40,7 @@ let target = request_target(key, "claude-sonnet-4-5", true)?;
 
 - `gproxy_protocol::openai` — chat completions, responses, embeddings, images,
   models, conversations, compaction.
-- `gproxy_protocol::claude` — messages, count tokens, models.
+- `gproxy_protocol::claude` — messages, count tokens, models, files, and skills.
 - `gproxy_protocol::gemini` — generateContent, embeddings, caching, batch,
   count tokens, models.
 - Root re-exports — the shared taxonomy: `Provider`, `Operation`,

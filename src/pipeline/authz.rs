@@ -21,7 +21,7 @@ const DAY: i64 = 86_400;
 
 /// Snapshot-owned rate-limit input for one already-permitted request.
 pub(crate) struct AuthorizationPlan {
-    name: String,
+    names: Vec<String>,
     rate_limits: Vec<Arc<Vec<RateLimit>>>,
 }
 
@@ -178,7 +178,11 @@ async fn precheck_limits(
     for rows in &plan.rate_limits {
         for row in rows
             .iter()
-            .filter(|r| glob::matches(&r.route_pattern, &plan.name))
+            .filter(|r| {
+                plan.names
+                    .iter()
+                    .any(|name| glob::matches(&r.route_pattern, name))
+            })
         {
             if let Some(limit) = row.rpm {
                 checks.push(LimitCheck {
@@ -292,6 +296,18 @@ pub(crate) async fn precheck_quota(
         } else {
             rust_decimal::Decimal::ZERO
         };
+        let five_hour_used = timewindow::anchored_used(
+            quota.five_hour_anchor,
+            quota.five_hour_used,
+            now_unix,
+            timewindow::FIVE_HOURS_SECS,
+        );
+        let seven_day_used = timewindow::anchored_used(
+            quota.seven_day_anchor,
+            quota.seven_day_used,
+            now_unix,
+            timewindow::SEVEN_DAYS_SECS,
+        );
         if exceeds(quota.cost_used, quota.quota_total)
             || quota
                 .quota_daily
@@ -302,6 +318,12 @@ pub(crate) async fn precheck_quota(
             || quota
                 .quota_monthly
                 .is_some_and(|limit| exceeds(month_used, limit))
+            || quota
+                .quota_5h
+                .is_some_and(|limit| exceeds(five_hour_used, limit))
+            || quota
+                .quota_7d
+                .is_some_and(|limit| exceeds(seven_day_used, limit))
         {
             return Err(PipelineError::QuotaExceeded);
         }
@@ -365,9 +387,37 @@ fn prepare_limits(
         .filter_map(|scope| cp.rate_limits_by_scope.get(&scope).cloned())
         .collect();
     AuthorizationPlan {
-        name: name.to_owned(),
+        names: vec![name.to_owned()],
         rate_limits,
     }
+}
+
+pub(crate) fn prepare_provider_service(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &str,
+    service: &str,
+) -> Result<AuthorizationPlan, PipelineError> {
+    prepare_provider_service_namespace(cp, identity, provider, "codex", service)
+}
+
+pub(crate) fn prepare_provider_service_namespace(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &str,
+    namespace: &str,
+    service: &str,
+) -> Result<AuthorizationPlan, PipelineError> {
+    identity_scopes_enabled(cp, identity)?;
+    let full = format!("{provider}/api/{namespace}/{service}");
+    if !effective_patterns(cp, identity)
+        .any(|pattern| glob::matches(pattern, provider) || glob::matches(pattern, &full))
+    {
+        return Err(PipelineError::Forbidden);
+    }
+    let mut plan = prepare_limits(cp, identity, provider);
+    plan.names.push(full);
+    Ok(plan)
 }
 
 pub(crate) fn prepare(

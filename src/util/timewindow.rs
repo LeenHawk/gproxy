@@ -2,6 +2,9 @@
 
 use rust_decimal::Decimal;
 
+pub(crate) const FIVE_HOURS_SECS: i64 = 5 * 3600;
+pub(crate) const SEVEN_DAYS_SECS: i64 = 7 * 86_400;
+
 pub const fn day_key(unix: i64) -> i64 {
     unix.div_euclid(86_400)
 }
@@ -45,6 +48,35 @@ pub(crate) fn accumulate(
         Decimal::ZERO
     };
     Ok((current_key, used + delta))
+}
+
+/// Effective spend for a first-use-anchored duration window.
+pub(crate) fn anchored_used(
+    anchor: i64,
+    used: Decimal,
+    now: i64,
+    duration_secs: i64,
+) -> Decimal {
+    if anchor > 0 && now < anchor.saturating_add(duration_secs) {
+        used
+    } else {
+        Decimal::ZERO
+    }
+}
+
+/// Apply one settled cost to a first-use-anchored duration window.
+pub(crate) fn accumulate_anchored(
+    anchor: i64,
+    used_raw: &str,
+    now: i64,
+    duration_secs: i64,
+    delta: Decimal,
+) -> anyhow::Result<(i64, Decimal)> {
+    if anchor > 0 && now < anchor.saturating_add(duration_secs) {
+        Ok((anchor, used_raw.parse::<Decimal>()? + delta))
+    } else {
+        Ok((now, delta))
+    }
 }
 
 #[cfg(test)]

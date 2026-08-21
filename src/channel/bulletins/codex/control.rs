@@ -79,6 +79,27 @@ pub(super) fn request(
                 ChannelError::Build(format!("codex task request serialize: {error}"))
             })?),
         ),
+        CredentialControlOperation::CodexRaw {
+            label,
+            method,
+            path,
+            query,
+            headers,
+            body,
+            ..
+        } => {
+            let uri = join_url(&usage::backend_base(settings), path, query.as_deref())?;
+            let mut req = build_request(method.clone(), uri, headers.clone(), body.clone())?;
+            if *label != "remote_control_ws" {
+                usage::apply_headers(&mut req, token::access_token(secret)?, secret)?;
+                for name in [http::header::ACCEPT, http::header::CONTENT_TYPE] {
+                    if let Some(value) = headers.get(&name) {
+                        req.headers_mut().insert(name, value.clone());
+                    }
+                }
+            }
+            return Ok(Some(req));
+        }
         _ => return Ok(None),
     };
     let uri = match crate::channel::settings::endpoint_by_key(settings, key, "") {

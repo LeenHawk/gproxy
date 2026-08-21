@@ -17,6 +17,7 @@ route、alias、权限、quota、pricing、转换规则和实例设置都存放�
 | `GPROXY_HOST` | `127.0.0.1` | 监听 host。IPv6 作为 CLI 参数传入时需要方括号，例如 `[::1]`。 |
 | `GPROXY_PORT` | `8787` | 监听端口。 |
 | `GPROXY_MAX_IN_FLIGHT` | `1024` | gateway 并发请求上限。超出的 gateway 请求会被 load-shed 为 `503`；admin 和 ops endpoint 不在这个 gateway limiter 内。 |
+| `GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT` | `0` | 当前进程 scoped `/v1/files` 上传并发上限，`0` 表示无限。设置后覆盖持久化的全局上传上限，渠道上限仍会额外生效。 |
 | `GPROXY_MAX_ATTEMPTS` | `6` | 单请求 failover candidate 尝试上限。AuthDead 后的强制刷新重试不算新的逻辑 candidate。 |
 | `GPROXY_INSTANCE_ID` | `0` | 实例数字 id，用于需要按实例分区的行。多节点部署应使用不同值。 |
 | `GPROXY_TRUSTED_PROXIES` | 空 | 逗号分隔的可信反向代理 IP；这些来源的 `x-forwarded-for` / `x-real-ip` 会被采信，loopback 总是可信。 |

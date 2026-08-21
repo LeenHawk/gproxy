@@ -3,7 +3,9 @@
 //! - [`server`] — inbound axum router + handlers (shared; native serve + wasm edge)
 //! - `edge` — inbound WinterCG `fetch` entry (wasm)
 
+pub(crate) mod claude_service;
 pub mod client;
+pub(crate) mod codex_service;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod cors;
 pub(crate) mod egress;

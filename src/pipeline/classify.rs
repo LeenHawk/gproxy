@@ -131,6 +131,22 @@ pub fn classify(
             OperationKey::provider(Operation::CreateRealtimeCall, Prov::OpenAi),
             false,
         ),
+        ("POST", "/v1/files") => (
+            OperationKey::provider(Operation::CreateFile, Prov::OpenAi),
+            false,
+        ),
+        ("GET", "/v1/files") => (
+            OperationKey::provider(Operation::ListFiles, Prov::OpenAi),
+            false,
+        ),
+        ("GET", path) if file_operation(path).is_some() => {
+            let operation = file_operation(path).expect("guard matched");
+            (OperationKey::provider(operation, Prov::OpenAi), false)
+        }
+        ("DELETE", path) if file_id(path).is_some() => (
+            OperationKey::provider(Operation::DeleteFile, Prov::OpenAi),
+            false,
+        ),
         ("GET", "/v1/models") => (
             OperationKey::provider(Operation::ListModels, credential_provider(headers)),
             false,
@@ -162,6 +178,23 @@ pub fn classify(
         body_model,
         conversation_fingerprint,
     })
+}
+
+fn file_id(path: &str) -> Option<&str> {
+    let rest = path.strip_prefix("/v1/files/")?;
+    (!rest.is_empty() && !rest.contains('/')).then_some(rest)
+}
+
+fn file_operation(path: &str) -> Option<Operation> {
+    if let Some(id) = path
+        .strip_prefix("/v1/files/")
+        .and_then(|rest| rest.strip_suffix("/content"))
+        && !id.is_empty()
+        && !id.contains('/')
+    {
+        return Some(Operation::DownloadFileContent);
+    }
+    file_id(path).map(|_| Operation::RetrieveFile)
 }
 
 fn video_operation(method: &str, path: &str) -> Option<Operation> {
@@ -304,6 +337,12 @@ pub(crate) fn peek_model(body: &Bytes) -> Option<String> {
 /// Model id embedded in the path (gemini `models/{id}:verb`, `/v1/models/{id}`).
 /// Only matches a `/models/{id}` segment — non-model paths return `None`.
 pub(crate) fn path_model_id(path: &str) -> Option<String> {
+    if let Some(rest) = path.strip_prefix("/v1/files/") {
+        let id = rest.strip_suffix("/content").unwrap_or(rest);
+        if !id.is_empty() && !id.contains('/') {
+            return Some(id.to_owned());
+        }
+    }
     let (_, rest) = path.rsplit_once("/models/")?;
     if rest.is_empty() {
         return None;
