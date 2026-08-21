@@ -130,7 +130,7 @@ pub enum ResponseToolOutputContentPart {
 pub enum ResponseMessageOutputContentPart {
     #[serde(rename = "output_text")]
     OutputText {
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(default)]
         annotations: Vec<ResponseAnnotation>,
         #[serde(skip_serializing_if = "Option::is_none")]
         logprobs: Option<Vec<TokenLogprob>>,
@@ -152,7 +152,7 @@ pub enum ResponseMessageOutputContentPart {
 pub enum ResponseOutputContentPart {
     #[serde(rename = "output_text")]
     OutputText {
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(default)]
         annotations: Vec<ResponseAnnotation>,
         #[serde(skip_serializing_if = "Option::is_none")]
         logprobs: Option<Vec<TokenLogprob>>,
