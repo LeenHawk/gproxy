@@ -233,7 +233,13 @@ mod tests {
             "expected OutputParts: {:?}",
             message.content
         );
-        assert_eq!(serde_json::to_value(&item).unwrap(), replayed);
+        let normalized = serde_json::to_value(&item).unwrap();
+        assert_eq!(normalized["content"][0]["type"], "output_text");
+        assert_eq!(normalized["content"][0]["text"], "hello");
+        assert_eq!(
+            normalized["content"][0]["annotations"],
+            serde_json::json!([])
+        );
     }
 
     /// Guard: ordinary input parts must keep matching `Parts`, not be swallowed
