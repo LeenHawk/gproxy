@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy"
-version = "2.8.3"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1928,7 +1928,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel-api"
-version = "2.8.3"
+version = "2.9.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1947,7 +1947,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "2.8.3"
+version = "2.9.0"
 dependencies = [
  "gproxy-protocol-macros",
  "http",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol-macros"
-version = "2.8.3"
+version = "2.9.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1966,7 +1966,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-tokenize"
-version = "2.8.3"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-transform"
-version = "2.8.3"
+version = "2.9.0"
 dependencies = [
  "blake3",
  "gproxy-protocol",
