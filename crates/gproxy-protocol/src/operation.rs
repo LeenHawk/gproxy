@@ -26,6 +26,7 @@ pub enum OperationGroup {
     Files,
     Search,
     Rerank,
+    Realtime,
 }
 
 /// Concrete action.
@@ -53,6 +54,10 @@ pub enum Operation {
     DeleteFile,
     CreateVideo,
     RetrieveVideo,
+    /// SDP handshake creating a WebRTC realtime call (`/v1/realtime/calls`).
+    /// The session's WS/observer operations arrive with the round-3
+    /// websocket-ingress design.
+    CreateRealtimeCall,
 }
 
 /// Wire family for provider-shaped (non-content-generation) operations.
@@ -130,6 +135,7 @@ impl Operation {
                 OperationGroup::Files
             }
             CreateVideo | RetrieveVideo => OperationGroup::Video,
+            CreateRealtimeCall => OperationGroup::Realtime,
         }
     }
 }

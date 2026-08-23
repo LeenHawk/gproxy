@@ -257,6 +257,21 @@ const RETRIEVE_VIDEO: OperationSpec = OperationSpec {
     affinity: Affinity::Resource("video"),
 };
 
+// The SDP answer carries no usage; realtime usage arrives on the session's
+// event stream (proxied WS) — or not at all when WebRTC media bypasses the
+// proxy. Settling Free here is honest, not an oversight; the session-side
+// metering design lands with the round-3 websocket-ingress work.
+const REALTIME_CALL: OperationSpec = OperationSpec {
+    ingress: &[ing(
+        POST,
+        &[Lit("v1"), Lit("realtime"), Lit("calls")],
+        FAM_OAI,
+        NEVER,
+    )],
+    settle: SettleMode::Free,
+    affinity: Affinity::Resource("realtime_call"),
+};
+
 /// Exhaustive: a new [`Operation`] does not compile until it has a row here.
 pub(crate) fn spec(operation: Operation) -> &'static OperationSpec {
     use Operation::*;
@@ -282,5 +297,6 @@ pub(crate) fn spec(operation: Operation) -> &'static OperationSpec {
         DeleteFile => &DELETE_FILE,
         CreateVideo => &CREATE_VIDEO,
         RetrieveVideo => &RETRIEVE_VIDEO,
+        CreateRealtimeCall => &REALTIME_CALL,
     }
 }
