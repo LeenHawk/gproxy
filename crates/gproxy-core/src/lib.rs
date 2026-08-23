@@ -19,6 +19,20 @@ pub mod error;
 pub mod host;
 pub mod usage;
 
+mod credential;
+mod funnel;
+mod funnel_stream;
+mod invoke;
+mod settlement;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) type Shared<T> = std::sync::Arc<T>;
+#[cfg(target_arch = "wasm32")]
+pub(crate) type Shared<T> = std::rc::Rc<T>;
+
 pub use gproxy_channel_api::BoxFuture;
 
 pub use api::{Core, InitError};

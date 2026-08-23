@@ -7,6 +7,8 @@
 use bytes::Bytes;
 use http::{HeaderMap, Method, StatusCode};
 
+use crate::funnel::Settled;
+
 /// Wire primitives — defined at the contract layer, re-exported here for
 /// hosts: the surface hooks and the engine share one stream type.
 pub use gproxy_channel_api::{ByteStream, TransportError};
@@ -61,13 +63,6 @@ impl std::fmt::Debug for ResponseBody {
 /// re-exported here for hosts.
 pub use gproxy_channel_api::Disposition;
 
-/// Proof of settlement. Constructible only inside the funnel module —
-/// every [`ExecOutcome`] carries one, so no code path can produce a
-/// response that skipped settle/capture/telemetry. (v2's Codex bypass ran
-/// unmetered for months precisely because nothing enforced this.)
-#[derive(Debug)]
-pub struct Settled(pub(crate) ());
-
 /// What the core hands back. Fields are public to read and move out of;
 /// the private [`Settled`] proof makes outside construction impossible.
 #[derive(Debug)]
@@ -76,6 +71,5 @@ pub struct ExecOutcome {
     pub headers: HeaderMap,
     pub body: ResponseBody,
     pub disposition: Disposition,
-    #[expect(dead_code, reason = "proof token; read once the funnel lands")]
-    pub(crate) settled: Settled,
+    pub(crate) _settled: Settled,
 }

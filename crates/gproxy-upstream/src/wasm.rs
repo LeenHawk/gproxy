@@ -1,8 +1,6 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::{
-    BoxFuture, ByteStream, ChannelError, SimpleHttp, TransportError, WsDuplex,
-};
+use gproxy_channel_api::{BoxFuture, ByteStream, TransportError, WsDuplex};
 use gproxy_core::UpstreamTransport;
 use js_sys::{Array, Promise, Uint8Array};
 use wasm_bindgen::JsCast;
@@ -46,15 +44,6 @@ impl UpstreamTransport for FetchTransport {
             parts.uri.to_string(),
             parts.headers,
         ))
-    }
-}
-
-impl SimpleHttp for FetchTransport {
-    fn send<'a>(
-        &'a self,
-        request: http::Request<Bytes>,
-    ) -> BoxFuture<'a, Result<http::Response<Bytes>, ChannelError>> {
-        crate::buffered::send(self, request)
     }
 }
 

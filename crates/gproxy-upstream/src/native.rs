@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::{BoxFuture, ByteStream, SimpleHttp, TransportError, WsDuplex, WsFrame};
+use gproxy_channel_api::{BoxFuture, ByteStream, TransportError, WsDuplex, WsFrame};
 use gproxy_core::UpstreamTransport;
 
 #[derive(Clone)]
@@ -73,15 +73,6 @@ impl UpstreamTransport for WreqTransport {
             let socket = response.into_websocket().await.map_err(connect_error)?;
             Ok(Box::new(WreqSocket { socket }) as Box<dyn WsDuplex>)
         })
-    }
-}
-
-impl SimpleHttp for WreqTransport {
-    fn send<'a>(
-        &'a self,
-        request: http::Request<Bytes>,
-    ) -> BoxFuture<'a, Result<http::Response<Bytes>, gproxy_channel_api::ChannelError>> {
-        crate::buffered::send(self, request)
     }
 }
 

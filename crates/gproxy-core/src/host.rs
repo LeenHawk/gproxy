@@ -13,7 +13,7 @@
 
 use std::time::Duration;
 
-use gproxy_channel_api::{BindingStore, BoxFuture, WsDuplex};
+use gproxy_channel_api::{BindingStore, BoxFuture, MaybeSend, MaybeSync, WsDuplex};
 
 use crate::error::{StoreError, TransportError};
 use crate::usage::Settlement;
@@ -86,15 +86,19 @@ pub struct Capture {
     pub request_id: String,
     pub upstream_url: String,
     pub request_body: bytes::Bytes,
-    pub response_status: http::StatusCode,
+    /// `None` when the transport failed before response headers arrived.
+    pub response_status: Option<http::StatusCode>,
     pub response_body: Option<bytes::Bytes>,
 }
 
 /// Optional ability to run a future after the response is done. If the
 /// host provides one, stream settlement detaches (native servers); if not,
 /// it completes inline before the stream closes (edge, and any embedder
-/// that wants strict ordering). This replaces a SettlePolicy enum: the
-/// policy *is* whether this capability exists.
+/// that wants strict ordering). A host without this capability must keep
+/// polling an upstream stream after downstream disconnect so inline
+/// settlement can reach EOF; Rust `Drop` cannot await asynchronous sinks.
+/// This replaces a SettlePolicy enum: the policy *is* whether this
+/// capability exists.
 pub trait Spawner {
     #[cfg(not(target_arch = "wasm32"))]
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>);
@@ -123,7 +127,7 @@ pub trait UpstreamTransport {
 
 /// The aggregate a host hands to [`crate::Core`]. Associated types keep
 /// everything statically dispatched; no `dyn` on the hot path.
-pub trait Host {
+pub trait Host: MaybeSend + MaybeSync + 'static {
     type Credentials: CredentialStore;
     type Cache: CacheBackend;
     type Transport: UpstreamTransport;
@@ -135,7 +139,8 @@ pub trait Host {
     fn transport(&self) -> &Self::Transport;
     fn usage(&self) -> &Self::Usage;
     fn capture(&self) -> &Self::Capture;
-    /// `None` → settle inline on stream end; `Some` → detach.
+    /// `None` → settle inline at EOF and keep draining after client
+    /// disconnect; `Some` → detach settlement.
     fn spawner(&self) -> Option<&dyn Spawner> {
         None
     }

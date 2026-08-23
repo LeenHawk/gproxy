@@ -24,13 +24,9 @@ pub enum InitError {
 
 /// The engine. Generic over the host so everything is statically
 /// dispatched; an embedder's `Host` impl is the only wiring required.
-#[expect(
-    dead_code,
-    reason = "interface draft; the engine body lands next round"
-)]
 pub struct Core<H: Host> {
-    host: H,
-    channels: ChannelRegistry,
+    pub(crate) host: crate::Shared<H>,
+    pub(crate) channels: ChannelRegistry,
 }
 
 impl<H: Host> Core<H> {
@@ -49,21 +45,23 @@ impl<H: Host> Core<H> {
                 channel: channel.descriptor().id,
             });
         }
-        Ok(Self { host, channels })
+        Ok(Self {
+            host: crate::Shared::new(host),
+            channels,
+        })
     }
 
     /// Tier 1: send one request, in a wire shape the target's channel
     /// speaks natively, on one chosen credential. No routing, no
     /// transform, no failover — but refresh-on-expiry and the full funnel
     /// still apply. Service-surface forwards use exactly this.
-    #[expect(unused_variables, reason = "interface draft; bodies land next round")]
     pub async fn invoke(
         &self,
         control: &impl ControlPlane,
         target: &Target,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
-        todo!("implementation round")
+        crate::invoke::run(self, control, target, ctx).await
     }
 
     /// Tier 2: the full engine. Resolves a plan from the control plane,

@@ -42,6 +42,17 @@ pub trait MaybeSend {}
 #[cfg(target_arch = "wasm32")]
 impl<T: ?Sized> MaybeSend for T {}
 
+/// `Sync` on native, unconstrained on single-threaded wasm. The core's
+/// returned stream owns shared host services across settlement awaits.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSync: Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Sync + ?Sized> MaybeSync for T {}
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSync {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSync for T {}
+
 /// One websocket frame, transport-agnostic. Hosts bridge these to their
 /// native socket type; channels and the engine never see axum or a
 /// platform socket.

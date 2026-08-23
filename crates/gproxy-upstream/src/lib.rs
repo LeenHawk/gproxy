@@ -1,7 +1,5 @@
 //! Canonical upstream transport for native and edge hosts.
 
-mod buffered;
-
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 #[cfg(target_arch = "wasm32")]
