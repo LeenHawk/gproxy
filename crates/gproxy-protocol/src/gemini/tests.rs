@@ -83,6 +83,63 @@ fn models_and_count_tokens_keep_unknown_resource_data() {
     }));
 }
 
+#[test]
+fn remaining_family_models_preserve_documented_and_future_fields() {
+    roundtrip::<BatchEmbedContentsRequest>(json!({
+        "requests":[{
+            "model":"models/gemini-embedding-001",
+            "content":{"parts":[{"text":"embed me"}]},
+            "embedContentConfig":{
+                "taskType":"RETRIEVAL_DOCUMENT",
+                "outputDimensionality":256,
+                "futureEmbeddingOption":true
+            }
+        }],
+        "futureBatchOption":1
+    }));
+    roundtrip::<ImagenPredictResponse>(json!({
+        "predictions":[{
+            "bytesBase64Encoded":"AA==",
+            "mimeType":"image/png",
+            "futureImageField":"kept"
+        }]
+    }));
+    roundtrip::<VeoOperation>(json!({
+        "name":"models/veo/operations/op-1",
+        "response":{"generateVideoResponse":{"generatedSamples":[{
+            "video":{"uri":"https://example.invalid/v1beta/files/file-1:download"}
+        }]}},
+        "futureOperation":{"progress":100}
+    }));
+    roundtrip::<ListFilesResponse>(json!({
+        "files":[{
+            "name":"files/file-1",
+            "mimeType":"video/mp4",
+            "state":"ACTIVE",
+            "futureFileField":{"x":1}
+        }],
+        "nextPageToken":"next"
+    }));
+    roundtrip::<GenerateContentRequest>(json!({
+        "contents":[{"role":"user","parts":[{"text":"say hello"}]}],
+        "generationConfig":{
+            "responseModalities":["AUDIO"],
+            "speechConfig":{
+                "multiSpeakerVoiceConfig":{"speakerVoiceConfigs":[{
+                    "speaker":"Alex",
+                    "voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Kore"}}
+                }]},
+                "languageCode":"en-US"
+            },
+            "responseFormat":{"audio":{
+                "mimeType":"AUDIO_WAV",
+                "delivery":"INLINE",
+                "sampleRate":24000
+            }}
+        }
+    }));
+}
+
 fn roundtrip<T>(wire: Value)
 where
     T: DeserializeOwned + Serialize,

@@ -65,7 +65,6 @@ pub struct PrebuiltVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiSpeakerVoiceConfig {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub speaker_voice_configs: Vec<SpeakerVoiceConfig>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
     pub rest: serde_json::Map<String, serde_json::Value>,

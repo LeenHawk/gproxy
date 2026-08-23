@@ -26,8 +26,8 @@ pub struct GenerationConfig {
     pub response_json_schema: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<ResponseFormatConfig>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub response_modalities: Vec<ResponseModality>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_modalities: Option<Vec<ResponseModality>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub candidate_count: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]

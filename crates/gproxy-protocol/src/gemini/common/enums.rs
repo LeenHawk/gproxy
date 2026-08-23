@@ -161,6 +161,13 @@ extensible_string_enum!(TaskType, TaskTypeKnown {
     CodeRetrievalQuery => "CODE_RETRIEVAL_QUERY",
 });
 
+extensible_string_enum!(FileState, FileStateKnown {
+    StateUnspecified => "STATE_UNSPECIFIED",
+    Processing => "PROCESSING",
+    Active => "ACTIVE",
+    Failed => "FAILED",
+});
+
 extensible_string_enum!(MediaResolutionLevel, MediaResolutionLevelKnown {
     MediaResolutionUnspecified => "MEDIA_RESOLUTION_UNSPECIFIED",
     MediaResolutionLow => "MEDIA_RESOLUTION_LOW",
