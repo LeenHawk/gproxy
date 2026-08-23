@@ -169,6 +169,9 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         request_id: &'a str,
         settlement: Option<&'a Settlement>,
     ) -> BoxFuture<'a, ()>;
+    /// Runtime timer used by bounded service-surface polling. Hosts implement
+    /// this with their native timer; the core never selects an executor.
+    fn wait<'a>(&'a self, duration: Duration) -> BoxFuture<'a, ()>;
     /// Build the caller/provider-scoped usage view lent to a synthesizer.
     fn surface_usage<'a>(
         &'a self,

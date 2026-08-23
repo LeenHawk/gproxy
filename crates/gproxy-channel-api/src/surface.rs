@@ -47,6 +47,37 @@ pub enum SurfaceAffinity {
         name: &'static str,
         ttl_secs: u64,
     },
+    /// Pin one resource id accepted either in JSON or an equivalent header.
+    HeaderOrBodyField {
+        header: &'static str,
+        body_field: &'static str,
+        ttl_secs: u64,
+    },
+    /// Pin by a matched path parameter (short-lived service resources such as
+    /// plugin ids; durable task/file ids use `Binding`).
+    PathParam {
+        name: &'static str,
+        ttl_secs: u64,
+    },
+    /// Cache an opaque token returned in a successful JSON response together
+    /// with the selected credential and caller identity.
+    ResponseBodyToken {
+        field: &'static str,
+        namespace: &'static str,
+        /// Optionally select by a resource id carried in this request body.
+        request_body_field: Option<&'static str>,
+        /// Optionally pin a second response field through ordinary caller-
+        /// scoped body affinity (Codex `server_id`).
+        also_body_field: Option<&'static str>,
+        /// Optionally pin a response field for later path-param affinity.
+        also_path_field: Option<&'static str>,
+        ttl_secs: u64,
+    },
+    /// Authenticate and pin a later request by an opaque bearer token cached
+    /// by `ResponseBodyToken` (Codex remote-control websocket).
+    BearerToken {
+        namespace: &'static str,
+    },
     /// Pin by a matched path param (`"task_id"`) through the binding
     /// store — durable resource ownership.
     Binding {
@@ -62,6 +93,10 @@ pub enum SurfaceAction {
     /// credential (codex remote-control). The engine opens the upstream
     /// socket through the channel's prepare; the host pumps frames.
     ForwardWebSocket(ForwardSpec),
+    /// A proprietary ingress alias for an ordinary classified operation.
+    /// The engine rewrites the path and re-enters Tier 2 on the matched
+    /// provider, preserving admission, transforms, failover and settlement.
+    OperationAlias { canonical_path: &'static str },
     /// Answer locally, optionally orchestrating upstream calls.
     Synthesize {
         handler: &'static dyn Synthesizer,
@@ -104,6 +139,9 @@ pub struct SurfaceServices<'a> {
     /// Credential selected by the engine for this surface action. Create
     /// handlers persist resource ownership against this exact credential.
     pub credential: CredentialId,
+    /// Eligible credentials for this provider, in resolved plan order. A
+    /// synthesizer may fan out read-only aggregation through explicit invokes.
+    pub credentials: &'a [CredentialId],
     pub usage: &'a dyn UsageView,
 }
 
@@ -144,6 +182,9 @@ pub trait SurfaceInvoke: MaybeSync {
         &'a self,
         request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<SurfaceReply, TransportError>>;
+
+    /// Host-runtime delay used by bounded upstream finalization polls.
+    fn wait<'a>(&'a self, duration: std::time::Duration) -> BoxFuture<'a, ()>;
 }
 
 /// An upstream call a synthesizer asks for, in the provider's own wire

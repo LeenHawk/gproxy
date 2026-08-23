@@ -42,6 +42,7 @@ pub(super) struct State {
     pub(super) caller_key_id: i64,
     pub(super) socket_opens: usize,
     pub(super) socket_closed: bool,
+    pub(super) omit_usage: bool,
 }
 
 impl MemoryHost {
@@ -75,6 +76,7 @@ impl MemoryHost {
                 caller_key_id: 2,
                 socket_opens: 0,
                 socket_closed: false,
+                omit_usage: false,
             })),
         }
     }
@@ -142,6 +144,9 @@ impl Host for MemoryHost {
             .expect("state lock")
             .admission_finishes
             .push(settlement.is_some());
+        Box::pin(async {})
+    }
+    fn wait<'a>(&'a self, _: std::time::Duration) -> BoxFuture<'a, ()> {
         Box::pin(async {})
     }
     fn surface_usage<'a>(

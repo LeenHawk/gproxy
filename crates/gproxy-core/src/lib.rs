@@ -20,27 +20,9 @@ pub mod host;
 pub mod usage;
 
 mod attempt;
-mod attempt_body;
-mod credential;
-mod execute;
-mod failover;
+mod execution;
 mod funnel;
-mod funnel_error;
-mod funnel_socket;
-mod funnel_stream;
-mod invoke;
-mod request;
-mod resource;
-mod settlement;
 mod surface;
-mod surface_affinity;
-mod surface_forward;
-mod surface_invoke;
-mod surface_pin;
-mod surface_reply;
-mod surface_synth;
-mod surface_template;
-mod transform_stream;
 
 #[cfg(test)]
 mod tests;

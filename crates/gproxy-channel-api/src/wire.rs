@@ -13,11 +13,57 @@ pub enum TransportError {
     Interrupted(String),
 }
 
-/// Native transport fingerprint selected by a channel. Edge hosts ignore it;
-/// they do not control the runtime TLS stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransportProfile {
-    ClaudeCode,
+pub enum Alpn {
+    Http1,
+    Http2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TlsVersion {
+    Tls12,
+    Tls13,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Http2Setting {
+    EnablePush,
+    InitialWindowSize,
+    MaxFrameSize,
+    MaxHeaderListSize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PseudoHeader {
+    Method,
+    Scheme,
+    Authority,
+    Path,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Http2Profile {
+    pub enable_push: bool,
+    pub initial_window_size: u32,
+    pub initial_connection_window_size: u32,
+    pub max_frame_size: u32,
+    pub max_header_list_size: u32,
+    pub pseudo_header_order: &'static [PseudoHeader],
+    pub settings_order: &'static [Http2Setting],
+}
+
+/// Channel-declared native client fingerprint. Edge hosts ignore it because
+/// their runtimes own the TLS stack.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientProfile {
+    pub alpn: &'static [Alpn],
+    pub min_tls_version: TlsVersion,
+    pub max_tls_version: TlsVersion,
+    pub cipher_list: &'static str,
+    pub curves_list: &'static str,
+    pub sigalgs_list: Option<&'static str>,
+    pub grease: bool,
+    pub http2: Option<Http2Profile>,
 }
 
 /// Response body stream. Zero-copy passthrough is the default path: frames

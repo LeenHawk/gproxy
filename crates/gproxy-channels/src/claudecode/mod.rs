@@ -3,6 +3,7 @@ mod cache;
 mod cch;
 mod hygiene;
 mod prepare;
+mod profile;
 mod sse;
 mod surface;
 mod usage;

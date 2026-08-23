@@ -148,6 +148,16 @@ fn surfaces_scope_affinity_assemble_services_and_require_bindings() {
     host.state.lock().expect("state lock").plan = Some(plan(vec![target(3, 7)]));
     execute(&core, &host, Method::GET, "/surface/invoke", None, None)
         .expect("funneled surface invoke");
+    let alias = execute(
+        &core,
+        &host,
+        Method::POST,
+        "/surface/alias",
+        None,
+        Some(br#"{"model":"alias","stream":false}"#),
+    )
+    .expect("operation alias");
+    assert_eq!(alias["result"], "ok");
 
     let state = host.state.lock().expect("state lock");
     assert_eq!(state.cache.len(), 3);
@@ -157,7 +167,8 @@ fn surfaces_scope_affinity_assemble_services_and_require_bindings() {
     assert!(state.cache_ttls.values().all(|ttl| *ttl == 60));
     assert_eq!(state.admission_finishes.len(), state.admit_calls);
     assert_eq!(state.admission_finishes.last(), Some(&true));
-    assert_eq!(state.authorizations.len(), 2);
+    assert_eq!(state.authorizations.len(), 3);
+    assert_eq!(state.resolved_models.last(), Some(&Some("alias".into())));
     assert_eq!(state.socket_opens, 1);
     assert!(state.socket_closed);
     drop(state);
@@ -170,6 +181,83 @@ fn surfaces_scope_affinity_assemble_services_and_require_bindings() {
         crate::Core::new(host, channels),
         Err(crate::InitError::SurfacesWithoutBindings { channel: "memory" })
     ));
+}
+
+#[test]
+fn response_token_authenticates_and_pins_surface_websocket() {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").plan = Some(plan(vec![target(3, 7), target(3, 8)]));
+    let core = super::core(&host).expect("core");
+    let created = execute(
+        &core,
+        &host,
+        Method::POST,
+        "/surface/token",
+        None,
+        Some(b"{}"),
+    )
+    .expect("remote token");
+    assert_eq!(created["remote_token"], "remote-secret");
+    host.state.lock().expect("state lock").plan = Some(plan(vec![target(3, 8), target(3, 7)]));
+    let refreshed = execute(
+        &core,
+        &host,
+        Method::POST,
+        "/surface/token/refresh",
+        None,
+        Some(br#"{"server_id":"remote-server"}"#),
+    )
+    .expect("remote token refresh pin");
+    assert_eq!(refreshed["slot"], 7);
+    let environment = execute(
+        &core,
+        &host,
+        Method::GET,
+        "/surface/environment/remote-environment",
+        None,
+        None,
+    )
+    .expect("remote environment pin");
+    assert_eq!(environment["slot"], 7);
+    let server = execute(
+        &core,
+        &host,
+        Method::POST,
+        "/surface/body",
+        Some(("x-server-id", "remote-server")),
+        None,
+    )
+    .expect("remote server pin");
+    assert_eq!(server["slot"], 7);
+    {
+        let mut state = host.state.lock().expect("state lock");
+        assert_eq!(state.auth_calls, 4);
+        state.caller_user_id = 99;
+        state.caller_key_id = 100;
+        state.socket_closed = false;
+    }
+
+    let socket = outcome(
+        &core,
+        &host,
+        Method::GET,
+        "/surface/token/socket",
+        Some(("authorization", "Bearer remote-secret")),
+        None,
+        true,
+    )
+    .expect("token websocket");
+    let crate::ResponseBody::WebSocket(mut socket) = socket.body else {
+        panic!("token route did not return a websocket");
+    };
+    let frame = super::block_on(socket.recv())
+        .expect("socket receive")
+        .expect("close frame");
+    assert!(matches!(frame, crate::WsFrame::Close(Some(1000))));
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.auth_calls, 4);
+    assert_eq!(state.admit_calls, 5);
+    assert_eq!(state.socket_opens, 1);
 }
 
 fn require_send(_: impl Send) {}

@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
-    ChannelError, Frame, NormalizedUsage, StreamCtx, StreamDecoder, StreamTail,
+    ChannelError, Frame, NormalizedUsage, StreamCtx, StreamDecoder, StreamEnd, StreamTail,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
 use rust_decimal::Decimal;
@@ -128,10 +128,12 @@ impl StreamDecoder for OpenAiSseDecoder {
         }
     }
 
-    fn finish(&mut self) -> Result<StreamTail, ChannelError> {
-        if !self.buffer.is_empty() {
+    fn finish(&mut self, end: StreamEnd) -> Result<StreamTail, ChannelError> {
+        if end == StreamEnd::Complete && !self.buffer.is_empty() {
             let raw = std::mem::take(&mut self.buffer);
             self.observe(&raw);
+        } else {
+            self.buffer.clear();
         }
         if self.usage.is_none()
             && let Some(bytes_per_second) = self.audio_bytes_per_second

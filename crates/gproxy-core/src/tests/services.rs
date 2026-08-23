@@ -130,12 +130,33 @@ impl UpstreamTransport for MemoryHost {
                             .unwrap_or(false) =>
                     {
                         Bytes::from_static(
-                            b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-test\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+                            b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"model\":\"claude-test\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
                         )
                     }
                     (http::Method::POST, "/v1/messages") => Bytes::from_static(
                         br#"{"id":"msg_1","type":"message","role":"assistant","model":"claude-test","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}"#,
                     ),
+                    (http::Method::POST, path)
+                        if path.ends_with("/codex/responses")
+                            && serde_json::from_slice::<serde_json::Value>(&request_body)
+                                .ok()
+                                .and_then(|body| body.get("sparse_test")?.as_bool())
+                                .unwrap_or(false) =>
+                    {
+                        Bytes::from_static(
+                            b"event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_sparse\",\"created_at\":1,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[]}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"item_id\":\"msg_sparse\",\"content_index\":0,\"delta\":\"hi\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_sparse\",\"created_at\":1,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[]}}\n\n",
+                        )
+                    }
+                    (http::Method::POST, path) if path.ends_with("/codex/responses") => {
+                        Bytes::from_static(
+                            b"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"created_at\":0,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[]}],\"status\":\"completed\"}],\"output_text\":\"ok\",\"status\":\"completed\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5,\"total_tokens\":15,\"output_tokens_details\":{\"reasoning_tokens\":2}}}}\n\n",
+                        )
+                    }
+                    (http::Method::GET, path) if path.ends_with("/codex/models") => {
+                        Bytes::from_static(
+                            br#"{"models":[{"slug":"gpt-test","display_name":"GPT Test","context_window":128000,"max_context_window":256000,"future_catalog":"kept"}],"future_list":"kept"}"#,
+                        )
+                    }
                     _ => Bytes::from_static(br#"{"usage":true,"result":"ok"}"#),
                 };
                 (

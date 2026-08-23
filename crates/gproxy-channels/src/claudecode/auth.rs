@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{BoxFuture, ChannelError, SimpleHttp, TransportProfile};
+use gproxy_channel_api::{BoxFuture, ChannelError, SimpleHttp};
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -53,7 +53,7 @@ pub(super) fn refresh<'a>(
             .map_err(|error| ChannelError::Refresh(error.to_string()))?;
         request
             .extensions_mut()
-            .insert(TransportProfile::ClaudeCode);
+            .insert(super::profile::CLIENT_PROFILE);
         Ok(request)
     })();
     let request = match request {
@@ -313,10 +313,10 @@ fn hex(bytes: &[u8]) -> String {
 fn unix_now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
+        .expect("system clock is before the Unix epoch")
         .as_millis()
         .try_into()
-        .unwrap_or(i64::MAX)
+        .expect("Unix milliseconds fit in i64")
 }
 
 #[cfg(target_arch = "wasm32")]

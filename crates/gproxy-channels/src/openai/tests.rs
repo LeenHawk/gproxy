@@ -1,5 +1,7 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, Disposition, PrepareCtx, ResponseView, StreamCtx, UsageCtx};
+use gproxy_channel_api::{
+    Channel, Disposition, PrepareCtx, ResponseView, StreamCtx, StreamEnd, UsageCtx,
+};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -244,7 +246,12 @@ fn buffered_and_fragmented_stream_usage_normalize() {
         ))
         .unwrap();
     assert_eq!(
-        speech_stream.finish().unwrap().usage.unwrap().metrics["audio_seconds"],
+        speech_stream
+            .finish(StreamEnd::Complete)
+            .unwrap()
+            .usage
+            .unwrap()
+            .metrics["audio_seconds"],
         Decimal::from(3_u64) / Decimal::from(48_000_u64)
     );
 
@@ -268,7 +275,7 @@ fn buffered_and_fragmented_stream_usage_normalize() {
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].0.as_ptr(), pointer);
     }
-    let tail = decoder.finish().unwrap();
+    let tail = decoder.finish(StreamEnd::Complete).unwrap();
     let usage = tail.usage.unwrap();
     assert_eq!((usage.input_tokens, usage.output_tokens), (9, 4));
     assert!(tail.frames.is_empty());
@@ -296,7 +303,7 @@ fn image_stream_redacts_large_media_only_in_the_usage_observer() {
         relayed += frames.into_iter().map(|frame| frame.0.len()).sum::<usize>();
     }
     assert_eq!(relayed, event.len());
-    let usage = decoder.finish().unwrap().usage.unwrap();
+    let usage = decoder.finish(StreamEnd::Complete).unwrap().usage.unwrap();
     assert_eq!(usage.input_tokens, 2);
     assert_eq!(usage.output_tokens, 0);
     assert_eq!(usage.metrics["image_output_tokens"], Decimal::from(8));

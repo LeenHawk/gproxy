@@ -4,8 +4,8 @@ use std::task::{Context, Poll, Waker};
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, Disposition, PrepareCtx, ResponseView, SimpleHttp, StreamCtx,
-    SurfaceRequest, TransportProfile, UsageCtx,
+    BoxFuture, Channel, ClientProfile, Disposition, PrepareCtx, ResponseView, SimpleHttp,
+    StreamCtx, StreamEnd, SurfaceRequest, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method, StatusCode};
@@ -121,10 +121,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
         prepared.request.uri(),
         "https://relay.example/messages?fixed=1&beta=true&foo=1"
     );
-    assert_eq!(
-        prepared.request.extensions().get::<TransportProfile>(),
-        Some(&TransportProfile::ClaudeCode)
-    );
+    assert_eq!(prepared.profile, Some(&super::profile::CLIENT_PROFILE));
     assert_eq!(
         prepared.request.headers()["authorization"],
         "Bearer upstream-token"
@@ -297,7 +294,7 @@ fn buffered_and_fragmented_stream_usage_merge_claude_fields() {
         let frames = decoder.push(chunk).unwrap();
         assert_eq!(frames[0].0.as_ptr(), pointer);
     }
-    let usage = decoder.finish().unwrap().usage.unwrap();
+    let usage = decoder.finish(StreamEnd::Complete).unwrap().usage.unwrap();
     assert_eq!((usage.input_tokens, usage.output_tokens), (35, 12));
     assert_eq!(usage.cached_input_tokens, 10);
     assert!(!usage.metrics.contains_key("cache_creation_5m_tokens"));
@@ -370,7 +367,7 @@ impl SimpleHttp for MockHttp {
         request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<http::Response<Bytes>, gproxy_channel_api::ChannelError>> {
         let profile =
-            request.extensions().get::<TransportProfile>() == Some(&TransportProfile::ClaudeCode);
+            request.extensions().get::<ClientProfile>() == Some(&super::profile::CLIENT_PROFILE);
         let (parts, body) = request.into_parts();
         *self.captured.lock().unwrap() = Some(Captured {
             uri: parts.uri.to_string(),

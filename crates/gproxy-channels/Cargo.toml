@@ -10,6 +10,7 @@ repository.workspace = true
 gproxy-channel-api.workspace = true
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 bytes.workspace = true
+futures-util.workspace = true
 http.workspace = true
 rust_decimal.workspace = true
 serde_json.workspace = true

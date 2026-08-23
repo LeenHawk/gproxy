@@ -79,7 +79,7 @@ impl<H: Host> Core<H> {
         target: &Target,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
-        crate::invoke::run(self, control, target, ctx).await
+        crate::execution::invoke::run(self, control, target, ctx).await
     }
 
     /// Tier 2: the full engine. Resolves a plan from the control plane,
@@ -89,9 +89,9 @@ impl<H: Host> Core<H> {
         control: &impl ControlPlane,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
-        let classified = crate::request::classify(&ctx);
+        let classified = crate::execution::request::classify(&ctx);
         match crate::surface::dispatch(self, control, &ctx, None).await {
-            crate::surface::Dispatch::Unmatched => crate::execute::run(self, control, ctx).await,
+            crate::surface::Dispatch::Unmatched => crate::execution::run(self, control, ctx).await,
             crate::surface::Dispatch::Outcome(result) => result,
             crate::surface::Dispatch::Continue {
                 identity,
@@ -99,9 +99,9 @@ impl<H: Host> Core<H> {
                 started,
             } => {
                 let classified = classified.inspect_err(|error| {
-                    crate::funnel_error::request_failed(&ctx, None, error);
+                    crate::funnel::error::request_failed(&ctx, None, error);
                 })?;
-                crate::execute::resolved(self, control, ctx, plan, classified, identity, started)
+                crate::execution::resolved(self, control, ctx, plan, classified, identity, started)
                     .await
             }
         }
@@ -116,10 +116,10 @@ impl<H: Host> Core<H> {
         ctx: RequestCtx,
         plan: Plan,
     ) -> Result<ExecOutcome, CoreError> {
-        let classified = crate::request::classify(&ctx);
+        let classified = crate::execution::request::classify(&ctx);
         match crate::surface::dispatch(self, control, &ctx, Some(&plan)).await {
             crate::surface::Dispatch::Unmatched => {
-                crate::execute::planned(self, control, ctx, plan).await
+                crate::execution::planned(self, control, ctx, plan).await
             }
             crate::surface::Dispatch::Outcome(result) => result,
             crate::surface::Dispatch::Continue {
@@ -128,9 +128,9 @@ impl<H: Host> Core<H> {
                 started,
             } => {
                 let classified = classified.inspect_err(|error| {
-                    crate::funnel_error::request_failed(&ctx, None, error);
+                    crate::funnel::error::request_failed(&ctx, None, error);
                 })?;
-                crate::execute::resolved(self, control, ctx, plan, classified, identity, started)
+                crate::execution::resolved(self, control, ctx, plan, classified, identity, started)
                     .await
             }
         }

@@ -8,6 +8,7 @@ use crate::BoxFuture;
 use crate::disposition::Disposition;
 use crate::surface::{SurfaceRequest, SurfaceTable};
 use crate::usage::NormalizedUsage;
+use crate::wire::ClientProfile;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChannelError {
@@ -75,6 +76,17 @@ pub struct PreparedRequest {
     pub request: http::Request<Bytes>,
     /// The transport must upgrade to a websocket instead of plain HTTP.
     pub websocket: bool,
+    /// Native client fingerprint declared by the channel. The core carries it
+    /// in request extensions for transports that can apply it.
+    pub profile: Option<&'static ClientProfile>,
+}
+
+impl PreparedRequest {
+    pub fn apply_profile(&mut self) {
+        if let Some(profile) = self.profile {
+            self.request.extensions_mut().insert(*profile);
+        }
+    }
 }
 
 /// What classification may read. For streaming responses the body is
@@ -102,6 +114,16 @@ pub struct UsageCtx<'a> {
     pub response_body: &'a [u8],
 }
 
+/// Raw buffered upstream response visible to channel-private normalization
+/// before any protocol-pair conversion. Capture and usage still consume the
+/// unshaped bytes.
+pub struct ResponseShapeCtx<'a> {
+    pub key: OperationKey,
+    pub status: http::StatusCode,
+    pub headers: &'a http::HeaderMap,
+    pub body: &'a Bytes,
+}
+
 /// One decoded stream frame, zero-copy where the wire allows.
 #[derive(Debug)]
 pub struct Frame(pub Bytes);
@@ -115,13 +137,19 @@ pub struct StreamTail {
     pub usage: Option<NormalizedUsage>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamEnd {
+    Complete,
+    Interrupted,
+}
+
 /// Stateful per-response stream decoder (SSE, AWS event-stream, ...).
 /// A pure state machine: owned chunks in, frames out, tail at the end. Owning
 /// the chunk lets an observe-only decoder relay it as a [`Frame`] without a
 /// copy while still collecting usage state.
 pub trait StreamDecoder: Send {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError>;
-    fn finish(&mut self) -> Result<StreamTail, ChannelError>;
+    fn finish(&mut self, end: StreamEnd) -> Result<StreamTail, ChannelError>;
 }
 
 /// Minimal buffered HTTP the engine lends to `refresh` — refresh calls are
@@ -154,6 +182,12 @@ pub trait Channel: Send + Sync {
 
     /// Pull usage out of a buffered response body.
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage>;
+
+    /// Normalize a channel-private buffered envelope into its declared native
+    /// target wire before the pairwise outward transform.
+    fn shape_response(&self, ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
+        Ok(ctx.body.clone())
+    }
 
     /// Unix time after which the secret should be refreshed proactively;
     /// `None` = this channel's credentials never refresh.

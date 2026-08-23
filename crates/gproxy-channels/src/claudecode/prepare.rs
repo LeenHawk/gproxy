@@ -1,7 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{
-    ChannelError, PrepareCtx, PreparedRequest, SurfaceRequest, TransportProfile,
-};
+use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest, SurfaceRequest};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method, Uri};
 use serde_json::Value;
@@ -21,12 +19,10 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .body(body)
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
     *request.headers_mut() = headers;
-    request
-        .extensions_mut()
-        .insert(TransportProfile::ClaudeCode);
     Ok(PreparedRequest {
         request,
         websocket: false,
+        profile: Some(&super::profile::CLIENT_PROFILE),
     })
 }
 
@@ -65,10 +61,11 @@ pub(super) fn surface(
         .body(source.body.clone())
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
     *request.headers_mut() = headers;
-    request
-        .extensions_mut()
-        .insert(TransportProfile::ClaudeCode);
-    Ok(PreparedRequest { request, websocket })
+    Ok(PreparedRequest {
+        request,
+        websocket,
+        profile: Some(&super::profile::CLIENT_PROFILE),
+    })
 }
 
 fn shape_body(

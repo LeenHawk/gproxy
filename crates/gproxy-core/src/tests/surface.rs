@@ -10,7 +10,7 @@ use http::Method;
 struct MemorySynth;
 
 static SYNTH: MemorySynth = MemorySynth;
-static ENTRIES: [SurfaceEntry; 6] = [
+static ENTRIES: [SurfaceEntry; 11] = [
     SurfaceEntry {
         method: &Method::GET,
         pattern: PathPattern(&[
@@ -42,8 +42,9 @@ static ENTRIES: [SurfaceEntry; 6] = [
     SurfaceEntry {
         method: &Method::POST,
         pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("body")]),
-        affinity: SurfaceAffinity::BodyField {
-            name: "server_id",
+        affinity: SurfaceAffinity::HeaderOrBodyField {
+            header: "x-server-id",
+            body_field: "server_id",
             ttl_secs: 60,
         },
         action: SurfaceAction::Synthesize {
@@ -90,6 +91,73 @@ static ENTRIES: [SurfaceEntry; 6] = [
         action: SurfaceAction::ForwardWebSocket(ForwardSpec {
             label: "socket-test",
             upstream_template: "/socket/{task_id}",
+        }),
+    },
+    SurfaceEntry {
+        method: &Method::POST,
+        pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("alias")]),
+        affinity: SurfaceAffinity::None,
+        action: SurfaceAction::OperationAlias {
+            canonical_path: "/v1/responses",
+        },
+    },
+    SurfaceEntry {
+        method: &Method::POST,
+        pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("token")]),
+        affinity: SurfaceAffinity::ResponseBodyToken {
+            field: "remote_token",
+            namespace: "remote",
+            request_body_field: None,
+            also_body_field: Some("server_id"),
+            also_path_field: Some("environment_id"),
+            ttl_secs: 60,
+        },
+        action: SurfaceAction::Synthesize {
+            handler: &SYNTH,
+            upstream: false,
+        },
+    },
+    SurfaceEntry {
+        method: &Method::POST,
+        pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("token"), Seg::Lit("refresh")]),
+        affinity: SurfaceAffinity::ResponseBodyToken {
+            field: "remote_token",
+            namespace: "remote",
+            request_body_field: Some("server_id"),
+            also_body_field: Some("server_id"),
+            also_path_field: Some("environment_id"),
+            ttl_secs: 60,
+        },
+        action: SurfaceAction::Synthesize {
+            handler: &SYNTH,
+            upstream: false,
+        },
+    },
+    SurfaceEntry {
+        method: &Method::GET,
+        pattern: PathPattern(&[
+            Seg::Lit("surface"),
+            Seg::Lit("environment"),
+            Seg::Param("environment_id"),
+        ]),
+        affinity: SurfaceAffinity::PathParam {
+            name: "environment_id",
+            ttl_secs: 60,
+        },
+        action: SurfaceAction::Synthesize {
+            handler: &SYNTH,
+            upstream: false,
+        },
+    },
+    SurfaceEntry {
+        method: &Method::GET,
+        pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("token"), Seg::Lit("socket")]),
+        affinity: SurfaceAffinity::BearerToken {
+            namespace: "remote",
+        },
+        action: SurfaceAction::ForwardWebSocket(ForwardSpec {
+            label: "token-socket-test",
+            upstream_template: "/socket/token",
         }),
     },
 ];
@@ -144,13 +212,18 @@ impl Synthesizer for MemorySynth {
                 None => -1,
             };
             let usage = services.usage.window(0).await.expect("usage window");
-            let body = serde_json::json!({
+            let mut body = serde_json::json!({
                 "credential": credential,
                 "provider": services.provider.id,
                 "slot": services.provider.settings["slot"],
                 "user": services.identity.user_id,
                 "cost": usage.cost,
             });
+            if ctx.path == "/surface/token" {
+                body["remote_token"] = serde_json::Value::String("remote-secret".into());
+                body["server_id"] = serde_json::Value::String("remote-server".into());
+                body["environment_id"] = serde_json::Value::String("remote-environment".into());
+            }
             let mut headers = http::HeaderMap::new();
             if ctx.path == "/surface/header" {
                 let session = ctx

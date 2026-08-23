@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{ChannelError, Frame, StreamCtx, StreamDecoder, StreamTail};
+use gproxy_channel_api::{ChannelError, Frame, StreamCtx, StreamDecoder, StreamEnd, StreamTail};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
 use serde_json::Value;
 
@@ -72,10 +72,12 @@ impl StreamDecoder for ClaudeSseDecoder {
         }
     }
 
-    fn finish(&mut self) -> Result<StreamTail, ChannelError> {
-        if !self.buffer.is_empty() {
+    fn finish(&mut self, end: StreamEnd) -> Result<StreamTail, ChannelError> {
+        if end == StreamEnd::Complete && !self.buffer.is_empty() {
             let raw = std::mem::take(&mut self.buffer);
             self.observe(&raw);
+        } else {
+            self.buffer.clear();
         }
         Ok(StreamTail {
             frames: Vec::new(),

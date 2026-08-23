@@ -22,7 +22,8 @@ pub mod wire;
 
 pub use channel::{
     Channel, ChannelDescriptor, ChannelError, ChannelSupport, Frame, PrepareCtx, PreparedRequest,
-    ResponseView, SimpleHttp, StreamCtx, StreamDecoder, StreamTail, UsageCtx,
+    ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, StreamEnd, StreamTail,
+    UsageCtx,
 };
 pub use disposition::Disposition;
 pub use registry::ChannelRegistry;
@@ -33,8 +34,8 @@ pub use surface::{
 };
 pub use usage::NormalizedUsage;
 pub use wire::{
-    ByteStream, CredentialId, MaybeSend, MaybeSync, TransportError, TransportProfile, WsDuplex,
-    WsFrame,
+    Alpn, ByteStream, ClientProfile, CredentialId, Http2Profile, Http2Setting, MaybeSend,
+    MaybeSync, PseudoHeader, TlsVersion, TransportError, WsDuplex, WsFrame,
 };
 
 /// Boxed future with the wasm `Send` split — the one language-level tax

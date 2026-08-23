@@ -2,7 +2,7 @@ use bytes::Bytes;
 use gproxy_channel_api::{
     BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition, Frame,
     NormalizedUsage, PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, StreamTail, SurfaceRequest, SurfaceTable, UsageCtx,
+    StreamDecoder, StreamEnd, StreamTail, SurfaceRequest, SurfaceTable, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
@@ -24,13 +24,16 @@ const DELETE_FILE: OperationKey =
     OperationKey::family(Operation::DeleteFile, gproxy_protocol::WireFamily::OpenAi);
 const LIST_FILES: OperationKey =
     OperationKey::family(Operation::ListFiles, gproxy_protocol::WireFamily::OpenAi);
-static SUPPORTS: [ChannelSupport; 6] = [
+const WEB_SEARCH: OperationKey =
+    OperationKey::family(Operation::WebSearch, gproxy_protocol::WireFamily::OpenAi);
+static SUPPORTS: [ChannelSupport; 7] = [
     ChannelSupport::passthrough(KEY),
     ChannelSupport::passthrough(STREAM_KEY),
     ChannelSupport::passthrough(CREATE_FILE),
     ChannelSupport::passthrough(RETRIEVE_FILE),
     ChannelSupport::passthrough(DELETE_FILE),
     ChannelSupport::passthrough(LIST_FILES),
+    ChannelSupport::passthrough(WEB_SEARCH),
 ];
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
@@ -100,6 +103,7 @@ impl Channel for MemoryHost {
         Ok(PreparedRequest {
             request,
             websocket: false,
+            profile: None,
         })
     }
 
@@ -113,6 +117,9 @@ impl Channel for MemoryHost {
     }
 
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
+        if self.state.lock().expect("state lock").omit_usage {
+            return None;
+        }
         serde_json::from_slice::<serde_json::Value>(ctx.response_body)
             .ok()?
             .get("usage")?;
@@ -168,7 +175,11 @@ impl Channel for MemoryHost {
             .header(http::header::AUTHORIZATION, format!("Bearer {token}"))
             .body(request.body.clone())
             .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-        Ok(PreparedRequest { request, websocket })
+        Ok(PreparedRequest {
+            request,
+            websocket,
+            profile: None,
+        })
     }
 
     fn surfaces(&self) -> SurfaceTable {
@@ -181,10 +192,14 @@ impl StreamDecoder for MemoryHost {
         Ok(vec![Frame(chunk)])
     }
 
-    fn finish(&mut self) -> Result<StreamTail, ChannelError> {
+    fn finish(&mut self, end: StreamEnd) -> Result<StreamTail, ChannelError> {
+        let omit_usage = self.state.lock().expect("state lock").omit_usage;
         Ok(StreamTail {
-            frames: vec![Frame(Bytes::from_static(b"tail"))],
-            usage: Some(NormalizedUsage {
+            frames: (end == StreamEnd::Complete)
+                .then_some(Frame(Bytes::from_static(b"tail")))
+                .into_iter()
+                .collect(),
+            usage: (!omit_usage).then(|| NormalizedUsage {
                 input_tokens: 10,
                 output_tokens: 5,
                 ..Default::default()
