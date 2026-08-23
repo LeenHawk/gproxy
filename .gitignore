@@ -5,11 +5,11 @@
 node_modules/
 dist/
 __pycache__/
-.DS_Store
 
-# secrets — never commit
-.env
-.env.*
+# hidden files: tool/session state and secrets — never commit
+.*
+!.gitignore
+!.github/
 
 # local reference library (v2 snapshot lives at samples/gproxy-v2)
 samples/
@@ -17,6 +17,5 @@ samples/
 # upstream API docs snapshots (separate nested git repo)
 /upstream_docs/
 
-# tool/session state
 probe-out/
 /dev-docs
