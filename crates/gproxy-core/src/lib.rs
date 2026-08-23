@@ -22,7 +22,7 @@ pub mod error;
 pub mod host;
 pub mod usage;
 
-pub use api::Core;
+pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};
 pub use control::{ControlPlane, Plan, Pricing, ProviderRef, Target};
 pub use error::CoreError;

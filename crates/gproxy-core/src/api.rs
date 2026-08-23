@@ -14,6 +14,14 @@ use crate::control::{ControlPlane, Plan, Target};
 use crate::error::CoreError;
 use crate::host::Host;
 
+/// Constructor-time refusals. These are configuration errors, not request
+/// errors: they surface at startup, never mid-traffic.
+#[derive(Debug, thiserror::Error)]
+pub enum InitError {
+    #[error("channel `{channel}` declares service surfaces but the host provides no binding store")]
+    SurfacesWithoutBindings { channel: &'static str },
+}
+
 /// The engine. Generic over the host so everything is statically
 /// dispatched; an embedder's `Host` impl is the only wiring required.
 #[expect(
@@ -26,8 +34,22 @@ pub struct Core<H: Host> {
 }
 
 impl<H: Host> Core<H> {
-    pub fn new(host: H, channels: ChannelRegistry) -> Self {
-        Self { host, channels }
+    /// Assemble the engine. Fails loudly at startup when a registered
+    /// channel declares a service-surface table but the host provides no
+    /// [`gproxy_channel_api::BindingStore`] — stateful surfaces silently
+    /// degrading (or fragmenting across instances) is exactly the class
+    /// of bug this constructor refuses to ship.
+    pub fn new(host: H, channels: ChannelRegistry) -> Result<Self, InitError> {
+        if host.bindings().is_none()
+            && let Some(channel) = channels
+                .iter()
+                .find(|channel| !channel.surfaces().0.is_empty())
+        {
+            return Err(InitError::SurfacesWithoutBindings {
+                channel: channel.descriptor().id,
+            });
+        }
+        Ok(Self { host, channels })
     }
 
     /// Tier 1: send one request, in a wire shape the target's channel

@@ -11,10 +11,9 @@ use std::time::Duration;
 use crate::error::StoreError;
 use crate::usage::Settlement;
 
-/// Stable credential identity. i64 to match relational primary keys;
-/// embedders without a database can hand out any distinct values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct CredentialId(pub i64);
+/// Credential identity — defined at the contract layer (bindings reference
+/// it), re-exported here for hosts.
+pub use gproxy_channel_api::CredentialId;
 
 /// A credential as the core consumes it: which channel understands it and
 /// the decrypted secret material in that channel's JSON shape.
@@ -120,6 +119,15 @@ pub trait Host {
     fn capture(&self) -> &Self::Capture;
     /// `None` → settle inline on stream end; `Some` → detach.
     fn spawner(&self) -> Option<&dyn Spawner> {
+        None
+    }
+    /// Durable resource → credential bindings for stateful service
+    /// surfaces. No default implementation exists on purpose: bindings
+    /// must be shared across instances and survive restarts, so an
+    /// in-memory fallback would fragment silently in multi-instance
+    /// deployments. A host that provides `None` cannot register channels
+    /// with surface tables — [`crate::Core::new`] fails loudly instead.
+    fn bindings(&self) -> Option<&dyn gproxy_channel_api::BindingStore> {
         None
     }
 }

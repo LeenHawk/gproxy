@@ -16,6 +16,7 @@ pub mod disposition;
 pub mod registry;
 pub mod surface;
 pub mod usage;
+pub mod wire;
 
 pub use channel::{
     Channel, ChannelDescriptor, ChannelError, Frame, PrepareCtx, PreparedRequest, ResponseView,
@@ -24,9 +25,12 @@ pub use channel::{
 pub use disposition::Disposition;
 pub use registry::ChannelRegistry;
 pub use surface::{
-    ForwardSpec, SurfaceAction, SurfaceEntry, SurfaceTable, SynthCtx, SynthReply, Synthesizer,
+    Binding, BindingStore, CallerIdentity, ForwardSpec, Page, ProviderView, StateError,
+    SurfaceAction, SurfaceAffinity, SurfaceBody, SurfaceEntry, SurfaceInvoke, SurfaceReply,
+    SurfaceRequest, SurfaceServices, SurfaceTable, SynthCtx, Synthesizer, UsageView, UsageWindow,
 };
 pub use usage::NormalizedUsage;
+pub use wire::{ByteStream, CredentialId, TransportError};
 
 /// Boxed future with the wasm `Send` split — the one language-level tax
 /// this crate carries for the single-threaded wasm target.

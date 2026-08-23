@@ -7,7 +7,9 @@
 use bytes::Bytes;
 use http::{HeaderMap, Method, StatusCode};
 
-use crate::error::TransportError;
+/// Wire primitives — defined at the contract layer, re-exported here for
+/// hosts: the surface hooks and the engine share one stream type.
+pub use gproxy_channel_api::{ByteStream, TransportError};
 
 /// One inbound request, normalized. Bodies are buffered `Bytes`: transforms
 /// and failover retries need the request replayable, and the refcounted
@@ -38,19 +40,8 @@ pub enum RoutingMode {
     Named { name: String },
 }
 
-/// Response body stream. Zero-copy passthrough is the default path: frames
-/// flow as refcounted `Bytes` and are only re-encoded when a transform must
-/// rewrite them.
-///
-/// The `Send` split is the one language-level tax the core carries for the
-/// wasm target (single-threaded executors; futures there are not `Send`).
-#[cfg(not(target_arch = "wasm32"))]
-pub type ByteStream =
-    std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, TransportError>> + Send>>;
-#[cfg(target_arch = "wasm32")]
-pub type ByteStream =
-    std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, TransportError>>>>;
-
+/// Response body stream. Zero-copy passthrough is the default path; see
+/// [`ByteStream`] in the channel contract for the wasm `Send` note.
 pub enum ResponseBody {
     Full(Bytes),
     Stream(ByteStream),

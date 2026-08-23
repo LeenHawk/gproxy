@@ -159,6 +159,7 @@ name = "gproxy-channel-api"
 version = "3.0.0-alpha.0"
 dependencies = [
  "bytes",
+ "futures-core",
  "gproxy-protocol",
  "http",
  "rust_decimal",

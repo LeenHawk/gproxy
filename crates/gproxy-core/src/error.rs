@@ -6,6 +6,10 @@
 
 use http::StatusCode;
 
+/// Wire transport failures — defined at the contract layer, re-exported
+/// here so `CoreError::Transport` and host code share one type.
+pub use gproxy_channel_api::TransportError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CoreError {
     #[error("unauthorized")]
@@ -57,17 +61,6 @@ impl CoreError {
     pub fn body_json(&self) -> serde_json::Value {
         serde_json::json!({ "error": { "message": self.to_string() } })
     }
-}
-
-/// Failures crossing the wire to an upstream.
-#[derive(Debug, thiserror::Error)]
-pub enum TransportError {
-    #[error("connect: {0}")]
-    Connect(String),
-    #[error("timed out")]
-    Timeout,
-    #[error("stream interrupted: {0}")]
-    Interrupted(String),
 }
 
 /// Failures from host-provided persistence (credential store, cache).

@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 bytes.workspace = true
+futures-core.workspace = true
 http.workspace = true
 rust_decimal.workspace = true
 serde_json.workspace = true
