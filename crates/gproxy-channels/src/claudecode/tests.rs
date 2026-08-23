@@ -30,7 +30,7 @@ fn descriptor_disposition_and_surface_table_are_explicit() {
         (descriptor.id, descriptor.display_name),
         ("claudecode", "Claude Code")
     );
-    assert_eq!(descriptor.supports.len(), 13);
+    assert_eq!(descriptor.supports.len(), 15);
     assert_eq!(
         descriptor
             .supports

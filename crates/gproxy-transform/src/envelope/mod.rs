@@ -61,6 +61,24 @@ impl ResponseStream {
             TransformPair::ClaudeToResponses => {
                 crate::generate_content::claude_messages_to_openai_responses::stream::converter()
             }
+            TransformPair::ClaudeToGemini => {
+                crate::generate_content::gemini_generate_content_to_claude_messages::stream::converter()
+            }
+            TransformPair::GeminiToClaude => {
+                crate::generate_content::claude_messages_to_gemini_generate_content::stream::converter()
+            }
+            TransformPair::GeminiToChat => {
+                crate::generate_content::gemini_generate_content_to_openai_chat::stream::converter()
+            }
+            TransformPair::ChatToGemini => {
+                crate::generate_content::openai_chat_to_gemini_generate_content::stream::converter()
+            }
+            TransformPair::GeminiToResponses => {
+                crate::generate_content::gemini_generate_content_to_openai_responses::stream::converter()
+            }
+            TransformPair::ResponsesToGemini => {
+                crate::generate_content::openai_responses_to_gemini_generate_content::stream::converter()
+            }
             TransformPair::OpenAiChatToResponses => {
                 crate::generate_content::openai_chat_to_openai_responses::stream::converter()
             }

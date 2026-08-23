@@ -25,7 +25,7 @@ const fn content(operation: Operation) -> OperationKey {
     OperationKey::content(operation, ContentGenerationKind::ClaudeMessages)
 }
 
-static SUPPORTS: [ChannelSupport; 13] = [
+static SUPPORTS: [ChannelSupport; 15] = [
     ChannelSupport::passthrough(family(Operation::ListModels)),
     ChannelSupport::passthrough(family(Operation::GetModel)),
     ChannelSupport::passthrough(family(Operation::CountTokens)),
@@ -74,6 +74,20 @@ static SUPPORTS: [ChannelSupport; 13] = [
     ChannelSupport::transform(
         OperationKey::family(Operation::CompactContent, WireFamily::OpenAi),
         content(Operation::GenerateContent),
+    ),
+    ChannelSupport::transform(
+        OperationKey::content(
+            Operation::GenerateContent,
+            ContentGenerationKind::GeminiGenerateContent,
+        ),
+        content(Operation::GenerateContent),
+    ),
+    ChannelSupport::transform(
+        OperationKey::content(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::GeminiGenerateContent,
+        ),
+        content(Operation::StreamGenerateContent),
     ),
 ];
 

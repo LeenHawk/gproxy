@@ -11,8 +11,8 @@ use super::super::common::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerationConfig {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub stop_sequences: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_sequences: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_mime_type: Option<ResponseMimeType>,
     #[serde(skip_serializing_if = "Option::is_none")]

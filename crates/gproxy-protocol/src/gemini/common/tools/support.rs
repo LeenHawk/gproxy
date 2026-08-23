@@ -86,8 +86,8 @@ pub struct SearchTypes {
 pub struct ComputerUse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<ComputerUseEnvironment>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub excluded_predefined_functions: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_predefined_functions: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
@@ -95,7 +95,6 @@ pub struct ComputerUse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FileSearch {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub file_search_store_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata_filter: Option<String>,
@@ -121,8 +120,8 @@ pub struct McpServer {
 pub struct StreamableHttpTransport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub headers: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

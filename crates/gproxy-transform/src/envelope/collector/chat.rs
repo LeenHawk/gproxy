@@ -97,7 +97,7 @@ impl ChatCollector {
                 .id
                 .ok_or_else(|| TransformError::shape("Chat stream", "id is missing"))?,
             choices: vec![openai::ChatCompletionChoice {
-                finish_reason: self.finish_reason.unwrap_or(openai::ChatFinishReason::Stop),
+                finish_reason: self.finish_reason.ok_or(TransformError::IncompleteStream)?,
                 index: 0,
                 logprobs: None,
                 message: openai::ChatMessage {

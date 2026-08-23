@@ -12,8 +12,8 @@ use super::{FunctionBehavior, FunctionCallingMode, SchemaType};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Tool {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub function_declarations: Vec<FunctionDeclaration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_declarations: Option<Vec<FunctionDeclaration>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub google_search_retrieval: Option<GoogleSearchRetrieval>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -26,8 +26,8 @@ pub struct Tool {
     pub url_context: Option<UrlContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_search: Option<FileSearch>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub mcp_servers: Vec<McpServer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<McpServer>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub google_maps: Option<GoogleMaps>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
@@ -65,16 +65,16 @@ pub struct Schema {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nullable: Option<bool>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub r#enum: Vec<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub properties: BTreeMap<String, Schema>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub required: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub any_of: Vec<Schema>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub property_ordering: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#enum: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<BTreeMap<String, Schema>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub any_of: Option<Vec<Schema>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub property_ordering: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Box<Schema>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -121,8 +121,8 @@ pub struct ToolConfig {
 pub struct FunctionCallingConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<FunctionCallingMode>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub allowed_function_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_function_names: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }

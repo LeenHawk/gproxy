@@ -1,6 +1,12 @@
+pub(crate) mod claude_messages_to_gemini_generate_content;
 pub(crate) mod claude_messages_to_openai_chat;
 pub(crate) mod claude_messages_to_openai_responses;
+pub(crate) mod gemini_generate_content_to_claude_messages;
+pub(crate) mod gemini_generate_content_to_openai_chat;
+pub(crate) mod gemini_generate_content_to_openai_responses;
 pub(crate) mod openai_chat_to_claude_messages;
+pub(crate) mod openai_chat_to_gemini_generate_content;
 pub(crate) mod openai_chat_to_openai_responses;
 pub(crate) mod openai_responses_to_claude_messages;
+pub(crate) mod openai_responses_to_gemini_generate_content;
 pub(crate) mod openai_responses_to_openai_chat;

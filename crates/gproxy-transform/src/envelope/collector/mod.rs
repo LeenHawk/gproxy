@@ -3,10 +3,12 @@ use gproxy_protocol::{ContentGenerationKind, claude as claude_wire, openai};
 
 use self::chat::ChatCollector;
 use self::claude::ClaudeCollector;
+use self::gemini::GeminiCollector;
 use self::responses::ResponsesCollector;
 
 mod chat;
 mod claude;
+mod gemini;
 mod responses;
 
 use super::{SseDecoder, SseFrame};
@@ -16,6 +18,7 @@ pub enum BufferedResponse {
     OpenAiChat(Box<openai::ChatCompletionResponse>),
     OpenAiResponses(Box<openai::ResponseObject>),
     Claude(Box<claude_wire::CreateMessageResponseBody>),
+    Gemini(Box<gproxy_protocol::gemini::GenerateContentResponse>),
 }
 
 impl BufferedResponse {
@@ -24,6 +27,7 @@ impl BufferedResponse {
             Self::OpenAiChat(response) => serde_json::to_vec(&response)?,
             Self::OpenAiResponses(response) => serde_json::to_vec(&response)?,
             Self::Claude(response) => serde_json::to_vec(&response)?,
+            Self::Gemini(response) => serde_json::to_vec(&response)?,
         }))
     }
 }
@@ -37,6 +41,7 @@ enum Collector {
     Chat(Box<ChatCollector>),
     Responses(Box<ResponsesCollector>),
     Claude(Box<ClaudeCollector>),
+    Gemini(Box<GeminiCollector>),
 }
 
 impl ResponseCollector {
@@ -48,12 +53,7 @@ impl ResponseCollector {
                 Collector::Responses(Box::default())
             }
             ContentGenerationKind::ClaudeMessages => Collector::Claude(Box::default()),
-            _ => {
-                return Err(TransformError::unsupported(
-                    "response collector",
-                    format!("{kind:?}"),
-                ));
-            }
+            ContentGenerationKind::GeminiGenerateContent => Collector::Gemini(Box::default()),
         };
         Ok(Self {
             decoder: SseDecoder::default(),
@@ -86,6 +86,7 @@ impl Collector {
             Self::Chat(state) => state.frame(frame),
             Self::Responses(state) => state.frame(frame),
             Self::Claude(state) => state.frame(frame),
+            Self::Gemini(state) => state.frame(frame),
         }
     }
 
@@ -94,6 +95,7 @@ impl Collector {
             Self::Chat(state) => state.complete,
             Self::Responses(state) => state.response.is_some(),
             Self::Claude(state) => state.complete,
+            Self::Gemini(state) => state.is_complete(),
         }
     }
 
@@ -108,6 +110,7 @@ impl Collector {
                 .map(Box::new)
                 .map(BufferedResponse::OpenAiResponses),
             Self::Claude(state) => state.finish().map(Box::new).map(BufferedResponse::Claude),
+            Self::Gemini(state) => state.finish().map(Box::new).map(BufferedResponse::Gemini),
         }
     }
 }

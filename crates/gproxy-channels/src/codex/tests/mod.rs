@@ -23,7 +23,7 @@ const RESPONSES: OperationKey = OperationKey::content(
 #[test]
 fn descriptor_declares_every_current_transform_pair() {
     let supports = CodexChannel.descriptor().supports;
-    assert_eq!(supports.len(), 16);
+    assert_eq!(supports.len(), 18);
     for (source, target) in [
         (
             OperationKey::family(Operation::ListModels, gproxy_protocol::WireFamily::Claude),

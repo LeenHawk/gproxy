@@ -1,0 +1,179 @@
+use gproxy_protocol::{gemini, openai};
+
+use crate::TransformError;
+
+use super::super::parts::{text_content, user_part};
+use super::State;
+use super::model::tool_message;
+
+impl State {
+    pub(super) fn user(
+        &mut self,
+        content: gemini::Content,
+    ) -> Result<Vec<openai::ChatCompletionMessageParam>, TransformError> {
+        let mut output = Vec::new();
+        let mut ordinary = Vec::new();
+        for part in content.parts {
+            match part.data.as_ref() {
+                Some(gemini::PartData::FunctionResponse { .. })
+                | Some(gemini::PartData::CodeExecutionResult { .. }) => {
+                    flush_user(&mut output, &mut ordinary, Default::default());
+                    output.push(self.result(part)?);
+                }
+                _ => {
+                    if let Some(part) = user_part(part)? {
+                        ordinary.push(part);
+                    }
+                }
+            }
+        }
+        flush_user(&mut output, &mut ordinary, content.rest);
+        Ok(output)
+    }
+
+    fn result(
+        &mut self,
+        part: gemini::Part,
+    ) -> Result<openai::ChatCompletionMessageParam, TransformError> {
+        match part.data {
+            Some(gemini::PartData::FunctionResponse {
+                function_response,
+                rest: data_rest,
+            }) => {
+                let id = self
+                    .take_function_id(&function_response.name, function_response.id.as_deref())?;
+                let mut rest = part.rest;
+                rest.extend(data_rest);
+                preserve(
+                    &mut rest,
+                    "gemini_function_response_parts",
+                    &function_response.parts,
+                )?;
+                preserve(
+                    &mut rest,
+                    "gemini_function_response_will_continue",
+                    &function_response.will_continue,
+                )?;
+                preserve(
+                    &mut rest,
+                    "gemini_function_response_scheduling",
+                    &function_response.scheduling,
+                )?;
+                if !function_response.rest.is_empty() {
+                    rest.insert(
+                        "gemini_function_response_rest".into(),
+                        serde_json::Value::Object(function_response.rest),
+                    );
+                }
+                Ok(tool_message(
+                    id,
+                    serde_json::to_string(&function_response.response)?,
+                    rest,
+                ))
+            }
+            Some(gemini::PartData::CodeExecutionResult {
+                code_execution_result,
+                ..
+            }) => {
+                let id = match code_execution_result.id.clone() {
+                    Some(id) => {
+                        let position = self
+                            .pending_code
+                            .iter()
+                            .position(|pending| pending == &id)
+                            .ok_or_else(|| {
+                                TransformError::shape(
+                                    "Gemini code execution result",
+                                    "id has no preceding executableCode",
+                                )
+                            })?;
+                        self.pending_code.remove(position);
+                        id
+                    }
+                    None => self.pending_code.pop_front().ok_or_else(|| {
+                        TransformError::shape(
+                            "Gemini code execution result",
+                            "no preceding executableCode",
+                        )
+                    })?,
+                };
+                Ok(tool_message(
+                    id,
+                    serde_json::to_string(&code_execution_result)?,
+                    part.rest,
+                ))
+            }
+            _ => Err(TransformError::shape(
+                "Gemini result",
+                "result part is missing",
+            )),
+        }
+    }
+
+    fn take_function_id(
+        &mut self,
+        name: &str,
+        explicit: Option<&str>,
+    ) -> Result<String, TransformError> {
+        let queue = self.calls.get_mut(name).ok_or_else(|| {
+            TransformError::shape(
+                "Gemini function response",
+                "name has no preceding functionCall",
+            )
+        })?;
+        let id = match explicit {
+            Some(id) => {
+                let position = queue
+                    .iter()
+                    .position(|pending| pending == id)
+                    .ok_or_else(|| {
+                        TransformError::shape(
+                            "Gemini function response",
+                            "id has no same-name preceding functionCall",
+                        )
+                    })?;
+                queue.remove(position).ok_or_else(|| {
+                    TransformError::shape("Gemini function response", "pending call disappeared")
+                })?
+            }
+            None => queue.pop_front().ok_or_else(|| {
+                TransformError::shape(
+                    "Gemini function response",
+                    "same-name pending call queue is empty",
+                )
+            })?,
+        };
+        if queue.is_empty() {
+            self.calls.remove(name);
+        }
+        Ok(id)
+    }
+}
+
+fn preserve<T: serde::Serialize>(
+    rest: &mut openai::Rest,
+    key: &str,
+    value: &Option<T>,
+) -> Result<(), TransformError> {
+    if let Some(value) = value {
+        rest.insert(key.into(), serde_json::to_value(value)?);
+    }
+    Ok(())
+}
+
+fn flush_user(
+    output: &mut Vec<openai::ChatCompletionMessageParam>,
+    parts: &mut Vec<openai::ChatContentPart>,
+    rest: openai::Rest,
+) {
+    if !parts.is_empty() {
+        output.push(openai::ChatCompletionMessageParam::User(
+            openai::ChatUserMessageParam {
+                role: openai::ChatUserRole::User,
+                content: text_content(std::mem::take(parts)),
+                name: None,
+                rest,
+            },
+        ));
+    }
+}

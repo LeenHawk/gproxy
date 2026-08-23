@@ -146,8 +146,8 @@ pub struct FunctionResponse {
     pub id: Option<String>,
     pub name: String,
     pub response: JsonMap,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub parts: Vec<FunctionResponsePart>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Vec<FunctionResponsePart>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub will_continue: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

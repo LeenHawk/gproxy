@@ -172,22 +172,15 @@ impl ClaudeCollector {
         let message = self
             .message
             .ok_or_else(|| TransformError::shape("Claude stream", "message_start is missing"))?;
-        let delta = self.delta.unwrap_or(claude::MessageDelta {
-            container: None,
-            stop_reason: None,
-            stop_sequence: None,
-            stop_details: None,
-            rest: Default::default(),
-        });
+        let delta = self.delta.ok_or(TransformError::IncompleteStream)?;
+        let stop_reason = delta.stop_reason.ok_or(TransformError::IncompleteStream)?;
         Ok(claude::CreateMessageResponseBody {
             id: message.id,
             type_: message.type_,
             role: message.role,
             content: self.blocks.into_values().collect(),
             model: message.model,
-            stop_reason: delta
-                .stop_reason
-                .unwrap_or(claude::StopReason::Known(claude::StopReasonKnown::EndTurn)),
+            stop_reason,
             stop_sequence: delta.stop_sequence,
             usage: self.usage.or(message.usage).ok_or_else(|| {
                 TransformError::shape("Claude stream", "terminal usage is missing")
