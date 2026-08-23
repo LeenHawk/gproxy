@@ -248,6 +248,15 @@ async fn run(state: &AppState, ctx: &mut RequestCtx) -> Result<ExecOutcome, Pipe
         .filter(|provider| provider.enabled && provider.channel == "codex")
         .cloned()
         .ok_or_else(|| PipelineError::UnknownProvider(provider_name.clone()))?;
+    // §17: the Codex model API is ordinary billable content generation behind a
+    // service-path disguise. Rewrite to the canonical ingress path and run the
+    // full pipeline so admission, settlement, capture, and telemetry all apply;
+    // raw forwarding here would bypass billing entirely.
+    if let Some(standard) = standard_model_api_path(&ctx.method, &ctx.path) {
+        drop(cp);
+        ctx.path = standard.to_owned();
+        return crate::pipeline::execute(state, ctx.clone()).await;
+    }
     let service = service_name(&ctx.path);
     let authorization =
         crate::pipeline::authz::prepare_provider_service(&cp, &identity, &provider.name, service)?;
@@ -1385,6 +1394,25 @@ fn strict_window(quotas: &[&Quota], now: i64, five_hour: bool) -> Option<Value> 
         })
 }
 
+/// Codex model-API endpoints and their canonical pipeline ingress paths. These
+/// classify to real operations (`GenerateContent`, `CompactContent`,
+/// `CreateImage`, …), so they must not use the raw service forward: that path
+/// has no admission, settlement, or capture.
+fn standard_model_api_path(method: &Method, path: &str) -> Option<&'static str> {
+    if method != Method::POST {
+        return None;
+    }
+    match path.strip_prefix("/api/codex/")? {
+        "responses" => Some("/v1/responses"),
+        "responses/compact" => Some("/v1/responses/compact"),
+        "images/generations" => Some("/v1/images/generations"),
+        "images/edits" => Some("/v1/images/edits"),
+        "alpha/search" => Some("/v1/alpha/search"),
+        "realtime/calls" => Some("/v1/realtime/calls"),
+        _ => None,
+    }
+}
+
 fn allowlisted_upstream(method: &Method, path: &str) -> Option<(&'static str, String)> {
     if method == Method::POST && path == "/v1/memories/trace_summarize" {
         return Some(("memories", "/codex/memories/trace_summarize".to_owned()));
@@ -1414,20 +1442,15 @@ fn allowlisted_upstream(method: &Method, path: &str) -> Option<(&'static str, St
         {
             ("remote_control", format!("/wham/{value}"))
         }
-        ("POST", value)
-            if matches!(
-                value,
-                "responses"
-                    | "responses/compact"
-                    | "images/generations"
-                    | "images/edits"
-                    | "alpha/search"
-                    | "memories/trace_summarize"
-                    | "realtime/calls"
-            ) =>
-        {
-            ("codex_model_api", format!("/codex/{value}"))
-        }
+        // The model-API paths (`responses`, `responses/compact`, `images/*`,
+        // `alpha/search`, `realtime/calls`) are deliberately absent: they
+        // re-enter the pipeline via `standard_model_api_path` so admission,
+        // settlement, and capture apply. Only the memory summarizer stays on
+        // raw forwarding — it has no classified operation yet.
+        ("POST", "memories/trace_summarize") => (
+            "codex_model_api",
+            "/codex/memories/trace_summarize".to_owned(),
+        ),
         ("GET", value) if value == "models" || value.starts_with("models/") => {
             ("codex_models", format!("/codex/{value}"))
         }
@@ -1715,5 +1738,37 @@ fn json_outcome(status: StatusCode, value: Value) -> ExecOutcome {
         headers,
         body: ResponseBody::Full(Bytes::from(serde_json::to_vec(&value).unwrap_or_default())),
         disposition: Disposition::Success,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Regression: `/api/codex/responses`-family requests once raw-forwarded
+    // upstream with no settlement, so their usage was never billed.
+    #[test]
+    fn model_api_paths_reroute_into_the_pipeline_instead_of_raw_forwarding() {
+        for (service, standard) in [
+            ("/api/codex/responses", "/v1/responses"),
+            ("/api/codex/responses/compact", "/v1/responses/compact"),
+            ("/api/codex/images/generations", "/v1/images/generations"),
+            ("/api/codex/images/edits", "/v1/images/edits"),
+            ("/api/codex/alpha/search", "/v1/alpha/search"),
+            ("/api/codex/realtime/calls", "/v1/realtime/calls"),
+        ] {
+            assert_eq!(
+                standard_model_api_path(&Method::POST, service),
+                Some(standard)
+            );
+            assert!(allowlisted_upstream(&Method::POST, service).is_none());
+        }
+        // The memory summarizer has no classified operation and stays raw.
+        assert!(
+            standard_model_api_path(&Method::POST, "/api/codex/memories/trace_summarize").is_none()
+        );
+        assert!(
+            allowlisted_upstream(&Method::POST, "/api/codex/memories/trace_summarize").is_some()
+        );
     }
 }
