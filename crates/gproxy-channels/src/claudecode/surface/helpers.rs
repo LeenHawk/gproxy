@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
-    ChannelError, CredentialId, Page, SurfaceBody, SurfaceReply, SurfaceRequest, SurfaceServices,
+    ChannelError, CredentialId, SurfaceBody, SurfaceReply, SurfaceRequest, SurfaceServices,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -161,87 +161,7 @@ pub(super) async fn delete_resource(
         .map_err(|error| ChannelError::Prepare(error.to_string()))
 }
 
-pub(super) async fn list_resources(
-    services: &SurfaceServices<'_>,
-    kind: &'static str,
-    query: Option<&str>,
-) -> Result<Vec<Value>, ChannelError> {
-    let mut bindings = services
-        .bindings
-        .list(
-            services.provider.id,
-            services.identity.user_id,
-            kind,
-            Page {
-                cursor: None,
-                limit: 1_000,
-            },
-        )
-        .await
-        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    bindings.sort_by_key(|binding| std::cmp::Reverse(binding.created_at_unix));
-    let mut resources = bindings
-        .into_iter()
-        .filter_map(|binding| binding.summary.get("resource").cloned())
-        .collect::<Vec<_>>();
-    let pairs = query_pairs(query);
-    let ids = pairs
-        .iter()
-        .filter_map(|(key, value)| (key == "ids[]").then_some(value.as_str()))
-        .collect::<Vec<_>>();
-    if !ids.is_empty() {
-        resources.retain(|resource| {
-            resource
-                .get("id")
-                .and_then(Value::as_str)
-                .is_some_and(|id| ids.contains(&id))
-        });
-    }
-    if let Some(source) = pair_value(&pairs, "source") {
-        resources.retain(|resource| {
-            resource.pointer("/source/type").and_then(Value::as_str) == Some(source)
-        });
-    }
-    Ok(resources)
-}
-
-pub(super) fn paginate(mut resources: Vec<Value>, query: Option<&str>) -> Value {
-    let pairs = query_pairs(query);
-    let offset = pair_value(&pairs, "page")
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(0);
-    let limit = pair_value(&pairs, "limit")
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(20)
-        .clamp(1, 1_000);
-    let has_more = resources.len() > offset.saturating_add(limit);
-    let data = resources
-        .drain(..)
-        .skip(offset)
-        .take(limit)
-        .collect::<Vec<_>>();
-    let next_page = has_more.then(|| offset.saturating_add(limit).to_string());
-    json!({ "data": data, "next_page": next_page })
-}
-
-fn query_pairs(query: Option<&str>) -> Vec<(String, String)> {
-    query
-        .into_iter()
-        .flat_map(|query| query.split('&'))
-        .map(|part| {
-            let (key, value) = part.split_once('=').unwrap_or((part, ""));
-            (decode_component(key), decode_component(value))
-        })
-        .collect()
-}
-
-fn pair_value<'a>(pairs: &'a [(String, String)], name: &str) -> Option<&'a str> {
-    pairs
-        .iter()
-        .find_map(|(key, value)| (key == name).then_some(value.as_str()))
-}
-
-fn decode_component(value: &str) -> String {
+pub(super) fn decode_component(value: &str) -> String {
     let bytes = value.as_bytes();
     let mut output = Vec::with_capacity(bytes.len());
     let mut index = 0;

@@ -14,6 +14,7 @@
 pub mod channel;
 pub mod disposition;
 pub mod registry;
+pub mod resource;
 pub mod surface;
 mod surface_state;
 mod surface_view;
@@ -27,10 +28,12 @@ pub use channel::{
 };
 pub use disposition::Disposition;
 pub use registry::ChannelRegistry;
+pub use resource::{ResourceCtx, ResourceMutation};
 pub use surface::{
-    Binding, BindingStore, CallerIdentity, ForwardSpec, Page, ProviderView, StateError,
-    SurfaceAction, SurfaceAffinity, SurfaceBody, SurfaceEntry, SurfaceInvoke, SurfaceReply,
-    SurfaceRequest, SurfaceServices, SurfaceTable, SynthCtx, Synthesizer, UsageView, UsageWindow,
+    Binding, BindingPage, BindingStore, CallerIdentity, ForwardSpec, Page, ProviderView,
+    StateError, SurfaceAction, SurfaceAffinity, SurfaceBody, SurfaceEntry, SurfaceInvoke,
+    SurfaceReply, SurfaceRequest, SurfaceServices, SurfaceTable, SynthCtx, Synthesizer, UsageView,
+    UsageWindow,
 };
 pub use usage::NormalizedUsage;
 pub use wire::{

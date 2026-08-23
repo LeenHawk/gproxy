@@ -40,42 +40,36 @@ async fn list(
 ) -> Result<SurfaceReply, ChannelError> {
     let pairs = query_pairs(query);
     let purpose = query_value(&pairs, "purpose");
-    let after = query_value(&pairs, "after");
     let limit = query_value(&pairs, "limit")
         .and_then(|value| value.parse::<u32>().ok())
         .unwrap_or(10_000)
         .clamp(1, 10_000);
-    let mut rows = services
+    let page = services
         .bindings
         .list(
             services.provider.id,
             services.identity.user_id,
             FILE_KIND,
             Page {
-                cursor: None,
+                cursor: query_value(&pairs, "after").map(str::to_owned),
                 limit,
             },
         )
         .await
         .map_err(transport_reply)?;
-    rows.sort_by_key(|row| std::cmp::Reverse(row.created_at_unix));
-    let mut found_after = after.is_none();
-    let data = rows
+    let has_more = page.next_cursor.is_some();
+    let data = page
+        .items
         .into_iter()
         .filter_map(|row| row.summary.get("file").cloned())
         .filter(|file| {
-            if !found_after {
-                found_after = file.get("id").and_then(Value::as_str) == after;
-                return false;
-            }
             purpose
                 .is_none_or(|purpose| file.get("purpose").and_then(Value::as_str) == Some(purpose))
         })
-        .take(limit as usize)
         .collect::<Vec<_>>();
     Ok(json_reply(
         StatusCode::OK,
-        json!({"object":"list","data":data,"has_more":false}),
+        json!({"object":"list","data":data,"has_more":has_more}),
     ))
 }
 

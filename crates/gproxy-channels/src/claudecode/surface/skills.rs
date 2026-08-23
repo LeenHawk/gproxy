@@ -6,9 +6,10 @@ use http::{Method, StatusCode};
 use serde_json::Value;
 
 use super::helpers::{
-    SKILL_KIND, SKILLS_BETA, delete_resource, invoke, json_reply, list_resources, paginate, param,
-    reply_json, request, resource_headers, save_resource, skills_query,
+    SKILL_KIND, SKILLS_BETA, delete_resource, invoke, json_reply, param, reply_json, request,
+    resource_headers, save_resource, skills_query,
 };
+use super::pagination::{list_resources, paginate};
 
 pub(super) static HANDLER: Skills = Skills;
 
@@ -23,7 +24,7 @@ impl Synthesizer for Skills {
         Box::pin(async move {
             if ctx.path == "/v1/skills" && *ctx.method == Method::GET {
                 let resources = list_resources(&services, SKILL_KIND, ctx.query).await?;
-                return Ok(json_reply(StatusCode::OK, paginate(resources, ctx.query)));
+                return Ok(json_reply(StatusCode::OK, paginate(resources)));
             }
             if ctx.path == "/v1/skills" {
                 return create(ctx, &services).await;

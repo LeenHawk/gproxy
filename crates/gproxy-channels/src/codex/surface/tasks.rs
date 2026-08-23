@@ -44,7 +44,7 @@ async fn list(
         .clamp(1, 100);
     let environment = query_value(&pairs, "environment_id");
     let task_filter = query_value(&pairs, "task_filter");
-    let mut rows = services
+    let page = services
         .bindings
         .list(
             services.provider.id,
@@ -57,8 +57,8 @@ async fn list(
         )
         .await
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    rows.sort_by_key(|row| std::cmp::Reverse(row.created_at_unix));
-    let items = rows
+    let items = page
+        .items
         .into_iter()
         .filter(|row| {
             environment.is_none_or(|id| {
@@ -73,7 +73,7 @@ async fn list(
         .collect::<Vec<_>>();
     Ok(json_reply(
         StatusCode::OK,
-        json!({"items":items,"cursor":null}),
+        json!({"items":items,"cursor":page.next_cursor}),
     ))
 }
 

@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use crate::BoxFuture;
 use crate::disposition::Disposition;
+use crate::resource::{ResourceCtx, ResourceMutation};
 use crate::surface::{SurfaceRequest, SurfaceTable};
 use crate::usage::NormalizedUsage;
 use crate::wire::ClientProfile;
@@ -18,6 +19,8 @@ pub enum ChannelError {
     Prepare(String),
     #[error("refresh failed: {0}")]
     Refresh(String),
+    #[error("response observation failed: {0}")]
+    Observe(String),
     #[error("decode failed: {0}")]
     Decode(String),
 }
@@ -186,6 +189,23 @@ pub trait Channel: Send + Sync {
 
     /// Pull usage out of a buffered response body.
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage>;
+
+    /// Whether an asynchronous operation poll is a successful billable
+    /// terminal response. The operation spec decides when this hook applies.
+    fn settlement_ready(&self, ctx: UsageCtx<'_>) -> Result<bool, ChannelError> {
+        let _ = ctx;
+        Ok(false)
+    }
+
+    /// Extract durable resource binding changes from a successful native
+    /// response. Persistence and owner/provider scoping remain in the core.
+    fn resource_mutations(
+        &self,
+        ctx: ResourceCtx<'_>,
+    ) -> Result<Vec<ResourceMutation>, ChannelError> {
+        let _ = ctx;
+        Ok(Vec::new())
+    }
 
     /// Normalize a channel-private buffered envelope into its declared native
     /// target wire before the pairwise outward transform.

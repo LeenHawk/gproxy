@@ -3,6 +3,7 @@ mod model;
 mod multipart;
 mod prepare;
 mod profile;
+mod resource;
 mod shape;
 mod sse;
 mod surface;
@@ -10,8 +11,8 @@ mod usage;
 
 use gproxy_channel_api::{
     BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, UsageCtx,
+    PrepareCtx, PreparedRequest, ResourceCtx, ResourceMutation, ResponseShapeCtx, ResponseView,
+    SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
@@ -160,6 +161,13 @@ impl Channel for CodexChannel {
         ctx: ResponseShapeCtx<'_>,
     ) -> Result<bytes::Bytes, gproxy_channel_api::ChannelError> {
         model::shape(ctx)
+    }
+
+    fn resource_mutations(
+        &self,
+        ctx: ResourceCtx<'_>,
+    ) -> Result<Vec<ResourceMutation>, gproxy_channel_api::ChannelError> {
+        Ok(resource::mutations(ctx))
     }
 
     fn refresh_due(&self, secret: &Value) -> Option<i64> {

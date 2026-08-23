@@ -68,6 +68,7 @@ fn every_declared_builtin_transform_is_wired() {
         &gproxy_channels::OpenAiChannel as &dyn Channel,
         &gproxy_channels::ClaudeCodeChannel as &dyn Channel,
         &gproxy_channels::CodexChannel as &dyn Channel,
+        &gproxy_channels::AiStudioChannel as &dyn Channel,
     ] {
         for support in channel.descriptor().supports {
             if support.source != support.target {

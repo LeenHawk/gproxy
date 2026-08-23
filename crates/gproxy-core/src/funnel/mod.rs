@@ -82,6 +82,7 @@ pub(crate) async fn buffered<H: Host>(
     let usage = usage_override.or(extracted);
     crate::execution::resource::observe(
         host,
+        channel,
         &ctx,
         parts.status,
         &parts.headers,

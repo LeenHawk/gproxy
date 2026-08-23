@@ -1,8 +1,7 @@
 mod model;
 mod prepare;
-mod redact;
 mod resource;
-mod sse;
+mod stream;
 mod usage;
 
 use gproxy_channel_api::{
@@ -12,114 +11,87 @@ use gproxy_channel_api::{
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 
-pub struct OpenAiChannel;
+pub struct AiStudioChannel;
 
 const fn family(operation: Operation) -> OperationKey {
-    OperationKey::family(operation, WireFamily::OpenAi)
+    OperationKey::family(operation, WireFamily::Gemini)
 }
 
 const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
     OperationKey::content(operation, kind)
 }
 
-static SUPPORTS: [ChannelSupport; 34] = [
+const fn gemini_content(operation: Operation) -> OperationKey {
+    content(operation, ContentGenerationKind::GeminiGenerateContent)
+}
+
+static SUPPORTS: [ChannelSupport; 21] = [
     ChannelSupport::passthrough(family(Operation::ListModels)),
     ChannelSupport::passthrough(family(Operation::GetModel)),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(family(Operation::CompactContent)),
+    ChannelSupport::passthrough(family(Operation::CountTokens)),
+    ChannelSupport::passthrough(gemini_content(Operation::GenerateContent)),
+    ChannelSupport::passthrough(gemini_content(Operation::StreamGenerateContent)),
     ChannelSupport::passthrough(family(Operation::CreateEmbedding)),
+    ChannelSupport::passthrough(family(Operation::BatchCreateEmbedding)),
     ChannelSupport::passthrough(family(Operation::CreateImage)),
-    ChannelSupport::passthrough(family(Operation::EditImage)),
-    ChannelSupport::passthrough(family(Operation::CreateSpeech)),
-    ChannelSupport::passthrough(family(Operation::CreateTranscription)),
-    ChannelSupport::passthrough(family(Operation::CreateTranslation)),
+    ChannelSupport::passthrough(family(Operation::CreateVideo)),
+    ChannelSupport::passthrough(family(Operation::RetrieveVideo)),
     ChannelSupport::passthrough(family(Operation::CreateFile)),
     ChannelSupport::passthrough(family(Operation::ListFiles)),
     ChannelSupport::passthrough(family(Operation::RetrieveFile)),
     ChannelSupport::passthrough(family(Operation::RetrieveFileContent)),
     ChannelSupport::passthrough(family(Operation::DeleteFile)),
-    ChannelSupport::passthrough(family(Operation::CreateVideo)),
-    ChannelSupport::passthrough(family(Operation::RetrieveVideo)),
-    ChannelSupport::passthrough(family(Operation::ListVideos)),
-    ChannelSupport::passthrough(family(Operation::DeleteVideo)),
-    ChannelSupport::passthrough(family(Operation::DownloadVideoContent)),
-    ChannelSupport::passthrough(family(Operation::RemixVideo)),
-    ChannelSupport::passthrough(family(Operation::CreateVideoCharacter)),
-    ChannelSupport::passthrough(family(Operation::GetVideoCharacter)),
-    ChannelSupport::passthrough(family(Operation::EditVideo)),
-    ChannelSupport::passthrough(family(Operation::ExtendVideo)),
     ChannelSupport::transform(
-        OperationKey::family(Operation::ListModels, WireFamily::Claude),
-        family(Operation::ListModels),
-    ),
-    ChannelSupport::transform(
-        OperationKey::family(Operation::GetModel, WireFamily::Claude),
-        family(Operation::GetModel),
-    ),
-    ChannelSupport::transform(
-        OperationKey::content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
         content(
             Operation::GenerateContent,
             ContentGenerationKind::OpenAiChat,
         ),
+        gemini_content(Operation::GenerateContent),
     ),
     ChannelSupport::transform(
-        OperationKey::content(
-            Operation::StreamGenerateContent,
+        content(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiResponses,
+        ),
+        gemini_content(Operation::GenerateContent),
+    ),
+    ChannelSupport::transform(
+        content(
+            Operation::GenerateContent,
             ContentGenerationKind::ClaudeMessages,
         ),
+        gemini_content(Operation::GenerateContent),
+    ),
+    ChannelSupport::transform(
         content(
             Operation::StreamGenerateContent,
             ContentGenerationKind::OpenAiChat,
         ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
+        gemini_content(Operation::StreamGenerateContent),
     ),
     ChannelSupport::transform(
         content(
             Operation::StreamGenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::StreamGenerateContent,
             ContentGenerationKind::OpenAiResponses,
         ),
+        gemini_content(Operation::StreamGenerateContent),
+    ),
+    ChannelSupport::transform(
+        content(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        ),
+        gemini_content(Operation::StreamGenerateContent),
     ),
 ];
 
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
-    id: "openai",
-    display_name: "OpenAI",
+    id: "aistudio",
+    display_name: "Google AI Studio",
     supports: &SUPPORTS,
 };
 
-impl Channel for OpenAiChannel {
+impl Channel for AiStudioChannel {
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }
@@ -141,7 +113,7 @@ impl Channel for OpenAiChannel {
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
-        sse::OpenAiSseDecoder::for_operation(ctx)
+        stream::GeminiStreamDecoder::for_operation(ctx)
             .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
     }
 

@@ -6,9 +6,10 @@ use http::{Method, StatusCode};
 use serde_json::{Value, json};
 
 use super::helpers::{
-    FILE_KIND, FILES_BETA, delete_resource, invoke, json_reply, list_resources, paginate, param,
-    reply_json, request, resource_headers, safe_query, save_resource,
+    FILE_KIND, FILES_BETA, delete_resource, invoke, json_reply, param, reply_json, request,
+    resource_headers, safe_query, save_resource,
 };
+use super::pagination::{list_resources, paginate};
 
 pub(super) static HANDLER: Files = Files;
 
@@ -26,7 +27,7 @@ impl Synthesizer for Files {
             }
             if ctx.path == "/v1/files" && *ctx.method == Method::GET {
                 let resources = list_resources(&services, FILE_KIND, ctx.query).await?;
-                return Ok(json_reply(StatusCode::OK, paginate(resources, ctx.query)));
+                return Ok(json_reply(StatusCode::OK, paginate(resources)));
             }
             if ctx.path == "/v1/files" {
                 return create(ctx, &services).await;

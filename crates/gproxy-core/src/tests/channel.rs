@@ -1,8 +1,9 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
     BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition, Frame,
-    NormalizedUsage, PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, StreamEnd, StreamTail, SurfaceRequest, SurfaceTable, UsageCtx,
+    NormalizedUsage, PrepareCtx, PreparedRequest, ResourceCtx, ResourceMutation, ResponseView,
+    SimpleHttp, StreamCtx, StreamDecoder, StreamEnd, StreamTail, SurfaceRequest, SurfaceTable,
+    UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
@@ -133,6 +134,40 @@ impl Channel for MemoryHost {
 
     fn stream_decoder(&self, _: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
         Some(Box::new(self.clone()))
+    }
+
+    fn resource_mutations(
+        &self,
+        ctx: ResourceCtx<'_>,
+    ) -> Result<Vec<ResourceMutation>, ChannelError> {
+        if ctx.key.operation == Operation::DeleteFile {
+            return Ok(ctx
+                .request_resource
+                .map(|(kind, id)| ResourceMutation::Delete {
+                    kind,
+                    id: id.to_owned(),
+                })
+                .into_iter()
+                .collect());
+        }
+        let value: serde_json::Value = serde_json::from_slice(ctx.response_body)
+            .map_err(|error| ChannelError::Observe(error.to_string()))?;
+        let resources = value
+            .get("data")
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .unwrap_or_else(|| vec![value]);
+        Ok(resources
+            .into_iter()
+            .filter_map(|summary| {
+                let id = summary.get("id")?.as_str()?.to_owned();
+                Some(ResourceMutation::Save {
+                    kind: "file",
+                    id,
+                    summary,
+                })
+            })
+            .collect())
     }
 
     fn refresh_due(&self, secret: &serde_json::Value) -> Option<i64> {

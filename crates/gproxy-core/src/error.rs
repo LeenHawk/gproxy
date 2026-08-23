@@ -63,9 +63,9 @@ impl CoreError {
             Self::Channel(ChannelError::Secret(_) | ChannelError::Refresh(_)) => {
                 StatusCode::BAD_GATEWAY
             }
-            Self::Channel(ChannelError::Prepare(_) | ChannelError::Decode(_)) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            Self::Channel(
+                ChannelError::Prepare(_) | ChannelError::Decode(_) | ChannelError::Observe(_),
+            ) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::SurfaceState(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

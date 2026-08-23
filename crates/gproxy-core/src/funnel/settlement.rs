@@ -137,23 +137,27 @@ pub(crate) fn usage(
     response_headers: &http::HeaderMap,
     body: &[u8],
 ) -> (bool, Option<NormalizedUsage>) {
-    let extract = || {
-        channel.extract_usage(UsageCtx {
-            key: ctx.key.expect("billable funnel has an operation"),
-            request_body: &ctx.request_body,
-            response_headers,
-            response_body: body,
-        })
+    let view = || UsageCtx {
+        key: ctx.key.expect("billable funnel has an operation"),
+        request_body: &ctx.request_body,
+        response_headers,
+        response_body: body,
     };
     match ctx.settle {
         SettleMode::Free => (false, None),
-        SettleMode::OnResponse => (true, extract()),
+        SettleMode::OnResponse => (true, channel.extract_usage(view())),
         SettleMode::OnCompletedStatus => {
-            let completed = serde_json::from_slice::<serde_json::Value>(body)
-                .ok()
-                .and_then(|body| body.get("status")?.as_str().map(str::to_owned))
-                .is_some_and(|status| status == "completed");
-            (completed, completed.then(extract).flatten())
+            let completed = match channel.settlement_ready(view()) {
+                Ok(completed) => completed,
+                Err(error) => {
+                    tracing::error!(request_id = %ctx.request_id, error = %error, "completion observation failed");
+                    false
+                }
+            };
+            (
+                completed,
+                completed.then(|| channel.extract_usage(view())).flatten(),
+            )
         }
     }
 }

@@ -19,7 +19,7 @@ use crate::wire::{ByteStream, CredentialId, MaybeSync, TransportError};
 use bytes::Bytes;
 use gproxy_protocol::{OperationKey, PathPattern};
 
-pub use crate::surface_state::{Binding, BindingStore, Page, StateError};
+pub use crate::surface_state::{Binding, BindingPage, BindingStore, Page, StateError};
 pub use crate::surface_view::{CallerIdentity, ProviderView, UsageView, UsageWindow};
 
 pub struct SurfaceTable(pub &'static [SurfaceEntry]);

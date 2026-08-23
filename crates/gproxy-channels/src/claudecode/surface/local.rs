@@ -5,7 +5,8 @@ use http::StatusCode;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use super::helpers::{SKILL_KIND, json_reply, list_resources, param};
+use super::helpers::{SKILL_KIND, json_reply, param};
+use super::pagination::list_all_resources;
 
 pub(super) static HANDLER: Local = Local;
 
@@ -132,7 +133,7 @@ async fn oauth_skills(
         ));
     }
 
-    let mut skills = list_resources(services, SKILL_KIND, None)
+    let mut skills = list_all_resources(services, SKILL_KIND)
         .await?
         .iter()
         .map(skill_to_oauth)

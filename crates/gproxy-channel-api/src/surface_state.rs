@@ -36,7 +36,7 @@ pub trait BindingStore: MaybeSync {
         owner_user_id: i64,
         kind: &'static str,
         page: Page,
-    ) -> BoxFuture<'a, Result<Vec<Binding>, StateError>>;
+    ) -> BoxFuture<'a, Result<BindingPage, StateError>>;
 }
 
 #[derive(Debug, Clone)]
@@ -51,10 +51,20 @@ pub struct Binding {
     pub created_at_unix: i64,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Page {
+    /// Binding id returned as the previous page's continuation cursor.
     pub cursor: Option<String>,
+    /// Maximum number of bindings to return.
     pub limit: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct BindingPage {
+    /// Bindings in descending `(created_at_unix, id)` order.
+    pub items: Vec<Binding>,
+    /// Last returned binding id when another page remains.
+    pub next_cursor: Option<String>,
 }
 
 /// Failures from host-provided surface state.

@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use gproxy_channel_api::CredentialId;
-use gproxy_protocol::{Affinity, Operation};
+use gproxy_channel_api::{Channel, CredentialId, ResourceCtx, ResourceMutation};
 
 use crate::api::Core;
 use crate::control::Plan;
@@ -59,6 +58,7 @@ pub(crate) async fn pins<H: Host>(
 
 pub(crate) async fn observe<H: Host>(
     host: &H,
+    channel: &dyn Channel,
     ctx: &FunnelCtx,
     status: http::StatusCode,
     headers: &http::HeaderMap,
@@ -67,81 +67,45 @@ pub(crate) async fn observe<H: Host>(
     if !status.is_success() {
         return;
     }
-    let (Some(owner_user_id), Some(key)) = (ctx.owner_user_id, ctx.source_key) else {
+    let (Some(owner_user_id), Some(key)) = (ctx.owner_user_id, ctx.key) else {
         return;
     };
-    let Affinity::Resource(kind) = key.operation.spec().affinity else {
-        return;
+    let mutations = match channel.resource_mutations(ResourceCtx {
+        key,
+        request_resource: ctx.resource.as_ref().map(|(kind, id)| (*kind, id.as_str())),
+        request_body: &ctx.request_body,
+        response_headers: headers,
+        response_body: body,
+    }) {
+        Ok(mutations) => mutations,
+        Err(error) => {
+            tracing::error!(request_id = %ctx.request_id, error = %error, "resource observation failed");
+            return;
+        }
     };
     let Some(bindings) = host.bindings() else {
         return;
     };
-    if key.operation == Operation::CreateRealtimeCall
-        && let Some(location) = headers
-            .get(http::header::LOCATION)
-            .and_then(|value| value.to_str().ok())
-        && let Some(id) = location.rsplit('/').find(|part| !part.is_empty())
-    {
-        save_binding(
-            bindings,
-            ctx,
-            owner_user_id,
-            kind,
-            id,
-            serde_json::json!({"id": id, "location": location}),
-        )
-        .await;
-        return;
-    }
-    if matches!(
-        key.operation,
-        Operation::DeleteFile | Operation::DeleteVideo
-    ) {
-        if let Some((_, id)) = &ctx.resource
-            && let Err(error) = bindings
-                .delete(ctx.target.provider.id, owner_user_id, kind, id)
-                .await
-        {
-            tracing::error!(
-                request_id = %ctx.request_id,
-                resource_kind = kind,
-                resource_id = id,
-                error = %error,
-                "resource binding delete failed"
-            );
+    for mutation in mutations {
+        match mutation {
+            ResourceMutation::Save { kind, id, summary } => {
+                save_binding(bindings, ctx, owner_user_id, kind, &id, summary).await;
+            }
+            ResourceMutation::Delete { kind, id } => {
+                if let Err(error) = bindings
+                    .delete(ctx.target.provider.id, owner_user_id, kind, &id)
+                    .await
+                {
+                    tracing::error!(
+                        request_id = %ctx.request_id,
+                        resource_kind = kind,
+                        resource_id = id,
+                        error = %error,
+                        "resource binding delete failed"
+                    );
+                }
+            }
         }
-        return;
-    }
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
-        return;
-    };
-    let mut resources = Vec::new();
-    if value
-        .get("id")
-        .and_then(serde_json::Value::as_str)
-        .is_some()
-    {
-        resources.push(value.clone());
-    }
-    for field in ["data", "videos", "files"] {
-        if let Some(items) = value.get(field).and_then(serde_json::Value::as_array) {
-            resources.extend(items.iter().cloned());
-        }
-    }
-    if resources.is_empty()
-        && let Some((_, id)) = &ctx.resource
-    {
-        let mut summary = value.clone();
-        if let Some(object) = summary.as_object_mut() {
-            object.insert("id".into(), serde_json::Value::String(id.clone()));
-            resources.push(summary);
-        }
-    }
-    for summary in resources {
-        let Some(id) = summary.get("id").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        save_binding(bindings, ctx, owner_user_id, kind, id, summary.clone()).await;
     }
 }
 
