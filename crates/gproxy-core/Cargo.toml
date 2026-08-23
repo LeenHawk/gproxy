@@ -1,0 +1,9 @@
+[package]
+name = "gproxy-core"
+description = "GPROXY v3 embeddable core: channels, credential lifecycle, transforms, execution"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

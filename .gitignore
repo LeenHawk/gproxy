@@ -1,0 +1,22 @@
+/target
+/data
+*.db
+*.db-*
+node_modules/
+dist/
+__pycache__/
+.DS_Store
+
+# secrets — never commit
+.env
+.env.*
+
+# local reference library (v2 snapshot lives at samples/gproxy-v2)
+samples/
+
+# upstream API docs snapshots (separate nested git repo)
+/upstream_docs/
+
+# tool/session state
+probe-out/
+/dev-docs

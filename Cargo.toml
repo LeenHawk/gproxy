@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["crates/gproxy-core"]
+
+[workspace.package]
+version = "3.0.0-alpha.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/LeenHawk/gproxy"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
