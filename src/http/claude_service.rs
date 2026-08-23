@@ -244,12 +244,14 @@ async fn oauth_file_upload(
     let response = raw(
         state,
         credential.id,
-        "claude_oauth_file_upload",
-        Method::POST,
-        "/v1/files",
-        None,
-        resource_headers(&ctx.headers, "files-api-2025-04-14"),
-        ctx.body.clone(),
+        CredentialControlOperation::ClaudeRaw {
+            label: "claude_oauth_file_upload",
+            method: Method::POST,
+            path: "/v1/files".to_owned(),
+            query: None,
+            headers: resource_headers(&ctx.headers, "files-api-2025-04-14"),
+            body: ctx.body.clone(),
+        },
     )
     .await?;
     if !response.status.is_success() {
@@ -290,12 +292,14 @@ async fn official_files(
             let response = raw(
                 state,
                 credential.id,
-                "claude_file_create",
-                Method::POST,
-                "/v1/files",
-                safe_query(ctx.query.as_deref()),
-                resource_headers(&ctx.headers, "files-api-2025-04-14"),
-                ctx.body.clone(),
+                CredentialControlOperation::ClaudeRaw {
+                    label: "claude_file_create",
+                    method: Method::POST,
+                    path: "/v1/files".to_owned(),
+                    query: safe_query(ctx.query.as_deref()),
+                    headers: resource_headers(&ctx.headers, "files-api-2025-04-14"),
+                    body: ctx.body.clone(),
+                },
             )
             .await?;
             if response.status.is_success() {
@@ -344,12 +348,14 @@ async fn official_files(
             forward_bound(
                 state,
                 &binding,
-                "claude_file_retrieve",
-                Method::GET,
-                &format!("/v1/files/{id}"),
-                safe_query(ctx.query.as_deref()),
-                resource_headers(&ctx.headers, "files-api-2025-04-14"),
-                Bytes::new(),
+                CredentialControlOperation::ClaudeRaw {
+                    label: "claude_file_retrieve",
+                    method: Method::GET,
+                    path: format!("/v1/files/{id}"),
+                    query: safe_query(ctx.query.as_deref()),
+                    headers: resource_headers(&ctx.headers, "files-api-2025-04-14"),
+                    body: Bytes::new(),
+                },
             )
             .await
         }
@@ -357,12 +363,14 @@ async fn official_files(
             let outcome = forward_bound(
                 state,
                 &binding,
-                "claude_file_delete",
-                Method::DELETE,
-                &format!("/v1/files/{id}"),
-                safe_query(ctx.query.as_deref()),
-                resource_headers(&ctx.headers, "files-api-2025-04-14"),
-                Bytes::new(),
+                CredentialControlOperation::ClaudeRaw {
+                    label: "claude_file_delete",
+                    method: Method::DELETE,
+                    path: format!("/v1/files/{id}"),
+                    query: safe_query(ctx.query.as_deref()),
+                    headers: resource_headers(&ctx.headers, "files-api-2025-04-14"),
+                    body: Bytes::new(),
+                },
             )
             .await?;
             if outcome.status.is_success() {
@@ -497,15 +505,17 @@ async fn official_skills(
             let response = raw(
                 state,
                 credential.id,
-                "claude_skill_create",
-                Method::POST,
-                "/v1/skills",
-                Some(merge_query(
-                    safe_query(ctx.query.as_deref()).as_deref(),
-                    "beta=true",
-                )),
-                resource_headers(&ctx.headers, "skills-2025-10-02"),
-                ctx.body.clone(),
+                CredentialControlOperation::ClaudeRaw {
+                    label: "claude_skill_create",
+                    method: Method::POST,
+                    path: "/v1/skills".to_owned(),
+                    query: Some(merge_query(
+                        safe_query(ctx.query.as_deref()).as_deref(),
+                        "beta=true",
+                    )),
+                    headers: resource_headers(&ctx.headers, "skills-2025-10-02"),
+                    body: ctx.body.clone(),
+                },
             )
             .await?;
             if response.status.is_success() {
@@ -557,15 +567,17 @@ async fn official_skills(
     let response = raw(
         state,
         binding.credential_id,
-        "claude_skill_resource",
-        method.clone(),
-        &ctx.path,
-        Some(merge_query(
-            safe_query(ctx.query.as_deref()).as_deref(),
-            "beta=true",
-        )),
-        resource_headers(&ctx.headers, "skills-2025-10-02"),
-        ctx.body.clone(),
+        CredentialControlOperation::ClaudeRaw {
+            label: "claude_skill_resource",
+            method: method.clone(),
+            path: ctx.path.clone(),
+            query: Some(merge_query(
+                safe_query(ctx.query.as_deref()).as_deref(),
+                "beta=true",
+            )),
+            headers: resource_headers(&ctx.headers, "skills-2025-10-02"),
+            body: ctx.body.clone(),
+        },
     )
     .await?;
     if method == Method::POST
@@ -822,51 +834,20 @@ fn resource_headers(input: &HeaderMap, beta: &str) -> HeaderMap {
 async fn raw(
     state: &AppState,
     credential_id: i64,
-    label: &'static str,
-    method: Method,
-    path: &str,
-    query: Option<String>,
-    headers: HeaderMap,
-    body: Bytes,
+    operation: CredentialControlOperation,
 ) -> Result<crate::credentials::control::RawControlResponse, PipelineError> {
-    crate::credentials::control::execute_raw(
-        state,
-        credential_id,
-        CredentialControlOperation::ClaudeRaw {
-            label,
-            method,
-            path: path.to_owned(),
-            query,
-            headers,
-            body,
-        },
-    )
-    .await
-    .map_err(|error| PipelineError::Transport(error.to_string()))
+    crate::credentials::control::execute_raw(state, credential_id, operation)
+        .await
+        .map_err(|error| PipelineError::Transport(error.to_string()))
 }
 
 async fn forward_bound(
     state: &AppState,
     binding: &crate::store::persistence::records::CodexTaskBinding,
-    label: &'static str,
-    method: Method,
-    path: &str,
-    query: Option<String>,
-    headers: HeaderMap,
-    body: Bytes,
+    operation: CredentialControlOperation,
 ) -> Result<ExecOutcome, PipelineError> {
     Ok(raw_outcome(
-        raw(
-            state,
-            binding.credential_id,
-            label,
-            method,
-            path,
-            query,
-            headers,
-            body,
-        )
-        .await?,
+        raw(state, binding.credential_id, operation).await?,
     ))
 }
 
