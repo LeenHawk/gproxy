@@ -1,0 +1,134 @@
+use serde::{Deserialize, Serialize};
+
+use super::super::{Caller, JsonObject, ResponseWebSearchResultBlock};
+use super::{
+    AdvisorToolResultBlockType, AdvisorToolResultError, BashCodeExecutionResultBlock,
+    BashCodeExecutionToolResultBlockType, BashCodeExecutionToolResultError,
+    CodeExecutionResultBlock, CodeExecutionToolResultBlockType, CodeExecutionToolResultError,
+    EncryptedCodeExecutionResultBlock, ResponseAdvisorRedactedResultBlock,
+    ResponseAdvisorResultBlock, ResponseTextEditorCodeExecutionStrReplaceResultBlock,
+    ResponseTextEditorCodeExecutionToolResultError, ResponseTextEditorCodeExecutionViewResultBlock,
+    ResponseToolSearchToolResultError, ResponseToolSearchToolSearchResultBlock,
+    ResponseWebFetchResultBlock, TextEditorCodeExecutionCreateResultBlock,
+    TextEditorCodeExecutionToolResultBlockType, ToolSearchToolResultBlockType,
+    WebFetchToolResultBlockType, WebFetchToolResultError, WebSearchToolResultError,
+};
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseWebSearchToolResultContent {
+    Error(WebSearchToolResultError),
+    Results(Vec<ResponseWebSearchResultBlock>),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseWebFetchToolResultContent {
+    Error(WebFetchToolResultError),
+    Result(ResponseWebFetchResultBlock),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseAdvisorToolResultContent {
+    Error(AdvisorToolResultError),
+    Result(ResponseAdvisorResultBlock),
+    Redacted(ResponseAdvisorRedactedResultBlock),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseCodeExecutionToolResultContent {
+    Error(CodeExecutionToolResultError),
+    Result(CodeExecutionResultBlock),
+    Encrypted(EncryptedCodeExecutionResultBlock),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseBashCodeExecutionToolResultContent {
+    Error(BashCodeExecutionToolResultError),
+    Result(BashCodeExecutionResultBlock),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseTextEditorCodeExecutionToolResultContent {
+    Error(ResponseTextEditorCodeExecutionToolResultError),
+    View(ResponseTextEditorCodeExecutionViewResultBlock),
+    Create(TextEditorCodeExecutionCreateResultBlock),
+    StrReplace(ResponseTextEditorCodeExecutionStrReplaceResultBlock),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ResponseToolSearchToolResultContent {
+    Error(ResponseToolSearchToolResultError),
+    Result(ResponseToolSearchToolSearchResultBlock),
+    Raw(serde_json::Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseWebFetchToolResultBlock {
+    pub content: ResponseWebFetchToolResultContent,
+    pub tool_use_id: String,
+    #[serde(rename = "type")]
+    pub type_: WebFetchToolResultBlockType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caller: Option<Caller>,
+    #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
+    pub rest: serde_json::Map<String, serde_json::Value>,
+}
+
+macro_rules! response_server_tool_result_block {
+    ($block:ident, $content:ident, $tag:ident) => {
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        pub struct $block {
+            pub content: $content,
+            pub tool_use_id: String,
+            #[serde(rename = "type")]
+            pub type_: $tag,
+            #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
+            pub rest: serde_json::Map<String, serde_json::Value>,
+        }
+    };
+}
+
+response_server_tool_result_block!(
+    ResponseAdvisorToolResultBlock,
+    ResponseAdvisorToolResultContent,
+    AdvisorToolResultBlockType
+);
+response_server_tool_result_block!(
+    ResponseCodeExecutionToolResultBlock,
+    ResponseCodeExecutionToolResultContent,
+    CodeExecutionToolResultBlockType
+);
+response_server_tool_result_block!(
+    ResponseBashCodeExecutionToolResultBlock,
+    ResponseBashCodeExecutionToolResultContent,
+    BashCodeExecutionToolResultBlockType
+);
+response_server_tool_result_block!(
+    ResponseTextEditorCodeExecutionToolResultBlock,
+    ResponseTextEditorCodeExecutionToolResultContent,
+    TextEditorCodeExecutionToolResultBlockType
+);
+response_server_tool_result_block!(
+    ResponseToolSearchToolResultBlock,
+    ResponseToolSearchToolResultContent,
+    ToolSearchToolResultBlockType
+);

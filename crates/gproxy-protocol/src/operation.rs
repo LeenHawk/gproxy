@@ -17,6 +17,7 @@
 pub enum OperationGroup {
     Models,
     CountTokens,
+    Memories,
     GenerateContent,
     Compact,
     Embeddings,
@@ -36,6 +37,7 @@ pub enum Operation {
     ListModels,
     GetModel,
     CountTokens,
+    SummarizeMemory,
     GenerateContent,
     StreamGenerateContent,
     CompactContent,
@@ -132,6 +134,7 @@ impl Operation {
         match self {
             ListModels | GetModel => OperationGroup::Models,
             CountTokens => OperationGroup::CountTokens,
+            SummarizeMemory => OperationGroup::Memories,
             GenerateContent | StreamGenerateContent => OperationGroup::GenerateContent,
             CompactContent => OperationGroup::Compact,
             CreateEmbedding => OperationGroup::Embeddings,

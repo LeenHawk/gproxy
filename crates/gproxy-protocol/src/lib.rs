@@ -1,16 +1,19 @@
 //! GPROXY v3 protocol model.
 //!
 //! The operation taxonomy ([`operation`]) and the OperationSpec registry
-//! ([`spec`], table in `specs.rs`): every fact about an operation —
+//! ([`spec`], tables under `specs/`): every fact about an operation —
 //! ingress paths, wire kinds, settle mode, affinity — declared once and
 //! read by classification, channels, settlement, and console metadata.
 //!
-//! Wire models (request/response types per family) land here as porting
-//! proceeds, one family module at a time.
+//! Public request, response, and stream-event models live under their wire
+//! family and preserve unmodeled fields through each struct's flattened rest.
 //!
 //! Enums are exhaustive under the workspace-internal `exhaustive` feature
 //! and `#[non_exhaustive]` otherwise; see Cargo.toml.
 
+pub mod claude;
+pub mod gemini;
+pub mod openai;
 pub mod operation;
 mod path;
 pub mod spec;
@@ -25,5 +28,5 @@ pub use operation::{
 pub use path::{match_ingress, match_ingress_for, match_path, request_target};
 pub use spec::{
     Affinity, Ingress, Matched, OperationSpec, PathPattern, Seg, SettleMode, StreamDetect,
-    streaming_sibling,
+    StreamFraming, default_framing, streaming_sibling,
 };

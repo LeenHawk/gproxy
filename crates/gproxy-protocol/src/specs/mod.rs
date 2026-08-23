@@ -1,0 +1,170 @@
+//! The exhaustive operation registry, grouped by [`OperationGroup`].
+//!
+//! Ingress paths are canonical per-family forms. Shared paths carry one row
+//! per family and classification selects among them through the same matcher.
+
+mod audio;
+mod compact;
+mod count_tokens;
+mod embeddings;
+mod files;
+mod generate_content;
+mod images;
+mod memories;
+mod models;
+mod realtime;
+mod rerank;
+mod search;
+mod video;
+
+use http::Method;
+
+use crate::operation::{Operation, OperationKind, WireFamily};
+use crate::spec::{
+    Affinity, Ingress, OperationSpec, PathPattern, Seg, SettleMode, StreamDetect, default_framing,
+};
+
+pub(super) const GET: &Method = &Method::GET;
+pub(super) const POST: &Method = &Method::POST;
+pub(super) const DELETE: &Method = &Method::DELETE;
+pub(super) const FAM_OAI: OperationKind = OperationKind::Family(WireFamily::OpenAi);
+pub(super) const FAM_CLA: OperationKind = OperationKind::Family(WireFamily::Claude);
+pub(super) const FAM_GEM: OperationKind = OperationKind::Family(WireFamily::Gemini);
+pub(super) const NEVER: StreamDetect = StreamDetect::Never;
+pub(super) const BODY_STREAM: StreamDetect = StreamDetect::BodyFlag("stream");
+pub(super) const BODY_OR_FORM_STREAM: StreamDetect = StreamDetect::BodyFlagOrMultipart("stream");
+
+pub(super) const fn ing(
+    method: &'static Method,
+    pattern: &'static [Seg],
+    kind: OperationKind,
+    stream: StreamDetect,
+) -> Ingress {
+    Ingress {
+        method,
+        pattern: PathPattern(pattern),
+        kind,
+        stream,
+        framing: default_framing(kind, false),
+        upgrade: false,
+    }
+}
+
+pub(super) const fn free(ingress: &'static [Ingress]) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::Free,
+        affinity: Affinity::None,
+    }
+}
+
+pub(super) const fn billed(ingress: &'static [Ingress], affinity: Affinity) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::OnResponse,
+        affinity,
+    }
+}
+
+pub(super) const fn file_op(ingress: &'static [Ingress]) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::Free,
+        affinity: Affinity::Resource("file"),
+    }
+}
+
+pub(super) const fn video_op(ingress: &'static [Ingress]) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::Free,
+        affinity: Affinity::Resource("video"),
+    }
+}
+
+pub(super) const fn video_character_op(ingress: &'static [Ingress]) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::Free,
+        affinity: Affinity::Resource("video_character"),
+    }
+}
+
+pub(crate) static REGISTRY: [(Operation, OperationSpec); 31] = [
+    (Operation::ListModels, models::LIST_MODELS),
+    (Operation::GetModel, models::GET_MODEL),
+    (Operation::CountTokens, count_tokens::COUNT_TOKENS),
+    (Operation::SummarizeMemory, memories::SUMMARIZE),
+    (Operation::GenerateContent, generate_content::GENERATE),
+    (
+        Operation::StreamGenerateContent,
+        generate_content::STREAM_GENERATE,
+    ),
+    (Operation::CompactContent, compact::COMPACT),
+    (Operation::CreateEmbedding, embeddings::EMBEDDING),
+    (Operation::Rerank, rerank::RERANK),
+    (Operation::WebSearch, search::WEB_SEARCH),
+    (Operation::CreateImage, images::CREATE_IMAGE),
+    (Operation::EditImage, images::EDIT_IMAGE),
+    (Operation::CreateSpeech, audio::SPEECH),
+    (Operation::CreateTranscription, audio::TRANSCRIBE),
+    (Operation::CreateTranslation, audio::TRANSLATE),
+    (Operation::CreateFile, files::CREATE_FILE),
+    (Operation::ListFiles, files::LIST_FILES),
+    (Operation::RetrieveFile, files::RETRIEVE_FILE),
+    (Operation::RetrieveFileContent, files::FILE_CONTENT),
+    (Operation::DeleteFile, files::DELETE_FILE),
+    (Operation::CreateVideo, video::CREATE_VIDEO),
+    (Operation::RetrieveVideo, video::RETRIEVE_VIDEO),
+    (Operation::ListVideos, video::LIST_VIDEOS),
+    (Operation::DeleteVideo, video::DELETE_VIDEO),
+    (Operation::DownloadVideoContent, video::VIDEO_CONTENT),
+    (Operation::RemixVideo, video::REMIX_VIDEO),
+    (
+        Operation::CreateVideoCharacter,
+        video::CREATE_VIDEO_CHARACTER,
+    ),
+    (Operation::GetVideoCharacter, video::GET_VIDEO_CHARACTER),
+    (Operation::EditVideo, video::EDIT_VIDEO),
+    (Operation::ExtendVideo, video::EXTEND_VIDEO),
+    (Operation::CreateRealtimeCall, realtime::REALTIME_CALL),
+];
+
+/// Exhaustive: a new operation does not compile until its group and row exist.
+pub(crate) fn spec(operation: Operation) -> &'static OperationSpec {
+    use Operation::*;
+    let index = match operation {
+        ListModels => 0,
+        GetModel => 1,
+        CountTokens => 2,
+        SummarizeMemory => 3,
+        GenerateContent => 4,
+        StreamGenerateContent => 5,
+        CompactContent => 6,
+        CreateEmbedding => 7,
+        Rerank => 8,
+        WebSearch => 9,
+        CreateImage => 10,
+        EditImage => 11,
+        CreateSpeech => 12,
+        CreateTranscription => 13,
+        CreateTranslation => 14,
+        CreateFile => 15,
+        ListFiles => 16,
+        RetrieveFile => 17,
+        RetrieveFileContent => 18,
+        DeleteFile => 19,
+        CreateVideo => 20,
+        RetrieveVideo => 21,
+        ListVideos => 22,
+        DeleteVideo => 23,
+        DownloadVideoContent => 24,
+        RemixVideo => 25,
+        CreateVideoCharacter => 26,
+        GetVideoCharacter => 27,
+        EditVideo => 28,
+        ExtendVideo => 29,
+        CreateRealtimeCall => 30,
+    };
+    &REGISTRY[index].1
+}

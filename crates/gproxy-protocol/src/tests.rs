@@ -24,6 +24,7 @@ fn ingress_registry_matches_canonical_paths() {
             assert_eq!(matched.operation, *operation, "path: {path}");
             assert_eq!(matched.kind, ingress.kind, "path: {path}");
             assert_eq!(matched.stream, ingress.stream, "path: {path}");
+            assert_eq!(matched.framing, ingress.framing, "path: {path}");
             assert_eq!(matched.upgrade, ingress.upgrade, "path: {path}");
             assert_eq!(matched.params, expected_params, "path: {path}");
         }
@@ -102,6 +103,18 @@ fn video_specs_keep_job_settlement_and_resource_affinity() {
             Affinity::Resource("video_character")
         );
     }
+}
+
+#[test]
+fn memory_summary_is_a_billed_openai_family_operation() {
+    let matched = match_ingress(&Method::POST, "/v1/memories/trace_summarize")
+        .expect("memory summary ingress");
+    assert_eq!(matched.operation, Operation::SummarizeMemory);
+    assert_eq!(matched.kind, OperationKind::Family(WireFamily::OpenAi));
+    assert_eq!(matched.stream, crate::StreamDetect::Never);
+    assert_eq!(matched.operation.group(), OperationGroup::Memories);
+    assert_eq!(matched.operation.spec().settle, SettleMode::OnResponse);
+    assert_eq!(matched.operation.spec().affinity, Affinity::None);
 }
 
 #[test]

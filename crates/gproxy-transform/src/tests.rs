@@ -2,7 +2,13 @@ use bytes::Bytes;
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey, WireFamily};
 use serde_json::{Value, json};
 
+use crate::{BufferedResponse, ResponseCollector};
 use crate::{ResponseStream, can_transform, request, response};
+
+mod native_tools;
+mod stream_lifecycle;
+mod support;
+use support::*;
 
 fn family(operation: Operation, family: WireFamily) -> OperationKey {
     OperationKey::family(operation, family)
@@ -58,6 +64,10 @@ fn pair_matrix_models_and_count_tokens_are_bidirectional() {
             content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
         ),
         (
+            content(Operation::GenerateContent, Kind::ClaudeMessages),
+            content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
+        ),
+        (
             family(Operation::CompactContent, WireFamily::OpenAi),
             content(Operation::GenerateContent, Kind::ClaudeMessages),
         ),
@@ -65,7 +75,7 @@ fn pair_matrix_models_and_count_tokens_are_bidirectional() {
     for (source, target) in pairs {
         assert!(can_transform(source, target), "{source:?} -> {target:?}");
     }
-    assert!(!can_transform(
+    assert!(can_transform(
         content(Operation::GenerateContent, Kind::OpenAiChat),
         content(Operation::GenerateContent, Kind::OpenAiResponses),
     ));
@@ -83,6 +93,8 @@ fn pair_matrix_models_and_count_tokens_are_bidirectional() {
     assert_eq!(models["object"], "list");
     assert_eq!(models["data"][0]["id"], "claude-opus");
     assert_eq!(models["data"][0]["context_window"], 200000);
+    assert!(models["data"][0].get("created").is_none());
+    assert!(models["data"][0].get("owned_by").is_none());
 
     let count = convert_request(
         family(Operation::CountTokens, WireFamily::OpenAi),
@@ -119,7 +131,7 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
             "model":"route","max_completion_tokens":128,
             "messages":[
                 {"role":"system","content":"policy"},
-                {"role":"user","content":[{"type":"text","text":"question"}]},
+                {"role":"user","content":[{"type":"text","text":"question","part_future":7}],"message_future":8},
                 {"role":"assistant","content":"checking","tool_calls":[{
                     "id":"call_1","type":"function",
                     "function":{"name":"lookup","arguments":"{\"q\":\"x\"}"}
@@ -127,9 +139,10 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
                 {"role":"tool","tool_call_id":"call_1","content":"answer"}
             ],
             "tools":[{"type":"function","function":{
-                "name":"lookup","description":"find","parameters":{"type":"object"}
+                "name":"lookup","description":"find","parameters":{"type":"object"},"tool_future":9
             }}],
-            "tool_choice":"required","parallel_tool_calls":false
+            "tool_choice":"required","parallel_tool_calls":false,
+            "root_future":10
         }),
     );
     assert_eq!(request["system"][0]["text"], "policy");
@@ -137,6 +150,10 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     assert_eq!(request["messages"][2]["content"][0]["type"], "tool_result");
     assert_eq!(request["tools"][0]["input_schema"]["type"], "object");
     assert_eq!(request["tool_choice"]["type"], "any");
+    assert_eq!(request["root_future"], 10);
+    assert_eq!(request["messages"][0]["message_future"], 8);
+    assert_eq!(request["messages"][0]["content"][0]["part_future"], 7);
+    assert_eq!(request["tools"][0]["tool_future"], 9);
 
     let chat_response = convert_response(
         chat,
@@ -148,7 +165,8 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
                 {"type":"tool_use","id":"call_2","name":"save","input":{"x":1}}
             ],
             "stop_reason":"tool_use","stop_sequence":null,
-            "usage":{"input_tokens":10,"cache_read_input_tokens":5,"output_tokens":3}
+            "usage":{"input_tokens":10,"cache_read_input_tokens":5,"output_tokens":3},
+            "response_future":11
         }),
     );
     assert_eq!(chat_response["choices"][0]["message"]["content"], "done");
@@ -158,13 +176,14 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     );
     assert_eq!(chat_response["choices"][0]["finish_reason"], "tool_calls");
     assert_eq!(chat_response["usage"]["prompt_tokens"], 15);
+    assert_eq!(chat_response["response_future"], 11);
 
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
     let response_request = convert_request(
         responses,
         claude,
         json!({
-            "model":"route","instructions":"policy",
+            "model":"route","instructions":"policy","max_output_tokens":128,
             "input":[
                 {"type":"message","role":"user","content":[{"type":"input_text","text":"go"}]},
                 {"type":"function_call","id":"fc_1","call_id":"c1","name":"lookup","arguments":"{\"q\":1}"},
@@ -194,6 +213,27 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     assert_eq!(responses_response["status"], "completed");
     assert_eq!(responses_response["output_text"], "answer");
     assert_eq!(responses_response["output"][0]["type"], "reasoning");
+    assert!(responses_response.get("created_at").is_none());
+    assert!(responses_response.get("completed_at").is_none());
+
+    let ordered = convert_response(
+        responses,
+        claude,
+        json!({
+            "id":"msg_order","type":"message","role":"assistant","model":"claude-opus",
+            "content":[
+                {"type":"text","text":"before"},
+                {"type":"tool_use","id":"call_order","name":"lookup","input":{}},
+                {"type":"text","text":"after"}
+            ],
+            "stop_reason":"tool_use","usage":{"input_tokens":4,"output_tokens":2}
+        }),
+    );
+    assert_eq!(ordered["output"][0]["type"], "message");
+    assert_eq!(ordered["output"][1]["type"], "function_call");
+    assert_eq!(ordered["output"][2]["type"], "message");
+    assert!(ordered["output"][0].get("id").is_none());
+    assert!(ordered["output"][1].get("id").is_none());
 
     let compact = convert_response(
         family(Operation::CompactContent, WireFamily::OpenAi),
@@ -206,6 +246,32 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     );
     assert_eq!(compact["object"], "response.compaction");
     assert_eq!(compact["output"][0]["content"][0]["type"], "text");
+
+    for (thinking, expected) in [
+        (json!({"type":"disabled"}), Some("none")),
+        (
+            json!({"type":"enabled","budget_tokens":1024}),
+            Some("medium"),
+        ),
+        (json!({"type":"adaptive"}), Some("medium")),
+        (json!({"type":"future_thinking"}), None),
+    ] {
+        let converted = convert_request(
+            claude,
+            responses,
+            json!({
+                "model":"claude-opus","max_tokens":32,
+                "messages":[{"role":"user","content":"hello"}],
+                "thinking":thinking
+            }),
+        );
+        assert_eq!(
+            converted
+                .pointer("/reasoning/effort")
+                .and_then(Value::as_str),
+            expected
+        );
+    }
 }
 
 #[test]
@@ -213,7 +279,7 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
     let chat = content(Operation::StreamGenerateContent, Kind::OpenAiChat);
     let claude = content(Operation::StreamGenerateContent, Kind::ClaudeMessages);
     let claude_wire = concat!(
-        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-opus\",\"usage\":{\"input_tokens\":5,\"output_tokens\":0}}}\n\n",
+        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-opus\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":5,\"output_tokens\":0}}}\n\n",
         "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n",
         "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
@@ -233,24 +299,22 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
     assert!(String::from_utf8_lossy(&chat_out).contains("data: [DONE]"));
 
     let chat_wire = concat!(
-        "data: {\"id\":\"chat_1\",\"model\":\"gpt\",\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hel\"},\"finish_reason\":null}]}\n\n",
-        "data: {\"id\":\"chat_1\",\"model\":\"gpt\",\"choices\":[{\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2}}\n\n",
+        "data: {\"id\":\"chat_1\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"gpt\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hel\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chat_1\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"gpt\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2,\"total_tokens\":6}}\n\n",
         "data: [DONE]\n\n"
     );
     let claude_out = drive(ResponseStream::new(claude, chat).unwrap(), chat_wire, 13);
     let text = String::from_utf8_lossy(&claude_out);
     assert!(text.contains("message_start"));
-    assert!(text.contains("text_delta"));
+    assert!(text.contains("content_block_start"));
     assert!(text.contains("hel"));
     assert!(text.contains("lo"));
     assert!(text.contains("message_stop"));
 
     let responses = content(Operation::StreamGenerateContent, Kind::OpenAiResponses);
     let responses_wire = concat!(
-        "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"model\":\"gpt\"}}\n\n",
-        "event: response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"item_id\":\"item_1\",\"part\":{\"type\":\"output_text\"}}\n\n",
-        "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"item_1\",\"delta\":\"answer\"}\n\n",
-        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"model\":\"gpt\",\"usage\":{\"input_tokens\":3,\"output_tokens\":1}}}\n\n"
+        "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"model\":\"gpt\",\"status\":\"in_progress\",\"output\":[]}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"model\":\"gpt\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"id\":\"item_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"answer\",\"annotations\":[]}],\"status\":\"completed\"}],\"usage\":{\"input_tokens\":3,\"output_tokens\":1,\"total_tokens\":4,\"output_tokens_details\":{\"reasoning_tokens\":0}}}}\n\n"
     );
     let claude_out = drive(
         ResponseStream::new(claude, responses).unwrap(),
@@ -260,31 +324,141 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
     let text = String::from_utf8_lossy(&claude_out);
     assert!(text.contains("answer"));
     assert!(text.contains("message_stop"));
+
+    let chat_from_responses = drive(
+        ResponseStream::new(chat, responses).unwrap(),
+        responses_wire,
+        23,
+    );
+    let text = String::from_utf8_lossy(&chat_from_responses);
+    assert!(text.contains("answer"));
+    assert!(text.contains("[DONE]"));
+
+    let responses_from_chat = drive(ResponseStream::new(responses, chat).unwrap(), chat_wire, 29);
+    let text = String::from_utf8_lossy(&responses_from_chat);
+    assert!(text.contains("response.completed"));
+    assert!(text.contains("hello"));
+
+    let custom_chat = concat!(
+        "data: {\"id\":\"chat_custom\",\"object\":\"chat.completion.chunk\",\"created\":123,\"model\":\"gpt\",\"root_future\":9,\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\",\"tool_calls\":[{\"index\":0,\"id\":\"ct_1\",\"type\":\"custom\",\"custom\":{\"name\":\"exec\",\"input\":\"a\",\"custom_future\":7},\"call_future\":8}]},\"finish_reason\":\"tool_calls\"}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let custom_out = drive(
+        ResponseStream::new(responses, chat).unwrap(),
+        custom_chat,
+        31,
+    );
+    let custom_frames = data_frames(&custom_out);
+    let delta = custom_frames
+        .iter()
+        .find(|v| v["type"] == "response.custom_tool_call_input.delta")
+        .unwrap();
+    assert_eq!(
+        (delta["item_id"].as_str(), delta["output_index"].as_u64()),
+        (Some("ct_1"), Some(1))
+    );
+    let item = custom_frames
+        .iter()
+        .find(|v| v["item"]["type"] == "custom_tool_call")
+        .unwrap();
+    assert_eq!(
+        (
+            item["item"]["custom_future"].as_u64(),
+            item["item"]["call_future"].as_u64()
+        ),
+        (Some(7), Some(8))
+    );
+    let done = custom_frames
+        .iter()
+        .filter(|v| v["type"] == "response.output_item.done")
+        .map(|v| v["output_index"].as_u64().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(done, vec![0, 1]);
+    let terminal = custom_frames
+        .iter()
+        .find(|v| v["type"] == "response.completed")
+        .unwrap();
+    assert_eq!(
+        (
+            terminal["response"]["status"].as_str(),
+            terminal["response"]["created_at"].as_u64(),
+            terminal["response"]["root_future"].as_u64()
+        ),
+        (Some("completed"), Some(123), Some(9))
+    );
+    assert!(terminal["response"].get("completed_at").is_none());
+
+    let custom_responses = "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_custom\",\"object\":\"response\",\"created_at\":4,\"model\":\"gpt\",\"status\":\"in_progress\",\"output\":[]}}\n\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"custom_tool_call\",\"id\":\"ct_2\",\"call_id\":\"call_2\",\"name\":\"exec\",\"input\":\"\"}}\n\nevent: response.custom_tool_call_input.delta\ndata: {\"type\":\"response.custom_tool_call_input.delta\",\"item_id\":\"ct_2\",\"output_index\":0,\"delta\":\"a\"}\n\nevent: response.custom_tool_call_input.done\ndata: {\"type\":\"response.custom_tool_call_input.done\",\"item_id\":\"ct_2\",\"output_index\":0,\"input\":\"ab\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_custom\",\"object\":\"response\",\"created_at\":4,\"model\":\"gpt\",\"status\":\"completed\",\"output\":[{\"type\":\"custom_tool_call\",\"id\":\"ct_2\",\"call_id\":\"call_2\",\"name\":\"exec\",\"input\":\"ab\"}]}}\n\n";
+    let custom_back = ResponseStream::new(chat, responses).unwrap();
+    let custom_back = String::from_utf8(drive(custom_back, custom_responses, 41)).unwrap();
+    assert!(custom_back.contains("\"type\":\"custom\""));
+    assert!(custom_back.contains("\"custom\":{\"input\":\"b\"}"));
+
+    let final_only = concat!(
+        "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_late\",\"object\":\"response\",\"created_at\":5,\"model\":\"gpt\",\"status\":\"in_progress\",\"output\":[]}}\n\n",
+        "event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_late\",\"object\":\"response\",\"created_at\":5,\"model\":\"gpt\",\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"output\":[{\"type\":\"message\",\"id\":\"msg_late\",\"role\":\"assistant\",\"status\":\"incomplete\",\"content\":[{\"type\":\"output_text\",\"text\":\"late\",\"annotations\":[]}]}]}}\n\n"
+    );
+    let late = data_frames(&drive(
+        ResponseStream::new(chat, responses).unwrap(),
+        final_only,
+        37,
+    ));
+    assert!(
+        late.iter()
+            .any(|v| v.pointer("/choices/0/delta/content") == Some(&Value::String("late".into())))
+    );
+    assert!(late.iter().any(|v| v.pointer("/choices/0/finish_reason") == Some(&Value::String("length".into()))));
 }
 
-fn drive(mut stream: ResponseStream, wire: &str, chunk: usize) -> Vec<u8> {
-    let mut output = Vec::new();
-    for part in wire.as_bytes().chunks(chunk) {
-        for frame in stream.push(Bytes::copy_from_slice(part)).unwrap() {
-            output.extend_from_slice(&frame);
-        }
-    }
-    for frame in stream.finish().unwrap() {
-        output.extend_from_slice(&frame);
-    }
-    output
-}
+#[test]
+fn typed_chat_responses_pairs_and_same_wire_promotion_preserve_rest() {
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let chat_request = json!({
+        "model":"route",
+        "messages":[{
+            "role":"user",
+            "content":[{"type":"text","text":"hello","part_future":1}],
+            "message_future":2
+        }],
+        "root_future":{"x":3}
+    });
+    let converted = convert_request(chat, responses, chat_request.clone());
+    assert_eq!(converted["root_future"]["x"], 3);
+    assert_eq!(converted["input"][0]["message_future"], 2);
+    assert_eq!(converted["input"][0]["content"][0]["part_future"], 1);
+    let roundtrip = convert_request(responses, chat, converted);
+    assert_eq!(roundtrip["root_future"]["x"], 3);
+    assert_eq!(roundtrip["messages"][0]["message_future"], 2);
+    assert_eq!(roundtrip["messages"][0]["content"][0]["part_future"], 1);
 
-fn data_frames(wire: &[u8]) -> Vec<Value> {
-    String::from_utf8_lossy(wire)
-        .split("\n\n")
-        .filter_map(|frame| {
-            let data = frame
-                .lines()
-                .filter_map(|line| line.strip_prefix("data: "))
-                .collect::<Vec<_>>()
-                .join("\n");
-            serde_json::from_str(&data).ok()
-        })
-        .collect()
+    let response_wire = json!({
+        "id":"resp_1","object":"response","created_at":0,"model":"gpt",
+        "status":"completed","response_future":4,
+        "output":[{
+            "type":"message","id":"item_1","role":"assistant","status":"completed",
+            "content":[{"type":"output_text","text":"answer","annotations":[],"text_future":5}]
+        }],
+        "usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3,
+            "output_tokens_details":{"reasoning_tokens":0}}
+    });
+    let outward = convert_response(chat, responses, response_wire);
+    assert_eq!(outward["response_future"], 4);
+    assert_eq!(outward["choices"][0]["message"]["content"], "answer");
+    assert_eq!(outward["choices"][0]["message"]["text_future"], 5);
+
+    let promoted = content(Operation::StreamGenerateContent, Kind::OpenAiResponses);
+    assert!(can_transform(responses, promoted));
+    let bytes = Bytes::from_static(br#"{"model":"gpt","input":"hello","future":1}"#);
+    assert_eq!(
+        request(responses, promoted, bytes.clone(), "gpt", true).unwrap(),
+        bytes
+    );
+    let response_bytes = Bytes::from_static(
+        br#"{"id":"resp_promote","object":"response","created_at":0,"status":"completed","output":[],"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0,"output_tokens_details":{"reasoning_tokens":0}},"future":2}"#,
+    );
+    assert_eq!(
+        response(responses, promoted, response_bytes.clone()).unwrap(),
+        response_bytes
+    );
 }

@@ -1,21 +1,22 @@
 //! Pure pairwise wire transforms. Routing policy belongs to channels and core.
 
+mod common;
 mod compact;
-mod content;
 mod count_tokens;
+mod envelope;
 mod error;
+mod generate_content;
 mod models;
-mod pair;
-mod stream;
+mod registry;
 
 use bytes::Bytes;
 use gproxy_protocol::OperationKey;
 
+pub use envelope::{BufferedResponse, ResponseCollector, ResponseStream};
 pub use error::TransformError;
-pub use stream::ResponseStream;
 
 pub fn can_transform(source: OperationKey, target: OperationKey) -> bool {
-    pair::resolve(source, target).is_some()
+    envelope::is_promotion(source, target) || registry::resolve(source, target).is_some()
 }
 
 pub fn request(
@@ -25,11 +26,14 @@ pub fn request(
     upstream_model: &str,
     stream: bool,
 ) -> Result<Bytes, TransformError> {
-    let pair = pair::resolve(source, target).ok_or(TransformError::UnsupportedPair {
+    if envelope::is_promotion(source, target) {
+        return envelope::promotion_request(body);
+    }
+    let pair = registry::resolve(source, target).ok_or(TransformError::UnsupportedPair {
         source_key: source,
         target_key: target,
     })?;
-    pair::request(pair, body, upstream_model, stream)
+    registry::request(pair, body, upstream_model, stream)
 }
 
 pub fn response(
@@ -37,11 +41,14 @@ pub fn response(
     target: OperationKey,
     body: Bytes,
 ) -> Result<Bytes, TransformError> {
-    let pair = pair::resolve(source, target).ok_or(TransformError::UnsupportedPair {
+    if envelope::is_promotion(source, target) {
+        return envelope::promotion_response(body);
+    }
+    let pair = registry::resolve(source, target).ok_or(TransformError::UnsupportedPair {
         source_key: source,
         target_key: target,
     })?;
-    pair::response(pair, body)
+    registry::response(pair, body)
 }
 
 pub fn response_stream(

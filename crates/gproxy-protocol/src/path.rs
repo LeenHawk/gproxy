@@ -31,6 +31,7 @@ pub fn match_ingress_for(
                     operation: *operation,
                     kind: ingress.kind,
                     stream: ingress.stream,
+                    framing: ingress.framing,
                     upgrade: ingress.upgrade,
                     params,
                 };

@@ -45,6 +45,13 @@ pub enum StreamDetect {
     Always,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamFraming {
+    Sse,
+    WebSocket,
+    JsonArray,
+}
+
 /// One way this operation enters the proxy.
 #[derive(Debug, Clone, Copy)]
 pub struct Ingress {
@@ -52,6 +59,7 @@ pub struct Ingress {
     pub pattern: PathPattern,
     pub kind: OperationKind,
     pub stream: StreamDetect,
+    pub framing: StreamFraming,
     /// This ingress is a websocket upgrade (`GET /v1/realtime`,
     /// Responses-over-WS). The engine hands matched upgrades to the WS
     /// bridge instead of the HTTP path; hosts never hardcode WS routes
@@ -96,9 +104,30 @@ pub struct Matched {
     pub operation: Operation,
     pub kind: OperationKind,
     pub stream: StreamDetect,
+    pub framing: StreamFraming,
     pub upgrade: bool,
     /// Captured `Param`/`ParamAction` values, in pattern order.
     pub params: Vec<(&'static str, String)>,
+}
+
+pub const fn default_framing(kind: OperationKind, upgrade: bool) -> StreamFraming {
+    if upgrade {
+        return StreamFraming::WebSocket;
+    }
+    match kind {
+        OperationKind::ContentGeneration(
+            crate::operation::ContentGenerationKind::GeminiGenerateContent,
+        ) => StreamFraming::JsonArray,
+        OperationKind::ContentGeneration(
+            crate::operation::ContentGenerationKind::OpenAiResponsesWebSocket,
+        ) => StreamFraming::WebSocket,
+        OperationKind::ContentGeneration(
+            crate::operation::ContentGenerationKind::OpenAiChat
+            | crate::operation::ContentGenerationKind::OpenAiResponses
+            | crate::operation::ContentGenerationKind::ClaudeMessages,
+        )
+        | OperationKind::Family(_) => StreamFraming::Sse,
+    }
 }
 
 /// Streaming promotion: which operation a `BodyFlag` ingress becomes when
@@ -109,6 +138,7 @@ pub const fn streaming_sibling(operation: Operation) -> Option<Operation> {
         Operation::ListModels
         | Operation::GetModel
         | Operation::CountTokens
+        | Operation::SummarizeMemory
         | Operation::StreamGenerateContent
         | Operation::CompactContent
         | Operation::CreateEmbedding

@@ -122,6 +122,7 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         EditVideo => Some("openai_video_edit"),
         ExtendVideo => Some("openai_video_extend"),
         CountTokens
+        | SummarizeMemory
         | GenerateContent
         | StreamGenerateContent
         | Rerank
