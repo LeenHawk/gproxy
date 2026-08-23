@@ -76,7 +76,8 @@ pub(crate) async fn complete<H: Host>(
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.operation,
+        operation = ?ctx.key.map(|key| key.operation),
+        surface = ctx.surface_label.unwrap_or(""),
         ended = ?ended,
         latency_ms,
         "request.completed"
@@ -90,7 +91,10 @@ pub(crate) fn usage(
 ) -> (bool, Option<NormalizedUsage>) {
     match ctx.settle {
         SettleMode::Free => (false, None),
-        SettleMode::OnResponse => (true, channel.extract_usage(ctx.key, body)),
+        SettleMode::OnResponse => (
+            true,
+            channel.extract_usage(ctx.key.expect("billable funnel has an operation"), body),
+        ),
         SettleMode::OnCompletedStatus => {
             let completed = serde_json::from_slice::<serde_json::Value>(body)
                 .ok()
@@ -99,7 +103,12 @@ pub(crate) fn usage(
             (
                 completed,
                 completed
-                    .then(|| channel.extract_usage(ctx.key, body))
+                    .then(|| {
+                        channel.extract_usage(
+                            ctx.key.expect("completed-status funnel has an operation"),
+                            body,
+                        )
+                    })
                     .flatten(),
             )
         }

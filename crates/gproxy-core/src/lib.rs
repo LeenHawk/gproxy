@@ -26,10 +26,19 @@ mod execute;
 mod failover;
 mod funnel;
 mod funnel_error;
+mod funnel_socket;
 mod funnel_stream;
 mod invoke;
 mod request;
 mod settlement;
+mod surface;
+mod surface_affinity;
+mod surface_forward;
+mod surface_invoke;
+mod surface_pin;
+mod surface_reply;
+mod surface_synth;
+mod surface_template;
 
 #[cfg(test)]
 mod tests;
@@ -39,8 +48,11 @@ pub(crate) type Shared<T> = std::sync::Arc<T>;
 #[cfg(target_arch = "wasm32")]
 pub(crate) type Shared<T> = std::rc::Rc<T>;
 
-pub use gproxy_channel_api::BoxFuture;
-pub use gproxy_channel_api::CallerIdentity;
+pub use gproxy_channel_api as channel_api;
+pub use gproxy_channel_api::{
+    BindingStore, BoxFuture, CallerIdentity, UsageView, WsDuplex, WsFrame,
+};
+pub use gproxy_protocol as protocol;
 pub use gproxy_protocol::OperationKey;
 
 pub use api::{Core, InitError};

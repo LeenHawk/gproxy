@@ -87,14 +87,15 @@ pub(crate) async fn prepare<H: Host>(
         facts: FunnelCtx {
             request_id: ctx.request_id.clone(),
             target: target.clone(),
-            key: classified.key,
+            key: Some(classified.key),
             settle: classified.settle,
             pricing: control.pricing(&target.provider, &target.upstream_model),
             started,
-            upstream_url: prepared.request.uri().to_string(),
+            upstream_url: Some(prepared.request.uri().to_string()),
             request_body: prepared.request.body().clone(),
             dedupe_key: classified.dedupe_key(target.provider.id),
             admitted,
+            surface_label: None,
         },
         request: prepared.request,
     })

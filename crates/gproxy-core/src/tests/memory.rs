@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use gproxy_channel_api::{BoxFuture, CallerIdentity};
+use gproxy_channel_api::{Binding, BindingStore, BoxFuture, CallerIdentity, UsageView};
 use gproxy_protocol::OperationKey;
 use http::StatusCode;
 use rust_decimal::Decimal;
@@ -33,6 +33,14 @@ pub(super) struct State {
     pub(super) statuses: VecDeque<StatusCode>,
     pub(super) resolved_models: Vec<Option<String>>,
     pub(super) admission_finishes: Vec<bool>,
+    pub(super) bindings_enabled: bool,
+    pub(super) bindings: BTreeMap<(i64, i64, String, String), Binding>,
+    pub(super) cache: BTreeMap<String, Vec<u8>>,
+    pub(super) cache_ttls: BTreeMap<String, u64>,
+    pub(super) caller_user_id: i64,
+    pub(super) caller_key_id: i64,
+    pub(super) socket_opens: usize,
+    pub(super) socket_closed: bool,
 }
 
 impl MemoryHost {
@@ -57,8 +65,22 @@ impl MemoryHost {
                 statuses: VecDeque::new(),
                 resolved_models: Vec::new(),
                 admission_finishes: Vec::new(),
+                bindings_enabled: true,
+                bindings: BTreeMap::new(),
+                cache: BTreeMap::new(),
+                cache_ttls: BTreeMap::new(),
+                caller_user_id: 1,
+                caller_key_id: 2,
+                socket_opens: 0,
+                socket_closed: false,
             })),
         }
+    }
+
+    pub(super) fn without_bindings() -> Self {
+        let host = Self::new(false);
+        host.state.lock().expect("state lock").bindings_enabled = false;
+        host
     }
 }
 
@@ -88,15 +110,15 @@ impl Host for MemoryHost {
         &'a self,
         _: &'a crate::boundary::RequestCtx,
     ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>> {
-        self.state.lock().expect("state lock").auth_calls += 1;
-        Box::pin(async {
-            Ok(CallerIdentity {
-                user_id: 1,
-                user_key_id: 2,
-                org_id: None,
-                team_id: None,
-            })
-        })
+        let mut state = self.state.lock().expect("state lock");
+        state.auth_calls += 1;
+        let identity = CallerIdentity {
+            user_id: state.caller_user_id,
+            user_key_id: state.caller_key_id,
+            org_id: None,
+            team_id: None,
+        };
+        Box::pin(async move { Ok(identity) })
     }
     fn admit<'a>(
         &'a self,
@@ -119,6 +141,20 @@ impl Host for MemoryHost {
             .admission_finishes
             .push(settlement.is_some());
         Box::pin(async {})
+    }
+    fn surface_usage<'a>(
+        &'a self,
+        _: &'a CallerIdentity,
+        _: &'a ProviderRef,
+    ) -> Box<dyn UsageView + 'a> {
+        Box::new(self.clone())
+    }
+    fn bindings(&self) -> Option<&dyn BindingStore> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .bindings_enabled
+            .then_some(self as &dyn BindingStore)
     }
 }
 

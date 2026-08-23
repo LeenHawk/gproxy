@@ -71,6 +71,9 @@ impl<H: Host> Core<H> {
         control: &impl ControlPlane,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
+        if let Some(result) = crate::surface::dispatch(self, control, &ctx, None).await {
+            return result;
+        }
         crate::execute::run(self, control, ctx).await
     }
 
@@ -83,6 +86,9 @@ impl<H: Host> Core<H> {
         ctx: RequestCtx,
         plan: Plan,
     ) -> Result<ExecOutcome, CoreError> {
+        if let Some(result) = crate::surface::dispatch(self, control, &ctx, Some(&plan)).await {
+            return result;
+        }
         crate::execute::planned(self, control, ctx, plan).await
     }
 }

@@ -15,6 +15,8 @@ pub mod channel;
 pub mod disposition;
 pub mod registry;
 pub mod surface;
+mod surface_state;
+mod surface_view;
 pub mod usage;
 pub mod wire;
 

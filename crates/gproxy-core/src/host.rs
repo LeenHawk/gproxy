@@ -13,11 +13,13 @@
 
 use std::time::Duration;
 
-use gproxy_channel_api::{BindingStore, BoxFuture, CallerIdentity, MaybeSend, MaybeSync, WsDuplex};
+use gproxy_channel_api::{
+    BindingStore, BoxFuture, CallerIdentity, MaybeSend, MaybeSync, UsageView, WsDuplex,
+};
 use gproxy_protocol::OperationKey;
 
 use crate::boundary::RequestCtx;
-use crate::control::Plan;
+use crate::control::{Plan, ProviderRef};
 use crate::error::CoreError;
 use crate::error::{StoreError, TransportError};
 use crate::usage::Settlement;
@@ -88,7 +90,8 @@ pub trait CaptureSink {
 #[derive(Debug)]
 pub struct Capture {
     pub request_id: String,
-    pub upstream_url: String,
+    /// `None` for a locally synthesized response.
+    pub upstream_url: Option<String>,
     pub request_body: bytes::Bytes,
     /// `None` when the transport failed before response headers arrived.
     pub response_status: Option<http::StatusCode>,
@@ -99,8 +102,9 @@ pub struct Capture {
 /// host provides one, stream settlement detaches (native servers); if not,
 /// it completes inline before the stream closes (edge, and any embedder
 /// that wants strict ordering). A host without this capability must keep
-/// polling an upstream stream after downstream disconnect so inline
-/// settlement can reach EOF; Rust `Drop` cannot await asynchronous sinks.
+/// polling an upstream stream after downstream disconnect, and explicitly
+/// close a bridged websocket, so inline settlement can finish; Rust `Drop`
+/// cannot await asynchronous sinks.
 /// This replaces a SettlePolicy enum: the policy *is* whether this
 /// capability exists.
 pub trait Spawner {
@@ -115,7 +119,7 @@ pub trait Spawner {
 /// impl (wreq, TLS profiles, proxies) and an embedder may bring its own.
 /// Request bodies are buffered `Bytes` (transforms and retries need
 /// replay); responses stream.
-pub trait UpstreamTransport {
+pub trait UpstreamTransport: MaybeSync {
     fn send<'a>(
         &'a self,
         request: http::Request<bytes::Bytes>,
@@ -165,7 +169,13 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         request_id: &'a str,
         settlement: Option<&'a Settlement>,
     ) -> BoxFuture<'a, ()>;
-    /// `None` → settle inline at EOF and keep draining after client
+    /// Build the caller/provider-scoped usage view lent to a synthesizer.
+    fn surface_usage<'a>(
+        &'a self,
+        identity: &'a CallerIdentity,
+        provider: &'a ProviderRef,
+    ) -> Box<dyn UsageView + 'a>;
+    /// `None` → settle inline at EOF/WS close and keep pumping after client
     /// disconnect; `Some` → detach settlement.
     fn spawner(&self) -> Option<&dyn Spawner> {
         None

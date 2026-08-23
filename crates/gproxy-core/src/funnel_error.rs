@@ -14,7 +14,8 @@ pub(crate) async fn terminal_transport<H: Host>(host: &H, ctx: &FunnelCtx, error
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.operation,
+        operation = ?ctx.key.map(|key| key.operation),
+        surface = ctx.surface_label.unwrap_or(""),
         error_kind = transport_error_kind(error),
         "request.completed"
     );
@@ -26,7 +27,8 @@ pub(crate) async fn attempt_transport<H: Host>(host: &H, ctx: &FunnelCtx, error:
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.operation,
+        operation = ?ctx.key.map(|key| key.operation),
+        surface = ctx.surface_label.unwrap_or(""),
         error_kind = transport_error_kind(error),
         "attempt.completed"
     );
@@ -44,7 +46,8 @@ pub(crate) async fn attempt_response<H: Host>(
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.operation,
+        operation = ?ctx.key.map(|key| key.operation),
+        surface = ctx.surface_label.unwrap_or(""),
         status = status.as_u16(),
         disposition = ?disposition,
         "attempt.completed"
@@ -63,7 +66,8 @@ pub(crate) async fn attempt_interrupted<H: Host>(
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.operation,
+        operation = ?ctx.key.map(|key| key.operation),
+        surface = ctx.surface_label.unwrap_or(""),
         status = status.as_u16(),
         error_kind = transport_error_kind(error),
         "attempt.completed"
@@ -82,10 +86,35 @@ pub(crate) fn pre_send(ctx: &RequestCtx, target: &Target, key: OperationKey, rea
 }
 
 pub(crate) fn request_failed(ctx: &RequestCtx, key: Option<OperationKey>, error: &CoreError) {
+    request_failed_surface(ctx, key, None, error);
+}
+
+pub(crate) fn request_failed_surface(
+    ctx: &RequestCtx,
+    key: Option<OperationKey>,
+    surface: Option<&'static str>,
+    error: &CoreError,
+) {
     tracing::info!(
         request_id = %ctx.request_id,
         operation = ?key.map(|key| key.operation),
+        surface = surface.unwrap_or(""),
         error_kind = core_error_kind(error),
+        "request.completed"
+    );
+}
+
+pub(crate) fn request_transport_failed(
+    ctx: &RequestCtx,
+    key: Option<OperationKey>,
+    surface: Option<&'static str>,
+    error: &TransportError,
+) {
+    tracing::info!(
+        request_id = %ctx.request_id,
+        operation = ?key.map(|key| key.operation),
+        surface = surface.unwrap_or(""),
+        error_kind = transport_error_kind(error),
         "request.completed"
     );
 }
@@ -142,6 +171,7 @@ fn core_error_kind(error: &CoreError) -> &'static str {
         CoreError::Transport(error) => transport_error_kind(error),
         CoreError::Store(_) => "store",
         CoreError::Channel(_) => "channel",
+        CoreError::SurfaceState(_) => "surface_state",
         CoreError::Internal(_) => "internal",
     }
 }

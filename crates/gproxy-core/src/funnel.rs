@@ -7,6 +7,7 @@ use gproxy_protocol::{OperationKey, SettleMode};
 use crate::Shared;
 use crate::boundary::{ExecOutcome, ResponseBody};
 use crate::control::{Pricing, Target};
+use crate::funnel_socket::FunnelSocket;
 use crate::funnel_stream::FunnelStream;
 use crate::host::Host;
 use crate::usage::Ended;
@@ -17,14 +18,15 @@ pub(crate) struct Settled(());
 pub(crate) struct FunnelCtx {
     pub request_id: String,
     pub target: Target,
-    pub key: OperationKey,
+    pub key: Option<OperationKey>,
     pub settle: SettleMode,
     pub pricing: Option<Pricing>,
     pub started: Instant,
-    pub upstream_url: String,
+    pub upstream_url: Option<String>,
     pub request_body: Bytes,
     pub dedupe_key: Option<String>,
     pub admitted: bool,
+    pub surface_label: Option<&'static str>,
 }
 
 pub(crate) async fn buffered<H: Host>(
@@ -69,6 +71,65 @@ pub(crate) fn streaming<H: Host>(
         headers: parts.headers,
         body: ResponseBody::Stream(Box::pin(body)),
         disposition,
+        _settled: Settled(()),
+    }
+}
+
+pub(crate) async fn free_buffered<H: Host>(
+    host: &H,
+    ctx: FunnelCtx,
+    status: http::StatusCode,
+    headers: http::HeaderMap,
+    body: Bytes,
+    disposition: Disposition,
+) -> ExecOutcome {
+    crate::settlement::complete(
+        host,
+        &ctx,
+        Some(status),
+        Some(body.clone()),
+        false,
+        None,
+        Ended::Complete,
+    )
+    .await;
+    ExecOutcome {
+        status,
+        headers,
+        body: ResponseBody::Full(body),
+        disposition,
+        _settled: Settled(()),
+    }
+}
+
+pub(crate) fn free_streaming<H: Host>(
+    host: Shared<H>,
+    ctx: FunnelCtx,
+    status: http::StatusCode,
+    headers: http::HeaderMap,
+    body: crate::boundary::ByteStream,
+    disposition: Disposition,
+) -> ExecOutcome {
+    let body = FunnelStream::new(body, None, host, ctx, status);
+    ExecOutcome {
+        status,
+        headers,
+        body: ResponseBody::Stream(Box::pin(body)),
+        disposition,
+        _settled: Settled(()),
+    }
+}
+
+pub(crate) fn websocket<H: Host>(
+    host: Shared<H>,
+    ctx: FunnelCtx,
+    socket: Box<dyn gproxy_channel_api::WsDuplex>,
+) -> ExecOutcome {
+    ExecOutcome {
+        status: http::StatusCode::SWITCHING_PROTOCOLS,
+        headers: http::HeaderMap::new(),
+        body: ResponseBody::WebSocket(Box::new(FunnelSocket::new(host, ctx, socket))),
+        disposition: Disposition::Success,
         _settled: Settled(()),
     }
 }

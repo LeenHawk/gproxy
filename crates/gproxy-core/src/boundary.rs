@@ -25,6 +25,8 @@ pub struct RequestCtx {
     pub query: Option<String>,
     pub headers: HeaderMap,
     pub body: Bytes,
+    /// The host accepted a websocket upgrade for this request.
+    pub upgrade: bool,
     pub mode: RoutingMode,
 }
 
@@ -47,6 +49,7 @@ pub enum RoutingMode {
 pub enum ResponseBody {
     Full(Bytes),
     Stream(ByteStream),
+    WebSocket(Box<dyn gproxy_channel_api::WsDuplex>),
 }
 
 impl std::fmt::Debug for ResponseBody {
@@ -54,6 +57,7 @@ impl std::fmt::Debug for ResponseBody {
         match self {
             Self::Full(bytes) => f.debug_tuple("Full").field(&bytes.len()).finish(),
             Self::Stream(_) => f.write_str("Stream"),
+            Self::WebSocket(_) => f.write_str("WebSocket"),
         }
     }
 }

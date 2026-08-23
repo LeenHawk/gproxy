@@ -13,14 +13,14 @@
 //! in-memory default: a store that fragments across instances is worse
 //! than a loud startup error.
 
-use bytes::Bytes;
-use gproxy_protocol::PathPattern;
-use rust_decimal::Decimal;
-use serde_json::Value;
-
 use crate::BoxFuture;
 use crate::channel::ChannelError;
-use crate::wire::{ByteStream, CredentialId, TransportError};
+use crate::wire::{ByteStream, CredentialId, MaybeSync, TransportError};
+use bytes::Bytes;
+use gproxy_protocol::{OperationKey, PathPattern};
+
+pub use crate::surface_state::{Binding, BindingStore, Page, StateError};
+pub use crate::surface_view::{CallerIdentity, ProviderView, UsageView, UsageWindow};
 
 pub struct SurfaceTable(pub &'static [SurfaceEntry]);
 
@@ -38,9 +38,15 @@ pub struct SurfaceEntry {
 pub enum SurfaceAffinity {
     None,
     /// Pin by a request header value (`"mcp-session-id"`).
-    Header(&'static str),
+    Header {
+        name: &'static str,
+        ttl_secs: u64,
+    },
     /// Pin by a JSON body field (`"server_id"`).
-    BodyField(&'static str),
+    BodyField {
+        name: &'static str,
+        ttl_secs: u64,
+    },
     /// Pin by a matched path param (`"task_id"`) through the binding
     /// store — durable resource ownership.
     Binding {
@@ -121,7 +127,7 @@ pub enum SurfaceBody {
 /// The only way upstream from a synthesizer. Every call is a tier-1
 /// invoke: prepared by the channel, classified, and settled through the
 /// funnel before the reply comes back.
-pub trait SurfaceInvoke {
+pub trait SurfaceInvoke: MaybeSync {
     fn invoke<'a>(
         &'a self,
         request: SurfaceRequest,
@@ -142,6 +148,11 @@ pub trait SurfaceInvoke {
 /// and runs channel prepare.
 pub struct SurfaceRequest {
     pub label: &'static str,
+    /// Billable operation for a tier-1 inference call; `None` for a
+    /// provider control-plane call. `OnCompletedStatus` operations are not
+    /// accepted here because this request carries no durable dedupe id.
+    pub key: Option<OperationKey>,
+    pub stream: bool,
     pub method: http::Method,
     pub upstream_path: String,
     pub query: Option<String>,
@@ -150,83 +161,3 @@ pub struct SurfaceRequest {
     /// Land on this credential (from a binding) instead of balancing.
     pub credential: Option<CredentialId>,
 }
-
-/// Durable resource → credential ownership, namespaced per provider.
-/// Host-provided over shared persistence — bindings must survive restarts
-/// and be visible to every instance, so there is no default impl.
-pub trait BindingStore {
-    fn save<'a>(
-        &'a self,
-        kind: &'static str,
-        id: &'a str,
-        credential: CredentialId,
-        summary: Value,
-    ) -> BoxFuture<'a, Result<(), StateError>>;
-    fn find<'a>(
-        &'a self,
-        kind: &'static str,
-        id: &'a str,
-    ) -> BoxFuture<'a, Result<Option<Binding>, StateError>>;
-    fn delete<'a>(
-        &'a self,
-        kind: &'static str,
-        id: &'a str,
-    ) -> BoxFuture<'a, Result<(), StateError>>;
-    fn list<'a>(
-        &'a self,
-        kind: &'static str,
-        page: Page,
-    ) -> BoxFuture<'a, Result<Vec<Binding>, StateError>>;
-}
-
-#[derive(Debug, Clone)]
-pub struct Binding {
-    pub kind: String,
-    pub id: String,
-    pub credential: CredentialId,
-    /// Resource metadata for local list synthesis (v2 answered
-    /// `/tasks/list` from this without fanning out upstream).
-    pub summary: Value,
-    pub created_at_unix: i64,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Page {
-    pub cursor: Option<String>,
-    pub limit: u32,
-}
-
-/// Who is asking (read-only).
-#[derive(Debug, Clone)]
-pub struct CallerIdentity {
-    pub user_id: i64,
-    pub user_key_id: i64,
-    pub org_id: Option<i64>,
-    pub team_id: Option<i64>,
-}
-
-/// The provider this surface serves (read-only).
-pub struct ProviderView<'a> {
-    pub id: i64,
-    pub name: &'a str,
-    pub settings: &'a Value,
-}
-
-/// Read-only local usage aggregates, scoped to (caller, provider) — what
-/// virtual quota-window synthesis reads. Fixed methods on purpose; grows
-/// only when a real synthesizer needs more.
-pub trait UsageView {
-    fn window<'a>(&'a self, since_unix: i64) -> BoxFuture<'a, Result<UsageWindow, StateError>>;
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct UsageWindow {
-    pub cost: Decimal,
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-}
-
-/// Failures from host-provided surface state (bindings, usage views).
-#[derive(Debug, thiserror::Error)]
-#[error("surface state: {0}")]
-pub struct StateError(pub String);

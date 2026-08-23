@@ -12,6 +12,7 @@
 //! and `#[non_exhaustive]` otherwise; see Cargo.toml.
 
 pub mod operation;
+mod path;
 pub mod spec;
 mod specs;
 
@@ -21,7 +22,8 @@ mod tests;
 pub use operation::{
     ContentGenerationKind, Operation, OperationGroup, OperationKey, OperationKind, WireFamily,
 };
+pub use path::{match_ingress, match_path};
 pub use spec::{
     Affinity, Ingress, Matched, OperationSpec, PathPattern, Seg, SettleMode, StreamDetect,
-    match_ingress, streaming_sibling,
+    streaming_sibling,
 };

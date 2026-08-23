@@ -1,6 +1,10 @@
+mod bindings;
 mod channel;
 mod memory;
 mod services;
+mod surface;
+mod surface_engine;
+mod surface_harness;
 
 use std::future::Future;
 use std::task::{Context, Poll, Waker};
@@ -155,6 +159,7 @@ fn request(stream: bool, id: &str) -> RequestCtx {
         query: None,
         headers: HeaderMap::new(),
         body: Bytes::from(format!(r#"{{"model":"alias","stream":{stream}}}"#)),
+        upgrade: false,
         mode: RoutingMode::Aggregated,
     }
 }

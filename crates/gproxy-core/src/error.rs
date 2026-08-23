@@ -6,7 +6,7 @@
 
 use http::StatusCode;
 
-use gproxy_channel_api::ChannelError;
+use gproxy_channel_api::{ChannelError, StateError};
 
 /// Wire transport failures — defined at the contract layer, re-exported
 /// here so `CoreError::Transport` and host code share one type.
@@ -40,6 +40,8 @@ pub enum CoreError {
     Store(#[from] StoreError),
     #[error(transparent)]
     Channel(#[from] ChannelError),
+    #[error(transparent)]
+    SurfaceState(#[from] StateError),
     #[error("internal: {0}")]
     Internal(String),
 }
@@ -64,6 +66,7 @@ impl CoreError {
             Self::Channel(ChannelError::Prepare(_) | ChannelError::Decode(_)) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
+            Self::SurfaceState(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 

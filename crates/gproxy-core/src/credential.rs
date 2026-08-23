@@ -62,6 +62,11 @@ async fn load_checked<H: Host>(
     channel: &str,
 ) -> Result<CredentialRecord, CoreError> {
     let record = host.credentials().load(id).await?;
+    if record.id != id {
+        return Err(CoreError::Internal(
+            "credential store returned the wrong credential".into(),
+        ));
+    }
     if record.channel != channel {
         return Err(CoreError::Internal(
             "credential channel does not match its provider".into(),

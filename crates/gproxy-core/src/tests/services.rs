@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use gproxy_channel_api::{BoxFuture, TransportError, WsDuplex};
+use gproxy_channel_api::{
+    BoxFuture, StateError, TransportError, UsageView, UsageWindow, WsDuplex, WsFrame,
+};
 use serde_json::json;
 
 use super::memory::MemoryHost;
@@ -57,11 +59,23 @@ impl CredentialStore for MemoryHost {
 }
 
 impl CacheBackend for MemoryHost {
-    fn get<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Option<Vec<u8>>> {
-        Box::pin(async { None })
+    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Option<Vec<u8>>> {
+        let value = self
+            .state
+            .lock()
+            .expect("state lock")
+            .cache
+            .get(key)
+            .cloned();
+        Box::pin(async move { value })
     }
 
-    fn set<'a>(&'a self, _: &'a str, _: Vec<u8>, _: Option<Duration>) -> BoxFuture<'a, ()> {
+    fn set<'a>(&'a self, key: &'a str, value: Vec<u8>, ttl: Option<Duration>) -> BoxFuture<'a, ()> {
+        let mut state = self.state.lock().expect("state lock");
+        state.cache.insert(key.into(), value);
+        if let Some(ttl) = ttl {
+            state.cache_ttls.insert(key.into(), ttl.as_secs());
+        }
         Box::pin(async {})
     }
 
@@ -111,7 +125,29 @@ impl UpstreamTransport for MemoryHost {
         &'a self,
         _: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
-        Box::pin(async { Err(TransportError::Connect("unused".into())) })
+        self.state.lock().expect("state lock").socket_opens += 1;
+        let socket: Box<dyn WsDuplex> = Box::new(self.clone());
+        Box::pin(async move { Ok(socket) })
+    }
+}
+
+impl WsDuplex for MemoryHost {
+    fn send<'a>(&'a mut self, frame: WsFrame) -> BoxFuture<'a, Result<(), TransportError>> {
+        if matches!(frame, WsFrame::Close(_)) {
+            self.state.lock().expect("state lock").socket_closed = true;
+        }
+        Box::pin(async { Ok(()) })
+    }
+
+    fn recv<'a>(&'a mut self) -> BoxFuture<'a, Result<Option<WsFrame>, TransportError>> {
+        let mut state = self.state.lock().expect("state lock");
+        let frame = if state.socket_closed {
+            None
+        } else {
+            state.socket_closed = true;
+            Some(WsFrame::Close(Some(1000)))
+        };
+        Box::pin(async move { Ok(frame) })
     }
 }
 
@@ -134,5 +170,11 @@ impl CaptureSink for MemoryHost {
             .captures
             .push((capture.response_status, capture.response_body.clone()));
         Box::pin(async {})
+    }
+}
+
+impl UsageView for MemoryHost {
+    fn window<'a>(&'a self, _: i64) -> BoxFuture<'a, Result<UsageWindow, StateError>> {
+        Box::pin(async { Ok(UsageWindow::default()) })
     }
 }

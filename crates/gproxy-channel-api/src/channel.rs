@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::BoxFuture;
 use crate::disposition::Disposition;
-use crate::surface::SurfaceTable;
+use crate::surface::{SurfaceRequest, SurfaceTable};
 use crate::usage::NormalizedUsage;
 
 #[derive(Debug, thiserror::Error)]
@@ -128,6 +128,22 @@ pub trait Channel: Send + Sync {
     ) -> Option<BoxFuture<'a, Result<Value, ChannelError>>> {
         let _ = (secret, http);
         None
+    }
+
+    /// Prepare a provider control-plane request declared by a surface entry.
+    /// These paths have no [`OperationKey`], so they cannot use
+    /// [`Channel::prepare`].
+    fn prepare_surface(
+        &self,
+        request: &SurfaceRequest,
+        websocket: bool,
+        provider_settings: &Value,
+        secret: &Value,
+    ) -> Result<PreparedRequest, ChannelError> {
+        let _ = (request, websocket, provider_settings, secret);
+        Err(ChannelError::Prepare(
+            "channel does not prepare surface requests".into(),
+        ))
     }
 
     /// The service-surface table this channel brings (emulated vendor

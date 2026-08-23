@@ -2,6 +2,7 @@ use bytes::Bytes;
 use gproxy_channel_api::{
     BoxFuture, Channel, ChannelDescriptor, ChannelError, Disposition, Frame, NormalizedUsage,
     PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamDecoder, StreamTail,
+    SurfaceRequest, SurfaceTable,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
@@ -85,6 +86,34 @@ impl Channel for MemoryHost {
             serde_json::from_slice(response.body())
                 .map_err(|error| ChannelError::Refresh(error.to_string()))
         }))
+    }
+
+    fn prepare_surface(
+        &self,
+        request: &SurfaceRequest,
+        websocket: bool,
+        _: &serde_json::Value,
+        secret: &serde_json::Value,
+    ) -> Result<PreparedRequest, ChannelError> {
+        let token = secret["access_token"]
+            .as_str()
+            .ok_or_else(|| ChannelError::Secret("access_token missing".into()))?;
+        let mut uri = format!("https://upstream.test{}", request.upstream_path);
+        if let Some(query) = &request.query {
+            uri.push('?');
+            uri.push_str(query);
+        }
+        let request = http::Request::builder()
+            .method(&request.method)
+            .uri(uri)
+            .header(http::header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(request.body.clone())
+            .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+        Ok(PreparedRequest { request, websocket })
+    }
+
+    fn surfaces(&self) -> SurfaceTable {
+        super::surface::table()
     }
 }
 

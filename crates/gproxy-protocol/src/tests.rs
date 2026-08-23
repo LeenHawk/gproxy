@@ -1,7 +1,8 @@
 use http::Method;
 
+use crate::match_ingress;
 use crate::operation::Operation;
-use crate::spec::{Seg, match_ingress, streaming_sibling};
+use crate::spec::{Seg, streaming_sibling};
 use crate::specs::REGISTRY;
 
 #[test]
