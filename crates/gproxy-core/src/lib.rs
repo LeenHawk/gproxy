@@ -30,6 +30,7 @@ mod funnel_socket;
 mod funnel_stream;
 mod invoke;
 mod request;
+mod resource;
 mod settlement;
 mod surface;
 mod surface_affinity;

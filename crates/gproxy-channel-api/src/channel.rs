@@ -21,15 +21,36 @@ pub enum ChannelError {
     Decode(String),
 }
 
-/// Identity and capability card. `supports` is the channel's declared
-/// operation table — the engine consults it before routing, the console
-/// renders it from the runtime catalog (no hand-maintained frontend copy).
+/// One declared route through a channel: the client's wire shape and the
+/// native wire shape the channel receives after any transform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChannelSupport {
+    pub source: OperationKey,
+    pub target: OperationKey,
+}
+
+impl ChannelSupport {
+    pub const fn passthrough(key: OperationKey) -> Self {
+        Self {
+            source: key,
+            target: key,
+        }
+    }
+
+    pub const fn transform(source: OperationKey, target: OperationKey) -> Self {
+        Self { source, target }
+    }
+}
+
+/// Identity and capability card. `supports` is the channel's declared route
+/// table — the engine consults it before routing, and the console renders it
+/// from the runtime catalog (no hand-maintained frontend copy).
 #[derive(Debug)]
 pub struct ChannelDescriptor {
     /// Stable id: `"openai"`, `"claudecode"`, `"codex"`.
     pub id: &'static str,
     pub display_name: &'static str,
-    pub supports: &'static [OperationKey],
+    pub supports: &'static [ChannelSupport],
 }
 
 /// Everything `prepare` may read. Borrowed views: preparation copies
@@ -64,6 +85,23 @@ pub struct ResponseView<'a> {
     pub body: &'a [u8],
 }
 
+/// Context for constructing a per-response stream decoder. Usage observers
+/// may need request parameters (audio format) and response metadata while
+/// still returning an owned state machine.
+pub struct StreamCtx<'a> {
+    pub key: OperationKey,
+    pub request_body: &'a Bytes,
+    pub response_headers: &'a http::HeaderMap,
+}
+
+/// The complete buffered exchange visible to usage extraction.
+pub struct UsageCtx<'a> {
+    pub key: OperationKey,
+    pub request_body: &'a Bytes,
+    pub response_headers: &'a http::HeaderMap,
+    pub response_body: &'a [u8],
+}
+
 /// One decoded stream frame, zero-copy where the wire allows.
 #[derive(Debug)]
 pub struct Frame(pub Bytes);
@@ -71,13 +109,18 @@ pub struct Frame(pub Bytes);
 /// What a finished stream reports.
 #[derive(Debug, Default)]
 pub struct StreamTail {
+    /// Frames completed only when the decoder observed EOF, such as an SSE
+    /// event whose final blank-line delimiter was omitted.
+    pub frames: Vec<Frame>,
     pub usage: Option<NormalizedUsage>,
 }
 
 /// Stateful per-response stream decoder (SSE, AWS event-stream, ...).
-/// A pure state machine: chunks in, frames out, tail at the end.
+/// A pure state machine: owned chunks in, frames out, tail at the end. Owning
+/// the chunk lets an observe-only decoder relay it as a [`Frame`] without a
+/// copy while still collecting usage state.
 pub trait StreamDecoder: Send {
-    fn push(&mut self, chunk: &[u8]) -> Result<Vec<Frame>, ChannelError>;
+    fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError>;
     fn finish(&mut self) -> StreamTail;
 }
 
@@ -104,13 +147,13 @@ pub trait Channel: Send + Sync {
 
     /// A decoder when this operation's response streams in a shape the
     /// engine cannot treat as opaque bytes; `None` = pass through.
-    fn stream_decoder(&self, key: OperationKey) -> Option<Box<dyn StreamDecoder>> {
-        let _ = key;
+    fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
+        let _ = ctx;
         None
     }
 
     /// Pull usage out of a buffered response body.
-    fn extract_usage(&self, key: OperationKey, body: &[u8]) -> Option<NormalizedUsage>;
+    fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage>;
 
     /// Unix time after which the secret should be refreshed proactively;
     /// `None` = this channel's credentials never refresh.

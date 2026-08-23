@@ -65,7 +65,15 @@ fn streaming_invoke_settles_inline_before_eof_without_a_spawner() -> Result<(), 
         panic!("streaming request returned a buffered body");
     };
     block_on(async {
-        assert!(stream.next().await.expect("one frame").is_ok());
+        assert!(stream.next().await.expect("body frame").is_ok());
+        assert_eq!(
+            stream
+                .next()
+                .await
+                .expect("decoder tail")
+                .expect("tail frame"),
+            Bytes::from_static(b"tail")
+        );
         assert!(stream.next().await.is_none());
     });
 
@@ -73,6 +81,101 @@ fn streaming_invoke_settles_inline_before_eof_without_a_spawner() -> Result<(), 
     assert_eq!(state.settlements.len(), 1);
     assert_eq!(state.settlements[0].ended, Ended::Complete);
     assert_eq!(state.captures.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn media_stream_detection_covers_json_values_and_multipart_flags() {
+    let cases = [
+        (
+            "/v1/audio/speech",
+            "application/json",
+            Bytes::from_static(br#"{"stream_format":"sse"}"#),
+        ),
+        (
+            "/v1/audio/transcriptions",
+            "multipart/form-data; boundary=x",
+            Bytes::from_static(
+                b"--x\r\nContent-Disposition: form-data; name=\"stream\"\r\n\r\ntrue\r\n--x--\r\n",
+            ),
+        ),
+        (
+            "/v1/images/edits",
+            "multipart/form-data; boundary=x",
+            Bytes::from_static(
+                b"--x\r\nContent-Disposition: form-data; name=\"stream\"\r\n\r\nTRUE\r\n--x--\r\n",
+            ),
+        ),
+    ];
+    for (path, content_type, body) in cases {
+        let mut request = request(false, path);
+        request.path = path.into();
+        request.body = body;
+        request.headers.insert(
+            http::header::CONTENT_TYPE,
+            content_type.parse().expect("content type"),
+        );
+        assert!(
+            crate::request::classify(&request)
+                .expect("classified")
+                .stream
+        );
+    }
+}
+
+#[test]
+fn resource_operations_persist_pin_and_delete_credential_bindings() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let core = core(&host)?;
+    let mut create = request(false, "file-create");
+    create.path = "/v1/files".into();
+    create.body = Bytes::new();
+    block_on(core.execute(&host, create)).expect("create file");
+    assert!(
+        host.state
+            .lock()
+            .expect("state lock")
+            .bindings
+            .contains_key(&(3, 1, "file".into(), "file-1".into()))
+    );
+
+    let mut other = target();
+    other.credential = CredentialId(8);
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![other, target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let mut retrieve = request(false, "file-retrieve");
+    retrieve.method = Method::GET;
+    retrieve.path = "/v1/files/file-1".into();
+    retrieve.body = Bytes::new();
+    block_on(core.execute(&host, retrieve)).expect("retrieve bound file");
+    assert_eq!(
+        host.state
+            .lock()
+            .expect("state lock")
+            .loaded_credentials
+            .last(),
+        Some(&CredentialId(7))
+    );
+
+    let mut delete = request(false, "file-delete");
+    delete.method = Method::DELETE;
+    delete.path = "/v1/files/file-1".into();
+    delete.body = Bytes::new();
+    block_on(core.execute(&host, delete)).expect("delete bound file");
+    assert!(
+        !host
+            .state
+            .lock()
+            .expect("state lock")
+            .bindings
+            .contains_key(&(3, 1, "file".into(), "file-1".into()))
+    );
     Ok(())
 }
 

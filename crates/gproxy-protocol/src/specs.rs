@@ -39,6 +39,7 @@ const FAM_CLA: OperationKind = OperationKind::Family(Claude);
 const FAM_GEM: OperationKind = OperationKind::Family(Gemini);
 const NEVER: StreamDetect = StreamDetect::Never;
 const BODY_STREAM: StreamDetect = StreamDetect::BodyFlag("stream");
+const BODY_OR_FORM_STREAM: StreamDetect = StreamDetect::BodyFlagOrMultipart("stream");
 
 const fn free(ingress: &'static [Ingress]) -> OperationSpec {
     OperationSpec {
@@ -61,6 +62,22 @@ const fn file_op(ingress: &'static [Ingress]) -> OperationSpec {
         ingress,
         settle: SettleMode::Free,
         affinity: Affinity::Resource("file"),
+    }
+}
+
+const fn video_op(ingress: &'static [Ingress]) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::Free,
+        affinity: Affinity::Resource("video"),
+    }
+}
+
+const fn video_character_op(ingress: &'static [Ingress]) -> OperationSpec {
+    OperationSpec {
+        ingress,
+        settle: SettleMode::Free,
+        affinity: Affinity::Resource("video_character"),
     }
 }
 
@@ -192,7 +209,7 @@ const EDIT_IMAGE: OperationSpec = billed(
         POST,
         &[Lit("v1"), Lit("images"), Lit("edits")],
         FAM_OAI,
-        BODY_STREAM,
+        BODY_OR_FORM_STREAM,
     )],
     Affinity::None,
 );
@@ -201,7 +218,7 @@ const SPEECH: OperationSpec = billed(
         POST,
         &[Lit("v1"), Lit("audio"), Lit("speech")],
         FAM_OAI,
-        NEVER,
+        StreamDetect::BodyValue("stream_format", "sse"),
     )],
     Affinity::None,
 );
@@ -210,7 +227,7 @@ const TRANSCRIBE: OperationSpec = billed(
         POST,
         &[Lit("v1"), Lit("audio"), Lit("transcriptions")],
         FAM_OAI,
-        NEVER,
+        BODY_OR_FORM_STREAM,
     )],
     Affinity::None,
 );
@@ -225,7 +242,7 @@ const TRANSLATE: OperationSpec = billed(
 );
 const CREATE_FILE: OperationSpec =
     file_op(&[ing(POST, &[Lit("v1"), Lit("files")], FAM_OAI, NEVER)]);
-const LIST_FILES: OperationSpec = free(&[ing(GET, &[Lit("v1"), Lit("files")], FAM_OAI, NEVER)]);
+const LIST_FILES: OperationSpec = file_op(&[ing(GET, &[Lit("v1"), Lit("files")], FAM_OAI, NEVER)]);
 const RETRIEVE_FILE: OperationSpec = file_op(&[ing(
     GET,
     &[Lit("v1"), Lit("files"), Param("id")],
@@ -244,11 +261,8 @@ const DELETE_FILE: OperationSpec = file_op(&[ing(
     FAM_OAI,
     NEVER,
 )]);
-const CREATE_VIDEO: OperationSpec = OperationSpec {
-    ingress: &[ing(POST, &[Lit("v1"), Lit("videos")], FAM_OAI, NEVER)],
-    settle: SettleMode::Free,
-    affinity: Affinity::Resource("video"),
-};
+const CREATE_VIDEO: OperationSpec =
+    video_op(&[ing(POST, &[Lit("v1"), Lit("videos")], FAM_OAI, NEVER)]);
 const RETRIEVE_VIDEO: OperationSpec = OperationSpec {
     ingress: &[ing(
         GET,
@@ -259,6 +273,50 @@ const RETRIEVE_VIDEO: OperationSpec = OperationSpec {
     settle: SettleMode::OnCompletedStatus,
     affinity: Affinity::Resource("video"),
 };
+const LIST_VIDEOS: OperationSpec =
+    video_op(&[ing(GET, &[Lit("v1"), Lit("videos")], FAM_OAI, NEVER)]);
+const DELETE_VIDEO: OperationSpec = video_op(&[ing(
+    DELETE,
+    &[Lit("v1"), Lit("videos"), Param("id")],
+    FAM_OAI,
+    NEVER,
+)]);
+const VIDEO_CONTENT: OperationSpec = video_op(&[ing(
+    GET,
+    &[Lit("v1"), Lit("videos"), Param("id"), Lit("content")],
+    FAM_OAI,
+    NEVER,
+)]);
+const REMIX_VIDEO: OperationSpec = video_op(&[ing(
+    POST,
+    &[Lit("v1"), Lit("videos"), Param("id"), Lit("remix")],
+    FAM_OAI,
+    NEVER,
+)]);
+const CREATE_VIDEO_CHARACTER: OperationSpec = video_character_op(&[ing(
+    POST,
+    &[Lit("v1"), Lit("videos"), Lit("characters")],
+    FAM_OAI,
+    NEVER,
+)]);
+const GET_VIDEO_CHARACTER: OperationSpec = video_character_op(&[ing(
+    GET,
+    &[Lit("v1"), Lit("videos"), Lit("characters"), Param("id")],
+    FAM_OAI,
+    NEVER,
+)]);
+const EDIT_VIDEO: OperationSpec = video_op(&[ing(
+    POST,
+    &[Lit("v1"), Lit("videos"), Lit("edits")],
+    FAM_OAI,
+    NEVER,
+)]);
+const EXTEND_VIDEO: OperationSpec = video_op(&[ing(
+    POST,
+    &[Lit("v1"), Lit("videos"), Lit("extensions")],
+    FAM_OAI,
+    NEVER,
+)]);
 
 // The SDP answer carries no usage; realtime usage arrives on the session's
 // event stream (proxied WS) — or not at all when WebRTC media bypasses the
@@ -275,7 +333,7 @@ const REALTIME_CALL: OperationSpec = OperationSpec {
     affinity: Affinity::Resource("realtime_call"),
 };
 
-pub(crate) static REGISTRY: [(Operation, OperationSpec); 22] = [
+pub(crate) static REGISTRY: [(Operation, OperationSpec); 30] = [
     (Operation::ListModels, LIST_MODELS),
     (Operation::GetModel, GET_MODEL),
     (Operation::CountTokens, COUNT_TOKENS),
@@ -297,6 +355,14 @@ pub(crate) static REGISTRY: [(Operation, OperationSpec); 22] = [
     (Operation::DeleteFile, DELETE_FILE),
     (Operation::CreateVideo, CREATE_VIDEO),
     (Operation::RetrieveVideo, RETRIEVE_VIDEO),
+    (Operation::ListVideos, LIST_VIDEOS),
+    (Operation::DeleteVideo, DELETE_VIDEO),
+    (Operation::DownloadVideoContent, VIDEO_CONTENT),
+    (Operation::RemixVideo, REMIX_VIDEO),
+    (Operation::CreateVideoCharacter, CREATE_VIDEO_CHARACTER),
+    (Operation::GetVideoCharacter, GET_VIDEO_CHARACTER),
+    (Operation::EditVideo, EDIT_VIDEO),
+    (Operation::ExtendVideo, EXTEND_VIDEO),
     (Operation::CreateRealtimeCall, REALTIME_CALL),
 ];
 
@@ -325,7 +391,15 @@ pub(crate) fn spec(operation: Operation) -> &'static OperationSpec {
         DeleteFile => 18,
         CreateVideo => 19,
         RetrieveVideo => 20,
-        CreateRealtimeCall => 21,
+        ListVideos => 21,
+        DeleteVideo => 22,
+        DownloadVideoContent => 23,
+        RemixVideo => 24,
+        CreateVideoCharacter => 25,
+        GetVideoCharacter => 26,
+        EditVideo => 27,
+        ExtendVideo => 28,
+        CreateRealtimeCall => 29,
     };
     &REGISTRY[index].1
 }

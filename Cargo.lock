@@ -578,6 +578,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-channels"
+version = "3.0.0-alpha.0"
+dependencies = [
+ "bytes",
+ "gproxy-channel-api",
+ "gproxy-protocol",
+ "http",
+ "rust_decimal",
+ "serde_json",
+]
+
+[[package]]
 name = "gproxy-core"
 version = "3.0.0-alpha.0"
 dependencies = [

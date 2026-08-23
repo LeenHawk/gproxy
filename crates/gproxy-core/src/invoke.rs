@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::api::Core;
-use crate::attempt::{self, Failure};
+use crate::attempt::{self, AdmissionCtx, Failure};
 use crate::boundary::{ExecOutcome, RequestCtx};
 use crate::control::{ControlPlane, Target};
 use crate::error::CoreError;
@@ -16,11 +16,20 @@ pub(crate) async fn run<H: Host>(
 ) -> Result<ExecOutcome, CoreError> {
     let started = Instant::now();
     let classified = crate::request::classify(&ctx)?;
-    if !attempt::supports(core, target, classified.key)? {
-        return Err(CoreError::Unsupported);
-    }
-    let prepared =
-        attempt::prepare(core, control, target, &ctx, &classified, false, started).await?;
+    attempt::native_support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
+    let prepared = attempt::prepare(
+        core,
+        control,
+        target,
+        &ctx,
+        &classified,
+        AdmissionCtx {
+            admitted: false,
+            owner_user_id: None,
+        },
+        started,
+    )
+    .await?;
     match attempt::send(core, prepared, &classified).await {
         Ok(completed) => Ok(attempt::finish(core, completed).await),
         Err(Failure::Transport { facts, error }) => {
@@ -31,6 +40,7 @@ pub(crate) async fn run<H: Host>(
             channel,
             facts,
             status,
+            headers,
             body,
             error,
         }) => {
@@ -38,7 +48,7 @@ pub(crate) async fn run<H: Host>(
                 .channels
                 .get(channel)
                 .expect("attempt channel remains registered");
-            funnel::interrupted(core.host.as_ref(), channel, facts, status, body).await;
+            funnel::interrupted(core.host.as_ref(), channel, facts, status, headers, body).await;
             Err(error.into())
         }
     }

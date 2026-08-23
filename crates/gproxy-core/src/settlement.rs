@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, NormalizedUsage};
+use gproxy_channel_api::{Channel, NormalizedUsage, UsageCtx};
 use gproxy_protocol::SettleMode;
 use rust_decimal::Decimal;
 
@@ -87,30 +87,26 @@ pub(crate) async fn complete<H: Host>(
 pub(crate) fn usage(
     channel: &dyn Channel,
     ctx: &FunnelCtx,
+    response_headers: &http::HeaderMap,
     body: &[u8],
 ) -> (bool, Option<NormalizedUsage>) {
+    let extract = || {
+        channel.extract_usage(UsageCtx {
+            key: ctx.key.expect("billable funnel has an operation"),
+            request_body: &ctx.request_body,
+            response_headers,
+            response_body: body,
+        })
+    };
     match ctx.settle {
         SettleMode::Free => (false, None),
-        SettleMode::OnResponse => (
-            true,
-            channel.extract_usage(ctx.key.expect("billable funnel has an operation"), body),
-        ),
+        SettleMode::OnResponse => (true, extract()),
         SettleMode::OnCompletedStatus => {
             let completed = serde_json::from_slice::<serde_json::Value>(body)
                 .ok()
                 .and_then(|body| body.get("status")?.as_str().map(str::to_owned))
                 .is_some_and(|status| status == "completed");
-            (
-                completed,
-                completed
-                    .then(|| {
-                        channel.extract_usage(
-                            ctx.key.expect("completed-status funnel has an operation"),
-                            body,
-                        )
-                    })
-                    .flatten(),
-            )
+            (completed, completed.then(extract).flatten())
         }
     }
 }

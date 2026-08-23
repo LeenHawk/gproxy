@@ -1,8 +1,8 @@
 use http::Method;
 
 use crate::match_ingress;
-use crate::operation::Operation;
-use crate::spec::{Seg, streaming_sibling};
+use crate::operation::{Operation, OperationGroup};
+use crate::spec::{Affinity, Seg, SettleMode, streaming_sibling};
 use crate::specs::REGISTRY;
 
 #[test]
@@ -29,6 +29,10 @@ fn ingress_registry_matches_canonical_paths() {
         (&Method::GET, "/v1/models/"),
         (&Method::GET, "/v1//models"),
         (&Method::GET, "/v1/models/id/extra"),
+        (&Method::GET, "/v1/videos/id/extra"),
+        (&Method::GET, "/v1/videos/id/remix"),
+        (&Method::POST, "/v1/videos/id/content"),
+        (&Method::DELETE, "/v1/videos/characters/id"),
         (&Method::POST, "/v1beta/models/:generateContent"),
         (&Method::POST, "/v1beta/models/model:wrongAction"),
     ] {
@@ -48,6 +52,50 @@ fn ingress_registry_matches_canonical_paths() {
     );
     assert_eq!(streaming_sibling(Operation::CreateImage), None);
     assert_eq!(streaming_sibling(Operation::EditImage), None);
+}
+
+#[test]
+fn video_specs_keep_job_settlement_and_resource_affinity() {
+    use Operation::*;
+
+    for operation in [
+        CreateVideo,
+        RetrieveVideo,
+        ListVideos,
+        DeleteVideo,
+        DownloadVideoContent,
+        RemixVideo,
+        CreateVideoCharacter,
+        GetVideoCharacter,
+        EditVideo,
+        ExtendVideo,
+    ] {
+        assert_eq!(operation.group(), OperationGroup::Video);
+    }
+
+    assert_eq!(RetrieveVideo.spec().settle, SettleMode::OnCompletedStatus);
+    assert_eq!(RetrieveVideo.spec().affinity, Affinity::Resource("video"));
+    assert_eq!(ListVideos.spec().settle, SettleMode::Free);
+    assert_eq!(ListVideos.spec().affinity, Affinity::Resource("video"));
+    for operation in [
+        CreateVideo,
+        ListVideos,
+        DeleteVideo,
+        DownloadVideoContent,
+        RemixVideo,
+        EditVideo,
+        ExtendVideo,
+    ] {
+        assert_eq!(operation.spec().settle, SettleMode::Free);
+        assert_eq!(operation.spec().affinity, Affinity::Resource("video"));
+    }
+    for operation in [CreateVideoCharacter, GetVideoCharacter] {
+        assert_eq!(operation.spec().settle, SettleMode::Free);
+        assert_eq!(
+            operation.spec().affinity,
+            Affinity::Resource("video_character")
+        );
+    }
 }
 
 fn example_path(pattern: &[Seg]) -> (String, Vec<(&'static str, String)>) {

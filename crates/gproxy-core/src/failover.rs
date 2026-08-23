@@ -4,7 +4,7 @@ use std::time::Instant;
 use gproxy_channel_api::{ChannelError, Disposition};
 
 use crate::api::Core;
-use crate::attempt::{self, Failure};
+use crate::attempt::{self, AdmissionCtx, Failure};
 use crate::boundary::{ExecOutcome, RequestCtx};
 use crate::control::{ControlPlane, Plan};
 use crate::error::CoreError;
@@ -18,6 +18,7 @@ pub(crate) async fn run<H: Host>(
     ctx: RequestCtx,
     plan: Plan,
     classified: Classified,
+    owner_user_id: i64,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
     if plan.targets.is_empty() {
@@ -28,6 +29,7 @@ pub(crate) async fn run<H: Host>(
             "attempt budget is zero".into(),
         ));
     }
+    let resource_pins = crate::resource::pins(core, &plan, &classified, owner_user_id).await?;
 
     let mut attempts = 0;
     let mut supported = false;
@@ -41,12 +43,27 @@ pub(crate) async fn run<H: Host>(
         if dead.contains(&target.credential) {
             continue;
         }
-        if !attempt::supports(core, target, classified.key)? {
+        if resource_pins
+            .as_ref()
+            .is_some_and(|pins| pins.get(&target.provider.id) != Some(&target.credential))
+        {
+            continue;
+        }
+        let Some(support) = attempt::support(core, target, classified.key)? else {
+            continue;
+        };
+        if support.source != support.target {
             continue;
         }
         supported = true;
+        let admission = AdmissionCtx {
+            admitted: true,
+            owner_user_id: Some(owner_user_id),
+        };
         let prepared =
-            match attempt::prepare(core, control, target, &ctx, &classified, true, started).await {
+            match attempt::prepare(core, control, target, &ctx, &classified, admission, started)
+                .await
+            {
                 Ok(prepared) => prepared,
                 Err(CoreError::Channel(ChannelError::Secret(_))) => {
                     dead.insert(target.credential);

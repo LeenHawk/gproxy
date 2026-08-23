@@ -20,6 +20,10 @@ use crate::host::Host;
 pub enum InitError {
     #[error("channel `{channel}` declares service surfaces but the host provides no binding store")]
     SurfacesWithoutBindings { channel: &'static str },
+    #[error(
+        "channel `{channel}` declares resource affinity but the host provides no binding store"
+    )]
+    ResourceAffinityWithoutBindings { channel: &'static str },
 }
 
 /// The engine. Generic over the host so everything is statically
@@ -32,9 +36,9 @@ pub struct Core<H: Host> {
 impl<H: Host> Core<H> {
     /// Assemble the engine. Fails loudly at startup when a registered
     /// channel declares a service-surface table but the host provides no
-    /// [`gproxy_channel_api::BindingStore`] — stateful surfaces silently
-    /// degrading (or fragmenting across instances) is exactly the class
-    /// of bug this constructor refuses to ship.
+    /// [`gproxy_channel_api::BindingStore`] — stateful surfaces and
+    /// resource-affinity operations silently degrading (or fragmenting across
+    /// instances) is exactly the class of bug this constructor refuses to ship.
     pub fn new(host: H, channels: ChannelRegistry) -> Result<Self, InitError> {
         if host.bindings().is_none()
             && let Some(channel) = channels
@@ -42,6 +46,20 @@ impl<H: Host> Core<H> {
                 .find(|channel| !channel.surfaces().0.is_empty())
         {
             return Err(InitError::SurfacesWithoutBindings {
+                channel: channel.descriptor().id,
+            });
+        }
+        if host.bindings().is_none()
+            && let Some(channel) = channels.iter().find(|channel| {
+                channel.descriptor().supports.iter().any(|support| {
+                    matches!(
+                        support.source.operation.spec().affinity,
+                        gproxy_protocol::Affinity::Resource(_)
+                    )
+                })
+            })
+        {
+            return Err(InitError::ResourceAffinityWithoutBindings {
                 channel: channel.descriptor().id,
             });
         }

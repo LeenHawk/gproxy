@@ -25,6 +25,8 @@ pub(crate) struct FunnelCtx {
     pub upstream_url: Option<String>,
     pub request_body: Bytes,
     pub dedupe_key: Option<String>,
+    pub owner_user_id: Option<i64>,
+    pub resource: Option<(&'static str, String)>,
     pub admitted: bool,
     pub surface_label: Option<&'static str>,
 }
@@ -37,7 +39,8 @@ pub(crate) async fn buffered<H: Host>(
     disposition: Disposition,
 ) -> ExecOutcome {
     let (parts, body) = response.into_parts();
-    let (record_usage, usage) = crate::settlement::usage(channel, &ctx, &body);
+    let (record_usage, usage) = crate::settlement::usage(channel, &ctx, &parts.headers, &body);
+    crate::resource::observe(host, &ctx, parts.status, &body).await;
     crate::settlement::complete(
         host,
         &ctx,
@@ -139,9 +142,10 @@ pub(crate) async fn interrupted<H: Host>(
     channel: &dyn Channel,
     ctx: FunnelCtx,
     status: http::StatusCode,
+    headers: http::HeaderMap,
     body: Bytes,
 ) {
-    let (record_usage, usage) = crate::settlement::usage(channel, &ctx, &body);
+    let (record_usage, usage) = crate::settlement::usage(channel, &ctx, &headers, &body);
     crate::settlement::complete(
         host,
         &ctx,

@@ -2,7 +2,8 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    Channel, Disposition, PrepareCtx, ResponseView, StreamDecoder, TransportError,
+    Channel, ChannelSupport, Disposition, PrepareCtx, ResponseView, StreamCtx, StreamDecoder,
+    TransportError,
 };
 use gproxy_protocol::OperationKey;
 
@@ -27,6 +28,12 @@ pub(crate) struct Completed {
     body: AttemptBody,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct AdmissionCtx {
+    pub admitted: bool,
+    pub owner_user_id: Option<i64>,
+}
+
 enum AttemptBody {
     Buffered(http::Response<Bytes>),
     Streaming(http::Response<ByteStream>, Option<Box<dyn StreamDecoder>>),
@@ -41,18 +48,32 @@ pub(crate) enum Failure {
         channel: &'static str,
         facts: FunnelCtx,
         status: http::StatusCode,
+        headers: http::HeaderMap,
         body: Bytes,
         error: TransportError,
     },
 }
 
-pub(crate) fn supports<H: Host>(
+pub(crate) fn support<H: Host>(
     core: &Core<H>,
     target: &Target,
     key: OperationKey,
-) -> Result<bool, CoreError> {
+) -> Result<Option<ChannelSupport>, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    Ok(channel.descriptor().supports.contains(&key))
+    Ok(channel
+        .descriptor()
+        .supports
+        .iter()
+        .find(|support| support.source == key)
+        .copied())
+}
+
+pub(crate) fn native_support<H: Host>(
+    core: &Core<H>,
+    target: &Target,
+    key: OperationKey,
+) -> Result<Option<ChannelSupport>, CoreError> {
+    Ok(support(core, target, key)?.filter(|support| support.source == support.target))
 }
 
 pub(crate) async fn prepare<H: Host>(
@@ -61,14 +82,18 @@ pub(crate) async fn prepare<H: Host>(
     target: &Target,
     ctx: &RequestCtx,
     classified: &Classified,
-    admitted: bool,
+    admission: AdmissionCtx,
     started: Instant,
 ) -> Result<Prepared, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
+    let support = support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
+    if !admission.admitted && support.source != support.target {
+        return Err(CoreError::Unsupported);
+    }
     let credential =
         crate::credential::load_fresh(core.host.as_ref(), channel, target.credential).await?;
     let prepared = channel.prepare(PrepareCtx {
-        key: classified.key,
+        key: support.target,
         stream: classified.stream,
         method: &ctx.method,
         path: &ctx.path,
@@ -87,14 +112,18 @@ pub(crate) async fn prepare<H: Host>(
         facts: FunnelCtx {
             request_id: ctx.request_id.clone(),
             target: target.clone(),
-            key: Some(classified.key),
-            settle: classified.settle,
+            key: Some(support.target),
+            settle: support.target.operation.spec().settle,
             pricing: control.pricing(&target.provider, &target.upstream_model),
             started,
             upstream_url: Some(prepared.request.uri().to_string()),
             request_body: prepared.request.body().clone(),
             dedupe_key: classified.dedupe_key(target.provider.id),
-            admitted,
+            owner_user_id: admission.owner_user_id,
+            resource: classified
+                .resource()
+                .map(|(kind, id)| (kind, id.to_owned())),
+            admitted: admission.admitted,
             surface_label: None,
         },
         request: prepared.request,
@@ -121,11 +150,17 @@ pub(crate) async fn send<H: Host>(
         .expect("prepared attempt channel remains registered");
     if classified.stream && response.status().is_success() {
         let disposition = classify(channel, &response, &[]);
+        let key = facts.key.expect("operation attempt has an upstream key");
+        let decoder = channel.stream_decoder(StreamCtx {
+            key,
+            request_body: &facts.request_body,
+            response_headers: response.headers(),
+        });
         return Ok(Completed {
             channel: channel.descriptor().id,
             facts,
             disposition,
-            body: AttemptBody::Streaming(response, channel.stream_decoder(classified.key)),
+            body: AttemptBody::Streaming(response, decoder),
         });
     }
     let response = match crate::attempt_body::collect(response).await {
@@ -135,6 +170,7 @@ pub(crate) async fn send<H: Host>(
                 channel: channel.descriptor().id,
                 facts,
                 status: failure.status,
+                headers: failure.headers,
                 body: failure.body,
                 error: failure.error,
             });

@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelError, Disposition, Frame, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamDecoder, StreamTail,
-    SurfaceRequest, SurfaceTable,
+    BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition, Frame,
+    NormalizedUsage, PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamCtx,
+    StreamDecoder, StreamTail, SurfaceRequest, SurfaceTable, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
@@ -16,7 +16,19 @@ const STREAM_KEY: OperationKey = OperationKey::content(
     Operation::StreamGenerateContent,
     ContentGenerationKind::OpenAiResponses,
 );
-static SUPPORTS: [OperationKey; 2] = [KEY, STREAM_KEY];
+const CREATE_FILE: OperationKey =
+    OperationKey::family(Operation::CreateFile, gproxy_protocol::WireFamily::OpenAi);
+const RETRIEVE_FILE: OperationKey =
+    OperationKey::family(Operation::RetrieveFile, gproxy_protocol::WireFamily::OpenAi);
+const DELETE_FILE: OperationKey =
+    OperationKey::family(Operation::DeleteFile, gproxy_protocol::WireFamily::OpenAi);
+static SUPPORTS: [ChannelSupport; 5] = [
+    ChannelSupport::passthrough(KEY),
+    ChannelSupport::passthrough(STREAM_KEY),
+    ChannelSupport::passthrough(CREATE_FILE),
+    ChannelSupport::passthrough(RETRIEVE_FILE),
+    ChannelSupport::passthrough(DELETE_FILE),
+];
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
     display_name: "Memory",
@@ -34,7 +46,7 @@ impl Channel for MemoryHost {
             .ok_or_else(|| ChannelError::Secret("access_token missing".into()))?;
         let request = http::Request::builder()
             .method(ctx.method)
-            .uri("https://upstream.test/v1/responses")
+            .uri(format!("https://upstream.test{}", ctx.path))
             .header(http::header::AUTHORIZATION, format!("Bearer {token}"))
             .body(ctx.body.clone())
             .map_err(|error| ChannelError::Prepare(error.to_string()))?;
@@ -53,8 +65,8 @@ impl Channel for MemoryHost {
         }
     }
 
-    fn extract_usage(&self, _: OperationKey, body: &[u8]) -> Option<NormalizedUsage> {
-        serde_json::from_slice::<serde_json::Value>(body)
+    fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
+        serde_json::from_slice::<serde_json::Value>(ctx.response_body)
             .ok()?
             .get("usage")?;
         Some(NormalizedUsage {
@@ -64,7 +76,7 @@ impl Channel for MemoryHost {
         })
     }
 
-    fn stream_decoder(&self, _: OperationKey) -> Option<Box<dyn StreamDecoder>> {
+    fn stream_decoder(&self, _: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
         Some(Box::new(self.clone()))
     }
 
@@ -118,12 +130,13 @@ impl Channel for MemoryHost {
 }
 
 impl StreamDecoder for MemoryHost {
-    fn push(&mut self, chunk: &[u8]) -> Result<Vec<Frame>, ChannelError> {
-        Ok(vec![Frame(Bytes::copy_from_slice(chunk))])
+    fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
+        Ok(vec![Frame(chunk)])
     }
 
     fn finish(&mut self) -> StreamTail {
         StreamTail {
+            frames: vec![Frame(Bytes::from_static(b"tail"))],
             usage: Some(NormalizedUsage {
                 input_tokens: 10,
                 output_tokens: 5,

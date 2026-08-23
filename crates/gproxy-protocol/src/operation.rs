@@ -54,6 +54,14 @@ pub enum Operation {
     DeleteFile,
     CreateVideo,
     RetrieveVideo,
+    ListVideos,
+    DeleteVideo,
+    DownloadVideoContent,
+    RemixVideo,
+    CreateVideoCharacter,
+    GetVideoCharacter,
+    EditVideo,
+    ExtendVideo,
     /// SDP handshake creating a WebRTC realtime call (`/v1/realtime/calls`).
     /// The session's WS/observer operations arrive with the round-3
     /// websocket-ingress design.
@@ -134,7 +142,10 @@ impl Operation {
             CreateFile | ListFiles | RetrieveFile | RetrieveFileContent | DeleteFile => {
                 OperationGroup::Files
             }
-            CreateVideo | RetrieveVideo => OperationGroup::Video,
+            CreateVideo | RetrieveVideo | ListVideos | DeleteVideo | DownloadVideoContent
+            | RemixVideo | CreateVideoCharacter | GetVideoCharacter | EditVideo | ExtendVideo => {
+                OperationGroup::Video
+            }
             CreateRealtimeCall => OperationGroup::Realtime,
         }
     }

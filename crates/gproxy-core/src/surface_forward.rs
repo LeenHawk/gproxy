@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use gproxy_channel_api::{Disposition, ResponseView, SurfaceRequest};
+use gproxy_channel_api::{Disposition, ResponseView, StreamCtx, SurfaceRequest};
 use gproxy_protocol::SettleMode;
 
 use crate::api::Core;
@@ -70,7 +70,11 @@ pub(crate) async fn request<H: Host>(
         ))
     })?;
     if let Some(key) = request.key
-        && (!channel.descriptor().supports.contains(&key)
+        && (!channel
+            .descriptor()
+            .supports
+            .iter()
+            .any(|support| support.target == key)
             || key.operation.spec().settle == SettleMode::OnCompletedStatus)
     {
         return Err(CoreError::Unsupported);
@@ -104,6 +108,8 @@ pub(crate) async fn request<H: Host>(
         upstream_url: Some(prepared.request.uri().to_string()),
         request_body: prepared.request.body().clone(),
         dedupe_key: None,
+        owner_user_id: None,
+        resource: None,
         admitted: true,
         surface_label: Some(request.label),
     };
@@ -127,12 +133,17 @@ pub(crate) async fn request<H: Host>(
     if request.stream && response.status().is_success() {
         let disposition = classify(channel, &response, &[]);
         return if let Some(key) = request.key {
+            let decoder = channel.stream_decoder(StreamCtx {
+                key,
+                request_body: &facts.request_body,
+                response_headers: response.headers(),
+            });
             Ok(funnel::streaming(
                 core.host.clone(),
                 facts,
                 response,
                 disposition,
-                channel.stream_decoder(key),
+                decoder,
             ))
         } else {
             let (parts, body) = response.into_parts();

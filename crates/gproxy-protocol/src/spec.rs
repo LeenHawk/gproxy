@@ -36,6 +36,11 @@ pub enum StreamDetect {
     /// A boolean body field (`"stream"`) decides; classification promotes
     /// the operation to its streaming sibling when set.
     BodyFlag(&'static str),
+    /// A string body field must equal the declared value.
+    BodyValue(&'static str, &'static str),
+    /// A boolean field accepted from JSON or a multipart form field. Media
+    /// endpoints arrive as multipart and cannot be classified through JSON.
+    BodyFlagOrMultipart(&'static str),
     /// The endpoint itself is the streaming form (`:streamGenerateContent`).
     Always,
 }
@@ -121,6 +126,14 @@ pub const fn streaming_sibling(operation: Operation) -> Option<Operation> {
         | Operation::DeleteFile
         | Operation::CreateVideo
         | Operation::RetrieveVideo
+        | Operation::ListVideos
+        | Operation::DeleteVideo
+        | Operation::DownloadVideoContent
+        | Operation::RemixVideo
+        | Operation::CreateVideoCharacter
+        | Operation::GetVideoCharacter
+        | Operation::EditVideo
+        | Operation::ExtendVideo
         | Operation::CreateRealtimeCall => None,
     }
 }

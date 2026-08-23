@@ -68,7 +68,7 @@ pub(crate) async fn run<H: Host>(
             )
             .await?
     };
-    finish(core, ctx, selected, reply, started).await
+    finish(core, ctx, selected, reply, identity.user_id, started).await
 }
 
 async fn finish<H: Host>(
@@ -76,6 +76,7 @@ async fn finish<H: Host>(
     request: &RequestCtx,
     selected: Selected,
     reply: gproxy_channel_api::SurfaceReply,
+    owner_user_id: i64,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
     let disposition = if reply.status.is_success() {
@@ -93,6 +94,8 @@ async fn finish<H: Host>(
         upstream_url: None,
         request_body: request.body.clone(),
         dedupe_key: None,
+        owner_user_id: Some(owner_user_id),
+        resource: None,
         admitted: true,
         surface_label: None,
     };

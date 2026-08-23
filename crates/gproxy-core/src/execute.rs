@@ -33,7 +33,16 @@ pub(crate) async fn run<H: Host>(
     {
         return reject(&ctx, Some(classified.key), error);
     }
-    execute_admitted(core, control, ctx, plan, classified, started).await
+    execute_admitted(
+        core,
+        control,
+        ctx,
+        plan,
+        classified,
+        identity.user_id,
+        started,
+    )
+    .await
 }
 
 pub(crate) async fn planned<H: Host>(
@@ -58,7 +67,16 @@ pub(crate) async fn planned<H: Host>(
     {
         return reject(&ctx, Some(classified.key), error);
     }
-    execute_admitted(core, control, ctx, plan, classified, started).await
+    execute_admitted(
+        core,
+        control,
+        ctx,
+        plan,
+        classified,
+        identity.user_id,
+        started,
+    )
+    .await
 }
 
 async fn execute_admitted<H: Host>(
@@ -67,11 +85,13 @@ async fn execute_admitted<H: Host>(
     ctx: RequestCtx,
     plan: Plan,
     classified: Classified,
+    owner_user_id: i64,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
     let telemetry_ctx = ctx.clone();
     let key = classified.key;
-    let result = crate::failover::run(core, control, ctx, plan, classified, started).await;
+    let result =
+        crate::failover::run(core, control, ctx, plan, classified, owner_user_id, started).await;
     if let Err(error) = &result {
         core.host
             .finish_admission(&telemetry_ctx.request_id, None)

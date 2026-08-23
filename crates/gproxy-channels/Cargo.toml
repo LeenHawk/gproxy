@@ -1,0 +1,15 @@
+[package]
+name = "gproxy-channels"
+description = "GPROXY v3 built-in provider channel adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+gproxy-channel-api.workspace = true
+gproxy-protocol = { workspace = true, features = ["exhaustive"] }
+bytes.workspace = true
+http.workspace = true
+rust_decimal.workspace = true
+serde_json.workspace = true

@@ -159,6 +159,8 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 upstream_url: Some(parts.uri.to_string()),
                 request_body: body.clone(),
                 dedupe_key: None,
+                owner_user_id: Some(self.identity.user_id),
+                resource: None,
                 admitted: true,
                 surface_label: Some("presigned"),
             };

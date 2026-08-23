@@ -1,0 +1,104 @@
+mod model;
+mod prepare;
+mod redact;
+mod sse;
+mod usage;
+
+use gproxy_channel_api::{
+    Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage, PrepareCtx,
+    PreparedRequest, ResponseView, StreamCtx, StreamDecoder, UsageCtx,
+};
+use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
+
+pub struct OpenAiChannel;
+
+const fn family(operation: Operation) -> OperationKey {
+    OperationKey::family(operation, WireFamily::OpenAi)
+}
+
+const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
+    OperationKey::content(operation, kind)
+}
+
+static SUPPORTS: [ChannelSupport; 28] = [
+    ChannelSupport::passthrough(family(Operation::ListModels)),
+    ChannelSupport::passthrough(family(Operation::GetModel)),
+    ChannelSupport::passthrough(content(
+        Operation::GenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
+    ChannelSupport::passthrough(content(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
+    ChannelSupport::passthrough(content(
+        Operation::GenerateContent,
+        ContentGenerationKind::OpenAiResponses,
+    )),
+    ChannelSupport::passthrough(content(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiResponses,
+    )),
+    ChannelSupport::passthrough(family(Operation::CompactContent)),
+    ChannelSupport::passthrough(family(Operation::CreateEmbedding)),
+    ChannelSupport::passthrough(family(Operation::CreateImage)),
+    ChannelSupport::passthrough(family(Operation::EditImage)),
+    ChannelSupport::passthrough(family(Operation::CreateSpeech)),
+    ChannelSupport::passthrough(family(Operation::CreateTranscription)),
+    ChannelSupport::passthrough(family(Operation::CreateTranslation)),
+    ChannelSupport::passthrough(family(Operation::CreateFile)),
+    ChannelSupport::passthrough(family(Operation::ListFiles)),
+    ChannelSupport::passthrough(family(Operation::RetrieveFile)),
+    ChannelSupport::passthrough(family(Operation::RetrieveFileContent)),
+    ChannelSupport::passthrough(family(Operation::DeleteFile)),
+    ChannelSupport::passthrough(family(Operation::CreateVideo)),
+    ChannelSupport::passthrough(family(Operation::RetrieveVideo)),
+    ChannelSupport::passthrough(family(Operation::ListVideos)),
+    ChannelSupport::passthrough(family(Operation::DeleteVideo)),
+    ChannelSupport::passthrough(family(Operation::DownloadVideoContent)),
+    ChannelSupport::passthrough(family(Operation::RemixVideo)),
+    ChannelSupport::passthrough(family(Operation::CreateVideoCharacter)),
+    ChannelSupport::passthrough(family(Operation::GetVideoCharacter)),
+    ChannelSupport::passthrough(family(Operation::EditVideo)),
+    ChannelSupport::passthrough(family(Operation::ExtendVideo)),
+];
+
+static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
+    id: "openai",
+    display_name: "OpenAI",
+    supports: &SUPPORTS,
+};
+
+impl Channel for OpenAiChannel {
+    fn descriptor(&self) -> &'static ChannelDescriptor {
+        &DESCRIPTOR
+    }
+
+    fn prepare(
+        &self,
+        ctx: PrepareCtx<'_>,
+    ) -> Result<PreparedRequest, gproxy_channel_api::ChannelError> {
+        prepare::request(ctx)
+    }
+
+    fn classify(&self, response: ResponseView<'_>) -> Disposition {
+        match response.status.as_u16() {
+            200..=299 => Disposition::Success,
+            401..=403 => Disposition::CredentialDead,
+            429 | 500..=599 => Disposition::Retryable,
+            _ => Disposition::Terminal,
+        }
+    }
+
+    fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
+        sse::OpenAiSseDecoder::for_operation(ctx)
+            .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
+    }
+
+    fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
+        usage::from_body(ctx)
+    }
+}
+
+#[cfg(test)]
+mod tests;

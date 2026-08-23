@@ -15,8 +15,10 @@ use crate::host::{
 use crate::usage::Settlement;
 
 impl CredentialStore for MemoryHost {
-    fn load<'a>(&'a self, _: CredentialId) -> BoxFuture<'a, Result<CredentialRecord, StoreError>> {
-        let record = self.state.lock().expect("state lock").credential.clone();
+    fn load<'a>(&'a self, id: CredentialId) -> BoxFuture<'a, Result<CredentialRecord, StoreError>> {
+        let mut state = self.state.lock().expect("state lock");
+        state.loaded_credentials.push(id);
+        let record = state.credential.clone();
         Box::pin(async move { Ok(record) })
     }
 
@@ -99,6 +101,8 @@ impl UpstreamTransport for MemoryHost {
                     ),
                 )
             } else {
+                let path = request.uri().path().to_owned();
+                let method = request.method().clone();
                 let authorization = request
                     .headers()
                     .get(http::header::AUTHORIZATION)
@@ -108,9 +112,21 @@ impl UpstreamTransport for MemoryHost {
                     .to_owned();
                 let mut state = state.lock().expect("state lock");
                 state.authorizations.push(authorization);
+                let body = match (method, path.as_str()) {
+                    (http::Method::POST, "/v1/files") => {
+                        Bytes::from_static(br#"{"id":"file-1","object":"file"}"#)
+                    }
+                    (http::Method::GET, "/v1/files/file-1") => {
+                        Bytes::from_static(br#"{"id":"file-1","object":"file"}"#)
+                    }
+                    (http::Method::DELETE, "/v1/files/file-1") => {
+                        Bytes::from_static(br#"{"id":"file-1","deleted":true}"#)
+                    }
+                    _ => Bytes::from_static(br#"{"usage":true,"result":"ok"}"#),
+                };
                 (
                     state.statuses.pop_front().unwrap_or(http::StatusCode::OK),
-                    Bytes::from_static(br#"{"usage":true,"result":"ok"}"#),
+                    body,
                 )
             };
             let stream: crate::ByteStream =

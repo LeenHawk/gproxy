@@ -21,8 +21,8 @@ pub mod usage;
 pub mod wire;
 
 pub use channel::{
-    Channel, ChannelDescriptor, ChannelError, Frame, PrepareCtx, PreparedRequest, ResponseView,
-    SimpleHttp, StreamDecoder, StreamTail,
+    Channel, ChannelDescriptor, ChannelError, ChannelSupport, Frame, PrepareCtx, PreparedRequest,
+    ResponseView, SimpleHttp, StreamCtx, StreamDecoder, StreamTail, UsageCtx,
 };
 pub use disposition::Disposition;
 pub use registry::ChannelRegistry;
