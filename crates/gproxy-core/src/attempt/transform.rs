@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::{ChannelError, Frame, StreamDecoder, StreamEnd, StreamTail};
-use gproxy_protocol::OperationKey;
+use gproxy_protocol::{OperationKey, StreamFraming};
 
 pub(crate) struct TransformDecoder {
     upstream: Option<Box<dyn StreamDecoder>>,
@@ -11,12 +11,19 @@ impl TransformDecoder {
     pub(crate) fn new(
         source: OperationKey,
         target: OperationKey,
+        source_framing: StreamFraming,
+        target_framing: StreamFraming,
         upstream: Option<Box<dyn StreamDecoder>>,
     ) -> Self {
         Self {
             upstream,
-            converter: gproxy_transform::response_stream(source, target)
-                .expect("declared streaming transform remains wired"),
+            converter: gproxy_transform::response_stream_framed(
+                source,
+                target,
+                source_framing,
+                target_framing,
+            )
+            .expect("declared streaming transform remains wired"),
         }
     }
 

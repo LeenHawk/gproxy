@@ -102,6 +102,7 @@ impl Channel for MemoryHost {
             .map_err(|error| ChannelError::Prepare(error.to_string()))?;
         Ok(PreparedRequest {
             request,
+            framing: None,
             websocket: false,
             profile: None,
         })
@@ -177,6 +178,7 @@ impl Channel for MemoryHost {
             .map_err(|error| ChannelError::Prepare(error.to_string()))?;
         Ok(PreparedRequest {
             request,
+            framing: None,
             websocket,
             profile: None,
         })

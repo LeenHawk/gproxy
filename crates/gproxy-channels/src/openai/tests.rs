@@ -236,6 +236,7 @@ fn buffered_and_fragmented_stream_usage_normalize() {
     let mut speech_stream = OpenAiChannel
         .stream_decoder(StreamCtx {
             key: OperationKey::family(Operation::CreateSpeech, WireFamily::OpenAi),
+            framing: gproxy_protocol::StreamFraming::Sse,
             request_body: &speech_request,
             response_headers: &headers,
         })
@@ -258,6 +259,7 @@ fn buffered_and_fragmented_stream_usage_normalize() {
     let mut decoder = OpenAiChannel
         .stream_decoder(StreamCtx {
             key: RESPONSES,
+            framing: gproxy_protocol::StreamFraming::Sse,
             request_body: &request,
             response_headers: &headers,
         })
@@ -289,6 +291,7 @@ fn image_stream_redacts_large_media_only_in_the_usage_observer() {
     let mut decoder = OpenAiChannel
         .stream_decoder(StreamCtx {
             key,
+            framing: gproxy_protocol::StreamFraming::Sse,
             request_body: &request,
             response_headers: &headers,
         })

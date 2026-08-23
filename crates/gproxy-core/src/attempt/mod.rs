@@ -133,6 +133,9 @@ pub(crate) async fn prepare<H: Host>(
         return Err(CoreError::Unsupported);
     }
     prepared.apply_profile();
+    let target_framing = prepared
+        .framing
+        .unwrap_or_else(|| gproxy_protocol::default_framing(support.target.kind, false));
     Ok(Prepared {
         channel: channel.descriptor().id,
         stream,
@@ -143,7 +146,7 @@ pub(crate) async fn prepare<H: Host>(
             source_key: Some(support.source),
             key: Some(support.target),
             source_framing: classified.framing,
-            target_framing: gproxy_protocol::default_framing(support.target.kind, false),
+            target_framing,
             settle: support.target.operation.spec().settle,
             pricing: control.pricing(&target.provider, &target.upstream_model),
             started,
@@ -185,6 +188,7 @@ pub(crate) async fn send<H: Host>(
         let key = facts.key.expect("operation attempt has an upstream key");
         let mut decoder = channel.stream_decoder(StreamCtx {
             key,
+            framing: facts.target_framing,
             request_body: &facts.request_body,
             response_headers: response.headers(),
         });
@@ -192,8 +196,17 @@ pub(crate) async fn send<H: Host>(
             .source_key
             .expect("operation attempt has a source key");
         if source.kind != key.kind {
+            let source_framing = if downstream_stream {
+                facts.source_framing
+            } else {
+                gproxy_protocol::StreamFraming::Sse
+            };
             decoder = Some(Box::new(transform::TransformDecoder::new(
-                source, key, decoder,
+                source,
+                key,
+                source_framing,
+                facts.target_framing,
+                decoder,
             )));
         }
         if !downstream_stream {

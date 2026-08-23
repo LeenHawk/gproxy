@@ -191,6 +191,7 @@ mod tests {
                 Operation::StreamGenerateContent,
                 ContentGenerationKind::OpenAiResponses,
             ),
+            framing: gproxy_protocol::StreamFraming::Sse,
             request_body: &Bytes::new(),
             response_headers: &http::HeaderMap::new(),
         })
@@ -208,6 +209,7 @@ mod tests {
                 Operation::StreamGenerateContent,
                 ContentGenerationKind::OpenAiResponses,
             ),
+            framing: gproxy_protocol::StreamFraming::Sse,
             request_body: &Bytes::new(),
             response_headers: &http::HeaderMap::new(),
         })

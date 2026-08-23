@@ -279,6 +279,7 @@ fn buffered_and_fragmented_stream_usage_merge_claude_fields() {
     let mut decoder = ClaudeCodeChannel
         .stream_decoder(StreamCtx {
             key: STREAM,
+            framing: gproxy_protocol::StreamFraming::Sse,
             request_body: &request,
             response_headers: &headers,
         })

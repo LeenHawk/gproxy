@@ -1,7 +1,7 @@
 //! The channel trait and its request/response views.
 
 use bytes::Bytes;
-use gproxy_protocol::OperationKey;
+use gproxy_protocol::{OperationKey, StreamFraming};
 use serde_json::Value;
 
 use crate::BoxFuture;
@@ -74,6 +74,9 @@ pub struct PrepareCtx<'a> {
 /// The upstream request, ready to send.
 pub struct PreparedRequest {
     pub request: http::Request<Bytes>,
+    /// Actual upstream stream framing when it differs from the operation's
+    /// protocol default (for example an explicit Gemini `alt=sse`).
+    pub framing: Option<StreamFraming>,
     /// The transport must upgrade to a websocket instead of plain HTTP.
     pub websocket: bool,
     /// Native client fingerprint declared by the channel. The core carries it
@@ -102,6 +105,7 @@ pub struct ResponseView<'a> {
 /// still returning an owned state machine.
 pub struct StreamCtx<'a> {
     pub key: OperationKey,
+    pub framing: StreamFraming,
     pub request_body: &'a Bytes,
     pub response_headers: &'a http::HeaderMap,
 }

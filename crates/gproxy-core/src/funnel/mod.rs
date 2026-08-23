@@ -176,7 +176,10 @@ pub(crate) fn streaming<H: Host>(
     disposition: Disposition,
     decoder: Option<Box<dyn StreamDecoder>>,
 ) -> ExecOutcome {
-    let (parts, body) = response.into_parts();
+    let (mut parts, body) = response.into_parts();
+    if ctx.source_key != ctx.key {
+        frame_headers(&mut parts.headers, ctx.source_framing);
+    }
     let body = FunnelStream::new(body, decoder, host, ctx, parts.status);
     ExecOutcome {
         status: parts.status,
@@ -232,6 +235,27 @@ pub(crate) fn free_streaming<H: Host>(
         body: ResponseBody::Stream(Box::pin(body)),
         disposition,
         _settled: Settled(()),
+    }
+}
+
+fn frame_headers(headers: &mut http::HeaderMap, framing: StreamFraming) {
+    let content_type = match framing {
+        StreamFraming::Sse => Some("text/event-stream"),
+        StreamFraming::JsonArray => Some("application/json"),
+        StreamFraming::WebSocket => None,
+    };
+    if let Some(content_type) = content_type {
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static(content_type),
+        );
+        headers.remove(http::header::CONTENT_LENGTH);
+        if framing == StreamFraming::Sse {
+            headers.insert(
+                http::header::CACHE_CONTROL,
+                http::HeaderValue::from_static("no-cache"),
+            );
+        }
     }
 }
 

@@ -80,7 +80,10 @@ impl<H: Host> FunnelStream<H> {
     }
 
     fn abort_relay(&mut self, error: TransportError) {
-        self.decoder = None;
+        self.tail_usage = self
+            .decoder
+            .take()
+            .and_then(|mut decoder| decoder.finish(StreamEnd::Interrupted).ok()?.usage);
         self.ended = Some(Ended::Interrupted);
         self.terminal_error = Some(error);
         self.state = State::Draining;

@@ -10,7 +10,7 @@ mod models;
 mod registry;
 
 use bytes::Bytes;
-use gproxy_protocol::OperationKey;
+use gproxy_protocol::{OperationKey, StreamFraming};
 
 pub use envelope::{BufferedResponse, ResponseCollector, ResponseStream};
 pub use error::TransformError;
@@ -56,6 +56,15 @@ pub fn response_stream(
     target: OperationKey,
 ) -> Result<ResponseStream, TransformError> {
     ResponseStream::new(source, target)
+}
+
+pub fn response_stream_framed(
+    source: OperationKey,
+    target: OperationKey,
+    source_framing: StreamFraming,
+    target_framing: StreamFraming,
+) -> Result<ResponseStream, TransformError> {
+    ResponseStream::new_framed(source, target, source_framing, target_framing)
 }
 
 #[cfg(test)]

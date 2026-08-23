@@ -291,6 +291,7 @@ fn stream_restores_shell_items_patches_terminal_output_and_extracts_usage() {
     );
     let mut decoder = super::sse::CodexSseDecoder::for_operation(StreamCtx {
         key: RESPONSES,
+        framing: gproxy_protocol::StreamFraming::Sse,
         request_body: &Bytes::new(),
         response_headers: &HeaderMap::new(),
     })
@@ -325,6 +326,7 @@ fn sparse_stream_repairs_tool_lifecycle_before_exact_terminal() {
     );
     let mut decoder = super::sse::CodexSseDecoder::for_operation(StreamCtx {
         key: RESPONSES,
+        framing: gproxy_protocol::StreamFraming::Sse,
         request_body: &Bytes::new(),
         response_headers: &HeaderMap::new(),
     })

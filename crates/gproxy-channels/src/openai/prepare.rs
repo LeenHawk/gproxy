@@ -45,6 +45,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     );
     Ok(PreparedRequest {
         request,
+        framing: None,
         websocket: false,
         profile: None,
     })

@@ -105,21 +105,19 @@ pub(crate) async fn request<H: Host>(
         return Err(CoreError::Unsupported);
     }
     prepared.apply_profile();
+    let source_framing = request
+        .key
+        .map_or(gproxy_protocol::StreamFraming::Sse, |key| {
+            gproxy_protocol::default_framing(key.kind, false)
+        });
+    let target_framing = prepared.framing.unwrap_or(source_framing);
     let facts = FunnelCtx {
         request_id,
         target: target.clone(),
         source_key: request.key,
         key: request.key,
-        source_framing: request
-            .key
-            .map_or(gproxy_protocol::StreamFraming::Sse, |key| {
-                gproxy_protocol::default_framing(key.kind, false)
-            }),
-        target_framing: request
-            .key
-            .map_or(gproxy_protocol::StreamFraming::Sse, |key| {
-                gproxy_protocol::default_framing(key.kind, false)
-            }),
+        source_framing,
+        target_framing,
         settle: request
             .key
             .map(|key| key.operation.spec().settle)
@@ -156,6 +154,7 @@ pub(crate) async fn request<H: Host>(
         return if let Some(key) = request.key {
             let decoder = channel.stream_decoder(StreamCtx {
                 key,
+                framing: facts.target_framing,
                 request_body: &facts.request_body,
                 response_headers: response.headers(),
             });

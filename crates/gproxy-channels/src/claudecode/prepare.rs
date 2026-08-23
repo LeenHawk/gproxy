@@ -21,6 +21,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
+        framing: None,
         websocket: false,
         profile: Some(&super::profile::CLIENT_PROFILE),
     })
@@ -63,6 +64,7 @@ pub(super) fn surface(
     *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
+        framing: None,
         websocket,
         profile: Some(&super::profile::CLIENT_PROFILE),
     })
