@@ -8,7 +8,7 @@ use crate::Shared;
 use crate::boundary::{ExecOutcome, ResponseBody};
 use crate::control::{Pricing, Target};
 use crate::funnel_stream::FunnelStream;
-use crate::host::{Capture, CaptureSink, Host};
+use crate::host::Host;
 use crate::usage::Ended;
 
 #[derive(Debug)]
@@ -24,6 +24,7 @@ pub(crate) struct FunnelCtx {
     pub upstream_url: String,
     pub request_body: Bytes,
     pub dedupe_key: Option<String>,
+    pub admitted: bool,
 }
 
 pub(crate) async fn buffered<H: Host>(
@@ -90,38 +91,6 @@ pub(crate) async fn interrupted<H: Host>(
         Ended::Interrupted,
     )
     .await;
-}
-
-pub(crate) async fn transport_failed<H: Host>(
-    host: &H,
-    ctx: &FunnelCtx,
-    error: &gproxy_channel_api::TransportError,
-) {
-    host.capture()
-        .record(&Capture {
-            request_id: ctx.request_id.clone(),
-            upstream_url: ctx.upstream_url.clone(),
-            request_body: ctx.request_body.clone(),
-            response_status: None,
-            response_body: None,
-        })
-        .await;
-    tracing::info!(
-        request_id = %ctx.request_id,
-        provider_id = ctx.target.provider.id,
-        credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.operation,
-        error_kind = transport_error_kind(error),
-        "request.completed"
-    );
-}
-
-fn transport_error_kind(error: &gproxy_channel_api::TransportError) -> &'static str {
-    match error {
-        gproxy_channel_api::TransportError::Connect(_) => "connect",
-        gproxy_channel_api::TransportError::Timeout => "timeout",
-        gproxy_channel_api::TransportError::Interrupted(_) => "interrupted",
-    }
 }
 
 pub(crate) async fn complete_stream<H: Host>(

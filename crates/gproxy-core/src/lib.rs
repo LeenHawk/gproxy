@@ -19,10 +19,16 @@ pub mod error;
 pub mod host;
 pub mod usage;
 
+mod attempt;
+mod attempt_body;
 mod credential;
+mod execute;
+mod failover;
 mod funnel;
+mod funnel_error;
 mod funnel_stream;
 mod invoke;
+mod request;
 mod settlement;
 
 #[cfg(test)]
@@ -34,6 +40,8 @@ pub(crate) type Shared<T> = std::sync::Arc<T>;
 pub(crate) type Shared<T> = std::rc::Rc<T>;
 
 pub use gproxy_channel_api::BoxFuture;
+pub use gproxy_channel_api::CallerIdentity;
+pub use gproxy_protocol::OperationKey;
 
 pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};

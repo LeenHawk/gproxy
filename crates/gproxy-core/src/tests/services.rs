@@ -77,8 +77,13 @@ impl UpstreamTransport for MemoryHost {
     ) -> BoxFuture<'a, Result<http::Response<crate::ByteStream>, TransportError>> {
         let state = self.state.clone();
         Box::pin(async move {
-            let body = if request.uri().path() == "/refresh" {
-                Bytes::from_static(br#"{"access_token":"fresh","expires_at":9223372036854775807}"#)
+            let (status, body) = if request.uri().path() == "/refresh" {
+                (
+                    http::StatusCode::OK,
+                    Bytes::from_static(
+                        br#"{"access_token":"fresh","expires_at":9223372036854775807}"#,
+                    ),
+                )
             } else {
                 let authorization = request
                     .headers()
@@ -87,16 +92,18 @@ impl UpstreamTransport for MemoryHost {
                     .to_str()
                     .expect("text authorization")
                     .to_owned();
-                state
-                    .lock()
-                    .expect("state lock")
-                    .authorizations
-                    .push(authorization);
-                Bytes::from_static(br#"{"usage":true,"result":"ok"}"#)
+                let mut state = state.lock().expect("state lock");
+                state.authorizations.push(authorization);
+                (
+                    state.statuses.pop_front().unwrap_or(http::StatusCode::OK),
+                    Bytes::from_static(br#"{"usage":true,"result":"ok"}"#),
+                )
             };
             let stream: crate::ByteStream =
                 Box::pin(futures_util::stream::once(async move { Ok(body) }));
-            Ok(http::Response::new(stream))
+            let mut response = http::Response::new(stream);
+            *response.status_mut() = status;
+            Ok(response)
         })
     }
 

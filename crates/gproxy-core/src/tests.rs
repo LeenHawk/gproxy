@@ -14,7 +14,9 @@ use serde_json::json;
 
 use self::memory::MemoryHost;
 use crate::boundary::{RequestCtx, ResponseBody, RoutingMode};
+use crate::control::{FailoverBudget, Plan};
 use crate::control::{ProviderRef, Target};
+use crate::error::CoreError;
 use crate::host::CredentialId;
 use crate::usage::{Ended, UsageSource};
 use crate::{Core, InitError};
@@ -67,6 +69,61 @@ fn streaming_invoke_settles_inline_before_eof_without_a_spawner() -> Result<(), 
     assert_eq!(state.settlements.len(), 1);
     assert_eq!(state.settlements[0].ended, Ended::Complete);
     assert_eq!(state.captures.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn execute_honors_failover_budget_and_settles_only_the_final_attempt() -> Result<(), InitError> {
+    for (budget, succeeds) in [(2, true), (1, false)] {
+        let host = MemoryHost::new(false);
+        {
+            let mut state = host.state.lock().expect("state lock");
+            state.plan = Some(Plan {
+                targets: vec![target(), target(), target()],
+                budget: FailoverBudget {
+                    max_attempts: budget,
+                },
+            });
+            state.statuses = [StatusCode::TOO_MANY_REQUESTS, StatusCode::OK].into();
+        }
+        let core = core(&host)?;
+        let result = block_on(core.execute(&host, request(false, &format!("budget-{budget}"))));
+        if succeeds {
+            assert_eq!(
+                result.expect("second attempt succeeds").status,
+                StatusCode::OK
+            );
+        } else {
+            assert!(matches!(result, Err(CoreError::UpstreamExhausted(_))));
+        }
+
+        let state = host.state.lock().expect("state lock");
+        assert_eq!(state.auth_calls, 1);
+        assert_eq!(state.admit_calls, 1);
+        assert_eq!(state.resolved_models, [Some("alias".into())]);
+        assert_eq!(state.authorizations.len(), budget as usize);
+        assert_eq!(state.captures.len(), budget as usize);
+        assert_eq!(state.settlements.len(), usize::from(succeeds));
+        assert_eq!(state.admission_finishes, [succeeds]);
+    }
+
+    let host = MemoryHost::new(false);
+    {
+        let mut state = host.state.lock().expect("state lock");
+        state.plan = Some(Plan {
+            targets: vec![target(), target(), target()],
+            budget: FailoverBudget { max_attempts: 3 },
+        });
+        state.statuses = [StatusCode::UNAUTHORIZED, StatusCode::OK].into();
+    }
+    let core = core(&host)?;
+    let result = block_on(core.execute(&host, request(false, "credential-dead")));
+    assert!(matches!(result, Err(CoreError::UpstreamExhausted(_))));
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.authorizations.len(), 1);
+    assert_eq!(state.captures.len(), 1);
+    assert!(state.settlements.is_empty());
+    assert_eq!(state.admission_finishes, [false]);
     Ok(())
 }
 

@@ -44,10 +44,11 @@ impl Channel for MemoryHost {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        if response.status.is_success() {
-            Disposition::Success
-        } else {
-            Disposition::Terminal
+        match response.status {
+            http::StatusCode::TOO_MANY_REQUESTS => Disposition::Retryable,
+            http::StatusCode::UNAUTHORIZED => Disposition::CredentialDead,
+            status if status.is_success() => Disposition::Success,
+            _ => Disposition::Terminal,
         }
     }
 

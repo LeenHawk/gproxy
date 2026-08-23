@@ -1,7 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
+use gproxy_channel_api::{BoxFuture, CallerIdentity};
+use gproxy_protocol::OperationKey;
 use http::StatusCode;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -25,6 +27,12 @@ pub(super) struct State {
     pub(super) authorizations: Vec<String>,
     pub(super) settlements: Vec<Settlement>,
     pub(super) captures: Vec<(Option<StatusCode>, Option<Bytes>)>,
+    pub(super) auth_calls: usize,
+    pub(super) admit_calls: usize,
+    pub(super) plan: Option<Plan>,
+    pub(super) statuses: VecDeque<StatusCode>,
+    pub(super) resolved_models: Vec<Option<String>>,
+    pub(super) admission_finishes: Vec<bool>,
 }
 
 impl MemoryHost {
@@ -43,6 +51,12 @@ impl MemoryHost {
                 authorizations: Vec::new(),
                 settlements: Vec::new(),
                 captures: Vec::new(),
+                auth_calls: 0,
+                admit_calls: 0,
+                plan: None,
+                statuses: VecDeque::new(),
+                resolved_models: Vec::new(),
+                admission_finishes: Vec::new(),
             })),
         }
     }
@@ -70,11 +84,52 @@ impl Host for MemoryHost {
     fn capture(&self) -> &Self::Capture {
         self
     }
+    fn authenticate<'a>(
+        &'a self,
+        _: &'a crate::boundary::RequestCtx,
+    ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>> {
+        self.state.lock().expect("state lock").auth_calls += 1;
+        Box::pin(async {
+            Ok(CallerIdentity {
+                user_id: 1,
+                user_key_id: 2,
+                org_id: None,
+                team_id: None,
+            })
+        })
+    }
+    fn admit<'a>(
+        &'a self,
+        _: &'a CallerIdentity,
+        _: &'a crate::boundary::RequestCtx,
+        _: Option<OperationKey>,
+        _: &'a Plan,
+    ) -> BoxFuture<'a, Result<(), CoreError>> {
+        self.state.lock().expect("state lock").admit_calls += 1;
+        Box::pin(async { Ok(()) })
+    }
+    fn finish_admission<'a>(
+        &'a self,
+        _: &'a str,
+        settlement: Option<&'a Settlement>,
+    ) -> BoxFuture<'a, ()> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .admission_finishes
+            .push(settlement.is_some());
+        Box::pin(async {})
+    }
 }
 
 impl ControlPlane for MemoryHost {
-    fn resolve(&self, _: Option<&str>, _: &RoutingMode) -> Result<Plan, CoreError> {
-        Err(CoreError::UnknownRoute("unused".into()))
+    fn resolve(&self, model: Option<&str>, _: &RoutingMode) -> Result<Plan, CoreError> {
+        let mut state = self.state.lock().expect("state lock");
+        state.resolved_models.push(model.map(str::to_owned));
+        state
+            .plan
+            .clone()
+            .ok_or_else(|| CoreError::UnknownRoute("unused".into()))
     }
 
     fn pricing(&self, _: &ProviderRef, _: &str) -> Option<Pricing> {

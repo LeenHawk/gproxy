@@ -13,8 +13,12 @@
 
 use std::time::Duration;
 
-use gproxy_channel_api::{BindingStore, BoxFuture, MaybeSend, MaybeSync, WsDuplex};
+use gproxy_channel_api::{BindingStore, BoxFuture, CallerIdentity, MaybeSend, MaybeSync, WsDuplex};
+use gproxy_protocol::OperationKey;
 
+use crate::boundary::RequestCtx;
+use crate::control::Plan;
+use crate::error::CoreError;
 use crate::error::{StoreError, TransportError};
 use crate::usage::Settlement;
 
@@ -139,6 +143,28 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
     fn transport(&self) -> &Self::Transport;
     fn usage(&self) -> &Self::Usage;
     fn capture(&self) -> &Self::Capture;
+    /// Authenticate the gateway caller at the normalized request boundary.
+    fn authenticate<'a>(
+        &'a self,
+        request: &'a RequestCtx,
+    ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>>;
+    /// Apply permissions, rate limits, and quota pre-charge. `operation` is
+    /// `None` for a matched service-surface route. Returning an error must
+    /// leave no reservation behind.
+    fn admit<'a>(
+        &'a self,
+        identity: &'a CallerIdentity,
+        request: &'a RequestCtx,
+        operation: Option<OperationKey>,
+        plan: &'a Plan,
+    ) -> BoxFuture<'a, Result<(), CoreError>>;
+    /// Reconcile a successful exchange or refund a failed admitted request.
+    /// `None` means no upstream answer reached settlement.
+    fn finish_admission<'a>(
+        &'a self,
+        request_id: &'a str,
+        settlement: Option<&'a Settlement>,
+    ) -> BoxFuture<'a, ()>;
     /// `None` → settle inline at EOF and keep draining after client
     /// disconnect; `Some` → detach settlement.
     fn spawner(&self) -> Option<&dyn Spawner> {

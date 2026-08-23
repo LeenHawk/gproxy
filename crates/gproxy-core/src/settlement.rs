@@ -23,33 +23,44 @@ pub(crate) async fn complete<H: Host>(
         (true, None) => true,
         (false, _) => false,
     };
-    if unique {
-        if ctx.pricing.is_none() {
-            tracing::warn!(
-                request_id = %ctx.request_id,
-                provider_id = ctx.target.provider.id,
-                upstream_model = %ctx.target.upstream_model,
-                "pricing missing; settling at zero cost"
-            );
-        }
-        let source = if usage.is_some() {
-            UsageSource::Upstream
+    if unique && ctx.pricing.is_none() {
+        tracing::warn!(
+            request_id = %ctx.request_id,
+            provider_id = ctx.target.provider.id,
+            upstream_model = %ctx.target.upstream_model,
+            "pricing missing; settling at zero cost"
+        );
+    }
+    let source = if unique && usage.is_some() {
+        UsageSource::Upstream
+    } else {
+        UsageSource::Estimated
+    };
+    let usage = if unique {
+        usage.unwrap_or_default()
+    } else {
+        NormalizedUsage::default()
+    };
+    let settlement = Settlement {
+        request_id: ctx.request_id.clone(),
+        provider_id: ctx.target.provider.id,
+        credential_id: ctx.target.credential,
+        upstream_model: ctx.target.upstream_model.clone(),
+        cost: if unique {
+            cost(&usage, ctx.pricing.as_ref())
         } else {
-            UsageSource::Estimated
-        };
-        let usage = usage.unwrap_or_default();
-        host.usage()
-            .record(&Settlement {
-                request_id: ctx.request_id.clone(),
-                provider_id: ctx.target.provider.id,
-                credential_id: ctx.target.credential,
-                upstream_model: ctx.target.upstream_model.clone(),
-                cost: cost(&usage, ctx.pricing.as_ref()),
-                usage,
-                source,
-                ended,
-                latency_ms,
-            })
+            Decimal::ZERO
+        },
+        usage,
+        source,
+        ended,
+        latency_ms,
+    };
+    if unique {
+        host.usage().record(&settlement).await;
+    }
+    if ctx.admitted {
+        host.finish_admission(&ctx.request_id, Some(&settlement))
             .await;
     }
     host.capture()

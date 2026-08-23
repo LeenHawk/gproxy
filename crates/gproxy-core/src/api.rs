@@ -66,25 +66,23 @@ impl<H: Host> Core<H> {
 
     /// Tier 2: the full engine. Resolves a plan from the control plane,
     /// then behaves as [`Self::execute_planned`].
-    #[expect(unused_variables, reason = "interface draft; bodies land next round")]
     pub async fn execute(
         &self,
         control: &impl ControlPlane,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
-        todo!("implementation round")
+        crate::execute::run(self, control, ctx).await
     }
 
     /// Tier 2 with a caller-built plan: the embedder's entry when it does
     /// its own routing. The engine still classifies, transforms, fails
     /// over inside the plan's budget, and settles through the funnel.
-    #[expect(unused_variables, reason = "interface draft; bodies land next round")]
     pub async fn execute_planned(
         &self,
         control: &impl ControlPlane,
         ctx: RequestCtx,
         plan: Plan,
     ) -> Result<ExecOutcome, CoreError> {
-        todo!("implementation round")
+        crate::execute::planned(self, control, ctx, plan).await
     }
 }

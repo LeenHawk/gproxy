@@ -1,0 +1,127 @@
+use std::collections::BTreeSet;
+use std::time::Instant;
+
+use gproxy_channel_api::{ChannelError, Disposition};
+
+use crate::api::Core;
+use crate::attempt::{self, Failure};
+use crate::boundary::{ExecOutcome, RequestCtx};
+use crate::control::{ControlPlane, Plan};
+use crate::error::CoreError;
+use crate::funnel_error;
+use crate::host::Host;
+use crate::request::Classified;
+
+pub(crate) async fn run<H: Host>(
+    core: &Core<H>,
+    control: &impl ControlPlane,
+    ctx: RequestCtx,
+    plan: Plan,
+    classified: Classified,
+    started: Instant,
+) -> Result<ExecOutcome, CoreError> {
+    if plan.targets.is_empty() {
+        return Err(CoreError::NoCredentials);
+    }
+    if plan.budget.max_attempts == 0 {
+        return Err(CoreError::UpstreamExhausted(
+            "attempt budget is zero".into(),
+        ));
+    }
+
+    let mut attempts = 0;
+    let mut supported = false;
+    let mut dead = BTreeSet::new();
+    let mut last_reason = None;
+    let mut pre_send_error = None;
+    for target in &plan.targets {
+        if attempts >= plan.budget.max_attempts {
+            break;
+        }
+        if dead.contains(&target.credential) {
+            continue;
+        }
+        if !attempt::supports(core, target, classified.key)? {
+            continue;
+        }
+        supported = true;
+        let prepared =
+            match attempt::prepare(core, control, target, &ctx, &classified, true, started).await {
+                Ok(prepared) => prepared,
+                Err(CoreError::Channel(ChannelError::Secret(_))) => {
+                    dead.insert(target.credential);
+                    let reason = "credential secret rejected";
+                    last_reason = Some(reason);
+                    funnel_error::pre_send(&ctx, target, classified.key, reason);
+                    continue;
+                }
+                Err(CoreError::Channel(ChannelError::Refresh(_))) => {
+                    dead.insert(target.credential);
+                    let reason = "credential refresh failed";
+                    last_reason = Some(reason);
+                    funnel_error::pre_send(&ctx, target, classified.key, reason);
+                    continue;
+                }
+                Err(error @ CoreError::Channel(ChannelError::Prepare(_))) => {
+                    let reason = "channel prepare failed";
+                    last_reason = Some(reason);
+                    funnel_error::pre_send(&ctx, target, classified.key, reason);
+                    pre_send_error = Some(error);
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+        attempts += 1;
+        match attempt::send(core, prepared, &classified).await {
+            Ok(completed) if completed.disposition.should_failover() => {
+                let disposition = completed.disposition;
+                if disposition == Disposition::CredentialDead {
+                    dead.insert(completed.facts.target.credential);
+                }
+                last_reason = Some(match disposition {
+                    Disposition::Retryable => "retryable upstream response",
+                    Disposition::CredentialDead => "credential rejected upstream",
+                    Disposition::Success | Disposition::Terminal => "unexpected disposition",
+                });
+                let (facts, status, body) = attempt::discard(completed);
+                funnel_error::attempt_response(
+                    core.host.as_ref(),
+                    &facts,
+                    status,
+                    body,
+                    disposition,
+                )
+                .await;
+            }
+            Ok(completed) => return Ok(attempt::finish(core, completed).await),
+            Err(Failure::Transport { facts, error }) => {
+                last_reason = Some(funnel_error::transport_error_kind(&error));
+                funnel_error::attempt_transport(core.host.as_ref(), &facts, &error).await;
+            }
+            Err(Failure::Interrupted {
+                facts,
+                status,
+                body,
+                error,
+                ..
+            }) => {
+                last_reason = Some("upstream response interrupted");
+                funnel_error::attempt_interrupted(core.host.as_ref(), &facts, status, body, &error)
+                    .await;
+            }
+        }
+    }
+
+    if !supported {
+        Err(CoreError::Transform(
+            "passthrough is unavailable for every plan target".into(),
+        ))
+    } else if attempts == 0 {
+        Err(pre_send_error.unwrap_or(CoreError::NoCredentials))
+    } else {
+        Err(CoreError::UpstreamExhausted(format!(
+            "all candidates exhausted after {attempts} upstream attempt(s); last failure: {}",
+            last_reason.unwrap_or("no upstream attempt")
+        )))
+    }
+}
