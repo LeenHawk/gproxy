@@ -1,8 +1,8 @@
 use rust_decimal::Decimal;
 use serde_json::Value;
 
+use super::state::StateError;
 use crate::BoxFuture;
-use crate::surface_state::StateError;
 use crate::wire::{MaybeSend, MaybeSync};
 
 /// Who is asking (read-only).

@@ -12,6 +12,8 @@
 //! restarts and be visible to every instance. There is deliberately no
 //! in-memory default: a store that fragments across instances is worse
 //! than a loud startup error.
+mod state;
+mod view;
 
 use crate::BoxFuture;
 use crate::channel::ChannelError;
@@ -19,8 +21,8 @@ use crate::wire::{ByteStream, CredentialId, MaybeSync, TransportError};
 use bytes::Bytes;
 use gproxy_protocol::{OperationKey, PathPattern};
 
-pub use crate::surface_state::{Binding, BindingPage, BindingStore, Page, StateError};
-pub use crate::surface_view::{CallerIdentity, ProviderView, UsageView, UsageWindow};
+pub use state::{Binding, BindingPage, BindingStore, Page, StateError};
+pub use view::{CallerIdentity, ProviderView, UsageView, UsageWindow};
 
 pub struct SurfaceTable(pub &'static [SurfaceEntry]);
 
