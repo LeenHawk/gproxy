@@ -36,6 +36,18 @@ fn parse_openai_and_gemini() {
 }
 
 #[test]
+fn parse_openai_model_field_fallback() {
+    let models = parse_models(
+        Provider::OpenAi,
+        br#"{"data":[{"model":"anthropic/claude-opus-4-6","display_name":"Claude Opus 4.6"},{"id":"canonical-id","model":"fallback-id"}]}"#,
+    );
+
+    assert_eq!(models[0].id, "anthropic/claude-opus-4-6");
+    assert_eq!(models[0].display_name.as_deref(), Some("Claude Opus 4.6"));
+    assert_eq!(models[1].id, "canonical-id");
+}
+
+#[test]
 fn parse_openai_provider_enrichment_fields() {
     let models = parse_models(
         Provider::OpenAi,
