@@ -26,23 +26,7 @@ pub(crate) async fn run<H: Host>(
         Ok(plan) => plan,
         Err(error) => return reject(&ctx, Some(classified.key), error),
     };
-    if let Err(error) = core
-        .host
-        .admit(&identity, &ctx, Some(classified.key), &plan)
-        .await
-    {
-        return reject(&ctx, Some(classified.key), error);
-    }
-    execute_admitted(
-        core,
-        control,
-        ctx,
-        plan,
-        classified,
-        identity.user_id,
-        started,
-    )
-    .await
+    resolved(core, control, ctx, plan, classified, identity, started).await
 }
 
 pub(crate) async fn planned<H: Host>(
@@ -60,6 +44,18 @@ pub(crate) async fn planned<H: Host>(
         Ok(identity) => identity,
         Err(error) => return reject(&ctx, Some(classified.key), error),
     };
+    resolved(core, control, ctx, plan, classified, identity, started).await
+}
+
+pub(crate) async fn resolved<H: Host>(
+    core: &Core<H>,
+    control: &impl ControlPlane,
+    ctx: RequestCtx,
+    plan: Plan,
+    classified: Classified,
+    identity: gproxy_channel_api::CallerIdentity,
+    started: Instant,
+) -> Result<ExecOutcome, CoreError> {
     if let Err(error) = core
         .host
         .admit(&identity, &ctx, Some(classified.key), &plan)

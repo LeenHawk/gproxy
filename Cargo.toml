@@ -5,6 +5,7 @@ members = [
     "crates/gproxy-channels",
     "crates/gproxy-core",
     "crates/gproxy-protocol",
+    "crates/gproxy-transform",
     "crates/gproxy-upstream",
 ]
 
@@ -19,6 +20,7 @@ gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.0-alp
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.0-alpha.0" }
 gproxy-core = { path = "crates/gproxy-core", version = "=3.0.0-alpha.0" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.0-alpha.0" }
+gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.0-alpha.0" }
 bytes = "1"
 futures-core = "0.3"
 futures-util = "0.3"

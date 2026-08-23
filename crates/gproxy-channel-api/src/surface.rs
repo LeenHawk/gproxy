@@ -101,6 +101,9 @@ pub struct SurfaceServices<'a> {
     pub bindings: &'a dyn BindingStore,
     pub identity: &'a CallerIdentity,
     pub provider: &'a ProviderView<'a>,
+    /// Credential selected by the engine for this surface action. Create
+    /// handlers persist resource ownership against this exact credential.
+    pub credential: CredentialId,
     pub usage: &'a dyn UsageView,
 }
 

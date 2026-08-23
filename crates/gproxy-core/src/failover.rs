@@ -52,7 +52,9 @@ pub(crate) async fn run<H: Host>(
         let Some(support) = attempt::support(core, target, classified.key)? else {
             continue;
         };
-        if support.source != support.target {
+        if support.source != support.target
+            && !gproxy_transform::can_transform(support.source, support.target)
+        {
             continue;
         }
         supported = true;
@@ -89,7 +91,7 @@ pub(crate) async fn run<H: Host>(
                 Err(error) => return Err(error),
             };
         attempts += 1;
-        match attempt::send(core, prepared, &classified).await {
+        match attempt::send(core, prepared).await {
             Ok(completed) if completed.disposition.should_failover() => {
                 let disposition = completed.disposition;
                 if disposition == Disposition::CredentialDead {

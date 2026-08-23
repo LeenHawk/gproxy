@@ -18,6 +18,9 @@ pub(crate) struct Settled(());
 pub(crate) struct FunnelCtx {
     pub request_id: String,
     pub target: Target,
+    /// Caller-facing operation key; differs from `key` when a pair transforms.
+    pub source_key: Option<OperationKey>,
+    /// Channel-native upstream operation key used for usage extraction.
     pub key: Option<OperationKey>,
     pub settle: SettleMode,
     pub pricing: Option<Pricing>,
@@ -41,10 +44,14 @@ pub(crate) async fn buffered<H: Host>(
     let (parts, body) = response.into_parts();
     let (record_usage, usage) = crate::settlement::usage(channel, &ctx, &parts.headers, &body);
     crate::resource::observe(host, &ctx, parts.status, &body).await;
+    let upstream_status = parts.status;
+    let upstream_headers = parts.headers;
+    let (status, headers, outward, disposition) =
+        transform_buffered(&ctx, upstream_status, upstream_headers, &body, disposition);
     crate::settlement::complete(
         host,
         &ctx,
-        Some(parts.status),
+        Some(upstream_status),
         Some(body.clone()),
         record_usage,
         usage,
@@ -52,11 +59,45 @@ pub(crate) async fn buffered<H: Host>(
     )
     .await;
     ExecOutcome {
-        status: parts.status,
-        headers: parts.headers,
-        body: ResponseBody::Full(body),
+        status,
+        headers,
+        body: ResponseBody::Full(outward),
         disposition,
         _settled: Settled(()),
+    }
+}
+
+fn transform_buffered(
+    ctx: &FunnelCtx,
+    status: http::StatusCode,
+    mut headers: http::HeaderMap,
+    body: &Bytes,
+    disposition: Disposition,
+) -> (http::StatusCode, http::HeaderMap, Bytes, Disposition) {
+    let (Some(source), Some(target)) = (ctx.source_key, ctx.key) else {
+        return (status, headers, body.clone(), disposition);
+    };
+    if source == target || !status.is_success() {
+        return (status, headers, body.clone(), disposition);
+    }
+    match gproxy_transform::response(source, target, body.clone()) {
+        Ok(body) => {
+            headers.remove(http::header::CONTENT_LENGTH);
+            (status, headers, body, disposition)
+        }
+        Err(error) => {
+            let error = crate::error::CoreError::Transform(error.to_string());
+            let headers = http::HeaderMap::from_iter([(
+                http::header::CONTENT_TYPE,
+                http::HeaderValue::from_static("application/json"),
+            )]);
+            (
+                error.status(),
+                headers,
+                Bytes::from(error.body_json().to_string()),
+                Disposition::Terminal,
+            )
+        }
     }
 }
 

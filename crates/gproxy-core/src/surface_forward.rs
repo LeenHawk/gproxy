@@ -98,6 +98,7 @@ pub(crate) async fn request<H: Host>(
     let facts = FunnelCtx {
         request_id,
         target: target.clone(),
+        source_key: request.key,
         key: request.key,
         settle: request
             .key

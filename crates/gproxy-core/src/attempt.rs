@@ -18,6 +18,7 @@ use crate::request::Classified;
 pub(crate) struct Prepared {
     channel: &'static str,
     request: http::Request<Bytes>,
+    stream: bool,
     facts: FunnelCtx,
 }
 
@@ -92,14 +93,33 @@ pub(crate) async fn prepare<H: Host>(
     }
     let credential =
         crate::credential::load_fresh(core.host.as_ref(), channel, target.credential).await?;
+    let stream = classified.stream
+        || support.target.operation == gproxy_protocol::Operation::StreamGenerateContent;
+    let mut method = ctx.method.clone();
+    let mut path = ctx.path.clone();
+    let mut body = ctx.body.clone();
+    if support.source != support.target {
+        body = gproxy_transform::request(
+            support.source,
+            support.target,
+            body,
+            &target.upstream_model,
+            stream,
+        )
+        .map_err(|error| CoreError::Transform(error.to_string()))?;
+        (method, path) = gproxy_protocol::request_target(support.target, &target.upstream_model)
+            .ok_or_else(|| {
+                CoreError::Transform(format!("no request target for {:?}", support.target))
+            })?;
+    }
     let prepared = channel.prepare(PrepareCtx {
         key: support.target,
-        stream: classified.stream,
-        method: &ctx.method,
-        path: &ctx.path,
+        stream,
+        method: &method,
+        path: &path,
         query: ctx.query.as_deref(),
         headers: &ctx.headers,
-        body: &ctx.body,
+        body: &body,
         upstream_model: &target.upstream_model,
         provider_settings: &target.provider.settings,
         secret: &credential.secret,
@@ -109,9 +129,11 @@ pub(crate) async fn prepare<H: Host>(
     }
     Ok(Prepared {
         channel: channel.descriptor().id,
+        stream,
         facts: FunnelCtx {
             request_id: ctx.request_id.clone(),
             target: target.clone(),
+            source_key: Some(support.source),
             key: Some(support.target),
             settle: support.target.operation.spec().settle,
             pricing: control.pricing(&target.provider, &target.upstream_model),
@@ -133,11 +155,11 @@ pub(crate) async fn prepare<H: Host>(
 pub(crate) async fn send<H: Host>(
     core: &Core<H>,
     prepared: Prepared,
-    classified: &Classified,
 ) -> Result<Completed, Failure> {
     let Prepared {
         channel,
         request,
+        stream,
         facts,
     } = prepared;
     let response = match core.host.transport().send(request).await {
@@ -148,14 +170,22 @@ pub(crate) async fn send<H: Host>(
         .channels
         .get(channel)
         .expect("prepared attempt channel remains registered");
-    if classified.stream && response.status().is_success() {
+    if stream && response.status().is_success() {
         let disposition = classify(channel, &response, &[]);
         let key = facts.key.expect("operation attempt has an upstream key");
-        let decoder = channel.stream_decoder(StreamCtx {
+        let mut decoder = channel.stream_decoder(StreamCtx {
             key,
             request_body: &facts.request_body,
             response_headers: response.headers(),
         });
+        let source = facts
+            .source_key
+            .expect("operation attempt has a source key");
+        if source != key {
+            decoder = Some(Box::new(crate::transform_stream::TransformDecoder::new(
+                source, key, decoder,
+            )));
+        }
         return Ok(Completed {
             channel: channel.descriptor().id,
             facts,

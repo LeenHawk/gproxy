@@ -1,9 +1,11 @@
 use http::Method;
 
-use crate::match_ingress;
-use crate::operation::{Operation, OperationGroup};
+use crate::operation::{
+    ContentGenerationKind, Operation, OperationGroup, OperationKey, OperationKind, WireFamily,
+};
 use crate::spec::{Affinity, Seg, SettleMode, streaming_sibling};
 use crate::specs::REGISTRY;
+use crate::{match_ingress, match_ingress_for, request_target};
 
 #[test]
 fn ingress_registry_matches_canonical_paths() {
@@ -12,7 +14,11 @@ fn ingress_registry_matches_canonical_paths() {
 
         for ingress in spec.ingress {
             let (path, expected_params) = example_path(ingress.pattern.0);
-            let matched = match_ingress(ingress.method, &path)
+            let preferred = match ingress.kind {
+                OperationKind::Family(family) => Some(family),
+                OperationKind::ContentGeneration(_) => None,
+            };
+            let matched = match_ingress_for(ingress.method, &path, preferred)
                 .unwrap_or_else(|| panic!("registry path did not match: {path}"));
 
             assert_eq!(matched.operation, *operation, "path: {path}");
@@ -96,6 +102,34 @@ fn video_specs_keep_job_settlement_and_resource_affinity() {
             Affinity::Resource("video_character")
         );
     }
+}
+
+#[test]
+fn shared_model_paths_honor_the_wire_family_preference() {
+    let default = match_ingress(&Method::GET, "/v1/models").expect("default model list");
+    assert_eq!(default.kind, OperationKind::Family(WireFamily::OpenAi));
+    let claude = match_ingress_for(&Method::GET, "/v1/models/model-1", Some(WireFamily::Claude))
+        .expect("Claude model get");
+    assert_eq!(claude.operation, Operation::GetModel);
+    assert_eq!(claude.kind, OperationKind::Family(WireFamily::Claude));
+
+    assert_eq!(
+        request_target(
+            OperationKey::content(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            "claude-upstream",
+        ),
+        Some((Method::POST, "/v1/messages".into()))
+    );
+    assert_eq!(
+        request_target(
+            OperationKey::family(Operation::GetModel, WireFamily::Claude),
+            "model one",
+        ),
+        Some((Method::GET, "/v1/models/model%20one".into()))
+    );
 }
 
 fn example_path(pattern: &[Seg]) -> (String, Vec<(&'static str, String)>) {

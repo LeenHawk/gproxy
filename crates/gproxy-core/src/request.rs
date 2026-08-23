@@ -1,5 +1,6 @@
 use gproxy_protocol::{
-    Affinity, Operation, OperationKey, SettleMode, StreamDetect, match_ingress, streaming_sibling,
+    Affinity, Operation, OperationKey, SettleMode, StreamDetect, WireFamily, match_ingress_for,
+    streaming_sibling,
 };
 
 use crate::boundary::RequestCtx;
@@ -31,7 +32,12 @@ impl Classified {
 }
 
 pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
-    let matched = match_ingress(&ctx.method, &ctx.path).ok_or(CoreError::Unsupported)?;
+    let preferred = ["x-api-key", "anthropic-version", "anthropic-beta"]
+        .iter()
+        .any(|name| ctx.headers.contains_key(*name))
+        .then_some(WireFamily::Claude);
+    let matched =
+        match_ingress_for(&ctx.method, &ctx.path, preferred).ok_or(CoreError::Unsupported)?;
     if matched.upgrade {
         return Err(CoreError::Unsupported);
     }

@@ -40,6 +40,7 @@ mod surface_pin;
 mod surface_reply;
 mod surface_synth;
 mod surface_template;
+mod transform_stream;
 
 #[cfg(test)]
 mod tests;
@@ -53,6 +54,7 @@ pub use gproxy_channel_api as channel_api;
 pub use gproxy_channel_api::{
     BindingStore, BoxFuture, CallerIdentity, UsageView, WsDuplex, WsFrame,
 };
+pub use gproxy_channels as channels;
 pub use gproxy_protocol as protocol;
 pub use gproxy_protocol::OperationKey;
 

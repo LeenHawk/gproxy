@@ -121,7 +121,7 @@ pub struct StreamTail {
 /// copy while still collecting usage state.
 pub trait StreamDecoder: Send {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError>;
-    fn finish(&mut self) -> StreamTail;
+    fn finish(&mut self) -> Result<StreamTail, ChannelError>;
 }
 
 /// Minimal buffered HTTP the engine lends to `refresh` — refresh calls are

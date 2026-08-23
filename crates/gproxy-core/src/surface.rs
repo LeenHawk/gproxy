@@ -10,17 +10,27 @@ use crate::funnel_error;
 use crate::host::Host;
 use crate::surface_affinity::Selected;
 
+pub(crate) enum Dispatch {
+    Unmatched,
+    Continue {
+        identity: gproxy_channel_api::CallerIdentity,
+        plan: Plan,
+        started: Instant,
+    },
+    Outcome(Result<ExecOutcome, CoreError>),
+}
+
 pub(crate) async fn dispatch<H: Host>(
     core: &Core<H>,
     control: &impl ControlPlane,
     ctx: &RequestCtx,
     planned: Option<&Plan>,
-) -> Option<Result<ExecOutcome, CoreError>> {
+) -> Dispatch {
     let matches = crate::surface_affinity::table_matches(core, ctx);
     if matches.is_empty() {
-        return None;
+        return Dispatch::Unmatched;
     }
-    Some(run(core, control, ctx, planned, matches).await)
+    run(core, control, ctx, planned, matches).await
 }
 
 async fn run<H: Host>(
@@ -29,24 +39,36 @@ async fn run<H: Host>(
     ctx: &RequestCtx,
     planned: Option<&Plan>,
     matches: Vec<crate::surface_affinity::TableMatch>,
-) -> Result<ExecOutcome, CoreError> {
+) -> Dispatch {
     let started = Instant::now();
     let matched_label = matches
         .first()
         .and_then(|matched| action_label(&matched.entry.action));
     let identity = match core.host.authenticate(ctx).await {
         Ok(identity) => identity,
-        Err(error) => return reject(ctx, matched_label, error),
+        Err(error) => return Dispatch::Outcome(reject(ctx, matched_label, error)),
     };
     let plan = match planned {
         Some(plan) => plan.clone(),
         None => match control.resolve(None, &ctx.mode) {
             Ok(plan) => plan,
-            Err(error) => return reject(ctx, matched_label, error),
+            Err(error) => return Dispatch::Outcome(reject(ctx, matched_label, error)),
         },
     };
+    let serves_surface = plan.targets.iter().any(|target| {
+        matches
+            .iter()
+            .any(|matched| matched.channel == target.provider.channel)
+    });
+    if !serves_surface {
+        return Dispatch::Continue {
+            identity,
+            plan,
+            started,
+        };
+    }
     if let Err(error) = core.host.admit(&identity, ctx, None, &plan).await {
-        return reject(ctx, matched_label, error);
+        return Dispatch::Outcome(reject(ctx, matched_label, error));
     }
     let mut selected =
         match crate::surface_affinity::select(core, ctx, &identity, &plan, matches).await {
@@ -54,7 +76,7 @@ async fn run<H: Host>(
             Err(error) => {
                 core.host.finish_admission(&ctx.request_id, None).await;
                 funnel_error::request_failed_surface(ctx, None, matched_label, &error);
-                return Err(error);
+                return Dispatch::Outcome(Err(error));
             }
         };
     let surface_label = action_label(&selected.entry.action);
@@ -79,7 +101,7 @@ async fn run<H: Host>(
         core.host.finish_admission(&ctx.request_id, None).await;
         funnel_error::request_failed_surface(ctx, None, surface_label, error);
     }
-    result
+    Dispatch::Outcome(result)
 }
 
 async fn action<H: Host>(

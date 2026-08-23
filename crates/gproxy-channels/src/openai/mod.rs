@@ -20,7 +20,7 @@ const fn content(operation: Operation, kind: ContentGenerationKind) -> Operation
     OperationKey::content(operation, kind)
 }
 
-static SUPPORTS: [ChannelSupport; 28] = [
+static SUPPORTS: [ChannelSupport; 32] = [
     ChannelSupport::passthrough(family(Operation::ListModels)),
     ChannelSupport::passthrough(family(Operation::GetModel)),
     ChannelSupport::passthrough(content(
@@ -61,6 +61,34 @@ static SUPPORTS: [ChannelSupport; 28] = [
     ChannelSupport::passthrough(family(Operation::GetVideoCharacter)),
     ChannelSupport::passthrough(family(Operation::EditVideo)),
     ChannelSupport::passthrough(family(Operation::ExtendVideo)),
+    ChannelSupport::transform(
+        OperationKey::family(Operation::ListModels, WireFamily::Claude),
+        family(Operation::ListModels),
+    ),
+    ChannelSupport::transform(
+        OperationKey::family(Operation::GetModel, WireFamily::Claude),
+        family(Operation::GetModel),
+    ),
+    ChannelSupport::transform(
+        OperationKey::content(
+            Operation::GenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        ),
+        content(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiChat,
+        ),
+    ),
+    ChannelSupport::transform(
+        OperationKey::content(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        ),
+        content(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::OpenAiChat,
+        ),
+    ),
 ];
 
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {

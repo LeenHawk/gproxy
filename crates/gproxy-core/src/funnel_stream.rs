@@ -56,7 +56,13 @@ impl<H: Host> FunnelStream<H> {
 
     fn finish_relay(&mut self, ended: Ended, error: Option<TransportError>) {
         if let Some(mut decoder) = self.decoder.take() {
-            let tail = decoder.finish();
+            let tail = match decoder.finish() {
+                Ok(tail) => tail,
+                Err(error) => {
+                    self.abort_relay(TransportError::Interrupted(error.to_string()));
+                    return;
+                }
+            };
             self.pending
                 .extend(tail.frames.into_iter().map(|frame| frame.0));
             self.tail_usage = tail.usage;
@@ -154,7 +160,7 @@ impl<H: Host> Drop for FunnelStream<H> {
         let usage = if matches!(self.state, State::Relaying) {
             self.decoder.take().and_then(|mut decoder| {
                 matches!(ctx.settle, SettleMode::OnResponse)
-                    .then(|| decoder.finish().usage)
+                    .then(|| decoder.finish().ok()?.usage)
                     .flatten()
             })
         } else {

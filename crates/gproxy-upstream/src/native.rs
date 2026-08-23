@@ -1,6 +1,8 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::{BoxFuture, ByteStream, TransportError, WsDuplex, WsFrame};
+use gproxy_channel_api::{
+    BoxFuture, ByteStream, TransportError, TransportProfile, WsDuplex, WsFrame,
+};
 use gproxy_core::UpstreamTransport;
 
 #[derive(Clone)]
@@ -36,10 +38,21 @@ impl UpstreamTransport for WreqTransport {
     ) -> BoxFuture<'a, Result<http::Response<ByteStream>, TransportError>> {
         let client = self.client.clone();
         Box::pin(async move {
-            let response = client
-                .execute(request.into())
-                .await
-                .map_err(connect_error)?;
+            let profile = request.extensions().get::<TransportProfile>().copied();
+            let response = match profile {
+                None => client.execute(request.into()).await,
+                Some(TransportProfile::ClaudeCode) => {
+                    let (parts, body) = request.into_parts();
+                    client
+                        .request(parts.method, parts.uri.to_string())
+                        .headers(parts.headers)
+                        .body(body)
+                        .emulation(claude_code_emulation())
+                        .send()
+                        .await
+                }
+            }
+            .map_err(connect_error)?;
             let status = response.status();
             let version = response.version();
             let headers = response.headers().clone();
@@ -74,6 +87,42 @@ impl UpstreamTransport for WreqTransport {
             Ok(Box::new(WreqSocket { socket }) as Box<dyn WsDuplex>)
         })
     }
+}
+
+fn claude_code_emulation() -> wreq::Emulation {
+    static PROFILE: std::sync::OnceLock<wreq::Emulation> = std::sync::OnceLock::new();
+    PROFILE.get_or_init(build_claude_code_emulation).clone()
+}
+
+fn build_claude_code_emulation() -> wreq::Emulation {
+    use wreq::tls::{AlpnProtocol, TlsOptions, TlsVersion};
+
+    let tls = TlsOptions::builder()
+        .alpn_protocols(vec![AlpnProtocol::HTTP1])
+        .grease_enabled(false)
+        .min_tls_version(TlsVersion::TLS_1_2)
+        .max_tls_version(TlsVersion::TLS_1_3)
+        .cipher_list(
+            "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:\
+             ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:\
+             ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:\
+             ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:\
+             ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:\
+             ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:\
+             AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA"
+                .to_owned(),
+        )
+        .curves_list("X25519:P-256:P-384".to_owned())
+        .sigalgs_list(
+            "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:\
+             ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:\
+             rsa_pss_rsae_sha512:rsa_pkcs1_sha512:rsa_pkcs1_sha1"
+                .to_owned(),
+        )
+        .build();
+    wreq::Emulation::builder()
+        .tls_options(tls)
+        .build(wreq::Group::default())
 }
 
 struct WreqSocket {

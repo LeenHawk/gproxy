@@ -152,6 +152,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
             let facts = FunnelCtx {
                 request_id,
                 target: self.target.clone(),
+                source_key: None,
                 key: None,
                 settle: SettleMode::Free,
                 pricing: None,

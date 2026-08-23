@@ -22,7 +22,7 @@ mod tests;
 pub use operation::{
     ContentGenerationKind, Operation, OperationGroup, OperationKey, OperationKind, WireFamily,
 };
-pub use path::{match_ingress, match_path};
+pub use path::{match_ingress, match_ingress_for, match_path, request_target};
 pub use spec::{
     Affinity, Ingress, Matched, OperationSpec, PathPattern, Seg, SettleMode, StreamDetect,
     streaming_sibling,

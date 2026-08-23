@@ -76,7 +76,7 @@ pub(crate) async fn complete<H: Host>(
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.key.map(|key| key.operation),
+        operation = ?ctx.source_key.map(|key| key.operation),
         surface = ctx.surface_label.unwrap_or(""),
         ended = ?ended,
         latency_ms,

@@ -121,6 +121,21 @@ fn media_stream_detection_covers_json_values_and_multipart_flags() {
                 .stream
         );
     }
+
+    let mut models = request(false, "claude-models");
+    models.method = Method::GET;
+    models.path = "/v1/models".into();
+    models.body = Bytes::new();
+    models
+        .headers
+        .insert("anthropic-version", "2023-06-01".parse().unwrap());
+    assert_eq!(
+        crate::request::classify(&models)
+            .expect("Claude models")
+            .key
+            .kind,
+        gproxy_protocol::OperationKind::Family(gproxy_protocol::WireFamily::Claude)
+    );
 }
 
 #[test]
@@ -176,6 +191,183 @@ fn resource_operations_persist_pin_and_delete_credential_bindings() -> Result<()
             .bindings
             .contains_key(&(3, 1, "file".into(), "file-1".into()))
     );
+    Ok(())
+}
+
+#[test]
+fn foreign_shared_surface_falls_through_without_reauthenticating() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let channels = gproxy_channel_api::ChannelRegistry::new([
+        Box::new(host.clone()) as Box<dyn Channel>,
+        Box::new(channel::ForeignSurface) as Box<dyn Channel>,
+    ])
+    .expect("channel registry");
+    let core = Core::new(host.clone(), channels)?;
+    let mut files = request(false, "shared-files");
+    files.method = Method::GET;
+    files.path = "/v1/files".into();
+    files.body = Bytes::new();
+    assert_eq!(
+        block_on(core.execute(&host, files))
+            .expect("OpenAI files fallthrough")
+            .status,
+        StatusCode::OK
+    );
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.auth_calls, 1);
+    assert_eq!(state.admit_calls, 1);
+    Ok(())
+}
+
+#[test]
+fn transformed_claude_attempts_settle_native_usage_before_relay() -> Result<(), InitError> {
+    for stream in [false, true] {
+        let host = MemoryHost::new(false);
+        host.state.lock().expect("state lock").credential.channel = "claudecode".into();
+        let target = Target {
+            provider: ProviderRef {
+                id: 4,
+                name: "claude-provider".into(),
+                channel: "claudecode".into(),
+                settings: json!({}),
+            },
+            credential: CredentialId(7),
+            upstream_model: "claude-test".into(),
+        };
+        host.state.lock().expect("state lock").plan = Some(Plan {
+            targets: vec![target],
+            budget: FailoverBudget { max_attempts: 1 },
+        });
+        let channels =
+            gproxy_channel_api::ChannelRegistry::new([
+                Box::new(gproxy_channels::ClaudeCodeChannel) as Box<dyn Channel>,
+            ])
+            .expect("channel registry");
+        let core = Core::new(host.clone(), channels)?;
+        let mut request = request(
+            false,
+            if stream {
+                "claude-stream"
+            } else {
+                "claude-buffer"
+            },
+        );
+        request.path = "/v1/chat/completions".into();
+        request.body = Bytes::from(format!(
+            r#"{{"model":"alias","max_tokens":32,"stream":{stream},"messages":[{{"role":"user","content":"hi"}}]}}"#
+        ));
+        let outcome = block_on(core.execute(&host, request)).expect("transformed Claude attempt");
+        match outcome.body {
+            ResponseBody::Full(body) => {
+                let body: serde_json::Value = serde_json::from_slice(&body).expect("chat response");
+                assert_eq!(body["choices"][0]["message"]["content"], "ok");
+            }
+            ResponseBody::Stream(mut body) => {
+                let bytes = block_on(async {
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) = body.next().await {
+                        bytes.extend_from_slice(&chunk.expect("stream frame"));
+                    }
+                    bytes
+                });
+                let text = String::from_utf8(bytes).expect("SSE text");
+                assert!(text.contains("chat.completion.chunk"));
+                assert!(text.contains("ok"));
+            }
+            ResponseBody::WebSocket(_) => panic!("HTTP transform returned a websocket"),
+        }
+        let state = host.state.lock().expect("state lock");
+        assert_eq!(state.settlements.len(), 1);
+        assert_eq!(state.settlements[0].provider_id, 4);
+        assert_eq!(state.settlements[0].usage.input_tokens, 10);
+        assert_eq!(state.settlements[0].usage.output_tokens, 5);
+    }
+    Ok(())
+}
+
+#[test]
+fn every_declared_builtin_transform_is_wired() {
+    for channel in [
+        &gproxy_channels::OpenAiChannel as &dyn Channel,
+        &gproxy_channels::ClaudeCodeChannel as &dyn Channel,
+    ] {
+        for support in channel.descriptor().supports {
+            if support.source != support.target {
+                assert!(
+                    gproxy_transform::can_transform(support.source, support.target),
+                    "{} declares an unwired transform: {:?}",
+                    channel.descriptor().id,
+                    support
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn claude_file_surface_funnels_create_and_lists_owned_binding() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    {
+        let mut state = host.state.lock().expect("state lock");
+        state.credential.channel = "claudecode".into();
+        state.plan = Some(Plan {
+            targets: vec![Target {
+                provider: ProviderRef {
+                    id: 4,
+                    name: "claude-provider".into(),
+                    channel: "claudecode".into(),
+                    settings: json!({}),
+                },
+                credential: CredentialId(7),
+                upstream_model: "claude-test".into(),
+            }],
+            budget: FailoverBudget { max_attempts: 1 },
+        });
+    }
+    let channels =
+        gproxy_channel_api::ChannelRegistry::new([
+            Box::new(gproxy_channels::ClaudeCodeChannel) as Box<dyn Channel>
+        ])
+        .expect("channel registry");
+    let core = Core::new(host.clone(), channels)?;
+    let mut create = request(false, "claude-file-create");
+    create.path = "/v1/files".into();
+    create.body = Bytes::new();
+    let created = block_on(core.execute(&host, create)).expect("Claude file create");
+    let ResponseBody::Full(created) = created.body else {
+        panic!("Claude file create was not buffered");
+    };
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&created).unwrap()["id"],
+        "file-1"
+    );
+    assert!(
+        host.state
+            .lock()
+            .expect("state lock")
+            .bindings
+            .contains_key(&(4, 1, "claude:file".into(), "file-1".into()))
+    );
+
+    let mut list = request(false, "claude-file-list");
+    list.method = Method::GET;
+    list.path = "/v1/files".into();
+    list.body = Bytes::new();
+    let listed = block_on(core.execute(&host, list)).expect("Claude file list");
+    let ResponseBody::Full(listed) = listed.body else {
+        panic!("Claude file list was not buffered");
+    };
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&listed).unwrap()["data"][0]["id"],
+        "file-1"
+    );
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.admission_finishes.len(), state.admit_calls);
+    assert_eq!(state.captures.len(), 3);
     Ok(())
 }
 

@@ -45,6 +45,7 @@ pub(crate) async fn run<H: Host>(
             name: &selected.target.provider.name,
             settings: &selected.target.provider.settings,
         };
+        let credential = selected.target.credential;
         handler
             .respond(
                 SynthCtx {
@@ -63,6 +64,7 @@ pub(crate) async fn run<H: Host>(
                         .expect("surface registration requires a binding store"),
                     identity,
                     provider: &provider,
+                    credential,
                     usage: usage.as_ref(),
                 },
             )
@@ -87,6 +89,7 @@ async fn finish<H: Host>(
     let ctx = FunnelCtx {
         request_id: request.request_id.clone(),
         target: selected.target,
+        source_key: None,
         key: None,
         settle: SettleMode::Free,
         pricing: None,

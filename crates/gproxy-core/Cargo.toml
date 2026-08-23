@@ -8,7 +8,9 @@ repository.workspace = true
 
 [dependencies]
 gproxy-channel-api.workspace = true
+gproxy-channels.workspace = true
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
+gproxy-transform.workspace = true
 bytes.workspace = true
 futures-core.workspace = true
 futures-util.workspace = true

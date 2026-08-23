@@ -128,7 +128,7 @@ impl StreamDecoder for OpenAiSseDecoder {
         }
     }
 
-    fn finish(&mut self) -> StreamTail {
+    fn finish(&mut self) -> Result<StreamTail, ChannelError> {
         if !self.buffer.is_empty() {
             let raw = std::mem::take(&mut self.buffer);
             self.observe(&raw);
@@ -144,10 +144,10 @@ impl StreamDecoder for OpenAiSseDecoder {
             );
             self.usage = Some(usage);
         }
-        StreamTail {
+        Ok(StreamTail {
             frames: Vec::new(),
             usage: self.usage.take(),
-        }
+        })
     }
 }
 

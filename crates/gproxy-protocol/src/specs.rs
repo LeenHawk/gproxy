@@ -83,6 +83,7 @@ const fn video_character_op(ingress: &'static [Ingress]) -> OperationSpec {
 
 const LIST_MODELS: OperationSpec = free(&[
     ing(GET, &[Lit("v1"), Lit("models")], FAM_OAI, NEVER),
+    ing(GET, &[Lit("v1"), Lit("models")], FAM_CLA, NEVER),
     ing(GET, &[Lit("v1beta"), Lit("models")], FAM_GEM, NEVER),
 ]);
 const GET_MODEL: OperationSpec = free(&[
@@ -90,6 +91,12 @@ const GET_MODEL: OperationSpec = free(&[
         GET,
         &[Lit("v1"), Lit("models"), Param("id")],
         FAM_OAI,
+        NEVER,
+    ),
+    ing(
+        GET,
+        &[Lit("v1"), Lit("models"), Param("id")],
+        FAM_CLA,
         NEVER,
     ),
     ing(

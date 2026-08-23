@@ -32,7 +32,10 @@ pub use surface::{
     SurfaceRequest, SurfaceServices, SurfaceTable, SynthCtx, Synthesizer, UsageView, UsageWindow,
 };
 pub use usage::NormalizedUsage;
-pub use wire::{ByteStream, CredentialId, MaybeSend, MaybeSync, TransportError, WsDuplex, WsFrame};
+pub use wire::{
+    ByteStream, CredentialId, MaybeSend, MaybeSync, TransportError, TransportProfile, WsDuplex,
+    WsFrame,
+};
 
 /// Boxed future with the wasm `Send` split — the one language-level tax
 /// this crate carries for the single-threaded wasm target.

@@ -587,6 +587,7 @@ dependencies = [
  "http",
  "rust_decimal",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -597,7 +598,9 @@ dependencies = [
  "futures-core",
  "futures-util",
  "gproxy-channel-api",
+ "gproxy-channels",
  "gproxy-protocol",
+ "gproxy-transform",
  "http",
  "rust_decimal",
  "serde_json",
@@ -611,6 +614,16 @@ name = "gproxy-protocol"
 version = "3.0.0-alpha.0"
 dependencies = [
  "http",
+]
+
+[[package]]
+name = "gproxy-transform"
+version = "3.0.0-alpha.0"
+dependencies = [
+ "bytes",
+ "gproxy-protocol",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

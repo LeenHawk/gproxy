@@ -13,6 +13,13 @@ pub enum TransportError {
     Interrupted(String),
 }
 
+/// Native transport fingerprint selected by a channel. Edge hosts ignore it;
+/// they do not control the runtime TLS stack.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportProfile {
+    ClaudeCode,
+}
+
 /// Response body stream. Zero-copy passthrough is the default path: frames
 /// flow as refcounted `Bytes` and are only re-encoded when something must
 /// rewrite them.

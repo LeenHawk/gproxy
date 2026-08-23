@@ -89,10 +89,22 @@ impl<H: Host> Core<H> {
         control: &impl ControlPlane,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
-        if let Some(result) = crate::surface::dispatch(self, control, &ctx, None).await {
-            return result;
+        let classified = crate::request::classify(&ctx);
+        match crate::surface::dispatch(self, control, &ctx, None).await {
+            crate::surface::Dispatch::Unmatched => crate::execute::run(self, control, ctx).await,
+            crate::surface::Dispatch::Outcome(result) => result,
+            crate::surface::Dispatch::Continue {
+                identity,
+                plan,
+                started,
+            } => {
+                let classified = classified.inspect_err(|error| {
+                    crate::funnel_error::request_failed(&ctx, None, error);
+                })?;
+                crate::execute::resolved(self, control, ctx, plan, classified, identity, started)
+                    .await
+            }
         }
-        crate::execute::run(self, control, ctx).await
     }
 
     /// Tier 2 with a caller-built plan: the embedder's entry when it does
@@ -104,9 +116,23 @@ impl<H: Host> Core<H> {
         ctx: RequestCtx,
         plan: Plan,
     ) -> Result<ExecOutcome, CoreError> {
-        if let Some(result) = crate::surface::dispatch(self, control, &ctx, Some(&plan)).await {
-            return result;
+        let classified = crate::request::classify(&ctx);
+        match crate::surface::dispatch(self, control, &ctx, Some(&plan)).await {
+            crate::surface::Dispatch::Unmatched => {
+                crate::execute::planned(self, control, ctx, plan).await
+            }
+            crate::surface::Dispatch::Outcome(result) => result,
+            crate::surface::Dispatch::Continue {
+                identity,
+                plan,
+                started,
+            } => {
+                let classified = classified.inspect_err(|error| {
+                    crate::funnel_error::request_failed(&ctx, None, error);
+                })?;
+                crate::execute::resolved(self, control, ctx, plan, classified, identity, started)
+                    .await
+            }
         }
-        crate::execute::planned(self, control, ctx, plan).await
     }
 }

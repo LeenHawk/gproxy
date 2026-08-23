@@ -65,7 +65,7 @@ pub(crate) async fn observe<H: Host>(
     if !status.is_success() {
         return;
     }
-    let (Some(owner_user_id), Some(key)) = (ctx.owner_user_id, ctx.key) else {
+    let (Some(owner_user_id), Some(key)) = (ctx.owner_user_id, ctx.source_key) else {
         return;
     };
     let Affinity::Resource(kind) = key.operation.spec().affinity else {

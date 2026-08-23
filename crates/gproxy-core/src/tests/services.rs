@@ -103,6 +103,7 @@ impl UpstreamTransport for MemoryHost {
             } else {
                 let path = request.uri().path().to_owned();
                 let method = request.method().clone();
+                let request_body = request.body().clone();
                 let authorization = request
                     .headers()
                     .get(http::header::AUTHORIZATION)
@@ -122,6 +123,19 @@ impl UpstreamTransport for MemoryHost {
                     (http::Method::DELETE, "/v1/files/file-1") => {
                         Bytes::from_static(br#"{"id":"file-1","deleted":true}"#)
                     }
+                    (http::Method::POST, "/v1/messages")
+                        if serde_json::from_slice::<serde_json::Value>(&request_body)
+                            .ok()
+                            .and_then(|body| body.get("stream")?.as_bool())
+                            .unwrap_or(false) =>
+                    {
+                        Bytes::from_static(
+                            b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-test\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+                        )
+                    }
+                    (http::Method::POST, "/v1/messages") => Bytes::from_static(
+                        br#"{"id":"msg_1","type":"message","role":"assistant","model":"claude-test","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}"#,
+                    ),
                     _ => Bytes::from_static(br#"{"usage":true,"result":"ok"}"#),
                 };
                 (

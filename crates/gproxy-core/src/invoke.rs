@@ -30,7 +30,7 @@ pub(crate) async fn run<H: Host>(
         started,
     )
     .await?;
-    match attempt::send(core, prepared, &classified).await {
+    match attempt::send(core, prepared).await {
         Ok(completed) => Ok(attempt::finish(core, completed).await),
         Err(Failure::Transport { facts, error }) => {
             funnel_error::terminal_transport(core.host.as_ref(), &facts, &error).await;
