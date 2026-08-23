@@ -15,6 +15,9 @@ pub mod operation;
 pub mod spec;
 mod specs;
 
+#[cfg(test)]
+mod tests;
+
 pub use operation::{
     ContentGenerationKind, Operation, OperationGroup, OperationKey, OperationKind, WireFamily,
 };
