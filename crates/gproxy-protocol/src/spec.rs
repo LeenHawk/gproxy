@@ -142,6 +142,7 @@ pub const fn streaming_sibling(operation: Operation) -> Option<Operation> {
         | Operation::StreamGenerateContent
         | Operation::CompactContent
         | Operation::CreateEmbedding
+        | Operation::BatchCreateEmbedding
         | Operation::Rerank
         | Operation::WebSearch
         | Operation::CreateImage

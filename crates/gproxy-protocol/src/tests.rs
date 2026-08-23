@@ -59,6 +59,26 @@ fn ingress_registry_matches_canonical_paths() {
     );
     assert_eq!(streaming_sibling(Operation::CreateImage), None);
     assert_eq!(streaming_sibling(Operation::EditImage), None);
+    assert_eq!(
+        request_target(
+            OperationKey::family(Operation::CreateEmbedding, WireFamily::Gemini),
+            "gemini-embedding-001",
+        ),
+        Some((
+            Method::POST,
+            "/v1beta/models/gemini-embedding-001:embedContent".into(),
+        ))
+    );
+    assert_eq!(
+        request_target(
+            OperationKey::family(Operation::BatchCreateEmbedding, WireFamily::Gemini),
+            "gemini-embedding-001",
+        ),
+        Some((
+            Method::POST,
+            "/v1beta/models/gemini-embedding-001:batchEmbedContents".into(),
+        ))
+    );
 }
 
 #[test]

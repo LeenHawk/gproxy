@@ -188,6 +188,24 @@ fn media_stream_detection_covers_json_values_and_multipart_flags() {
         gproxy_protocol::StreamFraming::Sse
     );
 
+    let mut veo_poll = request(false, "veo-poll");
+    veo_poll.method = Method::GET;
+    veo_poll.path = "/v1beta/models/veo-3/operations/op-1".into();
+    veo_poll.body = Bytes::new();
+    let classified = crate::execution::request::classify(&veo_poll).expect("Veo poll");
+    assert_eq!(classified.model.as_deref(), Some("veo-3"));
+    assert_eq!(classified.resource(), Some(("video", "op-1")));
+
+    let mut veo_create = request(false, "veo-create");
+    veo_create.path = "/v1beta/models/veo-3:predictLongRunning".into();
+    veo_create.body = Bytes::from_static(br#"{"instances":[{"prompt":"hello"}]}"#);
+    assert_eq!(
+        crate::execution::request::classify(&veo_create)
+            .expect("Veo create")
+            .resource(),
+        None
+    );
+
     let mut realtime = request(false, "realtime-model");
     realtime.path = "/v1/realtime/calls".into();
     realtime.body = Bytes::from_static(

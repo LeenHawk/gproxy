@@ -83,9 +83,13 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
                     .map(str::to_owned)
             })
         });
-    let resource = match (spec.affinity, matched.params.first()) {
-        (Affinity::Resource(kind), Some((_, id))) => Some((kind, id.clone())),
-        _ => None,
+    let resource = match spec.affinity {
+        Affinity::Resource(kind) => matched
+            .params
+            .iter()
+            .find(|(name, _)| *name == "id")
+            .map(|(_, id)| (kind, id.clone())),
+        Affinity::None | Affinity::Session => None,
     };
     Ok(Classified {
         key: OperationKey {
