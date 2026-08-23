@@ -25,6 +25,9 @@ const fn ing(
         pattern: PathPattern(pattern),
         kind,
         stream,
+        // WS-upgrade ingresses (realtime sessions, Responses-over-WS) use
+        // a dedicated constructor when those operations land.
+        upgrade: false,
     }
 }
 

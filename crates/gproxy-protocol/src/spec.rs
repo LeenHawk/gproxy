@@ -47,6 +47,11 @@ pub struct Ingress {
     pub pattern: PathPattern,
     pub kind: OperationKind,
     pub stream: StreamDetect,
+    /// This ingress is a websocket upgrade (`GET /v1/realtime`,
+    /// Responses-over-WS). The engine hands matched upgrades to the WS
+    /// bridge instead of the HTTP path; hosts never hardcode WS routes
+    /// (v2's gateway carried a three-branch if-chain for exactly this).
+    pub upgrade: bool,
 }
 
 /// When the funnel settles this operation.

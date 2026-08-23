@@ -6,14 +6,11 @@
 //! server framework. Host-provided services (credential persistence, cache,
 //! transport, sinks) enter through the traits in [`host`].
 //!
-//! Interface round 1: boundary types, host contract, control-plane read
-//! model, settlement types, and the two execution tiers. Round 2 adds the
-//! channel contract and the OperationSpec registry.
-
-// The auto-Send question these warnings point at is a real open item,
-// settled in the implementation round (bounds at spawn sites vs. a
-// MaybeSend alias). Silencing beats desugaring every draft signature.
-#![allow(async_fn_in_trait)]
+//! Interface rounds 1–3 are drafted: boundary types, host contract (all
+//! async methods return the workspace [`BoxFuture`] — no AFIT in public
+//! traits), control-plane read model, settlement types, the two execution
+//! tiers, and (via `gproxy-channel-api`) the channel contract with surface
+//! hooks.
 
 pub mod api;
 pub mod boundary;
@@ -21,6 +18,8 @@ pub mod control;
 pub mod error;
 pub mod host;
 pub mod usage;
+
+pub use gproxy_channel_api::BoxFuture;
 
 pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};

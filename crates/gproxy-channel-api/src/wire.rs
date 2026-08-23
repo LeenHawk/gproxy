@@ -30,3 +30,31 @@ pub type ByteStream =
 /// embedders without a database can hand out any distinct values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CredentialId(pub i64);
+
+/// `Send` on native, nothing on wasm — the marker that lets one trait
+/// definition serve both targets instead of duplicating it under `#[cfg]`.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + ?Sized> MaybeSend for T {}
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSend for T {}
+
+/// One websocket frame, transport-agnostic. Hosts bridge these to their
+/// native socket type; channels and the engine never see axum or a
+/// platform socket.
+#[derive(Debug)]
+pub enum WsFrame {
+    Text(String),
+    Binary(Bytes),
+    Close(Option<u16>),
+}
+
+/// A connected websocket, either direction. `recv` returning `None`
+/// means the peer closed cleanly.
+pub trait WsDuplex: MaybeSend {
+    fn send<'a>(&'a mut self, frame: WsFrame) -> crate::BoxFuture<'a, Result<(), TransportError>>;
+    fn recv<'a>(&'a mut self) -> crate::BoxFuture<'a, Result<Option<WsFrame>, TransportError>>;
+}

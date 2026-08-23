@@ -52,6 +52,10 @@ pub enum SurfaceAffinity {
 pub enum SurfaceAction {
     /// Forward to the provider on the pinned/selected credential (tier 1).
     Forward(ForwardSpec),
+    /// Upgrade and bridge a websocket to the provider on the pinned
+    /// credential (codex remote-control). The engine opens the upstream
+    /// socket through the channel's prepare; the host pumps frames.
+    ForwardWebSocket(ForwardSpec),
     /// Answer locally, optionally orchestrating upstream calls.
     Synthesize {
         handler: &'static dyn Synthesizer,

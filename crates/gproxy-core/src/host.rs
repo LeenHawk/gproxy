@@ -3,12 +3,19 @@
 //! Decryption is the store implementor's concern — the core receives
 //! ready-to-use secret material and never sees a cipher. `gproxy-app`
 //! implements envelope encryption inside its store; a bare embedder may
-//! store plaintext. Everything here is async-fn-in-trait; the Send-bound
-//! strategy is settled in the implementation round (see lib.rs allow note).
+//! store plaintext.
+//!
+//! Every async method returns the workspace [`BoxFuture`]: object-safe,
+//! `Send` on native by construction, no async-fn-in-trait. Public traits
+//! do not use AFIT anywhere in this workspace — the one-box-per-I/O-call
+//! cost is noise next to the I/O itself, and it settles the Send-bound
+//! question instead of deferring it.
 
 use std::time::Duration;
 
-use crate::error::StoreError;
+use gproxy_channel_api::{BindingStore, BoxFuture, WsDuplex};
+
+use crate::error::{StoreError, TransportError};
 use crate::usage::Settlement;
 
 /// Credential identity — defined at the contract layer (bindings reference
@@ -31,41 +38,45 @@ pub struct CredentialRecord {
 
 /// MANDATORY host service: credential persistence.
 pub trait CredentialStore {
-    async fn load(&self, id: CredentialId) -> Result<CredentialRecord, StoreError>;
+    fn load<'a>(&'a self, id: CredentialId) -> BoxFuture<'a, Result<CredentialRecord, StoreError>>;
 
     /// Persist rotated secret material, atomically, guarded by `version`.
     /// Claude rotates the refresh token on every refresh: losing this write
     /// bricks the credential, which is why the method is not optional and
     /// why a stale `version` must fail rather than overwrite.
-    async fn persist_rotation(
-        &self,
+    fn persist_rotation<'a>(
+        &'a self,
         id: CredentialId,
         secret: serde_json::Value,
         version: u64,
-    ) -> Result<(), StoreError>;
+    ) -> BoxFuture<'a, Result<(), StoreError>>;
 
     /// Best-effort exclusive lease so concurrent requests refresh once.
     /// Returns whether this caller holds the lease.
-    async fn lease_refresh(&self, id: CredentialId, ttl: Duration) -> Result<bool, StoreError>;
+    fn lease_refresh<'a>(
+        &'a self,
+        id: CredentialId,
+        ttl: Duration,
+    ) -> BoxFuture<'a, Result<bool, StoreError>>;
 }
 
-/// TTL-aware shared cache: affinity bindings, refresh leases, counters.
+/// TTL-aware shared cache: affinity pins, refresh leases, counters.
 pub trait CacheBackend {
-    async fn get(&self, key: &str) -> Option<Vec<u8>>;
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>);
-    async fn incr(&self, key: &str, by: i64, ttl: Option<Duration>) -> i64;
+    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Option<Vec<u8>>>;
+    fn set<'a>(&'a self, key: &'a str, value: Vec<u8>, ttl: Option<Duration>) -> BoxFuture<'a, ()>;
+    fn incr<'a>(&'a self, key: &'a str, by: i64, ttl: Option<Duration>) -> BoxFuture<'a, i64>;
 }
 
 /// Settlement output. `gproxy-app` writes usage rows; an embedder may
 /// aggregate in memory or drop. Never on the hot path's critical section.
 pub trait UsageSink {
-    async fn record(&self, settlement: &Settlement);
+    fn record<'a>(&'a self, settlement: &'a Settlement) -> BoxFuture<'a, ()>;
 }
 
 /// Wire capture, sibling of [`UsageSink`]: the funnel offers every request
 /// and response; the sink decides retention and redaction.
 pub trait CaptureSink {
-    async fn record(&self, capture: &Capture);
+    fn record<'a>(&'a self, capture: &'a Capture) -> BoxFuture<'a, ()>;
 }
 
 /// One captured exchange. Redaction happens in the sink, not the funnel —
@@ -91,16 +102,23 @@ pub trait Spawner {
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()>>>);
 }
 
-/// Outbound HTTP. The trait lives here so the core never depends on a
-/// concrete client; `gproxy-upstream` provides the canonical impl (wreq,
-/// TLS profiles, proxies) and an embedder may bring its own. Request
-/// bodies are buffered `Bytes` (transforms and retries need replay);
-/// responses stream.
+/// Outbound HTTP and websockets. The trait lives here so the core never
+/// depends on a concrete client; `gproxy-upstream` provides the canonical
+/// impl (wreq, TLS profiles, proxies) and an embedder may bring its own.
+/// Request bodies are buffered `Bytes` (transforms and retries need
+/// replay); responses stream.
 pub trait UpstreamTransport {
-    async fn send(
-        &self,
+    fn send<'a>(
+        &'a self,
         request: http::Request<bytes::Bytes>,
-    ) -> Result<http::Response<crate::boundary::ByteStream>, crate::error::TransportError>;
+    ) -> BoxFuture<'a, Result<http::Response<crate::boundary::ByteStream>, TransportError>>;
+
+    /// Open the upstream socket for a prepared request with
+    /// `websocket: true` (Responses-over-WS, realtime, remote control).
+    fn open_websocket<'a>(
+        &'a self,
+        request: http::Request<bytes::Bytes>,
+    ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>>;
 }
 
 /// The aggregate a host hands to [`crate::Core`]. Associated types keep
@@ -127,7 +145,7 @@ pub trait Host {
     /// in-memory fallback would fragment silently in multi-instance
     /// deployments. A host that provides `None` cannot register channels
     /// with surface tables — [`crate::Core::new`] fails loudly instead.
-    fn bindings(&self) -> Option<&dyn gproxy_channel_api::BindingStore> {
+    fn bindings(&self) -> Option<&dyn BindingStore> {
         None
     }
 }
