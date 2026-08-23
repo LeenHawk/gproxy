@@ -16,7 +16,8 @@ pub struct UpstreamModel {
 }
 
 /// Parse an upstream native model-list response into model metadata rows.
-/// openai/claude → `data[]` (`id`); gemini → `models[]` (`name`, `models/` stripped).
+/// openai/claude → `data[]` (`id`; OpenAI also accepts `model`);
+/// gemini → `models[]` (`name`, `models/` stripped).
 pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> {
     let Ok(v) = serde_json::from_slice::<Value>(body) else {
         return Vec::new();
@@ -35,6 +36,11 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                     .get("name")
                     .and_then(Value::as_str)
                     .map(|s| s.strip_prefix("models/").unwrap_or(s).to_owned()),
+                Provider::OpenAi => m
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .or_else(|| m.get("model").and_then(Value::as_str))
+                    .map(str::to_owned),
                 _ => m.get("id").and_then(Value::as_str).map(str::to_owned),
             }?;
             let display_name = match family {
