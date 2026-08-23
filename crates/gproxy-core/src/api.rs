@@ -7,15 +7,12 @@
 //! these two calls and nothing else — there is no private third entry
 //! (v2's `codex_service.rs` was that entry, and it ran unmetered).
 
+use gproxy_channel_api::ChannelRegistry;
+
 use crate::boundary::{ExecOutcome, RequestCtx};
 use crate::control::{ControlPlane, Plan, Target};
 use crate::error::CoreError;
 use crate::host::Host;
-
-/// Placeholder: the channel contract and registry land in interface
-/// round 2 (`gproxy-channel-api`). Declared now so the constructor's
-/// shape is reviewable.
-pub struct ChannelRegistry(pub(crate) ());
 
 /// The engine. Generic over the host so everything is statically
 /// dispatched; an embedder's `Host` impl is the only wiring required.

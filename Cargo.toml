@@ -1,12 +1,26 @@
 [workspace]
 resolver = "3"
-members = ["crates/gproxy-core"]
+members = [
+    "crates/gproxy-channel-api",
+    "crates/gproxy-core",
+    "crates/gproxy-protocol",
+]
 
 [workspace.package]
 version = "3.0.0-alpha.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/LeenHawk/gproxy"
+
+[workspace.dependencies]
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.0-alpha.0" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.0-alpha.0" }
+bytes = "1"
+futures-core = "0.3"
+http = "1"
+rust_decimal = "1"
+serde_json = "1"
+thiserror = "2"
 
 [profile.release]
 lto = "thin"

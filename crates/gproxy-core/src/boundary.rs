@@ -65,18 +65,10 @@ impl std::fmt::Debug for ResponseBody {
     }
 }
 
-/// How the upstream answer was classified. Drives failover and health.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Disposition {
-    /// Usable answer; relay it.
-    Success,
-    /// Upstream error worth trying the next credential.
-    Retryable,
-    /// Upstream error the client must see (4xx semantics, policy blocks).
-    Terminal,
-    /// The credential itself is dead (revoked, expired beyond refresh).
-    CredentialDead,
-}
+/// How the upstream answer was classified — defined in the channel
+/// contract (deciding what a response means is channel knowledge) and
+/// re-exported here for hosts.
+pub use gproxy_channel_api::Disposition;
 
 /// Proof of settlement. Constructible only inside the funnel module —
 /// every [`ExecOutcome`] carries one, so no code path can produce a

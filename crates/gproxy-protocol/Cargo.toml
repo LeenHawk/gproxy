@@ -1,0 +1,16 @@
+[package]
+name = "gproxy-protocol"
+description = "GPROXY v3 protocol model: operation taxonomy, wire kinds, and the OperationSpec registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Workspace-internal builds enable this so protocol enums are exhaustive and
+# the compiler enumerates every site a new variant must update. External
+# consumers get `#[non_exhaustive]` semver protection by default.
+exhaustive = []
+
+[dependencies]
+http.workspace = true

@@ -1,16 +1,14 @@
 [package]
-name = "gproxy-core"
-description = "GPROXY v3 embeddable core: channels, credential lifecycle, transforms, execution"
+name = "gproxy-channel-api"
+description = "GPROXY v3 channel contract: how the engine talks to a provider adapter"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-gproxy-channel-api.workspace = true
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 bytes.workspace = true
-futures-core.workspace = true
 http.workspace = true
 rust_decimal.workspace = true
 serde_json.workspace = true

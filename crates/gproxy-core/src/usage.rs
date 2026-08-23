@@ -1,22 +1,10 @@
-//! Normalized usage and settlement: what the funnel produces.
+//! Settlement: what the funnel produces.
 
 use rust_decimal::Decimal;
-use std::collections::BTreeMap;
 
-/// Provider-independent usage for one request. First-class token fields
-/// stay deliberately few; everything else is dimensional — a new measure
-/// is an entry in `metrics`, priced by a rate rule, not a new column
-/// (a first-class column cost v2 34 files).
-#[derive(Debug, Clone, Default)]
-pub struct NormalizedUsage {
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cached_input_tokens: u64,
-    /// Quantities: `"audio_seconds"`, `"video_seconds"`, `"image_output"`...
-    pub metrics: BTreeMap<String, Decimal>,
-    /// Qualifiers that select pricing variants: `"resolution"`, `"tier"`...
-    pub dimensions: BTreeMap<String, String>,
-}
+/// Provider-independent usage — defined in the channel contract (channels
+/// extract it) and re-exported here.
+pub use gproxy_channel_api::NormalizedUsage;
 
 /// Where the numbers came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
