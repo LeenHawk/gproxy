@@ -19,8 +19,10 @@ mod grokbuild;
 mod groq;
 mod kimi;
 mod kiro;
+mod legacy;
 mod nvidia;
 mod openai;
+mod opencode;
 mod openrouter;
 mod shared;
 mod vercel;
@@ -47,8 +49,10 @@ pub use grokbuild::GrokBuildChannel;
 pub use groq::GroqChannel;
 pub use kimi::KimiChannel;
 pub use kiro::KiroChannel;
+pub use legacy::provider_settings as canonical_provider_settings;
 pub use nvidia::NvidiaChannel;
 pub use openai::OpenAiChannel;
+pub use opencode::OpenCodeChannel;
 pub use openrouter::OpenRouterChannel;
 pub use vercel::VercelChannel;
 pub use vertex::VertexChannel;
@@ -59,6 +63,7 @@ pub use xai::XaiChannel;
 pub fn canonical_channel_id(id: &str) -> &str {
     match id {
         "kimiapi" | "kimicode" => "kimi",
+        "opencodezen" | "opencodego" => "opencode",
         _ => id,
     }
 }

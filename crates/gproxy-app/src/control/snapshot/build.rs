@@ -18,17 +18,25 @@ impl CompiledSnapshot {
             .iter()
             .filter(|provider| provider.enabled)
             .map(|provider| {
-                (
+                let settings = gproxy_channels::canonical_provider_settings(
+                    &provider.channel,
+                    &provider.settings,
+                )
+                .map_err(|message| StoreError::InvalidData {
+                    field: "provider settings",
+                    message,
+                })?;
+                Ok((
                     provider.id,
                     ProviderRef {
                         id: provider.id,
                         name: provider.name.clone(),
                         channel: gproxy_channels::canonical_channel_id(&provider.channel).into(),
-                        settings: provider.settings.clone(),
+                        settings,
                     },
-                )
+                ))
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<Result<BTreeMap<_, _>, StoreError>>()?;
         let provider_names = providers
             .values()
             .map(|provider| (provider.name.clone(), provider.id))
