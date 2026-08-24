@@ -79,7 +79,12 @@ impl State {
         }
         if self.text_items.contains(&key) {
             item = match item {
-                openai::ResponseItem::Message(_) => return Ok(Vec::new()),
+                openai::ResponseItem::Message(
+                    openai::ResponseMessageItem::Output(_)
+                    | openai::ResponseMessageItem::Input(_)
+                    | openai::ResponseMessageItem::EasyInput(_)
+                    | openai::ResponseMessageItem::Unknown(_),
+                ) => return Ok(Vec::new()),
                 openai::ResponseItem::Typed(item) => match *item {
                     openai::TypedResponseItem::Reasoning {
                         id,
@@ -100,7 +105,7 @@ impl State {
                     openai::TypedResponseItem::Reasoning { .. } => return Ok(Vec::new()),
                     other => openai::ResponseItem::Typed(Box::new(other)),
                 },
-                other => other,
+                openai::ResponseItem::Unknown(raw) => openai::ResponseItem::Unknown(raw),
             };
         }
         let content = self.content.item(item)?;
@@ -123,7 +128,7 @@ impl State {
 pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
     match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
-            message.id.clone()
+            Some(message.id.clone())
         }
         openai::ResponseItem::Typed(item) => match item.as_ref() {
             openai::TypedResponseItem::FunctionCall { id, .. }
@@ -137,6 +142,6 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::TypedResponseItem::LocalShellCallOutput { id, .. } => Some(id.clone()),
             _ => None,
         },
-        _ => None,
+        openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
     }
 }

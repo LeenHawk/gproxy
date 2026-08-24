@@ -7,6 +7,7 @@ use super::ResponseCreateRequest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseWebSocketRequest {
     ResponseCreate(Box<ResponseCreateWebSocketRequest>),
     Unknown(Value),
@@ -27,6 +28,7 @@ pub struct ResponseCreateWebSocketRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseCreateWebSocketRequestType {
     #[serde(rename = "response.create")]
     ResponseCreate,

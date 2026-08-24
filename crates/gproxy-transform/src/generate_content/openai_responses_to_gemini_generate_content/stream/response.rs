@@ -24,12 +24,19 @@ impl State {
                                 openai::ResponseMessageOutputContentPart::OutputText(part) => {
                                     Some(part.text.as_str())
                                 }
-                                _ => None,
+                                openai::ResponseMessageOutputContentPart::Refusal(_)
+                                | openai::ResponseMessageOutputContentPart::Unknown(_) => None,
                             })
                             .collect::<String>(),
                     )
                 }
-                _ => None,
+                openai::ResponseItem::Message(
+                    openai::ResponseMessageItem::Input(_)
+                    | openai::ResponseMessageItem::EasyInput(_)
+                    | openai::ResponseMessageItem::Unknown(_),
+                )
+                | openai::ResponseItem::Typed(_)
+                | openai::ResponseItem::Unknown(_) => None,
             })
             .collect::<String>();
         Ok(openai::ResponseObject {

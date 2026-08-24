@@ -11,11 +11,14 @@ pub(super) fn flush(
     role: Option<&gemini::ContentRole>,
     response: bool,
     rest: openai::Rest,
+    next_message: &mut u32,
 ) {
     if parts.is_empty() {
         return;
     }
     if response {
+        let id = format!("msg_gemini_{}", *next_message);
+        *next_message = next_message.saturating_add(1);
         let content = std::mem::take(parts)
             .into_iter()
             .map(|part| match part {
@@ -28,7 +31,7 @@ pub(super) fn flush(
         output.push(openai::ResponseItem::Message(
             openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
                 type_: openai::ResponseMessageItemType::Message,
-                id: None,
+                id,
                 role: openai::ResponseOutputMessageRole::Assistant,
                 content,
                 status: openai::ResponseItemLifecycleStatus::Completed,

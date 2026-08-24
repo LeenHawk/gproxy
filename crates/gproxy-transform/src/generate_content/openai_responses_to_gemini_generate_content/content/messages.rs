@@ -43,7 +43,7 @@ pub(super) fn message(
         }
         openai::ResponseMessageItem::Output(message) => {
             let mut rest = message.rest;
-            preserve_id(&mut rest, message.id);
+            preserve_id(&mut rest, Some(message.id));
             Ok(content(
                 gemini::ContentRoleKnown::Model,
                 message.content.into_iter().map(output_part).collect(),

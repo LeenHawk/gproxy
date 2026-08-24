@@ -161,17 +161,19 @@ impl State {
     fn item_added(&mut self, item: openai::ResponseItem) -> Result<Bytes, TransformError> {
         let index = match &item {
             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
-                if message
-                    .id
-                    .as_deref()
-                    .is_some_and(|id| id.starts_with("msg_"))
-                {
+                if message.id.starts_with("msg_") {
                     self.text.as_ref().map(|item| item.index)
                 } else {
                     self.reasoning.as_ref().map(|item| item.index)
                 }
             }
-            _ => None,
+            openai::ResponseItem::Message(
+                openai::ResponseMessageItem::Input(_)
+                | openai::ResponseMessageItem::EasyInput(_)
+                | openai::ResponseMessageItem::Unknown(_),
+            )
+            | openai::ResponseItem::Typed(_)
+            | openai::ResponseItem::Unknown(_) => None,
         }
         .unwrap_or(self.next_index.saturating_sub(1));
         let event = openai::KnownResponseStreamEvent::ResponseOutputItemAdded(

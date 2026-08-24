@@ -88,6 +88,7 @@ pub struct ChatCompletionRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatCompletionMessageParam {
     Developer(ChatDeveloperMessageParam),
     System(ChatSystemMessageParam),
@@ -158,7 +159,7 @@ pub struct ChatToolMessageParam {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChatFunctionMessageParam {
     pub role: ChatFunctionRole,
-    pub content: String,
+    pub content: Option<String>,
     pub name: String,
     #[serde(default, flatten)]
     pub rest: Rest,
@@ -167,6 +168,7 @@ pub struct ChatFunctionMessageParam {
 macro_rules! role {
     ($name:ident, $variant:ident, $wire:literal) => {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
         pub enum $name {
             #[serde(rename = $wire)]
             $variant,
@@ -183,6 +185,7 @@ role!(ChatFunctionRole, Function, "function");
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatTextContent {
     Text(String),
     Parts(Vec<ChatTextContentPart>),
@@ -191,6 +194,7 @@ pub enum ChatTextContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatTextContentPart {
     Text(ChatTextPart),
     Unknown(Value),
@@ -211,6 +215,7 @@ role!(ChatTextPartType, Text, "text");
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatAssistantContent {
     Text(String),
     Parts(Vec<ChatAssistantContentPart>),
@@ -219,6 +224,7 @@ pub enum ChatAssistantContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatAssistantContentPart {
     Text(ChatTextPart),
     Refusal(ChatRefusalPart),
@@ -240,6 +246,7 @@ role!(ChatRefusalPartType, Refusal, "refusal");
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatContent {
     Text(String),
     Parts(Vec<ChatContentPart>),
@@ -248,6 +255,7 @@ pub enum ChatContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatContentPart {
     Text(ChatTextPart),
     ImageUrl(ChatImageUrlPart),
@@ -299,6 +307,7 @@ input_part!(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatTool {
     Function(ChatFunctionTool),
     Custom(ChatCustomTool),
@@ -325,6 +334,7 @@ pub struct ChatCustomTool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatToolCall {
     Function(ChatFunctionToolCall),
     Custom(ChatCustomToolCall),

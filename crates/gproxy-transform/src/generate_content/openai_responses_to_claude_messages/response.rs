@@ -4,6 +4,9 @@ use crate::TransformError;
 use crate::common::native::items;
 use crate::common::usage;
 
+mod helpers;
+use helpers::*;
+
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     claude_to_responses(body)
 }
@@ -18,6 +21,7 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
     let mut text = Vec::new();
     let mut parts = Vec::new();
     let mut message_id = None;
+    let mut message_index = 0;
     for block in input.content {
         match block {
             claude::ResponseContentBlock::Text(mut block) => {
@@ -34,7 +38,13 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 ));
             }
             claude::ResponseContentBlock::Thinking(mut block) => {
-                flush_message(&mut output, &mut parts, &mut message_id);
+                flush_message(
+                    &mut output,
+                    &mut parts,
+                    &mut message_id,
+                    &id,
+                    &mut message_index,
+                );
                 let item_id = take(&mut block.rest, "openai_item_id")?;
                 output.push(reasoning(
                     item_id,
@@ -44,12 +54,24 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 ));
             }
             claude::ResponseContentBlock::RedactedThinking(mut block) => {
-                flush_message(&mut output, &mut parts, &mut message_id);
+                flush_message(
+                    &mut output,
+                    &mut parts,
+                    &mut message_id,
+                    &id,
+                    &mut message_index,
+                );
                 let item_id = take(&mut block.rest, "openai_item_id")?;
                 output.push(reasoning(item_id, None, Some(block.data), block.rest));
             }
             claude::ResponseContentBlock::ToolUse(block) => {
-                flush_message(&mut output, &mut parts, &mut message_id);
+                flush_message(
+                    &mut output,
+                    &mut parts,
+                    &mut message_id,
+                    &id,
+                    &mut message_index,
+                );
                 let (item, _) = items::claude_call(
                     block.id,
                     block.input,
@@ -60,7 +82,13 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 output.push(openai::ResponseItem::Typed(Box::new(item)));
             }
             claude::ResponseContentBlock::Compaction(mut block) => {
-                flush_message(&mut output, &mut parts, &mut message_id);
+                flush_message(
+                    &mut output,
+                    &mut parts,
+                    &mut message_id,
+                    &id,
+                    &mut message_index,
+                );
                 let item_id = take(&mut block.rest, "openai_item_id")?;
                 output.push(openai::ResponseItem::Typed(Box::new(
                     openai::TypedResponseItem::Compaction {
@@ -72,16 +100,34 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 )));
             }
             claude::ResponseContentBlock::Raw(raw) => {
-                flush_message(&mut output, &mut parts, &mut message_id);
+                flush_message(
+                    &mut output,
+                    &mut parts,
+                    &mut message_id,
+                    &id,
+                    &mut message_index,
+                );
                 output.push(openai::ResponseItem::Unknown(raw));
             }
             other => {
-                flush_message(&mut output, &mut parts, &mut message_id);
+                flush_message(
+                    &mut output,
+                    &mut parts,
+                    &mut message_id,
+                    &id,
+                    &mut message_index,
+                );
                 output.push(openai::ResponseItem::Unknown(serde_json::to_value(other)?));
             }
         }
     }
-    flush_message(&mut output, &mut parts, &mut message_id);
+    flush_message(
+        &mut output,
+        &mut parts,
+        &mut message_id,
+        &id,
+        &mut message_index,
+    );
     let incomplete = matches!(
         input.stop_reason,
         claude::StopReason::Known(
@@ -138,57 +184,4 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
-}
-
-fn flush_message(
-    output: &mut Vec<openai::ResponseItem>,
-    parts: &mut Vec<openai::ResponseMessageOutputContentPart>,
-    id: &mut Option<String>,
-) {
-    if parts.is_empty() {
-        return;
-    }
-    output.push(openai::ResponseItem::Message(
-        openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
-            type_: openai::ResponseMessageItemType::Message,
-            id: id.take(),
-            role: openai::ResponseOutputMessageRole::Assistant,
-            content: std::mem::take(parts),
-            status: openai::ResponseItemLifecycleStatus::Completed,
-            phase: None,
-            rest: Default::default(),
-        }),
-    ));
-}
-
-fn reasoning(
-    id: Option<String>,
-    text: Option<String>,
-    encrypted_content: Option<String>,
-    rest: serde_json::Map<String, serde_json::Value>,
-) -> openai::ResponseItem {
-    openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::Reasoning {
-        id,
-        summary: Vec::new(),
-        content: text.map(|text| {
-            vec![openai::ResponseReasoningTextPart {
-                type_: openai::ResponseReasoningTextType::ReasoningText,
-                text,
-                rest: Default::default(),
-            }]
-        }),
-        encrypted_content,
-        status: Some(openai::ResponseItemLifecycleStatus::Completed),
-        rest,
-    }))
-}
-
-fn take<T: serde::de::DeserializeOwned>(
-    rest: &mut serde_json::Map<String, serde_json::Value>,
-    name: &str,
-) -> Result<Option<T>, TransformError> {
-    rest.remove(name)
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
 }

@@ -154,7 +154,7 @@ fn input_item(item: openai::ResponseItem) -> Result<claude::MessageParam, Transf
             openai::ResponseMessageItem::Output(message_item) => Ok(message(
                 claude::MessageRoleKnown::Assistant,
                 responses::output_to_claude(message_item.content)?,
-                with_item_id(message_item.rest, message_item.id),
+                with_item_id(message_item.rest, Some(message_item.id)),
             )),
             openai::ResponseMessageItem::Unknown(raw) => Err(TransformError::unsupported(
                 "OpenAI Responses message",

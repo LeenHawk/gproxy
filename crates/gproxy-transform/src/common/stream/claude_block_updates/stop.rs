@@ -69,7 +69,7 @@ impl State {
             } => openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
                 openai::ResponseOutputMessageItem {
                     type_: openai::ResponseMessageItemType::Message,
-                    id: Some(id),
+                    id,
                     role: openai::ResponseOutputMessageRole::Assistant,
                     content: vec![openai::ResponseMessageOutputContentPart::OutputText(
                         openai::ResponseOutputText {

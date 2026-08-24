@@ -29,11 +29,16 @@ pub(super) fn message_items(
             text_output(message.content)?,
             message.rest,
         )]),
-        openai::ChatCompletionMessageParam::Function(message) => Ok(vec![function_output(
-            message.name,
-            openai::ResponseOutput::Text(message.content),
-            message.rest,
-        )]),
+        openai::ChatCompletionMessageParam::Function(message) => {
+            let content = message.content.ok_or_else(|| {
+                TransformError::unsupported("OpenAI Chat function message", "null content")
+            })?;
+            Ok(vec![function_output(
+                message.name,
+                openai::ResponseOutput::Text(content),
+                message.rest,
+            )])
+        }
         openai::ChatCompletionMessageParam::Unknown(raw) => {
             Ok(vec![openai::ResponseItem::Unknown(raw)])
         }

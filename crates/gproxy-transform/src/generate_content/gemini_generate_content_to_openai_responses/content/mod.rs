@@ -12,6 +12,7 @@ mod wire;
 
 pub(in crate::generate_content) struct ContentConverter {
     next_call: u32,
+    next_message: u32,
     next_reasoning: u32,
     calls_by_name: BTreeMap<String, VecDeque<String>>,
     code_calls: VecDeque<String>,
@@ -21,6 +22,7 @@ impl ContentConverter {
     pub(in crate::generate_content) fn new() -> Self {
         Self {
             next_call: 0,
+            next_message: 0,
             next_reasoning: 0,
             calls_by_name: BTreeMap::new(),
             code_calls: VecDeque::new(),
@@ -60,6 +62,7 @@ impl ContentConverter {
                     content.role.as_ref(),
                     response,
                     content.rest.clone(),
+                    &mut self.next_message,
                 );
                 output.push(item);
             }
@@ -70,6 +73,7 @@ impl ContentConverter {
             content.role.as_ref(),
             response,
             content.rest,
+            &mut self.next_message,
         );
         Ok(output)
     }

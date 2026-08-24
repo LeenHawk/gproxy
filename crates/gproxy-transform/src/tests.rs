@@ -232,8 +232,9 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     assert_eq!(ordered["output"][0]["type"], "message");
     assert_eq!(ordered["output"][1]["type"], "function_call");
     assert_eq!(ordered["output"][2]["type"], "message");
-    assert!(ordered["output"][0].get("id").is_none());
+    assert_eq!(ordered["output"][0]["id"], "msg_msg_order_0");
     assert!(ordered["output"][1].get("id").is_none());
+    assert_eq!(ordered["output"][2]["id"], "msg_msg_order_1");
 
     let compact = convert_response(
         family(Operation::CompactContent, WireFamily::OpenAi),

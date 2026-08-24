@@ -414,7 +414,7 @@ fn typed_claude(name: &str, event: &claude::StreamEvent) -> Result<Bytes, Transf
 pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
     match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
-            message.id.clone()
+            Some(message.id.clone())
         }
         openai::ResponseItem::Typed(item) => match item.as_ref() {
             openai::TypedResponseItem::FunctionCall { id, call_id, .. }
@@ -425,6 +425,6 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             openai::TypedResponseItem::Reasoning { id, .. } => id.clone(),
             _ => None,
         },
-        _ => None,
+        openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
     }
 }

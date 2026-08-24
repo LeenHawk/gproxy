@@ -20,7 +20,7 @@ pub(super) fn message_item(
     openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
         openai::ResponseOutputMessageItem {
             type_: openai::ResponseMessageItemType::Message,
-            id: Some(item.id.clone()),
+            id: item.id.clone(),
             role: openai::ResponseOutputMessageRole::Assistant,
             content: vec![openai::ResponseMessageOutputContentPart::OutputText(
                 message_part(item),

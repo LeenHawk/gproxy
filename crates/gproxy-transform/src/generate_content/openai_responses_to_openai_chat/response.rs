@@ -32,7 +32,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         output.push(openai::ResponseItem::Message(
             openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
                 type_: openai::ResponseMessageItemType::Message,
-                id: Some(id.clone()),
+                id: id.clone(),
                 role: openai::ResponseOutputMessageRole::Assistant,
                 content: vec![openai::ResponseMessageOutputContentPart::OutputText(
                     openai::ResponseOutputText {

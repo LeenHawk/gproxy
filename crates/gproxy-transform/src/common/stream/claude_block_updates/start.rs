@@ -42,7 +42,7 @@ impl State {
                             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
                                 openai::ResponseOutputMessageItem {
                                     type_: openai::ResponseMessageItemType::Message,
-                                    id: Some(id.clone()),
+                                    id: id.clone(),
                                     role: openai::ResponseOutputMessageRole::Assistant,
                                     content: Vec::new(),
                                     status: openai::ResponseItemLifecycleStatus::InProgress,

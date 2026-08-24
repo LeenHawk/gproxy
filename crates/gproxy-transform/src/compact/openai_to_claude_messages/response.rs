@@ -30,7 +30,7 @@ fn compact_item(item: openai::ResponseItem) -> Result<openai::CompactResponseIte
     Ok(match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
             openai::CompactResponseItem::Message(openai::CompactMessageItem {
-                id: message.id,
+                id: Some(message.id),
                 type_: message.type_,
                 content: message
                     .content
@@ -63,6 +63,8 @@ fn compact_item(item: openai::ResponseItem) -> Result<openai::CompactResponseIte
         }
         openai::ResponseItem::Typed(item) => openai::CompactResponseItem::Typed(item),
         openai::ResponseItem::Unknown(raw) => openai::CompactResponseItem::Unknown(raw),
-        other => openai::CompactResponseItem::Unknown(serde_json::to_value(other)?),
+        openai::ResponseItem::Message(message) => {
+            openai::CompactResponseItem::Unknown(serde_json::to_value(message)?)
+        }
     })
 }

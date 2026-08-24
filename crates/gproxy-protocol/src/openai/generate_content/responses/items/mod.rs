@@ -15,6 +15,7 @@ use crate::openai::common::{ResponseItemType, ResponseItemTypeKnown, Rest};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseItem {
     Message(ResponseMessageItem),
     Typed(Box<TypedResponseItem>),

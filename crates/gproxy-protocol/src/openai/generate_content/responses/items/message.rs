@@ -7,6 +7,7 @@ use super::{ResponseEasyInputContent, ResponseInputContentPart, ResponseMessageO
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseMessageItem {
     Output(ResponseOutputMessageItem),
     Input(ResponseInputMessageItem),
@@ -18,8 +19,7 @@ pub enum ResponseMessageItem {
 pub struct ResponseOutputMessageItem {
     #[serde(rename = "type")]
     pub type_: ResponseMessageItemType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    pub id: String,
     pub role: ResponseOutputMessageRole,
     pub content: Vec<ResponseMessageOutputContentPart>,
     pub status: ResponseItemLifecycleStatus,
@@ -56,12 +56,14 @@ pub struct ResponseEasyInputMessageItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseMessageItemType {
     #[serde(rename = "message")]
     Message,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseOutputMessageRole {
     #[serde(rename = "assistant")]
     Assistant,
@@ -69,6 +71,7 @@ pub enum ResponseOutputMessageRole {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseInputMessageRole {
     User,
     System,
@@ -77,6 +80,7 @@ pub enum ResponseInputMessageRole {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseEasyInputMessageRole {
     User,
     Assistant,
@@ -93,6 +97,7 @@ pub struct ResponseAgent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseCaller {
     Direct(ResponseDirectCaller),
     Program(ResponseProgramCaller),
@@ -108,6 +113,7 @@ pub struct ResponseDirectCaller {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseDirectCallerType {
     #[serde(rename = "direct")]
     Direct,
@@ -123,6 +129,7 @@ pub struct ResponseProgramCaller {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseProgramCallerType {
     #[serde(rename = "program")]
     Program,

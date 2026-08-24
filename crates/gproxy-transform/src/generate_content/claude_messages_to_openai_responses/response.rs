@@ -85,9 +85,7 @@ fn item_blocks(
                         }
                     })
                     .collect::<Vec<_>>();
-                if let Some(item_id) = item_id
-                    && let Some(rest) = blocks.iter_mut().find_map(block_rest_mut)
-                {
+                if let Some(rest) = blocks.iter_mut().find_map(block_rest_mut) {
                     rest.insert("openai_item_id".into(), item_id.into());
                 }
                 Ok(blocks)
@@ -95,9 +93,12 @@ fn item_blocks(
             openai::ResponseMessageItem::Unknown(raw) => {
                 Ok(vec![claude::ResponseContentBlock::Raw(raw)])
             }
-            other => Ok(vec![claude::ResponseContentBlock::Raw(
-                serde_json::to_value(other)?,
-            )]),
+            unsupported @ (openai::ResponseMessageItem::Input(_)
+            | openai::ResponseMessageItem::EasyInput(_)) => {
+                Ok(vec![claude::ResponseContentBlock::Raw(
+                    serde_json::to_value(unsupported)?,
+                )])
+            }
         },
         openai::ResponseItem::Typed(item) => typed_blocks(*item),
         openai::ResponseItem::Unknown(raw) => Ok(vec![claude::ResponseContentBlock::Raw(raw)]),

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de};
 use serde_json::Value;
 
 use crate::openai::common::Rest;
@@ -10,6 +10,7 @@ use super::{AudioTokenUsage, TranscriptionLanguage, TranscriptionLogprob};
 /// `audio` are session-derived aliases and every other field remains opaque.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum SpeechStreamEvent {
     Event(SpeechEvent),
     Raw(Value),
@@ -27,13 +28,39 @@ pub struct SpeechEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum TranscriptionStreamEvent {
     Delta(TranscriptionTextDeltaEvent),
     Done(TranscriptionTextDoneEvent),
     Segment(TranscriptionTextSegmentEvent),
-    Raw(Value),
+    Unknown(UnknownTranscriptionStreamEvent),
+}
+
+impl<'de> Deserialize<'de> for TranscriptionStreamEvent {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = Value::deserialize(deserializer)?;
+        let known = match value.get("type").and_then(Value::as_str) {
+            Some("transcript.text.delta") => serde_json::from_value(value.clone()).map(Self::Delta),
+            Some("transcript.text.done") => serde_json::from_value(value.clone()).map(Self::Done),
+            Some("transcript.text.segment") => {
+                serde_json::from_value(value.clone()).map(Self::Segment)
+            }
+            _ => serde_json::from_value(value.clone()).map(Self::Unknown),
+        };
+        known
+            .or_else(|_| serde_json::from_value(value).map(Self::Unknown))
+            .map_err(de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnknownTranscriptionStreamEvent {
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub type_: Option<String>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -50,6 +77,7 @@ pub struct TranscriptionTextDeltaEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum TranscriptionTextDeltaType {
     #[serde(rename = "transcript.text.delta")]
     Delta,
@@ -71,6 +99,7 @@ pub struct TranscriptionTextDoneEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum TranscriptionTextDoneType {
     #[serde(rename = "transcript.text.done")]
     Done,
@@ -90,6 +119,7 @@ pub struct TranscriptionTextSegmentEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum TranscriptionTextSegmentType {
     #[serde(rename = "transcript.text.segment")]
     Segment,

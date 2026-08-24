@@ -61,7 +61,7 @@ pub(super) fn request(body: &Bytes, model: &str) -> Result<Bytes, ChannelError> 
 fn system_text(item: &ResponseItem) -> Option<String> {
     let message = match item {
         ResponseItem::Message(message) => message,
-        _ => return None,
+        ResponseItem::Typed(_) | ResponseItem::Unknown(_) => return None,
     };
     let mut parts = Vec::new();
     match message {
@@ -78,7 +78,10 @@ fn system_text(item: &ResponseItem) -> Option<String> {
                 }
             }
         }
-        _ => return None,
+        ResponseMessageItem::Input(_)
+        | ResponseMessageItem::EasyInput(_)
+        | ResponseMessageItem::Output(_)
+        | ResponseMessageItem::Unknown(_) => return None,
     }
     Some(parts.join("\n"))
 }

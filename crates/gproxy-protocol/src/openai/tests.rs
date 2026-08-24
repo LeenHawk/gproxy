@@ -12,6 +12,7 @@ use super::models::{ListModelsRequest, RetrieveModelRequest};
 mod item_actions;
 mod item_content;
 mod response_stream;
+mod retained_unions;
 mod tool_runtime;
 
 fn round_trip<T>(value: Value) -> T

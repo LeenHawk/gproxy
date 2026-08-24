@@ -30,7 +30,7 @@ pub(super) fn clear_started_payload(item: &mut ResponseItem) {
 pub(super) fn message_item(id: &str, text: &str) -> ResponseItem {
     ResponseItem::Message(ResponseMessageItem::Output(ResponseOutputMessageItem {
         type_: ResponseMessageItemType::Message,
-        id: Some(id.into()),
+        id: id.into(),
         role: ResponseOutputMessageRole::Assistant,
         content: vec![ResponseMessageOutputContentPart::OutputText(
             ResponseOutputText {
@@ -95,7 +95,7 @@ pub(super) fn append_reasoning(content: &mut Option<Vec<ResponseReasoningTextPar
 
 pub(super) fn item_id(item: &ResponseItem) -> Option<String> {
     match item {
-        ResponseItem::Message(ResponseMessageItem::Output(message)) => message.id.clone(),
+        ResponseItem::Message(ResponseMessageItem::Output(message)) => Some(message.id.clone()),
         ResponseItem::Message(ResponseMessageItem::Input(message)) => message.id.clone(),
         ResponseItem::Typed(item) => match item.as_ref() {
             TypedResponseItem::FunctionCall { id, .. }

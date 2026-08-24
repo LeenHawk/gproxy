@@ -52,7 +52,13 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
                     })
                     .collect::<String>(),
             ),
-            _ => None,
+            openai::ResponseItem::Message(
+                openai::ResponseMessageItem::Input(_)
+                | openai::ResponseMessageItem::EasyInput(_)
+                | openai::ResponseMessageItem::Unknown(_),
+            )
+            | openai::ResponseItem::Typed(_)
+            | openai::ResponseItem::Unknown(_) => None,
         })
         .collect::<String>();
     let output = openai::ResponseObject {

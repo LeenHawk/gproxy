@@ -103,12 +103,15 @@ pub(crate) fn transform(
             }
             openai::ChatCompletionMessageParam::Function(message) => {
                 seen_turn = true;
+                let content = message.content.ok_or_else(|| {
+                    TransformError::unsupported("OpenAI Chat function message", "null content")
+                })?;
                 push_message(
                     &mut messages,
                     claude::MessageRoleKnown::User,
                     content::chat_text_blocks(openai::ChatTextContent::Text(format!(
                         "function:{}\n{}",
-                        message.name, message.content
+                        message.name, content
                     )))?,
                     message.rest,
                 );

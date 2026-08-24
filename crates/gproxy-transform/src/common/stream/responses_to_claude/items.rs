@@ -24,7 +24,7 @@ impl State {
         let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
         let native_id = match event.item.as_ref() {
             openai::ResponseItem::Typed(item) => items::item_id(item),
-            _ => None,
+            openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
         };
         let item_id = item_id(&event.item).or(native_id);
         match *event.item {
