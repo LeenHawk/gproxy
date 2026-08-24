@@ -49,6 +49,7 @@ fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::Duplicate
         Box::new(gproxy_channels::ClaudeApiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::ClaudeCodeChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::GeminiCliChannel) as Box<dyn Channel>,
+        Box::new(gproxy_channels::ClineChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::CloudflareAiGatewayChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::CodexChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::CopilotCliChannel) as Box<dyn Channel>,

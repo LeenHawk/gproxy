@@ -7,6 +7,7 @@ mod claudeapi;
 mod claudecode;
 #[cfg(not(target_arch = "wasm32"))]
 mod claudeweb;
+mod cline;
 mod cloudflare_ai_gateway;
 mod codex;
 mod copilotcli;
@@ -32,6 +33,7 @@ pub use claudeapi::ClaudeApiChannel;
 pub use claudecode::ClaudeCodeChannel;
 #[cfg(not(target_arch = "wasm32"))]
 pub use claudeweb::ClaudeWebChannel;
+pub use cline::ClineChannel;
 pub use cloudflare_ai_gateway::CloudflareAiGatewayChannel;
 pub use codex::CodexChannel;
 pub use copilotcli::CopilotCliChannel;
