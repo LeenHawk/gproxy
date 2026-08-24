@@ -1,4 +1,5 @@
 pub mod items;
+mod multi_agent;
 mod request;
 mod response;
 mod stream;
@@ -6,6 +7,7 @@ pub mod tools;
 mod websocket;
 
 pub use items::*;
+pub use multi_agent::*;
 pub use request::*;
 pub use response::*;
 pub use stream::*;

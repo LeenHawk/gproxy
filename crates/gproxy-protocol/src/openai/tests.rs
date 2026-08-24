@@ -11,6 +11,7 @@ use super::models::{ListModelsRequest, RetrieveModelRequest};
 
 mod item_actions;
 mod item_content;
+mod multi_agent;
 mod response_stream;
 mod retained_unions;
 mod tool_runtime;

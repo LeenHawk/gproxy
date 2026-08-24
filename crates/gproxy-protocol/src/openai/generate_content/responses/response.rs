@@ -6,8 +6,8 @@ use serde_json::Value;
 use crate::openai::common::*;
 
 use super::{
-    PromptVariableInputContentPart, ResponseConversationParam, ResponseInput, ResponseOutputItem,
-    ResponseTool,
+    MultiAgentConfig, PromptVariableInputContentPart, ResponseConversationParam, ResponseInput,
+    ResponseOutputItem, ResponseTool,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -103,7 +103,7 @@ pub struct ResponseObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub moderation: Option<ResponseModeration>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub multi_agent: Option<Value>,
+    pub multi_agent: Option<MultiAgentConfig>,
     pub object: ResponseObjectType,
     pub output: Vec<ResponseOutputItem>,
     #[serde(skip_serializing_if = "Option::is_none")]

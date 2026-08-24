@@ -4,8 +4,8 @@ use serde_json::Value;
 use crate::openai::common::*;
 
 use super::{
-    ContextManagement, PromptRef, ReasoningConfig, ResponseItem, ResponseStreamOptions,
-    ResponseTool, TextConfig,
+    ContextManagement, MultiAgentConfig, PromptRef, ReasoningConfig, ResponseItem,
+    ResponseStreamOptions, ResponseTool, TextConfig,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -33,7 +33,7 @@ pub struct ResponseCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub moderation: Option<ModerationConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub multi_agent: Option<Value>,
+    pub multi_agent: Option<MultiAgentConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parallel_tool_calls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
