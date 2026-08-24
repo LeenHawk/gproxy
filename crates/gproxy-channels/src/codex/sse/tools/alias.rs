@@ -52,7 +52,38 @@ pub(super) fn alias(item: &ResponseItem) -> Option<Alias> {
             input: input.clone(),
             item: None,
         }),
-        _ => None,
+        TypedResponseItem::FileSearchCall { .. }
+        | TypedResponseItem::ComputerCall { .. }
+        | TypedResponseItem::ComputerCallOutput { .. }
+        | TypedResponseItem::WebSearchCall { .. }
+        | TypedResponseItem::FunctionCall { .. }
+        | TypedResponseItem::FunctionCallOutput { .. }
+        | TypedResponseItem::ToolSearchCall { .. }
+        | TypedResponseItem::ToolSearchOutput { .. }
+        | TypedResponseItem::AdditionalTools { .. }
+        | TypedResponseItem::Reasoning { .. }
+        | TypedResponseItem::Compaction { .. }
+        | TypedResponseItem::ImageGenerationCall { .. }
+        | TypedResponseItem::CodeInterpreterCall { .. }
+        | TypedResponseItem::LocalShellCall { .. }
+        | TypedResponseItem::LocalShellCallOutput { .. }
+        | TypedResponseItem::ShellCall { .. }
+        | TypedResponseItem::ShellCallOutput { .. }
+        | TypedResponseItem::ApplyPatchCall { .. }
+        | TypedResponseItem::ApplyPatchCallOutput { .. }
+        | TypedResponseItem::McpListTools { .. }
+        | TypedResponseItem::McpApprovalRequest { .. }
+        | TypedResponseItem::McpApprovalResponse { .. }
+        | TypedResponseItem::McpCall { .. }
+        | TypedResponseItem::CustomToolCall { .. }
+        | TypedResponseItem::CustomToolCallOutput { .. }
+        | TypedResponseItem::Program { .. }
+        | TypedResponseItem::ProgramOutput { .. }
+        | TypedResponseItem::MultiAgentCall { .. }
+        | TypedResponseItem::MultiAgentCallOutput { .. }
+        | TypedResponseItem::AgentMessage { .. }
+        | TypedResponseItem::CompactionTrigger { .. }
+        | TypedResponseItem::ItemReference { .. } => None,
     }
 }
 
@@ -62,15 +93,7 @@ pub(super) fn canonical_existing(
     let Some(alias) = alias(item) else {
         return Ok(None);
     };
-    let ResponseItem::Typed(item) = item else {
-        return Ok(None);
-    };
-    let input = match item.as_ref() {
-        TypedResponseItem::FunctionCall { arguments, .. } => arguments.as_str(),
-        TypedResponseItem::CustomToolCall { input, .. } => input.as_str(),
-        _ => return Ok(None),
-    };
-    canonical(alias.kind, alias.id, &alias.call_id, input).map(Some)
+    canonical(alias.kind, alias.id, &alias.call_id, &alias.input).map(Some)
 }
 
 pub(super) fn canonical(

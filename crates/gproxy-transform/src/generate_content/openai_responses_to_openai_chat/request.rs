@@ -259,9 +259,37 @@ fn typed_messages(
                 },
             )]
         }
-        other => vec![openai::ChatCompletionMessageParam::Unknown(
-            serde_json::to_value(other)?,
-        )],
+        other @ (openai::TypedResponseItem::FileSearchCall { .. }
+        | openai::TypedResponseItem::ComputerCall { .. }
+        | openai::TypedResponseItem::ComputerCallOutput { .. }
+        | openai::TypedResponseItem::WebSearchCall { .. }
+        | openai::TypedResponseItem::ToolSearchCall { .. }
+        | openai::TypedResponseItem::ToolSearchOutput { .. }
+        | openai::TypedResponseItem::AdditionalTools { .. }
+        | openai::TypedResponseItem::Compaction { .. }
+        | openai::TypedResponseItem::ImageGenerationCall { .. }
+        | openai::TypedResponseItem::CodeInterpreterCall { .. }
+        | openai::TypedResponseItem::LocalShellCall { .. }
+        | openai::TypedResponseItem::LocalShellCallOutput { .. }
+        | openai::TypedResponseItem::ShellCall { .. }
+        | openai::TypedResponseItem::ShellCallOutput { .. }
+        | openai::TypedResponseItem::ApplyPatchCall { .. }
+        | openai::TypedResponseItem::ApplyPatchCallOutput { .. }
+        | openai::TypedResponseItem::McpListTools { .. }
+        | openai::TypedResponseItem::McpApprovalRequest { .. }
+        | openai::TypedResponseItem::McpApprovalResponse { .. }
+        | openai::TypedResponseItem::McpCall { .. }
+        | openai::TypedResponseItem::Program { .. }
+        | openai::TypedResponseItem::ProgramOutput { .. }
+        | openai::TypedResponseItem::MultiAgentCall { .. }
+        | openai::TypedResponseItem::MultiAgentCallOutput { .. }
+        | openai::TypedResponseItem::AgentMessage { .. }
+        | openai::TypedResponseItem::CompactionTrigger { .. }
+        | openai::TypedResponseItem::ItemReference { .. }) => {
+            vec![openai::ChatCompletionMessageParam::Unknown(
+                serde_json::to_value(other)?,
+            )]
+        }
     })
 }
 

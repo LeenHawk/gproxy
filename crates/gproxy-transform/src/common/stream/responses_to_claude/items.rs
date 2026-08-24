@@ -4,7 +4,8 @@ use gproxy_protocol::{claude, openai};
 use crate::TransformError;
 use crate::common::native::items;
 
-use super::super::openai_to_claude::{State, item_id};
+use super::State;
+use super::item_id;
 
 struct ToolStart {
     item_id: String,
@@ -96,7 +97,35 @@ impl State {
                     )?);
                     self.response_indices.insert((item_id, None), index);
                 }
-                other => {
+                other @ (openai::TypedResponseItem::FileSearchCall { .. }
+                | openai::TypedResponseItem::ComputerCall { .. }
+                | openai::TypedResponseItem::ComputerCallOutput { .. }
+                | openai::TypedResponseItem::WebSearchCall { .. }
+                | openai::TypedResponseItem::FunctionCallOutput { .. }
+                | openai::TypedResponseItem::ToolSearchCall { .. }
+                | openai::TypedResponseItem::ToolSearchOutput { .. }
+                | openai::TypedResponseItem::AdditionalTools { .. }
+                | openai::TypedResponseItem::Compaction { .. }
+                | openai::TypedResponseItem::ImageGenerationCall { .. }
+                | openai::TypedResponseItem::CodeInterpreterCall { .. }
+                | openai::TypedResponseItem::LocalShellCall { .. }
+                | openai::TypedResponseItem::LocalShellCallOutput { .. }
+                | openai::TypedResponseItem::ShellCall { .. }
+                | openai::TypedResponseItem::ShellCallOutput { .. }
+                | openai::TypedResponseItem::ApplyPatchCall { .. }
+                | openai::TypedResponseItem::ApplyPatchCallOutput { .. }
+                | openai::TypedResponseItem::McpListTools { .. }
+                | openai::TypedResponseItem::McpApprovalRequest { .. }
+                | openai::TypedResponseItem::McpApprovalResponse { .. }
+                | openai::TypedResponseItem::McpCall { .. }
+                | openai::TypedResponseItem::CustomToolCallOutput { .. }
+                | openai::TypedResponseItem::Program { .. }
+                | openai::TypedResponseItem::ProgramOutput { .. }
+                | openai::TypedResponseItem::MultiAgentCall { .. }
+                | openai::TypedResponseItem::MultiAgentCallOutput { .. }
+                | openai::TypedResponseItem::AgentMessage { .. }
+                | openai::TypedResponseItem::CompactionTrigger { .. }
+                | openai::TypedResponseItem::ItemReference { .. }) => {
                     if let Some(call) = items::openai_call(other.clone())? {
                         let index = self.allocate();
                         output.extend(self.block_start(

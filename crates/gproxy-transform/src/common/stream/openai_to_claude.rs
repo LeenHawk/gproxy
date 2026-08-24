@@ -410,21 +410,3 @@ pub(super) enum Scalar {
 fn typed_claude(name: &str, event: &claude::StreamEvent) -> Result<Bytes, TransformError> {
     SseFrame::typed(Some(name), event)
 }
-
-pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
-    match item {
-        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
-            Some(message.id.clone())
-        }
-        openai::ResponseItem::Typed(item) => match item.as_ref() {
-            openai::TypedResponseItem::FunctionCall { id, call_id, .. }
-            | openai::TypedResponseItem::CustomToolCall { id, call_id, .. } => {
-                let _ = call_id;
-                id.clone()
-            }
-            openai::TypedResponseItem::Reasoning { id, .. } => id.clone(),
-            _ => None,
-        },
-        openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
-    }
-}

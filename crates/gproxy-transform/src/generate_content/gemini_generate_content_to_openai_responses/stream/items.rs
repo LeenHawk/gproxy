@@ -14,8 +14,8 @@ impl State {
         let item_id = item_id(&item).ok_or_else(|| {
             TransformError::shape("Responses stream", "output item id is missing")
         })?;
-        if let openai::ResponseItem::Typed(item) = item {
-            match *item {
+        match item {
+            openai::ResponseItem::Typed(item) => match *item {
                 openai::TypedResponseItem::FunctionCall {
                     arguments,
                     call_id,
@@ -54,8 +54,44 @@ impl State {
                     );
                     self.call_indices.insert(event.output_index, item_id);
                 }
-                _ => {}
-            }
+                openai::TypedResponseItem::FileSearchCall { .. }
+                | openai::TypedResponseItem::ComputerCall { .. }
+                | openai::TypedResponseItem::ComputerCallOutput { .. }
+                | openai::TypedResponseItem::WebSearchCall { .. }
+                | openai::TypedResponseItem::FunctionCallOutput { .. }
+                | openai::TypedResponseItem::ToolSearchCall { .. }
+                | openai::TypedResponseItem::ToolSearchOutput { .. }
+                | openai::TypedResponseItem::AdditionalTools { .. }
+                | openai::TypedResponseItem::Reasoning { .. }
+                | openai::TypedResponseItem::Compaction { .. }
+                | openai::TypedResponseItem::ImageGenerationCall { .. }
+                | openai::TypedResponseItem::CodeInterpreterCall { .. }
+                | openai::TypedResponseItem::LocalShellCall { .. }
+                | openai::TypedResponseItem::LocalShellCallOutput { .. }
+                | openai::TypedResponseItem::ShellCall { .. }
+                | openai::TypedResponseItem::ShellCallOutput { .. }
+                | openai::TypedResponseItem::ApplyPatchCall { .. }
+                | openai::TypedResponseItem::ApplyPatchCallOutput { .. }
+                | openai::TypedResponseItem::McpListTools { .. }
+                | openai::TypedResponseItem::McpApprovalRequest { .. }
+                | openai::TypedResponseItem::McpApprovalResponse { .. }
+                | openai::TypedResponseItem::McpCall { .. }
+                | openai::TypedResponseItem::CustomToolCallOutput { .. }
+                | openai::TypedResponseItem::Program { .. }
+                | openai::TypedResponseItem::ProgramOutput { .. }
+                | openai::TypedResponseItem::MultiAgentCall { .. }
+                | openai::TypedResponseItem::MultiAgentCallOutput { .. }
+                | openai::TypedResponseItem::AgentMessage { .. }
+                | openai::TypedResponseItem::CompactionTrigger { .. }
+                | openai::TypedResponseItem::ItemReference { .. } => {}
+            },
+            openai::ResponseItem::Message(
+                openai::ResponseMessageItem::Output(_)
+                | openai::ResponseMessageItem::Input(_)
+                | openai::ResponseMessageItem::EasyInput(_)
+                | openai::ResponseMessageItem::Unknown(_),
+            )
+            | openai::ResponseItem::Unknown(_) => {}
         }
         Ok(Vec::new())
     }
@@ -103,7 +139,39 @@ impl State {
                         },
                     )),
                     openai::TypedResponseItem::Reasoning { .. } => return Ok(Vec::new()),
-                    other => openai::ResponseItem::Typed(Box::new(other)),
+                    other @ (openai::TypedResponseItem::FileSearchCall { .. }
+                    | openai::TypedResponseItem::ComputerCall { .. }
+                    | openai::TypedResponseItem::ComputerCallOutput { .. }
+                    | openai::TypedResponseItem::WebSearchCall { .. }
+                    | openai::TypedResponseItem::FunctionCall { .. }
+                    | openai::TypedResponseItem::FunctionCallOutput { .. }
+                    | openai::TypedResponseItem::ToolSearchCall { .. }
+                    | openai::TypedResponseItem::ToolSearchOutput { .. }
+                    | openai::TypedResponseItem::AdditionalTools { .. }
+                    | openai::TypedResponseItem::Compaction { .. }
+                    | openai::TypedResponseItem::ImageGenerationCall { .. }
+                    | openai::TypedResponseItem::CodeInterpreterCall { .. }
+                    | openai::TypedResponseItem::LocalShellCall { .. }
+                    | openai::TypedResponseItem::LocalShellCallOutput { .. }
+                    | openai::TypedResponseItem::ShellCall { .. }
+                    | openai::TypedResponseItem::ShellCallOutput { .. }
+                    | openai::TypedResponseItem::ApplyPatchCall { .. }
+                    | openai::TypedResponseItem::ApplyPatchCallOutput { .. }
+                    | openai::TypedResponseItem::McpListTools { .. }
+                    | openai::TypedResponseItem::McpApprovalRequest { .. }
+                    | openai::TypedResponseItem::McpApprovalResponse { .. }
+                    | openai::TypedResponseItem::McpCall { .. }
+                    | openai::TypedResponseItem::CustomToolCall { .. }
+                    | openai::TypedResponseItem::CustomToolCallOutput { .. }
+                    | openai::TypedResponseItem::Program { .. }
+                    | openai::TypedResponseItem::ProgramOutput { .. }
+                    | openai::TypedResponseItem::MultiAgentCall { .. }
+                    | openai::TypedResponseItem::MultiAgentCallOutput { .. }
+                    | openai::TypedResponseItem::AgentMessage { .. }
+                    | openai::TypedResponseItem::CompactionTrigger { .. }
+                    | openai::TypedResponseItem::ItemReference { .. }) => {
+                        openai::ResponseItem::Typed(Box::new(other))
+                    }
                 },
                 openai::ResponseItem::Unknown(raw) => openai::ResponseItem::Unknown(raw),
             };
@@ -140,8 +208,35 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::TypedResponseItem::Reasoning { id, .. } => id.clone(),
             openai::TypedResponseItem::LocalShellCall { id, .. }
             | openai::TypedResponseItem::LocalShellCallOutput { id, .. } => Some(id.clone()),
-            _ => None,
+            openai::TypedResponseItem::FileSearchCall { .. }
+            | openai::TypedResponseItem::ComputerCall { .. }
+            | openai::TypedResponseItem::ComputerCallOutput { .. }
+            | openai::TypedResponseItem::WebSearchCall { .. }
+            | openai::TypedResponseItem::FunctionCallOutput { .. }
+            | openai::TypedResponseItem::ToolSearchCall { .. }
+            | openai::TypedResponseItem::ToolSearchOutput { .. }
+            | openai::TypedResponseItem::AdditionalTools { .. }
+            | openai::TypedResponseItem::Compaction { .. }
+            | openai::TypedResponseItem::ImageGenerationCall { .. }
+            | openai::TypedResponseItem::CodeInterpreterCall { .. }
+            | openai::TypedResponseItem::McpListTools { .. }
+            | openai::TypedResponseItem::McpApprovalRequest { .. }
+            | openai::TypedResponseItem::McpApprovalResponse { .. }
+            | openai::TypedResponseItem::McpCall { .. }
+            | openai::TypedResponseItem::CustomToolCallOutput { .. }
+            | openai::TypedResponseItem::Program { .. }
+            | openai::TypedResponseItem::ProgramOutput { .. }
+            | openai::TypedResponseItem::MultiAgentCall { .. }
+            | openai::TypedResponseItem::MultiAgentCallOutput { .. }
+            | openai::TypedResponseItem::AgentMessage { .. }
+            | openai::TypedResponseItem::CompactionTrigger { .. }
+            | openai::TypedResponseItem::ItemReference { .. } => None,
         },
-        openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
+        openai::ResponseItem::Message(
+            openai::ResponseMessageItem::Input(_)
+            | openai::ResponseMessageItem::EasyInput(_)
+            | openai::ResponseMessageItem::Unknown(_),
+        )
+        | openai::ResponseItem::Unknown(_) => None,
     }
 }

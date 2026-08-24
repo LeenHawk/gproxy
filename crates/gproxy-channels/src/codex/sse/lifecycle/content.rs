@@ -9,15 +9,45 @@ use gproxy_protocol::openai::generate_content::responses::{
 pub(super) fn clear_started_payload(item: &mut ResponseItem) {
     match item {
         ResponseItem::Message(ResponseMessageItem::Output(message)) => message.content.clear(),
-        ResponseItem::Typed(item) => {
-            if let TypedResponseItem::Reasoning {
+        ResponseItem::Typed(item) => match item.as_mut() {
+            TypedResponseItem::Reasoning {
                 summary, content, ..
-            } = item.as_mut()
-            {
+            } => {
                 summary.clear();
                 *content = None;
             }
-        }
+            TypedResponseItem::FileSearchCall { .. }
+            | TypedResponseItem::ComputerCall { .. }
+            | TypedResponseItem::ComputerCallOutput { .. }
+            | TypedResponseItem::WebSearchCall { .. }
+            | TypedResponseItem::FunctionCall { .. }
+            | TypedResponseItem::FunctionCallOutput { .. }
+            | TypedResponseItem::ToolSearchCall { .. }
+            | TypedResponseItem::ToolSearchOutput { .. }
+            | TypedResponseItem::AdditionalTools { .. }
+            | TypedResponseItem::Compaction { .. }
+            | TypedResponseItem::ImageGenerationCall { .. }
+            | TypedResponseItem::CodeInterpreterCall { .. }
+            | TypedResponseItem::LocalShellCall { .. }
+            | TypedResponseItem::LocalShellCallOutput { .. }
+            | TypedResponseItem::ShellCall { .. }
+            | TypedResponseItem::ShellCallOutput { .. }
+            | TypedResponseItem::ApplyPatchCall { .. }
+            | TypedResponseItem::ApplyPatchCallOutput { .. }
+            | TypedResponseItem::McpListTools { .. }
+            | TypedResponseItem::McpApprovalRequest { .. }
+            | TypedResponseItem::McpApprovalResponse { .. }
+            | TypedResponseItem::McpCall { .. }
+            | TypedResponseItem::CustomToolCall { .. }
+            | TypedResponseItem::CustomToolCallOutput { .. }
+            | TypedResponseItem::Program { .. }
+            | TypedResponseItem::ProgramOutput { .. }
+            | TypedResponseItem::MultiAgentCall { .. }
+            | TypedResponseItem::MultiAgentCallOutput { .. }
+            | TypedResponseItem::AgentMessage { .. }
+            | TypedResponseItem::CompactionTrigger { .. }
+            | TypedResponseItem::ItemReference { .. } => {}
+        },
         ResponseItem::Message(
             ResponseMessageItem::Input(_)
             | ResponseMessageItem::EasyInput(_)
@@ -103,7 +133,33 @@ pub(super) fn item_id(item: &ResponseItem) -> Option<String> {
             | TypedResponseItem::Reasoning { id, .. }
             | TypedResponseItem::ApplyPatchCall { id, .. }
             | TypedResponseItem::ShellCall { id, .. } => id.clone(),
-            _ => None,
+            TypedResponseItem::FileSearchCall { .. }
+            | TypedResponseItem::ComputerCall { .. }
+            | TypedResponseItem::ComputerCallOutput { .. }
+            | TypedResponseItem::WebSearchCall { .. }
+            | TypedResponseItem::FunctionCallOutput { .. }
+            | TypedResponseItem::ToolSearchCall { .. }
+            | TypedResponseItem::ToolSearchOutput { .. }
+            | TypedResponseItem::AdditionalTools { .. }
+            | TypedResponseItem::Compaction { .. }
+            | TypedResponseItem::ImageGenerationCall { .. }
+            | TypedResponseItem::CodeInterpreterCall { .. }
+            | TypedResponseItem::LocalShellCall { .. }
+            | TypedResponseItem::LocalShellCallOutput { .. }
+            | TypedResponseItem::ShellCallOutput { .. }
+            | TypedResponseItem::ApplyPatchCallOutput { .. }
+            | TypedResponseItem::McpListTools { .. }
+            | TypedResponseItem::McpApprovalRequest { .. }
+            | TypedResponseItem::McpApprovalResponse { .. }
+            | TypedResponseItem::McpCall { .. }
+            | TypedResponseItem::CustomToolCallOutput { .. }
+            | TypedResponseItem::Program { .. }
+            | TypedResponseItem::ProgramOutput { .. }
+            | TypedResponseItem::MultiAgentCall { .. }
+            | TypedResponseItem::MultiAgentCallOutput { .. }
+            | TypedResponseItem::AgentMessage { .. }
+            | TypedResponseItem::CompactionTrigger { .. }
+            | TypedResponseItem::ItemReference { .. } => None,
         },
         ResponseItem::Message(ResponseMessageItem::EasyInput(_))
         | ResponseItem::Message(ResponseMessageItem::Unknown(_))

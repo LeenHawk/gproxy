@@ -3,7 +3,8 @@ use gproxy_protocol::openai;
 
 use crate::TransformError;
 
-use super::super::openai_to_claude::{State, item_id};
+use super::State;
+use super::item_id;
 
 impl State {
     pub(super) fn response_output_item_done(

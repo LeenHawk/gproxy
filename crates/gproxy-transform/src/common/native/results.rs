@@ -68,7 +68,35 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
             item_id: Some(id),
             rest,
         }),
-        _ => None,
+        openai::TypedResponseItem::FileSearchCall { .. }
+        | openai::TypedResponseItem::ComputerCall { .. }
+        | openai::TypedResponseItem::ComputerCallOutput { .. }
+        | openai::TypedResponseItem::WebSearchCall { .. }
+        | openai::TypedResponseItem::FunctionCall { .. }
+        | openai::TypedResponseItem::FunctionCallOutput { .. }
+        | openai::TypedResponseItem::ToolSearchCall { .. }
+        | openai::TypedResponseItem::ToolSearchOutput { .. }
+        | openai::TypedResponseItem::AdditionalTools { .. }
+        | openai::TypedResponseItem::Reasoning { .. }
+        | openai::TypedResponseItem::Compaction { .. }
+        | openai::TypedResponseItem::ImageGenerationCall { .. }
+        | openai::TypedResponseItem::CodeInterpreterCall { .. }
+        | openai::TypedResponseItem::LocalShellCall { .. }
+        | openai::TypedResponseItem::LocalShellCallOutput { .. }
+        | openai::TypedResponseItem::ShellCall { .. }
+        | openai::TypedResponseItem::ApplyPatchCall { .. }
+        | openai::TypedResponseItem::McpListTools { .. }
+        | openai::TypedResponseItem::McpApprovalRequest { .. }
+        | openai::TypedResponseItem::McpApprovalResponse { .. }
+        | openai::TypedResponseItem::McpCall { .. }
+        | openai::TypedResponseItem::CustomToolCall { .. }
+        | openai::TypedResponseItem::CustomToolCallOutput { .. }
+        | openai::TypedResponseItem::Program { .. }
+        | openai::TypedResponseItem::MultiAgentCall { .. }
+        | openai::TypedResponseItem::MultiAgentCallOutput { .. }
+        | openai::TypedResponseItem::AgentMessage { .. }
+        | openai::TypedResponseItem::CompactionTrigger { .. }
+        | openai::TypedResponseItem::ItemReference { .. } => None,
     }
 }
 

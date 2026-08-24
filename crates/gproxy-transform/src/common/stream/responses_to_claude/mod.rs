@@ -1,7 +1,10 @@
 mod content;
 mod item_done;
+mod item_id;
 mod items;
 mod terminal;
+
+use item_id::item_id;
 
 use bytes::Bytes;
 use gproxy_protocol::openai;

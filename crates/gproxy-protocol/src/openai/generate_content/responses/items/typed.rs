@@ -8,6 +8,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum TypedResponseItem {
     #[serde(rename = "file_search_call")]
     FileSearchCall {
@@ -158,7 +159,7 @@ pub enum TypedResponseItem {
     #[serde(rename = "image_generation_call")]
     ImageGenerationCall {
         id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        // Required-nullable on the wire while image generation is pending.
         result: Option<String>,
         status: ResponseImageGenerationCallStatus,
         #[serde(default, flatten)]
@@ -167,8 +168,10 @@ pub enum TypedResponseItem {
     #[serde(rename = "code_interpreter_call")]
     CodeInterpreterCall {
         id: String,
+        // Required-nullable on the wire while code is unavailable.
         code: Option<String>,
         container_id: String,
+        // Required-nullable on the wire before execution produces output.
         outputs: Option<Vec<CodeInterpreterOutput>>,
         status: ResponseCodeInterpreterCallStatus,
         #[serde(default, flatten)]
