@@ -1,3 +1,5 @@
+//! SSE framing used by Gemini streaming responses.
+
 use gproxy_channel_api::ChannelError;
 use gproxy_protocol::gemini::GenerateContentResponse;
 

@@ -38,7 +38,7 @@ pub(super) fn refresh<'a>(
     let request = (|| {
         let refresh_token = secret_string(secret, "refresh_token")
             .ok_or_else(|| ChannelError::Refresh("refresh_token missing".into()))?;
-        let body = form(&[
+        let body = crate::shared::http::form(&[
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
             ("client_id", CLIENT_ID),
@@ -219,29 +219,6 @@ fn secret_string<'a>(value: &'a Value, name: &str) -> Option<&'a str> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-}
-
-fn form(fields: &[(&str, &str)]) -> String {
-    fields
-        .iter()
-        .map(|(name, value)| format!("{}={}", percent(name), percent(value)))
-        .collect::<Vec<_>>()
-        .join("&")
-}
-
-fn percent(value: &str) -> String {
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    let mut output = String::new();
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            output.push(char::from(byte));
-        } else {
-            output.push('%');
-            output.push(char::from(HEX[usize::from(byte >> 4)]));
-            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
-    }
-    output
 }
 
 fn insert(

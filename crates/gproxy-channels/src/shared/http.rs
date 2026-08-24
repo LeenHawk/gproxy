@@ -96,3 +96,11 @@ pub(crate) fn encode_component(value: &str) -> String {
     }
     output
 }
+
+pub(crate) fn form(fields: &[(&str, &str)]) -> String {
+    fields
+        .iter()
+        .map(|(name, value)| format!("{}={}", encode_component(name), encode_component(value)))
+        .collect::<Vec<_>>()
+        .join("&")
+}

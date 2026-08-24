@@ -48,5 +48,6 @@ fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::Duplicate
         Box::new(gproxy_channels::ClaudeCodeChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::CodexChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::AiStudioChannel) as Box<dyn Channel>,
+        Box::new(gproxy_channels::VertexChannel) as Box<dyn Channel>,
     ])
 }
