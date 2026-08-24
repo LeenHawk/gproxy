@@ -1,0 +1,147 @@
+use sha2::{Digest, Sha256};
+
+use crate::{AppError, AppHandle};
+
+pub enum ControlMutation {
+    Provider(gproxy_store::records::ProviderInput),
+    Credential {
+        provider_id: i64,
+        label: Option<String>,
+        secret: serde_json::Value,
+        enabled: bool,
+    },
+    Route(gproxy_store::records::RouteInput),
+    RouteMember(gproxy_store::records::RouteMemberInput),
+    Alias(gproxy_store::records::AliasInput),
+    ExposedModel(gproxy_store::records::ExposedModelInput),
+    Organization(gproxy_store::records::OrganizationInput),
+    Team(gproxy_store::records::TeamInput),
+    User(gproxy_store::records::UserInput),
+    UserKey {
+        user_id: i64,
+        api_key: String,
+        label: Option<String>,
+        expires_at: Option<i64>,
+        enabled: bool,
+    },
+    Permission(gproxy_store::records::PermissionInput),
+    RateLimit(gproxy_store::records::RateLimitInput),
+    Quota(gproxy_store::records::QuotaInput),
+    PriceRule(gproxy_store::records::PriceRuleInput),
+    PriceRate(gproxy_store::records::PriceRateInput),
+    Setting(gproxy_store::records::SettingInput),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MutationResult {
+    Id(i64),
+    Applied,
+}
+
+pub(crate) async fn apply(
+    handle: &AppHandle,
+    mutation: ControlMutation,
+) -> Result<MutationResult, AppError> {
+    let services = &handle.inner.host.services;
+    let result = match mutation {
+        ControlMutation::Provider(input) => {
+            MutationResult::Id(services.store.insert_provider(&input).await?)
+        }
+        ControlMutation::Credential {
+            provider_id,
+            label,
+            secret,
+            enabled,
+        } => {
+            let envelope = services.cipher.seal(&secret)?;
+            MutationResult::Id(
+                services
+                    .store
+                    .insert_credential(&gproxy_store::records::CredentialInput {
+                        provider_id,
+                        label,
+                        envelope,
+                        enabled,
+                    })
+                    .await?,
+            )
+        }
+        ControlMutation::Route(input) => {
+            nonzero(input.max_attempts, "route max_attempts")?;
+            MutationResult::Id(services.store.insert_route(&input).await?)
+        }
+        ControlMutation::RouteMember(input) => {
+            MutationResult::Id(services.store.insert_route_member(&input).await?)
+        }
+        ControlMutation::Alias(input) => {
+            MutationResult::Id(services.store.insert_alias(&input).await?)
+        }
+        ControlMutation::ExposedModel(input) => {
+            MutationResult::Id(services.store.insert_exposed_model(&input).await?)
+        }
+        ControlMutation::Organization(input) => {
+            MutationResult::Id(services.store.insert_organization(&input).await?)
+        }
+        ControlMutation::Team(input) => {
+            MutationResult::Id(services.store.insert_team(&input).await?)
+        }
+        ControlMutation::User(input) => {
+            MutationResult::Id(services.store.insert_user(&input).await?)
+        }
+        ControlMutation::UserKey {
+            user_id,
+            api_key,
+            label,
+            expires_at,
+            enabled,
+        } => {
+            if api_key.is_empty() {
+                return Err(AppError::Control("API key must not be empty".into()));
+            }
+            MutationResult::Id(
+                services
+                    .store
+                    .insert_user_key(&gproxy_store::records::UserKeyInput {
+                        user_id,
+                        digest: Sha256::digest(api_key.as_bytes()).to_vec(),
+                        label,
+                        expires_at,
+                        enabled,
+                    })
+                    .await?,
+            )
+        }
+        ControlMutation::Permission(input) => {
+            MutationResult::Id(services.store.insert_permission(&input).await?)
+        }
+        ControlMutation::RateLimit(input) => {
+            nonzero(input.window_seconds, "rate limit window_seconds")?;
+            MutationResult::Id(services.store.insert_rate_limit(&input).await?)
+        }
+        ControlMutation::Quota(input) => {
+            nonzero(input.window_seconds, "quota window_seconds")?;
+            MutationResult::Id(services.store.insert_quota(&input).await?)
+        }
+        ControlMutation::PriceRule(input) => {
+            MutationResult::Id(services.store.insert_price_rule(&input).await?)
+        }
+        ControlMutation::PriceRate(input) => {
+            nonzero(input.unit_size, "price rate unit_size")?;
+            MutationResult::Id(services.store.insert_price_rate(&input).await?)
+        }
+        ControlMutation::Setting(input) => {
+            services.store.set_setting(&input).await?;
+            MutationResult::Applied
+        }
+    };
+    handle.reload().await?;
+    Ok(result)
+}
+
+fn nonzero(value: impl Into<u64>, field: &'static str) -> Result<(), AppError> {
+    if value.into() == 0 {
+        Err(AppError::Control(format!("{field} must be positive")))
+    } else {
+        Ok(())
+    }
+}

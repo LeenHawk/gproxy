@@ -1,0 +1,175 @@
+use std::time::Duration;
+
+use gproxy_channel_api::{BoxFuture, CallerIdentity};
+use gproxy_core::{CacheBackend, CoreError, Plan, RequestCtx};
+use gproxy_protocol::OperationKey;
+
+use super::super::AppHost;
+use super::auth::{authorize, subject_matches, unix_now};
+use super::types::{
+    AdmissionState, CounterCharge, IdentityState, QuotaReservation, RESERVATION_TTL,
+    reservation_key,
+};
+
+pub(in crate::host) fn admit<'a>(
+    host: &'a AppHost,
+    identity: &'a CallerIdentity,
+    request: &'a RequestCtx,
+    operation: Option<OperationKey>,
+    plan: &'a Plan,
+) -> BoxFuture<'a, Result<(), CoreError>> {
+    Box::pin(async move {
+        let snapshot = host.services.control.current();
+        authorize(&snapshot, identity, operation, plan)?;
+        let now = unix_now();
+        let estimate = i64::try_from(gproxy_core::usage::estimate_input_tokens(&request.body))
+            .map_err(|_| CoreError::Internal("admission estimate exceeds i64".into()))?;
+        let mut charged = Vec::new();
+        let mut reservations = Vec::new();
+
+        for quota in snapshot
+            .quotas
+            .iter()
+            .filter(|quota| subject_matches(&quota.subject_kind, quota.subject_id, identity))
+        {
+            let start = window_start(now, quota.window_seconds);
+            let key = format!("gproxy:quota:{}:{start}", quota.id);
+            let used = match increment(host, &key, estimate, quota.window_seconds, now).await {
+                Ok(used) => used,
+                Err(error) => return rollback_error(host, charged, error).await,
+            };
+            charged.push(CounterCharge {
+                key: key.clone(),
+                amount: estimate,
+            });
+            if used > i64::try_from(quota.token_limit).expect("stored quota fits i64") {
+                return rollback_error(host, charged, CoreError::QuotaExceeded).await;
+            }
+            reservations.push(QuotaReservation {
+                quota_id: quota.id,
+                window_start: start,
+                cache_key: key,
+                estimated_tokens: estimate,
+            });
+        }
+
+        for limit in snapshot
+            .rate_limits
+            .iter()
+            .filter(|limit| subject_matches(&limit.subject_kind, limit.subject_id, identity))
+        {
+            let start = window_start(now, limit.window_seconds);
+            let key = format!("gproxy:rate:{}:{start}", limit.id);
+            let count = match increment(host, &key, 1, limit.window_seconds, now).await {
+                Ok(count) => count,
+                Err(error) => return rollback_error(host, charged, error).await,
+            };
+            charged.push(CounterCharge { key, amount: 1 });
+            if count > i64::try_from(limit.requests).expect("stored rate limit fits i64") {
+                return rollback_error(
+                    host,
+                    charged,
+                    CoreError::RateLimited {
+                        retry_after_secs: u32::try_from(limit.window_seconds).unwrap_or(u32::MAX),
+                    },
+                )
+                .await;
+            }
+        }
+
+        let state = AdmissionState {
+            identity: IdentityState::from(identity),
+            operation: operation.map(|key| key.operation.id().to_owned()),
+            reservations,
+        };
+        let bytes = match serde_json::to_vec(&state) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return rollback_error(
+                    host,
+                    charged,
+                    CoreError::Internal(format!("serialize admission: {error}")),
+                )
+                .await;
+            }
+        };
+        let key = reservation_key(&request.request_id);
+        if let Err(error) = host
+            .services
+            .cache
+            .set(&key, bytes, Some(RESERVATION_TTL))
+            .await
+        {
+            let _ = host.services.cache.delete(&key).await;
+            return rollback_error(host, charged, error.into()).await;
+        }
+        begin_capture(host, request).await;
+        Ok(())
+    })
+}
+
+async fn increment(
+    host: &AppHost,
+    key: &str,
+    amount: i64,
+    window_seconds: u64,
+    now: i64,
+) -> Result<i64, CoreError> {
+    let start = window_start(now, window_seconds);
+    let seconds = i64::try_from(window_seconds).expect("stored window fits i64");
+    let end = start.saturating_add(seconds);
+    let ttl = u64::try_from(end.saturating_sub(now)).unwrap_or(1).max(1);
+    Ok(host
+        .services
+        .cache
+        .incr(key, amount, Some(Duration::from_secs(ttl)))
+        .await?)
+}
+
+async fn rollback_error(
+    host: &AppHost,
+    charges: Vec<CounterCharge>,
+    error: CoreError,
+) -> Result<(), CoreError> {
+    for charge in charges.into_iter().rev() {
+        if let Err(rollback) = host
+            .services
+            .cache
+            .incr(&charge.key, -charge.amount, None)
+            .await
+        {
+            tracing::error!(error = %rollback, "admission rollback failed");
+        }
+    }
+    Err(error)
+}
+
+async fn begin_capture(host: &AppHost, request: &RequestCtx) {
+    let enabled = host
+        .services
+        .control
+        .current()
+        .settings
+        .iter()
+        .any(|setting| {
+            setting.key == "capture_enabled" && setting.value == serde_json::Value::Bool(true)
+        });
+    if !enabled {
+        return;
+    }
+    let input = gproxy_store::records::RequestLogInput {
+        request_id: request.request_id.clone(),
+        at: unix_now(),
+        method: request.method.to_string(),
+        path: request.path.clone(),
+        query: request.query.clone(),
+    };
+    if let Err(error) = host.services.store.begin_request_log(&input).await {
+        tracing::error!(request_id = %request.request_id, error = %error, "begin request capture failed");
+    }
+}
+
+fn window_start(now: i64, seconds: u64) -> i64 {
+    let seconds = i64::try_from(seconds).expect("stored window fits i64");
+    now - now.rem_euclid(seconds)
+}
