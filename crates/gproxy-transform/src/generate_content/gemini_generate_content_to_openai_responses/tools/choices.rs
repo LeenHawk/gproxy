@@ -93,10 +93,8 @@ fn choice_with_names(
         mode,
         tools: names
             .into_iter()
-            .map(|name| openai::ResponseAllowedTool {
-                type_: openai::ToolType::Function,
-                name: Some(name),
-                server_label: None,
+            .map(|name| openai::ResponseAllowedTool::Function {
+                name,
                 rest: Default::default(),
             })
             .collect(),

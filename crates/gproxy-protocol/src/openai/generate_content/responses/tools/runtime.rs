@@ -5,6 +5,7 @@ use crate::openai::common::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum CodeInterpreterContainer {
     Id(String),
     Auto(CodeInterpreterAutoContainer),
@@ -26,15 +27,22 @@ pub struct CodeInterpreterAutoContainer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CodeInterpreterNetworkPolicy {
-    #[serde(rename = "type")]
-    pub type_: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_domains: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub domain_secrets: Option<Vec<CodeInterpreterDomainSecret>>,
-    #[serde(default, flatten)]
-    pub rest: Rest,
+#[serde(tag = "type")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum CodeInterpreterNetworkPolicy {
+    #[serde(rename = "disabled")]
+    Disabled {
+        #[serde(default, flatten)]
+        rest: Rest,
+    },
+    #[serde(rename = "allowlist")]
+    Allowlist {
+        allowed_domains: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        domain_secrets: Option<Vec<CodeInterpreterDomainSecret>>,
+        #[serde(default, flatten)]
+        rest: Rest,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -57,25 +65,40 @@ pub struct ImageMask {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ResponseShellEnvironment {
-    #[serde(rename = "type")]
-    pub type_: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_ids: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memory_limit: Option<CodeInterpreterMemoryLimit>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_policy: Option<CodeInterpreterNetworkPolicy>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skills: Option<Vec<ResponseShellContainerSkill>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub container_id: Option<String>,
-    #[serde(default, flatten)]
-    pub rest: Rest,
+#[serde(tag = "type")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ResponseShellEnvironment {
+    #[serde(rename = "container_auto")]
+    ContainerAuto {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        file_ids: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        memory_limit: Option<CodeInterpreterMemoryLimit>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        network_policy: Option<CodeInterpreterNetworkPolicy>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        skills: Option<Vec<ResponseShellContainerSkill>>,
+        #[serde(default, flatten)]
+        rest: Rest,
+    },
+    #[serde(rename = "local")]
+    Local {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        skills: Option<Vec<ResponseShellLocalSkill>>,
+        #[serde(default, flatten)]
+        rest: Rest,
+    },
+    #[serde(rename = "container_reference")]
+    ContainerReference {
+        container_id: String,
+        #[serde(default, flatten)]
+        rest: Rest,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseShellContainerSkill {
     Reference(ResponseShellSkillReference),
     Inline(ResponseShellInlineSkill),
@@ -86,11 +109,18 @@ pub enum ResponseShellContainerSkill {
 pub struct ResponseShellSkillReference {
     pub skill_id: String,
     #[serde(rename = "type")]
-    pub type_: String,
+    pub type_: ResponseShellSkillReferenceType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(default, flatten)]
     pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ResponseShellSkillReferenceType {
+    #[serde(rename = "skill_reference")]
+    SkillReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -99,19 +129,40 @@ pub struct ResponseShellInlineSkill {
     pub name: String,
     pub source: ResponseShellInlineSkillSource,
     #[serde(rename = "type")]
-    pub type_: String,
+    pub type_: ResponseShellInlineSkillType,
     #[serde(default, flatten)]
     pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ResponseShellInlineSkillType {
+    #[serde(rename = "inline")]
+    Inline,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResponseShellInlineSkillSource {
     pub data: String,
-    pub media_type: String,
+    pub media_type: ResponseShellInlineSkillMediaType,
     #[serde(rename = "type")]
-    pub type_: String,
+    pub type_: ResponseShellInlineSkillSourceType,
     #[serde(default, flatten)]
     pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ResponseShellInlineSkillMediaType {
+    #[serde(rename = "application/zip")]
+    ApplicationZip,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ResponseShellInlineSkillSourceType {
+    #[serde(rename = "base64")]
+    Base64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -125,6 +176,7 @@ pub struct ResponseShellLocalSkill {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum SearchContentType {
     Text,
     Image,

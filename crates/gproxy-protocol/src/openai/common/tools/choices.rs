@@ -1,11 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::super::{AllowedToolsMode, Rest, ToolChoiceMode, ToolType};
+use super::super::{AllowedToolsMode, Rest, ToolChoiceMode};
 use super::definitions::NamedTool;
+
+mod allowed;
+pub use allowed::ResponseAllowedTool;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatToolChoice {
     Mode(ToolChoiceMode),
     Allowed(ChatAllowedToolChoice),
@@ -15,6 +19,7 @@ pub enum ChatToolChoice {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseToolChoice {
     Mode(ToolChoiceMode),
     Allowed(ResponseAllowedToolChoice),
@@ -54,22 +59,11 @@ pub struct ResponseAllowedToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ResponseAllowedTool {
-    #[serde(rename = "type")]
-    pub type_: ToolType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub server_label: Option<String>,
-    #[serde(default, flatten)]
-    pub rest: Rest,
-}
-
 strict_string_enum!(AllowedToolsType { AllowedTools => "allowed_tools" });
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ChatNamedToolChoice {
     Function(ChatNamedFunctionToolChoice),
     Custom(ChatNamedCustomToolChoice),

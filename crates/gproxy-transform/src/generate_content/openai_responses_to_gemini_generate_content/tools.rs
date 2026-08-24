@@ -202,7 +202,22 @@ pub(super) fn choice_to_gemini(
             let names = value
                 .tools
                 .into_iter()
-                .filter_map(|tool| tool.name)
+                .filter_map(|tool| match tool {
+                    openai::ResponseAllowedTool::Function { name, .. }
+                    | openai::ResponseAllowedTool::Custom { name, .. } => Some(name),
+                    openai::ResponseAllowedTool::Mcp { name, .. } => name,
+                    openai::ResponseAllowedTool::FileSearch { .. }
+                    | openai::ResponseAllowedTool::WebSearchPreview { .. }
+                    | openai::ResponseAllowedTool::Computer { .. }
+                    | openai::ResponseAllowedTool::ComputerUsePreview { .. }
+                    | openai::ResponseAllowedTool::ComputerUse { .. }
+                    | openai::ResponseAllowedTool::WebSearchPreview20250311 { .. }
+                    | openai::ResponseAllowedTool::ImageGeneration { .. }
+                    | openai::ResponseAllowedTool::CodeInterpreter { .. }
+                    | openai::ResponseAllowedTool::LocalShell { .. }
+                    | openai::ResponseAllowedTool::Shell { .. }
+                    | openai::ResponseAllowedTool::ApplyPatch { .. } => None,
+                })
                 .collect();
             (mode, names)
         }

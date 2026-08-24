@@ -9,6 +9,8 @@ use super::generate_content::responses::{
 use super::memories::{MemorySummarizeRequest, MemorySummarizeResponse};
 use super::models::{ListModelsRequest, RetrieveModelRequest};
 
+mod tool_runtime;
+
 fn round_trip<T>(value: Value) -> T
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
