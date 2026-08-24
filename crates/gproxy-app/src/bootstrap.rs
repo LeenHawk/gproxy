@@ -68,6 +68,7 @@ fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::Duplicate
         Box::new(gproxy_channels::AwsBedrockChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::VertexChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::VertexExpressChannel) as Box<dyn Channel>,
+        Box::new(gproxy_channels::WorkBuddyChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::XaiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::VercelChannel) as Box<dyn Channel>,
     ];

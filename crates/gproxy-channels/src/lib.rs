@@ -28,6 +28,7 @@ mod shared;
 mod vercel;
 mod vertex;
 mod vertexexpress;
+mod workbuddy;
 mod xai;
 
 pub use aistudio::AiStudioChannel;
@@ -57,6 +58,7 @@ pub use openrouter::OpenRouterChannel;
 pub use vercel::VercelChannel;
 pub use vertex::VertexChannel;
 pub use vertexexpress::VertexExpressChannel;
+pub use workbuddy::WorkBuddyChannel;
 pub use xai::XaiChannel;
 
 /// Canonicalize channel ids at the legacy configuration import boundary.
