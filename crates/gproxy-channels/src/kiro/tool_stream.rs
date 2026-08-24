@@ -1,4 +1,4 @@
-use gproxy_channel_api::Frame;
+use gproxy_channel_api::{ChannelError, Frame};
 use serde_json::{Value, json};
 
 struct Call {
@@ -16,10 +16,16 @@ pub(super) struct Tracker {
 }
 
 impl Tracker {
-    pub(super) fn handle(&mut self, value: &Value, sequence: &mut u64) -> Vec<Frame> {
-        let Some(call_id) = value.get("toolUseId").and_then(Value::as_str) else {
-            return Vec::new();
-        };
+    pub(super) fn handle(
+        &mut self,
+        value: &Value,
+        sequence: &mut u64,
+    ) -> Result<Vec<Frame>, ChannelError> {
+        let call_id = value
+            .get("toolUseId")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| ChannelError::Decode("Kiro tool event has no id".into()))?;
         let name = value
             .get("name")
             .and_then(Value::as_str)
@@ -33,6 +39,11 @@ impl Tracker {
         let index = match self.calls.iter().position(|call| call.id == call_id) {
             Some(index) => index,
             None => {
+                if name.is_empty() {
+                    return Err(ChannelError::Decode(
+                        "Kiro tool event starts without a name".into(),
+                    ));
+                }
                 let output_index = 2 + self.calls.len() as u64;
                 let item_id = super::sse::id("fc", call_id);
                 self.calls.push(Call {
@@ -71,7 +82,7 @@ impl Tracker {
         if stop {
             output.extend(self.finish_call(index, sequence));
         }
-        output
+        Ok(output)
     }
 
     pub(super) fn is_complete(&self) -> bool {

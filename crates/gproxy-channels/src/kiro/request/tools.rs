@@ -1,33 +1,35 @@
 use gproxy_channel_api::ChannelError;
 use serde_json::{Value, json};
 
-pub(super) fn result(item: &Value) -> Value {
+pub(super) fn result(item: &Value) -> Result<Value, ChannelError> {
     let output = item
         .get("output")
-        .map(|value| {
-            value
-                .as_str()
-                .map_or_else(|| value.to_string(), str::to_owned)
-        })
-        .unwrap_or_default();
-    json!({
-        "toolUseId":call_id(item),
+        .expect("typed function-call output has output");
+    let output = output
+        .as_str()
+        .map_or_else(|| output.to_string(), str::to_owned);
+    Ok(json!({
+        "toolUseId":call_id(item)?,
         "content":[{"text":output}],
         "status":"success"
-    })
+    }))
 }
 
-pub(super) fn append_call(messages: &mut Vec<Value>, item: &Value) {
-    let input = item
+pub(super) fn append_call(messages: &mut Vec<Value>, item: &Value) -> Result<(), ChannelError> {
+    let arguments = item
         .get("arguments")
-        .map(|value| match value {
-            Value::String(value) => serde_json::from_str(value).unwrap_or_else(|_| json!({})),
-            value => value.clone(),
-        })
-        .unwrap_or_else(|| json!({}));
+        .and_then(Value::as_str)
+        .expect("typed function call has arguments");
+    let input: Value = serde_json::from_str(arguments)
+        .map_err(|error| ChannelError::Prepare(format!("Kiro tool arguments JSON: {error}")))?;
+    let name = item
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| ChannelError::Prepare("Kiro tool call name is empty".into()))?;
     let entry = json!({
-        "toolUseId":call_id(item),
-        "name":item.get("name").and_then(Value::as_str).unwrap_or_default(),
+        "toolUseId":call_id(item)?,
+        "name":name,
         "input":input
     });
     if let Some(message) = messages
@@ -46,6 +48,7 @@ pub(super) fn append_call(messages: &mut Vec<Value>, item: &Value) {
         message["assistantResponseMessage"]["toolUses"] = Value::Array(vec![entry]);
         messages.push(message);
     }
+    Ok(())
 }
 
 pub(super) fn attach_results(message: &mut Value, results: Vec<Value>) {
@@ -159,9 +162,10 @@ fn sanitize(name: &str) -> String {
     }
 }
 
-fn call_id(item: &Value) -> &str {
+fn call_id(item: &Value) -> Result<&str, ChannelError> {
     item.get("call_id")
         .or_else(|| item.get("id"))
         .and_then(Value::as_str)
-        .unwrap_or_default()
+        .filter(|id| !id.is_empty())
+        .ok_or_else(|| ChannelError::Prepare("Kiro tool call id is empty".into()))
 }

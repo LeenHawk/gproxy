@@ -94,7 +94,9 @@ pub(super) fn text_and_images(value: &Value) -> Result<(String, Vec<Value>), Cha
                 object
                     .get("text")
                     .and_then(Value::as_str)
-                    .unwrap_or_default()
+                    .ok_or_else(|| {
+                        ChannelError::Prepare("Kiro text content is missing text".into())
+                    })?
                     .into(),
                 Vec::new(),
             )),

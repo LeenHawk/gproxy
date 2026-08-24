@@ -43,11 +43,11 @@ fn conversation_state(
                 match item.get("type").and_then(Value::as_str) {
                     Some("function_call") => {
                         tools::flush_results(&mut messages, &mut results, &model);
-                        tools::append_call(&mut messages, item);
+                        tools::append_call(&mut messages, item)?;
                         continue;
                     }
                     Some("function_call_output") => {
-                        results.push(tools::result(item));
+                        results.push(tools::result(item)?);
                         continue;
                     }
                     _ => {}

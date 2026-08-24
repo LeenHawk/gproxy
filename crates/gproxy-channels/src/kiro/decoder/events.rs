@@ -36,7 +36,7 @@ pub(super) fn handle(
         }
         "toolUseEvent" => {
             state.ensure_started(output);
-            output.extend(state.tools.handle(payload, &mut state.sequence));
+            output.extend(state.tools.handle(payload, &mut state.sequence)?);
         }
         "invalidStateEvent" | "InternalServerException" | "internalServerException" => {
             state.ensure_started(output);
