@@ -1,6 +1,6 @@
 use gproxy_core::ControlPlane;
 use gproxy_store::records::{
-    CredentialQuotaObservation, QuotaBoundaryConfidence, QuotaBoundarySource, QuotaCoverage,
+    CredentialQuotaObservation, QuotaBoundaryConfidence, QuotaBoundarySource,
 };
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -43,22 +43,22 @@ async fn near_limit_credential_is_deprioritized() {
     assert_eq!(before, vec![credential, second]);
 
     let now = unix_now();
-    app.observe_credential_quota_cycle(CredentialQuotaObservation {
-        credential_id: credential,
-        window_key: "five-hour".into(),
-        period_start: Some(now - 60),
-        period_end: Some(now + 18_000),
-        boundary_source: QuotaBoundarySource::Upstream,
-        boundary_confidence: QuotaBoundaryConfidence::Exact,
-        observed_at: now,
-        upstream_used: Some(Decimal::from(95)),
-        upstream_limit: Some(Decimal::from(100)),
-        used_percent: Some(Decimal::from(95)),
-        coverage: QuotaCoverage::PartialLowerBound,
-        metrics: json!({}),
-    })
-    .await
-    .expect("quota observation");
+    let cycle = app
+        .observe_credential_quota_cycle(CredentialQuotaObservation {
+            credential_id: credential,
+            window_key: "five-hour".into(),
+            period_start: Some(now - 60),
+            period_end: Some(now + 18_000),
+            boundary_source: QuotaBoundarySource::Upstream,
+            boundary_confidence: QuotaBoundaryConfidence::Exact,
+            observed_at: now,
+            upstream_used: Some(Decimal::from(95)),
+            upstream_limit: Some(Decimal::from(100)),
+            used_percent: Some(Decimal::from(95)),
+        })
+        .await
+        .expect("quota observation");
+    assert_eq!(cycle.metrics["requests"], json!("0"));
 
     assert_eq!(resolve_credentials(&app), vec![second, credential]);
 }

@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
 
-use super::row;
+use super::{boundary, row};
 use crate::query::runtime;
 use crate::records::{CredentialQuotaCycleRecord, CredentialQuotaPressure};
 use crate::{Store, StoreError};
@@ -42,9 +42,13 @@ impl Store {
             .into_iter()
             .filter_map(|cycle| {
                 pressure(&cycle).map(|used_percent| CredentialQuotaPressure {
+                    cycle_id: cycle.id,
                     credential_id: cycle.credential_id,
+                    window_key: cycle.window_key.clone(),
+                    version: cycle.version,
+                    last_observed_at: cycle.last_observed_at,
                     used_percent,
-                    period_end: cycle.period_end,
+                    period_end: boundary::trusted_reset(&cycle),
                 })
             })
             .collect())
@@ -69,14 +73,17 @@ impl Store {
         now: i64,
     ) -> Result<Vec<CredentialQuotaCycleRecord>, StoreError> {
         self.backend()
-            .execute(runtime::select_open_credential_quota_cycles(
-                credential_id,
-                now,
-            )?)
+            .execute(runtime::select_open_credential_quota_cycles(credential_id)?)
             .await?
             .rows
             .into_iter()
             .map(row::parse)
+            .filter_map(|result| match result {
+                Ok(cycle) if boundary::trusted_reset(&cycle).is_some_and(|reset| reset <= now) => {
+                    None
+                }
+                result => Some(result),
+            })
             .collect()
     }
 
@@ -102,6 +109,21 @@ impl Store {
         let result = self
             .backend()
             .execute(runtime::read_credential_quota_cycle(id)?)
+            .await?;
+        result.rows.into_iter().next().map(row::parse).transpose()
+    }
+
+    pub(super) async fn latest_credential_quota_cycle(
+        &self,
+        credential_id: i64,
+        window_key: &str,
+    ) -> Result<Option<CredentialQuotaCycleRecord>, StoreError> {
+        let result = self
+            .backend()
+            .execute(runtime::read_latest_credential_quota_cycle(
+                credential_id,
+                window_key,
+            )?)
             .await?;
         result.rows.into_iter().next().map(row::parse).transpose()
     }

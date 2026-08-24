@@ -10,6 +10,7 @@ use crate::records::{
 pub(super) fn parse(row: Row) -> Result<CredentialQuotaCycleRecord, StoreError> {
     Ok(CredentialQuotaCycleRecord {
         id: row.i64("id")?,
+        version: u64::try_from(row.i64("version")?).map_err(|error| invalid("version", error))?,
         credential_id: row.i64("credential_id")?,
         window_key: row.text("window_key")?.to_owned(),
         period_start: row.optional_i64("period_start")?,

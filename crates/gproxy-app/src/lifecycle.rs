@@ -118,4 +118,19 @@ impl AppHandle {
             .observe_credential_quota_cycle(&observation)
             .await?)
     }
+
+    pub async fn close_credential_quota_cycle(
+        &self,
+        id: i64,
+        reason: gproxy_store::records::QuotaCycleCloseReason,
+        closed_at: i64,
+    ) -> Result<Option<gproxy_store::records::CredentialQuotaCycleRecord>, AppError> {
+        Ok(self
+            .inner
+            .host
+            .services
+            .control
+            .close_credential_quota_cycle(id, reason, closed_at)
+            .await?)
+    }
 }

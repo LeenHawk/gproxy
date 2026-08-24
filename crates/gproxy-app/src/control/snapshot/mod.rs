@@ -8,8 +8,11 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use gproxy_core::{ControlPlane, CoreError, Plan, Pricing, ProviderRef, RoutingMode};
-use gproxy_store::records::ControlSnapshot;
+use gproxy_store::records::{
+    ControlSnapshot, CredentialQuotaCycleRecord, QuotaBoundarySource, QuotaCycleStatus,
+};
 use gproxy_store::{Store, StoreError};
+use rust_decimal::Decimal;
 
 pub(crate) use types::KeyIdentity;
 use types::{CompiledSnapshot, CredentialPressure, CredentialPressureMap};
@@ -64,8 +67,23 @@ impl SnapshotControl {
             .store
             .observe_credential_quota_cycle(observation)
             .await?;
-        self.credential_pressure
-            .store(Arc::new(load_pressure(&self.store).await?));
+        self.update_pressure(&cycle);
+        Ok(cycle)
+    }
+
+    pub(crate) async fn close_credential_quota_cycle(
+        &self,
+        id: i64,
+        reason: gproxy_store::records::QuotaCycleCloseReason,
+        closed_at: i64,
+    ) -> Result<Option<CredentialQuotaCycleRecord>, StoreError> {
+        let cycle = self
+            .store
+            .close_credential_quota_cycle(id, reason, closed_at)
+            .await?;
+        if let Some(cycle) = cycle.as_ref() {
+            self.update_pressure(cycle);
+        }
         Ok(cycle)
     }
 
@@ -75,6 +93,34 @@ impl SnapshotControl {
 
     pub(crate) fn key_identity(&self, digest: &[u8]) -> Option<KeyIdentity> {
         self.snapshot.load().identities.get(digest).cloned()
+    }
+
+    fn update_pressure(&self, cycle: &CredentialQuotaCycleRecord) {
+        let credential = gproxy_channel_api::CredentialId(cycle.credential_id);
+        let window_key = cycle.window_key.clone();
+        let next = cycle_pressure(cycle);
+        self.credential_pressure.rcu(|current| {
+            let mut updated = (**current).clone();
+            let windows = updated.entry(credential).or_default();
+            let replace = windows.get(&window_key).is_none_or(|stored| {
+                (stored.last_observed_at, stored.cycle_id, stored.version)
+                    <= (cycle.last_observed_at, cycle.id, cycle.version)
+            });
+            if replace {
+                match next.clone() {
+                    Some(next) => {
+                        windows.insert(window_key.clone(), next);
+                    }
+                    None => {
+                        windows.remove(&window_key);
+                    }
+                }
+            }
+            if windows.is_empty() {
+                updated.remove(&credential);
+            }
+            Arc::new(updated)
+        });
     }
 }
 
@@ -96,12 +142,38 @@ async fn load_pressure(store: &Store) -> Result<CredentialPressureMap, StoreErro
         by_credential
             .entry(gproxy_channel_api::CredentialId(pressure.credential_id))
             .or_default()
-            .push(CredentialPressure {
-                used_percent: pressure.used_percent,
-                period_end: pressure.period_end,
-            });
+            .insert(
+                pressure.window_key,
+                CredentialPressure {
+                    cycle_id: pressure.cycle_id,
+                    version: pressure.version,
+                    last_observed_at: pressure.last_observed_at,
+                    used_percent: pressure.used_percent,
+                    period_end: pressure.period_end,
+                },
+            );
     }
     Ok(by_credential)
+}
+
+fn cycle_pressure(cycle: &CredentialQuotaCycleRecord) -> Option<CredentialPressure> {
+    if cycle.status != QuotaCycleStatus::Open {
+        return None;
+    }
+    let used_percent = cycle.used_percent.or_else(|| {
+        let used = cycle.upstream_used?;
+        let limit = cycle.upstream_limit?;
+        (limit > Decimal::ZERO).then(|| used / limit * Decimal::ONE_HUNDRED)
+    })?;
+    Some(CredentialPressure {
+        cycle_id: cycle.id,
+        version: cycle.version,
+        last_observed_at: cycle.last_observed_at,
+        used_percent,
+        period_end: (cycle.boundary_source == QuotaBoundarySource::Upstream)
+            .then_some(cycle.period_end)
+            .flatten(),
+    })
 }
 
 fn unix_now() -> i64 {

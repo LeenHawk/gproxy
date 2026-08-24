@@ -152,15 +152,17 @@ fn attempt_count(count: usize) -> u32 {
 }
 
 pub(super) fn apply_pressure(plan: &mut Plan, pressure: &CredentialPressureMap, now: i64) {
-    plan.targets.sort_by_key(|target| {
-        pressure_tier(pressure.get(&target.credential).map(Vec::as_slice), now)
-    });
+    plan.targets
+        .sort_by_key(|target| pressure_tier(pressure.get(&target.credential), now));
 }
 
-fn pressure_tier(pressure: Option<&[CredentialPressure]>, now: i64) -> u8 {
+fn pressure_tier(
+    pressure: Option<&std::collections::BTreeMap<String, CredentialPressure>>,
+    now: i64,
+) -> u8 {
     let pressure = pressure
         .into_iter()
-        .flatten()
+        .flat_map(|windows| windows.values())
         .filter(|window| window.period_end.is_none_or(|period_end| period_end > now))
         .map(|window| window.used_percent)
         .max();

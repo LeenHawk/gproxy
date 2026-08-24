@@ -31,6 +31,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         name: "credential_quota_cycles",
         columns: &[
             Col::id(),
+            Col::required("version", Integer),
             Col::required("credential_id", Integer),
             Col::required("window_key", Text),
             Col::optional("period_start", Integer),

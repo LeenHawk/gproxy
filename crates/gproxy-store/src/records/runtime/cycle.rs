@@ -58,13 +58,12 @@ pub struct CredentialQuotaObservation {
     pub upstream_limit: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub used_percent: Option<Decimal>,
-    pub coverage: QuotaCoverage,
-    pub metrics: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CredentialQuotaCycleRecord {
     pub id: i64,
+    pub version: u64,
     pub credential_id: i64,
     pub window_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,7 +88,11 @@ pub struct CredentialQuotaCycleRecord {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CredentialQuotaPressure {
+    pub cycle_id: i64,
     pub credential_id: i64,
+    pub window_key: String,
+    pub version: u64,
+    pub last_observed_at: i64,
     pub used_percent: Decimal,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub period_end: Option<i64>,
