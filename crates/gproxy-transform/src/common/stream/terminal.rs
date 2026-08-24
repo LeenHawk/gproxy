@@ -73,23 +73,14 @@ impl State {
                             | claude::StopReasonKnown::Refusal
                     )
                 );
-                let (event, status) = if incomplete {
-                    (
-                        openai::ResponseStreamEventTypeKnown::ResponseIncomplete,
-                        openai::ResponseStatus::Incomplete,
-                    )
+                let status = if incomplete {
+                    openai::ResponseStatus::Incomplete
                 } else {
-                    (
-                        openai::ResponseStreamEventTypeKnown::ResponseCompleted,
-                        openai::ResponseStatus::Completed,
-                    )
+                    openai::ResponseStatus::Completed
                 };
-                vec![self.response_event(
-                    event,
-                    Some(Box::new(self.response_object(status))),
-                    None,
-                    None,
-                    None,
+                vec![self.response_terminal(
+                    incomplete,
+                    self.response_object(status),
                     Default::default(),
                 )?]
             }

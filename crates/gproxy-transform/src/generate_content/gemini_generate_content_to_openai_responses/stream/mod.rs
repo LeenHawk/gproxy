@@ -9,6 +9,7 @@ use crate::generate_content::openai_responses_to_gemini_generate_content::conten
 
 use super::config;
 
+mod dispatch;
 mod events;
 mod items;
 mod terminal;
@@ -23,6 +24,7 @@ struct State {
     response_id: Option<String>,
     model: Option<String>,
     calls: BTreeMap<String, ToolCall>,
+    call_indices: BTreeMap<u32, String>,
     emitted: BTreeSet<String>,
     text_items: BTreeSet<String>,
     content: ContentConverter,
@@ -43,67 +45,11 @@ impl State {
             response_id: None,
             model: None,
             calls: BTreeMap::new(),
+            call_indices: BTreeMap::new(),
             emitted: BTreeSet::new(),
             text_items: BTreeSet::new(),
             content: ContentConverter::new(),
             stopped: false,
-        }
-    }
-
-    fn event(&mut self, event: openai::ResponseStreamEvent) -> Result<Vec<Bytes>, TransformError> {
-        if self.stopped {
-            return Err(TransformError::shape(
-                "Responses stream",
-                "event received after terminal event",
-            ));
-        }
-        let openai::ResponseStreamEvent::Known(event) = event else {
-            return Err(TransformError::unsupported(
-                "Responses stream event",
-                "unknown event",
-            ));
-        };
-        if let Some(response) = event.response.as_ref() {
-            self.remember(response)?;
-        }
-        match event.type_ {
-            openai::ResponseStreamEventTypeKnown::ResponseCreated
-            | openai::ResponseStreamEventTypeKnown::ResponseInProgress
-            | openai::ResponseStreamEventTypeKnown::ResponseQueued => Ok(Vec::new()),
-            openai::ResponseStreamEventTypeKnown::ResponseOutputTextDelta => {
-                self.text_delta(*event, false)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseReasoningTextDelta
-            | openai::ResponseStreamEventTypeKnown::ResponseReasoningSummaryTextDelta => {
-                self.text_delta(*event, true)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseRefusalDelta => {
-                self.refusal_delta(*event)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded => {
-                self.item_added(*event)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone => self.item_done(*event),
-            openai::ResponseStreamEventTypeKnown::ResponseFunctionCallArgumentsDelta => {
-                self.tool_delta(*event, false)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseCustomToolCallInputDelta => {
-                self.tool_delta(*event, true)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseFunctionCallArgumentsDone => {
-                self.tool_done(*event, false)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseCustomToolCallInputDone => {
-                self.tool_done(*event, true)
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseCompleted
-            | openai::ResponseStreamEventTypeKnown::ResponseIncomplete
-            | openai::ResponseStreamEventTypeKnown::ResponseFailed => self.terminal(*event),
-            openai::ResponseStreamEventTypeKnown::Error => Err(TransformError::unsupported(
-                "Responses stream",
-                event.message.as_deref().unwrap_or("error event"),
-            )),
-            other => events::ignored_or_unsupported(other),
         }
     }
 

@@ -1,6 +1,4 @@
-use gproxy_protocol::{gemini, openai};
-
-use crate::TransformError;
+use gproxy_protocol::gemini;
 
 pub(super) fn chunk(
     content: Option<gemini::Content>,
@@ -46,72 +44,5 @@ pub(super) fn text(text: String, thought: bool) -> gemini::Content {
         }],
         role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
         rest: Default::default(),
-    }
-}
-
-pub(super) fn ignored_or_unsupported(
-    event: openai::ResponseStreamEventTypeKnown,
-) -> Result<Vec<bytes::Bytes>, TransformError> {
-    use openai::ResponseStreamEventTypeKnown as E;
-    match event {
-        E::ResponseContentPartAdded
-        | E::ResponseContentPartDone
-        | E::ResponseOutputTextDone
-        | E::ResponseOutputTextAnnotationAdded
-        | E::ResponseRefusalDone
-        | E::ResponseReasoningSummaryPartAdded
-        | E::ResponseReasoningSummaryPartDone
-        | E::ResponseReasoningSummaryTextDone
-        | E::ResponseReasoningTextDone => Ok(Vec::new()),
-        E::ResponseAudioDelta
-        | E::ResponseAudioDone
-        | E::ResponseAudioTranscriptDelta
-        | E::ResponseAudioTranscriptDone
-        | E::ResponseImageGenerationCallCompleted
-        | E::ResponseImageGenerationCallGenerating
-        | E::ResponseImageGenerationCallInProgress
-        | E::ResponseImageGenerationCallPartialImage
-        | E::ResponseFileSearchCallInProgress
-        | E::ResponseFileSearchCallSearching
-        | E::ResponseFileSearchCallCompleted
-        | E::ResponseWebSearchCallInProgress
-        | E::ResponseWebSearchCallSearching
-        | E::ResponseWebSearchCallCompleted
-        | E::ResponseCodeInterpreterCallInProgress
-        | E::ResponseCodeInterpreterCallInterpreting
-        | E::ResponseCodeInterpreterCallCompleted
-        | E::ResponseCodeInterpreterCallCodeDelta
-        | E::ResponseCodeInterpreterCallCodeDone
-        | E::ResponseMcpCallArgumentsDelta
-        | E::ResponseMcpCallArgumentsDone
-        | E::ResponseMcpCallInProgress
-        | E::ResponseMcpCallCompleted
-        | E::ResponseMcpCallFailed
-        | E::ResponseMcpListToolsInProgress
-        | E::ResponseMcpListToolsCompleted
-        | E::ResponseMcpListToolsFailed => Err(TransformError::unsupported(
-            "Responses stream",
-            event.as_str(),
-        )),
-        E::ResponseCreated
-        | E::ResponseInProgress
-        | E::ResponseCompleted
-        | E::ResponseFailed
-        | E::ResponseIncomplete
-        | E::ResponseQueued
-        | E::ResponseOutputItemAdded
-        | E::ResponseOutputItemDone
-        | E::ResponseOutputTextDelta
-        | E::ResponseFunctionCallArgumentsDelta
-        | E::ResponseFunctionCallArgumentsDone
-        | E::ResponseCustomToolCallInputDelta
-        | E::ResponseCustomToolCallInputDone
-        | E::ResponseRefusalDelta
-        | E::ResponseReasoningSummaryTextDelta
-        | E::ResponseReasoningTextDelta
-        | E::Error => Err(TransformError::shape(
-            "Responses stream",
-            format!("{} reached the wrong dispatch branch", event.as_str()),
-        )),
     }
 }

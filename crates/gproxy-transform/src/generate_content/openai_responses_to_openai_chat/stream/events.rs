@@ -6,42 +6,9 @@ use crate::envelope::SseFrame;
 
 use super::{Item, Tool, ToolKind};
 
-pub(super) fn event(
-    type_: openai::ResponseStreamEventTypeKnown,
-) -> openai::KnownResponseStreamEvent {
-    openai::KnownResponseStreamEvent {
-        type_,
-        sequence_number: None,
-        response: None,
-        item: None,
-        output_index: None,
-        content_index: None,
-        item_id: None,
-        part: None,
-        delta: None,
-        logprobs: None,
-        text: None,
-        annotation: None,
-        annotation_index: None,
-        arguments: None,
-        name: None,
-        input: None,
-        refusal: None,
-        summary_index: None,
-        partial_image_b64: None,
-        partial_image_index: None,
-        code: None,
-        message: None,
-        param: None,
-        reasoning_part: None,
-        rest: Default::default(),
-    }
-}
-
 pub(super) fn emit(event: openai::KnownResponseStreamEvent) -> Result<Bytes, TransformError> {
-    let name = event.type_.as_str().to_owned();
     SseFrame::typed(
-        Some(&name),
+        Some(event.event_name()),
         &openai::ResponseStreamEvent::Known(Box::new(event)),
     )
 }

@@ -97,13 +97,16 @@ impl State {
                 (item.id.clone(), item.index)
             };
             if !text.is_empty() {
-                let mut event =
-                    events::event(openai::ResponseStreamEventTypeKnown::ResponseReasoningTextDelta);
-                event.sequence_number = Some(self.next_sequence());
-                event.item_id = Some(item_id);
-                event.output_index = Some(item_index);
-                event.content_index = Some(0);
-                event.delta = Some(text);
+                let event = openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(
+                    openai::ResponseContentDeltaEvent {
+                        content_index: 0,
+                        delta: text,
+                        item_id,
+                        output_index: item_index,
+                        sequence_number: Some(self.next_sequence()),
+                        rest: Default::default(),
+                    },
+                );
                 output.push(events::emit(event)?);
             }
             return Ok(output);
@@ -120,15 +123,16 @@ impl State {
                 &item,
                 openai::ResponseItemLifecycleStatus::InProgress,
             ))?);
-            let mut added =
-                events::event(openai::ResponseStreamEventTypeKnown::ResponseContentPartAdded);
-            added.sequence_number = Some(self.next_sequence());
-            added.item_id = Some(item.id.clone());
-            added.output_index = Some(item.index);
-            added.content_index = Some(0);
-            added.part = Some(openai::ResponseContentPart::OutputText(
-                events::message_part(&item),
-            ));
+            let added = openai::KnownResponseStreamEvent::ResponseContentPartAdded(
+                openai::ResponseContentPartEvent {
+                    content_index: 0,
+                    item_id: item.id.clone(),
+                    output_index: item.index,
+                    part: openai::ResponseContentPart::OutputText(events::message_part(&item)),
+                    sequence_number: Some(self.next_sequence()),
+                    rest: Default::default(),
+                },
+            );
             output.push(events::emit(added)?);
             self.text = Some(item);
         }
@@ -138,13 +142,17 @@ impl State {
             (item.id.clone(), item.index)
         };
         if !text.is_empty() {
-            let mut event =
-                events::event(openai::ResponseStreamEventTypeKnown::ResponseOutputTextDelta);
-            event.sequence_number = Some(self.next_sequence());
-            event.item_id = Some(item_id);
-            event.output_index = Some(item_index);
-            event.content_index = Some(0);
-            event.delta = Some(text);
+            let event = openai::KnownResponseStreamEvent::ResponseOutputTextDelta(
+                openai::ResponseOutputTextDeltaEvent {
+                    content_index: Some(0),
+                    delta: text,
+                    item_id,
+                    logprobs: None,
+                    output_index: item_index,
+                    sequence_number: Some(self.next_sequence()),
+                    rest: Default::default(),
+                },
+            );
             output.push(events::emit(event)?);
         }
         Ok(output)
@@ -166,11 +174,14 @@ impl State {
             _ => None,
         }
         .unwrap_or(self.next_index.saturating_sub(1));
-        let mut event =
-            events::event(openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded);
-        event.sequence_number = Some(self.next_sequence());
-        event.item = Some(Box::new(item));
-        event.output_index = Some(index);
+        let event = openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
+            openai::ResponseOutputItemEvent {
+                item: Box::new(item),
+                output_index: index,
+                sequence_number: Some(self.next_sequence()),
+                rest: Default::default(),
+            },
+        );
         events::emit(event)
     }
 }

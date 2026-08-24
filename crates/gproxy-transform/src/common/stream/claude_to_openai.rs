@@ -133,14 +133,8 @@ impl State {
                     None,
                 )?]
             }
-            Output::Responses => vec![self.response_event(
-                openai::ResponseStreamEventTypeKnown::ResponseCreated,
-                Some(Box::new(
-                    self.response_object(openai::ResponseStatus::InProgress),
-                )),
-                None,
-                None,
-                None,
+            Output::Responses => vec![self.response_created(
+                self.response_object(openai::ResponseStatus::InProgress),
                 rest,
             )?],
         })

@@ -11,6 +11,7 @@ use super::models::{ListModelsRequest, RetrieveModelRequest};
 
 mod item_actions;
 mod item_content;
+mod response_stream;
 mod tool_runtime;
 
 fn round_trip<T>(value: Value) -> T
@@ -179,7 +180,7 @@ fn chat_and_responses_stream_events_round_trip_future_data() {
     let ResponseStreamEvent::Unknown(raw) = parsed else {
         panic!("future event must remain raw");
     };
-    assert_eq!(raw, unknown);
+    assert_eq!(serde_json::to_value(raw).unwrap(), unknown);
 
     round_trip::<ResponseWebSocketRequest>(json!({
         "type":"response.create",

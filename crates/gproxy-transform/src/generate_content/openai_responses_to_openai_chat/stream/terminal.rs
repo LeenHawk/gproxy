@@ -3,7 +3,7 @@ use gproxy_protocol::openai;
 
 use crate::TransformError;
 
-use super::events::{emit, event, message_item, message_part, reasoning_item, tool_item};
+use super::events::{emit, message_item, message_part, reasoning_item, tool_item};
 use super::{Item, State, Tool, ToolKind};
 
 enum Done {
@@ -53,13 +53,9 @@ impl State {
                 return Err(TransformError::unsupported("Chat finish reason", value));
             }
         };
-        let terminal = match status {
-            openai::ResponseStatus::Incomplete => {
-                openai::ResponseStreamEventTypeKnown::ResponseIncomplete
-            }
-            openai::ResponseStatus::Completed => {
-                openai::ResponseStreamEventTypeKnown::ResponseCompleted
-            }
+        let incomplete = match status {
+            openai::ResponseStatus::Incomplete => true,
+            openai::ResponseStatus::Completed => false,
             openai::ResponseStatus::Failed
             | openai::ResponseStatus::InProgress
             | openai::ResponseStatus::Cancelled
@@ -74,7 +70,16 @@ impl State {
             }
         };
         let response = self.response(status)?;
-        output.push(self.emit(terminal, Some(Box::new(response)), None, None, None, None)?);
+        let payload = openai::ResponseLifecycleEvent {
+            response: Box::new(response),
+            sequence_number: Some(self.next_sequence()),
+            rest: Default::default(),
+        };
+        output.push(emit(if incomplete {
+            openai::KnownResponseStreamEvent::ResponseIncomplete(payload)
+        } else {
+            openai::KnownResponseStreamEvent::ResponseCompleted(payload)
+        })?);
         self.stopped = true;
         Ok(output)
     }
@@ -88,173 +93,107 @@ impl State {
     }
 
     fn text_done(&mut self, item: Item) -> Result<Vec<Bytes>, TransformError> {
-        let mut text_done = event(openai::ResponseStreamEventTypeKnown::ResponseOutputTextDone);
-        text_done.sequence_number = Some(self.next_sequence());
-        text_done.item_id = Some(item.id.clone());
-        text_done.output_index = Some(item.index);
-        text_done.content_index = Some(0);
-        text_done.text = Some(item.text.clone());
         let part = openai::ResponseContentPart::OutputText(message_part(&item));
         Ok(vec![
-            emit(text_done)?,
-            self.emit(
-                openai::ResponseStreamEventTypeKnown::ResponseContentPartDone,
-                None,
-                None,
-                Some(item.index),
-                Some(item.id.clone()),
-                Some(part),
-            )?,
-            self.emit(
-                openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone,
-                None,
-                Some(Box::new(message_item(
-                    &item,
-                    openai::ResponseItemLifecycleStatus::Completed,
-                ))),
-                Some(item.index),
-                None,
-                None,
-            )?,
+            emit(openai::KnownResponseStreamEvent::ResponseOutputTextDone(
+                openai::ResponseOutputTextDoneEvent {
+                    content_index: 0,
+                    item_id: item.id.clone(),
+                    logprobs: None,
+                    output_index: item.index,
+                    sequence_number: Some(self.next_sequence()),
+                    text: item.text.clone(),
+                    rest: Default::default(),
+                },
+            ))?,
+            emit(openai::KnownResponseStreamEvent::ResponseContentPartDone(
+                openai::ResponseContentPartEvent {
+                    content_index: 0,
+                    item_id: item.id.clone(),
+                    output_index: item.index,
+                    part,
+                    sequence_number: Some(self.next_sequence()),
+                    rest: Default::default(),
+                },
+            ))?,
+            emit(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
+                openai::ResponseOutputItemEvent {
+                    item: Box::new(message_item(
+                        &item,
+                        openai::ResponseItemLifecycleStatus::Completed,
+                    )),
+                    output_index: item.index,
+                    sequence_number: Some(self.next_sequence()),
+                    rest: Default::default(),
+                },
+            ))?,
         ])
     }
 
     fn reasoning_done(&mut self, item: Item) -> Result<Vec<Bytes>, TransformError> {
-        let mut done = event(openai::ResponseStreamEventTypeKnown::ResponseReasoningTextDone);
-        done.sequence_number = Some(self.next_sequence());
-        done.item_id = Some(item.id.clone());
-        done.output_index = Some(item.index);
-        done.content_index = Some(0);
-        done.text = Some(item.text.clone());
         Ok(vec![
-            emit(done)?,
-            self.emit(
-                openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone,
-                None,
-                Some(Box::new(reasoning_item(
-                    &item,
-                    openai::ResponseItemLifecycleStatus::Completed,
-                ))),
-                Some(item.index),
-                None,
-                None,
-            )?,
+            emit(openai::KnownResponseStreamEvent::ResponseReasoningTextDone(
+                openai::ResponseContentTextDoneEvent {
+                    content_index: 0,
+                    item_id: item.id.clone(),
+                    output_index: item.index,
+                    sequence_number: Some(self.next_sequence()),
+                    text: item.text.clone(),
+                    rest: Default::default(),
+                },
+            ))?,
+            emit(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
+                openai::ResponseOutputItemEvent {
+                    item: Box::new(reasoning_item(
+                        &item,
+                        openai::ResponseItemLifecycleStatus::Completed,
+                    )),
+                    output_index: item.index,
+                    sequence_number: Some(self.next_sequence()),
+                    rest: Default::default(),
+                },
+            ))?,
         ])
     }
 
     fn tool_done(&mut self, item: Tool) -> Result<Vec<Bytes>, TransformError> {
-        let mut done = event(match item.kind {
+        let sequence_number = Some(self.next_sequence());
+        let done = match item.kind {
             ToolKind::Function => {
-                openai::ResponseStreamEventTypeKnown::ResponseFunctionCallArgumentsDone
+                openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+                    openai::ResponseFunctionCallArgumentsDoneEvent {
+                        arguments: item.arguments.clone(),
+                        item_id: Some(item.id.clone()),
+                        name: Some(item.name.clone()),
+                        output_index: item.index,
+                        sequence_number,
+                        rest: Default::default(),
+                    },
+                )
             }
-            ToolKind::Custom => {
-                openai::ResponseStreamEventTypeKnown::ResponseCustomToolCallInputDone
-            }
-        });
-        done.sequence_number = Some(self.next_sequence());
-        done.item_id = Some(item.id.clone());
-        done.output_index = Some(item.index);
-        match item.kind {
-            ToolKind::Function => {
-                done.arguments = Some(item.arguments.clone());
-                done.name = Some(item.name.clone());
-            }
-            ToolKind::Custom => done.input = Some(item.arguments.clone()),
-        }
+            ToolKind::Custom => openai::KnownResponseStreamEvent::ResponseCustomToolCallInputDone(
+                openai::ResponseCustomToolCallInputDoneEvent {
+                    input: item.arguments.clone(),
+                    item_id: item.id.clone(),
+                    output_index: item.index,
+                    sequence_number,
+                    rest: Default::default(),
+                },
+            ),
+        };
         Ok(vec![
             emit(done)?,
-            self.emit(
-                openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone,
-                None,
-                Some(Box::new(tool_item(
-                    &item,
-                    openai::ResponseItemLifecycleStatus::Completed,
-                ))),
-                Some(item.index),
-                None,
-                None,
-            )?,
+            emit(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
+                openai::ResponseOutputItemEvent {
+                    item: Box::new(tool_item(
+                        &item,
+                        openai::ResponseItemLifecycleStatus::Completed,
+                    )),
+                    output_index: item.index,
+                    sequence_number: Some(self.next_sequence()),
+                    rest: Default::default(),
+                },
+            ))?,
         ])
-    }
-
-    pub(super) fn response(
-        &self,
-        status: openai::ResponseStatus,
-    ) -> Result<openai::ResponseObject, TransformError> {
-        let mut indexed = Vec::new();
-        if let Some(item) = self.text.as_ref() {
-            indexed.push((
-                item.index,
-                message_item(item, openai::ResponseItemLifecycleStatus::Completed),
-            ));
-        }
-        if let Some(item) = self.reasoning.as_ref() {
-            indexed.push((
-                item.index,
-                reasoning_item(item, openai::ResponseItemLifecycleStatus::Completed),
-            ));
-        }
-        indexed.extend(self.tools.values().map(|item| {
-            (
-                item.index,
-                tool_item(item, openai::ResponseItemLifecycleStatus::Completed),
-            )
-        }));
-        indexed.sort_by_key(|(index, _)| *index);
-        let output = indexed.into_iter().map(|(_, item)| item).collect();
-        let incomplete_details = match self.finish_reason.as_ref() {
-            Some(openai::ChatFinishReason::Length) => Some(openai::IncompleteDetails {
-                reason: Some(openai::IncompleteReason::MaxOutputTokens),
-                rest: Default::default(),
-            }),
-            Some(openai::ChatFinishReason::ContentFilter) => Some(openai::IncompleteDetails {
-                reason: Some(openai::IncompleteReason::ContentFilter),
-                rest: Default::default(),
-            }),
-            _ => None,
-        };
-        Ok(openai::ResponseObject {
-            id: self
-                .id
-                .clone()
-                .ok_or_else(|| TransformError::shape("Chat stream", "id missing"))?,
-            created_at: self.created_at,
-            background: None,
-            completed_at: None,
-            conversation: None,
-            error: None,
-            incomplete_details,
-            instructions: None,
-            max_output_tokens: None,
-            max_tool_calls: None,
-            metadata: None,
-            model: self.model.clone(),
-            moderation: None,
-            multi_agent: None,
-            object: openai::ResponseObjectType::Response,
-            output,
-            output_text: self.text.as_ref().map(|item| item.text.clone()),
-            parallel_tool_calls: None,
-            prompt: None,
-            prompt_cache_key: None,
-            prompt_cache_options: None,
-            prompt_cache_retention: None,
-            previous_response_id: None,
-            reasoning: None,
-            safety_identifier: None,
-            service_tier: self.service_tier.clone(),
-            status: Some(status),
-            store: None,
-            temperature: None,
-            text: None,
-            tool_choice: None,
-            tools: None,
-            top_logprobs: None,
-            top_p: None,
-            truncation: None,
-            usage: self.usage.clone(),
-            user: None,
-            rest: self.response_rest.clone(),
-        })
     }
 }

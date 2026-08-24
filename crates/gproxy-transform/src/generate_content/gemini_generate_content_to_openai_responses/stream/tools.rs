@@ -4,17 +4,14 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 
 use super::State;
-use super::items::required;
 
 impl State {
     pub(super) fn tool_delta(
         &mut self,
-        event: openai::KnownResponseStreamEvent,
+        event: openai::ResponseItemStringDeltaEvent,
         custom: bool,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let id = required(event.item_id, "item_id")?;
-        let delta = required(event.delta, "delta")?;
-        let call = self.calls.get_mut(&id).ok_or_else(|| {
+        let call = self.calls.get_mut(&event.item_id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool delta before output item")
         })?;
         if call.custom != custom {
@@ -23,16 +20,36 @@ impl State {
                 "tool delta kind changed",
             ));
         }
-        call.arguments.push_str(&delta);
+        call.arguments.push_str(&event.delta);
         Ok(Vec::new())
     }
 
-    pub(super) fn tool_done(
+    pub(super) fn function_done(
         &mut self,
-        mut event: openai::KnownResponseStreamEvent,
+        event: openai::ResponseFunctionCallArgumentsDoneEvent,
+    ) -> Result<Vec<Bytes>, TransformError> {
+        let id = event
+            .item_id
+            .or_else(|| self.call_indices.remove(&event.output_index))
+            .ok_or_else(|| TransformError::shape("Responses stream", "tool item id missing"))?;
+        self.finish_tool(id, event.output_index, event.arguments, false)
+    }
+
+    pub(super) fn custom_done(
+        &mut self,
+        event: openai::ResponseCustomToolCallInputDoneEvent,
+    ) -> Result<Vec<Bytes>, TransformError> {
+        self.finish_tool(event.item_id, event.output_index, event.input, true)
+    }
+
+    fn finish_tool(
+        &mut self,
+        id: String,
+        output_index: u32,
+        input: String,
         custom: bool,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let id = required(event.item_id.take(), "item_id")?;
+        self.call_indices.remove(&output_index);
         let mut call = self.calls.remove(&id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool done before output item")
         })?;
@@ -42,11 +59,7 @@ impl State {
                 "tool done kind changed",
             ));
         }
-        call.arguments = if custom {
-            required(event.input, "input")?
-        } else {
-            required(event.arguments, "arguments")?
-        };
+        call.arguments = input;
         let item = if custom {
             openai::TypedResponseItem::CustomToolCall {
                 call_id: call.call_id,

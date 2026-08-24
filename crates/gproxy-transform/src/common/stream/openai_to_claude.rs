@@ -115,14 +115,13 @@ impl State {
 
     pub(super) fn response_scalar(
         &mut self,
-        event: openai::KnownResponseStreamEvent,
+        item_id: String,
+        content_index: Option<u32>,
+        delta: String,
+        rest: openai::Rest,
         kind: Scalar,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let item_id = event
-            .item_id
-            .clone()
-            .ok_or_else(|| TransformError::shape("Responses stream", "item_id is missing"))?;
-        let key = (item_id.clone(), event.content_index);
+        let key = (item_id.clone(), content_index);
         let index = if let Some(index) = self
             .response_indices
             .get(&key)
@@ -148,18 +147,15 @@ impl State {
             };
             self.response_indices.insert(key, index);
             let mut output = self.block_start(index, block, Default::default())?;
-            output.extend(self.response_scalar(event, kind)?);
+            output.extend(self.response_scalar(item_id, content_index, delta, rest, kind)?);
             return Ok(output);
         };
         let delta = match kind {
-            Scalar::Text => claude::KnownEventDelta::Text {
-                text: event.delta.unwrap_or_default(),
-                rest: event.rest,
-            },
+            Scalar::Text => claude::KnownEventDelta::Text { text: delta, rest },
             Scalar::Thinking => claude::KnownEventDelta::Thinking {
                 estimated_tokens: None,
-                thinking: event.delta.unwrap_or_default(),
-                rest: event.rest,
+                thinking: delta,
+                rest,
             },
         };
         Ok(vec![self.delta(index, delta)?])
@@ -363,6 +359,28 @@ impl State {
             .or_else(|| self.response_indices.get(&(id.to_owned(), None)))
             .copied()
             .ok_or_else(|| TransformError::shape("Responses stream", "delta before item start"))
+    }
+
+    pub(super) fn response_index_for_output(
+        &self,
+        id: Option<&str>,
+        output_index: u32,
+        content_index: Option<u32>,
+    ) -> Result<u64, TransformError> {
+        if id.is_some() {
+            return self.response_index(id, content_index);
+        }
+        let indices = self
+            .response_output_indices
+            .get(&output_index)
+            .ok_or_else(|| TransformError::shape("Responses stream", "delta before item start"))?;
+        match indices.as_slice() {
+            [index] => Ok(*index),
+            _ => Err(TransformError::shape(
+                "Responses stream",
+                "sparse delta has ambiguous output index",
+            )),
+        }
     }
 }
 

@@ -4,31 +4,16 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 use crate::generate_content::openai_responses_to_gemini_generate_content::usage;
 
-use super::items::{item_id, required};
+use super::items::item_id;
 use super::{State, events};
 
 impl State {
     pub(super) fn terminal(
         &mut self,
-        event: openai::KnownResponseStreamEvent,
+        event: openai::ResponseLifecycleEvent,
+        expected_status: openai::ResponseStatus,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let type_ = event.type_.clone();
-        let response = required(event.response.map(|response| *response), "response")?;
-        let expected_status = match type_ {
-            openai::ResponseStreamEventTypeKnown::ResponseCompleted => {
-                openai::ResponseStatus::Completed
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseIncomplete => {
-                openai::ResponseStatus::Incomplete
-            }
-            openai::ResponseStreamEventTypeKnown::ResponseFailed => openai::ResponseStatus::Failed,
-            _ => {
-                return Err(TransformError::shape(
-                    "Responses stream",
-                    "non-terminal event passed to terminal handler",
-                ));
-            }
-        };
+        let response = *event.response;
         if response
             .status
             .as_ref()

@@ -9,10 +9,14 @@ use super::{Item, State, events};
 impl State {
     pub(super) fn created(&mut self) -> Result<Bytes, TransformError> {
         let response = self.response(openai::ResponseStatus::InProgress, None, None, Vec::new())?;
-        let mut event = events::event(openai::ResponseStreamEventTypeKnown::ResponseCreated);
-        event.sequence_number = Some(self.next_sequence());
-        event.response = Some(Box::new(response));
-        events::emit(event)
+        let sequence_number = Some(self.next_sequence());
+        events::emit(openai::KnownResponseStreamEvent::ResponseCreated(
+            openai::ResponseLifecycleEvent {
+                response: Box::new(response),
+                sequence_number,
+                rest: Default::default(),
+            },
+        ))
     }
 
     pub(super) fn terminal(&mut self) -> Result<Vec<Bytes>, TransformError> {
@@ -39,9 +43,15 @@ impl State {
             output.extend(self.finish_reasoning(item)?);
         }
         if self.audio {
-            let mut event = events::event(openai::ResponseStreamEventTypeKnown::ResponseAudioDone);
-            event.sequence_number = Some(self.next_sequence());
-            output.push(events::emit(event)?);
+            let sequence_number = Some(self.next_sequence());
+            output.push(events::emit(
+                openai::KnownResponseStreamEvent::ResponseAudioDone(
+                    openai::ResponseSequenceEvent {
+                        sequence_number,
+                        rest: Default::default(),
+                    },
+                ),
+            )?);
         }
         self.items.sort_by_key(|(index, _)| *index);
         let items = self
@@ -54,50 +64,74 @@ impl State {
             .as_ref()
             .and_then(|usage| config::gemini_service_tier(usage.service_tier.clone()));
         let converted_usage = self.usage.take().map(usage::to_responses).transpose()?;
-        let response = self.response(status.clone(), details, converted_usage, items)?;
-        let type_ = match status {
+        let response = Box::new(openai::ResponseObject {
+            service_tier,
+            ..self.response(status.clone(), details, converted_usage, items)?
+        });
+        let sequence_number = Some(self.next_sequence());
+        let event = match status {
             openai::ResponseStatus::Completed => {
-                openai::ResponseStreamEventTypeKnown::ResponseCompleted
+                openai::KnownResponseStreamEvent::ResponseCompleted(
+                    openai::ResponseLifecycleEvent {
+                        response,
+                        sequence_number,
+                        rest: Default::default(),
+                    },
+                )
             }
             openai::ResponseStatus::Incomplete => {
-                openai::ResponseStreamEventTypeKnown::ResponseIncomplete
+                openai::KnownResponseStreamEvent::ResponseIncomplete(
+                    openai::ResponseLifecycleEvent {
+                        response,
+                        sequence_number,
+                        rest: Default::default(),
+                    },
+                )
             }
-            openai::ResponseStatus::Failed => openai::ResponseStreamEventTypeKnown::ResponseFailed,
-            _ => {
+            openai::ResponseStatus::Failed => {
+                openai::KnownResponseStreamEvent::ResponseFailed(openai::ResponseLifecycleEvent {
+                    response,
+                    sequence_number,
+                    rest: Default::default(),
+                })
+            }
+            openai::ResponseStatus::InProgress
+            | openai::ResponseStatus::Cancelled
+            | openai::ResponseStatus::Queued
+            | openai::ResponseStatus::Unknown(_) => {
                 return Err(TransformError::shape(
                     "Gemini stream",
                     "unsupported terminal status",
                 ));
             }
         };
-        let mut event = events::event(type_);
-        event.sequence_number = Some(self.next_sequence());
-        event.response = Some(Box::new(openai::ResponseObject {
-            service_tier,
-            ..response
-        }));
         output.push(events::emit(event)?);
         self.stopped = true;
         Ok(output)
     }
 
     fn finish_text(&mut self, item: Item) -> Result<Vec<Bytes>, TransformError> {
-        let mut text_done =
-            events::event(openai::ResponseStreamEventTypeKnown::ResponseOutputTextDone);
-        text_done.sequence_number = Some(self.next_sequence());
-        text_done.item_id = Some(item.id.clone());
-        text_done.output_index = Some(item.index);
-        text_done.content_index = Some(0);
-        text_done.text = Some(item.text.clone());
-        let mut part_done =
-            events::event(openai::ResponseStreamEventTypeKnown::ResponseContentPartDone);
-        part_done.sequence_number = Some(self.next_sequence());
-        part_done.item_id = Some(item.id.clone());
-        part_done.output_index = Some(item.index);
-        part_done.content_index = Some(0);
-        part_done.part = Some(openai::ResponseContentPart::OutputText(
-            events::message_part(&item),
-        ));
+        let text_done = openai::KnownResponseStreamEvent::ResponseOutputTextDone(
+            openai::ResponseOutputTextDoneEvent {
+                content_index: 0,
+                item_id: item.id.clone(),
+                logprobs: None,
+                output_index: item.index,
+                sequence_number: Some(self.next_sequence()),
+                text: item.text.clone(),
+                rest: Default::default(),
+            },
+        );
+        let part_done = openai::KnownResponseStreamEvent::ResponseContentPartDone(
+            openai::ResponseContentPartEvent {
+                content_index: 0,
+                item_id: item.id.clone(),
+                output_index: item.index,
+                part: openai::ResponseContentPart::OutputText(events::message_part(&item)),
+                sequence_number: Some(self.next_sequence()),
+                rest: Default::default(),
+            },
+        );
         let response_item =
             events::message_item(&item, openai::ResponseItemLifecycleStatus::Completed);
         let done = self.item_done(item.index, response_item.clone())?;
@@ -112,13 +146,16 @@ impl State {
     fn finish_reasoning(&mut self, item: Item) -> Result<Vec<Bytes>, TransformError> {
         let mut output = Vec::new();
         if !item.text.is_empty() {
-            let mut text_done =
-                events::event(openai::ResponseStreamEventTypeKnown::ResponseReasoningTextDone);
-            text_done.sequence_number = Some(self.next_sequence());
-            text_done.item_id = Some(item.id.clone());
-            text_done.output_index = Some(item.index);
-            text_done.content_index = Some(0);
-            text_done.text = Some(item.text.clone());
+            let text_done = openai::KnownResponseStreamEvent::ResponseReasoningTextDone(
+                openai::ResponseContentTextDoneEvent {
+                    content_index: 0,
+                    item_id: item.id.clone(),
+                    output_index: item.index,
+                    sequence_number: Some(self.next_sequence()),
+                    text: item.text.clone(),
+                    rest: Default::default(),
+                },
+            );
             output.push(events::emit(text_done)?);
         }
         let response_item =
@@ -133,11 +170,13 @@ impl State {
         index: u32,
         item: openai::ResponseItem,
     ) -> Result<Bytes, TransformError> {
-        let mut event = events::event(openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone);
-        event.sequence_number = Some(self.next_sequence());
-        event.item_id = Some(events::item_id(&item, index));
-        event.output_index = Some(index);
-        event.item = Some(Box::new(item));
-        events::emit(event)
+        events::emit(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
+            openai::ResponseOutputItemEvent {
+                item: Box::new(item),
+                output_index: index,
+                sequence_number: Some(self.next_sequence()),
+                rest: Default::default(),
+            },
+        ))
     }
 }

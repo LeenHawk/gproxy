@@ -1,75 +1,14 @@
-use bytes::Bytes;
+mod events;
+
 use gproxy_protocol::{claude, openai};
 
-use crate::TransformError;
 use crate::common::usage;
-use crate::envelope::SseFrame;
 
 use super::claude_to_openai::State;
 
+pub(in crate::common::stream) use events::ResponseDelta;
+
 impl State {
-    pub(super) fn response_delta(
-        &mut self,
-        type_: openai::ResponseStreamEventTypeKnown,
-        item_id: String,
-        index: u64,
-        delta: String,
-        rest: openai::Rest,
-    ) -> Result<Bytes, TransformError> {
-        let mut event = response_event(type_.clone());
-        event.item_id = Some(item_id);
-        event.output_index = Some(index as u32);
-        if matches!(
-            type_,
-            openai::ResponseStreamEventTypeKnown::ResponseOutputTextDelta
-                | openai::ResponseStreamEventTypeKnown::ResponseReasoningTextDelta
-                | openai::ResponseStreamEventTypeKnown::ResponseReasoningSummaryTextDelta
-        ) {
-            event.content_index = Some(0);
-        }
-        event.delta = Some(delta);
-        event.sequence_number = Some(self.next_sequence());
-        event.rest = rest;
-        typed_response_event(event)
-    }
-
-    pub(super) fn response_content_part_added(
-        &mut self,
-        item_id: String,
-        output_index: u32,
-        part: openai::ResponseContentPart,
-        rest: openai::Rest,
-    ) -> Result<Bytes, TransformError> {
-        let mut event =
-            response_event(openai::ResponseStreamEventTypeKnown::ResponseContentPartAdded);
-        event.sequence_number = Some(self.next_sequence());
-        event.item_id = Some(item_id);
-        event.output_index = Some(output_index);
-        event.content_index = Some(0);
-        event.part = Some(part);
-        event.rest = rest;
-        typed_response_event(event)
-    }
-
-    pub(super) fn response_event(
-        &mut self,
-        type_: openai::ResponseStreamEventTypeKnown,
-        response: Option<Box<openai::ResponseObject>>,
-        item: Option<Box<openai::ResponseItem>>,
-        output_index: Option<u32>,
-        part: Option<openai::ResponseContentPart>,
-        rest: openai::Rest,
-    ) -> Result<Bytes, TransformError> {
-        let mut event = response_event(type_);
-        event.sequence_number = Some(self.next_sequence());
-        event.response = response;
-        event.item = item;
-        event.output_index = output_index;
-        event.part = part;
-        event.rest = rest;
-        typed_response_event(event)
-    }
-
     pub(super) fn response_object(&self, status: openai::ResponseStatus) -> openai::ResponseObject {
         openai::ResponseObject {
             id: self.id.clone().expect("started message has an id"),
@@ -133,48 +72,6 @@ impl State {
         self.sequence += 1;
         sequence
     }
-}
-
-pub(super) fn response_event(
-    type_: openai::ResponseStreamEventTypeKnown,
-) -> openai::KnownResponseStreamEvent {
-    openai::KnownResponseStreamEvent {
-        type_,
-        sequence_number: None,
-        response: None,
-        item: None,
-        output_index: None,
-        content_index: None,
-        item_id: None,
-        part: None,
-        delta: None,
-        logprobs: None,
-        text: None,
-        annotation: None,
-        annotation_index: None,
-        arguments: None,
-        name: None,
-        input: None,
-        refusal: None,
-        summary_index: None,
-        partial_image_b64: None,
-        partial_image_index: None,
-        code: None,
-        message: None,
-        param: None,
-        reasoning_part: None,
-        rest: Default::default(),
-    }
-}
-
-pub(super) fn typed_response_event(
-    event: openai::KnownResponseStreamEvent,
-) -> Result<Bytes, TransformError> {
-    let name = event.type_.as_str().to_owned();
-    SseFrame::typed(
-        Some(&name),
-        &openai::ResponseStreamEvent::Known(Box::new(event)),
-    )
 }
 
 pub(super) fn reasoning_item(

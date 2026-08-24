@@ -5,7 +5,7 @@ use crate::TransformError;
 use crate::common::native::items;
 
 use super::claude_to_openai::{Output, State, empty_chat_delta};
-use super::claude_to_responses::{function_item, reasoning_item};
+use super::claude_to_responses::{ResponseDelta, function_item, reasoning_item};
 use super::state::merge;
 
 pub(super) enum Block {
@@ -32,12 +32,7 @@ enum Emission {
     ChatText(String, openai::Rest),
     ChatReasoning(String, openai::Rest),
     ChatTool(String, openai::Rest),
-    Responses(
-        openai::ResponseStreamEventTypeKnown,
-        String,
-        String,
-        openai::Rest,
-    ),
+    Responses(ResponseDelta, String, String, openai::Rest),
     None,
 }
 
@@ -70,24 +65,19 @@ impl State {
                         .into_iter()
                         .collect(),
                     Output::Responses => vec![
-                        self.response_event(
-                            openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded,
-                            None,
-                            Some(Box::new(openai::ResponseItem::Message(
-                                openai::ResponseMessageItem::Output(
-                                    openai::ResponseOutputMessageItem {
-                                        type_: openai::ResponseMessageItemType::Message,
-                                        id: Some(id.clone()),
-                                        role: openai::ResponseOutputMessageRole::Assistant,
-                                        content: Vec::new(),
-                                        status: openai::ResponseItemLifecycleStatus::InProgress,
-                                        phase: None,
-                                        rest: block.rest.clone(),
-                                    },
-                                ),
-                            ))),
-                            Some(index as u32),
-                            None,
+                        self.response_output_item_added(
+                            openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
+                                openai::ResponseOutputMessageItem {
+                                    type_: openai::ResponseMessageItemType::Message,
+                                    id: Some(id.clone()),
+                                    role: openai::ResponseOutputMessageRole::Assistant,
+                                    content: Vec::new(),
+                                    status: openai::ResponseItemLifecycleStatus::InProgress,
+                                    phase: None,
+                                    rest: block.rest.clone(),
+                                },
+                            )),
+                            index as u32,
                             rest.clone(),
                         )?,
                         self.response_content_part_added(
@@ -127,18 +117,15 @@ impl State {
                         .transpose()?
                         .into_iter()
                         .collect(),
-                    Output::Responses => vec![self.response_event(
-                        openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded,
-                        None,
-                        Some(Box::new(reasoning_item(
+                    Output::Responses => vec![self.response_output_item_added(
+                        reasoning_item(
                             id.clone(),
                             text.clone(),
                             block.signature.clone(),
                             block.rest,
                             openai::ResponseItemLifecycleStatus::InProgress,
-                        ))),
-                        Some(index as u32),
-                        None,
+                        ),
+                        index as u32,
                         rest.clone(),
                     )?],
                 };
@@ -168,18 +155,15 @@ impl State {
                         block_rest.clone(),
                     )?],
                     Output::Responses if items::is_buffered_native(&block.name) => Vec::new(),
-                    Output::Responses => vec![self.response_event(
-                        openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded,
-                        None,
-                        Some(Box::new(function_item(
+                    Output::Responses => vec![self.response_output_item_added(
+                        function_item(
                             block.id.clone(),
                             block.name.clone(),
                             arguments.clone(),
                             block.rest,
                             openai::ResponseItemLifecycleStatus::InProgress,
-                        ))),
-                        Some(index as u32),
-                        None,
+                        ),
+                        index as u32,
                         rest.clone(),
                     )?],
                 };
@@ -234,7 +218,7 @@ impl State {
                     match output {
                         Output::Chat => Emission::ChatText(text, event_rest),
                         Output::Responses => Emission::Responses(
-                            openai::ResponseStreamEventTypeKnown::ResponseOutputTextDelta,
+                            ResponseDelta::OutputText,
                             id.clone(),
                             text,
                             event_rest,
@@ -261,7 +245,7 @@ impl State {
                     match output {
                         Output::Chat => Emission::ChatReasoning(thinking, event_rest),
                         Output::Responses => Emission::Responses(
-                            openai::ResponseStreamEventTypeKnown::ResponseReasoningTextDelta,
+                            ResponseDelta::ReasoningText,
                             id.clone(),
                             thinking,
                             event_rest,
@@ -305,7 +289,7 @@ impl State {
                         Output::Chat => Emission::ChatTool(partial_json, event_rest),
                         Output::Responses if items::is_buffered_native(name) => Emission::None,
                         Output::Responses => Emission::Responses(
-                            openai::ResponseStreamEventTypeKnown::ResponseFunctionCallArgumentsDelta,
+                            ResponseDelta::FunctionArguments,
                             id.clone(),
                             partial_json,
                             event_rest,
@@ -393,22 +377,8 @@ impl State {
             let completed = openai::ResponseItem::Typed(Box::new(completed));
             self.completed.push(completed.clone());
             return Ok(vec![
-                self.response_event(
-                    openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded,
-                    None,
-                    Some(Box::new(in_progress)),
-                    Some(index as u32),
-                    None,
-                    Default::default(),
-                )?,
-                self.response_event(
-                    openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone,
-                    None,
-                    Some(Box::new(completed)),
-                    Some(index as u32),
-                    None,
-                    rest,
-                )?,
+                self.response_output_item_added(in_progress, index as u32, Default::default())?,
+                self.response_output_item_done(completed, index as u32, rest)?,
             ]);
         }
         let item = match block {
@@ -461,12 +431,9 @@ impl State {
             ),
         };
         self.completed.push(item.clone());
-        Ok(vec![self.response_event(
-            openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone,
-            None,
-            Some(Box::new(item)),
-            Some(index as u32),
-            None,
+        Ok(vec![self.response_output_item_done(
+            item,
+            index as u32,
             rest,
         )?])
     }

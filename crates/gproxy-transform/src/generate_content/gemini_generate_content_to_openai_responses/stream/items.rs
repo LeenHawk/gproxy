@@ -8,10 +8,10 @@ use super::{State, ToolCall, events};
 impl State {
     pub(super) fn item_added(
         &mut self,
-        event: openai::KnownResponseStreamEvent,
+        event: openai::ResponseOutputItemEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let item = required(event.item.map(|item| *item), "item")?;
-        let item_id = event.item_id.or_else(|| item_id(&item)).ok_or_else(|| {
+        let item = *event.item;
+        let item_id = item_id(&item).ok_or_else(|| {
             TransformError::shape("Responses stream", "output item id is missing")
         })?;
         if let openai::ResponseItem::Typed(item) = item {
@@ -24,7 +24,7 @@ impl State {
                     ..
                 } => {
                     self.calls.insert(
-                        item_id,
+                        item_id.clone(),
                         ToolCall {
                             call_id,
                             name,
@@ -33,6 +33,7 @@ impl State {
                             rest,
                         },
                     );
+                    self.call_indices.insert(event.output_index, item_id);
                 }
                 openai::TypedResponseItem::CustomToolCall {
                     call_id,
@@ -42,7 +43,7 @@ impl State {
                     ..
                 } => {
                     self.calls.insert(
-                        item_id,
+                        item_id.clone(),
                         ToolCall {
                             call_id,
                             name,
@@ -51,6 +52,7 @@ impl State {
                             rest,
                         },
                     );
+                    self.call_indices.insert(event.output_index, item_id);
                 }
                 _ => {}
             }
@@ -60,14 +62,10 @@ impl State {
 
     pub(super) fn item_done(
         &mut self,
-        event: openai::KnownResponseStreamEvent,
+        event: openai::ResponseOutputItemEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let item = required(event.item.map(|item| *item), "item")?;
-        let key = event
-            .item_id
-            .or_else(|| item_id(&item))
-            .or_else(|| event.output_index.map(|index| format!("index:{index}")))
-            .ok_or_else(|| TransformError::shape("Responses stream", "item key is missing"))?;
+        let item = *event.item;
+        let key = item_id(&item).unwrap_or_else(|| format!("index:{}", event.output_index));
         self.emit_item(item, key)
     }
 
@@ -141,8 +139,4 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
         },
         _ => None,
     }
-}
-
-pub(super) fn required<T>(value: Option<T>, field: &str) -> Result<T, TransformError> {
-    value.ok_or_else(|| TransformError::shape("Responses stream", format!("{field} missing")))
 }

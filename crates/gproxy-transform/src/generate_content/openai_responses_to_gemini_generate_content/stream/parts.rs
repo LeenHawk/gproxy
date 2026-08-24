@@ -20,13 +20,15 @@ impl State {
                 if inline_data.mime_type.starts_with("audio/") =>
             {
                 self.audio = true;
-                let mut event =
-                    events::event(openai::ResponseStreamEventTypeKnown::ResponseAudioDelta);
-                event.sequence_number = Some(self.next_sequence());
-                event.delta = Some(inline_data.data.clone());
-                event
-                    .rest
-                    .insert("mime_type".into(), inline_data.mime_type.clone().into());
+                let mut rest = part.rest;
+                rest.insert("mime_type".into(), inline_data.mime_type.clone().into());
+                let event = openai::KnownResponseStreamEvent::ResponseAudioDelta(
+                    openai::ResponseAudioDeltaEvent {
+                        delta: inline_data.data.clone(),
+                        sequence_number: Some(self.next_sequence()),
+                        rest,
+                    },
+                );
                 return Ok(vec![events::emit(event)?]);
             }
             _ => {}
@@ -45,17 +47,22 @@ impl State {
 
     fn complete_item(&mut self, item: openai::ResponseItem) -> Result<Vec<Bytes>, TransformError> {
         let index = self.allocate();
-        let id = events::item_id(&item, index);
-        let mut added =
-            events::event(openai::ResponseStreamEventTypeKnown::ResponseOutputItemAdded);
-        added.sequence_number = Some(self.next_sequence());
-        added.item = Some(Box::new(item.clone()));
-        added.output_index = Some(index);
-        let mut done = events::event(openai::ResponseStreamEventTypeKnown::ResponseOutputItemDone);
-        done.sequence_number = Some(self.next_sequence());
-        done.item = Some(Box::new(item.clone()));
-        done.item_id = Some(id);
-        done.output_index = Some(index);
+        let added = openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
+            openai::ResponseOutputItemEvent {
+                item: Box::new(item.clone()),
+                output_index: index,
+                sequence_number: Some(self.next_sequence()),
+                rest: Default::default(),
+            },
+        );
+        let done = openai::KnownResponseStreamEvent::ResponseOutputItemDone(
+            openai::ResponseOutputItemEvent {
+                item: Box::new(item.clone()),
+                output_index: index,
+                sequence_number: Some(self.next_sequence()),
+                rest: Default::default(),
+            },
+        );
         self.items.push((index, item));
         Ok(vec![events::emit(added)?, events::emit(done)?])
     }
