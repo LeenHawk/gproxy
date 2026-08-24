@@ -132,7 +132,7 @@ impl<H: Host> Stream for FunnelStream<H> {
                     Poll::Ready(Some(Ok(chunk))) => {
                         this.output_chars = this
                             .output_chars
-                            .saturating_add(super::settlement::utf8_chars(&chunk));
+                            .saturating_add(crate::usage::utf8_chars(&chunk));
                         let Some(decoder) = this.decoder.as_mut() else {
                             return Poll::Ready(Some(Ok(chunk)));
                         };

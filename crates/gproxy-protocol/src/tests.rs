@@ -9,8 +9,10 @@ use crate::{match_ingress, match_ingress_for, request_target};
 
 #[test]
 fn ingress_registry_matches_canonical_paths() {
+    let mut ids = std::collections::BTreeSet::new();
     for (operation, spec) in REGISTRY.iter() {
         assert!(std::ptr::eq(operation.spec(), spec));
+        assert!(ids.insert(operation.id()), "duplicate operation id");
 
         for ingress in spec.ingress {
             let (path, expected_params) = example_path(ingress.pattern.0);

@@ -119,7 +119,7 @@ pub(crate) async fn bearer_identity<H: Host>(
             .host
             .cache()
             .get(&key)
-            .await
+            .await?
             .and_then(super::pin::decode_token)
         else {
             continue;
@@ -225,7 +225,7 @@ async fn pin<H: Host>(
                 .host
                 .cache()
                 .get(&key)
-                .await
+                .await?
                 .and_then(super::pin::decode_token)
                 .ok_or(CoreError::Unauthorized)?;
             if binding.identity.user_id != identity.user_id

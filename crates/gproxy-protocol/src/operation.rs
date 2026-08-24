@@ -127,7 +127,69 @@ impl OperationKey {
     }
 }
 
+impl OperationGroup {
+    /// Stable permission and persistence id.
+    pub const fn id(self) -> &'static str {
+        use OperationGroup::*;
+        match self {
+            Models => "models",
+            CountTokens => "count_tokens",
+            Memories => "memories",
+            GenerateContent => "generate_content",
+            Compact => "compact",
+            Embeddings => "embeddings",
+            Images => "images",
+            Audio => "audio",
+            Video => "video",
+            Files => "files",
+            Search => "search",
+            Rerank => "rerank",
+            Realtime => "realtime",
+        }
+    }
+}
+
 impl Operation {
+    /// Stable persistence id. Exhaustive so adding an operation cannot silently
+    /// collapse into a debug-string or catch-all representation.
+    pub const fn id(self) -> &'static str {
+        use Operation::*;
+        match self {
+            ListModels => "list_models",
+            GetModel => "get_model",
+            CountTokens => "count_tokens",
+            SummarizeMemory => "summarize_memory",
+            GenerateContent => "generate_content",
+            StreamGenerateContent => "stream_generate_content",
+            CompactContent => "compact_content",
+            CreateEmbedding => "create_embedding",
+            BatchCreateEmbedding => "batch_create_embedding",
+            Rerank => "rerank",
+            WebSearch => "web_search",
+            CreateImage => "create_image",
+            EditImage => "edit_image",
+            CreateSpeech => "create_speech",
+            CreateTranscription => "create_transcription",
+            CreateTranslation => "create_translation",
+            CreateFile => "create_file",
+            ListFiles => "list_files",
+            RetrieveFile => "retrieve_file",
+            RetrieveFileContent => "retrieve_file_content",
+            DeleteFile => "delete_file",
+            CreateVideo => "create_video",
+            RetrieveVideo => "retrieve_video",
+            ListVideos => "list_videos",
+            DeleteVideo => "delete_video",
+            DownloadVideoContent => "download_video_content",
+            RemixVideo => "remix_video",
+            CreateVideoCharacter => "create_video_character",
+            GetVideoCharacter => "get_video_character",
+            EditVideo => "edit_video",
+            ExtendVideo => "extend_video",
+            CreateRealtimeCall => "create_realtime_call",
+        }
+    }
+
     /// Exhaustive by design: a new operation fails to compile until its
     /// group — and its [`spec`](crate::spec::OperationSpec) — exist.
     pub const fn group(self) -> OperationGroup {

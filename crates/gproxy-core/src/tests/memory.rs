@@ -27,7 +27,7 @@ pub(super) struct State {
     pub(super) authorizations: Vec<String>,
     pub(super) loaded_credentials: Vec<CredentialId>,
     pub(super) settlements: Vec<Settlement>,
-    pub(super) captures: Vec<(Option<StatusCode>, Option<Bytes>)>,
+    pub(super) captures: Vec<Captured>,
     pub(super) auth_calls: usize,
     pub(super) admit_calls: usize,
     pub(super) plan: Option<Plan>,
@@ -43,6 +43,13 @@ pub(super) struct State {
     pub(super) socket_opens: usize,
     pub(super) socket_closed: bool,
     pub(super) omit_usage: bool,
+}
+
+pub(super) struct Captured {
+    pub(super) status: Option<StatusCode>,
+    pub(super) body: Option<Bytes>,
+    pub(super) provider_id: Option<i64>,
+    pub(super) credential_id: Option<CredentialId>,
 }
 
 impl MemoryHost {

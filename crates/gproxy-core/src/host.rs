@@ -68,9 +68,23 @@ pub trait CredentialStore {
 
 /// TTL-aware shared cache: affinity pins, refresh leases, counters.
 pub trait CacheBackend {
-    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Option<Vec<u8>>>;
-    fn set<'a>(&'a self, key: &'a str, value: Vec<u8>, ttl: Option<Duration>) -> BoxFuture<'a, ()>;
-    fn incr<'a>(&'a self, key: &'a str, by: i64, ttl: Option<Duration>) -> BoxFuture<'a, i64>;
+    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<Option<Vec<u8>>, StoreError>>;
+    fn set<'a>(
+        &'a self,
+        key: &'a str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<(), StoreError>>;
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), StoreError>>;
+    /// Atomically add `by`, returning the new value. When the key is absent,
+    /// it starts at zero and `ttl` establishes its expiry. Incrementing an
+    /// existing key never changes its current expiry.
+    fn incr<'a>(
+        &'a self,
+        key: &'a str,
+        by: i64,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<i64, StoreError>>;
 }
 
 /// Settlement output. `gproxy-app` writes usage rows; an embedder may
@@ -90,6 +104,10 @@ pub trait CaptureSink {
 #[derive(Debug)]
 pub struct Capture {
     pub request_id: String,
+    /// `None` when no provider request was made (local synthesis).
+    pub provider_id: Option<i64>,
+    /// `None` when no upstream credential was selected.
+    pub credential_id: Option<CredentialId>,
     /// `None` for a locally synthesized response.
     pub upstream_url: Option<String>,
     pub request_body: bytes::Bytes,

@@ -51,8 +51,10 @@ fn invoke_refreshes_with_version_guard_and_finishes_the_funnel() -> Result<(), I
         assert_eq!(settlement.source, UsageSource::Upstream);
         assert_eq!(settlement.ended, Ended::Complete);
         assert_eq!(state.captures.len(), 1);
-        assert_eq!(state.captures[0].0, Some(StatusCode::OK));
-        assert!(state.captures[0].1.is_some());
+        assert_eq!(state.captures[0].status, Some(StatusCode::OK));
+        assert!(state.captures[0].body.is_some());
+        assert_eq!(state.captures[0].provider_id, Some(3));
+        assert_eq!(state.captures[0].credential_id, Some(CredentialId(7)));
     }
     Ok(())
 }

@@ -6,7 +6,7 @@ use gproxy_channel_api::{
 };
 use serde_json::json;
 
-use super::memory::MemoryHost;
+use super::memory::{Captured, MemoryHost};
 use crate::error::StoreError;
 use crate::host::{
     CacheBackend, Capture, CaptureSink, CredentialId, CredentialRecord, CredentialStore,
@@ -61,7 +61,7 @@ impl CredentialStore for MemoryHost {
 }
 
 impl CacheBackend for MemoryHost {
-    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Option<Vec<u8>>> {
+    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<Option<Vec<u8>>, StoreError>> {
         let value = self
             .state
             .lock()
@@ -69,20 +69,58 @@ impl CacheBackend for MemoryHost {
             .cache
             .get(key)
             .cloned();
-        Box::pin(async move { value })
+        Box::pin(async move { Ok(value) })
     }
 
-    fn set<'a>(&'a self, key: &'a str, value: Vec<u8>, ttl: Option<Duration>) -> BoxFuture<'a, ()> {
+    fn set<'a>(
+        &'a self,
+        key: &'a str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
         let mut state = self.state.lock().expect("state lock");
         state.cache.insert(key.into(), value);
         if let Some(ttl) = ttl {
             state.cache_ttls.insert(key.into(), ttl.as_secs());
         }
-        Box::pin(async {})
+        Box::pin(async { Ok(()) })
     }
 
-    fn incr<'a>(&'a self, _: &'a str, _: i64, _: Option<Duration>) -> BoxFuture<'a, i64> {
-        Box::pin(async { 0 })
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), StoreError>> {
+        let mut state = self.state.lock().expect("state lock");
+        state.cache.remove(key);
+        state.cache_ttls.remove(key);
+        Box::pin(async { Ok(()) })
+    }
+
+    fn incr<'a>(
+        &'a self,
+        key: &'a str,
+        by: i64,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<i64, StoreError>> {
+        let result = (|| {
+            let mut state = self.state.lock().expect("state lock");
+            let absent = !state.cache.contains_key(key);
+            let current = match state.cache.get(key) {
+                Some(value) => i64::from_be_bytes(
+                    value
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| StoreError("cache counter is not an i64".into()))?,
+                ),
+                None => 0,
+            };
+            let next = current
+                .checked_add(by)
+                .ok_or_else(|| StoreError("cache counter overflow".into()))?;
+            state.cache.insert(key.into(), next.to_be_bytes().to_vec());
+            if absent && let Some(ttl) = ttl {
+                state.cache_ttls.insert(key.into(), ttl.as_secs());
+            }
+            Ok(next)
+        })();
+        Box::pin(async move { result })
     }
 }
 
@@ -219,7 +257,12 @@ impl CaptureSink for MemoryHost {
             .lock()
             .expect("state lock")
             .captures
-            .push((capture.response_status, capture.response_body.clone()));
+            .push(Captured {
+                status: capture.response_status,
+                body: capture.response_body.clone(),
+                provider_id: capture.provider_id,
+                credential_id: capture.credential_id,
+            });
         Box::pin(async {})
     }
 }

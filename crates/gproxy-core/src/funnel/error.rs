@@ -121,9 +121,12 @@ pub(crate) fn request_transport_failed(
 }
 
 async fn capture_transport<H: Host>(host: &H, ctx: &FunnelCtx) {
+    let (provider_id, credential_id) = ctx.capture_attribution();
     host.capture()
         .record(&Capture {
             request_id: ctx.request_id.clone(),
+            provider_id,
+            credential_id,
             upstream_url: ctx.upstream_url.clone(),
             request_body: ctx.request_body.clone(),
             response_status: None,
@@ -138,9 +141,12 @@ async fn capture_response<H: Host>(
     status: http::StatusCode,
     body: Option<Bytes>,
 ) {
+    let (provider_id, credential_id) = ctx.capture_attribution();
     host.capture()
         .record(&Capture {
             request_id: ctx.request_id.clone(),
+            provider_id,
+            credential_id,
             upstream_url: ctx.upstream_url.clone(),
             request_body: ctx.request_body.clone(),
             response_status: Some(status),

@@ -6,6 +6,19 @@ use rust_decimal::Decimal;
 /// extract it) and re-exported here.
 pub use gproxy_channel_api::NormalizedUsage;
 
+/// Cross-target admission estimate until a model tokenizer is available.
+/// Counts UTF-8 scalar starts and charges one token per two characters.
+pub fn estimate_input_tokens(body: &[u8]) -> u64 {
+    utf8_chars(body).div_ceil(2)
+}
+
+pub(crate) fn utf8_chars(bytes: &[u8]) -> u64 {
+    bytes
+        .iter()
+        .filter(|byte| **byte & 0b1100_0000 != 0b1000_0000)
+        .count() as u64
+}
+
 /// Where the numbers came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UsageSource {

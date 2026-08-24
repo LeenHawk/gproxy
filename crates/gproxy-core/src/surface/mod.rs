@@ -136,13 +136,26 @@ async fn run<H: Host>(
         .as_ref()
         .is_ok_and(|outcome| outcome.disposition == Disposition::Success);
     if commits_pin {
+        let response_pins = result
+            .as_ref()
+            .map(|outcome| pin::response_pins(affinity, &identity, &pin_target, outcome))
+            .unwrap_or_default();
+        let mut committed = Ok(());
         if let Some(pin) = pin {
-            pin::commit(core, pin).await;
+            committed = pin::commit(core, pin).await;
         }
-        if let Ok(outcome) = &result {
-            for pin in pin::response_pins(affinity, &identity, &pin_target, outcome) {
-                pin::commit(core, pin).await;
+        for pin in response_pins {
+            if committed.is_ok() {
+                committed = pin::commit(core, pin).await;
             }
+        }
+        if let Err(error) = committed {
+            tracing::error!(
+                request_id = %ctx.request_id,
+                error = %error,
+                "surface affinity commit failed"
+            );
+            return Dispatch::Outcome(Err(error));
         }
     }
     if let Err(error) = &result {

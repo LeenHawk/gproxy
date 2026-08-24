@@ -26,7 +26,7 @@ pub(crate) async fn cached<H: Host>(
     key: String,
     ttl_secs: u64,
 ) -> Result<Option<(Target, Option<AffinityPin>)>, CoreError> {
-    if let Some(credential) = core.host.cache().get(&key).await.and_then(decode_id)
+    if let Some(credential) = core.host.cache().get(&key).await?.and_then(decode_id)
         && let Some(target) = candidates
             .iter()
             .find(|target| target.credential == credential)
@@ -50,11 +50,12 @@ pub(crate) async fn cached<H: Host>(
     )))
 }
 
-pub(crate) async fn commit<H: Host>(core: &Core<H>, pin: AffinityPin) {
+pub(crate) async fn commit<H: Host>(core: &Core<H>, pin: AffinityPin) -> Result<(), CoreError> {
     core.host
         .cache()
         .set(&pin.key, pin.value, Some(pin.ttl))
-        .await;
+        .await?;
+    Ok(())
 }
 
 pub(crate) fn response_pins(

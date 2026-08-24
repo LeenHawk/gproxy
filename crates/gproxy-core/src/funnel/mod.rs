@@ -42,6 +42,14 @@ pub(crate) struct FunnelCtx {
     pub surface_label: Option<&'static str>,
 }
 
+impl FunnelCtx {
+    fn capture_attribution(&self) -> (Option<i64>, Option<crate::host::CredentialId>) {
+        self.upstream_url.as_ref().map_or((None, None), |_| {
+            (Some(self.target.provider.id), Some(self.target.credential))
+        })
+    }
+}
+
 pub(crate) struct BufferedRelay {
     pub response: http::Response<Bytes>,
     pub usage: Option<NormalizedUsage>,

@@ -187,9 +187,9 @@ fn codex_forced_stream_collects_or_relays_and_settles_terminal_usage() -> Result
             rust_decimal::Decimal::from(2)
         );
         if stream {
-            assert!(state.captures[0].1.is_none());
+            assert!(state.captures[0].body.is_none());
         } else {
-            assert!(state.captures[0].1.as_ref().is_some_and(|body| {
+            assert!(state.captures[0].body.as_ref().is_some_and(|body| {
                 String::from_utf8_lossy(body).contains("event: response.completed")
             }));
         }

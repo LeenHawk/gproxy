@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 
 use crate::control::Pricing;
 use crate::host::{CacheBackend, Capture, CaptureSink, Host, UsageSink};
-use crate::usage::{Ended, Settlement, UsageSource};
+use crate::usage::{Ended, Settlement, UsageSource, estimate_input_tokens, utf8_chars};
 
 use super::FunnelCtx;
 
@@ -29,7 +29,18 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
     } = completion;
     let latency_ms = ctx.started.elapsed().as_millis() as u64;
     let unique = match (record_usage, ctx.dedupe_key.as_deref()) {
-        (true, Some(key)) => host.cache().incr(key, 1, None).await == 1,
+        (true, Some(key)) => match host.cache().incr(key, 1, None).await {
+            Ok(value) => value == 1,
+            Err(error) => {
+                tracing::error!(
+                    request_id = %ctx.request_id,
+                    cache_key = key,
+                    error = %error,
+                    "settlement dedupe cache failed; recording usage"
+                );
+                true
+            }
+        },
         (true, None) => true,
         (false, _) => false,
     };
@@ -80,9 +91,12 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         host.finish_admission(&ctx.request_id, Some(&settlement))
             .await;
     }
+    let (provider_id, credential_id) = ctx.capture_attribution();
     host.capture()
         .record(&Capture {
             request_id: ctx.request_id.clone(),
+            provider_id,
+            credential_id,
             upstream_url: ctx.upstream_url.clone(),
             request_body: ctx.request_body.clone(),
             response_status: status,
@@ -109,12 +123,11 @@ fn estimate(
     output_chars: Option<u64>,
     operation: Option<gproxy_protocol::Operation>,
 ) -> NormalizedUsage {
-    let input_chars = utf8_chars(request_body);
     let output_chars = output_chars
         .or_else(|| response_body.map(utf8_chars))
         .unwrap_or_default();
     let mut usage = NormalizedUsage {
-        input_tokens: input_chars.div_ceil(2),
+        input_tokens: estimate_input_tokens(request_body),
         output_tokens: output_chars.div_ceil(2),
         ..Default::default()
     };
@@ -122,13 +135,6 @@ fn estimate(
         usage.metrics.insert("web_searches".into(), Decimal::ONE);
     }
     usage
-}
-
-pub(super) fn utf8_chars(bytes: &[u8]) -> u64 {
-    bytes
-        .iter()
-        .filter(|byte| **byte & 0b1100_0000 != 0b1000_0000)
-        .count() as u64
 }
 
 pub(crate) fn usage(
