@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::BoolOrStringArray;
+use super::{BoolOrStringArray, TypedObject};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContextManagementConfig {
@@ -12,15 +12,15 @@ pub struct ContextManagementConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ContextEdit {
     Known(KnownContextEdit),
-    Unknown(serde_json::Value),
+    Unknown(TypedObject),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum KnownContextEdit {
     #[serde(rename = "clear_tool_uses_20250919")]
     ClearToolUses {
@@ -67,7 +67,7 @@ pub struct InputTokensValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum InputTokensValueType {
     #[serde(rename = "input_tokens")]
     InputTokens,
@@ -83,7 +83,7 @@ pub struct ToolUsesValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ToolUsesValueType {
     #[serde(rename = "tool_uses")]
     ToolUses,
@@ -91,25 +91,23 @@ pub enum ToolUsesValueType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ContextTrigger {
     InputTokens(InputTokensValue),
     ToolUses(ToolUsesValue),
-    Raw(serde_json::Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ThinkingKeep {
     Object(ThinkingKeepObject),
     All(ThinkingAllValue),
-    Raw(serde_json::Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ThinkingKeepObject {
     #[serde(rename = "thinking_turns")]
     ThinkingTurns {
@@ -118,11 +116,14 @@ pub enum ThinkingKeepObject {
         rest: serde_json::Map<String, serde_json::Value>,
     },
     #[serde(rename = "all")]
-    All,
+    All {
+        #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+        rest: serde_json::Map<String, serde_json::Value>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ThinkingAllValue {
     #[serde(rename = "all")]
     All,
@@ -138,15 +139,15 @@ pub struct ContextManagementResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum AppliedContextEdit {
     Known(KnownAppliedContextEdit),
-    Unknown(serde_json::Value),
+    Unknown(TypedObject),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum KnownAppliedContextEdit {
     #[serde(rename = "clear_tool_uses_20250919")]
     ClearToolUses {

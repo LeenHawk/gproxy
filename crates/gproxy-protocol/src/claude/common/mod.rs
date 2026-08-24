@@ -58,11 +58,10 @@ pub enum StringOrArray<T> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum BoolOrStringArray {
     Bool(bool),
     Array(Vec<String>),
-    Raw(serde_json::Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

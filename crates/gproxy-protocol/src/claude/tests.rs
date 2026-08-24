@@ -74,6 +74,28 @@ fn messages_and_stream_unions_roundtrip_unknown_fields() {
             "future_diagnostic":true
         }
     }));
+    roundtrip::<ContextManagementConfig>(json!({
+        "edits":[{
+            "type":"clear_thinking_20251015",
+            "keep":{"type":"all","future_keep":true},
+            "future_edit":"kept"
+        }]
+    }));
+    roundtrip::<Diagnostics>(json!({
+        "cache_miss_reason":{
+            "type":"previous_message_not_found",
+            "future_diagnostic":"kept"
+        }
+    }));
+    roundtrip::<Diagnostics>(json!({
+        "cache_miss_reason":{
+            "type":"unavailable",
+            "future_diagnostic":"kept"
+        }
+    }));
+    assert!(serde_json::from_value::<BoolOrStringArray>(json!(1)).is_err());
+    assert!(serde_json::from_value::<ContextTrigger>(json!("input_tokens")).is_err());
+    assert!(serde_json::from_value::<ThinkingKeep>(json!(7)).is_err());
 
     let result = ResponseWebSearchResultBlock {
         encrypted_content: "opaque".into(),

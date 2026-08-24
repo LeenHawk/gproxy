@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::TypedObject;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsParam {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -18,15 +20,15 @@ pub struct Diagnostics {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum CacheMissReason {
     Known(KnownCacheMissReason),
-    Unknown(serde_json::Value),
+    Unknown(TypedObject),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum KnownCacheMissReason {
     #[serde(rename = "model_changed")]
     ModelChanged {
@@ -53,7 +55,13 @@ pub enum KnownCacheMissReason {
         rest: serde_json::Map<String, serde_json::Value>,
     },
     #[serde(rename = "previous_message_not_found")]
-    PreviousMessageNotFound,
+    PreviousMessageNotFound {
+        #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+        rest: serde_json::Map<String, serde_json::Value>,
+    },
     #[serde(rename = "unavailable")]
-    Unavailable,
+    Unavailable {
+        #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+        rest: serde_json::Map<String, serde_json::Value>,
+    },
 }
