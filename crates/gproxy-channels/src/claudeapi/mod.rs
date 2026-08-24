@@ -107,7 +107,7 @@ impl Channel for ClaudeApiChannel {
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
         match response.status.as_u16() {
             200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
+            401 => Disposition::CredentialDead,
             429 | 500..=599 => Disposition::Retryable,
             _ => Disposition::Terminal,
         }

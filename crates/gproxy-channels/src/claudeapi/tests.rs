@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, PrepareCtx};
+use gproxy_channel_api::{Channel, Disposition, PrepareCtx, ResponseView};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method};
 use serde_json::{Value, json};
@@ -38,6 +38,14 @@ fn declares_only_native_claude_targets_and_available_pairs() {
     assert!(!supports.iter().any(|support| {
         support.source == OperationKey::family(Operation::CreateEmbedding, WireFamily::OpenAi)
     }));
+    assert_eq!(
+        ClaudeApiChannel.classify(ResponseView {
+            status: http::StatusCode::FORBIDDEN,
+            headers: &HeaderMap::new(),
+            body: &[],
+        }),
+        Disposition::Terminal
+    );
 }
 
 #[test]
@@ -70,6 +78,7 @@ fn builds_documented_default_and_exact_override_urls() {
     let body = Bytes::from_static(br#"{"model":"route","max_tokens":8,"messages":[]}"#);
     let mut headers = HeaderMap::new();
     headers.insert("authorization", "Bearer downstream".parse().unwrap());
+    headers.insert("anthropic-user-profile-id", "profile-1".parse().unwrap());
     headers.insert("content-type", "application/json".parse().unwrap());
     let prepared = ClaudeApiChannel
         .prepare(PrepareCtx {
@@ -94,6 +103,10 @@ fn builds_documented_default_and_exact_override_urls() {
     assert_eq!(
         prepared.request.headers()["anthropic-version"],
         "2023-06-01"
+    );
+    assert_eq!(
+        prepared.request.headers()["anthropic-user-profile-id"],
+        "profile-1"
     );
     assert!(prepared.request.headers().get("authorization").is_none());
 }

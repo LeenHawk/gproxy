@@ -4,7 +4,12 @@ use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const FORWARD_HEADERS: &[&str] = &["accept", "anthropic-beta", "content-type"];
+const FORWARD_HEADERS: &[&str] = &[
+    "accept",
+    "anthropic-beta",
+    "anthropic-user-profile-id",
+    "content-type",
+];
 const MODEL_QUERY: &[&str] = &["after_id", "before_id", "limit"];
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
