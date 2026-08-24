@@ -22,7 +22,7 @@ pub(super) fn convert(
                     "output is empty",
                 ));
             }
-            let failed = shell_failed(output)?;
+            let failed = shell_failed(output);
             let text = output
                 .iter()
                 .flat_map(|part| [&part.stdout, &part.stderr])
@@ -103,27 +103,17 @@ pub(super) fn convert(
     )))
 }
 
-fn shell_failed(output: &[openai::ShellCallOutputContent]) -> Result<bool, TransformError> {
+fn shell_failed(output: &[openai::ShellCallOutputContent]) -> bool {
     let mut failed = false;
     for part in output {
-        match (part.outcome.type_.as_str(), part.outcome.exit_code) {
-            ("exit", Some(0)) => {}
-            ("exit", Some(_)) | ("timeout", _) => failed = true,
-            ("exit", None) => {
-                return Err(TransformError::shape(
-                    "Responses shellCallOutput",
-                    "exit outcome has no exit_code",
-                ));
-            }
-            (value, _) => {
-                return Err(TransformError::unsupported(
-                    "Responses shell outcome",
-                    value,
-                ));
+        match &part.outcome {
+            openai::ShellCallOutcome::Exit { exit_code: 0, .. } => {}
+            openai::ShellCallOutcome::Exit { .. } | openai::ShellCallOutcome::Timeout { .. } => {
+                failed = true
             }
         }
     }
-    Ok(failed)
+    failed
 }
 
 fn lifecycle_failed(

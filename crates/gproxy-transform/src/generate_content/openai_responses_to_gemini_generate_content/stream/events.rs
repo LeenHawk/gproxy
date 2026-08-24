@@ -104,7 +104,7 @@ pub(super) fn reasoning_item(
         summary: Vec::new(),
         content: Some(vec![openai::ResponseReasoningTextPart {
             text: item.text.clone(),
-            type_: "reasoning_text".into(),
+            type_: openai::ResponseReasoningTextType::ReasoningText,
             rest: Default::default(),
         }]),
         encrypted_content: item.signature.clone(),

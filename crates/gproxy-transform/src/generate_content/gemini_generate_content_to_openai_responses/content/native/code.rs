@@ -45,7 +45,7 @@ impl ContentConverter {
             )
         })?;
         rest.extend(result.rest);
-        let (exit_code, failed, outcome) = code_outcome(&result.outcome)?;
+        let (outcome, failed) = code_outcome(&result.outcome)?;
         let text = result.output.ok_or_else(|| {
             TransformError::shape("Gemini codeExecutionResult", "output is missing")
         })?;
@@ -53,11 +53,7 @@ impl ContentConverter {
             openai::TypedResponseItem::ShellCallOutput {
                 call_id,
                 output: vec![openai::ShellCallOutputContent {
-                    outcome: openai::ShellCallOutcome {
-                        type_: outcome.into(),
-                        exit_code,
-                        rest: Default::default(),
-                    },
+                    outcome,
                     stderr: if failed { text.clone() } else { String::new() },
                     stdout: if failed { String::new() } else { text },
                     created_by: None,
@@ -76,17 +72,30 @@ impl ContentConverter {
 
 fn code_outcome(
     value: &gemini::CodeExecutionOutcome,
-) -> Result<(Option<i32>, bool, &'static str), TransformError> {
+) -> Result<(openai::ShellCallOutcome, bool), TransformError> {
     Ok(match value {
-        gemini::CodeExecutionOutcome::Known(gemini::CodeExecutionOutcomeKnown::OutcomeOk) => {
-            (Some(0), false, "exit")
-        }
-        gemini::CodeExecutionOutcome::Known(gemini::CodeExecutionOutcomeKnown::OutcomeFailed) => {
-            (Some(1), true, "exit")
-        }
+        gemini::CodeExecutionOutcome::Known(gemini::CodeExecutionOutcomeKnown::OutcomeOk) => (
+            openai::ShellCallOutcome::Exit {
+                exit_code: 0,
+                rest: Default::default(),
+            },
+            false,
+        ),
+        gemini::CodeExecutionOutcome::Known(gemini::CodeExecutionOutcomeKnown::OutcomeFailed) => (
+            openai::ShellCallOutcome::Exit {
+                exit_code: 1,
+                rest: Default::default(),
+            },
+            true,
+        ),
         gemini::CodeExecutionOutcome::Known(
             gemini::CodeExecutionOutcomeKnown::OutcomeDeadlineExceeded,
-        ) => (None, true, "timeout"),
+        ) => (
+            openai::ShellCallOutcome::Timeout {
+                rest: Default::default(),
+            },
+            true,
+        ),
         gemini::CodeExecutionOutcome::Known(
             gemini::CodeExecutionOutcomeKnown::OutcomeUnspecified,
         ) => {

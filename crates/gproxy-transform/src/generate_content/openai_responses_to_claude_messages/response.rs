@@ -172,7 +172,7 @@ fn reasoning(
         summary: Vec::new(),
         content: text.map(|text| {
             vec![openai::ResponseReasoningTextPart {
-                type_: "reasoning_text".into(),
+                type_: openai::ResponseReasoningTextType::ReasoningText,
                 text,
                 rest: Default::default(),
             }]

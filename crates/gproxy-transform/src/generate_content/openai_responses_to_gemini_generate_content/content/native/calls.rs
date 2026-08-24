@@ -45,10 +45,11 @@ pub(super) fn convert(
         } => (
             call_id.clone(),
             id.clone(),
-            operation
-                .diff
-                .clone()
-                .unwrap_or(serde_json::to_string(operation)?),
+            match operation {
+                openai::ApplyPatchOperation::CreateFile { diff, .. }
+                | openai::ApplyPatchOperation::UpdateFile { diff, .. } => diff.clone(),
+                openai::ApplyPatchOperation::DeleteFile { .. } => serde_json::to_string(operation)?,
+            },
             rest.clone(),
         ),
         openai::TypedResponseItem::CodeInterpreterCall { id, code, rest, .. } => (

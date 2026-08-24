@@ -17,12 +17,9 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
             rest,
             ..
         } => {
-            let failed = output.iter().any(|part| {
-                part.outcome.type_ != "exit"
-                    || part
-                        .outcome
-                        .exit_code
-                        .is_some_and(|exit_code| exit_code != 0)
+            let failed = output.iter().any(|part| match &part.outcome {
+                openai::ShellCallOutcome::Exit { exit_code, .. } => *exit_code != 0,
+                openai::ShellCallOutcome::Timeout { .. } => true,
             });
             let text = output
                 .into_iter()

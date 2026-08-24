@@ -137,7 +137,7 @@ fn assistant_items(
                 id: None,
                 summary: Vec::new(),
                 content: Some(vec![openai::ResponseReasoningTextPart {
-                    type_: "reasoning_text".into(),
+                    type_: openai::ResponseReasoningTextType::ReasoningText,
                     text: reasoning,
                     rest: Default::default(),
                 }]),

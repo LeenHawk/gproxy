@@ -4,8 +4,8 @@ use gproxy_protocol::openai::common::{ResponseItemLifecycleStatus, ResponseStrea
 use gproxy_protocol::openai::generate_content::responses::{
     KnownResponseStreamEvent, ResponseItem, ResponseMessageItem, ResponseMessageItemType,
     ResponseMessageOutputContentPart, ResponseOutputMessageItem, ResponseOutputMessageRole,
-    ResponseOutputText, ResponseOutputTextType, ResponseReasoningTextPart, ResponseStreamEvent,
-    TypedResponseItem,
+    ResponseOutputText, ResponseOutputTextType, ResponseReasoningTextPart,
+    ResponseReasoningTextType, ResponseStreamEvent, TypedResponseItem,
 };
 
 use super::item_state::clear_started_payload;
@@ -367,7 +367,7 @@ fn reasoning_item(id: &str, text: &str) -> ResponseItem {
         summary: Vec::new(),
         content: Some(vec![ResponseReasoningTextPart {
             text: text.into(),
-            type_: "reasoning_text".into(),
+            type_: ResponseReasoningTextType::ReasoningText,
             rest: Default::default(),
         }]),
         encrypted_content: None,
@@ -401,7 +401,7 @@ fn append_reasoning(content: &mut Option<Vec<ResponseReasoningTextPart>>, delta:
     } else {
         parts.push(ResponseReasoningTextPart {
             text: delta.into(),
-            type_: "reasoning_text".into(),
+            type_: ResponseReasoningTextType::ReasoningText,
             rest: Default::default(),
         });
     }

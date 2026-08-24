@@ -177,6 +177,7 @@ pub struct ResponseReasoningText {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseReasoningTextType {
     #[serde(rename = "reasoning_text")]
     ReasoningText,

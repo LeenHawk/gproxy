@@ -18,7 +18,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 id: None,
                 summary: Vec::new(),
                 content: Some(vec![openai::ResponseReasoningTextPart {
-                    type_: "reasoning_text".into(),
+                    type_: openai::ResponseReasoningTextType::ReasoningText,
                     text: reasoning,
                     rest: Default::default(),
                 }]),

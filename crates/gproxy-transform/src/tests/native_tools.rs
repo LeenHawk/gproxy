@@ -68,20 +68,6 @@ fn buffered_native_tools_preserve_calls_results_and_definition_fallbacks() {
     );
     assert_eq!(inward["messages"][3]["content"][0]["is_error"], true);
 
-    let missing_diff = convert_request(
-        responses,
-        claude,
-        json!({
-            "model":"route","max_output_tokens":32,
-            "input":[{"type":"apply_patch_call","call_id":"patch_raw","operation":{"type":"update_file","path":"src/lib.rs"},"status":"completed"}]
-        }),
-    );
-    assert_eq!(
-        missing_diff["messages"][0]["content"][0]["name"],
-        "apply_patch"
-    );
-    assert_eq!(missing_diff["messages"][0]["content"][0]["id"], "patch_raw");
-
     let missing_file_text = convert_request(
         claude,
         responses,

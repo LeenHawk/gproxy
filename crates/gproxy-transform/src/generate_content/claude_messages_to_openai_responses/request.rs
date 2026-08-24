@@ -254,7 +254,7 @@ fn reasoning_item(
             id,
             summary: Vec::new(),
             content: Some(vec![openai::ResponseReasoningTextPart {
-                type_: "reasoning_text".into(),
+                type_: openai::ResponseReasoningTextType::ReasoningText,
                 text: block.thinking,
                 rest: Default::default(),
             }]),

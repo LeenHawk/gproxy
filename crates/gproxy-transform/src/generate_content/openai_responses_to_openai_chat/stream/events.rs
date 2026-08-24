@@ -83,7 +83,7 @@ pub(super) fn reasoning_item(
         id: Some(item.id.clone()),
         summary: Vec::new(),
         content: Some(vec![openai::ResponseReasoningTextPart {
-            type_: "reasoning_text".into(),
+            type_: openai::ResponseReasoningTextType::ReasoningText,
             text: item.text.clone(),
             rest: Default::default(),
         }]),

@@ -200,10 +200,8 @@ fn canonical(
             call_id: call_id.into(),
             id,
             caller: None,
-            environment: Some(ShellEnvironment {
-                type_: "local".into(),
+            environment: Some(ShellEnvironment::Local {
                 skills: None,
-                container_id: None,
                 rest: Default::default(),
             }),
             status: Some(ResponseItemLifecycleStatus::Completed),
@@ -303,9 +301,26 @@ fn patch_operation(input: &str) -> Result<ApplyPatchOperation, ChannelError> {
         ));
     }
     let diff = diff.join("\n");
-    Ok(ApplyPatchOperation {
-        type_: type_.into(),
-        diff: (!diff.is_empty()).then(|| format!("{diff}\n")),
+    let diff = if diff.is_empty() {
+        diff
+    } else {
+        format!("{diff}\n")
+    };
+    if type_ == "create_file" {
+        return Ok(ApplyPatchOperation::CreateFile {
+            diff,
+            path: path.into(),
+            rest: Default::default(),
+        });
+    }
+    if type_ == "delete_file" {
+        return Ok(ApplyPatchOperation::DeleteFile {
+            path: path.into(),
+            rest: Default::default(),
+        });
+    }
+    Ok(ApplyPatchOperation::UpdateFile {
+        diff,
         path: path.into(),
         rest: Default::default(),
     })

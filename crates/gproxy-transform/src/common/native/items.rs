@@ -99,9 +99,8 @@ pub(crate) fn claude_result(
         NativeKind::Shell => openai::TypedResponseItem::ShellCallOutput {
             call_id: block.tool_use_id,
             output: vec![openai::ShellCallOutputContent {
-                outcome: openai::ShellCallOutcome {
-                    type_: "exit".into(),
-                    exit_code: Some(if failed { 1 } else { 0 }),
+                outcome: openai::ShellCallOutcome::Exit {
+                    exit_code: if failed { 1 } else { 0 },
                     rest: Default::default(),
                 },
                 stderr: if failed { text.clone() } else { String::new() },
@@ -193,23 +192,13 @@ pub(crate) fn openai_call(
             id,
             rest,
             ..
-        } => {
-            let fallback = operation.clone();
-            let (name, input) = match shape::editor_input(operation) {
-                Some(input) => ("str_replace_based_edit_tool", input),
-                None => (
-                    "apply_patch",
-                    shape::value_object(serde_json::to_value(fallback)?),
-                ),
-            };
-            Some(ClaudeCall {
-                id: call_id,
-                name: name.into(),
-                input,
-                item_id: id,
-                rest,
-            })
-        }
+        } => Some(ClaudeCall {
+            id: call_id,
+            name: "str_replace_based_edit_tool".into(),
+            input: shape::editor_input(operation),
+            item_id: id,
+            rest,
+        }),
         openai::TypedResponseItem::ComputerCall {
             id,
             call_id,

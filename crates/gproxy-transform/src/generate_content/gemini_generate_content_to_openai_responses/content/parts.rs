@@ -98,7 +98,7 @@ impl ContentConverter {
             content: text.map(|text| {
                 vec![openai::ResponseReasoningTextPart {
                     text,
-                    type_: "reasoning_text".into(),
+                    type_: openai::ResponseReasoningTextType::ReasoningText,
                     rest: Default::default(),
                 }]
             }),

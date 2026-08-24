@@ -152,7 +152,7 @@ pub(super) fn normalize_history(items: &mut Vec<ResponseItem>) -> Result<(), Cha
             } => Some(custom_call(
                 id.clone(),
                 call_id.clone(),
-                patch_text(operation)?,
+                patch_text(operation),
             )),
             TypedResponseItem::ApplyPatchCallOutput {
                 call_id,
@@ -371,46 +371,36 @@ fn custom_output(
     }
 }
 
-fn patch_text(operation: &ApplyPatchOperation) -> Result<String, ChannelError> {
+fn patch_text(operation: &ApplyPatchOperation) -> String {
     let mut patch = String::from("*** Begin Patch\n");
-    match operation.type_.as_str() {
-        "create_file" => {
+    match operation {
+        ApplyPatchOperation::CreateFile { diff, path, .. } => {
             patch.push_str("*** Add File: ");
-            patch.push_str(&operation.path);
+            patch.push_str(path);
             patch.push('\n');
-            let diff = operation.diff.as_deref().ok_or_else(|| {
-                ChannelError::Prepare("create_file apply patch diff missing".into())
-            })?;
             for line in diff.lines() {
                 patch.push('+');
                 patch.push_str(line);
                 patch.push('\n');
             }
         }
-        "delete_file" => {
+        ApplyPatchOperation::DeleteFile { path, .. } => {
             patch.push_str("*** Delete File: ");
-            patch.push_str(&operation.path);
+            patch.push_str(path);
             patch.push('\n');
         }
-        "update_file" => {
+        ApplyPatchOperation::UpdateFile { diff, path, .. } => {
             patch.push_str("*** Update File: ");
-            patch.push_str(&operation.path);
+            patch.push_str(path);
             patch.push('\n');
-            patch.push_str(operation.diff.as_deref().ok_or_else(|| {
-                ChannelError::Prepare("update_file apply patch diff missing".into())
-            })?);
+            patch.push_str(diff);
             if !patch.ends_with('\n') {
                 patch.push('\n');
             }
         }
-        value => {
-            return Err(ChannelError::Prepare(format!(
-                "unsupported apply patch operation `{value}`"
-            )));
-        }
     }
     patch.push_str("*** End Patch\n");
-    Ok(patch)
+    patch
 }
 
 fn mapped_id(value: &str, prefix: &str) -> String {

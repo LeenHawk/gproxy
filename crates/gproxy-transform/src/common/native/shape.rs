@@ -25,28 +25,24 @@ pub(crate) fn shell_action(input: &claude::JsonObject) -> Option<openai::ShellAc
 pub(crate) fn patch_operation(input: &claude::JsonObject) -> Option<openai::ApplyPatchOperation> {
     let command = string(input, "command")?;
     let path = string(input, "path")?;
-    let (type_, diff) = match command.as_str() {
-        "create" => ("create_file", Some(string(input, "file_text")?)),
-        "delete" => ("delete_file", None),
-        "str_replace" => (
-            "update_file",
-            Some(replacement_diff(
-                &string(input, "old_str")?,
-                &string(input, "new_str")?,
-            )),
-        ),
-        _ => return None,
-    };
     let mut rest = input.clone();
     for key in ["command", "path", "file_text", "old_str", "new_str"] {
         rest.remove(key);
     }
-    Some(openai::ApplyPatchOperation {
-        type_: type_.into(),
-        diff,
-        path,
-        rest,
-    })
+    match command.as_str() {
+        "create" => Some(openai::ApplyPatchOperation::CreateFile {
+            diff: string(input, "file_text")?,
+            path,
+            rest,
+        }),
+        "delete" => Some(openai::ApplyPatchOperation::DeleteFile { path, rest }),
+        "str_replace" => Some(openai::ApplyPatchOperation::UpdateFile {
+            diff: replacement_diff(&string(input, "old_str")?, &string(input, "new_str")?),
+            path,
+            rest,
+        }),
+        _ => None,
+    }
 }
 
 pub(crate) fn bash_input(
@@ -93,25 +89,36 @@ pub(crate) fn local_bash_input(
     Ok(Some(input))
 }
 
-pub(crate) fn editor_input(operation: openai::ApplyPatchOperation) -> Option<claude::JsonObject> {
-    let mut input = operation.rest;
-    input.insert("path".into(), operation.path.into());
-    match operation.type_.as_str() {
-        "create_file" => {
-            input.insert("command".into(), "create".into());
-            input.insert("file_text".into(), operation.diff?.into());
+pub(crate) fn editor_input(operation: openai::ApplyPatchOperation) -> claude::JsonObject {
+    match operation {
+        openai::ApplyPatchOperation::CreateFile {
+            diff,
+            path,
+            mut rest,
+        } => {
+            rest.insert("path".into(), path.into());
+            rest.insert("command".into(), "create".into());
+            rest.insert("file_text".into(), diff.into());
+            rest
         }
-        "delete_file" => {
-            input.insert("command".into(), "delete".into());
+        openai::ApplyPatchOperation::DeleteFile { path, mut rest } => {
+            rest.insert("path".into(), path.into());
+            rest.insert("command".into(), "delete".into());
+            rest
         }
-        _ => {
-            let (old, new) = replacement_strings(operation.diff.as_deref()?);
-            input.insert("command".into(), "str_replace".into());
-            input.insert("old_str".into(), old.into());
-            input.insert("new_str".into(), new.into());
+        openai::ApplyPatchOperation::UpdateFile {
+            diff,
+            path,
+            mut rest,
+        } => {
+            let (old, new) = replacement_strings(&diff);
+            rest.insert("path".into(), path.into());
+            rest.insert("command".into(), "str_replace".into());
+            rest.insert("old_str".into(), old.into());
+            rest.insert("new_str".into(), new.into());
+            rest
         }
     }
-    Some(input)
 }
 
 pub(crate) fn arguments_object(arguments: &str) -> Result<claude::JsonObject, TransformError> {
