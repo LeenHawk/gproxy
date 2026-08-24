@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest, SurfaceRequest};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
-use http::{HeaderMap, Method, Uri};
+use http::{HeaderMap, Method};
 use serde_json::Value;
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -15,7 +15,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     super::auth::apply_headers(&mut headers, token, &session_id)?;
     let mut request = http::Request::builder()
         .method(method)
-        .uri(strip_userinfo(uri)?)
+        .uri(crate::shared::http::strip_userinfo(uri)?)
         .body(body)
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
     *request.headers_mut() = headers;
@@ -45,10 +45,7 @@ pub(super) fn surface(
         .map(str::trim)
         .filter(|base| !base.is_empty())
         .unwrap_or(super::auth::DEFAULT_BASE_URL);
-    let uri = absolute_url(
-        &format!("{}{}", base.trim_end_matches('/'), source.upstream_path),
-        query.as_deref(),
-    )?;
+    let uri = crate::shared::http::join(base, &source.upstream_path, query.as_deref())?;
     super::auth::apply_headers(&mut headers, token, &session_id)?;
     if let Some(content_type) = content_type {
         headers.insert(http::header::CONTENT_TYPE, content_type);
@@ -58,7 +55,7 @@ pub(super) fn surface(
     }
     let mut request = http::Request::builder()
         .method(&source.method)
-        .uri(strip_userinfo(uri)?)
+        .uri(crate::shared::http::strip_userinfo(uri)?)
         .body(source.body.clone())
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
     *request.headers_mut() = headers;
@@ -104,7 +101,10 @@ fn upstream_target(
     } else if key == family(Operation::GetModel) {
         Ok((
             &Method::GET,
-            format!("/v1/models/{}", encode_component(model)),
+            format!(
+                "/v1/models/{}",
+                crate::shared::http::encode_component(model)
+            ),
         ))
     } else if key == family(Operation::CountTokens) {
         Ok((&Method::POST, "/v1/messages/count_tokens".into()))
@@ -117,9 +117,13 @@ fn upstream_target(
     }
 }
 
-fn endpoint(ctx: &PrepareCtx<'_>, path: &str, query: Option<&str>) -> Result<Uri, ChannelError> {
+fn endpoint(
+    ctx: &PrepareCtx<'_>,
+    path: &str,
+    query: Option<&str>,
+) -> Result<http::Uri, ChannelError> {
     if let Some(url) = endpoint_override(ctx) {
-        return exact_url(&url, query);
+        return crate::shared::http::exact(&url, query);
     }
     let base = ctx
         .provider_settings
@@ -128,7 +132,7 @@ fn endpoint(ctx: &PrepareCtx<'_>, path: &str, query: Option<&str>) -> Result<Uri
         .map(str::trim)
         .filter(|base| !base.is_empty())
         .unwrap_or(super::auth::DEFAULT_BASE_URL);
-    absolute_url(&format!("{}{}", base.trim_end_matches('/'), path), query)
+    crate::shared::http::join(base, path, query)
 }
 
 fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
@@ -149,7 +153,12 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         .as_str()
         .map(str::trim)
         .filter(|url| !url.is_empty())
-        .map(|url| url.replace("{model}", &encode_component(ctx.upstream_model)))
+        .map(|url| {
+            url.replace(
+                "{model}",
+                &crate::shared::http::encode_component(ctx.upstream_model),
+            )
+        })
 }
 
 fn query(key: OperationKey, query: Option<&str>) -> Option<String> {
@@ -231,62 +240,6 @@ fn append_beta(headers: &mut HeaderMap, beta: &str) {
     }
 }
 
-fn absolute_url(url: &str, query: Option<&str>) -> Result<Uri, ChannelError> {
-    let uri = url
-        .parse::<Uri>()
-        .map_err(|error| ChannelError::Prepare(format!("bad upstream URL: {error}")))?;
-    exact_uri(uri, query)
-}
-
-fn exact_url(url: &str, query: Option<&str>) -> Result<Uri, ChannelError> {
-    let uri = url
-        .parse::<Uri>()
-        .map_err(|error| ChannelError::Prepare(format!("bad endpoint override: {error}")))?;
-    exact_uri(uri, query)
-}
-
-fn exact_uri(uri: Uri, query: Option<&str>) -> Result<Uri, ChannelError> {
-    if uri.scheme().is_none() || uri.authority().is_none() {
-        return Err(ChannelError::Prepare(
-            "upstream URL must be absolute".into(),
-        ));
-    }
-    let Some(query) = query.filter(|query| !query.is_empty()) else {
-        return Ok(uri);
-    };
-    let merged = match uri.query() {
-        Some(existing) => format!("{}?{existing}&{query}", uri.path()),
-        None => format!("{}?{query}", uri.path()),
-    };
-    let mut parts = uri.into_parts();
-    parts.path_and_query = Some(
-        merged
-            .parse()
-            .map_err(|error| ChannelError::Prepare(format!("bad endpoint query: {error}")))?,
-    );
-    Uri::from_parts(parts).map_err(|error| ChannelError::Prepare(format!("bad endpoint: {error}")))
-}
-
-fn strip_userinfo(uri: Uri) -> Result<Uri, ChannelError> {
-    let Some(authority) = uri.authority() else {
-        return Ok(uri);
-    };
-    if !authority.as_str().contains('@') {
-        return Ok(uri);
-    }
-    let clean = authority.port_u16().map_or_else(
-        || authority.host().to_owned(),
-        |port| format!("{}:{port}", authority.host()),
-    );
-    let mut parts = uri.into_parts();
-    parts.authority = Some(
-        clean
-            .parse()
-            .map_err(|error| ChannelError::Prepare(format!("bad authority: {error}")))?,
-    );
-    Uri::from_parts(parts).map_err(|error| ChannelError::Prepare(error.to_string()))
-}
-
 fn family(operation: Operation) -> OperationKey {
     OperationKey::family(operation, WireFamily::Claude)
 }
@@ -302,19 +255,4 @@ fn is_messages(key: OperationKey) -> bool {
             key.operation,
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
-}
-
-fn encode_component(value: &str) -> String {
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    let mut output = String::new();
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            output.push(char::from(byte));
-        } else {
-            output.push('%');
-            output.push(char::from(HEX[usize::from(byte >> 4)]));
-            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
-    }
-    output
 }

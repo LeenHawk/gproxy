@@ -44,6 +44,7 @@ impl App {
 fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::DuplicateChannel> {
     ChannelRegistry::new([
         Box::new(gproxy_channels::OpenAiChannel) as Box<dyn Channel>,
+        Box::new(gproxy_channels::ClaudeApiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::ClaudeCodeChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::CodexChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::AiStudioChannel) as Box<dyn Channel>,

@@ -1,6 +1,6 @@
 use serde_json::{Map, Value, json};
 
-pub(super) fn sanitize(body: &mut Value) {
+pub(crate) fn sanitize(body: &mut Value) {
     canonicalize(body);
     let Some(root) = body.as_object_mut() else {
         return;

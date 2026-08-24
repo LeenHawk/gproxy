@@ -1,20 +1,16 @@
-mod auth;
-mod cch;
-mod hygiene;
+mod model;
 mod prepare;
-mod profile;
+mod shape;
 mod sse;
-mod surface;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
+    Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage, PrepareCtx,
+    PreparedRequest, ResponseView, StreamCtx, StreamDecoder, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
-use serde_json::Value;
 
-pub struct ClaudeCodeChannel;
+pub struct ClaudeApiChannel;
 
 const fn family(operation: Operation) -> OperationKey {
     OperationKey::family(operation, WireFamily::Claude)
@@ -91,12 +87,12 @@ static SUPPORTS: [ChannelSupport; 15] = [
 ];
 
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
-    id: "claudecode",
-    display_name: "Claude Code",
+    id: "claudeapi",
+    display_name: "Claude API",
     supports: &SUPPORTS,
 };
 
-impl Channel for ClaudeCodeChannel {
+impl Channel for ClaudeApiChannel {
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }
@@ -124,32 +120,6 @@ impl Channel for ClaudeCodeChannel {
 
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
         usage::from_body(ctx.response_body)
-    }
-
-    fn refresh_due(&self, secret: &Value) -> Option<i64> {
-        auth::refresh_due(secret)
-    }
-
-    fn refresh<'a>(
-        &'a self,
-        secret: &'a Value,
-        http: &'a dyn SimpleHttp,
-    ) -> Option<BoxFuture<'a, Result<Value, gproxy_channel_api::ChannelError>>> {
-        Some(auth::refresh(secret, http))
-    }
-
-    fn prepare_surface(
-        &self,
-        request: &gproxy_channel_api::SurfaceRequest,
-        websocket: bool,
-        provider_settings: &Value,
-        secret: &Value,
-    ) -> Result<PreparedRequest, gproxy_channel_api::ChannelError> {
-        prepare::surface(request, websocket, provider_settings, secret)
-    }
-
-    fn surfaces(&self) -> gproxy_channel_api::SurfaceTable {
-        surface::table()
     }
 }
 
