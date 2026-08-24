@@ -15,6 +15,7 @@ mod openrouter;
 mod shared;
 mod vertex;
 mod vertexexpress;
+mod xai;
 
 pub use aistudio::AiStudioChannel;
 pub use aws_bedrock::AwsBedrockChannel;
@@ -30,3 +31,4 @@ pub use openai::OpenAiChannel;
 pub use openrouter::OpenRouterChannel;
 pub use vertex::VertexChannel;
 pub use vertexexpress::VertexExpressChannel;
+pub use xai::XaiChannel;

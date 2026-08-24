@@ -8,7 +8,7 @@ use std::str::FromStr as _;
 
 pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     if ctx.key.operation == Operation::CreateSpeech {
-        return from_speech(ctx.request_body, ctx.response_headers, ctx.response_body);
+        return speech(ctx.request_body, ctx.response_headers, ctx.response_body);
     }
     let value = serde_json::from_slice::<Value>(ctx.response_body).ok()?;
     match ctx.key.operation {
@@ -19,7 +19,7 @@ pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     }
 }
 
-fn from_speech(
+pub(crate) fn speech(
     request: &[u8],
     headers: &http::HeaderMap,
     response: &[u8],
@@ -30,6 +30,7 @@ fn from_speech(
             request
                 .get("response_format")
                 .or_else(|| request.get("format"))
+                .or_else(|| request.pointer("/output_format/codec"))
                 .and_then(Value::as_str)
                 .map(str::to_owned)
         })
