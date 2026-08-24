@@ -223,6 +223,7 @@ pub enum ResponseTool {
         description: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         execution: Option<ToolSearchExecution>,
+        // OpenAI documents client tool-search parameters as unknown.
         #[serde(skip_serializing_if = "Option::is_none")]
         parameters: Option<Value>,
         #[serde(default, flatten)]

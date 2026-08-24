@@ -5,6 +5,7 @@ use crate::openai::common::Rest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct McpToolDescription {
+    // OpenAI documents an MCP tool input schema as unknown.
     pub input_schema: Value,
     pub name: String,
     // OpenAI documents MCP tool annotations as unknown.

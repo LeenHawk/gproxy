@@ -4,7 +4,9 @@ use serde_json::Value;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ImagenPredictRequest {
+    // models.predict defines each instance as google.protobuf.Value.
     pub instances: Vec<Value>,
+    // models.predict defines its parameters as google.protobuf.Value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
@@ -14,6 +16,7 @@ pub struct ImagenPredictRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ImagenPredictResponse {
+    // models.predict defines each prediction as google.protobuf.Value.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub predictions: Vec<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]

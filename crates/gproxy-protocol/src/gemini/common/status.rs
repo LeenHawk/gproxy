@@ -8,6 +8,7 @@ pub struct Status {
     pub code: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    // google.rpc.Status details contain arbitrary protobuf Any payloads.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub details: Vec<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
