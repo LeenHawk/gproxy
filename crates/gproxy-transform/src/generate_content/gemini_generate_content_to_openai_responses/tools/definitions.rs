@@ -1,7 +1,6 @@
 use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
-use crate::common::tools::empty_response_tool;
 
 pub(crate) fn to_responses(
     tools: Option<Vec<gemini::Tool>>,
@@ -25,9 +24,18 @@ pub(crate) fn to_responses(
         }
         if let Some(code) = tool.code_execution {
             ensure_empty(&code.rest, "Gemini codeExecution tool")?;
-            output.push(openai::ResponseTool {
-                type_: openai::ToolType::Shell,
-                ..empty_response_tool()
+            output.push(openai::ResponseTool::CodeInterpreter {
+                container: openai::CodeInterpreterContainer::Auto(
+                    openai::CodeInterpreterAutoContainer {
+                        type_: openai::CodeInterpreterContainerType::Auto,
+                        file_ids: None,
+                        memory_limit: None,
+                        network_policy: None,
+                        rest: Default::default(),
+                    },
+                ),
+                allowed_callers: None,
+                rest: Default::default(),
             });
         }
         if let Some(computer) = tool.computer_use {
@@ -38,10 +46,8 @@ pub(crate) fn to_responses(
                     "excludedPredefinedFunctions",
                 ));
             }
-            output.push(openai::ResponseTool {
-                type_: openai::ToolType::ComputerUse,
-                environment: computer.environment.map(serde_json::to_value).transpose()?,
-                ..empty_response_tool()
+            output.push(openai::ResponseTool::Computer {
+                rest: Default::default(),
             });
         }
         for server in tool.mcp_servers.into_iter().flatten() {
@@ -70,16 +76,21 @@ fn function_tool(
             "both parameter schema forms are present",
         ));
     }
-    Ok(openai::ResponseTool {
-        type_: openai::ToolType::Function,
-        name: Some(function.name),
+    Ok(openai::ResponseTool::Function {
+        name: function.name,
         parameters: function
             .parameters_json_schema
             .map(object_schema)
             .transpose()?
-            .or(function.parameters.map(typed_schema).transpose()?),
+            .or(function.parameters.map(typed_schema).transpose()?)
+            .map(openai::ResponseFunctionParameters::Schema)
+            .unwrap_or(openai::ResponseFunctionParameters::Null),
+        strict: openai::ResponseFunctionStrict::Absent,
+        defer_loading: None,
         description: Some(function.description),
-        ..empty_response_tool()
+        output_schema: None,
+        allowed_callers: None,
+        rest: Default::default(),
     })
 }
 
@@ -90,11 +101,12 @@ fn file_search(search: gemini::FileSearch) -> Result<openai::ResponseTool, Trans
             "metadataFilter or extension fields",
         ));
     }
-    Ok(openai::ResponseTool {
-        type_: openai::ToolType::FileSearch,
-        vector_store_ids: Some(search.file_search_store_names),
+    Ok(openai::ResponseTool::FileSearch {
+        vector_store_ids: search.file_search_store_names,
+        filters: None,
         max_num_results: search.top_k.map(nonnegative).transpose()?,
-        ..empty_response_tool()
+        ranking_options: None,
+        rest: Default::default(),
     })
 }
 
@@ -104,7 +116,8 @@ fn web_search(
     url: Option<gemini::UrlContext>,
     maps: Option<gemini::GoogleMaps>,
 ) -> Result<Option<openai::ResponseTool>, TransformError> {
-    if search.is_none() && retrieval.is_none() && url.is_none() && maps.is_none() {
+    let hosted_search = search.is_some() || retrieval.is_some();
+    if !hosted_search && url.is_none() && maps.is_none() {
         return Ok(None);
     }
     if let Some(value) = retrieval
@@ -127,10 +140,21 @@ fn web_search(
         ));
     }
     let search_content_types = search.map(search_types).transpose()?.flatten();
-    Ok(Some(openai::ResponseTool {
-        type_: openai::ToolType::WebSearch,
-        search_content_types,
-        ..empty_response_tool()
+    Ok(Some(if hosted_search {
+        openai::ResponseTool::WebSearchPreview {
+            search_content_types,
+            search_context_size: None,
+            user_location: None,
+            rest: Default::default(),
+        }
+    } else {
+        openai::ResponseTool::WebSearch {
+            filters: None,
+            max_uses: None,
+            search_context_size: None,
+            user_location: None,
+            rest: Default::default(),
+        }
     }))
 }
 

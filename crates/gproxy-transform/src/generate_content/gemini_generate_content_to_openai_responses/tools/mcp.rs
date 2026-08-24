@@ -1,7 +1,6 @@
 use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
-use crate::common::tools::empty_response_tool;
 
 pub(super) fn convert(server: gemini::McpServer) -> Result<openai::ResponseTool, TransformError> {
     super::definitions::ensure_empty(&server.rest, "Gemini MCP server")?;
@@ -30,11 +29,18 @@ pub(super) fn convert(server: gemini::McpServer) -> Result<openai::ResponseTool,
             (transport.url, transport.headers)
         }
     };
-    Ok(openai::ResponseTool {
-        type_: openai::ToolType::Mcp,
-        server_label: Some(label),
+    Ok(openai::ResponseTool::Mcp {
+        server_label: label,
+        allowed_tools: None,
+        authorization: None,
+        connector_id: None,
+        defer_loading: None,
         server_url,
         headers,
-        ..empty_response_tool()
+        require_approval: None,
+        server_description: None,
+        tunnel_id: None,
+        allowed_callers: None,
+        rest: Default::default(),
     })
 }

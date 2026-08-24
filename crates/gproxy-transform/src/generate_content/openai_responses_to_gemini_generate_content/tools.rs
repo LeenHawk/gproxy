@@ -8,91 +8,157 @@ pub(super) fn to_gemini(
     let mut declarations = Vec::new();
     let mut output = Vec::new();
     for tool in tools.into_iter().flatten() {
-        match tool.type_.clone() {
-            openai::ToolType::Function | openai::ToolType::Custom => declarations.push(function(
-                tool.name,
-                tool.description,
-                tool.parameters,
-                tool.rest,
+        match tool {
+            openai::ResponseTool::Function {
+                name,
+                description,
+                parameters,
+                output_schema,
+                rest,
+                ..
+            } => declarations.push(function(
+                name,
+                description,
+                match parameters {
+                    openai::ResponseFunctionParameters::Schema(schema) => Some(schema),
+                    openai::ResponseFunctionParameters::Null => None,
+                },
+                output_schema,
+                rest,
             )?),
-            openai::ToolType::Namespace => {
-                for nested in tool.tools.into_iter().flatten() {
-                    if matches!(
-                        nested.type_,
-                        openai::ToolType::Function | openai::ToolType::Custom
-                    ) {
-                        declarations.push(function(
-                            Some(nested.name),
-                            nested.description,
-                            nested
-                                .parameters
-                                .and_then(|value| value.as_object().cloned()),
-                            nested.rest,
-                        )?);
-                    }
+            openai::ResponseTool::Custom {
+                name,
+                description,
+                rest,
+                ..
+            } => declarations.push(function(name, description, None, None, rest)?),
+            openai::ResponseTool::Namespace { tools, .. } => {
+                for nested in tools {
+                    let (name, description, parameters, output_schema, rest) = match nested {
+                        openai::ResponseNamespaceTool::Function {
+                            name,
+                            description,
+                            parameters,
+                            output_schema,
+                            rest,
+                            ..
+                        } => (
+                            name,
+                            description,
+                            parameters.and_then(|value| value.as_object().cloned()),
+                            output_schema,
+                            rest,
+                        ),
+                        openai::ResponseNamespaceTool::Custom {
+                            name,
+                            description,
+                            rest,
+                            ..
+                        } => (name, description, None, None, rest),
+                    };
+                    declarations.push(function(
+                        name,
+                        description,
+                        parameters,
+                        output_schema,
+                        rest,
+                    )?);
                 }
             }
-            openai::ToolType::FileSearch | openai::ToolType::CollectionsSearch => {
-                let stores = tool.vector_store_ids.ok_or_else(|| {
-                    TransformError::shape("Responses file search tool", "vector_store_ids missing")
-                })?;
+            openai::ResponseTool::FileSearch {
+                vector_store_ids,
+                max_num_results,
+                rest,
+                ..
+            } => {
                 output.push(gemini::Tool {
                     file_search: Some(gemini::FileSearch {
-                        file_search_store_names: stores,
+                        file_search_store_names: vector_store_ids,
                         metadata_filter: None,
-                        top_k: tool.max_num_results.map(to_i32).transpose()?,
-                        rest: tool.rest,
+                        top_k: max_num_results.map(to_i32).transpose()?,
+                        rest,
                     }),
                     ..Default::default()
                 });
             }
-            openai::ToolType::WebSearch
-            | openai::ToolType::WebSearch20250826
-            | openai::ToolType::WebSearchPreview
-            | openai::ToolType::WebSearchPreview20250311
-            | openai::ToolType::XSearch => output.push(gemini::Tool {
+            openai::ResponseTool::CollectionsSearch {
+                vector_store_ids,
+                rest,
+            } => output.push(gemini::Tool {
+                file_search: Some(gemini::FileSearch {
+                    file_search_store_names: vector_store_ids,
+                    metadata_filter: None,
+                    top_k: None,
+                    rest,
+                }),
+                ..Default::default()
+            }),
+            openai::ResponseTool::WebSearch { rest, .. }
+            | openai::ResponseTool::WebSearch20250826 { rest, .. } => {
+                output.push(gemini::Tool {
+                    google_search: Some(gemini::GoogleSearch::default()),
+                    url_context: Some(gemini::UrlContext::default()),
+                    rest,
+                    ..Default::default()
+                });
+            }
+            openai::ResponseTool::WebSearchPreview { rest, .. }
+            | openai::ResponseTool::WebSearchPreview20250311 { rest, .. }
+            | openai::ResponseTool::XSearch { rest } => output.push(gemini::Tool {
                 google_search: Some(gemini::GoogleSearch::default()),
-                url_context: matches!(
-                    tool.type_,
-                    openai::ToolType::WebSearch | openai::ToolType::WebSearch20250826
-                )
-                .then(gemini::UrlContext::default),
-                rest: tool.rest,
+                rest,
                 ..Default::default()
             }),
-            openai::ToolType::CodeExecution
-            | openai::ToolType::CodeInterpreter
-            | openai::ToolType::Shell
-            | openai::ToolType::LocalShell
-            | openai::ToolType::ApplyPatch => output.push(gemini::Tool {
+            openai::ResponseTool::CodeExecution { rest }
+            | openai::ResponseTool::CodeInterpreter { rest, .. }
+            | openai::ResponseTool::Shell { rest, .. }
+            | openai::ResponseTool::LocalShell { rest }
+            | openai::ResponseTool::ApplyPatch { rest, .. } => output.push(gemini::Tool {
                 code_execution: Some(gemini::CodeExecution::default()),
-                rest: tool.rest,
+                rest,
                 ..Default::default()
             }),
-            openai::ToolType::Computer
-            | openai::ToolType::ComputerUse
-            | openai::ToolType::ComputerUsePreview => output.push(gemini::Tool {
+            openai::ResponseTool::Computer { rest }
+            | openai::ResponseTool::ComputerUsePreview { rest, .. } => output.push(gemini::Tool {
                 computer_use: Some(gemini::ComputerUse {
-                    rest: tool.rest,
+                    rest,
                     ..Default::default()
                 }),
                 ..Default::default()
             }),
-            openai::ToolType::Mcp => output.push(gemini::Tool {
+            openai::ResponseTool::Mcp {
+                server_label,
+                server_url,
+                headers,
+                rest,
+                ..
+            } => output.push(gemini::Tool {
                 mcp_servers: Some(vec![gemini::McpServer {
-                    name: tool.server_label,
-                    streamable_http_transport: mcp_transport(tool.server_url, tool.headers),
-                    rest: tool.rest,
+                    name: Some(server_label),
+                    streamable_http_transport: mcp_transport(server_url, headers),
+                    rest,
                 }]),
                 ..Default::default()
             }),
-            openai::ToolType::Unknown(value) => {
-                return Err(TransformError::unsupported("Responses tool", value));
+            openai::ResponseTool::WebFetch { .. } => {
+                return Err(TransformError::unsupported("Responses tool", "web_fetch"));
             }
-            other => {
+            openai::ResponseTool::Memory { .. } => {
+                return Err(TransformError::unsupported("Responses tool", "memory"));
+            }
+            openai::ResponseTool::ImageGeneration { .. } => {
                 return Err(TransformError::unsupported(
                     "Responses tool",
-                    other.as_str(),
+                    "image_generation",
+                ));
+            }
+            openai::ResponseTool::ToolSearch { .. } => {
+                return Err(TransformError::unsupported("Responses tool", "tool_search"));
+            }
+            openai::ResponseTool::ProgrammaticToolCalling { .. } => {
+                return Err(TransformError::unsupported(
+                    "Responses tool",
+                    "programmatic_tool_calling",
                 ));
             }
         }
@@ -157,20 +223,21 @@ pub(super) fn choice_to_gemini(
 }
 
 fn function(
-    name: Option<String>,
+    name: String,
     description: Option<String>,
     parameters: Option<openai::JsonSchema>,
+    output_schema: Option<openai::JsonSchema>,
     rest: openai::Rest,
 ) -> Result<gemini::FunctionDeclaration, TransformError> {
     Ok(gemini::FunctionDeclaration {
-        name: name.ok_or_else(|| TransformError::shape("Responses tool", "name is missing"))?,
+        name,
         description: description
             .ok_or_else(|| TransformError::shape("Responses tool", "description is missing"))?,
         behavior: None,
         parameters: None,
         parameters_json_schema: parameters.map(serde_json::Value::Object),
         response: None,
-        response_json_schema: None,
+        response_json_schema: output_schema.map(serde_json::Value::Object),
         rest,
     })
 }

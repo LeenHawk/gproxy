@@ -3,12 +3,13 @@ use gproxy_protocol::openai::common::{
     CustomToolGrammarFormat, CustomToolGrammarFormatType, CustomToolGrammarSyntax,
     CustomToolInputFormat, FunctionToolChoiceType, ResponseCustomToolChoice,
     ResponseFunctionToolChoice, ResponseItemLifecycleStatus, ResponseToolChoice,
-    ToolSearchExecution, ToolType,
+    ToolSearchExecution,
 };
 use gproxy_protocol::openai::generate_content::responses::{
-    ApplyPatchOperation, ResponseItem, ResponseOutput, ResponseTool, ShellAction, TypedResponseItem,
+    ApplyPatchOperation, ResponseFunctionParameters, ResponseFunctionStrict, ResponseItem,
+    ResponseOutput, ResponseTool, ShellAction, TypedResponseItem,
 };
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 const APPLY_PATCH_GRAMMAR: &str = r#"start: begin_patch hunk+ end_patch
 begin_patch: "*** Begin Patch" LF
@@ -37,17 +38,40 @@ pub(super) fn normalize_definitions(
     let mut shell = false;
     let mut apply_patch = false;
     for tool in tools {
-        match &tool.type_ {
-            ToolType::Shell | ToolType::LocalShell => {
+        match tool {
+            ResponseTool::Shell { .. } | ResponseTool::LocalShell { .. } => {
                 shell = true;
                 *tool = shell_tool();
             }
-            ToolType::ApplyPatch => {
+            ResponseTool::ApplyPatch { .. } => {
                 apply_patch = true;
                 *tool = apply_patch_tool();
             }
-            ToolType::ToolSearch => normalize_tool_search(tool),
-            _ => {}
+            ResponseTool::ToolSearch {
+                description,
+                execution,
+                parameters,
+                ..
+            } => normalize_tool_search(description, execution, parameters),
+            ResponseTool::Function { .. }
+            | ResponseTool::FileSearch { .. }
+            | ResponseTool::Computer { .. }
+            | ResponseTool::ComputerUsePreview { .. }
+            | ResponseTool::WebSearch { .. }
+            | ResponseTool::WebSearch20250826 { .. }
+            | ResponseTool::WebFetch { .. }
+            | ResponseTool::Memory { .. }
+            | ResponseTool::XSearch { .. }
+            | ResponseTool::CollectionsSearch { .. }
+            | ResponseTool::Mcp { .. }
+            | ResponseTool::CodeExecution { .. }
+            | ResponseTool::CodeInterpreter { .. }
+            | ResponseTool::ImageGeneration { .. }
+            | ResponseTool::Custom { .. }
+            | ResponseTool::Namespace { .. }
+            | ResponseTool::ProgrammaticToolCalling { .. }
+            | ResponseTool::WebSearchPreview { .. }
+            | ResponseTool::WebSearchPreview20250311 { .. } => {}
         }
     }
     normalize_choice(choice, shell, apply_patch);
@@ -167,35 +191,46 @@ fn shell_tool() -> ResponseTool {
     .as_object()
     .expect("schema is an object")
     .clone();
-    let mut tool = empty_tool(ToolType::Function);
-    tool.name = Some("shell_command".into());
-    tool.description = Some("Runs a shell command and returns its output.".into());
-    tool.strict = Some(false);
-    tool.parameters = Some(parameters);
-    tool
+    ResponseTool::Function {
+        name: "shell_command".into(),
+        parameters: ResponseFunctionParameters::Schema(parameters),
+        strict: ResponseFunctionStrict::Value(false),
+        defer_loading: None,
+        description: Some("Runs a shell command and returns its output.".into()),
+        output_schema: None,
+        allowed_callers: None,
+        rest: Default::default(),
+    }
 }
 
 fn apply_patch_tool() -> ResponseTool {
-    let mut tool = empty_tool(ToolType::Custom);
-    tool.name = Some("apply_patch".into());
-    tool.description = Some(
-        "The apply_patch tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON."
-            .into(),
-    );
-    tool.format = Some(CustomToolInputFormat::Grammar(CustomToolGrammarFormat {
-        type_: CustomToolGrammarFormatType::Grammar,
-        definition: APPLY_PATCH_GRAMMAR.into(),
-        syntax: CustomToolGrammarSyntax::Lark,
+    ResponseTool::Custom {
+        name: "apply_patch".into(),
+        defer_loading: None,
+        description: Some(
+            "The apply_patch tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON."
+                .into(),
+        ),
+        format: Some(CustomToolInputFormat::Grammar(CustomToolGrammarFormat {
+            type_: CustomToolGrammarFormatType::Grammar,
+            definition: APPLY_PATCH_GRAMMAR.into(),
+            syntax: CustomToolGrammarSyntax::Lark,
+            rest: Default::default(),
+        })),
+        allowed_callers: None,
         rest: Default::default(),
-    }));
-    tool
+    }
 }
 
-fn normalize_tool_search(tool: &mut ResponseTool) {
-    if matches!(tool.execution.as_ref(), Some(ToolSearchExecution::Client)) {
-        tool.description
+fn normalize_tool_search(
+    description: &mut Option<String>,
+    execution: &Option<ToolSearchExecution>,
+    parameters: &mut Option<Value>,
+) {
+    if matches!(execution.as_ref(), Some(ToolSearchExecution::Client)) {
+        description
             .get_or_insert_with(|| "Search deferred tools using a regular expression".to_owned());
-        tool.parameters.get_or_insert_with(|| {
+        parameters.get_or_insert_with(|| {
             json!({
                 "type":"object",
                 "properties": {
@@ -205,13 +240,10 @@ fn normalize_tool_search(tool: &mut ResponseTool) {
                 "required":["query"],
                 "additionalProperties":false
             })
-            .as_object()
-            .expect("schema is an object")
-            .clone()
         });
     } else {
-        tool.description = None;
-        tool.parameters = None;
+        *description = None;
+        *parameters = None;
     }
 }
 
@@ -391,56 +423,4 @@ fn mapped_id(value: &str, prefix: &str) -> String {
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     format!("{prefix}{hash:016x}")
-}
-
-fn empty_tool(type_: ToolType) -> ResponseTool {
-    ResponseTool {
-        type_,
-        name: None,
-        parameters: None,
-        strict: None,
-        defer_loading: None,
-        description: None,
-        allowed_callers: None,
-        vector_store_ids: None,
-        filters: None,
-        max_num_results: None,
-        ranking_options: None,
-        display_height: None,
-        display_width: None,
-        environment: None,
-        max_uses: None,
-        search_context_size: None,
-        user_location: None,
-        allowed_domains: None,
-        blocked_domains: None,
-        max_content_tokens: None,
-        server_label: None,
-        allowed_tools: None,
-        authorization: None,
-        connector_id: None,
-        headers: None,
-        require_approval: None,
-        server_description: None,
-        server_url: None,
-        tunnel_id: None,
-        container: None,
-        action: None,
-        background: None,
-        input_fidelity: None,
-        input_image_mask: None,
-        model: None,
-        moderation: None,
-        output_compression: None,
-        output_format: None,
-        partial_images: None,
-        quality: None,
-        size: None,
-        format: None,
-        tools: None,
-        execution: None,
-        search_content_types: None,
-        max_characters: None,
-        rest: Map::new(),
-    }
 }

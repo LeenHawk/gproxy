@@ -3,8 +3,8 @@ use serde_json::{Value, json};
 use super::compact::CompactResponseRequestBody;
 use super::generate_content::chat::{ChatCompletionChunk, ChatCompletionRequest};
 use super::generate_content::responses::{
-    ResponseCreateRequest, ResponseItem, ResponseObject, ResponseStreamEvent,
-    ResponseWebSocketRequest,
+    ResponseCreateRequest, ResponseItem, ResponseNamespaceTool, ResponseObject,
+    ResponseStreamEvent, ResponseTool, ResponseWebSocketRequest,
 };
 use super::memories::{MemorySummarizeRequest, MemorySummarizeResponse};
 use super::models::{ListModelsRequest, RetrieveModelRequest};
@@ -45,7 +45,27 @@ fn requests_preserve_rest_and_unknown_union_members() {
     let responses = json!({
         "model":"gpt-future",
         "input":[{"type":"future_item", "payload":{"x":1}}],
-        "tools":[{"type":"future_tool", "tool_future":["a","b"]}],
+        "tools":[
+            {
+                "type":"namespace",
+                "description":"CRM tools",
+                "name":"crm",
+                "tools":[{
+                    "type":"function",
+                    "name":"lookup",
+                    "parameters":{"type":"object"},
+                    "namespace_future":true
+                }],
+                "tool_future":["a","b"]
+            },
+            {
+                "type":"function",
+                "name":"ping",
+                "parameters":null,
+                "strict":null,
+                "output_schema":{"type":"string"}
+            }
+        ],
         "response_request_future":42
     });
     let parsed = round_trip::<ResponseCreateRequest>(responses);
@@ -55,6 +75,23 @@ fn requests_preserve_rest_and_unknown_union_members() {
         panic!("expected item input");
     };
     assert!(matches!(items[0], ResponseItem::Unknown(_)));
+    let ResponseTool::Namespace { tools, rest, .. } = &parsed.tools.as_ref().expect("tools")[0]
+    else {
+        panic!("expected namespace tool");
+    };
+    assert_eq!(rest["tool_future"], json!(["a", "b"]));
+    let ResponseNamespaceTool::Function { rest, .. } = &tools[0] else {
+        panic!("expected namespace function");
+    };
+    assert_eq!(rest["namespace_future"], true);
+    assert!(matches!(
+        parsed.tools.as_ref().expect("tools")[1],
+        ResponseTool::Function {
+            parameters: super::generate_content::responses::ResponseFunctionParameters::Null,
+            strict: super::generate_content::responses::ResponseFunctionStrict::Null,
+            ..
+        }
+    ));
 
     round_trip::<CompactResponseRequestBody>(json!({
         "model":"gpt-future",

@@ -43,22 +43,31 @@ pub(crate) fn chat_to_responses(
             tools
                 .into_iter()
                 .map(|tool| match tool {
-                    openai::ChatTool::Function(tool) => Ok(openai::ResponseTool {
-                        type_: openai::ToolType::Function,
-                        name: Some(tool.function.name),
-                        parameters: tool.function.parameters,
-                        strict: tool.function.strict,
+                    openai::ChatTool::Function(tool) => Ok(openai::ResponseTool::Function {
+                        name: tool.function.name,
+                        parameters: tool
+                            .function
+                            .parameters
+                            .map(openai::ResponseFunctionParameters::Schema)
+                            .unwrap_or(openai::ResponseFunctionParameters::Null),
+                        strict: tool
+                            .function
+                            .strict
+                            .map(openai::ResponseFunctionStrict::Value)
+                            .unwrap_or(openai::ResponseFunctionStrict::Absent),
+                        defer_loading: None,
                         description: tool.function.description,
+                        output_schema: None,
+                        allowed_callers: None,
                         rest: merge(tool.rest, tool.function.rest),
-                        ..empty_response_tool()
                     }),
-                    openai::ChatTool::Custom(tool) => Ok(openai::ResponseTool {
-                        type_: openai::ToolType::Custom,
-                        name: Some(tool.custom.name),
+                    openai::ChatTool::Custom(tool) => Ok(openai::ResponseTool::Custom {
+                        name: tool.custom.name,
+                        defer_loading: None,
                         description: tool.custom.description,
                         format: tool.custom.format,
+                        allowed_callers: None,
                         rest: merge(tool.rest, tool.custom.rest),
-                        ..empty_response_tool()
                     }),
                     openai::ChatTool::Unknown(raw) => {
                         serde_json::from_value(raw).map_err(TransformError::from)
@@ -76,39 +85,71 @@ pub(crate) fn responses_to_chat(
         .map(|tools| {
             tools
                 .into_iter()
-                .map(|tool| match tool.type_ {
-                    openai::ToolType::Function => {
-                        Ok(openai::ChatTool::Function(openai::ChatFunctionTool {
-                            type_: openai::FunctionToolChoiceType::Function,
-                            function: openai::FunctionDefinition {
-                                name: tool.name.ok_or_else(|| {
-                                    TransformError::shape("Responses tool", "name is missing")
-                                })?,
-                                description: tool.description,
-                                parameters: tool.parameters,
-                                strict: tool.strict,
-                                rest: tool.rest,
+                .map(|tool| match tool {
+                    openai::ResponseTool::Function {
+                        name,
+                        parameters,
+                        strict,
+                        description,
+                        rest,
+                        ..
+                    } => Ok(openai::ChatTool::Function(openai::ChatFunctionTool {
+                        type_: openai::FunctionToolChoiceType::Function,
+                        function: openai::FunctionDefinition {
+                            name,
+                            description,
+                            parameters: match parameters {
+                                openai::ResponseFunctionParameters::Schema(schema) => Some(schema),
+                                openai::ResponseFunctionParameters::Null => None,
                             },
-                            rest: Default::default(),
-                        }))
-                    }
-                    openai::ToolType::Custom => {
-                        Ok(openai::ChatTool::Custom(openai::ChatCustomTool {
-                            type_: openai::CustomToolChoiceType::Custom,
-                            custom: openai::CustomToolDefinition {
-                                name: tool.name.ok_or_else(|| {
-                                    TransformError::shape("Responses tool", "name is missing")
-                                })?,
-                                description: tool.description,
-                                format: tool.format,
-                                rest: tool.rest,
+                            strict: match strict {
+                                openai::ResponseFunctionStrict::Value(strict) => Some(strict),
+                                openai::ResponseFunctionStrict::Null
+                                | openai::ResponseFunctionStrict::Absent => None,
                             },
-                            rest: Default::default(),
-                        }))
-                    }
-                    _ => Err(TransformError::unsupported(
+                            rest,
+                        },
+                        rest: Default::default(),
+                    })),
+                    openai::ResponseTool::Custom {
+                        name,
+                        description,
+                        format,
+                        rest,
+                        ..
+                    } => Ok(openai::ChatTool::Custom(openai::ChatCustomTool {
+                        type_: openai::CustomToolChoiceType::Custom,
+                        custom: openai::CustomToolDefinition {
+                            name,
+                            description,
+                            format,
+                            rest,
+                        },
+                        rest: Default::default(),
+                    })),
+                    unsupported @ (openai::ResponseTool::FileSearch { .. }
+                    | openai::ResponseTool::Computer { .. }
+                    | openai::ResponseTool::ComputerUsePreview { .. }
+                    | openai::ResponseTool::WebSearch { .. }
+                    | openai::ResponseTool::WebSearch20250826 { .. }
+                    | openai::ResponseTool::WebFetch { .. }
+                    | openai::ResponseTool::Memory { .. }
+                    | openai::ResponseTool::XSearch { .. }
+                    | openai::ResponseTool::CollectionsSearch { .. }
+                    | openai::ResponseTool::Mcp { .. }
+                    | openai::ResponseTool::CodeExecution { .. }
+                    | openai::ResponseTool::CodeInterpreter { .. }
+                    | openai::ResponseTool::ImageGeneration { .. }
+                    | openai::ResponseTool::LocalShell { .. }
+                    | openai::ResponseTool::Shell { .. }
+                    | openai::ResponseTool::Namespace { .. }
+                    | openai::ResponseTool::ToolSearch { .. }
+                    | openai::ResponseTool::ProgrammaticToolCalling { .. }
+                    | openai::ResponseTool::WebSearchPreview { .. }
+                    | openai::ResponseTool::WebSearchPreview20250311 { .. }
+                    | openai::ResponseTool::ApplyPatch { .. }) => Err(TransformError::unsupported(
                         "Responses tool",
-                        serde_json::to_string(&tool)?,
+                        serde_json::to_string(&unsupported)?,
                     )),
                 })
                 .collect()
@@ -258,40 +299,26 @@ fn claude_tool_to_chat(tool: claude::Tool) -> Result<openai::ChatTool, Transform
 }
 
 fn response_tool_to_claude(tool: openai::ResponseTool) -> Result<claude::Tool, TransformError> {
-    match tool.type_ {
-        openai::ToolType::Function => Ok(claude::Tool::Custom(claude::CustomTool {
-            input_schema: schema_to_claude(tool.parameters)?,
-            name: tool
-                .name
-                .ok_or_else(|| TransformError::shape("OpenAI tool", "name is missing"))?,
-            type_: Some(claude::CustomToolType::Custom),
-            description: tool.description,
-            eager_input_streaming: None,
-            common: claude::ToolCommon {
-                allowed_callers: callers_to_claude(tool.allowed_callers),
-                defer_loading: tool.defer_loading,
-                strict: tool.strict,
-                rest: Default::default(),
-                ..Default::default()
-            },
-            rest: tool.rest,
-        })),
-        _ => native::definitions::response_to_claude(tool),
-    }
+    native::definitions::response_to_claude(tool)
 }
 
 fn claude_tool_to_response(tool: claude::Tool) -> Result<openai::ResponseTool, TransformError> {
     match tool {
-        claude::Tool::Custom(tool) => Ok(openai::ResponseTool {
-            type_: openai::ToolType::Function,
-            name: Some(tool.name),
-            parameters: Some(schema_to_openai(tool.input_schema)?),
-            strict: tool.common.strict,
+        claude::Tool::Custom(tool) => Ok(openai::ResponseTool::Function {
+            name: tool.name,
+            parameters: openai::ResponseFunctionParameters::Schema(schema_to_openai(
+                tool.input_schema,
+            )?),
+            strict: tool
+                .common
+                .strict
+                .map(openai::ResponseFunctionStrict::Value)
+                .unwrap_or(openai::ResponseFunctionStrict::Absent),
             defer_loading: tool.common.defer_loading,
             description: tool.description,
+            output_schema: None,
             allowed_callers: callers_to_openai(tool.common.allowed_callers),
             rest: merge(tool.rest, tool.common.rest),
-            ..empty_response_tool()
         }),
         other => native::definitions::claude_to_response(other),
     }
@@ -310,58 +337,6 @@ fn schema_to_openai(schema: claude::JsonSchema) -> Result<openai::JsonSchema, Tr
         .as_object()
         .cloned()
         .ok_or_else(|| TransformError::shape("JSON schema", "expected an object"))
-}
-
-pub(crate) fn empty_response_tool() -> openai::ResponseTool {
-    openai::ResponseTool {
-        type_: openai::ToolType::Function,
-        name: None,
-        parameters: None,
-        strict: None,
-        defer_loading: None,
-        description: None,
-        allowed_callers: None,
-        vector_store_ids: None,
-        filters: None,
-        max_num_results: None,
-        ranking_options: None,
-        display_height: None,
-        display_width: None,
-        environment: None,
-        max_uses: None,
-        search_context_size: None,
-        user_location: None,
-        allowed_domains: None,
-        blocked_domains: None,
-        max_content_tokens: None,
-        server_label: None,
-        allowed_tools: None,
-        authorization: None,
-        connector_id: None,
-        headers: None,
-        require_approval: None,
-        server_description: None,
-        server_url: None,
-        tunnel_id: None,
-        container: None,
-        action: None,
-        background: None,
-        input_fidelity: None,
-        input_image_mask: None,
-        model: None,
-        moderation: None,
-        output_compression: None,
-        output_format: None,
-        partial_images: None,
-        quality: None,
-        size: None,
-        format: None,
-        tools: None,
-        execution: None,
-        search_content_types: None,
-        max_characters: None,
-        rest: Default::default(),
-    }
 }
 
 pub(crate) fn callers_to_claude(
@@ -394,7 +369,7 @@ pub(crate) fn callers_to_openai(
     })
 }
 
-fn merge(
+pub(crate) fn merge(
     mut left: serde_json::Map<String, serde_json::Value>,
     right: serde_json::Map<String, serde_json::Value>,
 ) -> serde_json::Map<String, serde_json::Value> {
