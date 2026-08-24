@@ -62,6 +62,7 @@ pub struct ClientProfile {
     pub cipher_list: &'static str,
     pub curves_list: &'static str,
     pub sigalgs_list: Option<&'static str>,
+    pub preserve_tls13_cipher_list: bool,
     pub grease: bool,
     pub http2: Option<Http2Profile>,
 }

@@ -12,6 +12,7 @@ pub(super) static PROFILE: ClientProfile = ClientProfile {
     ),
     curves_list: "X25519MLKEM768:X25519:P-256:P-384:P-521",
     sigalgs_list: None,
+    preserve_tls13_cipher_list: false,
     grease: false,
     http2: None,
 };

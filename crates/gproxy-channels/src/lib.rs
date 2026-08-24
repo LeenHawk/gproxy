@@ -1,6 +1,7 @@
 //! Built-in provider channel adapters.
 
 mod aistudio;
+mod antigravity;
 mod aws_bedrock;
 mod azure;
 mod claudeapi;
@@ -32,6 +33,7 @@ mod workbuddy;
 mod xai;
 
 pub use aistudio::AiStudioChannel;
+pub use antigravity::AntigravityChannel;
 pub use aws_bedrock::AwsBedrockChannel;
 pub use azure::AzureChannel;
 pub use claudeapi::ClaudeApiChannel;

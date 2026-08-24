@@ -16,6 +16,7 @@ pub(super) static CLIENT_PROFILE: ClientProfile = ClientProfile {
         "rsa_pss_rsae_sha512:rsa_pss_rsae_sha384:rsa_pss_rsae_sha256:",
         "rsa_pkcs1_sha512:rsa_pkcs1_sha384:rsa_pkcs1_sha256"
     )),
+    preserve_tls13_cipher_list: false,
     grease: false,
     http2: None,
 };

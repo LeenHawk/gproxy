@@ -117,6 +117,7 @@ fn client_emulation(profile: ClientProfile) -> wreq::Emulation {
         .min_tls_version(version(profile.min_tls_version))
         .max_tls_version(version(profile.max_tls_version))
         .cipher_list(profile.cipher_list.to_owned())
+        .preserve_tls13_cipher_list(profile.preserve_tls13_cipher_list)
         .curves_list(profile.curves_list.to_owned());
     if let Some(sigalgs) = profile.sigalgs_list {
         tls = tls.sigalgs_list(sigalgs.to_owned());

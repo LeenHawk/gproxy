@@ -17,6 +17,7 @@ pub(super) static CLIENT_PROFILE: ClientProfile = ClientProfile {
         "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:",
         "ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pss_rsae_sha512"
     )),
+    preserve_tls13_cipher_list: false,
     grease: true,
     http2: Some(Http2Profile {
         enable_push: false,

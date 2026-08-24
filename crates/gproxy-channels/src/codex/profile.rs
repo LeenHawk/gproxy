@@ -14,6 +14,7 @@ pub(super) static CLIENT_PROFILE: ClientProfile = ClientProfile {
     ),
     curves_list: "X25519:P-256:P-384",
     sigalgs_list: None,
+    preserve_tls13_cipher_list: false,
     grease: false,
     http2: Some(Http2Profile {
         enable_push: false,
