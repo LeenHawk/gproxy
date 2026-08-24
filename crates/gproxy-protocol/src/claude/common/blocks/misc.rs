@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::super::{CacheControl, ClaudeModel, JsonObject};
+use super::super::CacheControl;
 use super::TextBlock;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -163,30 +163,4 @@ pub enum McpToolsetChangeReferenceType {
 pub enum MidConversationSystemBlockType {
     #[serde(rename = "mid_conv_system")]
     MidConversationSystem,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FallbackBlock {
-    pub from: FallbackInfo,
-    pub to: FallbackInfo,
-    #[serde(rename = "type")]
-    pub type_: FallbackBlockType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub trigger: Option<serde_json::Value>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: serde_json::Map<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FallbackInfo {
-    pub model: ClaudeModel,
-    #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
-    pub rest: serde_json::Map<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum FallbackBlockType {
-    #[serde(rename = "fallback")]
-    Fallback,
 }

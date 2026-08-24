@@ -47,7 +47,7 @@ pub enum ContentBlockParam {
     MidConversationSystem(MidConversationSystemBlock),
     ToolAddition(ToolAdditionBlock),
     ToolRemoval(ToolRemovalBlock),
-    Fallback(FallbackBlock),
+    Fallback(FallbackBlockParam),
     Raw(serde_json::Value),
 }
 
@@ -98,7 +98,7 @@ pub enum ResponseContentBlock {
     McpToolResult(ResponseMcpToolResultBlock),
     ContainerUpload(ResponseContainerUploadBlock),
     Compaction(ResponseCompactionBlock),
-    Fallback(FallbackBlock),
+    Fallback(ResponseFallbackBlock),
     Raw(serde_json::Value),
 }
 

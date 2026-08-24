@@ -97,6 +97,42 @@ fn messages_and_stream_unions_roundtrip_unknown_fields() {
     assert!(serde_json::from_value::<ContextTrigger>(json!("input_tokens")).is_err());
     assert!(serde_json::from_value::<ThinkingKeep>(json!(7)).is_err());
 
+    let fallback = json!({
+        "type":"fallback",
+        "from":{"model":"claude-sonnet-5"},
+        "to":{"model":"claude-opus-5"}
+    });
+    let fallback_without_trigger = roundtrip::<ContentBlockParam>(fallback.clone());
+    assert!(matches!(
+        fallback_without_trigger,
+        ContentBlockParam::Fallback(FallbackBlockParam { trigger: None, .. })
+    ));
+    let mut null_trigger = fallback.clone();
+    null_trigger["trigger"] = Value::Null;
+    let fallback_with_null = roundtrip::<ContentBlockParam>(null_trigger);
+    assert!(matches!(
+        fallback_with_null,
+        ContentBlockParam::Fallback(FallbackBlockParam {
+            trigger: Some(Value::Null),
+            ..
+        })
+    ));
+    let mut nested_trigger = fallback.clone();
+    nested_trigger["trigger"] = json!({"future_reason":{"nested":true}});
+    roundtrip::<ContentBlockParam>(nested_trigger);
+    let mut response = fallback.clone();
+    response["trigger"] = json!({"type":"refusal","category":"cyber","future_trigger":true});
+    response["future_fallback"] = json!("kept");
+    let response_fallback = roundtrip::<ResponseContentBlock>(response);
+    assert!(matches!(
+        response_fallback,
+        ResponseContentBlock::Fallback(ResponseFallbackBlock { .. })
+    ));
+    assert!(serde_json::from_value::<ResponseFallbackBlock>(fallback.clone()).is_err());
+    let mut untyped_trigger = fallback;
+    untyped_trigger["trigger"] = json!({"future_reason":true});
+    assert!(serde_json::from_value::<ResponseFallbackBlock>(untyped_trigger).is_err());
+
     let result = ResponseWebSearchResultBlock {
         encrypted_content: "opaque".into(),
         page_age: None,
