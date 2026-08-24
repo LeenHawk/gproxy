@@ -82,6 +82,20 @@ pub enum WireFamily {
     Gemini,
 }
 
+impl WireFamily {
+    /// Request headers that identify a client as speaking this family.
+    /// Several families share ingress paths (`/v1/files` is both OpenAI and
+    /// Claude), so classification disambiguates by the dialect the caller
+    /// authenticates with. Exhaustive: a new family declares its markers
+    /// here rather than growing a private table inside the engine.
+    pub const fn client_markers(self) -> &'static [&'static str] {
+        match self {
+            Self::Claude => &["x-api-key", "anthropic-version", "anthropic-beta"],
+            Self::OpenAi | Self::Gemini => &[],
+        }
+    }
+}
+
 /// The distinct content-generation wire shapes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

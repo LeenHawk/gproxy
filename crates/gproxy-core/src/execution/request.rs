@@ -33,7 +33,8 @@ impl Classified {
 }
 
 pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
-    let preferred = ["x-api-key", "anthropic-version", "anthropic-beta"]
+    let preferred = WireFamily::Claude
+        .client_markers()
         .iter()
         .any(|name| ctx.headers.contains_key(*name))
         .then_some(WireFamily::Claude);
