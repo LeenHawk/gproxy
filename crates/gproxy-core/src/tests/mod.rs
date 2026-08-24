@@ -177,6 +177,11 @@ fn media_stream_detection_covers_json_values_and_multipart_flags() {
             .kind,
         gproxy_protocol::OperationKind::Family(gproxy_protocol::WireFamily::Claude)
     );
+    models.upgrade = true;
+    assert!(matches!(
+        crate::execution::request::classify(&models),
+        Err(CoreError::Unsupported)
+    ));
 
     let mut gemini = request(false, "gemini-framing");
     gemini.path = "/v1beta/models/gemini-test:streamGenerateContent".into();

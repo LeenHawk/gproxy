@@ -117,7 +117,9 @@ pub enum WsFrame {
 }
 
 /// A connected websocket, either direction. `recv` returning `None`
-/// means the peer closed cleanly.
+/// means the peer closed cleanly. `recv` must be cancellation-safe: dropping
+/// its future must not consume an in-flight or resolved frame, and the next
+/// call must still observe that frame.
 pub trait WsDuplex: MaybeSend {
     fn send<'a>(&'a mut self, frame: WsFrame) -> crate::BoxFuture<'a, Result<(), TransportError>>;
     fn recv<'a>(&'a mut self) -> crate::BoxFuture<'a, Result<Option<WsFrame>, TransportError>>;

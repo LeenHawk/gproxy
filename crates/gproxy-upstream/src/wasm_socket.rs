@@ -10,7 +10,7 @@ class GproxySocket {
   constructor(socket) {
     this.socket = socket;
     this.queue = [];
-    this.waiter = null;
+    this.pending = null;
     this.closed = false;
     this.sequence = Promise.resolve();
     if ("binaryType" in socket) socket.binaryType = "arraybuffer";
@@ -44,19 +44,32 @@ class GproxySocket {
   }
 
   push(frame) {
-    if (this.waiter !== null) {
-      const waiter = this.waiter;
-      this.waiter = null;
-      waiter(frame);
+    if (this.pending !== null && this.pending.resolve !== null) {
+      const resolve = this.pending.resolve;
+      this.pending.resolve = null;
+      resolve(frame);
     } else {
       this.queue.push(frame);
     }
   }
 
   recv() {
-    if (this.queue.length > 0) return Promise.resolve(this.queue.shift());
-    if (this.closed) return Promise.resolve(null);
-    return new Promise((resolve) => { this.waiter = resolve; });
+    if (this.pending !== null) return this.pending.promise;
+    let resolve = null;
+    let promise;
+    if (this.queue.length > 0) {
+      promise = Promise.resolve(this.queue.shift());
+    } else if (this.closed) {
+      promise = Promise.resolve(null);
+    } else {
+      promise = new Promise((callback) => { resolve = callback; });
+    }
+    this.pending = { promise, resolve };
+    return promise;
+  }
+
+  ack() {
+    this.pending = null;
   }
 
   send(kind, value) {
@@ -89,6 +102,10 @@ export function gproxySocketSend(socket, kind, value) {
 export function gproxySocketRecv(socket) {
   return socket.recv();
 }
+
+export function gproxySocketAck(socket) {
+  socket.ack();
+}
 "#)]
 extern "C" {
     #[wasm_bindgen(catch, js_name = gproxyOpenSocket)]
@@ -99,10 +116,14 @@ extern "C" {
 
     #[wasm_bindgen(js_name = gproxySocketRecv)]
     fn socket_recv(socket: &JsValue) -> Promise;
+
+    #[wasm_bindgen(js_name = gproxySocketAck)]
+    fn socket_ack(socket: &JsValue);
 }
 
 pub(crate) struct WasmSocket {
     handle: JsValue,
+    pending_recv: Option<Promise>,
 }
 
 impl WasmSocket {
@@ -125,7 +146,10 @@ impl WasmSocket {
         let handle = open_socket(url, entries)
             .await
             .map_err(|_| TransportError::Connect("websocket connection failed".into()))?;
-        Ok(Box::new(Self { handle }))
+        Ok(Box::new(Self {
+            handle,
+            pending_recv: None,
+        }))
     }
 }
 
@@ -149,8 +173,14 @@ impl WsDuplex for WasmSocket {
 
     fn recv<'a>(&'a mut self) -> BoxFuture<'a, Result<Option<WsFrame>, TransportError>> {
         Box::pin(async move {
-            let value = JsFuture::from(socket_recv(&self.handle))
-                .await
+            let promise = self
+                .pending_recv
+                .get_or_insert_with(|| socket_recv(&self.handle))
+                .clone();
+            let value = JsFuture::from(promise).await;
+            self.pending_recv = None;
+            socket_ack(&self.handle);
+            let value = value
                 .map_err(|_| TransportError::Interrupted("websocket receive failed".into()))?;
             if value.is_null() || value.is_undefined() {
                 return Ok(None);

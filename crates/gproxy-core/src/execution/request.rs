@@ -39,7 +39,7 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
         .then_some(WireFamily::Claude);
     let matched =
         match_ingress_for(&ctx.method, &ctx.path, preferred).ok_or(CoreError::Unsupported)?;
-    if matched.upgrade {
+    if matched.upgrade || ctx.upgrade {
         return Err(CoreError::Unsupported);
     }
     let body = serde_json::from_slice::<serde_json::Value>(&ctx.body).ok();
