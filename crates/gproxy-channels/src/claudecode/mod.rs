@@ -133,6 +133,7 @@ impl Channel for ClaudeCodeChannel {
     fn refresh<'a>(
         &'a self,
         secret: &'a Value,
+        _provider_settings: &'a Value,
         http: &'a dyn SimpleHttp,
     ) -> Option<BoxFuture<'a, Result<Value, gproxy_channel_api::ChannelError>>> {
         Some(auth::refresh(secret, http))

@@ -26,7 +26,7 @@ impl CredentialStore for AppHost {
                 .map_err(|_| encryption_error())?;
             Ok(CredentialRecord {
                 id,
-                channel: stored.channel,
+                channel: gproxy_channels::canonical_channel_id(&stored.channel).into(),
                 secret,
                 version: stored.version,
             })

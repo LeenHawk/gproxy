@@ -11,6 +11,7 @@ mod custom;
 mod dashscope;
 mod deepseek;
 mod groq;
+mod kimi;
 mod nvidia;
 mod openai;
 mod openrouter;
@@ -31,6 +32,7 @@ pub use custom::CustomChannel;
 pub use dashscope::DashScopeChannel;
 pub use deepseek::DeepSeekChannel;
 pub use groq::GroqChannel;
+pub use kimi::KimiChannel;
 pub use nvidia::NvidiaChannel;
 pub use openai::OpenAiChannel;
 pub use openrouter::OpenRouterChannel;
@@ -38,3 +40,11 @@ pub use vercel::VercelChannel;
 pub use vertex::VertexChannel;
 pub use vertexexpress::VertexExpressChannel;
 pub use xai::XaiChannel;
+
+/// Canonicalize channel ids at the legacy configuration import boundary.
+pub fn canonical_channel_id(id: &str) -> &str {
+    match id {
+        "kimiapi" | "kimicode" => "kimi",
+        _ => id,
+    }
+}

@@ -78,7 +78,13 @@ pub(crate) fn native_support<H: Host>(
     target: &Target,
     key: OperationKey,
 ) -> Result<Option<ChannelSupport>, CoreError> {
-    Ok(support(core, target, key)?.filter(|support| support.source == support.target))
+    let channel = channel(core, &target.provider.channel)?;
+    Ok(channel
+        .descriptor()
+        .supports
+        .iter()
+        .find(|support| support.source == key && support.target == key)
+        .copied())
 }
 
 pub(crate) async fn prepare<H: Host>(
@@ -91,13 +97,21 @@ pub(crate) async fn prepare<H: Host>(
     started: Instant,
 ) -> Result<Prepared, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    let support = support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
+    support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
+    let credential = crate::execution::credential::load_fresh(
+        core.host.as_ref(),
+        channel,
+        target.credential,
+        &target.provider.settings,
+    )
+    .await?;
+    let support = channel
+        .select_support(classified.key, &credential.secret)
+        .filter(|selected| channel.descriptor().supports.contains(selected))
+        .ok_or(CoreError::Unsupported)?;
     if !admission.admitted && support.source != support.target {
         return Err(CoreError::Unsupported);
     }
-    let credential =
-        crate::execution::credential::load_fresh(core.host.as_ref(), channel, target.credential)
-            .await?;
     let stream = classified.stream
         || support.target.operation == gproxy_protocol::Operation::StreamGenerateContent;
     let mut method = ctx.method.clone();

@@ -177,6 +177,7 @@ impl Channel for MemoryHost {
     fn refresh<'a>(
         &'a self,
         _: &'a serde_json::Value,
+        _: &'a serde_json::Value,
         http: &'a dyn SimpleHttp,
     ) -> Option<BoxFuture<'a, Result<serde_json::Value, ChannelError>>> {
         let request = http::Request::post("https://auth.test/refresh")

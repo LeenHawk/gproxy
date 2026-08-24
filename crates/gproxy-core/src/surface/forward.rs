@@ -87,9 +87,13 @@ pub(crate) async fn request<H: Host>(
     {
         return Err(CoreError::Unsupported);
     }
-    let credential =
-        crate::execution::credential::load_fresh(core.host.as_ref(), channel, target.credential)
-            .await?;
+    let credential = crate::execution::credential::load_fresh(
+        core.host.as_ref(),
+        channel,
+        target.credential,
+        &target.provider.settings,
+    )
+    .await?;
     let mut prepared = channel.prepare_surface(
         &request,
         websocket,

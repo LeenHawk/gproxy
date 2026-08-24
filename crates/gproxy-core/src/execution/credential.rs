@@ -14,6 +14,7 @@ pub(crate) async fn load_fresh<H: Host>(
     host: &H,
     channel: &dyn Channel,
     id: CredentialId,
+    provider_settings: &serde_json::Value,
 ) -> Result<CredentialRecord, CoreError> {
     let channel_id = channel.descriptor().id;
     let record = load_checked(host, id, channel_id).await?;
@@ -40,7 +41,7 @@ pub(crate) async fn load_fresh<H: Host>(
     }
     let http = BufferedHttp(host.transport());
     let replacement = channel
-        .refresh(&current.secret, &http)
+        .refresh(&current.secret, provider_settings, &http)
         .ok_or_else(|| ChannelError::Refresh("channel did not provide a refresh operation".into()))?
         .await?;
 

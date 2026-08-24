@@ -23,7 +23,7 @@ impl CompiledSnapshot {
                     ProviderRef {
                         id: provider.id,
                         name: provider.name.clone(),
-                        channel: provider.channel.clone(),
+                        channel: gproxy_channels::canonical_channel_id(&provider.channel).into(),
                         settings: provider.settings.clone(),
                     },
                 )

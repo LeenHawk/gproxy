@@ -173,6 +173,18 @@ pub trait SimpleHttp {
 pub trait Channel: Send + Sync {
     fn descriptor(&self) -> &'static ChannelDescriptor;
 
+    /// Select one declared route after the credential secret is available.
+    /// Most channels have one target per source; merged credential families
+    /// may choose among duplicate source rows by secret shape.
+    fn select_support(&self, source: OperationKey, secret: &Value) -> Option<ChannelSupport> {
+        let _ = secret;
+        self.descriptor()
+            .supports
+            .iter()
+            .find(|support| support.source == source)
+            .copied()
+    }
+
     /// Build the upstream request: URL, auth injection, header allow-list,
     /// body shaping. Must not perform I/O.
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError>;
@@ -225,9 +237,10 @@ pub trait Channel: Send + Sync {
     fn refresh<'a>(
         &'a self,
         secret: &'a Value,
+        provider_settings: &'a Value,
         http: &'a dyn SimpleHttp,
     ) -> Option<BoxFuture<'a, Result<Value, ChannelError>>> {
-        let _ = (secret, http);
+        let _ = (secret, provider_settings, http);
         None
     }
 

@@ -315,7 +315,10 @@ fn refresh_uses_profile_and_preserves_rotating_secret_fields() {
         "account_uuid":"account",
         "scopes":["user:inference", "user:projects:read"]
     });
-    let future = ClaudeCodeChannel.refresh(&secret, &http).unwrap();
+    let settings = json!({});
+    let future = ClaudeCodeChannel
+        .refresh(&secret, &settings, &http)
+        .unwrap();
     let refreshed = ready(future).unwrap();
     assert_eq!(refreshed["access_token"], "fresh");
     assert_eq!(refreshed["refresh_token"], "rotated");

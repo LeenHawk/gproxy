@@ -34,6 +34,7 @@ pub(crate) async fn run<H: Host>(
 
     let mut attempts = 0;
     let mut supported = false;
+    let mut selected = false;
     let mut dead = BTreeSet::new();
     let mut last_reason = None;
     let mut pre_send_error = None;
@@ -89,8 +90,10 @@ pub(crate) async fn run<H: Host>(
                     pre_send_error = Some(error);
                     continue;
                 }
+                Err(CoreError::Unsupported) => continue,
                 Err(error) => return Err(error),
             };
+        selected = true;
         attempts += 1;
         match attempt::send(core, prepared).await {
             Ok(completed) if completed.disposition.should_failover() => {
@@ -136,6 +139,8 @@ pub(crate) async fn run<H: Host>(
         Err(CoreError::Transform(
             "passthrough is unavailable for every plan target".into(),
         ))
+    } else if !selected && pre_send_error.is_none() {
+        Err(CoreError::Unsupported)
     } else if attempts == 0 {
         Err(pre_send_error.unwrap_or(CoreError::NoCredentials))
     } else {
