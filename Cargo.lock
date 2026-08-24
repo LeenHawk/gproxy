@@ -934,10 +934,15 @@ dependencies = [
  "gproxy-app",
  "gproxy-channel-api",
  "gproxy-core",
+ "gproxy-store",
  "http",
+ "rust_decimal",
+ "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
+ "wreq",
 ]
 
 [[package]]

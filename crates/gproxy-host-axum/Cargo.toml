@@ -20,3 +20,10 @@ http.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+gproxy-store.workspace = true
+rust_decimal.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+wreq.workspace = true
