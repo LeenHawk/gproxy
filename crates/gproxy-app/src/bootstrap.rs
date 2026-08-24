@@ -57,6 +57,7 @@ fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::Duplicate
         Box::new(gproxy_channels::DashScopeChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::DeepSeekChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::GroqChannel) as Box<dyn Channel>,
+        Box::new(gproxy_channels::GrokBuildChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::KiroChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::KimiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::NvidiaChannel) as Box<dyn Channel>,

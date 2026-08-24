@@ -14,6 +14,10 @@ pub(super) fn request(
         ));
     }
     let mut object = crate::shared::image_multipart::object(ctx.headers, ctx.body)?;
+    crate::shared::image_multipart::json_fields(
+        &mut object,
+        &["n", "output_compression", "partial_images", "stream"],
+    );
     if !ctx.upstream_model.is_empty() {
         object.insert("model".into(), Value::String(ctx.upstream_model.into()));
     }

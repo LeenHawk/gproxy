@@ -87,7 +87,7 @@ fn append(output: &mut Map<String, Value>, headers: &str, data: &[u8]) -> Result
     } else {
         let text = std::str::from_utf8(data)
             .map_err(|_| ChannelError::Prepare("multipart field is not UTF-8".into()))?;
-        serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.into()))
+        Value::String(text.into())
     };
     let name = name.strip_suffix("[]").unwrap_or(name);
     if name == "image" || name == "images" {
@@ -98,6 +98,19 @@ fn append(output: &mut Map<String, Value>, headers: &str, data: &[u8]) -> Result
         output.insert(name.into(), value);
     }
     Ok(())
+}
+
+pub(crate) fn json_fields(output: &mut Map<String, Value>, names: &[&str]) {
+    for name in names {
+        let Some(Value::String(text)) = output.get_mut(*name) else {
+            continue;
+        };
+        if let Ok(value) = serde_json::from_str::<Value>(text)
+            && !value.is_string()
+        {
+            *output.get_mut(*name).expect("field remains present") = value;
+        }
+    }
 }
 
 fn push(output: &mut Map<String, Value>, name: &str, value: Value) {

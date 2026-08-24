@@ -4,7 +4,7 @@ use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr as _;
 
-pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
+pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     let operation = ctx.key.operation;
     let response = ctx.response_body;
     let base = crate::shared::openai::usage_from_body(ctx);
