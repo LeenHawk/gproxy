@@ -28,19 +28,24 @@ use crate::{Core, InitError};
 
 #[test]
 fn invoke_refreshes_with_version_guard_and_finishes_the_funnel() -> Result<(), InitError> {
-    for (conflict, expected_token) in [(false, "Bearer fresh"), (true, "Bearer peer")] {
+    for (conflict, lease_loser, expected_token, rotations) in [
+        (false, false, "Bearer fresh", &[4][..]),
+        (true, false, "Bearer peer", &[4][..]),
+        (false, true, "Bearer peer", &[][..]),
+    ] {
         let host = MemoryHost::new(conflict);
+        host.state.lock().expect("state lock").peer_refresh_on_wait = lease_loser;
         let core = core(&host)?;
-        let outcome =
-            block_on(core.invoke(&host, &target(), request(false, &conflict.to_string())))
-                .expect("invoke");
+        let id = format!("{conflict}-{lease_loser}");
+        let outcome = block_on(core.invoke(&host, &target(), request(false, &id))).expect("invoke");
         assert_eq!(outcome.status, StatusCode::OK);
         assert_eq!(outcome.disposition, Disposition::Success);
         assert!(matches!(outcome.body, ResponseBody::Full(_)));
 
         let state = host.state.lock().expect("state lock");
         assert_eq!(state.lease_calls, 1);
-        assert_eq!(state.rotations, [4]);
+        assert_eq!(state.wait_calls, usize::from(lease_loser));
+        assert_eq!(state.rotations, rotations);
         assert_eq!(state.credential.version, 5);
         assert_eq!(state.authorizations, [expected_token]);
         assert_eq!(state.settlements.len(), 1);

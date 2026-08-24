@@ -55,8 +55,10 @@ impl CredentialStore for MemoryHost {
         _: CredentialId,
         _: Duration,
     ) -> BoxFuture<'a, Result<bool, StoreError>> {
-        self.state.lock().expect("state lock").lease_calls += 1;
-        Box::pin(async { Ok(true) })
+        let mut state = self.state.lock().expect("state lock");
+        state.lease_calls += 1;
+        let acquired = !state.peer_refresh_on_wait;
+        Box::pin(async move { Ok(acquired) })
     }
 }
 

@@ -22,7 +22,9 @@ pub(super) struct MemoryHost {
 pub(super) struct State {
     pub(super) credential: CredentialRecord,
     pub(super) conflict: bool,
+    pub(super) peer_refresh_on_wait: bool,
     pub(super) lease_calls: usize,
+    pub(super) wait_calls: usize,
     pub(super) rotations: Vec<u64>,
     pub(super) authorizations: Vec<String>,
     pub(super) loaded_credentials: Vec<CredentialId>,
@@ -63,7 +65,9 @@ impl MemoryHost {
                     version: 4,
                 },
                 conflict,
+                peer_refresh_on_wait: false,
                 lease_calls: 0,
+                wait_calls: 0,
                 rotations: Vec::new(),
                 authorizations: Vec::new(),
                 loaded_credentials: Vec::new(),
@@ -154,6 +158,16 @@ impl Host for MemoryHost {
         Box::pin(async {})
     }
     fn wait<'a>(&'a self, _: std::time::Duration) -> BoxFuture<'a, ()> {
+        let mut state = self.state.lock().expect("state lock");
+        state.wait_calls += 1;
+        if state.peer_refresh_on_wait {
+            state.peer_refresh_on_wait = false;
+            state.credential.secret = json!({
+                "access_token": "peer",
+                "expires_at": i64::MAX
+            });
+            state.credential.version += 1;
+        }
         Box::pin(async {})
     }
     fn surface_usage<'a>(

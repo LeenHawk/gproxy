@@ -68,6 +68,7 @@ pub(crate) fn compare_and_swap_credential(
             ),
         ])
         .and_where(Expr::col(Alias::new("id")).eq(id))
+        .and_where(Expr::col(Alias::new("enabled")).eq(true))
         .and_where(Expr::col(Alias::new("version")).eq(unsigned(version, "credential version")?));
     Statement::query(&query)
 }

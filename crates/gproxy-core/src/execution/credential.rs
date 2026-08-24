@@ -8,6 +8,7 @@ use crate::error::CoreError;
 use crate::host::{CredentialId, CredentialRecord, CredentialStore, Host, UpstreamTransport};
 
 const REFRESH_LEASE_TTL: Duration = Duration::from_secs(60);
+const REFRESH_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 pub(crate) async fn load_fresh<H: Host>(
     host: &H,
@@ -21,12 +22,16 @@ pub(crate) async fn load_fresh<H: Host>(
         return Ok(record);
     }
 
-    if !host
+    let mut observed_version = record.version;
+    while !host
         .credentials()
         .lease_refresh(id, REFRESH_LEASE_TTL)
         .await?
     {
-        return load_checked(host, id, channel_id).await;
+        if let Some(peer) = wait_for_peer(host, channel, id, channel_id, observed_version).await? {
+            return Ok(peer);
+        }
+        observed_version = load_checked(host, id, channel_id).await?.version;
     }
 
     let current = load_checked(host, id, channel_id).await?;
@@ -54,6 +59,24 @@ pub(crate) async fn load_fresh<H: Host>(
             }
         }
     }
+}
+
+async fn wait_for_peer<H: Host>(
+    host: &H,
+    channel: &dyn Channel,
+    id: CredentialId,
+    channel_id: &str,
+    observed_version: u64,
+) -> Result<Option<CredentialRecord>, CoreError> {
+    let polls = REFRESH_LEASE_TTL.as_secs() / REFRESH_POLL_INTERVAL.as_secs();
+    for _ in 0..polls {
+        host.wait(REFRESH_POLL_INTERVAL).await;
+        let peer = load_checked(host, id, channel_id).await?;
+        if peer.version != observed_version && !refresh_due(channel, &peer, unix_now()?) {
+            return Ok(Some(peer));
+        }
+    }
+    Ok(None)
 }
 
 async fn load_checked<H: Host>(
