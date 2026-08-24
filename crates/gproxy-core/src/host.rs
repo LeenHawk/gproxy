@@ -85,6 +85,16 @@ pub trait CacheBackend {
         by: i64,
         ttl: Option<Duration>,
     ) -> BoxFuture<'a, Result<i64, StoreError>>;
+    /// Atomically adjust one counter and replace one state value. Either both
+    /// writes commit or neither does; quota reconciliation relies on this.
+    fn compare_incr_and_set<'a>(
+        &'a self,
+        counter_key: &'a str,
+        by: i64,
+        state_key: &'a str,
+        expected_state: Vec<u8>,
+        state: Vec<u8>,
+    ) -> BoxFuture<'a, Result<Option<i64>, StoreError>>;
 }
 
 /// Settlement output. `gproxy-app` writes usage rows; an embedder may
@@ -190,11 +200,12 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
     /// Runtime timer used by bounded service-surface polling. Hosts implement
     /// this with their native timer; the core never selects an executor.
     fn wait<'a>(&'a self, duration: Duration) -> BoxFuture<'a, ()>;
-    /// Build the caller/provider-scoped usage view lent to a synthesizer.
+    /// Build the caller/provider/selected-credential usage view lent to a synthesizer.
     fn surface_usage<'a>(
         &'a self,
         identity: &'a CallerIdentity,
         provider: &'a ProviderRef,
+        credential: CredentialId,
     ) -> Box<dyn UsageView + 'a>;
     /// `None` → settle inline at EOF/WS close and keep pumping after client
     /// disconnect; `Some` → detach settlement.

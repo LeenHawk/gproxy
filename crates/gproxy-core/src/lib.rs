@@ -34,7 +34,7 @@ pub(crate) type Shared<T> = std::rc::Rc<T>;
 
 pub use gproxy_channel_api as channel_api;
 pub use gproxy_channel_api::{
-    BindingStore, BoxFuture, CallerIdentity, UsageView, WsDuplex, WsFrame,
+    BindingStore, BoxFuture, CallerIdentity, QuotaWindow, UsageView, WsDuplex, WsFrame,
 };
 pub use gproxy_channels as channels;
 pub use gproxy_protocol as protocol;

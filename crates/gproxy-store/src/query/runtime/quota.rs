@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use sea_query::{Alias, Expr, ExprTrait, OnConflict, Query};
+use sea_query::{Alias, Expr, ExprTrait, Func, OnConflict, Query};
 
 use crate::StoreError;
 use crate::backend::Statement;
@@ -45,6 +45,45 @@ pub(crate) fn update_quota_window_cost(
         .value(Alias::new("cost_used"), value(decimal(cost_used)))
         .and_where(Expr::col(Alias::new("id")).eq(id))
         .and_where(Expr::col(Alias::new("cost_used")).eq(decimal(expected_cost)));
+    Statement::query(&query)
+}
+
+pub(crate) fn insert_quota_settlement(
+    request_id: &str,
+    window_id: i64,
+    cost: Decimal,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::insert();
+    query.into_table(Alias::new("quota_settlements")).columns([
+        Alias::new("request_id"),
+        Alias::new("window_id"),
+        Alias::new("cost"),
+    ]);
+    let mut values = Query::select();
+    values
+        .exprs([
+            value(request_id.to_owned()),
+            value(window_id),
+            value(decimal(cost)),
+        ])
+        .and_where(Expr::from(Func::cust(Alias::new("changes"))).eq(1));
+    query
+        .select_from(values)
+        .map_err(|error| StoreError::Database(error.to_string()))?;
+    Statement::query(&query)
+}
+
+pub(crate) fn read_quota_settlement(
+    request_id: &str,
+    window_id: i64,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .column(Alias::new("id"))
+        .from(Alias::new("quota_settlements"))
+        .and_where(Expr::col(Alias::new("request_id")).eq(request_id))
+        .and_where(Expr::col(Alias::new("window_id")).eq(window_id))
+        .limit(1);
     Statement::query(&query)
 }
 

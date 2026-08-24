@@ -49,25 +49,25 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
     host.admit(&identity, &second, Some(operation), &plan)
         .await
         .expect("second admission");
-    host.finish_admission(
-        &second.request_id,
-        Some(&gproxy_core::Settlement {
-            request_id: second.request_id.clone(),
-            provider_id: provider,
-            credential_id: gproxy_core::CredentialId(credential),
-            upstream_model: "upstream-model".into(),
-            usage: gproxy_core::NormalizedUsage {
-                input_tokens: 10,
-                output_tokens: 5,
-                ..Default::default()
-            },
-            cost: Decimal::new(2, 1),
-            source: gproxy_core::UsageSource::Upstream,
-            ended: gproxy_core::Ended::Complete,
-            latency_ms: 1,
-        }),
-    )
-    .await;
+    let settlement = gproxy_core::Settlement {
+        request_id: second.request_id.clone(),
+        provider_id: provider,
+        credential_id: gproxy_core::CredentialId(credential),
+        upstream_model: "upstream-model".into(),
+        usage: gproxy_core::NormalizedUsage {
+            input_tokens: 10,
+            output_tokens: 5,
+            ..Default::default()
+        },
+        cost: Decimal::new(2, 1),
+        source: gproxy_core::UsageSource::Upstream,
+        ended: gproxy_core::Ended::Complete,
+        latency_ms: 1,
+    };
+    tokio::join!(
+        host.finish_admission(&second.request_id, Some(&settlement)),
+        host.finish_admission(&second.request_id, Some(&settlement)),
+    );
     assert!(!app.admission_pending(&second.request_id).await.unwrap());
 
     let windows: Vec<_> = app

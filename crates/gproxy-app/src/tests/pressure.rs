@@ -1,4 +1,4 @@
-use gproxy_core::ControlPlane;
+use gproxy_core::{ControlPlane, Host};
 use gproxy_store::records::{
     CredentialQuotaObservation, QuotaBoundaryConfidence, QuotaBoundarySource,
 };
@@ -14,6 +14,7 @@ async fn near_limit_credential_is_deprioritized() {
         provider,
         credential,
         route,
+        client_key,
         ..
     } = setup::fixture().await;
     let second = setup::id(
@@ -61,6 +62,36 @@ async fn near_limit_credential_is_deprioritized() {
     assert_eq!(cycle.metrics["requests"], json!("0"));
 
     assert_eq!(resolve_credentials(&app), vec![second, credential]);
+
+    let request = super::request("cycle-view", "hi", &client_key);
+    let identity = app
+        .inner
+        .host
+        .authenticate(&request)
+        .await
+        .expect("identity");
+    let plan = app
+        .inner
+        .host
+        .services
+        .control
+        .resolve(Some("public-model"), &gproxy_core::RoutingMode::Aggregated)
+        .expect("plan");
+    let windows = app
+        .inner
+        .host
+        .surface_usage(
+            &identity,
+            &plan.targets[0].provider,
+            gproxy_core::CredentialId(credential),
+        )
+        .quota_windows()
+        .await
+        .expect("credential quota view");
+    assert_eq!(windows.len(), 1);
+    assert_eq!(windows[0].key, "five-hour");
+    assert_eq!(windows[0].used_percent, Some(Decimal::from(95)));
+    assert_eq!(windows[0].reset_at, Some(now + 18_000));
 }
 
 fn resolve_credentials(app: &crate::AppHandle) -> Vec<i64> {

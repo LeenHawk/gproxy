@@ -19,12 +19,8 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
         .await?;
     assert_eq!(first.status, QuotaCycleStatus::Open);
     assert_eq!(first.coverage, QuotaCoverage::PartialLowerBound);
-    assert!(
-        serde_json::to_value(&first)
-            .expect("serialize cycle")
-            .get("used_percent")
-            .is_none()
-    );
+    let serialized = serde_json::to_value(&first).expect("serialize cycle");
+    assert!(serialized.get("used_percent").is_none());
 
     let updated = store
         .observe_credential_quota_cycle(&observation(credential_id, "primary", 0, 100, 20, 25))
@@ -79,30 +75,31 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
         closed.close_reason,
         Some(QuotaCycleCloseReason::ManualReset)
     );
-    assert!(
-        store
-            .open_credential_quota_cycles(credential_id, 120)
-            .await?
-            .iter()
-            .all(|cycle| cycle.window_key != "primary")
-    );
-
+    let mut stale_observation = observation(credential_id, "primary", 0, 120, 121, 99);
+    stale_observation.period_start = None;
+    stale_observation.boundary_source = QuotaBoundarySource::Inferred;
     let stale = store
-        .observe_credential_quota_cycle(&observation(credential_id, "primary", 0, 200, 120, 99))
+        .observe_credential_quota_cycle(&stale_observation)
         .await?;
     assert_eq!(stale.id, closed.id);
     assert_eq!(stale.status, QuotaCycleStatus::Closed);
 
     let reopened = store
-        .observe_credential_quota_cycle(&observation(credential_id, "primary", 120, 220, 121, 1))
+        .observe_credential_quota_cycle(&observation(credential_id, "primary", 120, 220, 121, 95))
         .await?;
     assert_ne!(reopened.id, crossed.id);
     assert_eq!(reopened.coverage, QuotaCoverage::PartialLowerBound);
+    let mut same_observation = observation(credential_id, "primary", 120, 300, 121, 2);
+    same_observation.boundary_source = QuotaBoundarySource::Inferred;
+    same_observation.boundary_confidence = QuotaBoundaryConfidence::Derived;
     let same_second = store
-        .observe_credential_quota_cycle(&observation(credential_id, "primary", 120, 220, 121, 2))
+        .observe_credential_quota_cycle(&same_observation)
         .await?;
     assert_eq!(same_second.id, reopened.id);
     assert!(same_second.version > reopened.version);
+    assert_eq!(same_second.upstream_used, Some(Decimal::from(95)));
+    assert_eq!(same_second.period_end, Some(220));
+    assert_eq!(same_second.boundary_source, QuotaBoundarySource::Upstream);
 
     let local = store
         .observe_credential_quota_cycle(&observation(
@@ -121,19 +118,21 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     assert_eq!(local.metrics["audio_seconds"], json!("1"));
 
     let trusted = store
-        .observe_credential_quota_cycle(&observation(credential_id, "trusted", 0, 100, 10, 1))
+        .observe_credential_quota_cycle(&observation(credential_id, "trusted", 0, 200, 10, 95))
         .await?;
-    let mut correction = observation(credential_id, "trusted", 95, 200, 110, 1);
+    let mut correction = observation(credential_id, "trusted", 95, 300, 110, 99);
     correction.boundary_source = QuotaBoundarySource::Inferred;
     correction.boundary_confidence = QuotaBoundaryConfidence::Derived;
-    store.observe_credential_quota_cycle(&correction).await?;
+    let held = store.observe_credential_quota_cycle(&correction).await?;
+    assert_eq!(held.id, trusted.id);
+    assert_eq!(held.period_end, Some(200));
+    assert_eq!(held.upstream_used, Some(Decimal::from(99)));
     let trusted_history = store
         .credential_quota_cycle_history(credential_id, "trusted")
         .await?;
-    assert_eq!(trusted_history[1].id, trusted.id);
-    assert_eq!(trusted_history[1].period_end, Some(100));
+    assert_eq!(trusted_history.len(), 1);
     assert_eq!(
-        trusted_history[1].boundary_source,
+        trusted_history[0].boundary_source,
         QuotaBoundarySource::Upstream
     );
 
@@ -144,6 +143,26 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
         .observe_credential_quota_cycle(&observation(credential_id, "full", 100, 200, 110, 1))
         .await?;
     assert_eq!(full.coverage, QuotaCoverage::FullPeriodLowerBound);
+    let gap = store
+        .observe_credential_quota_cycle(&observation(credential_id, "gap", 0, 100, 10, 1))
+        .await?;
+    store
+        .close_credential_quota_cycle(gap.id, QuotaCycleCloseReason::BoundaryCrossed, 100)
+        .await?;
+    let resumed = store
+        .observe_credential_quota_cycle(&observation(credential_id, "gap", 0, 200, 110, 1))
+        .await?;
+    assert_eq!(resumed.period_start, Some(100));
+    let skipped = store
+        .observe_credential_quota_cycle(&observation(credential_id, "skip", 0, 100, 10, 1))
+        .await?;
+    store
+        .close_credential_quota_cycle(skipped.id, QuotaCycleCloseReason::BoundaryCrossed, 100)
+        .await?;
+    let skipped = store
+        .observe_credential_quota_cycle(&observation(credential_id, "skip", 200, 300, 210, 1))
+        .await?;
+    assert_eq!(skipped.period_start, Some(200));
     let history = store
         .credential_quota_cycle_history(credential_id, "primary")
         .await?;

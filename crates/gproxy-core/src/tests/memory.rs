@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use gproxy_channel_api::{Binding, BindingStore, BoxFuture, CallerIdentity, UsageView};
+use gproxy_channel_api::{
+    Binding, BindingStore, BoxFuture, CallerIdentity, QuotaWindow, UsageView,
+};
 use gproxy_protocol::OperationKey;
 use http::StatusCode;
 use rust_decimal::Decimal;
@@ -45,6 +47,7 @@ pub(super) struct State {
     pub(super) socket_opens: usize,
     pub(super) socket_closed: bool,
     pub(super) omit_usage: bool,
+    pub(super) quota_windows: Vec<QuotaWindow>,
 }
 
 pub(super) struct Captured {
@@ -88,6 +91,7 @@ impl MemoryHost {
                 socket_opens: 0,
                 socket_closed: false,
                 omit_usage: false,
+                quota_windows: Vec::new(),
             })),
         }
     }
@@ -174,6 +178,7 @@ impl Host for MemoryHost {
         &'a self,
         _: &'a CallerIdentity,
         _: &'a ProviderRef,
+        _: CredentialId,
     ) -> Box<dyn UsageView + 'a> {
         Box::new(self.clone())
     }

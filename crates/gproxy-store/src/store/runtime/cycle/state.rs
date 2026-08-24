@@ -65,6 +65,56 @@ pub(super) fn stale_open(
             .is_some_and(|(old, new)| new < old && provenance(next) <= record_provenance(open))
 }
 
+pub(super) fn preserve_cycle_bounds(
+    open: &CredentialQuotaCycleRecord,
+    next: &mut CredentialQuotaObservation,
+) {
+    if next.period_start.is_none() {
+        next.period_start = open.period_start;
+    }
+    if next.period_end.is_none() && next.period_start == open.period_start {
+        next.period_end = open.period_end;
+    }
+    if (next.period_start, next.period_end) == (open.period_start, open.period_end)
+        && record_provenance(open) > provenance(next)
+    {
+        next.boundary_source = open.boundary_source;
+        next.boundary_confidence = open.boundary_confidence;
+    }
+}
+
+pub(super) fn retain_cycle_boundary(
+    open: &CredentialQuotaCycleRecord,
+    next: &mut CredentialQuotaObservation,
+) {
+    next.period_start = open.period_start;
+    next.period_end = open.period_end;
+    next.boundary_source = open.boundary_source;
+    next.boundary_confidence = open.boundary_confidence;
+}
+
+pub(super) fn merge_same_second(
+    open: &CredentialQuotaCycleRecord,
+    next: &mut CredentialQuotaObservation,
+) {
+    if next.observed_at != open.last_observed_at {
+        return;
+    }
+    let previous = reported_percent(open.used_percent, open.upstream_used, open.upstream_limit);
+    let incoming = reported_percent(next.used_percent, next.upstream_used, next.upstream_limit);
+    if previous > incoming {
+        next.used_percent = open.used_percent;
+        next.upstream_used = open.upstream_used;
+        next.upstream_limit = open.upstream_limit;
+    }
+    if record_provenance(open) > provenance(next) {
+        next.period_start = open.period_start;
+        next.period_end = open.period_end;
+        next.boundary_source = open.boundary_source;
+        next.boundary_confidence = open.boundary_confidence;
+    }
+}
+
 pub(super) fn stale_after_close(
     closed: &CredentialQuotaCycleRecord,
     next: &CredentialQuotaObservation,
@@ -75,9 +125,26 @@ pub(super) fn stale_after_close(
     next.period_start
         .zip(closed.period_end)
         .is_some_and(|(start, end)| start < end)
+        || (closed.period_end.is_some() && next.period_end == closed.period_end)
         || next.observed_at < barrier
         || (closed.close_reason == Some(QuotaCycleCloseReason::ManualReset)
             && next.observed_at == barrier)
+}
+
+pub(super) fn continue_after_natural_close(
+    closed: &CredentialQuotaCycleRecord,
+    next: &mut CredentialQuotaObservation,
+) {
+    let Some(boundary) = closed.period_end else {
+        return;
+    };
+    if closed.close_reason == Some(QuotaCycleCloseReason::BoundaryCrossed)
+        && next.observed_at >= boundary
+        && next.period_end != Some(boundary)
+        && next.period_start.is_none_or(|start| start < boundary)
+    {
+        next.period_start = Some(boundary);
+    }
 }
 
 pub(super) fn crossed_boundary(
@@ -128,4 +195,16 @@ fn invalid(field: &'static str, message: &'static str) -> StoreError {
         field,
         message: message.into(),
     }
+}
+
+fn reported_percent(
+    percent: Option<Decimal>,
+    used: Option<Decimal>,
+    limit: Option<Decimal>,
+) -> Option<Decimal> {
+    percent.or_else(|| {
+        let used = used?;
+        let limit = limit?;
+        (limit > Decimal::ZERO).then(|| used / limit * Decimal::ONE_HUNDRED)
+    })
 }

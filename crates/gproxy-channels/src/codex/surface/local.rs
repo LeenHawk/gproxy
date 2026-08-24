@@ -5,6 +5,7 @@ use http::StatusCode;
 use serde_json::{Value, json};
 
 use super::helpers::{canonical_path, json_reply, plan_type, stable_id, user_name};
+use super::usage::{profile, usage};
 
 pub(super) static HANDLER: Local = Local;
 
@@ -132,49 +133,4 @@ fn account(services: &SurfaceServices<'_>) -> Value {
         "account_ordering": [account_id],
         "default_account_id": account_id
     })
-}
-
-async fn profile(services: &SurfaceServices<'_>) -> Result<Value, ChannelError> {
-    let usage = services
-        .usage
-        .window(0)
-        .await
-        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    Ok(json!({
-        "stats": {
-            "lifetime_tokens": usage.input_tokens.saturating_add(usage.output_tokens),
-            "peak_daily_tokens": null,
-            "longest_running_turn_sec": null,
-            "current_streak_days": null,
-            "longest_streak_days": null,
-            "daily_usage_buckets": null
-        }
-    }))
-}
-
-async fn usage(services: &SurfaceServices<'_>) -> Result<Value, ChannelError> {
-    let local = services
-        .usage
-        .window(0)
-        .await
-        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    Ok(json!({
-        "plan_type": plan_type(services.provider.settings),
-        "rate_limit": {
-            "allowed": true,
-            "limit_reached": false,
-            "primary_window": null,
-            "secondary_window": null
-        },
-        "credits": null,
-        "spend_control": null,
-        "additional_rate_limits": null,
-        "rate_limit_reached_type": null,
-        "rate_limit_reset_credits": {"available_count":0},
-        "local_usage": {
-            "cost": local.cost,
-            "input_tokens": local.input_tokens,
-            "output_tokens": local.output_tokens
-        }
-    }))
 }

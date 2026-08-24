@@ -109,7 +109,12 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     let quota = store
         .ensure_quota_window(1, QuotaWindowKind::Daily, 3_601)
         .await?;
-    let quota = store.add_quota_cost(quota.id, Decimal::new(15, 4)).await?;
+    let quota = store
+        .add_quota_cost("quota-request", quota.id, Decimal::new(15, 4))
+        .await?;
+    let quota = store
+        .add_quota_cost("quota-request", quota.id, Decimal::new(15, 4))
+        .await?;
     let cycle = cycle::run(store, credential.id).await?;
     let binding = seed_binding(store, provider, credential.id).await?;
     seed_capture(store, provider, credential.id).await?;

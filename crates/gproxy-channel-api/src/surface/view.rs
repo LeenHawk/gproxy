@@ -21,9 +21,11 @@ pub struct ProviderView<'a> {
     pub settings: &'a Value,
 }
 
-/// Read-only local usage aggregates, scoped to (caller, provider).
+/// Read-only local aggregates plus the selected credential's observed quota windows.
 pub trait UsageView: MaybeSend + MaybeSync {
     fn window<'a>(&'a self, since_unix: i64) -> BoxFuture<'a, Result<UsageWindow, StateError>>;
+
+    fn quota_windows<'a>(&'a self) -> BoxFuture<'a, Result<Vec<QuotaWindow>, StateError>>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -31,4 +33,14 @@ pub struct UsageWindow {
     pub cost: Decimal,
     pub input_tokens: u64,
     pub output_tokens: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct QuotaWindow {
+    pub key: String,
+    pub period_start: Option<i64>,
+    pub reset_at: Option<i64>,
+    pub used_percent: Option<Decimal>,
+    pub upstream_used: Option<Decimal>,
+    pub upstream_limit: Option<Decimal>,
 }

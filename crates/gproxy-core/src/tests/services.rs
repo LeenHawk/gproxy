@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, StateError, TransportError, UsageView, UsageWindow, WsDuplex, WsFrame,
+    BoxFuture, QuotaWindow, StateError, TransportError, UsageView, UsageWindow, WsDuplex, WsFrame,
 };
 use serde_json::json;
 
@@ -121,6 +121,42 @@ impl CacheBackend for MemoryHost {
                 state.cache_ttls.insert(key.into(), ttl.as_secs());
             }
             Ok(next)
+        })();
+        Box::pin(async move { result })
+    }
+
+    fn compare_incr_and_set<'a>(
+        &'a self,
+        counter_key: &'a str,
+        by: i64,
+        state_key: &'a str,
+        expected_state: Vec<u8>,
+        state_value: Vec<u8>,
+    ) -> BoxFuture<'a, Result<Option<i64>, StoreError>> {
+        let result = (|| {
+            let mut state = self.state.lock().expect("state lock");
+            if state.cache.get(state_key) != Some(&expected_state) {
+                return Ok(None);
+            }
+            let current = match state.cache.get(counter_key) {
+                Some(value) => i64::from_be_bytes(
+                    value
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| StoreError("cache counter is not an i64".into()))?,
+                ),
+                None => 0,
+            };
+            let next = current
+                .checked_add(by)
+                .ok_or_else(|| StoreError("cache counter overflow".into()))?;
+            state
+                .cache
+                .insert(counter_key.into(), next.to_be_bytes().to_vec());
+            state.cache.insert(state_key.into(), state_value);
+            state.cache_ttls.remove(counter_key);
+            state.cache_ttls.remove(state_key);
+            Ok(Some(next))
         })();
         Box::pin(async move { result })
     }
@@ -272,5 +308,10 @@ impl CaptureSink for MemoryHost {
 impl UsageView for MemoryHost {
     fn window<'a>(&'a self, _: i64) -> BoxFuture<'a, Result<UsageWindow, StateError>> {
         Box::pin(async { Ok(UsageWindow::default()) })
+    }
+
+    fn quota_windows<'a>(&'a self) -> BoxFuture<'a, Result<Vec<QuotaWindow>, StateError>> {
+        let windows = self.state.lock().expect("state lock").quota_windows.clone();
+        Box::pin(async move { Ok(windows) })
     }
 }

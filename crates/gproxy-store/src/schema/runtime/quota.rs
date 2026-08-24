@@ -61,4 +61,19 @@ pub(super) const TABLES: &[TableSpec] = &[
             },
         ],
     },
+    TableSpec {
+        version: SchemaVersion::Runtime,
+        name: "quota_settlements",
+        columns: &[
+            Col::id(),
+            Col::required("request_id", Text),
+            Col::required("window_id", Integer),
+            Col::required("cost", Text),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_quota_settlements_request_window",
+            columns: &["request_id", "window_id"],
+            unique: true,
+        }],
+    },
 ];

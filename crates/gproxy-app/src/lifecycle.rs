@@ -110,13 +110,24 @@ impl AppHandle {
         &self,
         observation: gproxy_store::records::CredentialQuotaObservation,
     ) -> Result<gproxy_store::records::CredentialQuotaCycleRecord, AppError> {
-        Ok(self
-            .inner
-            .host
-            .services
-            .control
-            .observe_credential_quota_cycle(&observation)
-            .await?)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let control = self.inner.host.services.control.clone();
+            tokio::spawn(async move { control.observe_credential_quota_cycle(&observation).await })
+                .await
+                .map_err(|error| AppError::Control(format!("quota observation task: {error}")))?
+                .map_err(AppError::from)
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.inner
+                .host
+                .services
+                .control
+                .observe_credential_quota_cycle(&observation)
+                .await
+                .map_err(AppError::from)
+        }
     }
 
     pub async fn close_credential_quota_cycle(
@@ -125,12 +136,27 @@ impl AppHandle {
         reason: gproxy_store::records::QuotaCycleCloseReason,
         closed_at: i64,
     ) -> Result<Option<gproxy_store::records::CredentialQuotaCycleRecord>, AppError> {
-        Ok(self
-            .inner
-            .host
-            .services
-            .control
-            .close_credential_quota_cycle(id, reason, closed_at)
-            .await?)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let control = self.inner.host.services.control.clone();
+            tokio::spawn(async move {
+                control
+                    .close_credential_quota_cycle(id, reason, closed_at)
+                    .await
+            })
+            .await
+            .map_err(|error| AppError::Control(format!("quota close task: {error}")))?
+            .map_err(AppError::from)
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.inner
+                .host
+                .services
+                .control
+                .close_credential_quota_cycle(id, reason, closed_at)
+                .await
+                .map_err(AppError::from)
+        }
     }
 }

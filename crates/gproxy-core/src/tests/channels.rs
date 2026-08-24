@@ -1,7 +1,8 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::Channel;
+use gproxy_channel_api::{Channel, QuotaWindow};
 use http::Method;
+use rust_decimal::Decimal;
 use serde_json::json;
 
 use super::memory::MemoryHost;
@@ -198,6 +199,91 @@ fn codex_forced_stream_collects_or_relays_and_settles_terminal_usage() -> Result
 }
 
 #[test]
+fn codex_usage_reports_selected_credential_cycles_and_reset_state() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    let before = unix_now();
+    let primary_reset = before + 3_600;
+    let secondary_reset = before + 7_200;
+    {
+        let mut state = host.state.lock().expect("state lock");
+        state.credential.channel = "codex".into();
+        state.plan = Some(Plan {
+            targets: vec![codex_target()],
+            budget: FailoverBudget { max_attempts: 1 },
+        });
+        state.quota_windows = vec![
+            QuotaWindow {
+                key: "primary".into(),
+                period_start: Some(primary_reset - 18_000),
+                reset_at: Some(primary_reset),
+                used_percent: Some(Decimal::from(40)),
+                upstream_used: Some(Decimal::from(4)),
+                upstream_limit: Some(Decimal::from(10)),
+            },
+            QuotaWindow {
+                key: "five-hour".into(),
+                period_start: Some(primary_reset - 18_000),
+                reset_at: Some(primary_reset),
+                used_percent: Some(Decimal::from(125)),
+                upstream_used: Some(Decimal::from(5)),
+                upstream_limit: Some(Decimal::from(4)),
+            },
+            QuotaWindow {
+                key: "secondary".into(),
+                period_start: Some(secondary_reset - 604_800),
+                reset_at: Some(secondary_reset),
+                used_percent: None,
+                upstream_used: None,
+                upstream_limit: None,
+            },
+        ];
+    }
+    let core = codex_core(&host)?;
+    let mut usage_request = request(false, "codex-usage");
+    usage_request.method = Method::GET;
+    usage_request.path = "/api/codex/usage".into();
+    usage_request.body = Bytes::new();
+    let outcome = block_on(core.execute(&host, usage_request)).expect("Codex usage");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("Codex usage was not buffered");
+    };
+    let body: serde_json::Value = serde_json::from_slice(&body).expect("Codex usage JSON");
+    let rate = &body["rate_limit"];
+    assert_eq!(rate["allowed"], false);
+    assert_eq!(rate["limit_reached"], true);
+    assert_eq!(rate["primary_window"]["used_percent"], 100);
+    assert_eq!(rate["primary_window"]["limit_window_seconds"], 18_000);
+    assert_eq!(rate["primary_window"]["reset_at"], primary_reset);
+    assert!(rate["secondary_window"].get("used_percent").is_none());
+    assert_eq!(rate["secondary_window"]["reset_at"], secondary_reset);
+    let reset_after = rate["primary_window"]["reset_after_seconds"]
+        .as_i64()
+        .expect("reset after seconds");
+    assert!((primary_reset - unix_now()..=primary_reset - before).contains(&reset_after));
+    assert_eq!(
+        body["rate_limit_reached_type"],
+        json!({"type":"rate_limit_reached"})
+    );
+    assert!(body.get("local_usage").is_some());
+    for absent in ["credits", "spend_control", "additional_rate_limits"] {
+        assert!(body.get(absent).is_none());
+    }
+    host.state.lock().expect("state lock").quota_windows.clear();
+    let mut request = request(false, "codex-usage-absent");
+    request.method = Method::GET;
+    request.path = "/api/codex/usage".into();
+    request.body = Bytes::new();
+    let outcome = block_on(core.execute(&host, request)).expect("Codex usage without cycles");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("Codex usage without cycles was not buffered");
+    };
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(body.get("rate_limit").is_none());
+    assert!(body.get("rate_limit_reached_type").is_none());
+    Ok(())
+}
+
+#[test]
 fn codex_sparse_text_repairs_before_chat_and_claude_transforms() -> Result<(), InitError> {
     for (path, body, marker) in [
         (
@@ -389,4 +475,13 @@ fn codex_target() -> Target {
         credential: CredentialId(7),
         upstream_model: "gpt-test".into(),
     }
+}
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock")
+        .as_secs()
+        .try_into()
+        .expect("Unix seconds fit in i64")
 }

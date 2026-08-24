@@ -21,44 +21,76 @@ pub(in crate::host) fn finish<'a>(
         let Some(mut state) = state else {
             return;
         };
-        for index in 0..state.reservations.len() {
-            if !state.reservations[index].cost_recorded {
+        'retry: for _ in 0..3 {
+            for index in 0..state.reservations.len() {
+                if state.reservations[index].released {
+                    continue;
+                }
                 if let Some(settlement) = settlement
                     && let Err(error) = host
                         .services
                         .store
-                        .add_quota_cost(state.reservations[index].window_id, settlement.cost)
+                        .add_quota_cost(
+                            request_id,
+                            state.reservations[index].window_id,
+                            settlement.cost,
+                        )
                         .await
                 {
                     tracing::error!(request_id, error = %error, "persist quota cost failed");
                     continue;
                 }
+                let expected = match serde_json::to_vec(&state) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        tracing::error!(request_id, error = %error, "serialize quota state failed");
+                        return;
+                    }
+                };
                 state.reservations[index].cost_recorded = true;
-                if let Err(error) = save(host, &key, &state).await {
-                    tracing::error!(request_id, error = %error, "checkpoint quota reconciliation failed");
-                    return;
-                }
-            }
-            if !state.reservations[index].released
-                && let Err(error) = host
+                state.reservations[index].released = true;
+                let updated = match serde_json::to_vec(&state) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        tracing::error!(request_id, error = %error, "serialize quota release failed");
+                        return;
+                    }
+                };
+                match host
                     .services
                     .cache
-                    .incr(
+                    .compare_incr_and_set(
                         &state.reservations[index].cache_key,
                         -state.reservations[index].estimated_cost_micros,
-                        None,
+                        &key,
+                        expected,
+                        updated,
                     )
                     .await
-            {
-                tracing::error!(request_id, error = %error, "release quota reservation failed");
-                continue;
-            }
-            if !state.reservations[index].released {
-                state.reservations[index].released = true;
-                if let Err(error) = save(host, &key, &state).await {
-                    tracing::error!(request_id, error = %error, "checkpoint quota release failed");
-                    return;
+                {
+                    Ok(Some(_)) => {}
+                    Ok(None) => {
+                        let Some(latest) = load(host, request_id).await.ok().flatten() else {
+                            return;
+                        };
+                        state = latest;
+                        continue 'retry;
+                    }
+                    Err(error) => {
+                        tracing::error!(request_id, error = %error, "release quota reservation failed");
+                        if let Ok(Some(latest)) = load(host, request_id).await {
+                            state = latest;
+                        }
+                        continue 'retry;
+                    }
                 }
+            }
+            if state
+                .reservations
+                .iter()
+                .all(|reservation| reservation.released)
+            {
+                break;
             }
         }
         if state
@@ -72,13 +104,6 @@ pub(in crate::host) fn finish<'a>(
             tracing::error!(request_id, error = %error, "delete admission reservation failed");
         }
     })
-}
-
-async fn save(host: &AppHost, key: &str, state: &AdmissionState) -> Result<(), CoreError> {
-    let bytes = serde_json::to_vec(state)
-        .map_err(|error| CoreError::Internal(format!("serialize admission: {error}")))?;
-    host.services.cache.set(key, bytes, None).await?;
-    Ok(())
 }
 
 pub(in crate::host) async fn load(

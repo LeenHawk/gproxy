@@ -16,16 +16,41 @@ impl Store {
         observation: &CredentialQuotaObservation,
     ) -> Result<CredentialQuotaCycleRecord, StoreError> {
         state::validate(observation)?;
-        let mut input = observation.clone();
+        let mut continuation_start = None;
         const RETRIES: usize = 8;
         for _ in 0..RETRIES {
+            let mut input = observation.clone();
+            if let Some(start) = continuation_start {
+                input.period_start = Some(start);
+            }
             let open = self
                 .open_credential_quota_cycle(input.credential_id, &input.window_key)
                 .await?;
+            if let Some(open) = open.as_ref() {
+                state::preserve_cycle_bounds(open, &mut input);
+                state::validate(&input)?;
+            }
             match open {
                 Some(open) if state::stale_open(&open, &input) => return Ok(open),
                 Some(open) if state::crossed_boundary(&open, &input) => {
-                    let boundary = boundary::resolve(&open, &input);
+                    let Some(boundary) = boundary::resolve(&open, &input) else {
+                        state::retain_cycle_boundary(&open, &mut input);
+                        state::merge_same_second(&open, &mut input);
+                        let metrics = metrics::collect(self, &input).await?;
+                        let result = self
+                            .backend()
+                            .execute(runtime::update_credential_quota_cycle(
+                                &open,
+                                &input,
+                                state::update_coverage(&open, &input),
+                                &metrics,
+                            )?)
+                            .await?;
+                        if result.affected_rows == 1 {
+                            return self.require_credential_quota_cycle(open.id).await;
+                        }
+                        continue;
+                    };
                     let metrics = metrics::collect_range(
                         self,
                         open.credential_id,
@@ -47,9 +72,12 @@ impl Store {
                         .await;
                     match result {
                         Ok(result) if result.affected_rows == 1 => {
-                            input.period_start = Some(boundary.at);
-                            input.boundary_source = boundary.source;
-                            input.boundary_confidence = boundary.confidence;
+                            continuation_start = Some(
+                                observation
+                                    .period_start
+                                    .filter(|start| *start >= boundary.at)
+                                    .unwrap_or(boundary.at),
+                            );
                             continue;
                         }
                         Ok(_) => continue,
@@ -57,6 +85,7 @@ impl Store {
                     }
                 }
                 Some(open) => {
+                    state::merge_same_second(&open, &mut input);
                     let metrics = metrics::collect(self, &input).await?;
                     let result = self
                         .backend()
@@ -75,6 +104,9 @@ impl Store {
                     let latest = self
                         .latest_credential_quota_cycle(input.credential_id, &input.window_key)
                         .await?;
+                    if let Some(latest) = latest.as_ref() {
+                        state::continue_after_natural_close(latest, &mut input);
+                    }
                     if let Some(latest) = latest.as_ref()
                         && latest.status == QuotaCycleStatus::Closed
                         && state::stale_after_close(latest, &input)
@@ -126,6 +158,12 @@ impl Store {
                 return Err(StoreError::InvalidData {
                     field: "closed_at",
                     message: "must not precede period_start".into(),
+                });
+            }
+            if closed_at < cycle.last_observed_at {
+                return Err(StoreError::InvalidData {
+                    field: "closed_at",
+                    message: "must not precede last_observed_at".into(),
                 });
             }
             let metrics =

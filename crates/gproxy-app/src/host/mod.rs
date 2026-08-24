@@ -2,6 +2,7 @@ mod admission;
 mod bindings;
 mod credentials;
 mod sinks;
+mod usage_view;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -77,7 +78,24 @@ impl Host for AppHost {
         request_id: &'a str,
         settlement: Option<&'a gproxy_core::Settlement>,
     ) -> BoxFuture<'a, ()> {
-        admission::finish(self, request_id, settlement)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let host = self.clone();
+            let request_id = request_id.to_owned();
+            let settlement = settlement.cloned();
+            Box::pin(async move {
+                let task = tokio::spawn(async move {
+                    admission::finish(&host, &request_id, settlement.as_ref()).await;
+                });
+                if let Err(error) = task.await {
+                    tracing::error!(error = %error, "quota reconciliation task failed");
+                }
+            })
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            admission::finish(self, request_id, settlement)
+        }
     }
 
     fn wait<'a>(&'a self, duration: Duration) -> BoxFuture<'a, ()> {
@@ -93,11 +111,13 @@ impl Host for AppHost {
         &'a self,
         identity: &'a CallerIdentity,
         provider: &'a ProviderRef,
+        credential: gproxy_channel_api::CredentialId,
     ) -> Box<dyn UsageView + 'a> {
-        Box::new(sinks::AppUsageView::new(
-            self.services.store.clone(),
-            identity.user_id,
+        Box::new(usage_view::AppUsageView::new(
+            self.clone(),
+            identity.clone(),
             provider.id,
+            credential,
         ))
     }
 

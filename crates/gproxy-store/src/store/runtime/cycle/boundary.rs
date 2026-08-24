@@ -12,7 +12,7 @@ pub(super) struct Boundary {
 pub(super) fn resolve(
     open: &CredentialQuotaCycleRecord,
     next: &CredentialQuotaObservation,
-) -> Boundary {
+) -> Option<Boundary> {
     let changed_start = open
         .period_start
         .zip(next.period_start)
@@ -37,10 +37,7 @@ pub(super) fn resolve(
             confidence: next.boundary_confidence,
         },
     };
-    Boundary {
-        at: chosen.at.min(next.observed_at),
-        ..chosen
-    }
+    (chosen.at <= next.observed_at).then_some(chosen)
 }
 
 pub(super) fn trusted_reset(cycle: &CredentialQuotaCycleRecord) -> Option<i64> {

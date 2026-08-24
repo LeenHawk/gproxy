@@ -22,7 +22,7 @@ use bytes::Bytes;
 use gproxy_protocol::{OperationKey, PathPattern};
 
 pub use state::{Binding, BindingPage, BindingStore, Page, StateError};
-pub use view::{CallerIdentity, ProviderView, UsageView, UsageWindow};
+pub use view::{CallerIdentity, ProviderView, QuotaWindow, UsageView, UsageWindow};
 
 pub struct SurfaceTable(pub &'static [SurfaceEntry]);
 

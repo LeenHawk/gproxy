@@ -40,7 +40,11 @@ pub(crate) async fn run<H: Host>(
                 ctx.request_id.clone(),
             )
         });
-        let usage = core.host.surface_usage(identity, &selected.target.provider);
+        let usage = core.host.surface_usage(
+            identity,
+            &selected.target.provider,
+            selected.target.credential,
+        );
         let provider = ProviderView {
             id: selected.target.provider.id,
             name: &selected.target.provider.name,

@@ -83,6 +83,43 @@ impl CacheBackend for InProcessCache {
         });
         Box::pin(async move { result })
     }
+
+    fn compare_incr_and_set<'a>(
+        &'a self,
+        counter_key: &'a str,
+        by: i64,
+        state_key: &'a str,
+        expected_state: Vec<u8>,
+        state: Vec<u8>,
+    ) -> BoxFuture<'a, Result<Option<i64>, gproxy_core::error::StoreError>> {
+        let result = self.with_entries(|entries| {
+            if entries.get(state_key).map(|entry| &entry.value) != Some(&expected_state) {
+                return Ok(None);
+            }
+            let current = entries
+                .get(counter_key)
+                .map_or(Ok(0), |entry| decode_counter(&entry.value))?;
+            let next = current
+                .checked_add(by)
+                .ok_or_else(|| gproxy_core::error::StoreError("cache counter overflow".into()))?;
+            entries.insert(
+                counter_key.to_owned(),
+                Entry {
+                    value: next.to_be_bytes().to_vec(),
+                    expires_at: None,
+                },
+            );
+            entries.insert(
+                state_key.to_owned(),
+                Entry {
+                    value: state,
+                    expires_at: None,
+                },
+            );
+            Ok(Some(next))
+        });
+        Box::pin(async move { result })
+    }
 }
 
 impl InProcessCache {
