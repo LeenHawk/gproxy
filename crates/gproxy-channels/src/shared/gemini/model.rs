@@ -60,11 +60,14 @@ pub(crate) fn rewrite(
 }
 
 fn model_name(model: &str) -> String {
-    if model.starts_with("models/") {
-        model.to_owned()
-    } else {
-        format!("models/{model}")
-    }
+    format!("models/{}", model_id(model))
+}
+
+pub(crate) fn model_id(model: &str) -> &str {
+    model
+        .rsplit_once("/models/")
+        .map(|(_, id)| id)
+        .unwrap_or_else(|| model.strip_prefix("models/").unwrap_or(model))
 }
 
 fn json_error(error: serde_json::Error) -> ChannelError {
