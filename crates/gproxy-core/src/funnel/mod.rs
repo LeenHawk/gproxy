@@ -186,7 +186,7 @@ pub(crate) fn streaming<H: Host>(
     decoder: Option<Box<dyn StreamDecoder>>,
 ) -> ExecOutcome {
     let (mut parts, body) = response.into_parts();
-    if ctx.source_key != ctx.key {
+    if ctx.source_key != ctx.key || decoder.is_some() {
         frame_headers(&mut parts.headers, ctx.source_framing);
     }
     let body = FunnelStream::new(body, decoder, host, ctx, parts.status);

@@ -1,6 +1,7 @@
 //! Built-in provider channel adapters.
 
 mod aistudio;
+mod aws_bedrock;
 mod azure;
 mod claudeapi;
 mod claudecode;
@@ -11,6 +12,7 @@ mod vertex;
 mod vertexexpress;
 
 pub use aistudio::AiStudioChannel;
+pub use aws_bedrock::AwsBedrockChannel;
 pub use azure::AzureChannel;
 pub use claudeapi::ClaudeApiChannel;
 pub use claudecode::ClaudeCodeChannel;

@@ -195,7 +195,7 @@ pub(crate) async fn send<H: Host>(
         let source = facts
             .source_key
             .expect("operation attempt has a source key");
-        if source.kind != key.kind {
+        if source.kind != key.kind || facts.source_framing != facts.target_framing {
             let source_framing = if downstream_stream {
                 facts.source_framing
             } else {

@@ -11,6 +11,7 @@
 //! Enums are exhaustive under the workspace-internal `exhaustive` feature
 //! and `#[non_exhaustive]` otherwise; see Cargo.toml.
 
+pub mod aws;
 pub mod claude;
 pub mod gemini;
 pub mod openai;

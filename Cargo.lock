@@ -591,6 +591,7 @@ dependencies = [
  "block-buffer 0.10.4",
  "const-oid",
  "crypto-common 0.1.7",
+ "subtle",
 ]
 
 [[package]]
@@ -920,10 +921,12 @@ version = "3.0.0-alpha.0"
 dependencies = [
  "base64",
  "bytes",
+ "crc32fast",
  "futures-util",
  "getrandom 0.2.17",
  "gproxy-channel-api",
  "gproxy-protocol",
+ "hmac",
  "http",
  "rsa",
  "rust_decimal",
@@ -1094,6 +1097,15 @@ name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
+name = "hmac"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
+dependencies = [
+ "digest",
+]
 
 [[package]]
 name = "http"

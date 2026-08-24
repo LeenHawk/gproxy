@@ -30,11 +30,16 @@ impl ResponseStream {
         source_framing: StreamFraming,
         target_framing: StreamFraming,
     ) -> Result<Self, TransformError> {
-        let pair = registry::resolve(source, target).ok_or(TransformError::UnsupportedPair {
-            source_key: source,
-            target_key: target,
-        })?;
-        let converter = converter(pair, source, target)?;
+        let converter: Box<dyn Converter> = if source == target {
+            Box::new(Passthrough)
+        } else {
+            let pair =
+                registry::resolve(source, target).ok_or(TransformError::UnsupportedPair {
+                    source_key: source,
+                    target_key: target,
+                })?;
+            converter(pair, source, target)?
+        };
         Ok(Self {
             decoder: FrameDecoder::new(target_framing)?,
             converter,
@@ -62,6 +67,18 @@ impl ResponseStream {
             output.extend(self.encoder.push(self.converter.frame(frame)?)?);
         }
         Ok(output)
+    }
+}
+
+struct Passthrough;
+
+impl Converter for Passthrough {
+    fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
+        Ok(vec![SseFrame::encode(frame._event.as_deref(), &frame.data)])
+    }
+
+    fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
+        Ok(Vec::new())
     }
 }
 

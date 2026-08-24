@@ -33,9 +33,11 @@ gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.0-alpha.0
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.0-alpha.0" }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 bytes = "1"
+crc32fast = "1"
 futures-core = "0.3"
 futures-util = "0.3"
 http = "1"
+hmac = "0.12"
 js-sys = "0.3"
 rsa = { version = "0.9", features = ["sha2"] }
 rust_decimal = { version = "1", features = ["serde"] }

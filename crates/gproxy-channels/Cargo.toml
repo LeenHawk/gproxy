@@ -11,8 +11,10 @@ gproxy-channel-api.workspace = true
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 bytes.workspace = true
 base64.workspace = true
+crc32fast.workspace = true
 futures-util.workspace = true
 http.workspace = true
+hmac.workspace = true
 rsa.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true

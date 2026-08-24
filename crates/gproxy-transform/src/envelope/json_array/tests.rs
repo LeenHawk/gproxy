@@ -108,6 +108,18 @@ fn encodes_array_and_rejects_done() {
         encoder.push("[DONE]"),
         Err(TransformError::InvalidShape { .. })
     ));
+
+    let key = stream(Kind::GeminiGenerateContent);
+    let mut reframer =
+        ResponseStream::new_framed(key, key, StreamFraming::JsonArray, StreamFraming::Sse).unwrap();
+    let mut output = reframer
+        .push(Bytes::from_static(b"data: {\"candidates\":[]}\n\n"))
+        .unwrap();
+    output.extend(reframer.finish().unwrap());
+    assert_eq!(
+        output.into_iter().flatten().collect::<Vec<_>>(),
+        br#"[{"candidates":[]}]"#
+    );
 }
 
 #[test]
