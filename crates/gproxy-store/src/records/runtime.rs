@@ -61,6 +61,12 @@ pub struct UsageInput {
     pub latency_ms: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UsageRecord {
+    pub id: i64,
+    pub usage: UsageInput,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct UsageWindow {
     pub cost: Decimal,
@@ -87,6 +93,15 @@ pub struct CaptureInput {
     pub response_body: Option<Vec<u8>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestLogInput {
+    pub request_id: String,
+    pub at: i64,
+    pub method: String,
+    pub path: String,
+    pub query: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BindingInput {
     pub provider_id: i64,
@@ -106,4 +121,10 @@ pub struct BindingRecord {
     pub credential_id: i64,
     pub summary: Value,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BindingPage {
+    pub items: Vec<BindingRecord>,
+    pub next_cursor: Option<String>,
 }
