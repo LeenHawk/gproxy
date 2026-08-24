@@ -1,0 +1,46 @@
+use bytes::Bytes;
+use gproxy_channel_api::ChannelError;
+use gproxy_protocol::{ContentGenerationKind, OperationKey, OperationKind};
+use http::HeaderMap;
+use serde_json::Value;
+
+pub(super) fn request(
+    key: OperationKey,
+    settings: &Value,
+    headers: &mut HeaderMap,
+    body: Bytes,
+) -> Result<Bytes, ChannelError> {
+    let openai = matches!(
+        key.kind,
+        OperationKind::ContentGeneration(
+            ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses
+        )
+    ) && enabled(settings, "enable_openai_magic_cache");
+    let claude =
+        key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
+    let claude_cache = claude && enabled(settings, "enable_claude_magic_cache");
+    let fallback = claude
+        .then(|| settings.get("claude_fable_fallbacks"))
+        .flatten();
+    if !openai && !claude_cache && fallback.is_none() {
+        return Ok(body);
+    }
+    let mut value: Value = serde_json::from_slice(&body)
+        .map_err(|error| ChannelError::Prepare(format!("request body JSON: {error}")))?;
+    if openai {
+        crate::shared::cache::openai(&mut value);
+    }
+    if claude_cache {
+        crate::shared::cache::claude(&mut value);
+    }
+    if let Some(fallback) = fallback {
+        crate::shared::claude::fallback::apply(&mut value, headers, fallback);
+    }
+    serde_json::to_vec(&value)
+        .map(Bytes::from)
+        .map_err(|error| ChannelError::Prepare(error.to_string()))
+}
+
+fn enabled(settings: &Value, name: &str) -> bool {
+    settings.get(name).and_then(Value::as_bool) == Some(true)
+}
