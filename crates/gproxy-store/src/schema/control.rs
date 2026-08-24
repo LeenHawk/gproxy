@@ -1,0 +1,147 @@
+use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+
+pub const TABLES: &[TableSpec] = &[
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "providers",
+        columns: &[
+            Col::id(),
+            Col::required("name", Text).unique(),
+            Col::required("channel", Text),
+            Col::required("settings_json", Text),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "credentials",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::optional("label", Text),
+            Col::required("ciphertext", Blob),
+            Col::required("wrapped_key", Blob),
+            Col::required("payload_nonce", Blob),
+            Col::required("key_nonce", Blob),
+            Col::required("version", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_credentials_provider_enabled",
+            columns: &["provider_id", "enabled", "id"],
+            unique: false,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "routes",
+        columns: &[
+            Col::id(),
+            Col::required("name", Text).unique(),
+            Col::required("max_attempts", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "route_members",
+        columns: &[
+            Col::id(),
+            Col::required("route_id", Integer),
+            Col::required("provider_id", Integer),
+            Col::optional("credential_id", Integer),
+            Col::required("upstream_model", Text),
+            Col::required("priority", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[
+            IndexSpec {
+                name: "ix_route_members_route_order",
+                columns: &["route_id", "enabled", "priority", "id"],
+                unique: false,
+            },
+            IndexSpec {
+                name: "ix_route_members_provider",
+                columns: &["provider_id", "credential_id"],
+                unique: false,
+            },
+        ],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "aliases",
+        columns: &[
+            Col::id(),
+            Col::required("alias", Text),
+            Col::required("target", Text),
+            Col::optional("provider_id", Integer),
+            Col::required("priority", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_aliases_scope_order",
+            columns: &["provider_id", "enabled", "priority", "id"],
+            unique: false,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "exposed_models",
+        columns: &[
+            Col::id(),
+            Col::required("name", Text).unique(),
+            Col::required("route_id", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_exposed_models_route",
+            columns: &["route_id", "enabled"],
+            unique: false,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "price_rules",
+        columns: &[
+            Col::id(),
+            Col::optional("provider_id", Integer),
+            Col::required("model_pattern", Text),
+            Col::required("priority", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_price_rules_resolve",
+            columns: &["provider_id", "enabled", "priority", "id"],
+            unique: false,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "price_rates",
+        columns: &[
+            Col::id(),
+            Col::required("rule_id", Integer),
+            Col::required("metric", Text),
+            Col::required("unit_size", Integer),
+            Col::required("price", Text),
+            Col::optional("conditions_json", Text),
+            Col::required("priority", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_price_rates_rule_metric",
+            columns: &["rule_id", "metric", "priority", "id"],
+            unique: false,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        name: "settings",
+        columns: &[
+            Col::required("key", Text).primary(),
+            Col::required("value_json", Text),
+        ],
+        indexes: &[],
+    },
+];

@@ -1,0 +1,14 @@
+[package]
+name = "gproxy-store"
+description = "GPROXY v3 shared persistence schema and native/edge store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rust_decimal.workspace = true
+sea-query.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

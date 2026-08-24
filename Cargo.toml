@@ -5,6 +5,7 @@ members = [
     "crates/gproxy-channels",
     "crates/gproxy-core",
     "crates/gproxy-protocol",
+    "crates/gproxy-store",
     "crates/gproxy-transform",
     "crates/gproxy-upstream",
 ]
@@ -26,7 +27,8 @@ futures-core = "0.3"
 futures-util = "0.3"
 http = "1"
 js-sys = "0.3"
-rust_decimal = "1"
+rust_decimal = { version = "1", features = ["serde"] }
+sea-query = { version = "1.0.2", default-features = false, features = ["backend-sqlite", "derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
