@@ -1,7 +1,7 @@
 //! Incremental redaction for image stream payload observation.
 
 #[derive(Default)]
-pub(super) struct B64Redactor {
+pub(crate) struct B64Redactor {
     state: State,
 }
 
@@ -24,7 +24,7 @@ enum State {
 const KEY: &[u8] = b"b64_json";
 
 impl B64Redactor {
-    pub(super) fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    pub(crate) fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
         let mut output = Vec::with_capacity(chunk.len().min(8 * 1024));
         for &byte in chunk {
             self.state = match std::mem::take(&mut self.state) {

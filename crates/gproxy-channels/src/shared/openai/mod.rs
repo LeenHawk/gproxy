@@ -1,6 +1,6 @@
 pub(crate) mod endpoint;
 pub(crate) mod model;
-mod redact;
+pub(crate) mod redact;
 pub(crate) mod resource;
 pub(crate) mod sse;
 pub(crate) mod usage;

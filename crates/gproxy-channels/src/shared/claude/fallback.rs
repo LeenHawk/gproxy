@@ -2,17 +2,34 @@ use http::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
 pub(crate) fn apply(body: &mut Value, headers: &mut HeaderMap, configured: &Value) {
-    let Some(root) = body.as_object_mut() else {
-        return;
-    };
-    let Some(model) = root.get("model").and_then(Value::as_str).map(str::to_owned) else {
-        return;
-    };
-    if root.contains_key("fallbacks") || unsupported(&model) {
-        return;
+    if let Some(beta) = insert(body, configured, true) {
+        append_beta(headers, beta);
+    }
+}
+
+pub(crate) fn apply_without_beta(body: &mut Value, configured: &Value) {
+    insert(body, configured, false);
+}
+
+fn insert(body: &mut Value, configured: &Value, anthropic_policy: bool) -> Option<&'static str> {
+    let root = body.as_object_mut()?;
+    let model = root.get("model").and_then(Value::as_str)?.to_owned();
+    if root.contains_key("fallbacks") || (anthropic_policy && unsupported(&model)) {
+        return None;
     }
     let (fallbacks, beta) = if configured.as_str() == Some("default") {
-        (json!("default"), "server-side-fallback-2026-07-01")
+        if anthropic_policy {
+            (json!("default"), "server-side-fallback-2026-07-01")
+        } else {
+            let fallback = namespaced(&model, "claude-opus-4-8");
+            if fallback == model {
+                return None;
+            }
+            (
+                json!([{"model":fallback}]),
+                "server-side-fallback-2026-06-01",
+            )
+        }
     } else if let Some(models) = configured.as_array() {
         let chain = models
             .iter()
@@ -25,14 +42,14 @@ pub(crate) fn apply(body: &mut Value, headers: &mut HeaderMap, configured: &Valu
             .map(|model| json!({"model":model}))
             .collect::<Vec<_>>();
         if chain.is_empty() {
-            return;
+            return None;
         }
         (Value::Array(chain), "server-side-fallback-2026-06-01")
     } else {
-        return;
+        return None;
     };
     root.insert("fallbacks".into(), fallbacks);
-    append_beta(headers, beta);
+    Some(beta)
 }
 
 fn unsupported(model: &str) -> bool {
