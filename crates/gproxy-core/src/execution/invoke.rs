@@ -51,5 +51,6 @@ pub(crate) async fn run<H: Host>(
             funnel::interrupted(core.host.as_ref(), channel, facts, status, headers, body).await;
             Err(error.into())
         }
+        Err(Failure::Committed { error, .. }) => Err(error),
     }
 }

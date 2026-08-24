@@ -5,6 +5,8 @@ mod aws_bedrock;
 mod azure;
 mod claudeapi;
 mod claudecode;
+#[cfg(not(target_arch = "wasm32"))]
+mod claudeweb;
 mod cloudflare_ai_gateway;
 mod codex;
 mod custom;
@@ -26,6 +28,8 @@ pub use aws_bedrock::AwsBedrockChannel;
 pub use azure::AzureChannel;
 pub use claudeapi::ClaudeApiChannel;
 pub use claudecode::ClaudeCodeChannel;
+#[cfg(not(target_arch = "wasm32"))]
+pub use claudeweb::ClaudeWebChannel;
 pub use cloudflare_ai_gateway::CloudflareAiGatewayChannel;
 pub use codex::CodexChannel;
 pub use custom::CustomChannel;

@@ -132,6 +132,7 @@ pub(crate) async fn run<H: Host>(
                 funnel_error::attempt_interrupted(core.host.as_ref(), &facts, status, body, &error)
                     .await;
             }
+            Err(Failure::Committed { error, .. }) => return Err(error),
         }
     }
 

@@ -13,6 +13,7 @@ use crate::host::{
     UpstreamTransport, UsageSink,
 };
 use crate::usage::Settlement;
+use crate::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore, Spawner};
 
 impl CredentialStore for MemoryHost {
     fn load<'a>(&'a self, id: CredentialId) -> BoxFuture<'a, Result<CredentialRecord, StoreError>> {
@@ -169,12 +170,12 @@ impl UpstreamTransport for MemoryHost {
     ) -> BoxFuture<'a, Result<http::Response<crate::ByteStream>, TransportError>> {
         let state = self.state.clone();
         Box::pin(async move {
-            let (status, body) = if request.uri().path() == "/refresh" {
+            let (status, bodies) = if request.uri().path() == "/refresh" {
                 (
                     http::StatusCode::OK,
-                    Bytes::from_static(
+                    vec![Bytes::from_static(
                         br#"{"access_token":"fresh","expires_at":9223372036854775807}"#,
-                    ),
+                    )],
                 )
             } else {
                 let path = request.uri().path().to_owned();
@@ -183,7 +184,8 @@ impl UpstreamTransport for MemoryHost {
                 let authorization = request
                     .headers()
                     .get(http::header::AUTHORIZATION)
-                    .expect("authorization header")
+                    .or_else(|| request.headers().get(http::header::COOKIE))
+                    .expect("upstream authentication header")
                     .to_str()
                     .expect("text authorization")
                     .to_owned();
@@ -235,13 +237,25 @@ impl UpstreamTransport for MemoryHost {
                     }
                     _ => Bytes::from_static(br#"{"usage":true,"result":"ok"}"#),
                 };
+                let bodies = if path.ends_with("/completion") {
+                    vec![
+                        Bytes::from_static(
+                            b"data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-web\",\"content\":[]}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu-web\",\"name\":\"weather\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{}\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+                        ),
+                        Bytes::from_static(
+                            b"data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_result\",\"tool_use_id\":\"toolu-web\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"text_delta\",\"text\":\"Sunny\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":2}\n\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":2}}\n\ndata: {\"type\":\"message_stop\"}\n\n",
+                        ),
+                    ]
+                } else {
+                    vec![body]
+                };
                 (
                     state.statuses.pop_front().unwrap_or(http::StatusCode::OK),
-                    body,
+                    bodies,
                 )
             };
             let stream: crate::ByteStream =
-                Box::pin(futures_util::stream::once(async move { Ok(body) }));
+                Box::pin(futures_util::stream::iter(bodies.into_iter().map(Ok)));
             let mut response = http::Response::new(stream);
             *response.status_mut() = status;
             Ok(response)
@@ -314,4 +328,59 @@ impl UsageView for MemoryHost {
         let windows = self.state.lock().expect("state lock").quota_windows.clone();
         Box::pin(async move { Ok(windows) })
     }
+}
+
+impl ContinuationStore for MemoryHost {
+    fn peek(&self, key: &ContinuationKey) -> Result<Option<ContinuationMeta>, StoreError> {
+        Ok(self
+            .state
+            .lock()
+            .expect("state lock")
+            .continuations
+            .get(key)
+            .map(Continuation::meta))
+    }
+
+    fn put(
+        &self,
+        value: Continuation,
+    ) -> Result<Option<Continuation>, (StoreError, Box<Continuation>)> {
+        let key = value.key().clone();
+        Ok(self
+            .state
+            .lock()
+            .expect("state lock")
+            .continuations
+            .insert(key, value))
+    }
+
+    fn take(&self, key: &ContinuationKey) -> Result<Option<Continuation>, StoreError> {
+        Ok(self
+            .state
+            .lock()
+            .expect("state lock")
+            .continuations
+            .remove(key))
+    }
+
+    fn take_generation(
+        &self,
+        key: &ContinuationKey,
+        generation: &str,
+    ) -> Result<Option<Continuation>, StoreError> {
+        let mut state = self.state.lock().expect("state lock");
+        if state
+            .continuations
+            .get(key)
+            .is_some_and(|value| value.meta().generation == generation)
+        {
+            Ok(state.continuations.remove(key))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+impl Spawner for MemoryHost {
+    fn spawn(&self, _task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {}
 }

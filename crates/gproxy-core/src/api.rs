@@ -24,6 +24,10 @@ pub enum InitError {
         "channel `{channel}` declares resource affinity but the host provides no binding store"
     )]
     ResourceAffinityWithoutBindings { channel: &'static str },
+    #[error("channel `{channel}` requires a process-local continuation store")]
+    ContinuationsUnavailable { channel: &'static str },
+    #[error("channel `{channel}` requires a native background spawner")]
+    ContinuationSpawnerUnavailable { channel: &'static str },
 }
 
 /// The engine. Generic over the host so everything is statically
@@ -48,6 +52,21 @@ impl<H: Host> Core<H> {
             return Err(InitError::SurfacesWithoutBindings {
                 channel: channel.descriptor().id,
             });
+        }
+        if let Some(channel) = channels
+            .iter()
+            .find(|channel| channel.requires_continuations())
+        {
+            if host.continuations().is_none() {
+                return Err(InitError::ContinuationsUnavailable {
+                    channel: channel.descriptor().id,
+                });
+            }
+            if host.spawner().is_none() {
+                return Err(InitError::ContinuationSpawnerUnavailable {
+                    channel: channel.descriptor().id,
+                });
+            }
         }
         if host.bindings().is_none()
             && let Some(channel) = channels.iter().find(|channel| {

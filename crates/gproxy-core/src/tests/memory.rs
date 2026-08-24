@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
@@ -11,6 +11,7 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 use crate::boundary::RoutingMode;
+use crate::continuation::{Continuation, ContinuationKey};
 use crate::control::{ControlPlane, Plan, Pricing, ProviderRef};
 use crate::error::CoreError;
 use crate::host::{CredentialId, CredentialRecord, Host};
@@ -48,6 +49,8 @@ pub(super) struct State {
     pub(super) socket_closed: bool,
     pub(super) omit_usage: bool,
     pub(super) quota_windows: Vec<QuotaWindow>,
+    pub(super) continuations_enabled: bool,
+    pub(super) continuations: HashMap<ContinuationKey, Continuation>,
 }
 
 pub(super) struct Captured {
@@ -92,6 +95,8 @@ impl MemoryHost {
                 socket_closed: false,
                 omit_usage: false,
                 quota_windows: Vec::new(),
+                continuations_enabled: false,
+                continuations: HashMap::new(),
             })),
         }
     }
@@ -99,6 +104,12 @@ impl MemoryHost {
     pub(super) fn without_bindings() -> Self {
         let host = Self::new(false);
         host.state.lock().expect("state lock").bindings_enabled = false;
+        host
+    }
+
+    pub(super) fn with_continuations() -> Self {
+        let host = Self::new(false);
+        host.state.lock().expect("state lock").continuations_enabled = true;
         host
     }
 }
@@ -188,6 +199,20 @@ impl Host for MemoryHost {
             .expect("state lock")
             .bindings_enabled
             .then_some(self as &dyn BindingStore)
+    }
+    fn spawner(&self) -> Option<&dyn crate::host::Spawner> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .continuations_enabled
+            .then_some(self as &dyn crate::host::Spawner)
+    }
+    fn continuations(&self) -> Option<&dyn crate::ContinuationStore> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .continuations_enabled
+            .then_some(self as &dyn crate::ContinuationStore)
     }
 }
 

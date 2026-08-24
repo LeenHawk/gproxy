@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use crate::BoxFuture;
 use crate::disposition::Disposition;
+use crate::operation::OperationDriver;
 use crate::resource::{ResourceCtx, ResourceMutation};
 use crate::surface::{SurfaceRequest, SurfaceTable};
 use crate::usage::NormalizedUsage;
@@ -189,6 +190,16 @@ pub trait Channel: Send + Sync {
     /// body shaping. Must not perform I/O.
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError>;
 
+    /// A transform-after driver for a multi-call operation. The driver is a
+    /// pure state machine; the core performs and funnels every emitted call.
+    fn operation_driver(
+        &self,
+        ctx: PrepareCtx<'_>,
+    ) -> Result<Option<Box<dyn OperationDriver>>, ChannelError> {
+        let _ = ctx;
+        Ok(None)
+    }
+
     /// Classify one upstream answer for failover and health.
     fn classify(&self, response: ResponseView<'_>) -> Disposition;
 
@@ -265,5 +276,9 @@ pub trait Channel: Send + Sync {
     /// kept the `/wham/...` map in the HTTP layer and paid for it twice.
     fn surfaces(&self) -> SurfaceTable {
         SurfaceTable(&[])
+    }
+
+    fn requires_continuations(&self) -> bool {
+        false
     }
 }

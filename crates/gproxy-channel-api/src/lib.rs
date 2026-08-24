@@ -13,6 +13,7 @@
 
 pub mod channel;
 pub mod disposition;
+pub mod operation;
 pub mod registry;
 pub mod resource;
 pub mod surface;
@@ -25,6 +26,9 @@ pub use channel::{
     UsageCtx,
 };
 pub use disposition::Disposition;
+pub use operation::{
+    DriverInput, OperationDriver, OperationStep, OperationStream, Pause, StepResponse, StreamOutput,
+};
 pub use registry::ChannelRegistry;
 pub use resource::{ResourceCtx, ResourceMutation};
 pub use surface::{

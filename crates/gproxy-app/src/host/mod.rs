@@ -1,5 +1,6 @@
 mod admission;
 mod bindings;
+mod continuations;
 mod credentials;
 mod sinks;
 mod usage_view;
@@ -22,6 +23,8 @@ pub(crate) struct Services {
     pub transport: gproxy_upstream::Transport,
     #[cfg(not(target_arch = "wasm32"))]
     pub spawner: TokioSpawner,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub continuations: continuations::LocalContinuations,
 }
 
 #[derive(Clone)]
@@ -130,6 +133,13 @@ impl Host for AppHost {
 
     fn bindings(&self) -> Option<&dyn BindingStore> {
         Some(self)
+    }
+
+    fn continuations(&self) -> Option<&dyn gproxy_core::ContinuationStore> {
+        #[cfg(not(target_arch = "wasm32"))]
+        return Some(&self.services.continuations);
+        #[cfg(target_arch = "wasm32")]
+        None
     }
 }
 

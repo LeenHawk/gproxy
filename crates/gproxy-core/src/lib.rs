@@ -14,6 +14,7 @@
 
 pub mod api;
 pub mod boundary;
+pub mod continuation;
 pub mod control;
 pub mod error;
 pub mod host;
@@ -22,6 +23,7 @@ pub mod usage;
 mod attempt;
 mod execution;
 mod funnel;
+mod orchestration;
 mod surface;
 
 #[cfg(test)]
@@ -42,6 +44,7 @@ pub use gproxy_protocol::OperationKey;
 
 pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};
+pub use continuation::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore};
 pub use control::{ControlPlane, Plan, Pricing, ProviderRef, Target};
 pub use error::CoreError;
 pub use host::{

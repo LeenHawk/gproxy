@@ -24,6 +24,8 @@ impl App {
             transport: gproxy_upstream::Transport::default(),
             #[cfg(not(target_arch = "wasm32"))]
             spawner: crate::host::TokioSpawner,
+            #[cfg(not(target_arch = "wasm32"))]
+            continuations: Default::default(),
         });
         let host = AppHost { services };
         let core = gproxy_core::Core::new(host.clone(), channels()?)?;
@@ -42,7 +44,7 @@ impl App {
 }
 
 fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::DuplicateChannel> {
-    ChannelRegistry::new([
+    let channels = vec![
         Box::new(gproxy_channels::OpenAiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::ClaudeApiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::ClaudeCodeChannel) as Box<dyn Channel>,
@@ -62,5 +64,12 @@ fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::Duplicate
         Box::new(gproxy_channels::VertexExpressChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::XaiChannel) as Box<dyn Channel>,
         Box::new(gproxy_channels::VercelChannel) as Box<dyn Channel>,
-    ])
+    ];
+    #[cfg(not(target_arch = "wasm32"))]
+    let channels = {
+        let mut channels = channels;
+        channels.push(Box::new(gproxy_channels::ClaudeWebChannel));
+        channels
+    };
+    ChannelRegistry::new(channels)
 }

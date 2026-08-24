@@ -43,6 +43,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 pub(super) struct ForeignSurface;
+pub(super) struct NeedsContinuation;
 
 static FOREIGN_SUPPORTS: [ChannelSupport; 0] = [];
 static FOREIGN_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
@@ -50,6 +51,33 @@ static FOREIGN_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     display_name: "Foreign",
     supports: &FOREIGN_SUPPORTS,
 };
+static CONTINUATION_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
+    id: "continuation-test",
+    display_name: "Continuation Test",
+    supports: &[],
+};
+
+impl Channel for NeedsContinuation {
+    fn descriptor(&self) -> &'static ChannelDescriptor {
+        &CONTINUATION_DESCRIPTOR
+    }
+
+    fn prepare(&self, _: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
+        Err(ChannelError::Prepare("unused".into()))
+    }
+
+    fn classify(&self, _: ResponseView<'_>) -> Disposition {
+        Disposition::Terminal
+    }
+
+    fn extract_usage(&self, _: UsageCtx<'_>) -> Option<NormalizedUsage> {
+        None
+    }
+
+    fn requires_continuations(&self) -> bool {
+        true
+    }
+}
 static FOREIGN_SURFACES: [gproxy_channel_api::SurfaceEntry; 1] =
     [gproxy_channel_api::SurfaceEntry {
         method: &http::Method::GET,

@@ -19,6 +19,7 @@ use gproxy_channel_api::{
 use gproxy_protocol::OperationKey;
 
 use crate::boundary::RequestCtx;
+use crate::continuation::ContinuationStore;
 use crate::control::{Plan, ProviderRef};
 use crate::error::CoreError;
 use crate::error::{StoreError, TransportError};
@@ -219,6 +220,12 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
     /// deployments. A host that provides `None` cannot register channels
     /// with surface tables — [`crate::Core::new`] fails loudly instead.
     fn bindings(&self) -> Option<&dyn BindingStore> {
+        None
+    }
+
+    /// Process-local ownership of live upstream streams. Channels requiring
+    /// this capability are native-only and rejected at startup when absent.
+    fn continuations(&self) -> Option<&dyn ContinuationStore> {
         None
     }
 }
