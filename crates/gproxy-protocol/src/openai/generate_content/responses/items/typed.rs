@@ -93,6 +93,7 @@ pub enum TypedResponseItem {
     },
     #[serde(rename = "tool_search_call")]
     ToolSearchCall {
+        // OpenAI documents tool-search call arguments as unknown JSON.
         arguments: Value,
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
@@ -391,7 +392,7 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         recipient: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        content: Option<Vec<Value>>,
+        content: Option<Vec<AgentMessageContentPart>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         agent: Option<ResponseAgent>,
         #[serde(default, flatten)]

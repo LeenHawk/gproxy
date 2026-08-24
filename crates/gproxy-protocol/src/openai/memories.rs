@@ -21,6 +21,7 @@ pub struct MemorySummarizeRequest {
 pub struct MemoryTrace {
     pub id: String,
     pub metadata: MemoryTraceMetadata,
+    // No checked-in upstream memory schema exists; preserve proprietary trace items verbatim.
     pub items: Vec<Value>,
     #[serde(default, flatten)]
     pub rest: Rest,

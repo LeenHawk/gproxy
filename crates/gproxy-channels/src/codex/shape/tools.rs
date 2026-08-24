@@ -168,7 +168,32 @@ pub(super) fn normalize_history(items: &mut Vec<ResponseItem>) -> Result<(), Cha
                 })?,
                 status.as_str(),
             )),
-            _ => None,
+            TypedResponseItem::FileSearchCall { .. }
+            | TypedResponseItem::ComputerCall { .. }
+            | TypedResponseItem::ComputerCallOutput { .. }
+            | TypedResponseItem::WebSearchCall { .. }
+            | TypedResponseItem::FunctionCall { .. }
+            | TypedResponseItem::FunctionCallOutput { .. }
+            | TypedResponseItem::ToolSearchCall { .. }
+            | TypedResponseItem::ToolSearchOutput { .. }
+            | TypedResponseItem::AdditionalTools { .. }
+            | TypedResponseItem::Reasoning { .. }
+            | TypedResponseItem::Compaction { .. }
+            | TypedResponseItem::ImageGenerationCall { .. }
+            | TypedResponseItem::CodeInterpreterCall { .. }
+            | TypedResponseItem::McpListTools { .. }
+            | TypedResponseItem::McpApprovalRequest { .. }
+            | TypedResponseItem::McpApprovalResponse { .. }
+            | TypedResponseItem::McpCall { .. }
+            | TypedResponseItem::CustomToolCall { .. }
+            | TypedResponseItem::CustomToolCallOutput { .. }
+            | TypedResponseItem::Program { .. }
+            | TypedResponseItem::ProgramOutput { .. }
+            | TypedResponseItem::MultiAgentCall { .. }
+            | TypedResponseItem::MultiAgentCallOutput { .. }
+            | TypedResponseItem::AgentMessage { .. }
+            | TypedResponseItem::CompactionTrigger { .. }
+            | TypedResponseItem::ItemReference { .. } => None,
         };
         if let Some(replacement) = replacement {
             **typed = replacement;

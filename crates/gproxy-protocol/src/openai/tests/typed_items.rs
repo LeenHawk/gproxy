@@ -34,4 +34,27 @@ fn typed_response_items_preserve_required_nullable_fields() {
             ..
         }
     ));
+
+    let agent = round_trip::<TypedResponseItem>(json!({
+        "type":"agent_message",
+        "id":"amsg_1",
+        "author":"/root/reviewer",
+        "recipient":"/root",
+        "content":[{
+            "type":"encrypted_content",
+            "encrypted_content":"enc_1",
+            "future_content":true
+        }],
+        "agent":{"agent_name":"/root"}
+    }));
+    assert!(matches!(
+        agent,
+        TypedResponseItem::AgentMessage {
+            content: Some(content),
+            ..
+        } if matches!(
+            content.as_slice(),
+            [crate::openai::generate_content::responses::AgentMessageContentPart::EncryptedContent { .. }]
+        )
+    ));
 }

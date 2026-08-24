@@ -1,9 +1,11 @@
 mod actions;
+mod agent;
 mod content;
 mod message;
 mod typed;
 
 pub use actions::*;
+pub use agent::*;
 pub use content::*;
 pub use message::*;
 pub use typed::*;
