@@ -1,6 +1,5 @@
 mod model;
 mod prepare;
-mod redact;
 mod resource;
 mod sse;
 mod usage;

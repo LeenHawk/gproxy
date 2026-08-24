@@ -1,3 +1,5 @@
+//! Incremental redaction for image stream payload observation.
+
 #[derive(Default)]
 pub(super) struct B64Redactor {
     state: State,

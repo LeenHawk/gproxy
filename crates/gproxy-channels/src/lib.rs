@@ -1,6 +1,7 @@
 //! Built-in provider channel adapters.
 
 mod aistudio;
+mod azure;
 mod claudeapi;
 mod claudecode;
 mod codex;
@@ -10,6 +11,7 @@ mod vertex;
 mod vertexexpress;
 
 pub use aistudio::AiStudioChannel;
+pub use azure::AzureChannel;
 pub use claudeapi::ClaudeApiChannel;
 pub use claudecode::ClaudeCodeChannel;
 pub use codex::CodexChannel;
