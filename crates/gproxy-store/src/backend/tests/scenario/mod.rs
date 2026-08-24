@@ -1,3 +1,4 @@
+mod cycle;
 mod seed;
 
 use rust_decimal::Decimal;
@@ -14,6 +15,7 @@ pub(super) struct Outcome {
     usage: UsageRecord,
     window: UsageWindow,
     quota: QuotaWindowRecord,
+    cycle: cycle::Outcome,
     binding: BindingPage,
     rollup_requests: i64,
     wire_logs: i64,
@@ -108,6 +110,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .ensure_quota_window(1, QuotaWindowKind::Daily, 3_601)
         .await?;
     let quota = store.add_quota_cost(quota.id, Decimal::new(15, 4)).await?;
+    let cycle = cycle::run(store, credential.id).await?;
     let binding = seed_binding(store, provider, credential.id).await?;
     seed_capture(store, provider, credential.id).await?;
     let rollup_requests = scalar(store, "SELECT requests FROM usage_rollups").await?;
@@ -134,6 +137,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         usage,
         window,
         quota,
+        cycle,
         binding,
         rollup_requests,
         wire_logs,

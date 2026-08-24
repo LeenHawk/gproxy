@@ -11,6 +11,13 @@ pub(crate) struct KeyIdentity {
     pub expires_at: Option<i64>,
 }
 
+pub(super) struct CredentialPressure {
+    pub used_percent: rust_decimal::Decimal,
+    pub period_end: Option<i64>,
+}
+
+pub(super) type CredentialPressureMap = BTreeMap<CredentialId, Vec<CredentialPressure>>;
+
 pub(super) struct CompiledSnapshot {
     pub stored: Arc<ControlSnapshot>,
     pub providers: BTreeMap<i64, ProviderRef>,

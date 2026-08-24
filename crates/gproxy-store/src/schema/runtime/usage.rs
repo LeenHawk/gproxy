@@ -1,0 +1,76 @@
+use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+
+pub(super) const TABLES: &[TableSpec] = &[
+    TableSpec {
+        version: SchemaVersion::Runtime,
+        name: "usage_rows",
+        columns: &[
+            Col::id(),
+            Col::required("request_id", Text).unique(),
+            Col::required("at", Integer),
+            Col::required("provider_id", Integer),
+            Col::required("credential_id", Integer),
+            Col::optional("organization_id", Integer),
+            Col::optional("team_id", Integer),
+            Col::optional("user_id", Integer),
+            Col::optional("user_key_id", Integer),
+            Col::optional("operation", Text),
+            Col::required("upstream_model", Text),
+            Col::required("input_tokens", Integer),
+            Col::required("output_tokens", Integer),
+            Col::required("cached_input_tokens", Integer),
+            Col::required("metrics_json", Text),
+            Col::required("dimensions_json", Text),
+            Col::required("cost", Text),
+            Col::required("usage_source", Text),
+            Col::required("ended", Text),
+            Col::required("latency_ms", Integer),
+        ],
+        indexes: &[
+            IndexSpec {
+                name: "ix_usage_rows_user_provider_at",
+                columns: &["user_id", "provider_id", "at", "id"],
+                unique: false,
+            },
+            IndexSpec {
+                name: "ix_usage_rows_credential_at",
+                columns: &["credential_id", "at", "id"],
+                unique: false,
+            },
+        ],
+    },
+    TableSpec {
+        version: SchemaVersion::Runtime,
+        name: "usage_rollups",
+        columns: &[
+            Col::id(),
+            Col::required("granularity", Text),
+            Col::required("bucket_start", Integer),
+            Col::required("dimension_key", Text),
+            Col::optional("provider_id", Integer),
+            Col::optional("organization_id", Integer),
+            Col::optional("team_id", Integer),
+            Col::optional("user_id", Integer),
+            Col::optional("upstream_model", Text),
+            Col::required("requests", Integer),
+            Col::required("input_tokens", Integer),
+            Col::required("output_tokens", Integer),
+            Col::required("cached_input_tokens", Integer),
+            Col::required("metrics_json", Text),
+            Col::required("cost", Text),
+            Col::required("version", Integer),
+        ],
+        indexes: &[
+            IndexSpec {
+                name: "uq_usage_rollups_bucket",
+                columns: &["granularity", "bucket_start", "dimension_key"],
+                unique: true,
+            },
+            IndexSpec {
+                name: "ix_usage_rollups_user_provider_bucket",
+                columns: &["user_id", "provider_id", "bucket_start"],
+                unique: false,
+            },
+        ],
+    },
+];

@@ -8,6 +8,7 @@ pub(super) struct Fixture {
     pub app: AppHandle,
     pub provider: i64,
     pub credential: i64,
+    pub route: i64,
     pub quota: i64,
     pub client_key: String,
     pub _directory: tempfile::TempDir,
@@ -145,19 +146,20 @@ pub(super) async fn fixture() -> Fixture {
         app,
         provider,
         credential,
+        route,
         quota,
         client_key,
         _directory: directory,
     }
 }
 
-fn random_key() -> String {
+pub(super) fn random_key() -> String {
     let mut bytes = [0_u8; 24];
     getrandom::fill(&mut bytes).expect("API key randomness");
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
-fn id(result: MutationResult) -> i64 {
+pub(super) fn id(result: MutationResult) -> i64 {
     let MutationResult::Id(id) = result else {
         panic!("mutation returned no id")
     };

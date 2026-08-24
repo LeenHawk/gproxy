@@ -1,3 +1,4 @@
+mod pressure;
 mod setup;
 
 use bytes::Bytes;
@@ -12,6 +13,7 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
         app,
         provider,
         credential,
+        route: _,
         quota,
         client_key,
         _directory,

@@ -105,4 +105,17 @@ impl AppHandle {
     ) -> Result<Vec<gproxy_store::records::QuotaWindowRecord>, AppError> {
         Ok(self.inner.host.services.store.quota_windows().await?)
     }
+
+    pub async fn observe_credential_quota_cycle(
+        &self,
+        observation: gproxy_store::records::CredentialQuotaObservation,
+    ) -> Result<gproxy_store::records::CredentialQuotaCycleRecord, AppError> {
+        Ok(self
+            .inner
+            .host
+            .services
+            .control
+            .observe_credential_quota_cycle(&observation)
+            .await?)
+    }
 }

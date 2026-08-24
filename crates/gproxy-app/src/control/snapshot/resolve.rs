@@ -1,7 +1,10 @@
 use gproxy_core::control::FailoverBudget;
 use gproxy_core::{CoreError, Plan, RoutingMode, Target};
+use rust_decimal::Decimal;
 
-use super::types::{CompiledSnapshot, TargetSeed, namespace_route_ids};
+use super::types::{
+    CompiledSnapshot, CredentialPressure, CredentialPressureMap, TargetSeed, namespace_route_ids,
+};
 
 impl CompiledSnapshot {
     pub(super) fn resolve(
@@ -146,4 +149,24 @@ impl CompiledSnapshot {
 
 fn attempt_count(count: usize) -> u32 {
     u32::try_from(count).unwrap_or(u32::MAX)
+}
+
+pub(super) fn apply_pressure(plan: &mut Plan, pressure: &CredentialPressureMap, now: i64) {
+    plan.targets.sort_by_key(|target| {
+        pressure_tier(pressure.get(&target.credential).map(Vec::as_slice), now)
+    });
+}
+
+fn pressure_tier(pressure: Option<&[CredentialPressure]>, now: i64) -> u8 {
+    let pressure = pressure
+        .into_iter()
+        .flatten()
+        .filter(|window| window.period_end.is_none_or(|period_end| period_end > now))
+        .map(|window| window.used_percent)
+        .max();
+    match pressure {
+        Some(pressure) if pressure >= Decimal::from(100) => 2,
+        Some(pressure) if pressure >= Decimal::from(90) => 1,
+        _ => 0,
+    }
 }

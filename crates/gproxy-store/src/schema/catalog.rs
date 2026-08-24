@@ -100,5 +100,5 @@ pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
     control::TABLES
         .iter()
         .chain(identity::TABLES)
-        .chain(runtime::TABLES)
+        .chain(runtime::tables())
 }
