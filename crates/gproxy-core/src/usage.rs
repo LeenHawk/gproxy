@@ -17,7 +17,7 @@ pub fn estimate_input_tokens(body: &[u8]) -> u64 {
 
 pub fn cost_to_micros(cost: Decimal) -> Option<i64> {
     (cost.max(Decimal::ZERO) * Decimal::from(COST_MICROS))
-        .round()
+        .ceil()
         .to_i64()
 }
 

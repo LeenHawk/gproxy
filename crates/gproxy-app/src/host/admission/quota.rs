@@ -5,7 +5,7 @@ use gproxy_store::records::{QuotaRecord, QuotaWindowKind};
 
 use super::super::AppHost;
 use super::auth::subject_matches;
-use super::types::{CounterCharge, QuotaReservation, RESERVATION_TTL};
+use super::types::{CounterCharge, QuotaReservation};
 
 pub(super) async fn reserve(
     host: &AppHost,
@@ -37,19 +37,26 @@ pub(super) async fn reserve(
                     CoreError::Store(gproxy_core::error::StoreError(error.to_string()))
                 })?;
             let key = format!("gproxy:quota-pending:{}", window.id);
-            let pending = host
-                .services
-                .cache
-                .incr(&key, estimate, Some(RESERVATION_TTL))
-                .await?;
+            let pending = host.services.cache.incr(&key, estimate, None).await?;
             charged.push(CounterCharge {
                 key: key.clone(),
                 amount: estimate,
             });
+            let live = host
+                .services
+                .store
+                .quota_window(window.id)
+                .await
+                .map_err(store_error)?
+                .ok_or_else(|| {
+                    CoreError::Store(gproxy_core::error::StoreError(
+                        "quota window vanished after reservation".into(),
+                    ))
+                })?;
             let before = pending.saturating_sub(estimate).max(0);
             let projected = pending.max(0);
-            let exhausted = window.cost_used + gproxy_core::usage::micros_to_cost(before) >= limit;
-            let exceeds = window.cost_used + gproxy_core::usage::micros_to_cost(projected) > limit;
+            let exhausted = live.cost_used + gproxy_core::usage::micros_to_cost(before) >= limit;
+            let exceeds = live.cost_used + gproxy_core::usage::micros_to_cost(projected) > limit;
             if exhausted || exceeds {
                 return Err(CoreError::QuotaExceeded);
             }
@@ -57,10 +64,16 @@ pub(super) async fn reserve(
                 window_id: window.id,
                 cache_key: key,
                 estimated_cost_micros: estimate,
+                cost_recorded: false,
+                released: false,
             });
         }
     }
     Ok(reservations)
+}
+
+fn store_error(error: gproxy_store::StoreError) -> CoreError {
+    CoreError::Store(gproxy_core::error::StoreError(error.to_string()))
 }
 
 fn estimated_cost_micros(

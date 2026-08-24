@@ -1,9 +1,5 @@
-use std::time::Duration;
-
 use gproxy_channel_api::CallerIdentity;
 use serde::{Deserialize, Serialize};
-
-pub(super) const RESERVATION_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Serialize, Deserialize)]
 pub(in crate::host) struct AdmissionState {
@@ -25,6 +21,8 @@ pub(super) struct QuotaReservation {
     pub window_id: i64,
     pub cache_key: String,
     pub estimated_cost_micros: i64,
+    pub cost_recorded: bool,
+    pub released: bool,
 }
 
 pub(super) struct CounterCharge {

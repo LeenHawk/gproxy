@@ -6,9 +6,7 @@ use gproxy_protocol::OperationKey;
 
 use super::super::AppHost;
 use super::auth::{authorize, subject_matches, unix_now};
-use super::types::{
-    AdmissionState, CounterCharge, IdentityState, RESERVATION_TTL, reservation_key,
-};
+use super::types::{AdmissionState, CounterCharge, IdentityState, reservation_key};
 
 pub(in crate::host) fn admit<'a>(
     host: &'a AppHost,
@@ -78,12 +76,7 @@ pub(in crate::host) fn admit<'a>(
             }
         };
         let key = reservation_key(&request.request_id);
-        if let Err(error) = host
-            .services
-            .cache
-            .set(&key, bytes, Some(RESERVATION_TTL))
-            .await
-        {
+        if let Err(error) = host.services.cache.set(&key, bytes, None).await {
             let _ = host.services.cache.delete(&key).await;
             return rollback_error(host, charged, error.into()).await;
         }
