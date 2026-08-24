@@ -161,6 +161,7 @@ fn response_output(
     match output {
         openai::ResponseOutput::Text(text) => Ok(claude::ToolResultContent::Text(text)),
         openai::ResponseOutput::Parts(parts) => {
+            let parts = parts.into_iter().map(tool_output_to_input).collect();
             let blocks = responses::input_to_claude(parts)?;
             let blocks = blocks
                 .into_iter()
@@ -168,6 +169,21 @@ fn response_output(
                 .collect::<Result<_, serde_json::Error>>()?;
             Ok(claude::ToolResultContent::Blocks(blocks))
         }
-        openai::ResponseOutput::Unknown(raw) => Ok(claude::ToolResultContent::Raw(raw)),
+    }
+}
+
+fn tool_output_to_input(
+    part: openai::ResponseToolOutputContentPart,
+) -> openai::ResponseInputContentPart {
+    match part {
+        openai::ResponseToolOutputContentPart::InputText(part) => {
+            openai::ResponseInputContentPart::InputText(part)
+        }
+        openai::ResponseToolOutputContentPart::InputImage(part) => {
+            openai::ResponseInputContentPart::InputImage(part)
+        }
+        openai::ResponseToolOutputContentPart::InputFile(part) => {
+            openai::ResponseInputContentPart::InputFile(part)
+        }
     }
 }

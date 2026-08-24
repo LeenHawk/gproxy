@@ -51,10 +51,6 @@ pub(super) fn input_part(
             let mime = format!("audio/{}", part.input_audio.format.as_str());
             inline_part(mime, part.input_audio.data, part.rest)
         }
-        openai::ResponseInputContentPart::Unknown(raw) => gemini::Part {
-            data: Some(gemini::PartData::Raw(raw)),
-            ..Default::default()
-        },
     })
 }
 

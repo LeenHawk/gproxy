@@ -35,31 +35,38 @@ pub(super) fn function_output(
     if parts.peek().is_none() {
         return output(response);
     }
-    let mut output = vec![openai::ResponseInputContentPart::InputText(
+    let mut output = vec![openai::ResponseToolOutputContentPart::InputText(
         openai::ResponseInputText {
-            type_: openai::ResponseInputTextType::InputText,
             text: serde_json::to_string(&response)?,
             prompt_cache_breakpoint: None,
             rest: Default::default(),
         },
     )];
     for mut part in parts {
-        let encoded = serde_json::to_value(&part)?;
         let mut part_rest = std::mem::take(&mut part.rest);
         output.push(match part.data.take() {
             Some(gemini::FunctionResponsePartData::InlineData { inline_data, rest }) => {
                 part_rest.extend(rest);
-                response_blob(inline_data, part_rest)
+                response_blob(inline_data, part_rest)?
             }
-            Some(gemini::FunctionResponsePartData::Raw(raw)) => {
-                if part_rest.is_empty() {
-                    openai::ResponseInputContentPart::Unknown(raw)
-                } else {
-                    openai::ResponseInputContentPart::Unknown(encoded)
-                }
+            Some(gemini::FunctionResponsePartData::Raw(_)) => {
+                return Err(TransformError::unsupported(
+                    "Gemini function response part",
+                    "unknown part data",
+                ));
             }
-            None => openai::ResponseInputContentPart::Unknown(encoded),
-            Some(_) => openai::ResponseInputContentPart::Unknown(encoded),
+            None => {
+                return Err(TransformError::shape(
+                    "Gemini function response part",
+                    "data is missing",
+                ));
+            }
+            Some(_) => {
+                return Err(TransformError::unsupported(
+                    "Gemini function response part",
+                    "future part data",
+                ));
+            }
         });
     }
     Ok(openai::ResponseOutput::Parts(output))
@@ -68,45 +75,37 @@ pub(super) fn function_output(
 fn response_blob(
     blob: gemini::FunctionResponseBlob,
     mut rest: openai::Rest,
-) -> openai::ResponseInputContentPart {
+) -> Result<openai::ResponseToolOutputContentPart, TransformError> {
     rest.extend(blob.rest);
     if blob.mime_type.starts_with("image/") {
-        return openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
-            type_: openai::ResponseInputImageType::InputImage,
-            detail: None,
-            file_id: None,
-            image_url: Some(format!("data:{};base64,{}", blob.mime_type, blob.data)),
-            prompt_cache_breakpoint: None,
-            rest,
-        });
+        return Ok(openai::ResponseToolOutputContentPart::InputImage(
+            openai::ResponseInputImage {
+                detail: None,
+                file_id: None,
+                image_url: Some(format!("data:{};base64,{}", blob.mime_type, blob.data)),
+                prompt_cache_breakpoint: None,
+                rest,
+            },
+        ));
     }
     if blob.mime_type.starts_with("audio/") {
-        let format = blob
-            .mime_type
-            .strip_prefix("audio/")
-            .expect("audio MIME checked above")
-            .to_owned();
-        return openai::ResponseInputContentPart::InputAudio(openai::ResponseInputAudio {
-            type_: openai::ResponseInputAudioType::InputAudio,
-            input_audio: openai::InputAudioContent {
-                data: blob.data,
-                format: openai::InputAudioFormat::Unknown(format),
-                rest: Default::default(),
-            },
-            rest,
-        });
+        return Err(TransformError::unsupported(
+            "Gemini function response part",
+            "audio content",
+        ));
     }
     rest.insert("mime_type".into(), blob.mime_type.into());
-    openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
-        type_: openai::ResponseInputFileType::InputFile,
-        detail: None,
-        file_data: Some(blob.data),
-        file_id: None,
-        file_url: None,
-        filename: None,
-        prompt_cache_breakpoint: None,
-        rest,
-    })
+    Ok(openai::ResponseToolOutputContentPart::InputFile(
+        openai::ResponseInputFile {
+            detail: None,
+            file_data: Some(blob.data),
+            file_id: None,
+            file_url: None,
+            filename: None,
+            prompt_cache_breakpoint: None,
+            rest,
+        },
+    ))
 }
 
 pub(super) fn server_tool_name(value: &gemini::ServerToolType) -> Result<String, TransformError> {

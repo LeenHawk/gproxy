@@ -10,6 +10,7 @@ use super::memories::{MemorySummarizeRequest, MemorySummarizeResponse};
 use super::models::{ListModelsRequest, RetrieveModelRequest};
 
 mod item_actions;
+mod item_content;
 mod tool_runtime;
 
 fn round_trip<T>(value: Value) -> T

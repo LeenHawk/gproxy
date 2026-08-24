@@ -15,7 +15,6 @@ pub(super) fn function_result(
 ) -> Result<(gemini::JsonMap, Option<Vec<gemini::FunctionResponsePart>>), TransformError> {
     match output {
         openai::ResponseOutput::Text(text) => Ok((response_map(text_value(text)), None)),
-        openai::ResponseOutput::Unknown(raw) => Ok((response_map(raw), None)),
         openai::ResponseOutput::Parts(parts) => multipart_result(parts),
     }
 }
@@ -28,13 +27,13 @@ pub(super) fn openai_item_rest(mut rest: gemini::JsonMap, id: Option<String>) ->
 }
 
 fn multipart_result(
-    parts: Vec<openai::ResponseInputContentPart>,
+    parts: Vec<openai::ResponseToolOutputContentPart>,
 ) -> Result<(gemini::JsonMap, Option<Vec<gemini::FunctionResponsePart>>), TransformError> {
     let mut values = Vec::new();
     let mut media = Vec::new();
     for part in parts {
         match part {
-            openai::ResponseInputContentPart::InputText(part) => {
+            openai::ResponseToolOutputContentPart::InputText(part) => {
                 if part.prompt_cache_breakpoint.is_some() || !part.rest.is_empty() {
                     return Err(TransformError::unsupported(
                         "Responses function output text",
@@ -43,7 +42,7 @@ fn multipart_result(
                 }
                 values.push(text_value(part.text));
             }
-            openai::ResponseInputContentPart::InputImage(part) => {
+            openai::ResponseToolOutputContentPart::InputImage(part) => {
                 if part.detail.is_some()
                     || part.file_id.is_some()
                     || part.prompt_cache_breakpoint.is_some()
@@ -60,7 +59,7 @@ fn multipart_result(
                 let (mime_type, data) = data_uri(uri)?;
                 media.push(response_part(mime_type, data));
             }
-            openai::ResponseInputContentPart::InputFile(mut part) => {
+            openai::ResponseToolOutputContentPart::InputFile(mut part) => {
                 if part.detail.is_some()
                     || part.file_id.is_some()
                     || part.file_url.is_some()
@@ -89,24 +88,6 @@ fn multipart_result(
                     TransformError::shape("Responses function output file", "file_data missing")
                 })?;
                 media.push(response_part(mime_type, data));
-            }
-            openai::ResponseInputContentPart::InputAudio(part) => {
-                if !part.rest.is_empty() || !part.input_audio.rest.is_empty() {
-                    return Err(TransformError::unsupported(
-                        "Responses function output audio",
-                        "extension fields",
-                    ));
-                }
-                media.push(response_part(
-                    format!("audio/{}", part.input_audio.format.as_str()),
-                    part.input_audio.data,
-                ));
-            }
-            openai::ResponseInputContentPart::Unknown(raw) => {
-                return Err(TransformError::unsupported(
-                    "Responses function output part",
-                    raw.to_string(),
-                ));
             }
         }
     }

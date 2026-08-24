@@ -123,7 +123,6 @@ fn text_message(text: String, response: bool, rest: openai::Rest) -> MessagePart
     } else {
         MessagePart::Input(openai::ResponseInputContentPart::InputText(
             openai::ResponseInputText {
-                type_: openai::ResponseInputTextType::InputText,
                 text,
                 prompt_cache_breakpoint: None,
                 rest,

@@ -67,7 +67,6 @@ pub(crate) fn input_to_claude(
                     "input_audio",
                 ));
             }
-            openai::ResponseInputContentPart::Unknown(raw) => openai::ChatContentPart::Unknown(raw),
         });
     }
     content::chat_user_blocks(openai::ChatContent::Parts(chat))
@@ -81,7 +80,6 @@ pub(crate) fn claude_to_input(
         .map(|part| match part {
             openai::ChatContentPart::Text(part) => Ok(openai::ResponseInputContentPart::InputText(
                 openai::ResponseInputText {
-                    type_: openai::ResponseInputTextType::InputText,
                     text: part.text,
                     prompt_cache_breakpoint: part.prompt_cache_breakpoint,
                     rest: part.rest,
@@ -89,7 +87,6 @@ pub(crate) fn claude_to_input(
             )),
             openai::ChatContentPart::ImageUrl(part) => Ok(
                 openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
-                    type_: openai::ResponseInputImageType::InputImage,
                     detail: None,
                     file_id: None,
                     image_url: Some(part.image_url.url),
@@ -99,7 +96,6 @@ pub(crate) fn claude_to_input(
             ),
             openai::ChatContentPart::File(part) => Ok(openai::ResponseInputContentPart::InputFile(
                 openai::ResponseInputFile {
-                    type_: openai::ResponseInputFileType::InputFile,
                     detail: None,
                     file_data: part.file.file_data,
                     file_id: part.file.file_id,
@@ -109,9 +105,10 @@ pub(crate) fn claude_to_input(
                     rest: part.rest,
                 },
             )),
-            openai::ChatContentPart::Unknown(raw) => {
-                Ok(openai::ResponseInputContentPart::Unknown(raw))
-            }
+            openai::ChatContentPart::Unknown(raw) => Err(TransformError::unsupported(
+                "Claude content",
+                serde_json::to_string(&raw)?,
+            )),
             openai::ChatContentPart::InputAudio(_) => {
                 Err(TransformError::unsupported("Claude content", "audio"))
             }

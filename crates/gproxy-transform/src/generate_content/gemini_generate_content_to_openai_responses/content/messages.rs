@@ -20,9 +20,9 @@ pub(super) fn flush(
             .into_iter()
             .map(|part| match part {
                 MessagePart::Output(part) => part,
-                MessagePart::Input(part) => openai::ResponseMessageOutputContentPart::Unknown(
-                    serde_json::to_value(part).expect("typed content serializes"),
-                ),
+                MessagePart::Input(_) => {
+                    unreachable!("input part produced while converting a Gemini response")
+                }
             })
             .collect();
         output.push(openai::ResponseItem::Message(
@@ -51,9 +51,9 @@ pub(super) fn flush(
         .into_iter()
         .map(|part| match part {
             MessagePart::Input(part) => part,
-            MessagePart::Output(part) => openai::ResponseInputContentPart::Unknown(
-                serde_json::to_value(part).expect("typed content serializes"),
-            ),
+            MessagePart::Output(_) => {
+                unreachable!("output part produced while converting a Gemini request")
+            }
         })
         .collect();
     output.push(openai::ResponseItem::Message(

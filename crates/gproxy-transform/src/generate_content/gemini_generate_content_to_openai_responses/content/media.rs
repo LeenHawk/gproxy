@@ -26,7 +26,6 @@ pub(super) fn media_message(
     if mime.starts_with("image/") {
         return Ok(MessagePart::Input(
             openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
-                type_: openai::ResponseInputImageType::InputImage,
                 detail: None,
                 file_id: None,
                 image_url: Some(format!("data:{mime};base64,{}", blob.data)),
@@ -42,7 +41,6 @@ pub(super) fn media_message(
             .to_owned();
         return Ok(MessagePart::Input(
             openai::ResponseInputContentPart::InputAudio(openai::ResponseInputAudio {
-                type_: openai::ResponseInputAudioType::InputAudio,
                 input_audio: openai::InputAudioContent {
                     data: blob.data,
                     format: openai::InputAudioFormat::Unknown(format),
@@ -55,7 +53,6 @@ pub(super) fn media_message(
     rest.insert("mime_type".into(), mime.into());
     Ok(MessagePart::Input(
         openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
-            type_: openai::ResponseInputFileType::InputFile,
             detail: None,
             file_data: Some(blob.data),
             file_id: None,
@@ -92,7 +89,6 @@ pub(super) fn file_message(
     {
         return Ok(MessagePart::Input(
             openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
-                type_: openai::ResponseInputImageType::InputImage,
                 detail: None,
                 file_id: None,
                 image_url: Some(file.file_uri),
@@ -106,7 +102,6 @@ pub(super) fn file_message(
     }
     Ok(MessagePart::Input(
         openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
-            type_: openai::ResponseInputFileType::InputFile,
             detail: None,
             file_data: None,
             file_id: None,

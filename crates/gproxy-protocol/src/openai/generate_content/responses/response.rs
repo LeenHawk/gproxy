@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::openai::common::*;
 
 use super::{
-    ResponseConversationParam, ResponseInput, ResponseInputContentPart, ResponseOutputItem,
+    PromptVariableInputContentPart, ResponseConversationParam, ResponseInput, ResponseOutputItem,
     ResponseTool,
 };
 
@@ -35,13 +35,11 @@ pub type PromptVariables = BTreeMap<String, PromptVariableValue>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum PromptVariableValue {
     Text(String),
-    InputContent(ResponseInputContentPart),
-    Unknown(Value),
+    InputContent(PromptVariableInputContentPart),
 }
-
-pub type PromptVariableInputContentPart = ResponseInputContentPart;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReasoningConfig {
