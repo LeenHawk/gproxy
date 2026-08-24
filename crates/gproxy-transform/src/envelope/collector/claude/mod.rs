@@ -1,9 +1,14 @@
+mod delta;
+mod usage;
+
 use std::collections::BTreeMap;
 
 use gproxy_protocol::claude;
 
 use super::SseFrame;
 use crate::TransformError;
+
+use usage::merge_usage;
 
 #[derive(Default)]
 pub(super) struct ClaudeCollector {
@@ -77,89 +82,14 @@ impl ClaudeCollector {
                         error.message,
                     ));
                 }
-                _ => {
-                    return Err(TransformError::unsupported(
-                        "Claude stream event",
-                        "future known event",
-                    ));
-                }
             },
-            claude::StreamEvent::Unknown(raw) => {
+            claude::StreamEvent::Unknown(object) => {
                 self.rest
                     .entry("stream_events")
                     .or_insert_with(|| serde_json::Value::Array(Vec::new()))
                     .as_array_mut()
                     .expect("inserted array")
-                    .push(raw);
-            }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "Claude stream",
-                    "future event variant",
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    fn apply_delta(&mut self, index: u64, delta: claude::EventDelta) -> Result<(), TransformError> {
-        match delta {
-            claude::EventDelta::Known(delta) => match *delta {
-                claude::KnownEventDelta::Text { text, .. } => {
-                    if let Some(claude::ResponseContentBlock::Text(block)) =
-                        self.blocks.get_mut(&index)
-                    {
-                        block.text.push_str(&text);
-                    }
-                }
-                claude::KnownEventDelta::Thinking { thinking, .. } => {
-                    if let Some(claude::ResponseContentBlock::Thinking(block)) =
-                        self.blocks.get_mut(&index)
-                    {
-                        block.thinking.push_str(&thinking);
-                    }
-                }
-                claude::KnownEventDelta::Signature { signature, .. } => {
-                    if let Some(claude::ResponseContentBlock::Thinking(block)) =
-                        self.blocks.get_mut(&index)
-                    {
-                        block.signature.get_or_insert_default().push_str(&signature);
-                    }
-                }
-                claude::KnownEventDelta::InputJson { partial_json, .. } => {
-                    self.json.entry(index).or_default().push_str(&partial_json);
-                }
-                claude::KnownEventDelta::Compaction {
-                    content,
-                    encrypted_content,
-                    ..
-                } => {
-                    if let Some(claude::ResponseContentBlock::Compaction(block)) =
-                        self.blocks.get_mut(&index)
-                    {
-                        block.content.get_or_insert_default().push_str(&content);
-                        block.encrypted_content.push_str(&encrypted_content);
-                    }
-                }
-                claude::KnownEventDelta::Citations { .. } => {}
-                _ => {
-                    return Err(TransformError::unsupported(
-                        "Claude stream delta",
-                        "future known delta",
-                    ));
-                }
-            },
-            claude::EventDelta::Unknown(raw) => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    raw.to_string(),
-                ));
-            }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    "future delta variant",
-                ));
+                    .push(serde_json::to_value(object)?);
             }
         }
         Ok(())
@@ -192,25 +122,4 @@ impl ClaudeCollector {
             rest: self.rest,
         })
     }
-}
-
-fn merge_usage(target: &mut claude::Usage, update: claude::Usage) {
-    target.input_tokens = update.input_tokens.or(target.input_tokens);
-    target.output_tokens = update.output_tokens.or(target.output_tokens);
-    target.cache_creation_input_tokens = update
-        .cache_creation_input_tokens
-        .or(target.cache_creation_input_tokens);
-    target.cache_read_input_tokens = update
-        .cache_read_input_tokens
-        .or(target.cache_read_input_tokens);
-    target.cache_creation = update.cache_creation.or(target.cache_creation.take());
-    target.output_tokens_details = update
-        .output_tokens_details
-        .or(target.output_tokens_details.take());
-    target.server_tool_use = update.server_tool_use.or(target.server_tool_use.take());
-    target.iterations = update.iterations.or(target.iterations.take());
-    target.inference_geo = update.inference_geo.or(target.inference_geo.take());
-    target.service_tier = update.service_tier.or(target.service_tier.take());
-    target.speed = update.speed.or(target.speed.take());
-    target.rest.extend(update.rest);
 }

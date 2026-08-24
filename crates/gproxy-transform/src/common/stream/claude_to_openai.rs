@@ -82,18 +82,10 @@ impl State {
                     "Claude stream error",
                     error.message,
                 )),
-                _ => Err(TransformError::unsupported(
-                    "Claude stream event",
-                    "future event",
-                )),
             },
-            claude::StreamEvent::Unknown(raw) => Err(TransformError::unsupported(
+            claude::StreamEvent::Unknown(object) => Err(TransformError::unsupported(
                 "Claude stream event",
-                raw.to_string(),
-            )),
-            _ => Err(TransformError::unsupported(
-                "Claude stream event",
-                "future event variant",
+                serde_json::to_string(&object)?,
             )),
         }
     }

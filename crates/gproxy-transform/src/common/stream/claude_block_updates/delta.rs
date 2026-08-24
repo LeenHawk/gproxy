@@ -118,23 +118,26 @@ impl State {
                         ),
                     }
                 }
-                (other, _, _) => {
+                (
+                    other @ (claude::KnownEventDelta::Text { .. }
+                    | claude::KnownEventDelta::InputJson { .. }
+                    | claude::KnownEventDelta::Citations { .. }
+                    | claude::KnownEventDelta::Thinking { .. }
+                    | claude::KnownEventDelta::Signature { .. }
+                    | claude::KnownEventDelta::Compaction { .. }),
+                    _,
+                    _,
+                ) => {
                     return Err(TransformError::unsupported(
                         "Claude stream delta",
                         serde_json::to_string(&other)?,
                     ));
                 }
             },
-            claude::EventDelta::Unknown(raw) => {
+            claude::EventDelta::Unknown(object) => {
                 return Err(TransformError::unsupported(
                     "Claude stream delta",
-                    raw.to_string(),
-                ));
-            }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    "future delta variant",
+                    serde_json::to_string(&object)?,
                 ));
             }
         };

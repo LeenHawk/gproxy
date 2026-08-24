@@ -27,11 +27,14 @@ impl State {
         &mut self,
         event: claude::StreamEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let claude::StreamEvent::Known(event) = event else {
-            return Err(TransformError::unsupported(
-                "Claude stream event",
-                "unknown event",
-            ));
+        let event = match event {
+            claude::StreamEvent::Known(event) => event,
+            claude::StreamEvent::Unknown(object) => {
+                return Err(TransformError::unsupported(
+                    "Claude stream event",
+                    serde_json::to_string(&object)?,
+                ));
+            }
         };
         if self.stopped {
             return Err(TransformError::shape(
@@ -77,7 +80,7 @@ impl State {
                         .usage
                         .map(super::super::usage::convert)
                         .transpose()?,
-                    merge(message.rest, rest),
+                    chunks::merge(message.rest, rest),
                 ))
             }
             claude::KnownStreamEvent::ContentBlockStart {
@@ -126,7 +129,6 @@ impl State {
                     error.message,
                 ));
             }
-            _ => return Err(TransformError::unsupported("Claude stream", "future event")),
         };
         chunk
             .map(|chunk| SseFrame::typed(None, &chunk).map(|frame| vec![frame]))
@@ -139,25 +141,28 @@ impl State {
         delta: claude::EventDelta,
         rest: gemini::JsonMap,
     ) -> Result<Option<gemini::GenerateContentResponse>, TransformError> {
-        let claude::EventDelta::Known(delta) = delta else {
-            return Err(TransformError::unsupported(
-                "Claude stream delta",
-                "unknown delta",
-            ));
+        let delta = match delta {
+            claude::EventDelta::Known(delta) => delta,
+            claude::EventDelta::Unknown(object) => {
+                return Err(TransformError::unsupported(
+                    "Claude stream delta",
+                    serde_json::to_string(&object)?,
+                ));
+            }
         };
         let part = match *delta {
             claude::KnownEventDelta::Text { text, rest: inner } => {
-                chunks::text(text, false, merge(inner, rest))
+                chunks::text(text, false, chunks::merge(inner, rest))
             }
             claude::KnownEventDelta::Thinking {
                 thinking,
                 rest: inner,
                 ..
-            } => chunks::text(thinking, true, merge(inner, rest)),
+            } => chunks::text(thinking, true, chunks::merge(inner, rest)),
             claude::KnownEventDelta::Signature {
                 signature,
                 rest: inner,
-            } => chunks::signature(signature, merge(inner, rest)),
+            } => chunks::signature(signature, chunks::merge(inner, rest)),
             claude::KnownEventDelta::InputJson {
                 partial_json,
                 rest: inner,
@@ -166,18 +171,18 @@ impl State {
                     TransformError::shape("Claude stream", "tool delta before block start")
                 })?;
                 tool.partial.push_str(&partial_json);
-                tool.block.rest.extend(merge(inner, rest));
+                tool.block.rest.extend(chunks::merge(inner, rest));
                 return Ok(None);
             }
             claude::KnownEventDelta::Compaction {
                 content,
                 rest: inner,
                 ..
-            } => chunks::text(content, false, merge(inner, rest)),
-            other => {
+            } => chunks::text(content, false, chunks::merge(inner, rest)),
+            unsupported @ claude::KnownEventDelta::Citations { .. } => {
                 return Err(TransformError::unsupported(
                     "Claude stream delta",
-                    serde_json::to_string(&other)?,
+                    serde_json::to_string(&unsupported)?,
                 ));
             }
         };
@@ -188,9 +193,4 @@ impl State {
             Default::default(),
         )))
     }
-}
-
-fn merge(mut left: gemini::JsonMap, right: gemini::JsonMap) -> gemini::JsonMap {
-    left.extend(right);
-    left
 }

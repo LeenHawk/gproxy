@@ -2,15 +2,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::claude::common::{
     AssistantRole, Citation, ClaudeModel, Container, ContentBlock, ContextManagementResponse,
-    MessageObjectType, StopDetails, StopReason, Usage,
+    MessageObjectType, StopDetails, StopReason, TypedObject, Usage,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum StreamEvent {
     Known(Box<KnownStreamEvent>),
-    Unknown(serde_json::Value),
+    Unknown(TypedObject),
 }
 
 impl StreamEvent {
@@ -18,14 +18,14 @@ impl StreamEvent {
     pub fn event_name(&self) -> Option<&str> {
         match self {
             Self::Known(event) => Some(event.event_name()),
-            Self::Unknown(value) => value.get("type").and_then(serde_json::Value::as_str),
+            Self::Unknown(object) => Some(object.type_.as_str()),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum KnownStreamEvent {
     #[serde(rename = "message_start")]
     MessageStart {
@@ -99,15 +99,15 @@ impl KnownStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum EventDelta {
     Known(Box<KnownEventDelta>),
-    Unknown(serde_json::Value),
+    Unknown(TypedObject),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum KnownEventDelta {
     #[serde(rename = "text_delta")]
     Text {

@@ -1,5 +1,10 @@
 use gproxy_protocol::{claude, gemini};
 
+pub(super) fn merge(mut left: gemini::JsonMap, right: gemini::JsonMap) -> gemini::JsonMap {
+    left.extend(right);
+    left
+}
+
 pub(super) fn metadata(
     id: String,
     model: String,

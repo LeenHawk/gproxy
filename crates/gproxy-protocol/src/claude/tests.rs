@@ -34,16 +34,31 @@ fn messages_and_stream_unions_roundtrip_unknown_fields() {
         "future_request":{"enabled":true}
     }));
 
-    roundtrip::<StreamEvent>(json!({
+    let delta = roundtrip::<StreamEvent>(json!({
         "type":"content_block_delta",
         "index":0,
         "delta":{"type":"future_delta","payload":[1,2,3]},
         "trace_id":"trace_1"
     }));
-    roundtrip::<StreamEvent>(json!({
+    let StreamEvent::Known(event) = delta else {
+        panic!("known stream event must remain typed");
+    };
+    let KnownStreamEvent::ContentBlockDelta { delta, .. } = *event else {
+        panic!("expected content block delta");
+    };
+    let EventDelta::Unknown(object) = *delta else {
+        panic!("future delta must remain a typed object");
+    };
+    assert_eq!(object.type_, "future_delta");
+    let future = roundtrip::<StreamEvent>(json!({
         "type":"future_event",
         "nested":{"value":7}
     }));
+    let StreamEvent::Unknown(object) = future else {
+        panic!("future stream event must remain a typed object");
+    };
+    assert_eq!(object.type_, "future_event");
+    assert_eq!(object.rest["nested"]["value"], 7);
     roundtrip::<ContextManagementResponse>(json!({
         "applied_edits":[{
             "type":"clear_tool_uses_20250919",
@@ -110,10 +125,11 @@ fn models_count_files_and_skill_versions_keep_extension_data() {
     }));
 }
 
-fn roundtrip<T>(wire: Value)
+fn roundtrip<T>(wire: Value) -> T
 where
     T: DeserializeOwned + Serialize,
 {
     let decoded: T = serde_json::from_value(wire.clone()).expect("decode wire");
-    assert_eq!(serde_json::to_value(decoded).expect("encode wire"), wire);
+    assert_eq!(serde_json::to_value(&decoded).expect("encode wire"), wire);
+    decoded
 }
