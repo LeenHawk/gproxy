@@ -114,8 +114,17 @@ pub struct RateLimitRecord {
 pub struct QuotaInput {
     pub subject_kind: String,
     pub subject_id: i64,
-    pub token_limit: u64,
-    pub window_seconds: u64,
+    pub quota_total: rust_decimal::Decimal,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_daily: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_weekly: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_monthly: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_5h: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_7d: Option<rust_decimal::Decimal>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,6 +132,15 @@ pub struct QuotaRecord {
     pub id: i64,
     pub subject_kind: String,
     pub subject_id: i64,
-    pub token_limit: u64,
-    pub window_seconds: u64,
+    pub quota_total: rust_decimal::Decimal,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_daily: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_weekly: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_monthly: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_5h: Option<rust_decimal::Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_7d: Option<rust_decimal::Decimal>,
 }

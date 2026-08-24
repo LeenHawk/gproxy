@@ -1,6 +1,6 @@
 use crate::StoreError;
 use crate::backend::Statement;
-use crate::query::common::{insert, unsigned, value};
+use crate::query::common::{decimal, insert, unsigned, value};
 use crate::records::{
     OrganizationInput, PermissionInput, QuotaInput, RateLimitInput, TeamInput, UserInput,
     UserKeyInput,
@@ -92,14 +92,22 @@ pub(crate) fn insert_quota(input: &QuotaInput) -> Result<Statement, StoreError> 
         &[
             "subject_kind",
             "subject_id",
-            "token_limit",
-            "window_seconds",
+            "quota_total",
+            "quota_daily",
+            "quota_weekly",
+            "quota_monthly",
+            "quota_5h",
+            "quota_7d",
         ],
         vec![
             value(input.subject_kind.clone()),
             value(input.subject_id),
-            value(unsigned(input.token_limit, "token_limit")?),
-            value(unsigned(input.window_seconds, "window_seconds")?),
+            value(decimal(input.quota_total)),
+            value(input.quota_daily.map(decimal)),
+            value(input.quota_weekly.map(decimal)),
+            value(input.quota_monthly.map(decimal)),
+            value(input.quota_5h.map(decimal)),
+            value(input.quota_7d.map(decimal)),
         ],
     )
 }

@@ -1,4 +1,4 @@
-use super::unsigned;
+use super::{decimal, unsigned};
 use crate::StoreError;
 use crate::backend::QueryResult;
 use crate::records::{PermissionRecord, QuotaRecord, RateLimitRecord, UserKeyRecord, UserRecord};
@@ -77,9 +77,22 @@ pub(super) fn quotas(result: QueryResult) -> Result<Vec<QuotaRecord>, StoreError
                 id: row.i64("id")?,
                 subject_kind: row.text("subject_kind")?.to_owned(),
                 subject_id: row.i64("subject_id")?,
-                token_limit: unsigned(row.i64("token_limit")?, "token_limit")?,
-                window_seconds: unsigned(row.i64("window_seconds")?, "window_seconds")?,
+                quota_total: decimal(row.text("quota_total")?, "quota_total")?,
+                quota_daily: optional_decimal(&row, "quota_daily")?,
+                quota_weekly: optional_decimal(&row, "quota_weekly")?,
+                quota_monthly: optional_decimal(&row, "quota_monthly")?,
+                quota_5h: optional_decimal(&row, "quota_5h")?,
+                quota_7d: optional_decimal(&row, "quota_7d")?,
             })
         })
         .collect()
+}
+
+fn optional_decimal(
+    row: &crate::backend::Row,
+    field: &'static str,
+) -> Result<Option<rust_decimal::Decimal>, StoreError> {
+    row.optional_text(field)?
+        .map(|value| decimal(value, field))
+        .transpose()
 }

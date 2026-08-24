@@ -1,5 +1,6 @@
 mod seed;
 
+use rust_decimal::Decimal;
 use serde_json::json;
 
 use self::seed::*;
@@ -103,7 +104,10 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .await?
         .expect("usage row");
     let window = store.usage_window(1, provider, 0).await?;
-    let quota = store.add_quota_usage(1, 0, 15).await?;
+    let quota = store
+        .ensure_quota_window(1, QuotaWindowKind::Daily, 3_601)
+        .await?;
+    let quota = store.add_quota_cost(quota.id, Decimal::new(15, 4)).await?;
     let binding = seed_binding(store, provider, credential.id).await?;
     seed_capture(store, provider, credential.id).await?;
     let rollup_requests = scalar(store, "SELECT requests FROM usage_rollups").await?;
@@ -117,7 +121,8 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert!(usage.usage.cost > rust_decimal::Decimal::ZERO);
     assert_eq!(window.input_tokens, 10);
     assert_eq!(window.output_tokens, 5);
-    assert_eq!(quota.used_tokens, 15);
+    assert_eq!(quota.cost_used, Decimal::new(15, 4));
+    assert_eq!(quota.reset_at, Some(86_400));
     assert_eq!(binding.items.len(), 1);
     assert_eq!(binding.next_cursor, None);
     assert_eq!(rollup_requests, 1);

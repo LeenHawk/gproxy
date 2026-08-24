@@ -1,24 +1,42 @@
-use gproxy_app::{ControlMutation, MutationResult};
+use base64::Engine as _;
 use rust_decimal::Decimal;
 use serde_json::json;
 
-pub(crate) async fn operational(
-    app: &gproxy_app::AppHandle,
-    upstream: std::net::SocketAddr,
-    upstream_key: String,
-    client_key: &str,
-) -> i64 {
+use crate::{App, AppHandle, Config, ControlMutation, MutationResult};
+
+pub(super) struct Fixture {
+    pub app: AppHandle,
+    pub provider: i64,
+    pub credential: i64,
+    pub quota: i64,
+    pub client_key: String,
+    pub _directory: tempfile::TempDir,
+}
+
+pub(super) async fn fixture() -> Fixture {
+    let directory = tempfile::tempdir().expect("app tempdir");
+    let mut master_key = [0_u8; 32];
+    getrandom::fill(&mut master_key).expect("master key randomness");
+    let upstream_key = random_key();
+    let client_key = random_key();
+    let config = Config::from_toml(&format!(
+        "listen_addr = \"127.0.0.1:0\"\ndata_dir = {:?}\nstore_backend = \"sqlite\"\nsecret_key = \"{}\"\n",
+        directory.path().display().to_string(),
+        base64::engine::general_purpose::STANDARD.encode(master_key),
+    ))
+    .expect("config");
+    let app = App::start(config).await.expect("start app");
     let provider = id(app
         .mutate(ControlMutation::Provider(
             gproxy_store::records::ProviderInput {
-                name: "stub-openai".into(),
+                name: "provider".into(),
                 channel: "openai".into(),
-                settings: json!({"base_url": format!("http://{upstream}")}),
+                settings: json!({}),
                 enabled: true,
             },
         ))
         .await
-        .expect("create provider"));
+        .expect("provider"));
     let credential = id(app
         .mutate(ControlMutation::Credential {
             provider_id: provider,
@@ -27,15 +45,15 @@ pub(crate) async fn operational(
             enabled: true,
         })
         .await
-        .expect("create credential"));
+        .expect("credential"));
     let route = id(app
         .mutate(ControlMutation::Route(gproxy_store::records::RouteInput {
-            name: "e2e-route".into(),
+            name: "route".into(),
             max_attempts: 1,
             enabled: true,
         }))
         .await
-        .expect("create route"));
+        .expect("route"));
     app.mutate(ControlMutation::RouteMember(
         gproxy_store::records::RouteMemberInput {
             route_id: route,
@@ -47,7 +65,7 @@ pub(crate) async fn operational(
         },
     ))
     .await
-    .expect("create route member");
+    .expect("route member");
     app.mutate(ControlMutation::ExposedModel(
         gproxy_store::records::ExposedModelInput {
             name: "public-model".into(),
@@ -56,26 +74,26 @@ pub(crate) async fn operational(
         },
     ))
     .await
-    .expect("create exposed model");
+    .expect("model");
     let user = id(app
         .mutate(ControlMutation::User(gproxy_store::records::UserInput {
-            name: "e2e-user".into(),
+            name: "user".into(),
             organization_id: None,
             team_id: None,
             enabled: true,
         }))
         .await
-        .expect("create user"));
+        .expect("user"));
     let user_key = id(app
         .mutate(ControlMutation::UserKey {
             user_id: user,
-            api_key: client_key.to_owned(),
+            api_key: client_key.clone(),
             label: None,
             expires_at: None,
             enabled: true,
         })
         .await
-        .expect("create user key"));
+        .expect("user key"));
     app.mutate(ControlMutation::Permission(
         gproxy_store::records::PermissionInput {
             subject_kind: "user_key".into(),
@@ -86,21 +104,21 @@ pub(crate) async fn operational(
         },
     ))
     .await
-    .expect("create permission");
+    .expect("permission");
     let quota = id(app
         .mutate(ControlMutation::Quota(gproxy_store::records::QuotaInput {
             subject_kind: "user_key".into(),
             subject_id: user_key,
-            quota_total: Decimal::from(1_000),
-            quota_daily: Some(Decimal::from(100)),
+            quota_total: Decimal::ONE,
+            quota_daily: None,
             quota_weekly: None,
             quota_monthly: None,
-            quota_5h: None,
+            quota_5h: Some(Decimal::new(3, 1)),
             quota_7d: None,
         }))
         .await
-        .expect("create quota"));
-    let rule = id(app
+        .expect("quota"));
+    let price_rule = id(app
         .mutate(ControlMutation::PriceRule(
             gproxy_store::records::PriceRuleInput {
                 provider_id: Some(provider),
@@ -110,22 +128,33 @@ pub(crate) async fn operational(
             },
         ))
         .await
-        .expect("create price rule"));
-    for (metric, price) in [("input_tokens", 1), ("output_tokens", 2)] {
-        app.mutate(ControlMutation::PriceRate(
-            gproxy_store::records::PriceRateInput {
-                rule_id: rule,
-                metric: metric.into(),
-                unit_size: 1_000_000,
-                price: Decimal::from(price),
-                conditions: None,
-                priority: 0,
-            },
-        ))
-        .await
-        .expect("create price rate");
+        .expect("price rule"));
+    app.mutate(ControlMutation::PriceRate(
+        gproxy_store::records::PriceRateInput {
+            rule_id: price_rule,
+            metric: "input_tokens".into(),
+            unit_size: 1,
+            price: Decimal::new(1, 2),
+            conditions: None,
+            priority: 0,
+        },
+    ))
+    .await
+    .expect("input price");
+    Fixture {
+        app,
+        provider,
+        credential,
+        quota,
+        client_key,
+        _directory: directory,
     }
-    quota
+}
+
+fn random_key() -> String {
+    let mut bytes = [0_u8; 24];
+    getrandom::fill(&mut bytes).expect("API key randomness");
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
 fn id(result: MutationResult) -> i64 {

@@ -1,6 +1,9 @@
 //! Settlement: what the funnel produces.
 
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
+
+const COST_MICROS: i64 = 1_000_000;
 
 /// Provider-independent usage — defined in the channel contract (channels
 /// extract it) and re-exported here.
@@ -10,6 +13,16 @@ pub use gproxy_channel_api::NormalizedUsage;
 /// Counts UTF-8 scalar starts and charges one token per two characters.
 pub fn estimate_input_tokens(body: &[u8]) -> u64 {
     utf8_chars(body).div_ceil(2)
+}
+
+pub fn cost_to_micros(cost: Decimal) -> Option<i64> {
+    (cost.max(Decimal::ZERO) * Decimal::from(COST_MICROS))
+        .round()
+        .to_i64()
+}
+
+pub fn micros_to_cost(micros: i64) -> Decimal {
+    Decimal::from(micros) / Decimal::from(COST_MICROS)
 }
 
 pub(crate) fn utf8_chars(bytes: &[u8]) -> u64 {

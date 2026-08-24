@@ -50,8 +50,12 @@ pub(crate) fn select_quotas() -> Result<Statement, StoreError> {
             "id",
             "subject_kind",
             "subject_id",
-            "token_limit",
-            "window_seconds",
+            "quota_total",
+            "quota_daily",
+            "quota_weekly",
+            "quota_monthly",
+            "quota_5h",
+            "quota_7d",
         ],
     )
 }

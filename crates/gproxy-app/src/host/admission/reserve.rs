@@ -7,8 +7,7 @@ use gproxy_protocol::OperationKey;
 use super::super::AppHost;
 use super::auth::{authorize, subject_matches, unix_now};
 use super::types::{
-    AdmissionState, CounterCharge, IdentityState, QuotaReservation, RESERVATION_TTL,
-    reservation_key,
+    AdmissionState, CounterCharge, IdentityState, RESERVATION_TTL, reservation_key,
 };
 
 pub(in crate::host) fn admit<'a>(
@@ -22,36 +21,21 @@ pub(in crate::host) fn admit<'a>(
         let snapshot = host.services.control.current();
         authorize(&snapshot, identity, operation, plan)?;
         let now = unix_now();
-        let estimate = i64::try_from(gproxy_core::usage::estimate_input_tokens(&request.body))
-            .map_err(|_| CoreError::Internal("admission estimate exceeds i64".into()))?;
         let mut charged = Vec::new();
-        let mut reservations = Vec::new();
-
-        for quota in snapshot
-            .quotas
-            .iter()
-            .filter(|quota| subject_matches(&quota.subject_kind, quota.subject_id, identity))
+        let reservations = match super::quota::reserve(
+            host,
+            identity,
+            request,
+            operation,
+            plan,
+            now,
+            &mut charged,
+        )
+        .await
         {
-            let start = window_start(now, quota.window_seconds);
-            let key = format!("gproxy:quota:{}:{start}", quota.id);
-            let used = match increment(host, &key, estimate, quota.window_seconds, now).await {
-                Ok(used) => used,
-                Err(error) => return rollback_error(host, charged, error).await,
-            };
-            charged.push(CounterCharge {
-                key: key.clone(),
-                amount: estimate,
-            });
-            if used > i64::try_from(quota.token_limit).expect("stored quota fits i64") {
-                return rollback_error(host, charged, CoreError::QuotaExceeded).await;
-            }
-            reservations.push(QuotaReservation {
-                quota_id: quota.id,
-                window_start: start,
-                cache_key: key,
-                estimated_tokens: estimate,
-            });
-        }
+            Ok(reservations) => reservations,
+            Err(error) => return rollback_error(host, charged, error).await,
+        };
 
         for limit in snapshot
             .rate_limits
@@ -60,7 +44,7 @@ pub(in crate::host) fn admit<'a>(
         {
             let start = window_start(now, limit.window_seconds);
             let key = format!("gproxy:rate:{}:{start}", limit.id);
-            let count = match increment(host, &key, 1, limit.window_seconds, now).await {
+            let count = match increment_window(host, &key, 1, limit.window_seconds, now).await {
                 Ok(count) => count,
                 Err(error) => return rollback_error(host, charged, error).await,
             };
@@ -108,7 +92,7 @@ pub(in crate::host) fn admit<'a>(
     })
 }
 
-async fn increment(
+async fn increment_window(
     host: &AppHost,
     key: &str,
     amount: i64,

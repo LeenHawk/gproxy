@@ -3,7 +3,6 @@ use gproxy_channel_api::{Channel, NormalizedUsage, UsageCtx};
 use gproxy_protocol::SettleMode;
 use rust_decimal::Decimal;
 
-use crate::control::Pricing;
 use crate::host::{CacheBackend, Capture, CaptureSink, Host, UsageSink};
 use crate::usage::{Ended, Settlement, UsageSource, estimate_input_tokens, utf8_chars};
 
@@ -75,9 +74,11 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         credential_id: ctx.target.credential,
         upstream_model: ctx.target.upstream_model.clone(),
         cost: if unique {
-            cost(&usage, ctx.pricing.as_ref())
+            ctx.pricing
+                .as_ref()
+                .map_or(rust_decimal::Decimal::ZERO, |pricing| pricing.cost(&usage))
         } else {
-            Decimal::ZERO
+            rust_decimal::Decimal::ZERO
         },
         usage,
         source,
@@ -166,26 +167,4 @@ pub(crate) fn usage(
             )
         }
     }
-}
-
-fn cost(usage: &NormalizedUsage, pricing: Option<&Pricing>) -> Decimal {
-    let Some(pricing) = pricing else {
-        return Decimal::ZERO;
-    };
-    let million = Decimal::from(1_000_000_u64);
-    let cached = usage.cached_input_tokens.min(usage.input_tokens);
-    let uncached = usage.input_tokens - cached;
-    let mut total = Decimal::from(uncached) * pricing.input_per_million / million;
-    total += Decimal::from(cached)
-        * pricing
-            .cached_input_per_million
-            .unwrap_or(pricing.input_per_million)
-        / million;
-    total += Decimal::from(usage.output_tokens) * pricing.output_per_million / million;
-    for (metric, amount) in &usage.metrics {
-        if let Some(rate) = pricing.metric_rates.get(metric) {
-            total += *amount * *rate;
-        }
-    }
-    total
 }

@@ -119,7 +119,7 @@ pub(crate) async fn apply(
             MutationResult::Id(services.store.insert_rate_limit(&input).await?)
         }
         ControlMutation::Quota(input) => {
-            nonzero(input.window_seconds, "quota window_seconds")?;
+            validate_quota(&input)?;
             MutationResult::Id(services.store.insert_quota(&input).await?)
         }
         ControlMutation::PriceRule(input) => {
@@ -144,4 +144,20 @@ fn nonzero(value: impl Into<u64>, field: &'static str) -> Result<(), AppError> {
     } else {
         Ok(())
     }
+}
+
+fn validate_quota(input: &gproxy_store::records::QuotaInput) -> Result<(), AppError> {
+    for (field, value) in [
+        ("quota_total", Some(input.quota_total)),
+        ("quota_daily", input.quota_daily),
+        ("quota_weekly", input.quota_weekly),
+        ("quota_monthly", input.quota_monthly),
+        ("quota_5h", input.quota_5h),
+        ("quota_7d", input.quota_7d),
+    ] {
+        if value.is_some_and(|value| value <= rust_decimal::Decimal::ZERO) {
+            return Err(AppError::Control(format!("{field} must be positive")));
+        }
+    }
+    Ok(())
 }

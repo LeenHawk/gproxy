@@ -22,10 +22,9 @@ pub(in crate::host) struct IdentityState {
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct QuotaReservation {
-    pub quota_id: i64,
-    pub window_start: i64,
+    pub window_id: i64,
     pub cache_key: String,
-    pub estimated_tokens: i64,
+    pub estimated_cost_micros: i64,
 }
 
 pub(super) struct CounterCharge {

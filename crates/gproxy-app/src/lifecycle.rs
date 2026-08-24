@@ -100,17 +100,9 @@ impl AppHandle {
             .await?)
     }
 
-    pub async fn quota_window(
+    pub async fn quota_windows(
         &self,
-        quota_id: i64,
-        window_start: i64,
-    ) -> Result<Option<gproxy_store::records::QuotaWindowRecord>, AppError> {
-        Ok(self
-            .inner
-            .host
-            .services
-            .store
-            .quota_window(quota_id, window_start)
-            .await?)
+    ) -> Result<Vec<gproxy_store::records::QuotaWindowRecord>, AppError> {
+        Ok(self.inner.host.services.store.quota_windows().await?)
     }
 }

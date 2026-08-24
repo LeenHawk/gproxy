@@ -71,3 +71,24 @@ pub struct Pricing {
     /// metric name → rate per unit.
     pub metric_rates: std::collections::BTreeMap<String, Decimal>,
 }
+
+impl Pricing {
+    pub fn cost(&self, usage: &crate::usage::NormalizedUsage) -> Decimal {
+        let million = Decimal::from(1_000_000_u64);
+        let cached = usage.cached_input_tokens.min(usage.input_tokens);
+        let uncached = usage.input_tokens - cached;
+        let mut total = Decimal::from(uncached) * self.input_per_million / million;
+        total += Decimal::from(cached)
+            * self
+                .cached_input_per_million
+                .unwrap_or(self.input_per_million)
+            / million;
+        total += Decimal::from(usage.output_tokens) * self.output_per_million / million;
+        for (metric, amount) in &usage.metrics {
+            if let Some(rate) = self.metric_rates.get(metric) {
+                total += *amount * *rate;
+            }
+        }
+        total
+    }
+}

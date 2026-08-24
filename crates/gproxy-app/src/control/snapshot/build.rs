@@ -73,11 +73,22 @@ fn validate_windows(stored: &ControlSnapshot) -> Result<(), StoreError> {
             message: format!("rate limit {} has a zero window", limit.id),
         });
     }
-    if let Some(quota) = stored.quotas.iter().find(|quota| quota.window_seconds == 0) {
-        return Err(StoreError::InvalidData {
-            field: "window_seconds",
-            message: format!("quota {} has a zero window", quota.id),
-        });
+    for quota in &stored.quotas {
+        for (field, value) in [
+            ("quota_total", Some(quota.quota_total)),
+            ("quota_daily", quota.quota_daily),
+            ("quota_weekly", quota.quota_weekly),
+            ("quota_monthly", quota.quota_monthly),
+            ("quota_5h", quota.quota_5h),
+            ("quota_7d", quota.quota_7d),
+        ] {
+            if value.is_some_and(|value| value <= rust_decimal::Decimal::ZERO) {
+                return Err(StoreError::InvalidData {
+                    field,
+                    message: format!("quota {} has a non-positive limit", quota.id),
+                });
+            }
+        }
     }
     Ok(())
 }

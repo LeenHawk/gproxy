@@ -7,14 +7,24 @@ pub const TABLES: &[TableSpec] = &[
         columns: &[
             Col::id(),
             Col::required("quota_id", Integer),
+            Col::required("window_kind", Text),
             Col::required("window_start", Integer),
-            Col::required("used_tokens", Integer),
+            Col::optional("reset_at", Integer),
+            Col::required("cost_used", Text),
+            Col::optional("active_slot", Integer),
         ],
-        indexes: &[IndexSpec {
-            name: "uq_quota_windows_period",
-            columns: &["quota_id", "window_start"],
-            unique: true,
-        }],
+        indexes: &[
+            IndexSpec {
+                name: "uq_quota_windows_period",
+                columns: &["quota_id", "window_kind", "window_start"],
+                unique: true,
+            },
+            IndexSpec {
+                name: "uq_quota_windows_active",
+                columns: &["quota_id", "window_kind", "active_slot"],
+                unique: true,
+            },
+        ],
     },
     TableSpec {
         version: SchemaVersion::Runtime,

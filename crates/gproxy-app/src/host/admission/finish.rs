@@ -21,31 +21,35 @@ pub(in crate::host) fn finish<'a>(
         let Some(state) = state else {
             return;
         };
-        let actual = settlement.map(|settlement| {
-            let tokens = settlement
-                .usage
-                .input_tokens
-                .saturating_add(settlement.usage.output_tokens);
-            i64::try_from(tokens).unwrap_or(i64::MAX)
-        });
         for reservation in state.reservations {
-            let delta = actual.unwrap_or_default() - reservation.estimated_tokens;
-            if let Err(error) = host
-                .services
-                .cache
-                .incr(&reservation.cache_key, delta, None)
-                .await
-            {
-                tracing::error!(request_id, error = %error, "quota reconciliation failed");
-            }
-            if let Some(tokens) = actual
-                && let Err(error) = host
+            let durable = if let Some(settlement) = settlement {
+                match host
                     .services
                     .store
-                    .add_quota_usage(reservation.quota_id, reservation.window_start, tokens)
+                    .add_quota_cost(reservation.window_id, settlement.cost)
+                    .await
+                {
+                    Ok(_) => true,
+                    Err(error) => {
+                        tracing::error!(request_id, error = %error, "persist quota cost failed");
+                        false
+                    }
+                }
+            } else {
+                true
+            };
+            if durable
+                && let Err(error) = host
+                    .services
+                    .cache
+                    .incr(
+                        &reservation.cache_key,
+                        -reservation.estimated_cost_micros,
+                        Some(super::types::RESERVATION_TTL),
+                    )
                     .await
             {
-                tracing::error!(request_id, error = %error, "persist quota usage failed");
+                tracing::error!(request_id, error = %error, "release quota reservation failed");
             }
         }
         if let Err(error) = host.services.cache.delete(&key).await {
