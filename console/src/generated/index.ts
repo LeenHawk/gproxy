@@ -32,6 +32,7 @@ export * from "./ProviderDto";
 export * from "./ProviderWriteRequest";
 export * from "./PseudoHeaderDto";
 export * from "./QuotaCoverageDto";
+export * from "./QuotaCycleCloseReasonDto";
 export * from "./QuotaCycleStatusDto";
 export * from "./QuotaDto";
 export * from "./QuotaWindowDto";

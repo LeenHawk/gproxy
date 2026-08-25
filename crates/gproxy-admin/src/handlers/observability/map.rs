@@ -5,7 +5,7 @@ use gproxy_store::records::{
 
 use crate::dto::{
     BoundaryConfidenceDto, BoundarySourceDto, CredentialQuotaCycleDto, QuotaCoverageDto,
-    QuotaCycleStatusDto, QuotaWindowDto,
+    QuotaCycleCloseReasonDto, QuotaCycleStatusDto, QuotaWindowDto,
 };
 
 pub(super) fn configured_windows(quota: &QuotaRecord) -> Vec<QuotaWindowKind> {
@@ -96,12 +96,13 @@ pub(super) fn credential_cycle(value: &CredentialQuotaCycleRecord) -> Credential
             QuotaCycleStatus::Open => QuotaCycleStatusDto::Open,
             QuotaCycleStatus::Closed => QuotaCycleStatusDto::Closed,
         },
-        close_reason: value.close_reason.map(|reason| {
-            match reason {
-                gproxy_store::records::QuotaCycleCloseReason::BoundaryCrossed => "boundary_crossed",
-                gproxy_store::records::QuotaCycleCloseReason::ManualReset => "manual_reset",
+        close_reason: value.close_reason.map(|reason| match reason {
+            gproxy_store::records::QuotaCycleCloseReason::BoundaryCrossed => {
+                QuotaCycleCloseReasonDto::BoundaryCrossed
             }
-            .into()
+            gproxy_store::records::QuotaCycleCloseReason::ManualReset => {
+                QuotaCycleCloseReasonDto::ManualReset
+            }
         }),
         last_observed_at: value.last_observed_at,
         upstream_used: value.upstream_used.map(decimal),

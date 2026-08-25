@@ -1,0 +1,364 @@
+{
+  "common": {
+    "product": "gproxy",
+    "console": "Admin console",
+    "name": "Name",
+    "language": "Language",
+    "languages": {
+      "en": "English",
+      "zh-CN": "简体中文",
+      "zh-TW": "繁體中文"
+    },
+    "loading": "Loading…",
+    "loadError": "Could not load this data. Retry.",
+    "none": "None",
+    "optional": "Optional",
+    "required": "Required",
+    "actions": {
+      "create": "Create",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "cancel": "Cancel",
+      "close": "Close",
+      "edit": "Edit",
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "status": {
+      "label": "Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "dead": "Dead",
+      "unknown": "Unknown",
+      "open": "Open",
+      "closed": "Closed",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "errors": {
+      "load": "Could not load this data. Retry.",
+      "save": "Could not save changes. Retry.",
+      "invalid": "Check the highlighted fields.",
+      "required": "This field is required."
+    }
+  },
+  "nav": {
+    "label": "Console navigation",
+    "overview": "Overview",
+    "providers": "Providers",
+    "routes": "Routes",
+    "users": "Users and keys",
+    "keys": "Users and keys",
+    "usage": "Usage and cost",
+    "channels": "Channels",
+    "open": "Open navigation",
+    "close": "Close navigation"
+  },
+  "auth": {
+    "username": "Username",
+    "password": "Password",
+    "logout": "Sign out",
+    "error": {
+      "title": "Authentication failed",
+      "description": "Check the credentials and try again."
+    },
+    "login": {
+      "title": "Sign in to gproxy",
+      "description": "Use an administrator account for this instance.",
+      "action": "Sign in"
+    },
+    "setup": {
+      "title": "Create the administrator",
+      "description": "This account manages the instance and is separate from data-plane API keys.",
+      "action": "Create administrator"
+    },
+    "session": {
+      "loadError": "Could not verify the admin session. Retry."
+    }
+  },
+  "providers": {
+    "title": "Providers",
+    "subtitle": "Configure upstream channels and credential pools.",
+    "add": "Add provider",
+    "empty": "No providers yet. Add one to route traffic upstream.",
+    "loadError": "Could not load providers. Retry.",
+    "fields": {
+      "name": "Provider name",
+      "channel": "Channel",
+      "settings": "Channel settings",
+      "enabled": "Provider enabled"
+    },
+    "form": {
+      "createTitle": "Add provider",
+      "editTitle": "Edit provider",
+      "channelHint": "Channels come from this running gproxy binary.",
+      "settingsHint": "JSON settings passed to the selected channel.",
+      "settingsInvalid": "Enter a valid JSON object.",
+      "created": "Provider created.",
+      "updated": "Provider updated.",
+      "createError": "Could not create the provider. Check the fields and retry.",
+      "updateError": "Could not update the provider. Retry."
+    },
+    "fingerprint": {
+      "title": "Client fingerprint",
+      "description": "Override the channel's default headers and transport profile.",
+      "preset": "Preset",
+      "defaultPreset": "Channel default",
+      "custom": "Custom JSON",
+      "hint": "Configured fingerprints fail loudly when no usable emulation can be built.",
+      "invalid": "Enter a valid fingerprint object.",
+      "presetError": "Could not load fingerprint presets. Retry."
+    },
+    "credentials": {
+      "title": "Credentials",
+      "add": "Add credential",
+      "empty": "No credentials yet. Add one before enabling traffic.",
+      "loadError": "Could not load credentials. Retry.",
+      "label": "Credential label",
+      "unnamed": "Credential #{{id}}",
+      "secret": "Credential secret",
+      "secretHint": "Secrets are encrypted at rest and are never returned by the API.",
+      "keepSecret": "Leave empty to keep the stored secret.",
+      "enabled": "Credential enabled",
+      "healthObserved": "Observed {{time}}",
+      "healthUnobserved": "No health observation yet",
+      "healthDetail": "Health detail",
+      "quotaCycle": "Quota cycle",
+      "noQuotaCycle": "No upstream quota cycle observed.",
+      "created": "Credential added.",
+      "updated": "Credential updated.",
+      "createError": "Could not add the credential. Check the secret and retry.",
+      "updateError": "Could not update the credential. Retry."
+    }
+  },
+  "routes": {
+    "title": "Routes",
+    "subtitle": "Map client-facing model names to ordered upstream members.",
+    "add": "Add route",
+    "empty": "No routes yet. Add one to expose a model.",
+    "loadError": "Could not load routes. Retry.",
+    "fields": {
+      "name": "Route name",
+      "maxAttempts": "Maximum attempts",
+      "enabled": "Route enabled"
+    },
+    "form": {
+      "createTitle": "Add route",
+      "editTitle": "Edit route",
+      "attemptsHint": "Includes the first attempt and any failover attempts.",
+      "created": "Route created.",
+      "updated": "Route updated.",
+      "createError": "Could not create the route. Check the fields and retry.",
+      "updateError": "Could not update the route. Retry."
+    },
+    "members": {
+      "title": "Members",
+      "add": "Add member",
+      "empty": "No members. This route cannot send traffic upstream.",
+      "provider": "Provider",
+      "credential": "Pinned credential",
+      "anyCredential": "Any enabled credential",
+      "model": "Upstream model",
+      "priority": "Priority",
+      "priorityHint": "Lower numbers are attempted first.",
+      "enabled": "Member enabled",
+      "created": "Member added.",
+      "updated": "Member updated.",
+      "saveError": "Could not save the route member. Retry."
+    },
+    "routingAliases": {
+      "title": "Routing aliases",
+      "add": "Add routing alias",
+      "empty": "No provider routing aliases are configured.",
+      "alias": "Incoming name",
+      "target": "Upstream name",
+      "provider": "Provider",
+      "anyProvider": "Any provider",
+      "priority": "Priority",
+      "enabled": "Alias enabled",
+      "created": "Routing alias added.",
+      "updated": "Routing alias updated.",
+      "saveError": "Could not save the routing alias. Retry."
+    },
+    "aliases": {
+      "title": "Model aliases",
+      "add": "Add alias",
+      "empty": "No aliases point to this route.",
+      "name": "Client-facing model",
+      "route": "Route",
+      "enabled": "Alias enabled",
+      "created": "Alias added.",
+      "updated": "Alias updated.",
+      "saveError": "Could not save the model alias. Check that the name is unique."
+    }
+  },
+  "users": {
+    "title": "Users and keys",
+    "subtitle": "Manage identities, API keys, access, and spending limits.",
+    "empty": "No users yet. Add one before issuing an API key.",
+    "loadError": "Could not load users. Retry.",
+    "fields": {
+      "organization": "Organization",
+      "team": "Team"
+    },
+    "created": "User created.",
+    "updated": "User updated.",
+    "saveError": "Could not save the user. Check the fields and retry.",
+    "keys": {
+      "title": "API keys",
+      "create": "Create API key",
+      "empty": "No API keys. Create one for this user.",
+      "label": "Key label",
+      "prefix": "Prefix",
+      "standardPrefix": "Standard key (sk-)",
+      "codexPrefix": "Codex key (at-)",
+      "expiresAt": "Expires at",
+      "neverExpires": "Never expires",
+      "masked": "{{prefix}}••••••••••••",
+      "reveal": "Reveal key",
+      "revealed": "Key revealed. It will be masked again shortly.",
+      "revealError": "Could not reveal this key. Retry.",
+      "notRevealable": "This key cannot be revealed.",
+      "copy": "Copy full key",
+      "copied": "Full key copied.",
+      "copyError": "Could not copy the key. Select it and copy manually.",
+      "remask": "Mask key",
+      "created": "API key created. Copy it before closing.",
+      "createError": "Could not create the API key. Retry.",
+      "updated": "API key updated.",
+      "updateError": "Could not update the API key. Retry."
+    }
+  },
+  "access": {
+    "title": "Access and limits",
+    "subtitle": "Apply permissions, request limits, and cost quotas to a user or key.",
+    "subject": "Applies to",
+    "subjectKinds": {
+      "user": "User",
+      "userKey": "API key"
+    },
+    "permissions": {
+      "title": "Permissions",
+      "add": "Add permission",
+      "empty": "No permissions configured for this subject.",
+      "provider": "Provider",
+      "allProviders": "All providers",
+      "operationGroup": "Operation group",
+      "allOperations": "All operations",
+      "effect": "Effect",
+      "allow": "Allow",
+      "deny": "Deny",
+      "saved": "Permission saved.",
+      "saveError": "Could not save the permission. Retry.",
+      "delete": "Delete permission",
+      "deleteError": "Could not delete the permission. Retry."
+    },
+    "rateLimits": {
+      "title": "Rate limits",
+      "add": "Add rate limit",
+      "empty": "No rate limits configured for this subject.",
+      "requests": "Requests",
+      "windowSeconds": "Window in seconds",
+      "summary": "{{requests}} requests per {{seconds}} seconds",
+      "saved": "Rate limit saved.",
+      "saveError": "Could not save the rate limit. Retry.",
+      "delete": "Delete rate limit",
+      "deleteError": "Could not delete the rate limit. Retry."
+    },
+    "quotas": {
+      "title": "Cost quotas",
+      "add": "Set quota",
+      "empty": "No cost quota configured for this subject.",
+      "loadError": "Could not load quotas. Retry.",
+      "total": "Total limit",
+      "daily": "Daily limit",
+      "weekly": "Weekly limit",
+      "monthly": "Monthly limit",
+      "fiveHour": "5-hour limit",
+      "sevenDay": "7-day limit",
+      "enabled": "Quota enabled",
+      "saved": "Quota saved.",
+      "saveError": "Could not save the quota. Check the amounts and retry.",
+      "delete": "Delete quota",
+      "deleteError": "Could not delete the quota. Retry."
+    }
+  },
+  "usage": {
+    "description": "Compare requests, tokens, and settled cost across a time range.",
+    "overviewDescription": "Current credential health, cost, and quota pressure.",
+    "empty": "No usage was recorded for this period. Widen the time range.",
+    "groupBy": {
+      "label": "Group by",
+      "user_key": "API key",
+      "userKey": "API key",
+      "user": "User",
+      "provider": "Provider",
+      "model": "Model"
+    },
+    "group": "Group",
+    "requests": "Requests",
+    "inputTokens": "Input tokens",
+    "cachedTokens": "Cached input",
+    "outputTokens": "Output tokens",
+    "cost": {
+      "title": "Usage cost",
+      "label": "Cost"
+    },
+    "range": {
+      "1": "Last 24 hours",
+      "7": "Last 7 days",
+      "30": "Last 30 days",
+      "label": "Time range"
+    },
+    "windows": "Quota windows",
+    "quotaWindows": "Quota windows",
+    "credentialCycles": "Credential quota cycles",
+    "windowStates": {
+      "empty": "No active quota windows for this selection."
+    },
+    "cycleStates": {
+      "empty": "No credential quota cycles were observed in this period."
+    }
+  },
+  "channels": {
+    "description": "Capabilities registered by this running gproxy binary.",
+    "channel": "Channel",
+    "empty": "This binary has no registered channels.",
+    "source": "Source wire",
+    "target": "Target wire",
+    "operation": "Operation",
+    "group": "Group",
+    "noOperations": "No operations are declared for this channel."
+  },
+  "window": {
+    "resets": "Resets {{value}}",
+    "started": "Started {{time}}",
+    "noReset": "Reset time is not known",
+    "notStarted": "Window has not started",
+    "boundary": {
+      "label": "Boundary",
+      "upstream": "Reported by upstream",
+      "inferred": "Inferred by gproxy",
+      "unknown": "Boundary unknown"
+    },
+    "confidence": {
+      "label": "Confidence",
+      "exact": "Exact",
+      "derived": "Derived",
+      "partial": "Partial",
+      "unknown": "Unknown"
+    },
+    "coverage": {
+      "partial": "Partial coverage",
+      "unknown": "Coverage unknown"
+    },
+    "closeReason": {
+      "boundary_crossed": "Boundary crossed",
+      "manual_reset": "Manual reset"
+    },
+    "usageUnknown": "Upstream usage is unavailable for this period."
+  }
+}

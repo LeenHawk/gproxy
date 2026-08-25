@@ -83,6 +83,14 @@ pub enum QuotaCycleStatusDto {
     Closed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum QuotaCycleCloseReasonDto {
+    BoundaryCrossed,
+    ManualReset,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct CredentialQuotaCycleDto {
     pub id: i64,
@@ -94,7 +102,7 @@ pub struct CredentialQuotaCycleDto {
     pub boundary_source: BoundarySourceDto,
     pub boundary_confidence: BoundaryConfidenceDto,
     pub status: QuotaCycleStatusDto,
-    pub close_reason: Option<String>,
+    pub close_reason: Option<QuotaCycleCloseReasonDto>,
     pub last_observed_at: i64,
     pub upstream_used: Option<String>,
     pub upstream_limit: Option<String>,

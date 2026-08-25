@@ -1,0 +1,364 @@
+{
+  "common": {
+    "product": "gproxy",
+    "console": "管理控制台",
+    "name": "名称",
+    "language": "语言",
+    "languages": {
+      "en": "English",
+      "zh-CN": "简体中文",
+      "zh-TW": "繁體中文"
+    },
+    "loading": "正在加载…",
+    "loadError": "无法加载数据，请重试。",
+    "none": "无",
+    "optional": "可选",
+    "required": "必填",
+    "actions": {
+      "create": "创建",
+      "save": "保存",
+      "saving": "正在保存…",
+      "saved": "已保存",
+      "cancel": "取消",
+      "close": "关闭",
+      "edit": "编辑",
+      "enable": "启用",
+      "disable": "停用"
+    },
+    "status": {
+      "label": "状态",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "healthy": "健康",
+      "degraded": "性能下降",
+      "dead": "不可用",
+      "unknown": "未知",
+      "open": "进行中",
+      "closed": "已结束",
+      "active": "活跃",
+      "inactive": "非活跃"
+    },
+    "errors": {
+      "load": "无法加载数据，请重试。",
+      "save": "无法保存更改，请重试。",
+      "invalid": "请检查标记的字段。",
+      "required": "此字段为必填项。"
+    }
+  },
+  "nav": {
+    "label": "控制台导航",
+    "overview": "概览",
+    "providers": "提供商",
+    "routes": "路由",
+    "users": "用户与密钥",
+    "keys": "用户与密钥",
+    "usage": "用量与成本",
+    "channels": "渠道",
+    "open": "打开导航",
+    "close": "关闭导航"
+  },
+  "auth": {
+    "username": "用户名",
+    "password": "密码",
+    "logout": "退出登录",
+    "error": {
+      "title": "身份验证失败",
+      "description": "请检查凭据后重试。"
+    },
+    "login": {
+      "title": "登录 gproxy",
+      "description": "使用此实例的管理员账户登录。",
+      "action": "登录"
+    },
+    "setup": {
+      "title": "创建管理员",
+      "description": "此账户用于管理实例，与数据平面 API 密钥相互独立。",
+      "action": "创建管理员"
+    },
+    "session": {
+      "loadError": "无法验证管理员会话，请重试。"
+    }
+  },
+  "providers": {
+    "title": "提供商",
+    "subtitle": "配置上游渠道和凭据池。",
+    "add": "添加提供商",
+    "empty": "尚无提供商。请添加一个以向上游路由流量。",
+    "loadError": "无法加载提供商，请重试。",
+    "fields": {
+      "name": "提供商名称",
+      "channel": "渠道",
+      "settings": "渠道设置",
+      "enabled": "启用提供商"
+    },
+    "form": {
+      "createTitle": "添加提供商",
+      "editTitle": "编辑提供商",
+      "channelHint": "渠道来自当前运行的 gproxy 二进制文件。",
+      "settingsHint": "传给所选渠道的 JSON 设置。",
+      "settingsInvalid": "请输入有效的 JSON 对象。",
+      "created": "已创建提供商。",
+      "updated": "已更新提供商。",
+      "createError": "无法创建提供商，请检查字段后重试。",
+      "updateError": "无法更新提供商，请重试。"
+    },
+    "fingerprint": {
+      "title": "客户端指纹",
+      "description": "覆盖渠道的默认请求头和传输配置。",
+      "preset": "预设",
+      "defaultPreset": "渠道默认值",
+      "custom": "自定义 JSON",
+      "hint": "如果配置的指纹无法生成可用模拟，请求会明确失败。",
+      "invalid": "请输入有效的指纹对象。",
+      "presetError": "无法加载指纹预设，请重试。"
+    },
+    "credentials": {
+      "title": "凭据",
+      "add": "添加凭据",
+      "empty": "尚无凭据。请先添加凭据再启用流量。",
+      "loadError": "无法加载凭据，请重试。",
+      "label": "凭据标签",
+      "unnamed": "凭据 #{{id}}",
+      "secret": "凭据密文",
+      "secretHint": "密文会加密存储，API 不会返回其内容。",
+      "keepSecret": "留空以保留已存储的密文。",
+      "enabled": "启用凭据",
+      "healthObserved": "观测于 {{time}}",
+      "healthUnobserved": "尚无健康观测",
+      "healthDetail": "健康详情",
+      "quotaCycle": "配额周期",
+      "noQuotaCycle": "尚未观测到上游配额周期。",
+      "created": "已添加凭据。",
+      "updated": "已更新凭据。",
+      "createError": "无法添加凭据，请检查密文后重试。",
+      "updateError": "无法更新凭据，请重试。"
+    }
+  },
+  "routes": {
+    "title": "路由",
+    "subtitle": "将客户端模型名映射到有序的上游成员。",
+    "add": "添加路由",
+    "empty": "尚无路由。请添加一个以公开模型。",
+    "loadError": "无法加载路由，请重试。",
+    "fields": {
+      "name": "路由名称",
+      "maxAttempts": "最大尝试次数",
+      "enabled": "启用路由"
+    },
+    "form": {
+      "createTitle": "添加路由",
+      "editTitle": "编辑路由",
+      "attemptsHint": "包括首次请求和所有故障转移尝试。",
+      "created": "已创建路由。",
+      "updated": "已更新路由。",
+      "createError": "无法创建路由，请检查字段后重试。",
+      "updateError": "无法更新路由，请重试。"
+    },
+    "members": {
+      "title": "成员",
+      "add": "添加成员",
+      "empty": "尚无成员。此路由无法向上游发送流量。",
+      "provider": "提供商",
+      "credential": "固定凭据",
+      "anyCredential": "任意已启用凭据",
+      "model": "上游模型",
+      "priority": "优先级",
+      "priorityHint": "数值越小，尝试顺序越靠前。",
+      "enabled": "启用成员",
+      "created": "已添加成员。",
+      "updated": "已更新成员。",
+      "saveError": "无法保存路由成员，请重试。"
+    },
+    "routingAliases": {
+      "title": "路由别名",
+      "add": "添加路由别名",
+      "empty": "尚未配置提供商路由别名。",
+      "alias": "传入名称",
+      "target": "上游名称",
+      "provider": "提供商",
+      "anyProvider": "任意提供商",
+      "priority": "优先级",
+      "enabled": "启用别名",
+      "created": "已添加路由别名。",
+      "updated": "已更新路由别名。",
+      "saveError": "无法保存路由别名，请重试。"
+    },
+    "aliases": {
+      "title": "模型别名",
+      "add": "添加别名",
+      "empty": "尚无别名指向此路由。",
+      "name": "客户端模型名",
+      "route": "路由",
+      "enabled": "启用别名",
+      "created": "已添加别名。",
+      "updated": "已更新别名。",
+      "saveError": "无法保存模型别名，请确认名称唯一。"
+    }
+  },
+  "users": {
+    "title": "用户与密钥",
+    "subtitle": "管理身份、API 密钥、访问权限和支出限制。",
+    "empty": "尚无用户。请先添加用户再签发 API 密钥。",
+    "loadError": "无法加载用户，请重试。",
+    "fields": {
+      "organization": "组织",
+      "team": "团队"
+    },
+    "created": "已创建用户。",
+    "updated": "已更新用户。",
+    "saveError": "无法保存用户，请检查字段后重试。",
+    "keys": {
+      "title": "API 密钥",
+      "create": "创建 API 密钥",
+      "empty": "尚无 API 密钥。请为此用户创建一个。",
+      "label": "密钥标签",
+      "prefix": "前缀",
+      "standardPrefix": "标准密钥 (sk-)",
+      "codexPrefix": "Codex 密钥 (at-)",
+      "expiresAt": "过期时间",
+      "neverExpires": "永不过期",
+      "masked": "{{prefix}}••••••••••••",
+      "reveal": "显示密钥",
+      "revealed": "密钥已显示，稍后将自动隐藏。",
+      "revealError": "无法显示此密钥，请重试。",
+      "notRevealable": "此密钥无法显示。",
+      "copy": "复制完整密钥",
+      "copied": "已复制完整密钥。",
+      "copyError": "无法复制密钥，请选中后手动复制。",
+      "remask": "隐藏密钥",
+      "created": "API 密钥已创建，请在关闭前复制。",
+      "createError": "无法创建 API 密钥，请重试。",
+      "updated": "已更新 API 密钥。",
+      "updateError": "无法更新 API 密钥，请重试。"
+    }
+  },
+  "access": {
+    "title": "访问权限与限制",
+    "subtitle": "为用户或密钥设置权限、请求限制和成本配额。",
+    "subject": "应用于",
+    "subjectKinds": {
+      "user": "用户",
+      "userKey": "API 密钥"
+    },
+    "permissions": {
+      "title": "权限",
+      "add": "添加权限",
+      "empty": "此主体尚未配置权限。",
+      "provider": "提供商",
+      "allProviders": "所有提供商",
+      "operationGroup": "操作组",
+      "allOperations": "所有操作",
+      "effect": "效果",
+      "allow": "允许",
+      "deny": "拒绝",
+      "saved": "已保存权限。",
+      "saveError": "无法保存权限，请重试。",
+      "delete": "删除权限",
+      "deleteError": "无法删除权限，请重试。"
+    },
+    "rateLimits": {
+      "title": "速率限制",
+      "add": "添加速率限制",
+      "empty": "此主体尚未配置速率限制。",
+      "requests": "请求数",
+      "windowSeconds": "窗口秒数",
+      "summary": "每 {{seconds}} 秒 {{requests}} 个请求",
+      "saved": "已保存速率限制。",
+      "saveError": "无法保存速率限制，请重试。",
+      "delete": "删除速率限制",
+      "deleteError": "无法删除速率限制，请重试。"
+    },
+    "quotas": {
+      "title": "成本配额",
+      "add": "设置配额",
+      "empty": "此主体尚未配置成本配额。",
+      "loadError": "无法加载配额，请重试。",
+      "total": "总限额",
+      "daily": "每日限额",
+      "weekly": "每周限额",
+      "monthly": "每月限额",
+      "fiveHour": "5 小时限额",
+      "sevenDay": "7 天限额",
+      "enabled": "启用配额",
+      "saved": "已保存配额。",
+      "saveError": "无法保存配额，请检查金额后重试。",
+      "delete": "删除配额",
+      "deleteError": "无法删除配额，请重试。"
+    }
+  },
+  "usage": {
+    "description": "按时间范围比较请求数、令牌数和结算成本。",
+    "overviewDescription": "查看当前凭据健康状态、成本和配额压力。",
+    "empty": "该时段没有用量记录，请扩大时间范围。",
+    "groupBy": {
+      "label": "分组方式",
+      "user_key": "API 密钥",
+      "userKey": "API 密钥",
+      "user": "用户",
+      "provider": "提供商",
+      "model": "模型"
+    },
+    "group": "分组",
+    "requests": "请求数",
+    "inputTokens": "输入令牌",
+    "cachedTokens": "缓存输入",
+    "outputTokens": "输出令牌",
+    "cost": {
+      "title": "用量成本",
+      "label": "成本"
+    },
+    "range": {
+      "1": "最近 24 小时",
+      "7": "最近 7 天",
+      "30": "最近 30 天",
+      "label": "时间范围"
+    },
+    "windows": "配额窗口",
+    "quotaWindows": "配额窗口",
+    "credentialCycles": "凭据配额周期",
+    "windowStates": {
+      "empty": "当前选择没有活动配额窗口。"
+    },
+    "cycleStates": {
+      "empty": "该时段未观测到凭据配额周期。"
+    }
+  },
+  "channels": {
+    "description": "当前 gproxy 二进制文件注册的能力。",
+    "channel": "渠道",
+    "empty": "此二进制文件未注册任何渠道。",
+    "source": "源协议",
+    "target": "目标协议",
+    "operation": "操作",
+    "group": "分组",
+    "noOperations": "此渠道未声明任何操作。"
+  },
+  "window": {
+    "resets": "重置于 {{value}}",
+    "started": "开始于 {{time}}",
+    "noReset": "重置时间未知",
+    "notStarted": "窗口尚未开始",
+    "boundary": {
+      "label": "边界",
+      "upstream": "上游报告",
+      "inferred": "gproxy 推断",
+      "unknown": "边界未知"
+    },
+    "confidence": {
+      "label": "置信度",
+      "exact": "精确",
+      "derived": "推导",
+      "partial": "部分可信",
+      "unknown": "未知"
+    },
+    "coverage": {
+      "partial": "部分覆盖",
+      "unknown": "覆盖范围未知"
+    },
+    "closeReason": {
+      "boundary_crossed": "跨越周期边界",
+      "manual_reset": "手动重置"
+    },
+    "usageUnknown": "此周期的上游用量不可用。"
+  }
+}

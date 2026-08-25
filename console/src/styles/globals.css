@@ -1,0 +1,122 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/noto-sans";
+@import "@fontsource-variable/noto-sans-sc";
+@import "@fontsource-variable/noto-sans-tc";
+@import "@fontsource-variable/noto-sans-mono";
+
+@theme inline {
+  --font-sans: "Noto Sans Variable", "Noto Sans SC Variable", sans-serif;
+  --font-mono: "Noto Sans Mono Variable", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-state-healthy: var(--state-healthy);
+  --color-state-warning: var(--state-warning);
+  --color-state-critical: var(--state-critical);
+  --color-state-disabled: var(--state-disabled);
+  --color-state-info: var(--state-info);
+  --radius-sm: calc(var(--radius) * 0.7);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.35);
+}
+
+:root {
+  --background: oklch(0.982 0.004 245);
+  --foreground: oklch(0.2 0.015 250);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.25 0.02 250);
+  --primary-foreground: oklch(0.985 0.002 250);
+  --secondary: oklch(0.95 0.006 245);
+  --secondary-foreground: oklch(0.26 0.018 250);
+  --muted: oklch(0.955 0.005 245);
+  --muted-foreground: oklch(0.5 0.02 250);
+  --accent: oklch(0.925 0.01 245);
+  --accent-foreground: oklch(0.22 0.02 250);
+  --destructive: oklch(0.52 0.19 27);
+  --border: oklch(0.885 0.009 245);
+  --input: oklch(0.87 0.01 245);
+  --ring: oklch(0.48 0.05 245);
+  --state-healthy: oklch(0.46 0.12 155);
+  --state-warning: oklch(0.5 0.13 76);
+  --state-critical: oklch(0.52 0.19 27);
+  --state-disabled: oklch(0.55 0.015 250);
+  --state-info: oklch(0.48 0.13 250);
+  --radius: 0.45rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/55;
+  }
+
+  html {
+    @apply bg-background font-sans text-foreground;
+  }
+
+  html:lang(zh-CN) {
+    font-family: "Noto Sans SC Variable", "Noto Sans Variable", sans-serif;
+  }
+
+  html:lang(zh-TW) {
+    font-family: "Noto Sans TC Variable", "Noto Sans Variable", sans-serif;
+  }
+
+  body {
+    @apply m-0 min-w-80 bg-background text-foreground antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+.machine-text {
+  @apply font-mono tracking-tight;
+}
+
+.window-bar-partial {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklch, currentColor 22%, transparent) 0 5px,
+    transparent 5px 10px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
