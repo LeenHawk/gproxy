@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom", "dom.iterable", "esnext"],
+    "strict": true
+  },
+  "tasks": {
+    "build:wasm": "wasm-pack build ../../crates/gproxy-host-edge --target web --out-dir \"$PWD/pkg\" --out-name gproxy_host_edge --release",
+    "build:assets": "pnpm --dir ../../console build && rm -rf public && cp -R ../../console/dist public",
+    "build": "deno task build:wasm && deno task build:assets",
+    "check": "deno check main.ts",
+    "start": "deno run --allow-net --allow-env=GPROXY_CONFIG --allow-read=./pkg,./public main.ts"
+  }
+}

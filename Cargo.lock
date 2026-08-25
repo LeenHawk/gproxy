@@ -1239,6 +1239,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-host-edge"
+version = "3.0.0-alpha.0"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "getrandom 0.3.4",
+ "gproxy-admin",
+ "gproxy-app",
+ "gproxy-channel-api",
+ "gproxy-core",
+ "http",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "gproxy-protocol"
 version = "3.0.0-alpha.0"
 dependencies = [

@@ -1,0 +1,17 @@
+[build]
+command = "pnpm run build"
+publish = "public"
+edge_functions = "edge-functions"
+
+[[edge_functions]]
+function = "gproxy"
+path = "/*"
+excludedPath = [
+  "/",
+  "/admin",
+  "/admin/",
+  "/portal",
+  "/portal/",
+  "/assets/*",
+  "/favicon.svg",
+]

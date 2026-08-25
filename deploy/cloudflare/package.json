@@ -1,0 +1,20 @@
+{
+  "name": "@gproxy/deploy-cloudflare",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build:wasm": "wasm-pack build ../../crates/gproxy-host-edge --target bundler --out-dir \"$PWD/pkg\" --out-name gproxy_host_edge --release",
+    "build:assets": "pnpm --dir ../../console build && rm -rf public && cp -R ../../console/dist public",
+    "build": "pnpm run build:wasm && pnpm run build:assets",
+    "check": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250826.0",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.32.0"
+  }
+}

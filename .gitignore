@@ -21,3 +21,9 @@ probe-out/
 /dev-docs
 /crates/gproxy-host-axum/assets/web/*
 !/crates/gproxy-host-axum/assets/web/.gitkeep
+/deploy/cloudflare/pkg/
+/deploy/cloudflare/public/
+/deploy/deno/pkg/
+/deploy/deno/public/
+/deploy/netlify/pkg/
+/deploy/netlify/public/

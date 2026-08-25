@@ -7,6 +7,7 @@ members = [
     "crates/gproxy-channels",
     "crates/gproxy-core",
     "crates/gproxy-host-axum",
+    "crates/gproxy-host-edge",
     "crates/gproxy-protocol",
     "crates/gproxy-store",
     "crates/gproxy-tokenize",

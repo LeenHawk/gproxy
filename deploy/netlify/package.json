@@ -1,0 +1,20 @@
+{
+  "name": "@gproxy/deploy-netlify",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build:wasm": "wasm-pack build ../../crates/gproxy-host-edge --target web --out-dir \"$PWD/pkg\" --out-name gproxy_host_edge --release",
+    "build:assets": "pnpm --dir ../../console build && rm -rf public && cp -R ../../console/dist public",
+    "build": "pnpm run build:wasm && pnpm run build:assets",
+    "check": "tsc --noEmit",
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod"
+  },
+  "devDependencies": {
+    "@netlify/edge-functions": "^4.0.0",
+    "netlify-cli": "^27.3.0",
+    "typescript": "^5.9.0"
+  }
+}
