@@ -1,9 +1,8 @@
 //! Bounded settlement view of image SSE streams.
 //!
-//! Completed image events can carry a multi-megabyte `b64_json` string. The
-//! normal SSE decoder deliberately caps frames at 1 MiB, so retain a second,
-//! redacted transcript for usage extraction while the original bytes continue
-//! to the client and the bounded downstream log buffer.
+//! Completed image events can carry a multi-megabyte `b64_json` string. Retain
+//! a second, redacted transcript for usage extraction while the original bytes
+//! continue to the client and the bounded downstream log buffer.
 
 use bytes::Bytes;
 

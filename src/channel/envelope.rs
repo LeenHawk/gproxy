@@ -437,13 +437,10 @@ mod tests {
     }
 
     #[test]
-    fn code_assist_stream_rejects_oversized_sse_frame() {
+    fn code_assist_stream_accepts_multi_mib_sse_frame() {
         let mut decoder = CodeAssistStreamDecoder::new();
-        let oversized = vec![b'x'; 1024 * 1024 + 1];
-        assert!(matches!(
-            decoder.push(&oversized),
-            Err(crate::channel::transport::ClientError::Decode(_))
-        ));
+        let frame = vec![b'x'; 2 * 1024 * 1024];
+        assert!(decoder.push(&frame).is_ok());
     }
 
     #[test]

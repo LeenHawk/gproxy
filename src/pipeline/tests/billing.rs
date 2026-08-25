@@ -309,8 +309,7 @@ async fn image_sse_streams_and_settles_completed_event_usage() {
     });
     let completed = json!({
         "type": "image_generation.completed",
-        // Regression: the general SSE decoder caps frames at 1 MiB. Image
-        // settlement must discard this payload from its private transcript
+        // Image settlement must discard large media from its private transcript
         // without touching the bytes relayed to the client.
         "b64_json": "A".repeat((1024 * 1024) + 1),
         "usage": {

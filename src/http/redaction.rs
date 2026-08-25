@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::app::snapshot::LogSettings;
 
-const MAX_BODY: usize = 32 * 1024 * 1024;
+const MAX_BODY: usize = 100 * 1024 * 1024;
 const SECRET_HEADERS: &[&str] = &[
     "authorization",
     "proxy-authorization",

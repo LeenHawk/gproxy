@@ -75,8 +75,8 @@ pub fn inject_stream(
         State {
             inner: Some(stream),
             decoder: SseDecoder::with_limits(crate::transform::common::sse::SseLimits {
-                max_frame_bytes: 8 * 1024 * 1024,
-                max_buffer_bytes: 16 * 1024 * 1024,
+                max_frame_bytes: 100 * 1024 * 1024,
+                max_buffer_bytes: 100 * 1024 * 1024,
             }),
             pending: None,
             held: Vec::new(),
