@@ -63,8 +63,8 @@ impl XaiSseDecoder {
 impl StreamDecoder for XaiSseDecoder {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
         self.buffer.extend_from_slice(&chunk);
-        if self.buffer.len() > 16 * 1024 * 1024 {
-            return Err(ChannelError::Decode("xAI SSE frame exceeds 16 MiB".into()));
+        if self.buffer.len() > 100 * 1024 * 1024 {
+            return Err(ChannelError::Decode("xAI SSE frame exceeds 100 MiB".into()));
         }
         self.drain();
         self.inner.push(chunk)

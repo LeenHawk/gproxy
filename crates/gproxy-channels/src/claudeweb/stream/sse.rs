@@ -15,9 +15,9 @@ pub(super) struct Decoder {
 impl Decoder {
     pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Vec<Event>, ChannelError> {
         self.buffer.extend_from_slice(chunk);
-        if self.buffer.len() > 16 * 1024 * 1024 {
+        if self.buffer.len() > 100 * 1024 * 1024 {
             return Err(ChannelError::Decode(
-                "ClaudeWeb SSE frame exceeds 16 MiB".into(),
+                "ClaudeWeb SSE frame exceeds 100 MiB".into(),
             ));
         }
         let mut events = Vec::new();

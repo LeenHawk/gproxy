@@ -117,9 +117,9 @@ impl OpenAiSseDecoder {
 impl StreamDecoder for OpenAiSseDecoder {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
         self.buffer.extend(self.redactor.push(&chunk));
-        if self.buffer.len() > 16 * 1024 * 1024 {
+        if self.buffer.len() > 100 * 1024 * 1024 {
             return Err(ChannelError::Decode(
-                "OpenAI SSE frame exceeds 16 MiB after media redaction".into(),
+                "OpenAI SSE frame exceeds 100 MiB after media redaction".into(),
             ));
         }
         self.drain();

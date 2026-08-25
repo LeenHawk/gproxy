@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 
-pub(crate) const MAX_BODY_BYTES: usize = 64 * 1024 * 1024;
+pub(crate) const MAX_BODY_BYTES: usize = 100 * 1024 * 1024;
 const MAX_IN_FLIGHT: usize = 256;
 
 #[derive(Clone)]

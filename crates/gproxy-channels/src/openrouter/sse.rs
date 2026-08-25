@@ -93,9 +93,9 @@ impl OpenRouterSseDecoder {
 impl StreamDecoder for OpenRouterSseDecoder {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
         self.buffer.extend(self.redactor.push(&chunk));
-        if self.buffer.len() > 16 * 1024 * 1024 {
+        if self.buffer.len() > 100 * 1024 * 1024 {
             return Err(ChannelError::Decode(
-                "OpenRouter SSE frame exceeds 16 MiB".into(),
+                "OpenRouter SSE frame exceeds 100 MiB".into(),
             ));
         }
         self.drain();

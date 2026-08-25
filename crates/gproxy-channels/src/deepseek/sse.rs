@@ -75,9 +75,9 @@ impl StreamDecoder for ChatDecoder {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
         self.buffer.extend_from_slice(&chunk);
         let frames = self.drain();
-        if self.buffer.len() > 16 * 1024 * 1024 {
+        if self.buffer.len() > 100 * 1024 * 1024 {
             return Err(ChannelError::Decode(
-                "DeepSeek Chat SSE event exceeds 16 MiB".into(),
+                "DeepSeek Chat SSE event exceeds 100 MiB".into(),
             ));
         }
         Ok(frames)

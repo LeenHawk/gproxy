@@ -3,7 +3,7 @@
 use gproxy_channel_api::ChannelError;
 use gproxy_protocol::gemini::GenerateContentResponse;
 
-const MAX_BUFFER_BYTES: usize = 16 * 1024 * 1024;
+const MAX_BUFFER_BYTES: usize = 100 * 1024 * 1024;
 
 #[derive(Default)]
 pub(super) struct Decoder {
@@ -28,7 +28,7 @@ impl Decoder {
         self.buffer.extend_from_slice(chunk);
         let output = self.decode()?;
         if self.buffer.len() > MAX_BUFFER_BYTES {
-            return Err(decode("buffer exceeds 16 MiB"));
+            return Err(decode("buffer exceeds 100 MiB"));
         }
         Ok(output)
     }
@@ -101,7 +101,7 @@ fn parse_value(buffer: &[u8]) -> Result<Option<(usize, GenerateContentResponse)>
         Some(Ok(value)) => {
             let end = values.byte_offset();
             if end > MAX_BUFFER_BYTES {
-                return Err(decode("element exceeds 16 MiB"));
+                return Err(decode("element exceeds 100 MiB"));
             }
             Ok(Some((end, value)))
         }

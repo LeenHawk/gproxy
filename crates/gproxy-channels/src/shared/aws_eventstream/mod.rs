@@ -5,7 +5,7 @@ use gproxy_channel_api::ChannelError;
 
 const PRELUDE_LEN: usize = 12;
 const MIN_FRAME_LEN: usize = PRELUDE_LEN + 4;
-const MAX_FRAME_LEN: usize = 32 * 1024 * 1024;
+const MAX_FRAME_LEN: usize = 100 * 1024 * 1024;
 
 #[derive(Debug)]
 pub(crate) struct Frame {

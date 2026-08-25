@@ -41,8 +41,8 @@ pub(crate) struct SseDecoder {
 impl SseDecoder {
     pub(crate) fn push(&mut self, chunk: &[u8]) -> Result<Vec<SseFrame>, TransformError> {
         self.buffer.extend_from_slice(chunk);
-        if self.buffer.len() > 16 * 1024 * 1024 {
-            return Err(TransformError::shape("SSE", "frame exceeds 16 MiB"));
+        if self.buffer.len() > 100 * 1024 * 1024 {
+            return Err(TransformError::shape("SSE", "frame exceeds 100 MiB"));
         }
         let mut frames = Vec::new();
         while let Some((end, delimiter)) = delimiter(&self.buffer) {

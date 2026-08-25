@@ -3,7 +3,7 @@
 use gproxy_channel_api::ChannelError;
 use gproxy_protocol::gemini::GenerateContentResponse;
 
-const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
+const MAX_FRAME_BYTES: usize = 100 * 1024 * 1024;
 
 #[derive(Default)]
 pub(super) struct Decoder {
@@ -18,7 +18,7 @@ impl Decoder {
         self.buffer.extend_from_slice(chunk);
         if self.buffer.len() > MAX_FRAME_BYTES {
             return Err(ChannelError::Decode(
-                "Gemini SSE frame exceeds 16 MiB".into(),
+                "Gemini SSE frame exceeds 100 MiB".into(),
             ));
         }
         let mut output = Vec::new();

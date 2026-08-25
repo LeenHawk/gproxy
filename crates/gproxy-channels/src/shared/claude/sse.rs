@@ -59,9 +59,9 @@ impl ClaudeSseDecoder {
 impl StreamDecoder for ClaudeSseDecoder {
     fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
         self.buffer.extend_from_slice(&chunk);
-        if self.buffer.len() > 16 * 1024 * 1024 {
+        if self.buffer.len() > 100 * 1024 * 1024 {
             return Err(ChannelError::Decode(
-                "Claude SSE frame exceeds 16 MiB".into(),
+                "Claude SSE frame exceeds 100 MiB".into(),
             ));
         }
         self.drain();
