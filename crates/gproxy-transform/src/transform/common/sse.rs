@@ -63,8 +63,8 @@ pub struct SseLimits {
 impl Default for SseLimits {
     fn default() -> Self {
         Self {
-            max_frame_bytes: 1024 * 1024,
-            max_buffer_bytes: 8 * 1024 * 1024,
+            max_frame_bytes: 100 * 1024 * 1024,
+            max_buffer_bytes: 100 * 1024 * 1024,
         }
     }
 }

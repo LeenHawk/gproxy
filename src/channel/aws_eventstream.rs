@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 const MIN_FRAME_LEN: usize = 16;
-pub(crate) const MAX_FRAME_LEN: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_FRAME_LEN: usize = 100 * 1024 * 1024;
 
 #[derive(Debug)]
 pub(crate) struct SmithyFrame {
