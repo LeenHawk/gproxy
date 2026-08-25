@@ -94,7 +94,7 @@ pub(crate) async fn outcome(
                 crate::stream::drain_stream(stream).await;
                 return empty(status, headers).map(EdgeReply::from);
             }
-            let body = crate::stream::StreamBody::new(stream)?;
+            let body = crate::stream::StreamBody::new(stream).await?;
             let init = headers::init(status, &headers)?;
             match Response::new_with_opt_readable_stream_and_init(Some(&body.readable()), &init) {
                 Ok(response) => Ok(EdgeReply::from(response)),

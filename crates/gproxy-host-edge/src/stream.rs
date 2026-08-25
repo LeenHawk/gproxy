@@ -7,7 +7,7 @@ use gproxy_core::ByteStream;
 use js_sys::{Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::{future_to_promise, spawn_local};
+use wasm_bindgen_futures::future_to_promise;
 use web_sys::{ReadableStream, ReadableStreamDefaultController};
 
 type StreamState = Rc<Mutex<Option<ByteStream>>>;
@@ -18,7 +18,7 @@ pub(crate) struct StreamBody {
 }
 
 impl StreamBody {
-    pub(crate) fn new(stream: ByteStream) -> Result<Self, JsValue> {
+    pub(crate) async fn new(stream: ByteStream) -> Result<Self, JsValue> {
         let state = Rc::new(Mutex::new(Some(stream)));
         let source = Object::new();
 
@@ -45,7 +45,7 @@ impl StreamBody {
         match readable {
             Ok(readable) => Ok(Self { readable, state }),
             Err(error) => {
-                spawn_local(drain_state(state));
+                drain_state(state).await;
                 Err(error)
             }
         }
