@@ -211,8 +211,8 @@ pub(super) fn user_name(services: &SurfaceServices<'_>) -> String {
 }
 
 pub(super) fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock is before the Unix epoch")
         .as_secs()
         .try_into()

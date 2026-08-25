@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use gproxy_store::records::{AdminAccountRecord, AdminSessionInput};

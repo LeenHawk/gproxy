@@ -114,8 +114,8 @@ fn hex(bytes: impl AsRef<[u8]>) -> String {
 }
 
 fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock is before the Unix epoch")
         .as_secs()
 }

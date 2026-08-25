@@ -1,4 +1,6 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt;

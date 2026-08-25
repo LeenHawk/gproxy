@@ -1,5 +1,4 @@
-use std::sync::Arc;
-
+use crate::Shared;
 use crate::cache::InProcessCache;
 use crate::control::SnapshotControl;
 use crate::host::{AppHost, Services};
@@ -23,7 +22,7 @@ impl App {
             transport.clone(),
             &control.current().settings,
         );
-        let services = Arc::new(Services {
+        let services = Shared::new(Services {
             store,
             cache,
             cipher: EnvelopeCipher::new(*config.master_key()),
@@ -44,7 +43,7 @@ impl App {
         #[cfg(target_arch = "wasm32")]
         let shutdown = std::sync::atomic::AtomicBool::new(false);
         Ok(AppHandle {
-            inner: Arc::new(AppInner {
+            inner: Shared::new(AppInner {
                 core,
                 host,
                 shutdown,

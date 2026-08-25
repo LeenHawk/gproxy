@@ -129,8 +129,8 @@ pub(super) fn field<'a>(value: &'a Value, name: &str) -> Option<&'a str> {
 }
 
 fn unix_now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock before epoch")
         .as_millis()
         .try_into()

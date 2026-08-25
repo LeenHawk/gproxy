@@ -119,8 +119,8 @@ fn prepared(
 }
 
 fn request_id(seed: &[u8], label: &str) -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let now = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock before epoch")
         .as_nanos();
     let digest = Sha256::digest([seed, label.as_bytes(), &now.to_be_bytes()].concat());

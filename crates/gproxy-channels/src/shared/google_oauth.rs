@@ -113,8 +113,8 @@ fn field<'a>(value: &'a Value, name: &str) -> Option<&'a str> {
 }
 
 fn now_seconds() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock before epoch")
         .as_secs()
         .try_into()

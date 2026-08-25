@@ -21,6 +21,7 @@ rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+web-time.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom_v02 = { version = "0.2", package = "getrandom", features = ["js"] }

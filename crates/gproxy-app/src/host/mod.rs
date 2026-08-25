@@ -7,12 +7,14 @@ mod sinks;
 pub(crate) mod tokenizers;
 mod usage_view;
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
 use std::time::Duration;
 
 use gproxy_channel_api::{BindingStore, BoxFuture, CallerIdentity, UsageView};
 use gproxy_core::{CredentialHealth, Host, Plan, ProviderRef, RequestCtx, Spawner};
 
+use crate::Shared;
 use crate::cache::InProcessCache;
 use crate::control::SnapshotControl;
 
@@ -36,7 +38,7 @@ pub(crate) struct Services {
 
 #[derive(Clone)]
 pub(crate) struct AppHost {
-    pub services: Arc<Services>,
+    pub services: Shared<Services>,
 }
 
 impl Host for AppHost {
@@ -185,8 +187,8 @@ impl Host for AppHost {
 }
 
 fn health_version(sequence: &std::sync::atomic::AtomicU64) -> Option<i64> {
-    let elapsed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let elapsed = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .ok()?;
     let millis = i64::try_from(elapsed.as_millis()).ok()?;
     let sequence = sequence.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 1_000_000;

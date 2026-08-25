@@ -1,4 +1,4 @@
-use std::time::Instant;
+use web_time::Instant;
 
 use bytes::Bytes;
 use gproxy_channel_api::{Channel, Disposition, NormalizedUsage, ResponseShapeCtx, StreamDecoder};

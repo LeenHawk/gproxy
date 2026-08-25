@@ -1,15 +1,13 @@
-use std::sync::Arc;
-
 use gproxy_core::{CacheBackend, Core, ExecOutcome, RequestCtx};
 
-use crate::AppError;
 use crate::host::AppHost;
+use crate::{AppError, Shared};
 
 pub struct App;
 
 #[derive(Clone)]
 pub struct AppHandle {
-    pub(crate) inner: Arc<AppInner>,
+    pub(crate) inner: Shared<AppInner>,
 }
 
 pub(crate) struct AppInner {

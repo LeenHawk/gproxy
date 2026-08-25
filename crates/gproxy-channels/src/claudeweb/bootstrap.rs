@@ -77,8 +77,8 @@ fn has_capability(organization: &Value, name: &str) -> bool {
 }
 
 fn unix_ms() -> Result<i64, ChannelError> {
-    let millis = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let millis = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .map_err(|_| ChannelError::Refresh("system clock is before Unix epoch".into()))?
         .as_millis();
     i64::try_from(millis).map_err(|_| ChannelError::Refresh("Unix milliseconds overflow".into()))

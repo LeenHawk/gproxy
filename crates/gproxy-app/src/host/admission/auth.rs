@@ -64,8 +64,8 @@ pub(super) fn subject_matches(kind: &str, id: i64, identity: &CallerIdentity) ->
 }
 
 pub(in crate::host) fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system time is after Unix epoch")
         .as_secs() as i64
 }

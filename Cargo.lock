@@ -1120,6 +1120,7 @@ dependencies = [
  "tokio",
  "tracing",
  "ts-rs",
+ "web-time",
 ]
 
 [[package]]
@@ -1151,6 +1152,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+ "web-time",
  "zeroize",
 ]
 
@@ -1186,6 +1188,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "web-time",
 ]
 
 [[package]]
@@ -1205,6 +1208,7 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror",
  "tracing",
+ "web-time",
 ]
 
 [[package]]
@@ -1260,6 +1264,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "web-time",
  "wreq",
 ]
 
@@ -3309,6 +3314,16 @@ name = "web-sys"
 version = "0.3.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c435338968042f4f59a557f690a253676d47ce13ceb55d70100e7facf6620a30"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "web-time"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

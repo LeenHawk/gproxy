@@ -80,8 +80,8 @@ async fn applied_versions(executor: &dyn Executor) -> Result<Vec<i64>, StoreErro
 }
 
 fn record_version(version: SchemaVersion) -> Result<Statement, StoreError> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let now = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .map_err(|error| StoreError::Database(error.to_string()))?
         .as_secs() as i64;
     let statement = Query::insert()

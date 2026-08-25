@@ -163,8 +163,8 @@ fn relative(seconds: Option<i64>) -> Option<i64> {
 }
 
 fn unix_now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock before epoch")
         .as_millis()
         .try_into()

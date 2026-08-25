@@ -1,4 +1,4 @@
-use std::time::Instant;
+use web_time::Instant;
 
 use gproxy_channel_api::{
     Disposition, ProviderView, SurfaceAction, SurfaceBody, SurfaceInvoke, SurfaceServices, SynthCtx,

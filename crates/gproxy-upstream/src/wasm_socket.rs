@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::{BoxFuture, TransportError, WsDuplex, WsFrame};
-use js_sys::{Array, Promise, Uint8Array};
+use js_sys::{Array, Promise, Reflect, Uint8Array};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
@@ -145,12 +145,23 @@ impl WasmSocket {
         }
         let handle = open_socket(url, entries)
             .await
-            .map_err(|_| TransportError::Connect("websocket connection failed".into()))?;
+            .map_err(|error| TransportError::Connect(js_message(&error)))?;
         Ok(Box::new(Self {
             handle,
             pending_recv: None,
         }))
     }
+}
+
+fn js_message(error: &JsValue) -> String {
+    error
+        .as_string()
+        .or_else(|| {
+            Reflect::get(error, &JsValue::from_str("message"))
+                .ok()
+                .and_then(|message| message.as_string())
+        })
+        .unwrap_or_else(|| "websocket connection failed".into())
 }
 
 impl WsDuplex for WasmSocket {

@@ -1,4 +1,4 @@
-use std::time::Instant;
+use web_time::Instant;
 
 use gproxy_channel_api::SurfaceRequest;
 use gproxy_protocol::SettleMode;

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use web_time::Instant;
 
 use bytes::Bytes;
 use gproxy_channel_api::{

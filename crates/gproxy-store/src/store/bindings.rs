@@ -104,8 +104,8 @@ fn parse(row: Row) -> Result<BindingRecord, StoreError> {
 }
 
 fn unix_now() -> Result<i64, StoreError> {
-    let seconds = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let seconds = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .map_err(|error| StoreError::Database(error.to_string()))?
         .as_secs();
     i64::try_from(seconds).map_err(|error| StoreError::Database(error.to_string()))

@@ -1,4 +1,6 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::net::SocketAddr;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 
 use base64::Engine as _;
@@ -6,9 +8,14 @@ use serde::Deserialize;
 
 use crate::ConfigError;
 
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
+
 #[derive(Clone)]
 pub struct Config {
+    #[cfg(not(target_arch = "wasm32"))]
     listen_addr: SocketAddr,
+    #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
     backend: StoreBackend,
     master_key: [u8; 32],
@@ -27,7 +34,9 @@ enum StoreBackend {
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct RawConfig {
+    #[cfg(not(target_arch = "wasm32"))]
     listen_addr: Option<String>,
+    #[cfg(not(target_arch = "wasm32"))]
     data_dir: Option<String>,
     store_backend: Option<String>,
     libsql_url: Option<String>,
@@ -49,10 +58,12 @@ impl Config {
         Self::validate(parse(source)?)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn listen_addr(&self) -> SocketAddr {
         self.listen_addr
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
@@ -75,11 +86,14 @@ impl Config {
     }
 
     fn validate(raw: RawConfig) -> Result<Self, ConfigError> {
+        #[cfg(not(target_arch = "wasm32"))]
         let listen = required(raw.listen_addr, "listen_addr")?;
+        #[cfg(not(target_arch = "wasm32"))]
         let listen_addr = listen.parse().map_err(|error| ConfigError::Invalid {
             field: "listen_addr",
             message: format!("expected IP socket address: {error}"),
         })?;
+        #[cfg(not(target_arch = "wasm32"))]
         let data_dir = PathBuf::from(required(raw.data_dir, "data_dir")?);
         let backend = match required(raw.store_backend, "store_backend")?.as_str() {
             "sqlite" => {
@@ -105,31 +119,13 @@ impl Config {
             )
         })?;
         Ok(Self {
+            #[cfg(not(target_arch = "wasm32"))]
             listen_addr,
+            #[cfg(not(target_arch = "wasm32"))]
             data_dir,
             backend,
             master_key,
         })
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl RawConfig {
-    fn apply_env(&mut self) -> Result<(), ConfigError> {
-        override_env("GPROXY_LISTEN_ADDR", "listen_addr", &mut self.listen_addr)?;
-        override_env("GPROXY_DATA_DIR", "data_dir", &mut self.data_dir)?;
-        override_env(
-            "GPROXY_STORE_BACKEND",
-            "store_backend",
-            &mut self.store_backend,
-        )?;
-        override_env("GPROXY_LIBSQL_URL", "libsql_url", &mut self.libsql_url)?;
-        override_env(
-            "GPROXY_LIBSQL_AUTH_TOKEN",
-            "libsql_auth_token",
-            &mut self.libsql_auth_token,
-        )?;
-        override_env("GPROXY_SECRET_KEY", "secret_key", &mut self.secret_key)
     }
 }
 
@@ -140,10 +136,12 @@ impl std::fmt::Debug for Config {
             StoreBackend::Sqlite => "Sqlite".to_owned(),
             StoreBackend::Libsql { url, .. } => format!("Libsql {{ url: {url:?} }}"),
         };
-        formatter
-            .debug_struct("Config")
+        let mut debug = formatter.debug_struct("Config");
+        #[cfg(not(target_arch = "wasm32"))]
+        debug
             .field("listen_addr", &self.listen_addr)
-            .field("data_dir", &self.data_dir)
+            .field("data_dir", &self.data_dir);
+        debug
             .field("backend", &backend)
             .field("master_key", &"<redacted>")
             .finish()
@@ -177,23 +175,5 @@ fn invalid(field: &'static str, message: impl Into<String>) -> ConfigError {
     ConfigError::Invalid {
         field,
         message: message.into(),
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn override_env(
-    name: &'static str,
-    field: &'static str,
-    target: &mut Option<String>,
-) -> Result<(), ConfigError> {
-    match std::env::var(name) {
-        Ok(value) => {
-            *target = Some(value);
-            Ok(())
-        }
-        Err(std::env::VarError::NotPresent) => Ok(()),
-        Err(std::env::VarError::NotUnicode(_)) => {
-            Err(invalid(field, "environment value is not UTF-8"))
-        }
     }
 }

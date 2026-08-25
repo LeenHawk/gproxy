@@ -1,10 +1,21 @@
-use js_sys::{Uint8Array, global};
+use js_sys::{Promise, Uint8Array};
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Headers, Request, RequestInit, Response, WorkerGlobalScope};
+use web_sys::{Headers, Request, RequestInit, Response};
 
 use super::{HttpFuture, HttpSender};
 use crate::StoreError;
+
+#[wasm_bindgen(inline_js = r#"
+export function gproxyLibsqlFetch(request) {
+  return globalThis.fetch(request);
+}
+"#)]
+extern "C" {
+    #[wasm_bindgen(js_name = gproxyLibsqlFetch)]
+    fn gproxy_libsql_fetch(request: &Request) -> Promise;
+}
 
 pub(super) struct WasmSender;
 
@@ -25,10 +36,7 @@ impl HttpSender for WasmSender {
             init.set_headers_headers(&headers);
             init.set_body_opt_u8_array(Some(&body));
             let request = Request::new_with_str_and_init(url, &init).map_err(js_error)?;
-            let scope = global()
-                .dyn_into::<WorkerGlobalScope>()
-                .map_err(|_| StoreError::Database("libSQL fetch requires a worker scope".into()))?;
-            let response = JsFuture::from(scope.fetch_with_request(&request))
+            let response = JsFuture::from(gproxy_libsql_fetch(&request))
                 .await
                 .map_err(js_error)?
                 .dyn_into::<Response>()

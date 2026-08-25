@@ -5,7 +5,7 @@ use axum::http::header::{CONNECTION, UPGRADE};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use gproxy_core::{RequestCtx, RoutingMode};
+use gproxy_core::RequestCtx;
 
 use crate::response::HostResponse;
 use crate::server::{HostState, MAX_BODY_BYTES};
@@ -53,7 +53,7 @@ pub(crate) async fn handle(
         Ok(upgrade) => upgrade,
         Err(response) => return response,
     };
-    let (mode, path) = normalize_path(&path);
+    let (mode, path) = gproxy_app::ingress::normalize_path(&path);
     let request = RequestCtx {
         request_id: request_id.clone(),
         method,
@@ -111,28 +111,4 @@ fn trim_ascii(mut value: &[u8]) -> &[u8] {
         value = &value[..value.len() - 1];
     }
     value
-}
-
-fn normalize_path(path: &str) -> (RoutingMode, String) {
-    if is_api_path(path) {
-        return (RoutingMode::Aggregated, path.to_owned());
-    }
-    let Some((name, remainder)) = path.strip_prefix('/').and_then(|path| path.split_once('/'))
-    else {
-        return (RoutingMode::Aggregated, path.to_owned());
-    };
-    let remainder = format!("/{remainder}");
-    if name.is_empty() || !is_api_path(&remainder) {
-        return (RoutingMode::Aggregated, path.to_owned());
-    }
-    (
-        RoutingMode::Named {
-            name: name.to_owned(),
-        },
-        remainder,
-    )
-}
-
-fn is_api_path(path: &str) -> bool {
-    path == "/v1" || path.starts_with("/v1/") || path == "/v1beta" || path.starts_with("/v1beta/")
 }

@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::time::Instant;
+use web_time::Instant;
 
 use gproxy_channel_api::{ChannelError, Disposition};
 
