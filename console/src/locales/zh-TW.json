@@ -352,7 +352,7 @@
       "noCompatibleExamplesDescription": "此模型已獲准使用，但其支援的用戶端協定格式與這些範例均不相符。",
       "copy": "複製",
       "copied": "已複製到剪貼簿。",
-      "copyError": "無法複製。請選取文字後手動複製。",
+      "copyError": "無法複製。請在安全的瀏覽器環境中重試。",
       "methods": { "curl": "curl", "openai": "OpenAI Python", "claude": "Claude Python", "gemini": "Gemini Python", "codex": "Codex CLI", "claudeCode": "Claude Code" }
     },
     "models": { "title": "獲准使用的模型", "description": "此金鑰可用的即時路由和功能。", "model": "模型", "capabilities": "功能", "empty": "沒有可用模型", "emptyDescription": "請讓營運方公開路由並授予此金鑰存取權限。", "loadError": "無法載入獲准使用的模型，請重試。" },

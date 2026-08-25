@@ -352,7 +352,7 @@
       "noCompatibleExamplesDescription": "此模型已获准使用，但其支持的客户端协议格式与这些示例均不匹配。",
       "copy": "复制",
       "copied": "已复制到剪贴板。",
-      "copyError": "无法复制。请选中文本后手动复制。",
+      "copyError": "无法复制。请在安全的浏览器上下文中重试。",
       "methods": { "curl": "curl", "openai": "OpenAI Python", "claude": "Claude Python", "gemini": "Gemini Python", "codex": "Codex CLI", "claudeCode": "Claude Code" }
     },
     "models": { "title": "获准使用的模型", "description": "此密钥可用的实时路由和能力。", "model": "模型", "capabilities": "能力", "empty": "没有可用模型", "emptyDescription": "请让运营方公开路由并授予此密钥访问权限。", "loadError": "无法加载获准使用的模型，请重试。" },

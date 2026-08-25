@@ -352,7 +352,7 @@
       "noCompatibleExamplesDescription": "This model is allowed, but none of the supported client wire formats match these examples.",
       "copy": "Copy",
       "copied": "Copied to clipboard.",
-      "copyError": "Could not copy. Select the text and copy it manually.",
+      "copyError": "Could not copy. Try again in a secure browser context.",
       "methods": { "curl": "curl", "openai": "OpenAI Python", "claude": "Claude Python", "gemini": "Gemini Python", "codex": "Codex CLI", "claudeCode": "Claude Code" }
     },
     "models": { "title": "Allowed models", "description": "Live routes and capabilities available to this key.", "model": "Model", "capabilities": "Capabilities", "empty": "No models are available", "emptyDescription": "Ask the operator to expose a route and grant this key access.", "loadError": "Could not load allowed models. Retry." },
