@@ -1,0 +1,120 @@
+.public-claims {
+  padding-block: clamp(5rem, 10vw, 9rem);
+  border-top: 1px solid var(--border);
+}
+
+.public-claims-heading h2 {
+  max-width: 15ch;
+  margin: 0 0 clamp(3rem, 7vw, 6rem);
+  font-size: clamp(2.25rem, 5vw, 4.6rem);
+  font-weight: 650;
+  letter-spacing: -0.065em;
+  line-height: 1;
+}
+
+.public-convergence {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.35fr);
+  align-items: end;
+  margin-bottom: 3rem;
+}
+
+.public-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+}
+
+.public-lanes span {
+  padding: 0 0.75rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-family: "Noto Sans Mono Variable", ui-monospace, monospace;
+  font-size: 0.76rem;
+}
+
+.public-convergence strong {
+  padding: 0 0.75rem 0.72rem;
+  border-bottom: 3px solid var(--primary);
+  color: var(--foreground);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.public-claim-rail {
+  margin-left: 0.42rem;
+  border-left: 1px solid var(--primary);
+}
+
+.public-rail-stop {
+  position: relative;
+  padding: clamp(2rem, 5vw, 4.5rem) 0 clamp(2rem, 5vw, 4.5rem) clamp(2rem, 6vw, 6rem);
+  border-top: 1px solid var(--border);
+}
+
+.public-rail-stop::before {
+  position: absolute;
+  top: -0.42rem;
+  left: -0.42rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--primary);
+  background: var(--background);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.public-claim {
+  max-width: 38rem;
+}
+
+.public-claim h3 {
+  margin: 0 0 0.9rem;
+  font-size: clamp(1.35rem, 2.3vw, 2.1rem);
+  font-weight: 640;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+
+.public-claim p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.public-claim-featured {
+  max-width: 58rem;
+}
+
+.public-claim-featured h3 {
+  font-size: clamp(2rem, 4.5vw, 4.25rem);
+  letter-spacing: -0.065em;
+}
+
+.public-rail-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(2rem, 7vw, 8rem);
+}
+
+.public-rail-stop-cli .public-claim {
+  margin-left: auto;
+}
+
+.public-rail-pair-final .public-claim:last-child {
+  padding-top: clamp(2rem, 6vw, 6rem);
+}
+
+@media (max-width: 54rem) {
+  .public-convergence { grid-template-columns: 1fr; }
+  .public-convergence strong { padding-top: 1.25rem; }
+}
+
+@media (max-width: 40rem) {
+  .public-lanes { grid-template-columns: 1fr; }
+  .public-rail-stop { padding-left: 1.75rem; }
+  .public-rail-pair { grid-template-columns: 1fr; gap: 2.5rem; }
+  .public-rail-pair-final .public-claim:last-child { padding-top: 0; }
+}

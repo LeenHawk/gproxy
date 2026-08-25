@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client"
 import { App } from "@/app"
 import "@/i18n"
 import "@/styles/globals.css"
+import "@/styles/public.css"
+import "@/styles/public-wire.css"
+import "@/styles/public-rail.css"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

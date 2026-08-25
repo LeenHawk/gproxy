@@ -333,6 +333,119 @@
     "group": "群組",
     "noOperations": "此通道未宣告任何操作。"
   },
+  "portal": {
+    "brand": "gproxy",
+    "surface": "使用者入口網站",
+    "common": { "unknown": "未知" },
+    "account": { "maskedKey": "{{prefix}}••••••••", "logout": "登出" },
+    "login": { "title": "開啟你的入口網站", "description": "輸入你收到的 API 金鑰，檢視連線方式和用量。", "key": "API 金鑰", "keyHint": "金鑰只保留在目前瀏覽器分頁中，入口網站不會儲存。", "action": "繼續", "submitting": "正在檢查金鑰…", "error": "無法驗證此金鑰。請檢查後重試。" },
+    "overview": { "title": "歡迎，{{name}}", "description": "連接你的工具、檢視此金鑰可呼叫的模型，並追蹤已結算支出。" },
+    "connect": {
+      "title": "連接",
+      "description": "選擇獲准使用的模型，然後複製可直接執行的範例。",
+      "baseUrl": "Base URL",
+      "copyBaseUrl": "複製 Base URL",
+      "model": "模型",
+      "keyPlaceholder": "<你的_GPROXY_金鑰>",
+      "prompt": "來自 gproxy 的問候",
+      "noCompatibleExamples": "沒有相容的連線範例",
+      "noCompatibleExamplesDescription": "此模型已獲准使用，但其支援的用戶端協定格式與這些範例均不相符。",
+      "copy": "複製",
+      "copied": "已複製到剪貼簿。",
+      "copyError": "無法複製。請選取文字後手動複製。",
+      "methods": { "curl": "curl", "openai": "OpenAI Python", "claude": "Claude Python", "gemini": "Gemini Python", "codex": "Codex CLI", "claudeCode": "Claude Code" }
+    },
+    "models": { "title": "獲准使用的模型", "description": "此金鑰可用的即時路由和功能。", "model": "模型", "capabilities": "功能", "empty": "沒有可用模型", "emptyDescription": "請讓營運方公開路由並授予此金鑰存取權限。", "loadError": "無法載入獲准使用的模型，請重試。" },
+    "quota": {
+      "title": "配額視窗",
+      "description": "目前套用至此金鑰的支出視窗。",
+      "loadError": "無法載入配額視窗，請重試。",
+      "empty": "尚未分配支出配額",
+      "emptyDescription": "此金鑰目前沒有已設定的成本視窗。",
+      "windowLabel": "{{scope}} · {{window}}",
+      "scopes": { "user_key": "金鑰", "user": "使用者", "organization": "組織", "team": "團隊" },
+      "kinds": { "total": "總計", "daily": "每日", "weekly": "每週", "monthly": "每月", "5h": "5 小時", "7d": "7 天" }
+    },
+    "usage": {
+      "title": "用量與成本",
+      "description": "所選範圍內此金鑰的已結算用量。",
+      "rangeLabel": "用量範圍",
+      "ranges": { "1": "1 天", "7": "7 天", "30": "30 天" },
+      "loadError": "無法載入用量，請重試。",
+      "cost": "成本",
+      "requests": "請求數",
+      "inputTokens": "輸入 Token",
+      "outputTokens": "輸出 Token",
+      "cachedTokens": "快取輸入 Token"
+    },
+    "recent": {
+      "title": "最近結算請求",
+      "description": "此金鑰最近結算的請求。此處絕不會顯示請求或回應內文。",
+      "loadError": "無法載入最近請求，請重試。",
+      "empty": "尚無結算請求",
+      "emptyDescription": "請求完成結算後會顯示在這裡。",
+      "time": "時間", "request": "請求", "provider": "供應商", "operation": "操作",
+      "model": "上游模型", "tokens": "輸入 / 輸出", "cost": "成本",
+      "latency": "{{value}} 毫秒", "tokenPair": "{{input}} / {{output}}",
+      "ended": { "complete": "已完成", "interrupted": "已中斷" }
+    },
+    "admin": {
+      "recentRequests": { "title": "使用者入口網站請求歷史", "description": "控制金鑰持有者能否檢視自己的已結算請求摘要。", "label": "顯示最近結算請求", "hint": "僅公開中繼資料和用量，絕不公開擷取的請求或回應內文。", "saved": "已儲存入口網站請求歷史設定。", "saveError": "無法儲存入口網站請求歷史設定，請重試。", "loadError": "無法載入入口網站請求歷史設定，請重試。" }
+    }
+  },
+  "public": {
+    "nav": {
+      "label": "公開網站導覽",
+      "admin": "管理控制台",
+      "portal": "使用金鑰"
+    },
+    "hero": {
+      "title": "一次請求。每種供應商協定。資訊不遺失。",
+      "description": "繼續傳送用戶端原本使用的協定。gproxy 直接轉換、保留未知欄位，並讓每個回應都經過結算。",
+      "labLabel": "即時請求轉換",
+      "labTitle": "即時協定轉換",
+      "switchLabel": "供應商協定格式",
+      "clientLabel": "用戶端請求",
+      "providerLabel": "供應商協定",
+      "dialects": { "openai": "OpenAI Chat", "claude": "Claude Messages", "gemini": "Gemini" },
+      "endpoints": { "openai": "POST /v1/chat/completions", "claude": "POST /v1/messages", "gemini": "POST /v1beta/models/reviewer:generateContent" },
+      "clientCode": "{\n  \"model\": \"reviewer\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"檢查 src/auth.rs 中的權杖更新競態。\"\n  }],\n  \"tools\": [{\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"read_file\",\n      \"description\": \"讀取儲存庫檔案。\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"path\": { \"type\": \"string\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }\n  }],\n  \"tool_choice\": \"auto\"\n}",
+      "wires": {
+        "openai": "{\n  \"model\": \"reviewer\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"檢查 src/auth.rs 中的權杖更新競態。\"\n  }],\n  \"tools\": [{\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"read_file\",\n      \"description\": \"讀取儲存庫檔案。\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"path\": { \"type\": \"string\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }\n  }],\n  \"tool_choice\": \"auto\"\n}",
+        "claude": "{\n  \"model\": \"reviewer\",\n  \"max_tokens\": 1024,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"檢查 src/auth.rs 中的權杖更新競態。\"\n  }],\n  \"tools\": [{\n    \"name\": \"read_file\",\n    \"description\": \"讀取儲存庫檔案。\",\n    \"input_schema\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"path\": { \"type\": \"string\" }\n      },\n      \"required\": [\"path\"]\n    }\n  }],\n  \"tool_choice\": { \"type\": \"auto\" }\n}",
+        "gemini": "{\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": \"檢查 src/auth.rs 中的權杖更新競態。\"\n    }]\n  }],\n  \"tools\": [{\n    \"functionDeclarations\": [{\n      \"name\": \"read_file\",\n      \"description\": \"讀取儲存庫檔案。\",\n      \"parameters\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"path\": { \"type\": \"STRING\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }]\n  }],\n  \"toolConfig\": {\n    \"functionCallingConfig\": { \"mode\": \"AUTO\" }\n  }\n}"
+      }
+    },
+    "claims": {
+      "title": "多種協定進入。每個回應都經結算後離開。",
+      "convergenceLabel": "OpenAI Chat、Claude Messages 與 Gemini 匯聚到同一個結算漏斗。",
+      "funnel": "結算漏斗",
+      "compile": {
+        "title": "跳過計費，編譯就會失敗。",
+        "body": "每個回應都攜帶只有結算漏斗才能建構的證明權杖。繞過它，Rust 就會拒絕建置。"
+      },
+      "pairwise": {
+        "title": "沒有中間表示磨掉細節。",
+        "body": "轉換直接發生在真實協定之間。不存在一個樞紐結構來決定哪些細節可以保留。"
+      },
+      "unknown": {
+        "title": "未知欄位也能完整往返。",
+        "body": "每個型別化模型都保留尚未建模的 JSON。供應商今天發布的欄位，仍能到達你的用戶端。"
+      },
+      "cli": {
+        "title": "你的 CLI 仍像在直連供應商。",
+        "body": "Codex CLI 和 Claude Code 使用集區憑證執行，並經過同一條計量執行路徑。"
+      },
+      "providers": {
+        "title": "28 個供應商，一個 Base URL。",
+        "body": "池化憑證、在路由成員間故障轉移，並按金鑰執行支出限制，無需重新設定用戶端。"
+      },
+      "runtime": {
+        "title": "原生二進位檔，或邊緣 wasm。",
+        "body": "同一套無框架請求與結果邊界，可以執行在 TCP 主機或 fetch worker 之後。"
+      }
+    }
+  },
   "window": {
     "resets": "重設於 {{value}}",
     "started": "開始於 {{time}}",

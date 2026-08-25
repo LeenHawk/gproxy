@@ -8,6 +8,7 @@ import type { UserDto } from "@/generated/UserDto"
 import type { UserKeyDto } from "@/generated/UserKeyDto"
 import { AccessManager } from "@/components/keys/access-manager"
 import { KeyManagement } from "@/components/keys/key-management"
+import { RecentRequestsSetting } from "@/components/portal/recent-requests-setting"
 
 type Props = {
   organizations: Array<OrganizationDto>
@@ -27,6 +28,7 @@ export function KeysWorkspace(props: Props) {
     <div className="flex flex-col gap-6">
       <KeyManagement {...identity} />
       <AccessManager {...identity} providers={props.providers} groups={props.groups} permissions={props.permissions} rateLimits={props.rateLimits} quotas={props.quotas} />
+      <RecentRequestsSetting />
     </div>
   )
 }
