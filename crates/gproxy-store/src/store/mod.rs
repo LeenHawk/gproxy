@@ -4,6 +4,7 @@ mod credentials;
 mod identity;
 mod runtime;
 mod snapshot;
+mod tokenizers;
 mod usage;
 
 use crate::backend::{self, BackendConfig, Executor, SharedExecutor, Statement};

@@ -5,7 +5,7 @@ use crate::backend::{Executor, Statement};
 use crate::schema::{Dialect, SchemaVersion, migration_statements};
 
 pub(crate) async fn migrate(executor: &dyn Executor, dialect: Dialect) -> Result<(), StoreError> {
-    migrate_to(executor, dialect, SchemaVersion::Runtime).await
+    migrate_to(executor, dialect, SchemaVersion::LATEST).await
 }
 
 pub(crate) async fn migrate_to(

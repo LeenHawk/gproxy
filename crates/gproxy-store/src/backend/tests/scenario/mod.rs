@@ -17,6 +17,7 @@ pub(super) struct Outcome {
     quota: QuotaWindowRecord,
     cycle: cycle::Outcome,
     binding: BindingPage,
+    tokenizer_vocabs: Vec<String>,
     rollup_requests: i64,
     wire_logs: i64,
 }
@@ -118,6 +119,14 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     let cycle = cycle::run(store, credential.id).await?;
     let binding = seed_binding(store, provider, credential.id).await?;
     seed_capture(store, provider, credential.id).await?;
+    store.put_tokenizer_vocab("owner/model", b"vocab").await?;
+    assert_eq!(
+        store.tokenizer_vocab("owner/model").await?,
+        Some(b"vocab".to_vec())
+    );
+    let tokenizer_vocabs = store.tokenizer_vocab_names().await?;
+    store.delete_tokenizer_vocab("owner/model").await?;
+    assert_eq!(store.tokenizer_vocab("owner/model").await?, None);
     let rollup_requests = scalar(store, "SELECT requests FROM usage_rollups").await?;
     let wire_logs = scalar(store, "SELECT COUNT(*) AS value FROM wire_logs").await?;
 
@@ -144,6 +153,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         quota,
         cycle,
         binding,
+        tokenizer_vocabs,
         rollup_requests,
         wire_logs,
     })

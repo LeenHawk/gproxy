@@ -3,6 +3,8 @@ mod bindings;
 mod continuations;
 mod credentials;
 mod sinks;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod tokenizers;
 mod usage_view;
 
 use std::sync::Arc;
@@ -21,6 +23,8 @@ pub(crate) struct Services {
     pub cipher: EnvelopeCipher,
     pub control: SnapshotControl,
     pub transport: gproxy_upstream::Transport,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub tokenizers: Arc<gproxy_tokenize::TokenizerRegistry>,
     #[cfg(not(target_arch = "wasm32"))]
     pub spawner: TokioSpawner,
     #[cfg(not(target_arch = "wasm32"))]

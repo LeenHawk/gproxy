@@ -1,14 +1,16 @@
-use super::{control, identity, runtime};
+use super::{control, identity, runtime, tokenizer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i64)]
 pub enum SchemaVersion {
     Control = 1,
     Runtime = 2,
+    Tokenizers = 3,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 2] = [Self::Control, Self::Runtime];
+    pub const ALL: [Self; 3] = [Self::Control, Self::Runtime, Self::Tokenizers];
+    pub const LATEST: Self = Self::Tokenizers;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -101,4 +103,5 @@ pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
         .iter()
         .chain(identity::TABLES)
         .chain(runtime::tables())
+        .chain(tokenizer::TABLES)
 }

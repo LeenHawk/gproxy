@@ -63,7 +63,7 @@ async fn near_limit_credential_is_deprioritized() {
 
     assert_eq!(resolve_credentials(&app), vec![second, credential]);
 
-    let request = super::request("cycle-view", "hi", &client_key);
+    let request = setup::request("cycle-view", "hi", &client_key);
     let identity = app
         .inner
         .host

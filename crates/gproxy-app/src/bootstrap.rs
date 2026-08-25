@@ -16,12 +16,21 @@ impl App {
         let store = gproxy_store::Store::open(config.backend_config()).await?;
         let control = SnapshotControl::new(store.clone()).await?;
         let cache = InProcessCache::default();
+        let transport = gproxy_upstream::Transport::default();
+        #[cfg(not(target_arch = "wasm32"))]
+        let tokenizers = crate::host::tokenizers::build(
+            store.clone(),
+            transport.clone(),
+            &control.current().settings,
+        );
         let services = Arc::new(Services {
             store,
             cache,
             cipher: EnvelopeCipher::new(*config.master_key()),
             control,
-            transport: gproxy_upstream::Transport::default(),
+            transport,
+            #[cfg(not(target_arch = "wasm32"))]
+            tokenizers,
             #[cfg(not(target_arch = "wasm32"))]
             spawner: crate::host::TokioSpawner,
             #[cfg(not(target_arch = "wasm32"))]

@@ -34,8 +34,12 @@ impl TokenizerRegistry {
                 Ok(LoadOutcome::Loaded) => {
                     negative.remove(&name);
                 }
-                Ok(LoadOutcome::Missing) | Err(_) => {
+                Ok(LoadOutcome::Missing) => {
                     negative.insert(name.clone(), ());
+                }
+                Err(error) => {
+                    negative.insert(name.clone(), ());
+                    tracing::warn!(name, %error, "tokenizer load failed");
                 }
             }
             inflight.remove(&name);

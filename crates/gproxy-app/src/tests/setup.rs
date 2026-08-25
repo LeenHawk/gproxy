@@ -1,4 +1,7 @@
 use base64::Engine as _;
+use bytes::Bytes;
+use gproxy_core::CacheBackend;
+use http::{HeaderMap, HeaderValue, Method};
 use rust_decimal::Decimal;
 use serde_json::json;
 
@@ -164,4 +167,33 @@ pub(super) fn id(result: MutationResult) -> i64 {
         panic!("mutation returned no id")
     };
     id
+}
+
+pub(super) fn request(id: &str, input: &str, api_key: &str) -> gproxy_core::RequestCtx {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        http::header::AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {api_key}")).expect("authorization header"),
+    );
+    gproxy_core::RequestCtx {
+        request_id: format!("request-{id}"),
+        method: Method::POST,
+        path: "/v1/chat/completions".into(),
+        query: None,
+        headers,
+        body: Bytes::from(json!({"model": "public-model", "input": input}).to_string()),
+        upgrade: false,
+        mode: gproxy_core::RoutingMode::Aggregated,
+    }
+}
+
+pub(super) async fn counter(host: &crate::host::AppHost, window_id: i64) -> i64 {
+    let value = host
+        .services
+        .cache
+        .get(&format!("gproxy:quota-pending:{window_id}"))
+        .await
+        .expect("cache")
+        .expect("quota counter");
+    i64::from_be_bytes(value.try_into().expect("counter bytes"))
 }

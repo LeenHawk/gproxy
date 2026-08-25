@@ -16,6 +16,7 @@ gproxy-channels.workspace = true
 gproxy-core.workspace = true
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 gproxy-store.workspace = true
+gproxy-tokenize.workspace = true
 gproxy-upstream.workspace = true
 bytes.workspace = true
 http.workspace = true
@@ -29,6 +30,8 @@ tracing.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futures-util.workspace = true
+gproxy-tokenize = { workspace = true, features = ["count-local"] }
 tokio.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
