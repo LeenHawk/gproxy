@@ -3,6 +3,7 @@ mod bindings;
 mod control;
 mod credentials;
 mod identity;
+mod recent_usage;
 mod runtime;
 mod snapshot;
 mod tokenizers;

@@ -1,8 +1,8 @@
 use gproxy_channel_api::{BoxFuture, MaybeSend, MaybeSync};
 use gproxy_store::records::CredentialEnvelope;
 
-use crate::AdminError;
-use crate::dto::ChannelDto;
+use crate::dto::{ChannelDto, PortalModelDto};
+use crate::{AdminError, PortalIdentity};
 
 pub trait State: MaybeSend + MaybeSync {
     fn store(&self) -> &gproxy_store::Store;
@@ -36,6 +36,10 @@ pub trait State: MaybeSend + MaybeSync {
     fn reload(&self) -> BoxFuture<'_, Result<(), AdminError>>;
 
     fn channel_catalogue(&self) -> Vec<ChannelDto>;
+
+    fn portal_identity(&self, headers: &http::HeaderMap) -> Result<PortalIdentity, AdminError>;
+
+    fn portal_models(&self, identity: &PortalIdentity) -> Vec<PortalModelDto>;
 
     fn normalize_provider_settings(
         &self,

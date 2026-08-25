@@ -3,7 +3,7 @@ mod map;
 use std::collections::BTreeMap;
 
 use bytes::Bytes;
-use gproxy_store::records::{UsageAggregateQuery, UsageGroupBy};
+use gproxy_store::records::{QuotaRecord, QuotaWindowKind, UsageAggregateQuery, UsageGroupBy};
 use http::request::Parts;
 use http::{Response, StatusCode};
 
@@ -64,8 +64,20 @@ pub(super) async fn quota_windows(
         .filter(|quota| quota.enabled)
         .filter(|quota| subject_id.is_none_or(|id| quota.subject_id == id))
         .filter(|quota| subject_kind.is_none_or(|kind| quota.subject_kind == kind))
-        .map(|quota| (quota.id, quota))
-        .collect::<BTreeMap<_, _>>();
+        .cloned()
+        .collect::<Vec<_>>();
+    let values = materialize_quota_windows(state, &quotas)
+        .await?
+        .into_iter()
+        .map(|(_, window)| window)
+        .collect::<Vec<_>>();
+    response::json(StatusCode::OK, &values)
+}
+
+pub(crate) async fn materialize_quota_windows(
+    state: &impl State,
+    quotas: &[QuotaRecord],
+) -> Result<Vec<(QuotaWindowKind, QuotaWindowDto)>, AdminError> {
     let now = crate::auth::now()?;
     let mut active = state
         .store()
@@ -76,18 +88,19 @@ pub(super) async fn quota_windows(
         .map(|window| ((window.quota_id, window.window_kind), window))
         .collect::<BTreeMap<_, _>>();
     let mut values = Vec::new();
-    for quota in quotas.values() {
+    for quota in quotas {
         for kind in map::configured_windows(quota) {
             let value = active
                 .remove(&(quota.id, kind))
                 .as_ref()
                 .and_then(|window| map::quota_window(quota, window))
                 .or_else(|| map::unstarted_window(quota, kind, now));
-            values.extend(value);
+            if let Some(value) = value {
+                values.push((kind, value));
+            }
         }
     }
-    let values = values.into_iter().collect::<Vec<QuotaWindowDto>>();
-    response::json(StatusCode::OK, &values)
+    Ok(values)
 }
 
 pub(super) async fn credential_cycles(
@@ -111,7 +124,7 @@ pub(super) async fn credential_cycles(
     response::json(StatusCode::OK, &values)
 }
 
-fn range(from: i64, to: i64) -> Result<(i64, i64), AdminError> {
+pub(crate) fn range(from: i64, to: i64) -> Result<(i64, i64), AdminError> {
     if from >= to {
         Err(AdminError::BadRequest("from must be before to".into()))
     } else if to.saturating_sub(from) > 366 * 24 * 60 * 60 {

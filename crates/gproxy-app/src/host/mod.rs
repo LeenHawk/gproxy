@@ -15,7 +15,9 @@ use gproxy_core::{CredentialHealth, Host, Plan, ProviderRef, RequestCtx, Spawner
 
 use crate::cache::InProcessCache;
 use crate::control::SnapshotControl;
+
 use crate::secrets::EnvelopeCipher;
+pub(crate) use admission::{authenticate_headers, authorize};
 
 pub(crate) struct Services {
     pub store: gproxy_store::Store,

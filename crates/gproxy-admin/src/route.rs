@@ -32,6 +32,8 @@ pub(crate) enum Route {
     Channels,
     TlsPresets,
     Audit,
+    PortalSettingsRead,
+    PortalSettingsWrite,
 }
 
 pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
@@ -76,6 +78,8 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::GET, "channels") => Some(Route::Channels),
         (&Method::GET, "tls-presets") => Some(Route::TlsPresets),
         (&Method::GET, "audit") => Some(Route::Audit),
+        (&Method::GET, "portal-settings") => Some(Route::PortalSettingsRead),
+        (&Method::PATCH, "portal-settings") => Some(Route::PortalSettingsWrite),
         _ => None,
     }
 }

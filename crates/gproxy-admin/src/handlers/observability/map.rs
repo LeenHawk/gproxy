@@ -8,7 +8,7 @@ use crate::dto::{
     QuotaCycleCloseReasonDto, QuotaCycleStatusDto, QuotaWindowDto,
 };
 
-pub(super) fn configured_windows(quota: &QuotaRecord) -> Vec<QuotaWindowKind> {
+pub(crate) fn configured_windows(quota: &QuotaRecord) -> Vec<QuotaWindowKind> {
     [
         (QuotaWindowKind::Total, Some(quota.quota_total)),
         (QuotaWindowKind::Daily, quota.quota_daily),
@@ -22,7 +22,7 @@ pub(super) fn configured_windows(quota: &QuotaRecord) -> Vec<QuotaWindowKind> {
     .collect()
 }
 
-pub(super) fn quota_window(
+pub(crate) fn quota_window(
     quota: &QuotaRecord,
     window: &QuotaWindowRecord,
 ) -> Option<QuotaWindowDto> {
@@ -41,7 +41,7 @@ pub(super) fn quota_window(
     })
 }
 
-pub(super) fn unstarted_window(
+pub(crate) fn unstarted_window(
     quota: &QuotaRecord,
     kind: QuotaWindowKind,
     now: i64,

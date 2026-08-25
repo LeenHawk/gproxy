@@ -13,7 +13,10 @@ pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
         return None;
     }
     let request_path = parts.uri.path();
-    let asset = if matches!(request_path, "/admin" | "/admin/") {
+    let asset = if matches!(
+        request_path,
+        "/" | "/admin" | "/admin/" | "/portal" | "/portal/"
+    ) {
         "index.html"
     } else if let Some(path) = request_path.strip_prefix('/')
         && (path.starts_with("assets/") || path == "favicon.svg")

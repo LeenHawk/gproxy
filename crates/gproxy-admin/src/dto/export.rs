@@ -81,6 +81,17 @@ fn export_console_types() {
         QuotaCycleCloseReasonDto,
         CredentialQuotaCycleDto,
         AuditEventDto,
+        PortalContextDto,
+        PortalSettingsDto,
+        PortalModelCapabilityDto,
+        PortalModelDto,
+        PortalUsageQueryDto,
+        PortalUsageDto,
+        PortalQuotaScopeDto,
+        PortalQuotaWindowKindDto,
+        PortalQuotaWindowDto,
+        PortalRecentQueryDto,
+        PortalRecentRequestDto,
     );
     let mut names = std::fs::read_dir(&output)
         .expect("read generated TypeScript")

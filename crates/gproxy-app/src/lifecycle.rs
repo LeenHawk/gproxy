@@ -30,6 +30,14 @@ impl AppHandle {
         gproxy_admin::dispatch(self, parts, body).await
     }
 
+    pub async fn portal_dispatch(
+        &self,
+        parts: &http::request::Parts,
+        body: bytes::Bytes,
+    ) -> Option<http::Response<bytes::Bytes>> {
+        gproxy_admin::portal_dispatch(self, parts, body).await
+    }
+
     pub async fn execute(
         &self,
         request: RequestCtx,

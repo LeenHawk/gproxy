@@ -1,8 +1,10 @@
+mod portal;
+
 use std::time::Duration;
 
 use base64::Engine as _;
-use gproxy_admin::dto::{ChannelDto, channel_dto};
-use gproxy_admin::{AdminError, State};
+use gproxy_admin::dto::{ChannelDto, PortalModelDto, channel_dto};
+use gproxy_admin::{AdminError, PortalIdentity, State};
 use gproxy_channel_api::BoxFuture;
 use gproxy_core::CacheBackend;
 use gproxy_store::records::{AuditEventInput, CredentialEnvelope};
@@ -164,6 +166,14 @@ impl State for AppHandle {
     ) -> Result<serde_json::Value, AdminError> {
         gproxy_channels::canonical_provider_settings(channel, settings)
             .map_err(AdminError::BadRequest)
+    }
+
+    fn portal_identity(&self, headers: &http::HeaderMap) -> Result<PortalIdentity, AdminError> {
+        portal::identity(self, headers)
+    }
+
+    fn portal_models(&self, identity: &PortalIdentity) -> Vec<PortalModelDto> {
+        portal::models(self, identity)
     }
 }
 

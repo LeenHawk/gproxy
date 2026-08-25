@@ -2,7 +2,8 @@ mod audit;
 mod catalogue;
 mod control;
 mod identity;
-mod observability;
+pub(crate) mod observability;
+mod portal_settings;
 mod pricing;
 mod util;
 
@@ -33,6 +34,8 @@ pub(crate) async fn dispatch(
         Route::Channels => catalogue::channels(state),
         Route::TlsPresets => catalogue::tls_presets(),
         Route::Audit => audit::list(state, parts).await,
+        Route::PortalSettingsRead => portal_settings::get(state).await,
+        Route::PortalSettingsWrite => portal_settings::update(state, body).await,
     }
 }
 

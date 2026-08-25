@@ -8,17 +8,22 @@ pub(in crate::host) fn authenticate<'a>(
     host: &'a AppHost,
     request: &'a RequestCtx,
 ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>> {
-    Box::pin(async move {
-        let key = api_key(request).ok_or(CoreError::Unauthorized)?;
-        let identity = crate::control::user_key_digests(key)
-            .find_map(|(version, digest)| host.services.control.key_identity(version, &digest))
-            .filter(|identity| identity.expires_at.is_none_or(|expiry| expiry > unix_now()))
-            .ok_or(CoreError::Unauthorized)?;
-        Ok(identity.caller)
-    })
+    Box::pin(async move { authenticate_headers(host, &request.headers) })
 }
 
-pub(super) fn authorize(
+pub(crate) fn authenticate_headers(
+    host: &AppHost,
+    headers: &http::HeaderMap,
+) -> Result<CallerIdentity, CoreError> {
+    let key = api_key(headers).ok_or(CoreError::Unauthorized)?;
+    let identity = crate::control::user_key_digests(key)
+        .find_map(|(version, digest)| host.services.control.key_identity(version, &digest))
+        .filter(|identity| identity.expires_at.is_none_or(|expiry| expiry > unix_now()))
+        .ok_or(CoreError::Unauthorized)?;
+    Ok(identity.caller)
+}
+
+pub(crate) fn authorize(
     snapshot: &gproxy_store::records::ControlSnapshot,
     identity: &CallerIdentity,
     operation: Option<OperationKey>,
@@ -65,13 +70,12 @@ pub(in crate::host) fn unix_now() -> i64 {
         .as_secs() as i64
 }
 
-fn api_key(request: &RequestCtx) -> Option<&str> {
-    request
-        .headers
+fn api_key(headers: &http::HeaderMap) -> Option<&str> {
+    headers
         .get(http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
-        .or_else(|| request.headers.get("x-api-key")?.to_str().ok())
-        .or_else(|| request.headers.get("x-goog-api-key")?.to_str().ok())
+        .or_else(|| headers.get("x-api-key")?.to_str().ok())
+        .or_else(|| headers.get("x-goog-api-key")?.to_str().ok())
         .filter(|value| !value.is_empty())
 }

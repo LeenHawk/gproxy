@@ -13,7 +13,7 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
         return None;
     }
     if let Some(result) = auth::dispatch_public(state, parts, &body).await {
-        return Some(render(result));
+        return Some(response::render(result, "admin"));
     }
     let Some(route) = route::parse(&parts.method, path) else {
         return Some(response::error(&AdminError::NotFound));
@@ -26,17 +26,5 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
         handlers::dispatch(state, &admin, route, parts, &body).await
     }
     .await;
-    Some(render(result))
-}
-
-fn render(result: Result<Response<Bytes>, AdminError>) -> Response<Bytes> {
-    match result {
-        Ok(response) => response,
-        Err(error) => {
-            if matches!(error, AdminError::Internal(_)) {
-                tracing::error!(error = %error, "admin dispatch failed");
-            }
-            response::error(&error)
-        }
-    }
+    Some(response::render(result, "admin"))
 }

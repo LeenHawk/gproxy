@@ -4,8 +4,8 @@ use gproxy_store::records::CredentialEnvelope;
 use http::{Method, StatusCode};
 use sha2::{Digest, Sha256};
 
-use crate::dto::ChannelDto;
-use crate::{AdminError, State};
+use crate::dto::{ChannelDto, PortalModelDto};
+use crate::{AdminError, PortalIdentity, State};
 
 struct TestState {
     store: gproxy_store::Store,
@@ -57,6 +57,30 @@ impl State for TestState {
         Vec::new()
     }
 
+    fn portal_identity(&self, headers: &http::HeaderMap) -> Result<PortalIdentity, AdminError> {
+        let authenticated = headers
+            .get(http::header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            == Some("Bearer portal-test-key");
+        if !authenticated {
+            return Err(AdminError::Unauthorized);
+        }
+        Ok(PortalIdentity {
+            user_id: 11,
+            user_key_id: 12,
+            org_id: Some(13),
+            team_id: Some(14),
+            user_name: "portal-user".into(),
+            key_prefix: Some("sk-gp-test".into()),
+            key_label: None,
+            expires_at: None,
+        })
+    }
+
+    fn portal_models(&self, _: &PortalIdentity) -> Vec<PortalModelDto> {
+        Vec::new()
+    }
+
     fn normalize_provider_settings(
         &self,
         _: &str,
@@ -67,13 +91,25 @@ impl State for TestState {
 }
 
 #[tokio::test]
-async fn public_setup_and_protected_routes_share_one_auth_boundary() {
+async fn admin_and_portal_auth_boundaries_do_not_cross() {
     let state = state().await;
-    let session = parts(Method::GET, "/admin/session", None);
-    let response = crate::dispatch(&state, &session, Bytes::new())
+    let portal = key_parts(Method::GET, "/portal/api/context");
+    let response = crate::portal_dispatch(&state, &portal, Bytes::new())
         .await
-        .expect("session route");
+        .expect("portal context");
     assert_eq!(response.status(), StatusCode::OK);
+
+    let admin_with_key = key_parts(Method::GET, "/admin/providers");
+    let response = crate::dispatch(&state, &admin_with_key, Bytes::new())
+        .await
+        .expect("admin namespace");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let scoped = key_parts(Method::GET, "/portal/api/usage?from=0&to=1&user_key_id=999");
+    let response = crate::portal_dispatch(&state, &scoped, Bytes::new())
+        .await
+        .expect("portal usage");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let providers = parts(Method::GET, "/admin/providers", None);
     let response = crate::dispatch(&state, &providers, Bytes::new())
@@ -107,6 +143,12 @@ async fn public_setup_and_protected_routes_share_one_auth_boundary() {
         .expect("provider route");
     assert_eq!(response.status(), StatusCode::OK);
 
+    let portal_with_admin = parts(Method::GET, "/portal/api/context", Some(&cookie));
+    let response = crate::portal_dispatch(&state, &portal_with_admin, Bytes::new())
+        .await
+        .expect("portal namespace");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
     let unknown = parts(Method::GET, "/admin/not-an-api", Some(&cookie));
     let response = crate::dispatch(&state, &unknown, Bytes::new())
         .await
@@ -133,6 +175,17 @@ fn parts(method: Method, uri: &str, cookie: Option<&str>) -> http::request::Part
         request = request.header(http::header::COOKIE, cookie);
     }
     request.body(()).expect("request").into_parts().0
+}
+
+fn key_parts(method: Method, uri: &str) -> http::request::Parts {
+    http::Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(http::header::AUTHORIZATION, "Bearer portal-test-key")
+        .body(())
+        .expect("request")
+        .into_parts()
+        .0
 }
 
 fn envelope() -> CredentialEnvelope {

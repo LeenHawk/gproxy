@@ -167,11 +167,14 @@ fn parse_usage(row: Row) -> Result<UsageRecord, StoreError> {
     })
 }
 
-fn unsigned(value: i64, field: &'static str) -> Result<u64, StoreError> {
+pub(super) fn unsigned(value: i64, field: &'static str) -> Result<u64, StoreError> {
     u64::try_from(value).map_err(|error| invalid(field, error))
 }
 
-fn decimal(value: &str, field: &'static str) -> Result<rust_decimal::Decimal, StoreError> {
+pub(super) fn decimal(
+    value: &str,
+    field: &'static str,
+) -> Result<rust_decimal::Decimal, StoreError> {
     value.parse().map_err(|error| invalid(field, error))
 }
 

@@ -5,6 +5,7 @@ mod common;
 mod control;
 mod fingerprint;
 mod identity;
+mod portal;
 mod pricing;
 mod usage;
 
@@ -15,6 +16,7 @@ pub use common::*;
 pub use control::*;
 pub use fingerprint::*;
 pub use identity::*;
+pub use portal::*;
 pub use pricing::*;
 pub use usage::*;
 

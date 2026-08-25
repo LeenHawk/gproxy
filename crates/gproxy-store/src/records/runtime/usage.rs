@@ -31,6 +31,22 @@ pub struct UsageRecord {
     pub usage: UsageInput,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecentUsageRecord {
+    pub request_id: String,
+    pub at: i64,
+    pub provider_id: i64,
+    pub operation: Option<String>,
+    pub upstream_model: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cached_input_tokens: u64,
+    pub cost: Decimal,
+    pub usage_source: String,
+    pub ended: String,
+    pub latency_ms: u64,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct UsageWindow {
     pub cost: Decimal,

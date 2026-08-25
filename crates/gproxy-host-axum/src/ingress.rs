@@ -41,6 +41,11 @@ pub(crate) async fn handle(
     {
         return crate::response::buffered_response(response, permit, &request_id);
     }
+    if (path == "/portal/api" || path.starts_with("/portal/api/"))
+        && let Some(response) = state.app.portal_dispatch(&parts, body.clone()).await
+    {
+        return crate::response::buffered_response(response, permit, &request_id);
+    }
     if let Some(response) = crate::static_assets::serve(&parts) {
         return crate::response::buffered_response(response, permit, &request_id);
     }
