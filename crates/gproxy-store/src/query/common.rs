@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use sea_query::{Alias, Expr, Query, SimpleExpr};
+use sea_query::{Alias, Expr, ExprTrait, Query, SimpleExpr};
 use serde_json::Value;
 
 use crate::StoreError;
@@ -29,6 +29,21 @@ pub(super) fn select_all(
     if columns.contains(&"id") {
         query.order_by(Alias::new("id"), sea_query::Order::Asc);
     }
+    Statement::query(&query)
+}
+
+pub(super) fn update(
+    table: &'static str,
+    id: i64,
+    columns: &[&'static str],
+    values: Vec<SimpleExpr>,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::update();
+    query.table(Alias::new(table));
+    for (column, value) in columns.iter().zip(values) {
+        query.value(Alias::new(*column), value);
+    }
+    query.and_where(Expr::col(Alias::new("id")).eq(id));
     Statement::query(&query)
 }
 

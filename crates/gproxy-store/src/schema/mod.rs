@@ -1,3 +1,4 @@
+mod admin;
 mod build;
 mod catalog;
 mod control;

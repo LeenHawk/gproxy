@@ -1,9 +1,56 @@
 use crate::backend::Row;
 use crate::query::usage;
-use crate::records::{UsageInput, UsageRecord, UsageWindow};
+use crate::records::{
+    UsageAggregateQuery, UsageAggregateRecord, UsageInput, UsageRecord, UsageWindow,
+};
 use crate::{Store, StoreError};
 
 impl Store {
+    pub async fn usage_aggregate(
+        &self,
+        query: &UsageAggregateQuery,
+    ) -> Result<Vec<UsageAggregateRecord>, StoreError> {
+        const PAGE_SIZE: u64 = 5_000;
+        const MAX_PAGES: usize = 20;
+        let mut groups = std::collections::BTreeMap::<String, UsageAggregateRecord>::new();
+        let mut after_id = 0;
+        for page in 0..MAX_PAGES {
+            let page_limit = if page + 1 == MAX_PAGES {
+                PAGE_SIZE + 1
+            } else {
+                PAGE_SIZE
+            };
+            let rows = self
+                .backend()
+                .execute(usage::aggregate(query, after_id, page_limit)?)
+                .await?
+                .rows;
+            let row_count = rows.len();
+            if page + 1 == MAX_PAGES && row_count > PAGE_SIZE as usize {
+                return Err(StoreError::InvalidData {
+                    field: "usage query",
+                    message: "range exceeds 100000 rows; narrow the time range".into(),
+                });
+            }
+            for row in rows {
+                after_id = row.i64("id")?;
+                accumulate(&mut groups, row)?;
+            }
+            if row_count < page_limit as usize {
+                break;
+            }
+        }
+        let mut values = groups.into_values().collect::<Vec<_>>();
+        values.sort_by(|left, right| {
+            right
+                .cost
+                .cmp(&left.cost)
+                .then_with(|| left.group.cmp(&right.group))
+        });
+        values.truncate(500);
+        Ok(values)
+    }
+
     pub async fn record_usage(&self, input: &UsageInput) -> Result<bool, StoreError> {
         let results = self
             .backend()
@@ -48,6 +95,49 @@ impl Store {
             output_tokens: unsigned(row.i64("output_tokens")?, "output_tokens")?,
         })
     }
+}
+
+fn accumulate(
+    groups: &mut std::collections::BTreeMap<String, UsageAggregateRecord>,
+    row: Row,
+) -> Result<(), StoreError> {
+    let group = row.text("group_key")?.to_owned();
+    let value = groups.entry(group.clone()).or_insert(UsageAggregateRecord {
+        group,
+        requests: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cached_input_tokens: 0,
+        cost: rust_decimal::Decimal::ZERO,
+    });
+    checked_add(&mut value.requests, 1, "requests")?;
+    checked_add(
+        &mut value.input_tokens,
+        unsigned(row.i64("input_tokens")?, "input_tokens")?,
+        "input_tokens",
+    )?;
+    checked_add(
+        &mut value.output_tokens,
+        unsigned(row.i64("output_tokens")?, "output_tokens")?,
+        "output_tokens",
+    )?;
+    checked_add(
+        &mut value.cached_input_tokens,
+        unsigned(row.i64("cached_input_tokens")?, "cached_input_tokens")?,
+        "cached_input_tokens",
+    )?;
+    value.cost += decimal(row.text("cost")?, "cost")?;
+    Ok(())
+}
+
+fn checked_add(target: &mut u64, value: u64, field: &'static str) -> Result<(), StoreError> {
+    *target = target
+        .checked_add(value)
+        .ok_or_else(|| StoreError::InvalidData {
+            field,
+            message: "aggregate exceeds u64".into(),
+        })?;
+    Ok(())
 }
 
 fn parse_usage(row: Row) -> Result<UsageRecord, StoreError> {

@@ -13,16 +13,18 @@ use crate::host::{Host, UpstreamTransport};
 pub(super) async fn run<H: Host>(
     host: Shared<H>,
     target: Target,
+    credential_version: Option<u64>,
     request_id: String,
     label: &'static str,
     mut prepared: PreparedRequest,
 ) -> Result<StepResponse, CoreError> {
-    prepared.apply_profile();
+    crate::fingerprint::apply_prepared(&mut prepared, &target.provider)?;
     let url = prepared.request.uri().to_string();
     let body = prepared.request.body().clone();
     let facts = FunnelCtx {
         request_id,
         target,
+        credential_version,
         source_key: None,
         key: None,
         source_framing: StreamFraming::Sse,
@@ -41,6 +43,14 @@ pub(super) async fn run<H: Host>(
     let response = match host.transport().send(prepared.request).await {
         Ok(response) => response,
         Err(error) => {
+            crate::funnel::health::degraded(
+                host.as_ref(),
+                &facts.target,
+                facts.credential_version,
+                None,
+                "upstream transport failed",
+            )
+            .await;
             funnel::error::terminal_transport(host.as_ref(), &facts, &error).await;
             return Err(error.into());
         }
@@ -48,6 +58,14 @@ pub(super) async fn run<H: Host>(
     let response = match crate::attempt::body::collect(response).await {
         Ok(response) => response,
         Err(failure) => {
+            crate::funnel::health::degraded(
+                host.as_ref(),
+                &facts.target,
+                facts.credential_version,
+                Some(failure.status),
+                "upstream response interrupted",
+            )
+            .await;
             let outcome = funnel::free_buffered(
                 host.as_ref(),
                 facts,
@@ -67,6 +85,14 @@ pub(super) async fn run<H: Host>(
     } else {
         Disposition::Terminal
     };
+    crate::funnel::health::response(
+        host.as_ref(),
+        &facts.target,
+        facts.credential_version,
+        disposition,
+        parts.status,
+    )
+    .await;
     let outcome = funnel::free_buffered(
         host.as_ref(),
         facts,

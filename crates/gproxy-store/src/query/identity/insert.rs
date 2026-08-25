@@ -42,13 +42,31 @@ pub(crate) fn insert_user(input: &UserInput) -> Result<Statement, StoreError> {
 pub(crate) fn insert_user_key(input: &UserKeyInput) -> Result<Statement, StoreError> {
     insert(
         "user_keys",
-        &["user_id", "digest", "label", "expires_at", "enabled"],
+        &[
+            "user_id",
+            "digest",
+            "label",
+            "expires_at",
+            "enabled",
+            "digest_version",
+            "prefix",
+            "ciphertext",
+            "wrapped_key",
+            "payload_nonce",
+            "key_nonce",
+        ],
         vec![
             value(input.user_id),
             value(input.digest.clone()),
             value(input.label.clone()),
             value(input.expires_at),
             value(input.enabled),
+            value(i64::from(input.digest_version)),
+            value(input.prefix.clone()),
+            value(input.envelope.ciphertext.clone()),
+            value(input.envelope.wrapped_key.clone()),
+            value(input.envelope.payload_nonce.clone()),
+            value(input.envelope.key_nonce.clone()),
         ],
     )
 }
@@ -98,6 +116,7 @@ pub(crate) fn insert_quota(input: &QuotaInput) -> Result<Statement, StoreError> 
             "quota_monthly",
             "quota_5h",
             "quota_7d",
+            "enabled",
         ],
         vec![
             value(input.subject_kind.clone()),
@@ -108,6 +127,7 @@ pub(crate) fn insert_quota(input: &QuotaInput) -> Result<Statement, StoreError> 
             value(input.quota_monthly.map(decimal)),
             value(input.quota_5h.map(decimal)),
             value(input.quota_7d.map(decimal)),
+            value(input.enabled),
         ],
     )
 }

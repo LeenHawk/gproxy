@@ -1,7 +1,39 @@
-use super::{decimal, unsigned};
+use super::{decimal, unsigned, unsigned32};
 use crate::StoreError;
 use crate::backend::QueryResult;
-use crate::records::{PermissionRecord, QuotaRecord, RateLimitRecord, UserKeyRecord, UserRecord};
+use crate::records::{
+    OrganizationRecord, PermissionRecord, QuotaRecord, RateLimitRecord, TeamRecord, UserKeyRecord,
+    UserRecord,
+};
+
+pub(super) fn organizations(result: QueryResult) -> Result<Vec<OrganizationRecord>, StoreError> {
+    result
+        .rows
+        .into_iter()
+        .map(|row| {
+            Ok(OrganizationRecord {
+                id: row.i64("id")?,
+                name: row.text("name")?.to_owned(),
+                enabled: row.i64("enabled")? != 0,
+            })
+        })
+        .collect()
+}
+
+pub(super) fn teams(result: QueryResult) -> Result<Vec<TeamRecord>, StoreError> {
+    result
+        .rows
+        .into_iter()
+        .map(|row| {
+            Ok(TeamRecord {
+                id: row.i64("id")?,
+                organization_id: row.i64("organization_id")?,
+                name: row.text("name")?.to_owned(),
+                enabled: row.i64("enabled")? != 0,
+            })
+        })
+        .collect()
+}
 
 pub(super) fn users(result: QueryResult) -> Result<Vec<UserRecord>, StoreError> {
     result
@@ -28,6 +60,15 @@ pub(super) fn user_keys(result: QueryResult) -> Result<Vec<UserKeyRecord>, Store
                 id: row.i64("id")?,
                 user_id: row.i64("user_id")?,
                 digest: row.blob("digest")?.to_vec(),
+                digest_version: unsigned32(row.i64("digest_version")?, "digest_version")?,
+                prefix: row.optional_text("prefix")?.map(str::to_owned),
+                label: row.optional_text("label")?.map(str::to_owned),
+                revealable: ["ciphertext", "wrapped_key", "payload_nonce", "key_nonce"]
+                    .into_iter()
+                    .map(|column| row.optional_blob(column))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .all(|value| value.is_some()),
                 expires_at: row.optional_i64("expires_at")?,
                 enabled: row.i64("enabled")? != 0,
             })
@@ -83,6 +124,7 @@ pub(super) fn quotas(result: QueryResult) -> Result<Vec<QuotaRecord>, StoreError
                 quota_monthly: optional_decimal(&row, "quota_monthly")?,
                 quota_5h: optional_decimal(&row, "quota_5h")?,
                 quota_7d: optional_decimal(&row, "quota_7d")?,
+                enabled: row.i64("enabled")? != 0,
             })
         })
         .collect()

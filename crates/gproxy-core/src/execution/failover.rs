@@ -96,8 +96,11 @@ pub(crate) async fn run<H: Host>(
         selected = true;
         attempts += 1;
         match attempt::send(core, prepared).await {
-            Ok(completed) if completed.disposition.should_failover() => {
+            Ok(completed) => {
                 let disposition = completed.disposition;
+                if !disposition.should_failover() {
+                    return Ok(attempt::finish(core, completed).await);
+                }
                 if disposition == Disposition::CredentialDead {
                     dead.insert(completed.facts.target.credential);
                 }
@@ -116,9 +119,9 @@ pub(crate) async fn run<H: Host>(
                 )
                 .await;
             }
-            Ok(completed) => return Ok(attempt::finish(core, completed).await),
             Err(Failure::Transport { facts, error }) => {
-                last_reason = Some(funnel_error::transport_error_kind(&error));
+                let reason = funnel_error::transport_error_kind(&error);
+                last_reason = Some(reason);
                 funnel_error::attempt_transport(core.host.as_ref(), &facts, &error).await;
             }
             Err(Failure::Interrupted {

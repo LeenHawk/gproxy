@@ -35,7 +35,7 @@ pub(super) struct CompiledSnapshot {
     pub global_aliases: BTreeMap<String, String>,
     pub provider_aliases: BTreeMap<i64, BTreeMap<String, String>>,
     pub pricing: Vec<CompiledPriceRule>,
-    pub identities: BTreeMap<Vec<u8>, KeyIdentity>,
+    pub identities: BTreeMap<(u32, Vec<u8>), KeyIdentity>,
 }
 
 pub(super) struct CompiledRoute {

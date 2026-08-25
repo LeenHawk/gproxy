@@ -136,6 +136,16 @@ pub(crate) fn select_quota_windows() -> Result<Statement, StoreError> {
     )
 }
 
+pub(crate) fn select_active_quota_windows() -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .columns(quota_window_columns())
+        .from(Alias::new("quota_windows"))
+        .and_where(Expr::col(Alias::new("active_slot")).eq(1))
+        .order_by(Alias::new("id"), sea_query::Order::Asc);
+    Statement::query(&query)
+}
+
 fn quota_window_columns() -> [Alias; 6] {
     [
         Alias::new("id"),

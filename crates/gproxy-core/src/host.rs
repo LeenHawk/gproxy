@@ -127,6 +127,13 @@ pub struct Capture {
     pub response_body: Option<bytes::Bytes>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CredentialHealth {
+    Healthy,
+    Degraded,
+    Dead,
+}
+
 /// Optional ability to run a future after the response is done. If the
 /// host provides one, stream settlement detaches (native servers); if not,
 /// it completes inline before the stream closes (edge, and any embedder
@@ -197,6 +204,14 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         &'a self,
         request_id: &'a str,
         settlement: Option<&'a Settlement>,
+    ) -> BoxFuture<'a, ()>;
+    fn record_credential_health<'a>(
+        &'a self,
+        credential: CredentialId,
+        credential_version: u64,
+        health: CredentialHealth,
+        response_status: Option<http::StatusCode>,
+        detail: &'a str,
     ) -> BoxFuture<'a, ()>;
     /// Runtime timer used by bounded service-surface polling. Hosts implement
     /// this with their native timer; the core never selects an executor.

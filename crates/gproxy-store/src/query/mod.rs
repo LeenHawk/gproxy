@@ -1,3 +1,4 @@
+pub(crate) mod admin;
 pub(crate) mod binding;
 mod common;
 pub(crate) mod control;

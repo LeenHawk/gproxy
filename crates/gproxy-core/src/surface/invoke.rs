@@ -152,6 +152,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
             let facts = FunnelCtx {
                 request_id,
                 target: self.target.clone(),
+                credential_version: None,
                 source_key: None,
                 key: None,
                 source_framing: gproxy_protocol::StreamFraming::Sse,

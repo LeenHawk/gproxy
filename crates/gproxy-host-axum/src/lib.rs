@@ -7,6 +7,8 @@ mod response;
 #[cfg(not(target_arch = "wasm32"))]
 mod server;
 #[cfg(not(target_arch = "wasm32"))]
+mod static_assets;
+#[cfg(not(target_arch = "wasm32"))]
 mod websocket;
 
 #[cfg(not(target_arch = "wasm32"))]

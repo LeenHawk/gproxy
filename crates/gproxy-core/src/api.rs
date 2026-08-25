@@ -38,6 +38,12 @@ pub struct Core<H: Host> {
 }
 
 impl<H: Host> Core<H> {
+    pub fn channel_descriptors(
+        &self,
+    ) -> impl Iterator<Item = &'static gproxy_channel_api::ChannelDescriptor> + '_ {
+        self.channels.iter().map(|channel| channel.descriptor())
+    }
+
     /// Assemble the engine. Fails loudly at startup when a registered
     /// channel declares a service-surface table but the host provides no
     /// [`gproxy_channel_api::BindingStore`] — stateful surfaces and

@@ -24,11 +24,9 @@ pub(super) async fn reserve(
     let estimate = estimated_cost_micros(host, request, plan).await?;
     let mut reservations = Vec::new();
     let snapshot = host.services.control.current();
-    for quota in snapshot
-        .quotas
-        .iter()
-        .filter(|quota| subject_matches(&quota.subject_kind, quota.subject_id, identity))
-    {
+    for quota in snapshot.quotas.iter().filter(|quota| {
+        quota.enabled && subject_matches(&quota.subject_kind, quota.subject_id, identity)
+    }) {
         for (kind, limit) in limits(quota) {
             let window = host
                 .services

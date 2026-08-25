@@ -39,8 +39,9 @@ pub use surface::{
 };
 pub use usage::NormalizedUsage;
 pub use wire::{
-    Alpn, ByteStream, ClientProfile, CredentialId, Http2Profile, Http2Setting, MaybeSend,
-    MaybeSync, PseudoHeader, TlsVersion, TransportError, WsDuplex, WsFrame,
+    Alpn, ByteStream, ClientProfile, ConfiguredClientProfile, CredentialId, Http2Profile,
+    Http2Setting, MaybeSend, MaybeSync, PseudoHeader, TlsVersion, TransportError, WsDuplex,
+    WsFrame,
 };
 
 /// Boxed future with the wasm `Send` split — the one language-level tax

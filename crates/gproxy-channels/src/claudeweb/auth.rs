@@ -128,7 +128,7 @@ fn validation_request(
         .insert(ACCEPT, "application/json".parse().expect("static"));
     request
         .extensions_mut()
-        .insert(super::profile::CLIENT_PROFILE);
+        .insert(super::profile::CLIENT_PROFILE.clone());
     Ok(request)
 }
 

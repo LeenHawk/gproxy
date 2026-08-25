@@ -1,0 +1,104 @@
+use gproxy_store::records::{
+    AliasInput, ExposedModelInput, ProviderInput, RouteInput, RouteMemberInput,
+};
+
+use crate::dto::{
+    AliasWriteRequest, ModelAliasWriteRequest, ProviderWriteRequest, RouteMemberWriteRequest,
+    RouteWriteRequest,
+};
+use crate::{AdminError, State};
+
+pub(super) fn provider(
+    state: &impl State,
+    request: ProviderWriteRequest,
+) -> Result<ProviderInput, AdminError> {
+    if request.name.trim().is_empty() {
+        return Err(AdminError::BadRequest(
+            "provider name must not be blank".into(),
+        ));
+    }
+    if !state
+        .channel_catalogue()
+        .iter()
+        .any(|channel| channel.id == request.channel)
+    {
+        return Err(AdminError::BadRequest("unknown runtime channel".into()));
+    }
+    if let Some(fingerprint) = &request.tls_fingerprint {
+        fingerprint
+            .validate()
+            .map_err(|message| AdminError::BadRequest(message.into()))?;
+    }
+    Ok(ProviderInput {
+        name: request.name,
+        settings: state.normalize_provider_settings(&request.channel, &request.settings)?,
+        channel: request.channel,
+        tls_fingerprint: request
+            .tls_fingerprint
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(|error| AdminError::BadRequest(error.to_string()))?,
+        enabled: request.enabled,
+    })
+}
+
+pub(super) fn route(request: RouteWriteRequest) -> Result<RouteInput, AdminError> {
+    if request.name.trim().is_empty() || request.max_attempts == 0 {
+        return Err(AdminError::BadRequest(
+            "route name must not be blank and max_attempts must be positive".into(),
+        ));
+    }
+    Ok(RouteInput {
+        name: request.name,
+        max_attempts: request.max_attempts,
+        enabled: request.enabled,
+    })
+}
+
+pub(super) fn route_member(
+    request: RouteMemberWriteRequest,
+) -> Result<RouteMemberInput, AdminError> {
+    if request.upstream_model.trim().is_empty() {
+        return Err(AdminError::BadRequest(
+            "upstream_model must not be blank".into(),
+        ));
+    }
+    Ok(RouteMemberInput {
+        route_id: request.route_id,
+        provider_id: request.provider_id,
+        credential_id: request.credential_id,
+        upstream_model: request.upstream_model,
+        priority: request.priority,
+        enabled: request.enabled,
+    })
+}
+
+pub(super) fn alias(request: AliasWriteRequest) -> Result<AliasInput, AdminError> {
+    if request.alias.trim().is_empty() || request.target.trim().is_empty() {
+        return Err(AdminError::BadRequest(
+            "alias and target must not be blank".into(),
+        ));
+    }
+    Ok(AliasInput {
+        alias: request.alias,
+        target: request.target,
+        provider_id: request.provider_id,
+        priority: request.priority,
+        enabled: request.enabled,
+    })
+}
+
+pub(super) fn model_alias(
+    request: ModelAliasWriteRequest,
+) -> Result<ExposedModelInput, AdminError> {
+    if request.name.trim().is_empty() {
+        return Err(AdminError::BadRequest(
+            "model alias name must not be blank".into(),
+        ));
+    }
+    Ok(ExposedModelInput {
+        name: request.name,
+        route_id: request.route_id,
+        enabled: request.enabled,
+    })
+}

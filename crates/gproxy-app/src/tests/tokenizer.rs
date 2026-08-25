@@ -19,6 +19,7 @@ async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
                 name: "second-provider".into(),
                 channel: "openai".into(),
                 settings: json!({}),
+                tls_fingerprint: None,
                 enabled: true,
             },
         ))

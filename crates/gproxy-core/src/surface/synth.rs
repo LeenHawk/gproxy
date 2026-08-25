@@ -102,6 +102,7 @@ async fn finish<H: Host>(
     let ctx = FunnelCtx {
         request_id: request.request_id.clone(),
         target: selected.target,
+        credential_version: None,
         source_key: None,
         key: None,
         source_framing: gproxy_protocol::StreamFraming::Sse,

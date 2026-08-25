@@ -33,6 +33,9 @@ impl CompiledSnapshot {
                         name: provider.name.clone(),
                         channel: gproxy_channels::canonical_channel_id(&provider.channel).into(),
                         settings,
+                        fingerprint: super::super::fingerprint::parse(
+                            provider.tls_fingerprint.as_ref(),
+                        ),
                     },
                 ))
             })

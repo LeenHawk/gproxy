@@ -31,12 +31,49 @@ pub(super) const TABLES: &[TableSpec] = &[
                 name: "ix_usage_rows_user_provider_at",
                 columns: &["user_id", "provider_id", "at", "id"],
                 unique: false,
+                added_in: None,
             },
             IndexSpec {
                 name: "ix_usage_rows_credential_at",
                 columns: &["credential_id", "at", "id"],
                 unique: false,
+                added_in: None,
             },
+            IndexSpec {
+                name: "ix_usage_rows_at",
+                columns: &["at", "id"],
+                unique: false,
+                added_in: None,
+            }
+            .since(SchemaVersion::Admin),
+            IndexSpec {
+                name: "ix_usage_rows_key_at",
+                columns: &["user_key_id", "at", "id"],
+                unique: false,
+                added_in: None,
+            }
+            .since(SchemaVersion::Admin),
+            IndexSpec {
+                name: "ix_usage_rows_user_at",
+                columns: &["user_id", "at", "id"],
+                unique: false,
+                added_in: None,
+            }
+            .since(SchemaVersion::Admin),
+            IndexSpec {
+                name: "ix_usage_rows_provider_at",
+                columns: &["provider_id", "at", "id"],
+                unique: false,
+                added_in: None,
+            }
+            .since(SchemaVersion::Admin),
+            IndexSpec {
+                name: "ix_usage_rows_model_at",
+                columns: &["upstream_model", "at", "id"],
+                unique: false,
+                added_in: None,
+            }
+            .since(SchemaVersion::Admin),
         ],
     },
     TableSpec {
@@ -65,11 +102,13 @@ pub(super) const TABLES: &[TableSpec] = &[
                 name: "uq_usage_rollups_bucket",
                 columns: &["granularity", "bucket_start", "dimension_key"],
                 unique: true,
+                added_in: None,
             },
             IndexSpec {
                 name: "ix_usage_rollups_user_provider_bucket",
                 columns: &["user_id", "provider_id", "bucket_start"],
                 unique: false,
+                added_in: None,
             },
         ],
     },

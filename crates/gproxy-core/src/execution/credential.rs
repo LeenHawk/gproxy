@@ -4,6 +4,7 @@ use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt;
 use gproxy_channel_api::{BoxFuture, Channel, ChannelError, SimpleHttp};
 
+use crate::control::ProviderRef;
 use crate::error::CoreError;
 use crate::host::{CredentialId, CredentialRecord, CredentialStore, Host, UpstreamTransport};
 
@@ -14,7 +15,7 @@ pub(crate) async fn load_fresh<H: Host>(
     host: &H,
     channel: &dyn Channel,
     id: CredentialId,
-    provider_settings: &serde_json::Value,
+    provider: &ProviderRef,
 ) -> Result<CredentialRecord, CoreError> {
     let channel_id = channel.descriptor().id;
     let record = load_checked(host, id, channel_id).await?;
@@ -39,11 +40,26 @@ pub(crate) async fn load_fresh<H: Host>(
     if !refresh_due(channel, &current, unix_now()?) {
         return Ok(current);
     }
-    let http = BufferedHttp(host.transport());
-    let replacement = channel
-        .refresh(&current.secret, provider_settings, &http)
-        .ok_or_else(|| ChannelError::Refresh("channel did not provide a refresh operation".into()))?
-        .await?;
+    let http = BufferedHttp(host.transport(), provider);
+    let refresh = channel
+        .refresh(&current.secret, &provider.settings, &http)
+        .ok_or_else(|| {
+            ChannelError::Refresh("channel did not provide a refresh operation".into())
+        })?;
+    let replacement = match refresh.await {
+        Ok(replacement) => replacement,
+        Err(error) => {
+            host.record_credential_health(
+                id,
+                current.version,
+                crate::CredentialHealth::Degraded,
+                None,
+                "credential refresh failed",
+            )
+            .await;
+            return Err(error.into());
+        }
+    };
 
     match host
         .credentials()
@@ -113,13 +129,16 @@ fn unix_now() -> Result<i64, CoreError> {
     i64::try_from(seconds).map_err(|_| CoreError::Internal("Unix time exceeds i64".into()))
 }
 
-struct BufferedHttp<'a, T: ?Sized>(&'a T);
+struct BufferedHttp<'a, T: ?Sized>(&'a T, &'a ProviderRef);
 
 impl<T: UpstreamTransport + ?Sized> SimpleHttp for BufferedHttp<'_, T> {
     fn send<'a>(
         &'a self,
-        request: http::Request<Bytes>,
+        mut request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<http::Response<Bytes>, ChannelError>> {
+        if let Err(error) = crate::fingerprint::apply_request(&mut request, self.1) {
+            return Box::pin(async move { Err(ChannelError::Refresh(error.to_string())) });
+        }
         let send = self.0.send(request);
         Box::pin(async move {
             let response = send

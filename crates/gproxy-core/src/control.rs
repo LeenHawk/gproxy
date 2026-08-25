@@ -51,6 +51,19 @@ pub struct ProviderRef {
     pub name: String,
     pub channel: String,
     pub settings: serde_json::Value,
+    pub fingerprint: Option<ConfiguredFingerprint>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ConfiguredFingerprint {
+    Usable(Box<FingerprintOverride>),
+    Invalid(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct FingerprintOverride {
+    pub headers: http::HeaderMap,
+    pub profile: Option<gproxy_channel_api::ClientProfile>,
 }
 
 #[derive(Debug, Clone, Copy)]

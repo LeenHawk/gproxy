@@ -19,7 +19,7 @@ pub(super) fn spawn_request<H: Host>(
     };
     spawner.spawn(Box::pin(async move {
         if let Err(error) =
-            super::call::run(task_host, target, request_id, "cleanup", prepared).await
+            super::call::run(task_host, target, None, request_id, "cleanup", prepared).await
         {
             tracing::warn!(error = %error, "operation cleanup failed");
         }

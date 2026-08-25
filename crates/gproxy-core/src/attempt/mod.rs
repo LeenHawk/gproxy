@@ -1,22 +1,19 @@
-use std::time::Instant;
-
 use bytes::Bytes;
 use gproxy_channel_api::{
-    Channel, ChannelSupport, Disposition, OperationDriver, PrepareCtx, ResponseView, StreamCtx,
-    StreamDecoder, TransportError,
+    Channel, Disposition, OperationDriver, ResponseView, StreamCtx, StreamDecoder, TransportError,
 };
-use gproxy_protocol::OperationKey;
 
 use crate::api::Core;
-use crate::boundary::{ByteStream, ExecOutcome, RequestCtx};
-use crate::control::{ControlPlane, Target};
+use crate::boundary::{ByteStream, ExecOutcome};
 use crate::error::CoreError;
-use crate::execution::request::Classified;
 use crate::funnel::{self, FunnelCtx};
 use crate::host::{Host, UpstreamTransport};
 
 pub(crate) mod body;
+mod prepare;
 mod transform;
+
+pub(crate) use prepare::{native_support, prepare, support};
 
 enum Egress {
     Http(Box<http::Request<Bytes>>),
@@ -67,160 +64,6 @@ pub(crate) enum Failure {
     },
 }
 
-pub(crate) fn support<H: Host>(
-    core: &Core<H>,
-    target: &Target,
-    key: OperationKey,
-) -> Result<Option<ChannelSupport>, CoreError> {
-    let channel = channel(core, &target.provider.channel)?;
-    Ok(channel
-        .descriptor()
-        .supports
-        .iter()
-        .find(|support| support.source == key)
-        .copied())
-}
-
-pub(crate) fn native_support<H: Host>(
-    core: &Core<H>,
-    target: &Target,
-    key: OperationKey,
-) -> Result<Option<ChannelSupport>, CoreError> {
-    let channel = channel(core, &target.provider.channel)?;
-    Ok(channel
-        .descriptor()
-        .supports
-        .iter()
-        .find(|support| support.source == key && support.target == key)
-        .copied())
-}
-
-pub(crate) async fn prepare<H: Host>(
-    core: &Core<H>,
-    control: &impl ControlPlane,
-    target: &Target,
-    ctx: &RequestCtx,
-    classified: &Classified,
-    admission: AdmissionCtx,
-    started: Instant,
-) -> Result<Prepared, CoreError> {
-    let channel = channel(core, &target.provider.channel)?;
-    support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
-    let credential = crate::execution::credential::load_fresh(
-        core.host.as_ref(),
-        channel,
-        target.credential,
-        &target.provider.settings,
-    )
-    .await?;
-    let support = channel
-        .select_support(classified.key, &credential.secret)
-        .filter(|selected| channel.descriptor().supports.contains(selected))
-        .ok_or(CoreError::Unsupported)?;
-    if !admission.admitted && support.source != support.target {
-        return Err(CoreError::Unsupported);
-    }
-    let stream = classified.stream
-        || support.target.operation == gproxy_protocol::Operation::StreamGenerateContent;
-    let mut method = ctx.method.clone();
-    let mut path = ctx.path.clone();
-    let mut body = ctx.body.clone();
-    if support.source != support.target {
-        body = gproxy_transform::request(
-            support.source,
-            support.target,
-            body,
-            &target.upstream_model,
-            stream,
-        )
-        .map_err(|error| CoreError::Transform(error.to_string()))?;
-        (method, path) = gproxy_protocol::request_target(support.target, &target.upstream_model)
-            .ok_or_else(|| {
-                CoreError::Transform(format!("no request target for {:?}", support.target))
-            })?;
-    }
-    let context = || PrepareCtx {
-        key: support.target,
-        stream,
-        method: &method,
-        path: &path,
-        query: ctx.query.as_deref(),
-        headers: &ctx.headers,
-        body: &body,
-        upstream_model: &target.upstream_model,
-        provider_settings: &target.provider.settings,
-        secret: &credential.secret,
-    };
-    let driver = channel.operation_driver(context())?;
-    let target_framing = gproxy_protocol::default_framing(support.target.kind, false);
-    let facts = FunnelCtx {
-        request_id: ctx.request_id.clone(),
-        target: target.clone(),
-        source_key: Some(support.source),
-        key: Some(support.target),
-        source_framing: classified.framing,
-        target_framing,
-        settle: support.target.operation.spec().settle,
-        pricing: control.pricing(&target.provider, &target.upstream_model),
-        started,
-        upstream_url: None,
-        request_body: body.clone(),
-        dedupe_key: classified.dedupe_key(target.provider.id),
-        owner_user_id: admission.owner_user_id,
-        resource: classified
-            .resource()
-            .map(|(kind, id)| (kind, id.to_owned())),
-        admitted: admission.admitted,
-        surface_label: None,
-    };
-    if let Some(driver) = driver {
-        let owner_user_id = admission.owner_user_id.ok_or(CoreError::Unsupported)?;
-        if let Some(id) = driver.claim_id() {
-            let key = crate::continuation::ContinuationKey {
-                channel: channel.descriptor().id,
-                provider_id: target.provider.id,
-                owner_user_id,
-                id: id.into(),
-            };
-            let meta = core
-                .host
-                .continuations()
-                .ok_or(CoreError::Unsupported)?
-                .peek(&key)?
-                .ok_or(CoreError::Unsupported)?;
-            if meta.credential != target.credential {
-                return Err(CoreError::Unsupported);
-            }
-        }
-        return Ok(Prepared {
-            channel: channel.descriptor().id,
-            stream: true,
-            downstream_stream: classified.stream,
-            facts,
-            egress: Egress::Orchestrated(driver),
-        });
-    }
-    let mut prepared = channel.prepare(context())?;
-    if prepared.websocket {
-        return Err(CoreError::Unsupported);
-    }
-    prepared.apply_profile();
-    let target_framing = prepared
-        .framing
-        .unwrap_or_else(|| gproxy_protocol::default_framing(support.target.kind, false));
-    let mut facts = facts;
-    facts.target_framing = target_framing;
-    facts.upstream_url = Some(prepared.request.uri().to_string());
-    facts.request_body = prepared.request.body().clone();
-    Ok(Prepared {
-        channel: channel.descriptor().id,
-        stream,
-        downstream_stream: classified.stream,
-        facts,
-        egress: Egress::Http(Box::new(prepared.request)),
-    })
-}
-
 pub(crate) async fn send<H: Host>(
     core: &Core<H>,
     prepared: Prepared,
@@ -236,7 +79,17 @@ pub(crate) async fn send<H: Host>(
     let response = match egress {
         Egress::Http(request) => match core.host.transport().send(*request).await {
             Ok(response) => response,
-            Err(error) => return Err(Failure::Transport { facts, error }),
+            Err(error) => {
+                crate::funnel::health::degraded(
+                    core.host.as_ref(),
+                    &facts.target,
+                    facts.credential_version,
+                    None,
+                    "upstream transport failed",
+                )
+                .await;
+                return Err(Failure::Transport { facts, error });
+            }
         },
         Egress::Orchestrated(driver) => {
             match crate::orchestration::run(core, channel, driver, &mut facts).await {
@@ -251,6 +104,14 @@ pub(crate) async fn send<H: Host>(
         .expect("prepared attempt channel remains registered");
     if stream && response.status().is_success() {
         let disposition = committed_disposition(classify(channel, &response, &[]), committed);
+        crate::funnel::health::response(
+            core.host.as_ref(),
+            &facts.target,
+            facts.credential_version,
+            disposition,
+            response.status(),
+        )
+        .await;
         let key = facts.key.expect("operation attempt has an upstream key");
         let mut decoder = channel.stream_decoder(StreamCtx {
             key,
@@ -301,14 +162,24 @@ pub(crate) async fn send<H: Host>(
                         outward_ready: true,
                     }),
                 }),
-                Err(failure) => Err(Failure::Interrupted {
-                    channel: channel.descriptor().id,
-                    facts,
-                    status: failure.status,
-                    headers: failure.headers,
-                    body: failure.body,
-                    error: failure.error,
-                }),
+                Err(failure) => {
+                    crate::funnel::health::degraded(
+                        core.host.as_ref(),
+                        &facts.target,
+                        facts.credential_version,
+                        Some(failure.status),
+                        "upstream response interrupted",
+                    )
+                    .await;
+                    Err(Failure::Interrupted {
+                        channel: channel.descriptor().id,
+                        facts,
+                        status: failure.status,
+                        headers: failure.headers,
+                        body: failure.body,
+                        error: failure.error,
+                    })
+                }
             };
         }
         return Ok(Completed {
@@ -321,6 +192,14 @@ pub(crate) async fn send<H: Host>(
     let response = match body::collect(response).await {
         Ok(response) => response,
         Err(failure) => {
+            crate::funnel::health::degraded(
+                core.host.as_ref(),
+                &facts.target,
+                facts.credential_version,
+                Some(failure.status),
+                "upstream response interrupted",
+            )
+            .await;
             return Err(Failure::Interrupted {
                 channel: channel.descriptor().id,
                 facts,
@@ -333,6 +212,14 @@ pub(crate) async fn send<H: Host>(
     };
     let disposition =
         committed_disposition(classify(channel, &response, response.body()), committed);
+    crate::funnel::health::response(
+        core.host.as_ref(),
+        &facts.target,
+        facts.credential_version,
+        disposition,
+        response.status(),
+    )
+    .await;
     Ok(Completed {
         channel: channel.descriptor().id,
         facts,
@@ -383,12 +270,6 @@ pub(crate) fn discard(completed: Completed) -> (FunnelCtx, http::StatusCode, Opt
         }
         AttemptBody::Streaming(response, _) => (completed.facts, response.status(), None),
     }
-}
-
-fn channel<'a, H: Host>(core: &'a Core<H>, id: &str) -> Result<&'a dyn Channel, CoreError> {
-    core.channels
-        .get(id)
-        .ok_or_else(|| CoreError::Internal(format!("provider references unknown channel `{id}`")))
 }
 
 fn classify<B>(channel: &dyn Channel, response: &http::Response<B>, body: &[u8]) -> Disposition {

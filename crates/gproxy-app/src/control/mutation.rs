@@ -1,5 +1,3 @@
-use sha2::{Digest, Sha256};
-
 use crate::{AppError, AppHandle};
 
 pub enum ControlMutation {
@@ -98,12 +96,19 @@ pub(crate) async fn apply(
             if api_key.is_empty() {
                 return Err(AppError::Control("API key must not be empty".into()));
             }
+            let envelope = services
+                .cipher
+                .seal_user_key(&serde_json::Value::String(api_key.clone()))?;
             MutationResult::Id(
                 services
                     .store
                     .insert_user_key(&gproxy_store::records::UserKeyInput {
                         user_id,
-                        digest: Sha256::digest(api_key.as_bytes()).to_vec(),
+                        digest: super::user_key_digest(super::USER_KEY_DIGEST_VERSION, &api_key)
+                            .expect("current user-key digest version is supported"),
+                        digest_version: super::USER_KEY_DIGEST_VERSION,
+                        prefix: api_key.chars().take(12).collect(),
+                        envelope,
                         label,
                         expires_at,
                         enabled,

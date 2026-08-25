@@ -81,7 +81,7 @@ fn refresh_request(secret: &Value, settings: &Value) -> Result<http::Request<Byt
         .map_err(|error| ChannelError::Refresh(error.to_string()))?;
     request
         .extensions_mut()
-        .insert(super::profile::CLIENT_PROFILE);
+        .insert(super::profile::CLIENT_PROFILE.clone());
     Ok(request)
 }
 

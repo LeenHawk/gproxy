@@ -5,12 +5,26 @@ use crate::query::common::select_all;
 pub(crate) fn select_providers() -> Result<Statement, StoreError> {
     select_all(
         "providers",
-        &["id", "name", "channel", "settings_json", "enabled"],
+        &[
+            "id",
+            "name",
+            "channel",
+            "settings_json",
+            "enabled",
+            "tls_fingerprint",
+        ],
     )
 }
 
 pub(crate) fn select_credential_meta() -> Result<Statement, StoreError> {
-    select_all("credentials", &["id", "provider_id", "enabled"])
+    select_all("credentials", &["id", "provider_id", "version", "enabled"])
+}
+
+pub(crate) fn select_admin_credentials() -> Result<Statement, StoreError> {
+    select_all(
+        "credentials",
+        &["id", "provider_id", "label", "version", "enabled"],
+    )
 }
 
 pub(crate) fn select_routes() -> Result<Statement, StoreError> {

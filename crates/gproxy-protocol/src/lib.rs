@@ -31,3 +31,7 @@ pub use spec::{
     Affinity, Ingress, Matched, OperationSpec, PathPattern, Seg, SettleMode, StreamDetect,
     StreamFraming, default_framing, streaming_sibling,
 };
+
+pub fn registered_operations() -> impl Iterator<Item = Operation> {
+    specs::REGISTRY.iter().map(|(operation, _)| *operation)
+}

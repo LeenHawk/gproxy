@@ -91,7 +91,7 @@ pub struct PreparedRequest {
 impl PreparedRequest {
     pub fn apply_profile(&mut self) {
         if let Some(profile) = self.profile {
-            self.request.extensions_mut().insert(*profile);
+            self.request.extensions_mut().insert(profile.clone());
         }
     }
 }

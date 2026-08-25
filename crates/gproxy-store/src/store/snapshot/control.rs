@@ -16,6 +16,10 @@ pub(super) fn providers(result: QueryResult) -> Result<Vec<ProviderRecord>, Stor
                 name: row.text("name")?.to_owned(),
                 channel: row.text("channel")?.to_owned(),
                 settings: json(row.text("settings_json")?, "settings_json")?,
+                tls_fingerprint: row
+                    .optional_text("tls_fingerprint")?
+                    .map(|value| json(value, "tls_fingerprint"))
+                    .transpose()?,
                 enabled: row.i64("enabled")? != 0,
             })
         })
@@ -32,6 +36,7 @@ pub(super) fn credential_meta(
             Ok(CredentialMetaRecord {
                 id: row.i64("id")?,
                 provider_id: row.i64("provider_id")?,
+                version: unsigned(row.i64("version")?, "credential version")?,
                 enabled: row.i64("enabled")? != 0,
             })
         })

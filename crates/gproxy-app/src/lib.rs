@@ -1,5 +1,6 @@
 //! The first embedder of `gproxy-core`: bootstrap, snapshots, and host services.
 
+mod admin;
 mod bootstrap;
 mod cache;
 mod config;

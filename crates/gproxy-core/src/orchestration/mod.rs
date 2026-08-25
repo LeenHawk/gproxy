@@ -54,6 +54,7 @@ async fn drive<H: Host>(
                 let response = call::run(
                     core.host.clone(),
                     facts.target.clone(),
+                    facts.credential_version,
                     request_id,
                     label,
                     *request,
@@ -93,7 +94,7 @@ async fn drive<H: Host>(
                     ));
                 }
                 let mut request = *request;
-                request.apply_profile();
+                crate::fingerprint::apply_prepared(&mut request, &facts.target.provider)?;
                 let url = request.request.uri().to_string();
                 facts.upstream_url = Some(url.clone());
                 facts.request_body = request.request.body().clone();
@@ -101,6 +102,14 @@ async fn drive<H: Host>(
                 let response = match core.host.transport().send(request.request).await {
                     Ok(response) => response,
                     Err(error) => {
+                        crate::funnel::health::degraded(
+                            core.host.as_ref(),
+                            &facts.target,
+                            facts.credential_version,
+                            None,
+                            "upstream transport failed",
+                        )
+                        .await;
                         crate::funnel::error::terminal_transport(core.host.as_ref(), facts, &error)
                             .await;
                         return Err(error.into());

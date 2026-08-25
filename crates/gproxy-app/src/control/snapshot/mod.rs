@@ -91,8 +91,12 @@ impl SnapshotControl {
         self.snapshot.load().stored.clone()
     }
 
-    pub(crate) fn key_identity(&self, digest: &[u8]) -> Option<KeyIdentity> {
-        self.snapshot.load().identities.get(digest).cloned()
+    pub(crate) fn key_identity(&self, version: u32, digest: &[u8]) -> Option<KeyIdentity> {
+        self.snapshot
+            .load()
+            .identities
+            .get(&(version, digest.to_vec()))
+            .cloned()
     }
 
     fn update_pressure(&self, cycle: &CredentialQuotaCycleRecord) {

@@ -99,7 +99,10 @@ fn resolves_daily_default_and_exact_override_urls() {
         "antigravity/cli/1.0.6 linux/amd64"
     );
     assert!(stream.request.headers().get("accept").is_none());
-    assert!(stream.profile.unwrap().preserve_tls13_cipher_list);
+    assert_eq!(
+        stream.profile.unwrap().preserve_tls13_cipher_list,
+        Some(true)
+    );
 }
 
 #[test]

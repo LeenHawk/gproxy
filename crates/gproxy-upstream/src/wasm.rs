@@ -1,6 +1,8 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::{BoxFuture, ByteStream, TransportError, WsDuplex};
+use gproxy_channel_api::{
+    BoxFuture, ByteStream, ConfiguredClientProfile, TransportError, WsDuplex,
+};
 use gproxy_core::UpstreamTransport;
 use js_sys::{Array, Promise, Uint8Array};
 use wasm_bindgen::JsCast;
@@ -39,17 +41,18 @@ impl UpstreamTransport for FetchTransport {
         &'a self,
         request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
-        let (parts, _) = request.into_parts();
-        Box::pin(crate::wasm_socket::WasmSocket::open(
-            parts.uri.to_string(),
-            parts.headers,
-        ))
+        Box::pin(async move {
+            reject_configured_profile(&request)?;
+            let (parts, _) = request.into_parts();
+            crate::wasm_socket::WasmSocket::open(parts.uri.to_string(), parts.headers).await
+        })
     }
 }
 
 async fn fetch_response(
     request: http::Request<Bytes>,
 ) -> Result<http::Response<ByteStream>, TransportError> {
+    reject_configured_profile(&request)?;
     let (parts, body) = request.into_parts();
     let headers = request_headers(&parts.headers)?;
     let init = RequestInit::new();
@@ -94,6 +97,20 @@ async fn fetch_response(
     *output.status_mut() = status;
     *output.headers_mut() = headers;
     Ok(output)
+}
+
+fn reject_configured_profile(request: &http::Request<Bytes>) -> Result<(), TransportError> {
+    if request
+        .extensions()
+        .get::<ConfiguredClientProfile>()
+        .is_none()
+    {
+        return Ok(());
+    }
+    tracing::warn!("configured TLS/HTTP2 fingerprint is unavailable in the fetch runtime");
+    Err(TransportError::Connect(
+        "configured TLS/HTTP2 fingerprint is unavailable in the fetch runtime".into(),
+    ))
 }
 
 fn request_headers(source: &http::HeaderMap) -> Result<Headers, TransportError> {

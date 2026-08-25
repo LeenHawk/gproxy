@@ -1,5 +1,7 @@
 //! Wire-adjacent primitives shared by the contract and the engine.
 
+use std::borrow::Cow;
+
 use bytes::Bytes;
 
 /// Failures crossing the wire to an upstream.
@@ -17,17 +19,22 @@ pub enum TransportError {
 pub enum Alpn {
     Http1,
     Http2,
+    Http3,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TlsVersion {
+    Tls10,
+    Tls11,
     Tls12,
     Tls13,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Http2Setting {
+    HeaderTableSize,
     EnablePush,
+    MaxConcurrentStreams,
     InitialWindowSize,
     MaxFrameSize,
     MaxHeaderListSize,
@@ -41,31 +48,52 @@ pub enum PseudoHeader {
     Path,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Http2Profile {
-    pub enable_push: bool,
-    pub initial_window_size: u32,
-    pub initial_connection_window_size: u32,
-    pub max_frame_size: u32,
-    pub max_header_list_size: u32,
-    pub pseudo_header_order: &'static [PseudoHeader],
-    pub settings_order: &'static [Http2Setting],
+    pub enable_push: Option<bool>,
+    pub initial_window_size: Option<u32>,
+    pub initial_connection_window_size: Option<u32>,
+    pub max_frame_size: Option<u32>,
+    pub max_header_list_size: Option<u32>,
+    pub header_table_size: Option<u32>,
+    pub max_concurrent_streams: Option<u32>,
+    pub pseudo_header_order: Option<Cow<'static, [PseudoHeader]>>,
+    pub settings_order: Option<Cow<'static, [Http2Setting]>>,
 }
 
 /// Channel-declared native client fingerprint. Edge hosts ignore it because
 /// their runtimes own the TLS stack.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ClientProfile {
-    pub alpn: &'static [Alpn],
-    pub min_tls_version: TlsVersion,
-    pub max_tls_version: TlsVersion,
-    pub cipher_list: &'static str,
-    pub curves_list: &'static str,
-    pub sigalgs_list: Option<&'static str>,
-    pub preserve_tls13_cipher_list: bool,
-    pub grease: bool,
+    pub alpn: Option<Cow<'static, [Alpn]>>,
+    pub min_tls_version: Option<TlsVersion>,
+    pub max_tls_version: Option<TlsVersion>,
+    pub cipher_list: Option<Cow<'static, str>>,
+    pub curves_list: Option<Cow<'static, str>>,
+    pub sigalgs_list: Option<Cow<'static, str>>,
+    pub preserve_tls13_cipher_list: Option<bool>,
+    pub grease: Option<bool>,
+    pub extension_permutation: Option<Cow<'static, [u16]>>,
     pub http2: Option<Http2Profile>,
 }
+
+impl ClientProfile {
+    pub fn is_usable(&self) -> bool {
+        self.alpn.is_some()
+            || self.min_tls_version.is_some()
+            || self.max_tls_version.is_some()
+            || self.cipher_list.is_some()
+            || self.curves_list.is_some()
+            || self.sigalgs_list.is_some()
+            || self.preserve_tls13_cipher_list.is_some()
+            || self.grease.is_some()
+            || self.extension_permutation.is_some()
+            || self.http2.is_some()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfiguredClientProfile;
 
 /// Response body stream. Zero-copy passthrough is the default path: frames
 /// flow as refcounted `Bytes` and are only re-encoded when something must

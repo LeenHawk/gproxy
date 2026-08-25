@@ -9,6 +9,8 @@ use crate::{Store, StoreError};
 impl Store {
     pub async fn control_snapshot(&self) -> Result<ControlSnapshot, StoreError> {
         let statements = vec![
+            identity_query::select_organizations()?,
+            identity_query::select_teams()?,
             control_query::select_providers()?,
             control_query::select_credential_meta()?,
             control_query::select_routes()?,
@@ -26,6 +28,8 @@ impl Store {
         ];
         let mut results = self.backend().batch(statements).await?.into_iter();
         Ok(ControlSnapshot {
+            organizations: identity::organizations(next(&mut results)?)?,
+            teams: identity::teams(next(&mut results)?)?,
             providers: control::providers(next(&mut results)?)?,
             credentials: control::credential_meta(next(&mut results)?)?,
             routes: control::routes(next(&mut results)?)?,

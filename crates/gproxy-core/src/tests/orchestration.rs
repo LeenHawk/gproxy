@@ -19,6 +19,7 @@ fn claudeweb_new_and_resume_turns_transfer_one_scoped_stream() {
             name: "claude-web".into(),
             channel: "claudeweb".into(),
             settings: json!({"base_url":"https://upstream.test"}),
+            fingerprint: None,
         },
         credential: CredentialId(7),
         upstream_model: "claude-opus-4-8".into(),

@@ -19,11 +19,13 @@ pub(super) const TABLES: &[TableSpec] = &[TableSpec {
             name: "uq_surface_bindings_resource",
             columns: &["provider_id", "owner_user_id", "kind", "resource_id"],
             unique: true,
+            added_in: None,
         },
         IndexSpec {
             name: "ix_surface_bindings_list",
             columns: &["provider_id", "owner_user_id", "kind", "created_at", "id"],
             unique: false,
+            added_in: None,
         },
     ],
 }];

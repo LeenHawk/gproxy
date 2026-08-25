@@ -1,10 +1,9 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::{
-    Alpn, BoxFuture, ByteStream, ClientProfile, Http2Setting, PseudoHeader, TlsVersion,
-    TransportError, WsDuplex, WsFrame,
-};
+use gproxy_channel_api::{BoxFuture, ByteStream, ClientProfile, TransportError, WsDuplex, WsFrame};
 use gproxy_core::UpstreamTransport;
+
+mod profile;
 
 #[derive(Clone)]
 pub struct WreqTransport {
@@ -39,7 +38,7 @@ impl UpstreamTransport for WreqTransport {
     ) -> BoxFuture<'a, Result<http::Response<ByteStream>, TransportError>> {
         let client = self.client.clone();
         Box::pin(async move {
-            let profile = request.extensions().get::<ClientProfile>().copied();
+            let profile = request.extensions().get::<ClientProfile>().cloned();
             let response = match profile {
                 None => client.execute(request.into()).await,
                 Some(profile) => {
@@ -48,7 +47,7 @@ impl UpstreamTransport for WreqTransport {
                         .request(parts.method, parts.uri.to_string())
                         .headers(parts.headers)
                         .body(body)
-                        .emulation(client_emulation(profile))
+                        .emulation(profile::client_emulation(&profile))
                         .send()
                         .await
                 }
@@ -75,7 +74,7 @@ impl UpstreamTransport for WreqTransport {
         request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
         let client = self.client.clone();
-        let profile = request.extensions().get::<ClientProfile>().copied();
+        let profile = request.extensions().get::<ClientProfile>().cloned();
         let (parts, _) = request.into_parts();
         Box::pin(async move {
             let mut request = client
@@ -83,7 +82,7 @@ impl UpstreamTransport for WreqTransport {
                 .headers(parts.headers);
             request = match profile {
                 None => request,
-                Some(profile) => request.emulation(client_emulation(profile)),
+                Some(profile) => request.emulation(profile::client_emulation(&profile)),
             };
             let response = wreq::ws::WebSocketRequestBuilder::new(request)
                 .send()
@@ -93,64 +92,6 @@ impl UpstreamTransport for WreqTransport {
             Ok(Box::new(WreqSocket { socket }) as Box<dyn WsDuplex>)
         })
     }
-}
-
-fn client_emulation(profile: ClientProfile) -> wreq::Emulation {
-    use wreq::http2::{Http2Options, PseudoId, PseudoOrder, SettingId, SettingsOrder};
-    use wreq::tls::{AlpnProtocol, TlsOptions, TlsVersion as WreqTlsVersion};
-
-    let alpn: Vec<_> = profile
-        .alpn
-        .iter()
-        .map(|protocol| match protocol {
-            Alpn::Http1 => AlpnProtocol::HTTP1,
-            Alpn::Http2 => AlpnProtocol::HTTP2,
-        })
-        .collect();
-    let version = |version| match version {
-        TlsVersion::Tls12 => WreqTlsVersion::TLS_1_2,
-        TlsVersion::Tls13 => WreqTlsVersion::TLS_1_3,
-    };
-    let mut tls = TlsOptions::builder()
-        .alpn_protocols(alpn)
-        .grease_enabled(profile.grease)
-        .min_tls_version(version(profile.min_tls_version))
-        .max_tls_version(version(profile.max_tls_version))
-        .cipher_list(profile.cipher_list.to_owned())
-        .preserve_tls13_cipher_list(profile.preserve_tls13_cipher_list)
-        .curves_list(profile.curves_list.to_owned());
-    if let Some(sigalgs) = profile.sigalgs_list {
-        tls = tls.sigalgs_list(sigalgs.to_owned());
-    }
-    let mut emulation = wreq::Emulation::builder().tls_options(tls.build());
-    if let Some(profile) = profile.http2 {
-        let pseudo_order = profile
-            .pseudo_header_order
-            .iter()
-            .map(|header| match header {
-                PseudoHeader::Method => PseudoId::Method,
-                PseudoHeader::Scheme => PseudoId::Scheme,
-                PseudoHeader::Authority => PseudoId::Authority,
-                PseudoHeader::Path => PseudoId::Path,
-            });
-        let settings_order = profile.settings_order.iter().map(|setting| match setting {
-            Http2Setting::EnablePush => SettingId::EnablePush,
-            Http2Setting::InitialWindowSize => SettingId::InitialWindowSize,
-            Http2Setting::MaxFrameSize => SettingId::MaxFrameSize,
-            Http2Setting::MaxHeaderListSize => SettingId::MaxHeaderListSize,
-        });
-        let http2 = Http2Options::builder()
-            .enable_push(profile.enable_push)
-            .initial_window_size(profile.initial_window_size)
-            .initial_connection_window_size(profile.initial_connection_window_size)
-            .max_frame_size(profile.max_frame_size)
-            .max_header_list_size(profile.max_header_list_size)
-            .headers_pseudo_order(PseudoOrder::builder().extend(pseudo_order).build())
-            .settings_order(SettingsOrder::builder().extend(settings_order).build())
-            .build();
-        emulation = emulation.http2_options(http2);
-    }
-    emulation.build(wreq::Group::default())
 }
 
 struct WreqSocket {

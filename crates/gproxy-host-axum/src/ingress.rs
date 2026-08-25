@@ -1,6 +1,6 @@
 use axum::body::to_bytes;
 use axum::extract::ws::WebSocketUpgrade;
-use axum::extract::{FromRequestParts, Request, State};
+use axum::extract::{ConnectInfo, FromRequestParts, Request, State};
 use axum::http::header::{CONNECTION, UPGRADE};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -10,17 +10,20 @@ use gproxy_core::{RequestCtx, RoutingMode};
 use crate::response::HostResponse;
 use crate::server::{HostState, MAX_BODY_BYTES};
 
-pub(crate) async fn handle(State(state): State<HostState>, request: Request) -> Response {
+pub(crate) async fn handle(
+    State(state): State<HostState>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    request: Request,
+) -> Response {
     let request_id = state.request_id();
     let (mut parts, body) = request.into_parts();
+    parts
+        .extensions
+        .insert(gproxy_admin::AuthSource(peer.ip().to_string()));
     let method = parts.method.clone();
     let path = parts.uri.path().to_owned();
     let query = parts.uri.query().map(str::to_owned);
     let headers = parts.headers.clone();
-    let websocket = match websocket_upgrade(&mut parts, &state).await {
-        Ok(upgrade) => upgrade,
-        Err(response) => return response,
-    };
     let permit = state
         .semaphore
         .clone()
@@ -32,6 +35,18 @@ pub(crate) async fn handle(State(state): State<HostState>, request: Request) -> 
         Err(_) => {
             return (StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response();
         }
+    };
+    if (path == "/admin" || path.starts_with("/admin/"))
+        && let Some(response) = state.app.admin_dispatch(&parts, body.clone()).await
+    {
+        return crate::response::buffered_response(response, permit, &request_id);
+    }
+    if let Some(response) = crate::static_assets::serve(&parts) {
+        return crate::response::buffered_response(response, permit, &request_id);
+    }
+    let websocket = match websocket_upgrade(&mut parts, &state).await {
+        Ok(upgrade) => upgrade,
+        Err(response) => return response,
     };
     let (mode, path) = normalize_path(&path);
     let request = RequestCtx {

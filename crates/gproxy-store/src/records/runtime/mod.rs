@@ -1,11 +1,13 @@
 mod binding;
 mod cycle;
+mod health;
 mod log;
 mod quota;
 mod usage;
 
 pub use binding::*;
 pub use cycle::*;
+pub use health::*;
 pub use log::*;
 pub use quota::*;
 pub use usage::*;
@@ -14,13 +16,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    AliasRecord, CredentialMetaRecord, ExposedModelRecord, PermissionRecord, PriceRateRecord,
-    PriceRuleRecord, ProviderRecord, QuotaRecord, RateLimitRecord, RouteMemberRecord, RouteRecord,
-    UserKeyRecord, UserRecord,
+    AliasRecord, CredentialMetaRecord, ExposedModelRecord, OrganizationRecord, PermissionRecord,
+    PriceRateRecord, PriceRuleRecord, ProviderRecord, QuotaRecord, RateLimitRecord,
+    RouteMemberRecord, RouteRecord, TeamRecord, UserKeyRecord, UserRecord,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ControlSnapshot {
+    pub organizations: Vec<OrganizationRecord>,
+    pub teams: Vec<TeamRecord>,
     pub providers: Vec<ProviderRecord>,
     pub credentials: Vec<CredentialMetaRecord>,
     pub routes: Vec<RouteRecord>,

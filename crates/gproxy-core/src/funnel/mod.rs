@@ -11,6 +11,7 @@ use crate::host::Host;
 use crate::usage::Ended;
 
 pub(crate) mod error;
+pub(crate) mod health;
 mod settlement;
 mod socket;
 mod stream;
@@ -24,6 +25,7 @@ pub(crate) struct Settled(());
 pub(crate) struct FunnelCtx {
     pub request_id: String,
     pub target: Target,
+    pub credential_version: Option<u64>,
     /// Caller-facing operation key; differs from `key` when a pair transforms.
     pub source_key: Option<OperationKey>,
     /// Channel-native upstream operation key used for usage extraction.

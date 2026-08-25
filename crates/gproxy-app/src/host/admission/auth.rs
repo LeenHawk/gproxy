@@ -1,7 +1,6 @@
 use gproxy_channel_api::{BoxFuture, CallerIdentity};
 use gproxy_core::{CoreError, Plan, RequestCtx};
 use gproxy_protocol::OperationKey;
-use sha2::{Digest, Sha256};
 
 use super::super::AppHost;
 
@@ -11,11 +10,8 @@ pub(in crate::host) fn authenticate<'a>(
 ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>> {
     Box::pin(async move {
         let key = api_key(request).ok_or(CoreError::Unauthorized)?;
-        let digest = Sha256::digest(key.as_bytes());
-        let identity = host
-            .services
-            .control
-            .key_identity(digest.as_slice())
+        let identity = crate::control::user_key_digests(key)
+            .find_map(|(version, digest)| host.services.control.key_identity(version, &digest))
             .filter(|identity| identity.expires_at.is_none_or(|expiry| expiry > unix_now()))
             .ok_or(CoreError::Unauthorized)?;
         Ok(identity.caller)
@@ -62,7 +58,7 @@ pub(super) fn subject_matches(kind: &str, id: i64, identity: &CallerIdentity) ->
     }
 }
 
-pub(super) fn unix_now() -> i64 {
+pub(in crate::host) fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("system time is after Unix epoch")

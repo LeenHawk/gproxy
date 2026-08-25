@@ -1,4 +1,4 @@
-use super::{control, identity, runtime, tokenizer};
+use super::{admin, control, identity, runtime, tokenizer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i64)]
@@ -6,11 +6,12 @@ pub enum SchemaVersion {
     Control = 1,
     Runtime = 2,
     Tokenizers = 3,
+    Admin = 4,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 3] = [Self::Control, Self::Runtime, Self::Tokenizers];
-    pub const LATEST: Self = Self::Tokenizers;
+    pub const ALL: [Self; 4] = [Self::Control, Self::Runtime, Self::Tokenizers, Self::Admin];
+    pub const LATEST: Self = Self::Admin;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -33,6 +34,7 @@ pub struct ColumnSpec {
     pub auto_increment: bool,
     pub unique: bool,
     pub default: Option<&'static str>,
+    pub added_in: Option<SchemaVersion>,
 }
 
 impl ColumnSpec {
@@ -45,6 +47,7 @@ impl ColumnSpec {
             auto_increment: true,
             unique: false,
             default: None,
+            added_in: None,
         }
     }
 
@@ -57,6 +60,7 @@ impl ColumnSpec {
             auto_increment: false,
             unique: false,
             default: None,
+            added_in: None,
         }
     }
 
@@ -81,6 +85,11 @@ impl ColumnSpec {
         self.default = Some(value);
         self
     }
+
+    pub const fn since(mut self, version: SchemaVersion) -> Self {
+        self.added_in = Some(version);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,6 +97,14 @@ pub struct IndexSpec {
     pub name: &'static str,
     pub columns: &'static [&'static str],
     pub unique: bool,
+    pub added_in: Option<SchemaVersion>,
+}
+
+impl IndexSpec {
+    pub const fn since(mut self, version: SchemaVersion) -> Self {
+        self.added_in = Some(version);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,4 +121,5 @@ pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
         .chain(identity::TABLES)
         .chain(runtime::tables())
         .chain(tokenizer::TABLES)
+        .chain(admin::TABLES)
 }

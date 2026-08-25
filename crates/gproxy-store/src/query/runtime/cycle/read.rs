@@ -82,6 +82,24 @@ pub(crate) fn select_credential_quota_cycle_history(
     Statement::query(&query)
 }
 
+pub(crate) fn select_credential_quota_cycles(
+    credential_id: Option<i64>,
+    from: i64,
+    to: i64,
+) -> Result<Statement, StoreError> {
+    let mut query = cycle_select();
+    if let Some(credential_id) = credential_id {
+        query.and_where(Expr::col(Alias::new("credential_id")).eq(credential_id));
+    }
+    query
+        .and_where(Expr::col(Alias::new("last_observed_at")).gte(from))
+        .and_where(Expr::col(Alias::new("last_observed_at")).lt(to))
+        .order_by(Alias::new("last_observed_at"), Order::Desc)
+        .order_by(Alias::new("id"), Order::Desc)
+        .limit(1_000);
+    Statement::query(&query)
+}
+
 fn cycle_select() -> sea_query::SelectStatement {
     let mut query = Query::select();
     query

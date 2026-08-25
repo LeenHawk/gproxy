@@ -70,7 +70,7 @@ fn build_refresh(
         .header(http::header::ACCEPT, "application/json")
         .body(Bytes::from(body))
         .map_err(|error| ChannelError::Refresh(error.to_string()))?;
-    request.extensions_mut().insert(*profile);
+    request.extensions_mut().insert(profile.clone());
     Ok(request)
 }
 

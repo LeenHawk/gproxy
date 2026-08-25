@@ -14,6 +14,7 @@ pub(crate) async fn operational(
                 name: "stub-openai".into(),
                 channel: "openai".into(),
                 settings: json!({"base_url": format!("http://{upstream}")}),
+                tls_fingerprint: None,
                 enabled: true,
             },
         ))
@@ -97,6 +98,7 @@ pub(crate) async fn operational(
             quota_monthly: None,
             quota_5h: None,
             quota_7d: None,
+            enabled: true,
         }))
         .await
         .expect("create quota"));

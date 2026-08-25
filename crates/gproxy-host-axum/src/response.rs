@@ -80,6 +80,19 @@ impl IntoResponse for HostResponse {
     }
 }
 
+pub(crate) fn buffered_response(
+    buffered: http::Response<Bytes>,
+    permit: OwnedSemaphorePermit,
+    request_id: &str,
+) -> Response {
+    let (parts, body) = buffered.into_parts();
+    response(
+        parts.status,
+        sanitize(parts.headers, request_id),
+        full_body(body, permit),
+    )
+}
+
 fn response(status: StatusCode, headers: HeaderMap, body: Body) -> Response {
     let mut response = Response::new(body);
     *response.status_mut() = status;

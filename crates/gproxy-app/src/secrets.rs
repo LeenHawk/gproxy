@@ -10,6 +10,8 @@ const DEK_BYTES: usize = 32;
 const NONCE_BYTES: usize = 12;
 const PAYLOAD_AAD: &[u8] = b"gproxy:v3:credential-envelope:v1:payload";
 const WRAPPED_KEY_AAD: &[u8] = b"gproxy:v3:credential-envelope:v1:wrapped-dek";
+const USER_KEY_PAYLOAD_AAD: &[u8] = b"gproxy:v3:user-key-envelope:v1:payload";
+const USER_KEY_WRAPPED_KEY_AAD: &[u8] = b"gproxy:v3:user-key-envelope:v1:wrapped-dek";
 
 #[derive(Clone)]
 pub(crate) struct EnvelopeCipher {
@@ -24,6 +26,19 @@ impl EnvelopeCipher {
     }
 
     pub(crate) fn seal(&self, value: &Value) -> Result<CredentialEnvelope, AppError> {
+        self.seal_with_aad(value, PAYLOAD_AAD, WRAPPED_KEY_AAD)
+    }
+
+    pub(crate) fn seal_user_key(&self, value: &Value) -> Result<CredentialEnvelope, AppError> {
+        self.seal_with_aad(value, USER_KEY_PAYLOAD_AAD, USER_KEY_WRAPPED_KEY_AAD)
+    }
+
+    fn seal_with_aad(
+        &self,
+        value: &Value,
+        payload_aad: &[u8],
+        wrapped_key_aad: &[u8],
+    ) -> Result<CredentialEnvelope, AppError> {
         let dek = SecretBytes(random_bytes::<DEK_BYTES>()?);
         let payload_nonce = random_bytes::<NONCE_BYTES>()?;
         let key_nonce = distinct_nonce(payload_nonce)?;
@@ -34,7 +49,7 @@ impl EnvelopeCipher {
                 &Nonce::from(payload_nonce),
                 Payload {
                     msg: &plaintext.0,
-                    aad: PAYLOAD_AAD,
+                    aad: payload_aad,
                 },
             )
             .map_err(|_| seal_error())?;
@@ -44,7 +59,7 @@ impl EnvelopeCipher {
                 &Nonce::from(key_nonce),
                 Payload {
                     msg: &dek.0,
-                    aad: WRAPPED_KEY_AAD,
+                    aad: wrapped_key_aad,
                 },
             )
             .map_err(|_| seal_error())?;
@@ -57,6 +72,19 @@ impl EnvelopeCipher {
     }
 
     pub(crate) fn open(&self, envelope: &CredentialEnvelope) -> Result<Value, AppError> {
+        self.open_with_aad(envelope, PAYLOAD_AAD, WRAPPED_KEY_AAD)
+    }
+
+    pub(crate) fn open_user_key(&self, envelope: &CredentialEnvelope) -> Result<Value, AppError> {
+        self.open_with_aad(envelope, USER_KEY_PAYLOAD_AAD, USER_KEY_WRAPPED_KEY_AAD)
+    }
+
+    fn open_with_aad(
+        &self,
+        envelope: &CredentialEnvelope,
+        payload_aad: &[u8],
+        wrapped_key_aad: &[u8],
+    ) -> Result<Value, AppError> {
         let payload_nonce = nonce(&envelope.payload_nonce)?;
         let key_nonce = nonce(&envelope.key_nonce)?;
         if payload_nonce == key_nonce {
@@ -68,7 +96,7 @@ impl EnvelopeCipher {
                     &Nonce::from(key_nonce),
                     Payload {
                         msg: &envelope.wrapped_key,
-                        aad: WRAPPED_KEY_AAD,
+                        aad: wrapped_key_aad,
                     },
                 )
                 .map_err(|_| open_error())?,
@@ -82,7 +110,7 @@ impl EnvelopeCipher {
                     &Nonce::from(payload_nonce),
                     Payload {
                         msg: &envelope.ciphertext,
-                        aad: PAYLOAD_AAD,
+                        aad: payload_aad,
                     },
                 )
                 .map_err(|_| open_error())?,

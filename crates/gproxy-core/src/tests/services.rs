@@ -191,6 +191,11 @@ impl UpstreamTransport for MemoryHost {
                     .to_owned();
                 let mut state = state.lock().expect("state lock");
                 state.authorizations.push(authorization);
+                if let Some(value) = request.headers().get("originator") {
+                    state
+                        .fingerprint_headers
+                        .push(value.to_str().expect("fingerprint header text").to_owned());
+                }
                 let body = match (method, path.as_str()) {
                     (http::Method::POST, "/v1/files") => {
                         Bytes::from_static(br#"{"id":"file-1","object":"file"}"#)

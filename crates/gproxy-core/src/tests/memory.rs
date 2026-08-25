@@ -14,7 +14,7 @@ use crate::boundary::RoutingMode;
 use crate::continuation::{Continuation, ContinuationKey};
 use crate::control::{ControlPlane, Plan, Pricing, ProviderRef};
 use crate::error::CoreError;
-use crate::host::{CredentialId, CredentialRecord, Host};
+use crate::host::{CredentialHealth, CredentialId, CredentialRecord, Host};
 use crate::usage::Settlement;
 
 #[derive(Clone)]
@@ -29,7 +29,9 @@ pub(super) struct State {
     pub(super) lease_calls: usize,
     pub(super) wait_calls: usize,
     pub(super) rotations: Vec<u64>,
+    pub(super) health: Vec<(CredentialId, CredentialHealth)>,
     pub(super) authorizations: Vec<String>,
+    pub(super) fingerprint_headers: Vec<String>,
     pub(super) loaded_credentials: Vec<CredentialId>,
     pub(super) settlements: Vec<Settlement>,
     pub(super) captures: Vec<Captured>,
@@ -75,7 +77,9 @@ impl MemoryHost {
                 lease_calls: 0,
                 wait_calls: 0,
                 rotations: Vec::new(),
+                health: Vec::new(),
                 authorizations: Vec::new(),
+                fingerprint_headers: Vec::new(),
                 loaded_credentials: Vec::new(),
                 settlements: Vec::new(),
                 captures: Vec::new(),
@@ -170,6 +174,21 @@ impl Host for MemoryHost {
             .expect("state lock")
             .admission_finishes
             .push(settlement.is_some());
+        Box::pin(async {})
+    }
+    fn record_credential_health<'a>(
+        &'a self,
+        credential: CredentialId,
+        _: u64,
+        health: CredentialHealth,
+        _: Option<http::StatusCode>,
+        _: &'a str,
+    ) -> BoxFuture<'a, ()> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .health
+            .push((credential, health));
         Box::pin(async {})
     }
     fn wait<'a>(&'a self, _: std::time::Duration) -> BoxFuture<'a, ()> {

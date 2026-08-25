@@ -22,6 +22,14 @@ pub(crate) struct AppInner {
 }
 
 impl AppHandle {
+    pub async fn admin_dispatch(
+        &self,
+        parts: &http::request::Parts,
+        body: bytes::Bytes,
+    ) -> Option<http::Response<bytes::Bytes>> {
+        gproxy_admin::dispatch(self, parts, body).await
+    }
+
     pub async fn execute(
         &self,
         request: RequestCtx,

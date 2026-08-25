@@ -17,9 +17,14 @@ async fn native_and_libsql_share_schema_and_query_behavior() {
         .expect("libsql store");
 
     assert_eq!(schema_shape(native_db.as_ref()).await, expected_shape());
+    assert_eq!(index_shape(native_db.as_ref()).await, expected_indexes());
     assert_eq!(
         schema_shape(native_db.as_ref()).await,
         schema_shape(remote_db.as_ref()).await
+    );
+    assert_eq!(
+        index_shape(native_db.as_ref()).await,
+        index_shape(remote_db.as_ref()).await
     );
     assert_eq!(scenario::run(&native).await, scenario::run(&libsql).await);
 }
@@ -53,6 +58,10 @@ async fn fresh_and_incrementally_migrated_databases_converge() {
     assert_eq!(
         schema_shape(fresh.as_ref()).await,
         schema_shape(old.as_ref()).await
+    );
+    assert_eq!(
+        index_shape(fresh.as_ref()).await,
+        index_shape(old.as_ref()).await
     );
     let fresh_store = store(fresh);
     let old_store = store(old);
@@ -108,4 +117,56 @@ fn expected_shape() -> BTreeMap<String, BTreeSet<String>> {
             .collect(),
     );
     expected
+}
+
+async fn index_shape(executor: &dyn Executor) -> BTreeMap<String, (String, Vec<String>, bool)> {
+    let indexes = executor
+        .execute(Statement::plain(
+            "SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL ORDER BY name",
+        ))
+        .await
+        .expect("index catalog");
+    let mut shape = BTreeMap::new();
+    for row in indexes.rows {
+        let name = row.text("name").expect("index name").to_owned();
+        let table = row.text("tbl_name").expect("index table").to_owned();
+        let unique = row
+            .text("sql")
+            .expect("index SQL")
+            .starts_with("CREATE UNIQUE INDEX");
+        let escaped = name.replace('"', "\"\"");
+        let columns = executor
+            .execute(Statement::plain(format!(
+                "PRAGMA index_info(\"{escaped}\")"
+            )))
+            .await
+            .expect("index columns")
+            .rows
+            .into_iter()
+            .map(|row| row.text("name").expect("index column").to_owned())
+            .collect();
+        shape.insert(name, (table, columns, unique));
+    }
+    shape
+}
+
+fn expected_indexes() -> BTreeMap<String, (String, Vec<String>, bool)> {
+    tables()
+        .flat_map(|table| {
+            table.indexes.iter().map(|index| {
+                (
+                    index.name.to_owned(),
+                    (
+                        table.name.to_owned(),
+                        index
+                            .columns
+                            .iter()
+                            .map(|column| (*column).into())
+                            .collect(),
+                        index.unique,
+                    ),
+                )
+            })
+        })
+        .collect()
 }

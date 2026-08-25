@@ -24,6 +24,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "uq_teams_organization_name",
             columns: &["organization_id", "name"],
             unique: true,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -41,11 +42,13 @@ pub const TABLES: &[TableSpec] = &[
                 name: "ix_users_organization",
                 columns: &["organization_id", "enabled"],
                 unique: false,
+                added_in: None,
             },
             IndexSpec {
                 name: "ix_users_team",
                 columns: &["team_id", "enabled"],
                 unique: false,
+                added_in: None,
             },
         ],
     },
@@ -59,11 +62,20 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("label", Text),
             Col::optional("expires_at", Integer),
             Col::required("enabled", Integer),
+            Col::required("digest_version", Integer)
+                .default("1")
+                .since(SchemaVersion::Admin),
+            Col::optional("prefix", Text).since(SchemaVersion::Admin),
+            Col::optional("ciphertext", Blob).since(SchemaVersion::Admin),
+            Col::optional("wrapped_key", Blob).since(SchemaVersion::Admin),
+            Col::optional("payload_nonce", Blob).since(SchemaVersion::Admin),
+            Col::optional("key_nonce", Blob).since(SchemaVersion::Admin),
         ],
         indexes: &[IndexSpec {
             name: "ix_user_keys_user_enabled",
             columns: &["user_id", "enabled"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -81,6 +93,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "ix_permissions_subject",
             columns: &["subject_kind", "subject_id", "provider_id"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -97,6 +110,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "uq_rate_limits_subject_window",
             columns: &["subject_kind", "subject_id", "window_seconds"],
             unique: true,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -112,11 +126,15 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("quota_monthly", Text),
             Col::optional("quota_5h", Text),
             Col::optional("quota_7d", Text),
+            Col::required("enabled", Integer)
+                .default("1")
+                .since(SchemaVersion::Admin),
         ],
         indexes: &[IndexSpec {
             name: "uq_quotas_subject",
             columns: &["subject_kind", "subject_id"],
             unique: true,
+            added_in: None,
         }],
     },
 ];

@@ -19,3 +19,5 @@ samples/
 
 probe-out/
 /dev-docs
+/crates/gproxy-host-axum/assets/web/*
+!/crates/gproxy-host-axum/assets/web/.gitkeep

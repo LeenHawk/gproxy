@@ -1,3 +1,4 @@
+mod admin;
 mod bindings;
 mod control;
 mod credentials;
@@ -38,5 +39,13 @@ impl Store {
             .await?
             .last_insert_id
             .ok_or_else(|| StoreError::Database("insert did not return a row id".into()))
+    }
+
+    async fn update(&self, statement: Statement) -> Result<bool, StoreError> {
+        Ok(self.backend().execute(statement).await?.affected_rows == 1)
+    }
+
+    async fn delete(&self, statement: Statement) -> Result<bool, StoreError> {
+        Ok(self.backend().execute(statement).await?.affected_rows == 1)
     }
 }

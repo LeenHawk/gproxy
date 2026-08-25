@@ -65,11 +65,33 @@ pub(super) fn aliases(
     (global, providers)
 }
 
-pub(super) fn identities(stored: &ControlSnapshot) -> BTreeMap<Vec<u8>, KeyIdentity> {
+pub(super) fn identities(stored: &ControlSnapshot) -> BTreeMap<(u32, Vec<u8>), KeyIdentity> {
+    let organizations = stored
+        .organizations
+        .iter()
+        .filter(|organization| organization.enabled)
+        .map(|organization| organization.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let teams = stored
+        .teams
+        .iter()
+        .filter(|team| team.enabled && organizations.contains(&team.organization_id))
+        .map(|team| (team.id, team.organization_id))
+        .collect::<BTreeMap<_, _>>();
     let users = stored
         .users
         .iter()
-        .filter(|user| user.enabled)
+        .filter(|user| {
+            user.enabled
+                && user
+                    .organization_id
+                    .is_none_or(|organization| organizations.contains(&organization))
+                && user.team_id.is_none_or(|team| {
+                    teams.get(&team).is_some_and(|team_organization| {
+                        user.organization_id == Some(*team_organization)
+                    })
+                })
+        })
         .map(|user| (user.id, user))
         .collect::<BTreeMap<_, _>>();
     stored
@@ -77,20 +99,22 @@ pub(super) fn identities(stored: &ControlSnapshot) -> BTreeMap<Vec<u8>, KeyIdent
         .iter()
         .filter_map(|key| {
             let user = users.get(&key.user_id)?;
-            key.enabled.then(|| {
-                (
-                    key.digest.clone(),
-                    KeyIdentity {
-                        caller: CallerIdentity {
-                            user_id: user.id,
-                            user_key_id: key.id,
-                            org_id: user.organization_id,
-                            team_id: user.team_id,
+            (key.enabled && super::super::supported_user_key_digest(key.digest_version)).then(
+                || {
+                    (
+                        (key.digest_version, key.digest.clone()),
+                        KeyIdentity {
+                            caller: CallerIdentity {
+                                user_id: user.id,
+                                user_key_id: key.id,
+                                org_id: user.organization_id,
+                                team_id: user.team_id,
+                            },
+                            expires_at: key.expires_at,
                         },
-                        expires_at: key.expires_at,
-                    },
-                )
-            })
+                    )
+                },
+            )
         })
         .collect()
 }

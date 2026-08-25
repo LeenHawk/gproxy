@@ -11,12 +11,25 @@ use crate::records::{
 pub(crate) fn insert_provider(input: &ProviderInput) -> Result<Statement, StoreError> {
     insert(
         "providers",
-        &["name", "channel", "settings_json", "enabled"],
+        &[
+            "name",
+            "channel",
+            "settings_json",
+            "enabled",
+            "tls_fingerprint",
+        ],
         vec![
             value(input.name.clone()),
             value(input.channel.clone()),
             value(json(&input.settings, "settings")?),
             value(input.enabled),
+            value(
+                input
+                    .tls_fingerprint
+                    .as_ref()
+                    .map(|fingerprint| json(fingerprint, "tls_fingerprint"))
+                    .transpose()?,
+            ),
         ],
     )
 }

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gproxy_channel_api::{BindingStore, BoxFuture, CallerIdentity, UsageView};
-use gproxy_core::{Host, Plan, ProviderRef, RequestCtx, Spawner};
+use gproxy_core::{CredentialHealth, Host, Plan, ProviderRef, RequestCtx, Spawner};
 
 use crate::cache::InProcessCache;
 use crate::control::SnapshotControl;
@@ -23,6 +23,7 @@ pub(crate) struct Services {
     pub cipher: EnvelopeCipher,
     pub control: SnapshotControl,
     pub transport: gproxy_upstream::Transport,
+    pub health_sequence: std::sync::atomic::AtomicU64,
     #[cfg(not(target_arch = "wasm32"))]
     pub tokenizers: Arc<gproxy_tokenize::TokenizerRegistry>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -105,6 +106,40 @@ impl Host for AppHost {
         }
     }
 
+    fn record_credential_health<'a>(
+        &'a self,
+        credential: gproxy_channel_api::CredentialId,
+        credential_version: u64,
+        health: CredentialHealth,
+        response_status: Option<http::StatusCode>,
+        detail: &'a str,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let state = match health {
+                CredentialHealth::Healthy => gproxy_store::records::CredentialHealthState::Healthy,
+                CredentialHealth::Degraded => {
+                    gproxy_store::records::CredentialHealthState::Degraded
+                }
+                CredentialHealth::Dead => gproxy_store::records::CredentialHealthState::Dead,
+            };
+            let input = gproxy_store::records::CredentialHealthInput {
+                credential_id: credential.0,
+                credential_version,
+                version: match health_version(&self.services.health_sequence) {
+                    Some(version) => version,
+                    None => return,
+                },
+                state,
+                observed_at: admission::unix_now(),
+                response_status: response_status.map(|status| status.as_u16()),
+                detail: Some(detail.into()),
+            };
+            if let Err(error) = self.services.store.record_credential_health(&input).await {
+                tracing::error!(error = %error, "credential health persistence failed");
+            }
+        })
+    }
+
     fn wait<'a>(&'a self, duration: Duration) -> BoxFuture<'a, ()> {
         #[cfg(not(target_arch = "wasm32"))]
         return Box::pin(tokio::time::sleep(duration));
@@ -145,6 +180,19 @@ impl Host for AppHost {
         #[cfg(target_arch = "wasm32")]
         None
     }
+}
+
+fn health_version(sequence: &std::sync::atomic::AtomicU64) -> Option<i64> {
+    let elapsed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?;
+    let millis = i64::try_from(elapsed.as_millis()).ok()?;
+    let sequence = sequence.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 1_000_000;
+    Some(
+        millis
+            .saturating_mul(1_000_000)
+            .saturating_add(sequence as i64),
+    )
 }
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -1,3 +1,4 @@
+mod admin;
 mod cycle;
 mod seed;
 
@@ -18,6 +19,7 @@ pub(super) struct Outcome {
     cycle: cycle::Outcome,
     binding: BindingPage,
     tokenizer_vocabs: Vec<String>,
+    admin: admin::Outcome,
     rollup_requests: i64,
     wire_logs: i64,
 }
@@ -34,6 +36,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             name: "provider".into(),
             channel: "channel".into(),
             settings: json!({"base_url": "https://upstream.invalid"}),
+            tls_fingerprint: None,
             enabled: true,
         })
         .await?;
@@ -78,7 +81,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             enabled: true,
         })
         .await?;
-    seed_identity(store).await?;
+    let user_key = seed_identity(store).await?;
     seed_pricing(store, provider).await?;
     store
         .set_setting(&SettingInput {
@@ -87,6 +90,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         })
         .await?;
     let snapshot = store.control_snapshot().await?;
+    let admin = admin::run(store, user_key).await?;
 
     store
         .persist_credential_rotation(credential, &envelope(2), 0)
@@ -154,6 +158,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         cycle,
         binding,
         tokenizer_vocabs,
+        admin,
         rollup_requests,
         wire_logs,
     })

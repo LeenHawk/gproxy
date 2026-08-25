@@ -18,6 +18,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             name: "ix_request_logs_at",
             columns: &["at", "id"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -38,6 +39,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             name: "ix_wire_logs_request",
             columns: &["request_id", "id"],
             unique: false,
+            added_in: None,
         }],
     },
 ];

@@ -6,6 +6,8 @@ pub struct ProviderInput {
     pub name: String,
     pub channel: String,
     pub settings: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_fingerprint: Option<Value>,
     pub enabled: bool,
 }
 
@@ -15,10 +17,12 @@ pub struct ProviderRecord {
     pub name: String,
     pub channel: String,
     pub settings: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_fingerprint: Option<Value>,
     pub enabled: bool,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CredentialEnvelope {
     pub ciphertext: Vec<u8>,
     pub wrapped_key: Vec<u8>,
@@ -55,6 +59,24 @@ pub struct CredentialRecord {
 pub struct CredentialMetaRecord {
     pub id: i64,
     pub provider_id: i64,
+    pub version: u64,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CredentialAdminRecord {
+    pub id: i64,
+    pub provider_id: i64,
+    pub label: Option<String>,
+    pub version: u64,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialUpdateInput {
+    pub provider_id: i64,
+    pub label: Option<String>,
+    pub envelope: Option<CredentialEnvelope>,
     pub enabled: bool,
 }
 

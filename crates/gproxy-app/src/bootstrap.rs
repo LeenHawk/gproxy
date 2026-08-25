@@ -29,6 +29,7 @@ impl App {
             cipher: EnvelopeCipher::new(*config.master_key()),
             control,
             transport,
+            health_sequence: std::sync::atomic::AtomicU64::new(0),
             #[cfg(not(target_arch = "wasm32"))]
             tokenizers,
             #[cfg(not(target_arch = "wasm32"))]

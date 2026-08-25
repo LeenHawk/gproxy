@@ -23,7 +23,7 @@ use crate::boundary::{RequestCtx, ResponseBody, RoutingMode};
 use crate::control::{FailoverBudget, Plan};
 use crate::control::{ProviderRef, Target};
 use crate::error::CoreError;
-use crate::host::CredentialId;
+use crate::host::{CredentialHealth, CredentialId};
 use crate::usage::{Ended, UsageSource};
 use crate::{Core, InitError};
 
@@ -80,7 +80,43 @@ fn invoke_refreshes_with_version_guard_and_finishes_the_funnel() -> Result<(), I
         assert!(state.captures[0].body.is_some());
         assert_eq!(state.captures[0].provider_id, Some(3));
         assert_eq!(state.captures[0].credential_id, Some(CredentialId(7)));
+        assert_eq!(
+            state.health.last(),
+            Some(&(CredentialId(7), CredentialHealth::Healthy))
+        );
     }
+    Ok(())
+}
+
+#[test]
+fn configured_fingerprint_overrides_headers_and_fails_loudly() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").credential.secret =
+        json!({"access_token": "fresh", "expires_at": i64::MAX});
+    let core = core(&host)?;
+    let mut target = target();
+    let mut headers = HeaderMap::new();
+    headers.insert("originator", "operator-profile".parse().unwrap());
+    target.provider.fingerprint = Some(crate::ConfiguredFingerprint::Usable(Box::new(
+        crate::FingerprintOverride {
+            headers,
+            profile: None,
+        },
+    )));
+    block_on(core.invoke(&host, &target, request(false, "fingerprint")))
+        .expect("configured header fingerprint");
+    assert_eq!(
+        host.state.lock().expect("state lock").fingerprint_headers,
+        ["operator-profile"]
+    );
+
+    target.provider.fingerprint = Some(crate::ConfiguredFingerprint::Invalid("empty".into()));
+    let error = block_on(core.invoke(&host, &target, request(false, "invalid-fingerprint")))
+        .expect_err("invalid fingerprint must fail the attempt");
+    assert!(matches!(
+        error,
+        CoreError::Channel(gproxy_channel_api::ChannelError::Prepare(_))
+    ));
     Ok(())
 }
 
@@ -406,6 +442,7 @@ fn target() -> Target {
             name: "provider".into(),
             channel: "memory".into(),
             settings: json!({}),
+            fingerprint: None,
         },
         credential: CredentialId(7),
         upstream_model: "upstream-model".into(),

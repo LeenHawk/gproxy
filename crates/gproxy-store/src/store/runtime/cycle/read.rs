@@ -6,6 +6,25 @@ use crate::records::{CredentialQuotaCycleRecord, CredentialQuotaPressure};
 use crate::{Store, StoreError};
 
 impl Store {
+    pub async fn credential_quota_cycles(
+        &self,
+        credential_id: Option<i64>,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<CredentialQuotaCycleRecord>, StoreError> {
+        self.backend()
+            .execute(runtime::select_credential_quota_cycles(
+                credential_id,
+                from,
+                to,
+            )?)
+            .await?
+            .rows
+            .into_iter()
+            .map(row::parse)
+            .collect()
+    }
+
     pub async fn open_credential_quota_cycles(
         &self,
         credential_id: i64,

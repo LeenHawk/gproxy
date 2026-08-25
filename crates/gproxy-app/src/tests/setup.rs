@@ -36,6 +36,7 @@ pub(super) async fn fixture() -> Fixture {
                 name: "provider".into(),
                 channel: "openai".into(),
                 settings: json!({}),
+                tls_fingerprint: None,
                 enabled: true,
             },
         ))
@@ -119,6 +120,7 @@ pub(super) async fn fixture() -> Fixture {
             quota_monthly: None,
             quota_5h: Some(Decimal::new(3, 1)),
             quota_7d: None,
+            enabled: true,
         }))
         .await
         .expect("quota"));

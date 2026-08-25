@@ -1,7 +1,11 @@
 mod credential;
+mod delete;
 mod insert;
 mod select;
+mod update;
 
 pub(crate) use credential::{compare_and_swap_credential, load_credential};
+pub(crate) use delete::delete_price_rate;
 pub(crate) use insert::*;
 pub(crate) use select::*;
+pub(crate) use update::*;

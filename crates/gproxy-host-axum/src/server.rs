@@ -53,9 +53,12 @@ impl AxumServer {
             .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
             .with_state(state);
         let task = tokio::spawn(async move {
-            axum::serve(listener, router)
-                .with_graceful_shutdown(async move { shutdown.wait_shutdown().await })
-                .await
+            axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(async move { shutdown.wait_shutdown().await })
+            .await
         });
         Ok(Self { address, app, task })
     }

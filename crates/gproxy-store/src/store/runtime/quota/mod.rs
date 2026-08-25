@@ -8,6 +8,13 @@ use crate::records::{QuotaWindowKind, QuotaWindowRecord};
 use crate::{Store, StoreError};
 
 impl Store {
+    pub fn quota_window_period(kind: QuotaWindowKind, now: i64) -> Option<(i64, Option<i64>)> {
+        match kind {
+            QuotaWindowKind::FiveHour | QuotaWindowKind::SevenDay => None,
+            _ => Some(period(kind, now)),
+        }
+    }
+
     pub async fn add_quota_cost(
         &self,
         request_id: &str,
@@ -117,6 +124,16 @@ impl Store {
     pub async fn quota_windows(&self) -> Result<Vec<QuotaWindowRecord>, StoreError> {
         self.backend()
             .execute(runtime::select_quota_windows()?)
+            .await?
+            .rows
+            .into_iter()
+            .map(parse)
+            .collect()
+    }
+
+    pub async fn active_quota_windows(&self) -> Result<Vec<QuotaWindowRecord>, StoreError> {
+        self.backend()
+            .execute(runtime::select_active_quota_windows()?)
             .await?
             .rows
             .into_iter()

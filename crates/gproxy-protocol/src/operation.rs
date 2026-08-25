@@ -83,6 +83,14 @@ pub enum WireFamily {
 }
 
 impl WireFamily {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::OpenAi => "openai",
+            Self::Claude => "claude",
+            Self::Gemini => "gemini",
+        }
+    }
+
     /// Request headers that identify a client as speaking this family.
     /// Several families share ingress paths (`/v1/files` is both OpenAI and
     /// Claude), so classification disambiguates by the dialect the caller
@@ -92,6 +100,27 @@ impl WireFamily {
         match self {
             Self::Claude => &["x-api-key", "anthropic-version", "anthropic-beta"],
             Self::OpenAi | Self::Gemini => &[],
+        }
+    }
+}
+
+impl ContentGenerationKind {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::OpenAiChat => "openai_chat",
+            Self::OpenAiResponses => "openai_responses",
+            Self::OpenAiResponsesWebSocket => "openai_responses_websocket",
+            Self::ClaudeMessages => "claude_messages",
+            Self::GeminiGenerateContent => "gemini_generate_content",
+        }
+    }
+}
+
+impl OperationKind {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::ContentGeneration(kind) => kind.id(),
+            Self::Family(family) => family.id(),
         }
     }
 }

@@ -60,9 +60,15 @@ impl Row {
     }
 
     pub(crate) fn blob(&self, name: &'static str) -> Result<&[u8], StoreError> {
+        self.optional_blob(name)?
+            .ok_or_else(|| type_error(name, "blob"))
+    }
+
+    pub(crate) fn optional_blob(&self, name: &'static str) -> Result<Option<&[u8]>, StoreError> {
         match self.value(name)? {
-            DbValue::Blob(value) => Ok(value),
-            _ => Err(type_error(name, "blob")),
+            DbValue::Null => Ok(None),
+            DbValue::Blob(value) => Ok(Some(value)),
+            _ => Err(type_error(name, "blob or null")),
         }
     }
 

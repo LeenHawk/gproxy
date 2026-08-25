@@ -10,6 +10,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("channel", Text),
             Col::required("settings_json", Text),
             Col::required("enabled", Integer),
+            Col::optional("tls_fingerprint", Text).since(SchemaVersion::Admin),
         ],
         indexes: &[],
     },
@@ -31,6 +32,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "ix_credentials_provider_enabled",
             columns: &["provider_id", "enabled", "id"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -61,11 +63,13 @@ pub const TABLES: &[TableSpec] = &[
                 name: "ix_route_members_route_order",
                 columns: &["route_id", "enabled", "priority", "id"],
                 unique: false,
+                added_in: None,
             },
             IndexSpec {
                 name: "ix_route_members_provider",
                 columns: &["provider_id", "credential_id"],
                 unique: false,
+                added_in: None,
             },
         ],
     },
@@ -84,6 +88,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "ix_aliases_scope_order",
             columns: &["provider_id", "enabled", "priority", "id"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -99,6 +104,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "ix_exposed_models_route",
             columns: &["route_id", "enabled"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -115,6 +121,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "ix_price_rules_resolve",
             columns: &["provider_id", "enabled", "priority", "id"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {
@@ -133,6 +140,7 @@ pub const TABLES: &[TableSpec] = &[
             name: "ix_price_rates_rule_metric",
             columns: &["rule_id", "metric", "priority", "id"],
             unique: false,
+            added_in: None,
         }],
     },
     TableSpec {

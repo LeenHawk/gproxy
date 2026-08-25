@@ -22,6 +22,7 @@ pub mod usage;
 
 mod attempt;
 mod execution;
+mod fingerprint;
 mod funnel;
 mod orchestration;
 mod surface;
@@ -45,10 +46,12 @@ pub use gproxy_protocol::OperationKey;
 pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};
 pub use continuation::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore};
-pub use control::{ControlPlane, Plan, Pricing, ProviderRef, Target};
+pub use control::{
+    ConfiguredFingerprint, ControlPlane, FingerprintOverride, Plan, Pricing, ProviderRef, Target,
+};
 pub use error::CoreError;
 pub use host::{
-    CacheBackend, CaptureSink, CredentialId, CredentialRecord, CredentialStore, Host, Spawner,
-    UpstreamTransport, UsageSink,
+    CacheBackend, CaptureSink, CredentialHealth, CredentialId, CredentialRecord, CredentialStore,
+    Host, Spawner, UpstreamTransport, UsageSink,
 };
 pub use usage::{Ended, NormalizedUsage, Settlement, UsageSource};

@@ -5,7 +5,7 @@ use crate::backend::Statement;
 use crate::records::*;
 use crate::{Store, StoreError};
 
-pub(super) async fn seed_identity(store: &Store) -> Result<(), StoreError> {
+pub(super) async fn seed_identity(store: &Store) -> Result<i64, StoreError> {
     let organization = store
         .insert_organization(&OrganizationInput {
             name: "org".into(),
@@ -31,6 +31,9 @@ pub(super) async fn seed_identity(store: &Store) -> Result<(), StoreError> {
         .insert_user_key(&UserKeyInput {
             user_id: user,
             digest: vec![7; 32],
+            digest_version: 1,
+            prefix: "prefix".into(),
+            envelope: envelope(7),
             label: None,
             expires_at: None,
             enabled: true,
@@ -63,9 +66,10 @@ pub(super) async fn seed_identity(store: &Store) -> Result<(), StoreError> {
             quota_monthly: None,
             quota_5h: None,
             quota_7d: None,
+            enabled: true,
         })
         .await?;
-    Ok(())
+    Ok(key)
 }
 
 pub(super) async fn seed_pricing(store: &Store, provider_id: i64) -> Result<(), StoreError> {
