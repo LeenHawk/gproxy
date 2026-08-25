@@ -187,7 +187,8 @@ fn terminal_frame(op: OperationKey, frame: &crate::transform::common::sse::SseFr
     };
     match op.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions) => {
-            value.get("usage").is_some_and(Value::is_object)
+            // Converted Claude streams carry usage on message_start; [DONE] is terminal.
+            false
         }
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiResponses
@@ -477,7 +478,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn decorates_stream_terminal_usage_before_done() {
+    async fn relays_early_chat_usage_and_decorates_terminal_before_done() {
         use futures_util::StreamExt;
         let op = OperationKey::content_generation(
             Operation::StreamGenerateContent,
@@ -487,6 +488,11 @@ mod tests {
         signal.publish(settlement());
         let source: crate::pipeline::outcome::ByteStream = Box::pin(
             futures_util::stream::iter(vec![
+                Ok(Bytes::from_static(
+                    br#"data: {"choices":[{"delta":{"role":"assistant"}}],"usage":{"prompt_tokens":12,"completion_tokens":0}}
+
+"#,
+                )),
                 Ok(Bytes::from_static(
                     br#"data: {"choices":[{"delta":{"content":"hi"}}]}
 
@@ -505,8 +511,13 @@ data: [DONE]
             .map(|item| item.unwrap())
             .collect()
             .await;
+        let first = String::from_utf8_lossy(&chunks[0]);
+        assert!(first.contains(r#""role":"assistant""#), "{first}");
+        assert!(!first.contains(r#""content":"hi""#), "{first}");
+        assert!(!first.contains("[DONE]"), "{first}");
         let text = String::from_utf8(chunks.concat()).unwrap();
         assert!(text.contains("\"cost\":0.000123"));
         assert!(text.find("\"cost\"").unwrap() < text.find("[DONE]").unwrap());
     }
+
 }
