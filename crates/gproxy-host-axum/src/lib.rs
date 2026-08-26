@@ -13,3 +13,5 @@ mod websocket;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use server::{AxumServer, HostError};
+
+pub const UPDATE_SIGNING_PUBLIC_KEY: Option<&str> = option_env!("GPROXY_UPDATE_PUBKEY");

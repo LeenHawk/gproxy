@@ -1,6 +1,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    std::hint::black_box(gproxy_host_axum::UPDATE_SIGNING_PUBLIC_KEY);
     let path = std::env::args_os()
         .nth(1)
         .unwrap_or_else(|| "gproxy.toml".into());

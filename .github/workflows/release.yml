@@ -61,6 +61,13 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
+      - name: Validate update identity
+        env:
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: |
+          test -n "$GPROXY_UPDATE_PUBKEY" || { echo "missing update signing public key" >&2; exit 1; }
+          test "$(printf '%s' "$GPROXY_UPDATE_PUBKEY" | base64 -d | wc -c)" -eq 32 || {
+            echo "update signing public key must decode to 32 bytes" >&2; exit 1; }
       - uses: actions/download-artifact@v8
         with:
           name: console-embed
@@ -86,6 +93,7 @@ jobs:
       - name: Build
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
         run: |
           case "${{ matrix.builder }}" in
             cargo) cargo build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
@@ -98,12 +106,19 @@ jobs:
                 build --locked --release --bin gproxy
               ;;
           esac
+      - name: Codesign binary
+        if: ${{ matrix.os == 'macos' }}
+        run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
       - name: Package Unix archive
         if: ${{ matrix.os != 'windows' }}
         env:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
           ARTIFACT_NAME: ${{ matrix.artifact }}
+          ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: scripts/package-native-release.sh
       - name: Package Windows archive
         if: ${{ matrix.os == 'windows' }}
@@ -124,6 +139,32 @@ jobs:
             dist/release/${{ matrix.artifact }}.dmg.sha256
             dist/release/${{ matrix.artifact }}.msi
             dist/release/${{ matrix.artifact }}.msi.sha256
-            dist/release/${{ matrix.artifact }}.unsigned.apk
-            dist/release/${{ matrix.artifact }}.unsigned.apk.sha256
+            dist/release/${{ matrix.artifact }}.apk
+            dist/release/${{ matrix.artifact }}.apk.sha256
+          retention-days: 1
+
+  manifest:
+    name: Signed update manifest
+    needs: [prepare, native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: dist/native
+          merge-multiple: true
+      - name: Build and sign manifest
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REPO: ${{ github.repository }}
+          NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+        run: scripts/build-update-manifest.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: signed-update-manifest
+          path: dist/release/manifest.json
           retention-days: 1

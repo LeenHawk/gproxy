@@ -16,6 +16,7 @@ output_dir="$(cd "$output_dir" && pwd)"
 install -m 0755 "$binary" "$app/Contents/MacOS/gproxy-server"
 install -m 0755 scripts/installers/macos/GPROXY "$app/Contents/MacOS/GPROXY"
 sed "s/__BUNDLE_VERSION__/$bundle_version/g" scripts/installers/macos/Info.plist.in > "$app/Contents/Info.plist"
+codesign --force --deep --sign - "$app"
 cp README.md LICENSE "$work/image/"
 ln -s /Applications "$work/image/Applications"
 

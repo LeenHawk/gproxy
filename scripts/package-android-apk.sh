@@ -9,6 +9,17 @@ version_name="$(scripts/release-metadata.sh version)"
 binary="target/$target/release/gproxy"
 source scripts/android/sdk.sh
 
+if [ -z "${ANDROID_SIGNING_KEYSTORE_B64:-}" ] && [ -z "${ANDROID_SIGNING_KEYSTORE:-}" ]; then
+  echo "missing Android release signing key; set ANDROID_SIGNING_KEYSTORE_B64 or ANDROID_SIGNING_KEYSTORE" >&2
+  exit 1
+fi
+: "${ANDROID_SIGNING_KEYSTORE_PASSWORD:?missing ANDROID_SIGNING_KEYSTORE_PASSWORD}"
+: "${ANDROID_SIGNING_KEY_ALIAS:?missing ANDROID_SIGNING_KEY_ALIAS}"
+if [ -n "${ANDROID_SIGNING_KEYSTORE:-}" ] && [ ! -f "$ANDROID_SIGNING_KEYSTORE" ]; then
+  echo "missing Android signing keystore: $ANDROID_SIGNING_KEYSTORE" >&2
+  exit 1
+fi
+
 if [[ ! "$package_name" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]]; then
   echo "invalid Android package name: $package_name" >&2
   exit 1
@@ -24,6 +35,7 @@ sdk="$(android_sdk_root)"
 android_jar="$(android_platform_jar "$sdk")"
 aapt="$(android_build_tool "$sdk" aapt)"
 zipalign="$(android_build_tool "$sdk" zipalign)"
+apksigner="$(android_build_tool "$sdk" apksigner)"
 d8="$(android_d8 "$sdk")"
 abi="$(android_abi "$target")"
 work="$(mktemp -d)"
@@ -59,4 +71,24 @@ sed -e "s/__PACKAGE__/$package_name/g" \
 (cd "$work/native" && zip -q -r "$work/base.apk" lib)
 unsigned="$output_dir/$artifact.unsigned.apk"
 "$zipalign" -f -p 4 "$work/base.apk" "$unsigned"
-(cd "$output_dir" && sha256sum "$artifact.unsigned.apk" > "$artifact.unsigned.apk.sha256")
+
+keystore="${ANDROID_SIGNING_KEYSTORE:-}"
+if [ -n "${ANDROID_SIGNING_KEYSTORE_B64:-}" ]; then
+  keystore="$work/release.keystore"
+  printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$keystore"
+  chmod 600 "$keystore"
+fi
+signer_args=(
+  --v4-signing-enabled false
+  --ks "$keystore"
+  --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS"
+  --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD
+)
+if [ -n "${ANDROID_SIGNING_KEY_PASSWORD:-}" ]; then
+  signer_args+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD)
+fi
+apk="$output_dir/$artifact.apk"
+"$apksigner" sign "${signer_args[@]}" --out "$apk" "$unsigned"
+"$apksigner" verify --verbose "$apk" >/dev/null
+rm -f "$unsigned" "$unsigned.sha256"
+(cd "$output_dir" && sha256sum "$artifact.apk" > "$artifact.apk.sha256")
