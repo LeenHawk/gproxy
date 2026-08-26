@@ -34,3 +34,55 @@ pub struct RequestLogCompletion {
     pub response_headers: Option<serde_json::Value>,
     pub response_body: Option<Vec<u8>>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogQuery {
+    pub start: i64,
+    pub end: i64,
+    pub user_id: Option<i64>,
+    pub user_key_id: Option<i64>,
+    pub provider_id: Option<i64>,
+    pub status: Option<u16>,
+    pub request_id: Option<String>,
+    pub cursor: Option<i64>,
+    pub limit: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequestLogSummary {
+    pub id: i64,
+    pub request_id: String,
+    pub at: i64,
+    pub method: String,
+    pub path: String,
+    pub response_status: Option<u16>,
+    pub error_kind: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogPage {
+    pub items: Vec<RequestLogSummary>,
+    pub next_cursor: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RequestLogRecord {
+    pub id: i64,
+    pub input: RequestLogInput,
+    pub response_status: Option<u16>,
+    pub error_kind: Option<String>,
+    pub response_headers: Option<serde_json::Value>,
+    pub response_body: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WireLogRecord {
+    pub id: i64,
+    pub input: CaptureInput,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LogDetail {
+    pub downstream: RequestLogRecord,
+    pub upstream: Vec<WireLogRecord>,
+}

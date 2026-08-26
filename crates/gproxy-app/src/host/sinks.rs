@@ -74,22 +74,37 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
 impl CaptureSink for AppHost {
     fn record<'a>(&'a self, capture: &'a gproxy_core::host::Capture) -> BoxFuture<'a, ()> {
         Box::pin(async move {
-            if !crate::cleanup::body_capture_enabled(&self.services.control.current().settings) {
+            let policy = crate::logging::Policy::read(&self.services.control.current().settings);
+            if !policy.upstream {
                 return;
             }
-            let input = gproxy_store::records::CaptureInput {
-                request_id: capture.request_id.clone(),
-                at: unix_now(),
-                provider_id: capture.provider_id,
-                credential_id: capture.credential_id.map(|credential| credential.0),
-                upstream_url: capture.upstream_url.clone(),
-                request_method: capture.request_method.as_ref().map(ToString::to_string),
-                request_headers: None,
-                response_status: capture.response_status.map(|status| status.as_u16()),
-                response_headers: None,
-                request_body: Some(capture.request_body.to_vec()),
-                response_body: capture.response_body.as_ref().map(|body| body.to_vec()),
-            };
+            let input =
+                gproxy_store::records::CaptureInput {
+                    request_id: capture.request_id.clone(),
+                    at: unix_now(),
+                    provider_id: capture.provider_id,
+                    credential_id: capture.credential_id.map(|credential| credential.0),
+                    upstream_url: capture
+                        .upstream_url
+                        .as_deref()
+                        .map(|url| crate::logging::redaction::url_string(url, policy.redact)),
+                    request_method: capture.request_method.as_ref().map(ToString::to_string),
+                    request_headers: capture.request_headers.as_ref().map(|headers| {
+                        crate::logging::redaction::headers_json(headers, policy.redact)
+                    }),
+                    response_status: capture.response_status.map(|status| status.as_u16()),
+                    response_headers: capture.response_headers.as_ref().map(|headers| {
+                        crate::logging::redaction::headers_json(headers, policy.redact)
+                    }),
+                    request_body: policy.upstream_body.then(|| {
+                        crate::logging::redaction::body_bytes(&capture.request_body, policy.redact)
+                    }),
+                    response_body: capture
+                        .response_body
+                        .as_ref()
+                        .filter(|_| policy.upstream_body)
+                        .map(|body| crate::logging::redaction::body_bytes(body, policy.redact)),
+                };
             if let Err(error) = self.services.store.record_capture(&input).await {
                 tracing::error!(request_id = %capture.request_id, error = %error, "persist capture failed");
             }

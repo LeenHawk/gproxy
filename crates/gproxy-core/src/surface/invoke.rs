@@ -169,7 +169,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 funnel_error::request_failed_surface(&ctx, None, Some("presigned"), &error);
                 return Ok(super::reply::error(error));
             }
-            let facts = FunnelCtx {
+            let mut facts = FunnelCtx {
                 request_id,
                 target: self.target.clone(),
                 credential_version: None,
@@ -184,6 +184,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 request_method: Some(parts.method.clone()),
                 request_body: body.clone(),
                 request_headers: Some(parts.headers.clone()),
+                response_headers: None,
                 dedupe_key: None,
                 owner_user_id: Some(self.identity.user_id),
                 resource: None,
@@ -200,6 +201,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                     return Err(error);
                 }
             };
+            facts.response_headers = Some(response.headers().clone());
             let (parts, body) = response.into_parts();
             let disposition = if parts.status.is_success() {
                 gproxy_channel_api::Disposition::Success

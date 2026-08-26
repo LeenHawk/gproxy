@@ -108,7 +108,7 @@ pub(crate) async fn request<H: Host>(
             gproxy_protocol::default_framing(key.kind, false)
         });
     let target_framing = prepared.framing.unwrap_or(source_framing);
-    let facts = FunnelCtx {
+    let mut facts = FunnelCtx {
         request_id,
         target: target.clone(),
         credential_version: Some(credential.version),
@@ -126,6 +126,7 @@ pub(crate) async fn request<H: Host>(
         request_method: Some(prepared.request.method().clone()),
         request_body: prepared.request.body().clone(),
         request_headers: Some(prepared.request.headers().clone()),
+        response_headers: None,
         dedupe_key: None,
         owner_user_id: None,
         resource: None,
@@ -182,6 +183,7 @@ pub(crate) async fn request<H: Host>(
             return Err(error.into());
         }
     };
+    facts.response_headers = Some(response.headers().clone());
     let disposition = channel.classify(ResponseView {
         status: response.status(),
         headers: response.headers(),

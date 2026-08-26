@@ -40,6 +40,7 @@ pub(crate) struct FunnelCtx {
     pub request_method: Option<http::Method>,
     pub request_body: Bytes,
     pub request_headers: Option<http::HeaderMap>,
+    pub response_headers: Option<http::HeaderMap>,
     pub dedupe_key: Option<String>,
     pub owner_user_id: Option<i64>,
     pub resource: Option<(&'static str, String)>,

@@ -80,7 +80,6 @@ pub(in crate::host) fn admit<'a>(
             let _ = host.services.cache.delete(&key).await;
             return rollback_error(host, charged, error.into()).await;
         }
-        begin_capture(host, request).await;
         Ok(())
     })
 }
@@ -119,24 +118,6 @@ async fn rollback_error(
         }
     }
     Err(error)
-}
-
-async fn begin_capture(host: &AppHost, request: &RequestCtx) {
-    if !crate::cleanup::body_capture_enabled(&host.services.control.current().settings) {
-        return;
-    }
-    let input = gproxy_store::records::RequestLogInput {
-        request_id: request.request_id.clone(),
-        at: unix_now(),
-        method: request.method.to_string(),
-        path: request.path.clone(),
-        query: request.query.clone(),
-        request_headers: None,
-        request_body: None,
-    };
-    if let Err(error) = host.services.store.begin_request_log(&input).await {
-        tracing::error!(request_id = %request.request_id, error = %error, "begin request capture failed");
-    }
 }
 
 fn window_start(now: i64, seconds: u64) -> i64 {

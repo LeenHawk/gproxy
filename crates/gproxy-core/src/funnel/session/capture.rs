@@ -21,7 +21,7 @@ pub(super) async fn call<H: Host>(
             request_headers: ctx.request_headers.clone(),
             request_body: ctx.request_body.clone(),
             response_status: Some(status),
-            response_headers: None,
+            response_headers: ctx.response_headers.clone(),
             response_body: Some(body),
         })
         .await;

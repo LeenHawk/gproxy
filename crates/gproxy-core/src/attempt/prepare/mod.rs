@@ -131,6 +131,7 @@ pub(crate) async fn prepare<H: Host>(
         request_headers: (support.target.operation.spec().settle
             == gproxy_protocol::SettleMode::OnSessionEnd)
             .then(|| ctx.headers.clone()),
+        response_headers: None,
         dedupe_key: classified.dedupe_key(target.provider.id),
         owner_user_id: admission.owner_user_id,
         resource: classified

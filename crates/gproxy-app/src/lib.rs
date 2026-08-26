@@ -10,6 +10,7 @@ mod error;
 mod host;
 pub mod ingress;
 mod lifecycle;
+mod logging;
 mod secrets;
 
 pub use config::Config;

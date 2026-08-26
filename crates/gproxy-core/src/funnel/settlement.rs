@@ -124,7 +124,7 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
                 request_headers: ctx.request_headers.clone(),
                 request_body: ctx.request_body.clone(),
                 response_status: status,
-                response_headers: None,
+                response_headers: ctx.response_headers.clone(),
                 response_body,
             })
             .await;

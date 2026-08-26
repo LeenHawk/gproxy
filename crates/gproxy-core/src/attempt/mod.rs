@@ -98,6 +98,7 @@ pub(crate) async fn send<H: Host>(
             }
         }
     };
+    facts.response_headers = Some(response.headers().clone());
     let channel = core
         .channels
         .get(channel)

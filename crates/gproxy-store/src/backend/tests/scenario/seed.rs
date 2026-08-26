@@ -160,20 +160,36 @@ pub(super) async fn seed_capture(
         })
         .await?;
     store
-        .record_capture(&CaptureInput {
+        .record_capture(&capture(provider_id, credential_id, 3_601, 503))
+        .await?;
+    store
+        .record_capture(&capture(provider_id, credential_id, 3_602, 200))
+        .await?;
+    store
+        .finish_request_log(&RequestLogCompletion {
             request_id: "request-1".into(),
-            at: 3_601,
-            provider_id: Some(provider_id),
-            credential_id: Some(credential_id),
-            upstream_url: Some("https://upstream.invalid/v1/responses".into()),
-            request_method: Some("POST".into()),
-            request_headers: None,
-            response_status: Some(200),
+            response_status: 200,
+            error_kind: None,
             response_headers: None,
-            request_body: Some(b"request".to_vec()),
             response_body: Some(b"response".to_vec()),
         })
         .await
+}
+
+fn capture(provider_id: i64, credential_id: i64, at: i64, status: u16) -> CaptureInput {
+    CaptureInput {
+        request_id: "request-1".into(),
+        at,
+        provider_id: Some(provider_id),
+        credential_id: Some(credential_id),
+        upstream_url: Some("https://upstream.invalid/v1/responses".into()),
+        request_method: Some("POST".into()),
+        request_headers: None,
+        response_status: Some(status),
+        response_headers: None,
+        request_body: Some(b"request".to_vec()),
+        response_body: Some(b"response".to_vec()),
+    }
 }
 
 pub(super) async fn scalar(store: &Store, sql: &str) -> Result<i64, StoreError> {

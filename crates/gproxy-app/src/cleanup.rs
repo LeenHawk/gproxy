@@ -28,14 +28,13 @@ pub(crate) fn schedule(host: &AppHost) {
 }
 
 pub(crate) fn body_capture_enabled(settings: &[SettingRecord]) -> bool {
-    enabled(settings, "capture_enabled")
-        && (positive(settings, RETENTION_DAYS)
-            .and_then(|days| days.checked_mul(SECONDS_PER_DAY))
-            .and_then(|seconds| i64::try_from(seconds).ok())
+    positive(settings, RETENTION_DAYS)
+        .and_then(|days| days.checked_mul(SECONDS_PER_DAY))
+        .and_then(|seconds| i64::try_from(seconds).ok())
+        .is_some()
+        || positive(settings, MAX_DATABASE_SIZE_MB)
+            .and_then(|megabytes| megabytes.checked_mul(MIB))
             .is_some()
-            || positive(settings, MAX_DATABASE_SIZE_MB)
-                .and_then(|megabytes| megabytes.checked_mul(MIB))
-                .is_some())
 }
 
 async fn sweep(host: &AppHost) -> Result<(), gproxy_store::StoreError> {
@@ -76,12 +75,6 @@ fn positive(settings: &[SettingRecord], key: &str) -> Option<u64> {
         .as_i64()
         .filter(|value| *value > 0)
         .map(|value| value as u64)
-}
-
-fn enabled(settings: &[SettingRecord], key: &str) -> bool {
-    settings
-        .iter()
-        .any(|setting| setting.key == key && setting.value.as_bool() == Some(true))
 }
 
 fn invalid_setting(key: &'static str) -> gproxy_store::StoreError {

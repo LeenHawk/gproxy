@@ -23,7 +23,7 @@ pub(super) async fn run<H: Host>(
     let method = prepared.request.method().clone();
     let headers = prepared.request.headers().clone();
     let body = prepared.request.body().clone();
-    let facts = FunnelCtx {
+    let mut facts = FunnelCtx {
         request_id,
         target,
         credential_version,
@@ -38,6 +38,7 @@ pub(super) async fn run<H: Host>(
         request_method: Some(method),
         request_body: body,
         request_headers: Some(headers),
+        response_headers: None,
         dedupe_key: None,
         owner_user_id: None,
         resource: None,
@@ -59,6 +60,7 @@ pub(super) async fn run<H: Host>(
             return Err(error.into());
         }
     };
+    facts.response_headers = Some(response.headers().clone());
     let response = match crate::attempt::body::collect(response).await {
         Ok(response) => response,
         Err(failure) => {

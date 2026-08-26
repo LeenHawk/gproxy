@@ -40,10 +40,16 @@ impl AppHandle {
         &self,
         request: RequestCtx,
     ) -> Result<ExecOutcome, gproxy_core::CoreError> {
-        self.inner
+        let capture = crate::logging::begin(&self.inner.host, &request).await;
+        let mut result = self
+            .inner
             .core
             .execute(&self.inner.host.services.control, request)
-            .await
+            .await;
+        if let Some(capture) = capture {
+            crate::logging::finish(&self.inner.host, capture, &mut result).await;
+        }
+        result
     }
 
     pub async fn mutate(

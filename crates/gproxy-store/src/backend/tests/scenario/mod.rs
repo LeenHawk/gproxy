@@ -85,7 +85,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     seed_pricing(store, provider).await?;
     store
         .set_setting(&SettingInput {
-            key: "capture_enabled".into(),
+            key: "enable_upstream_log".into(),
             value: json!(true),
         })
         .await?;
@@ -121,7 +121,8 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .add_quota_cost("quota-request", quota.id, Decimal::new(15, 4))
         .await?;
     let cycle = cycle::run(store, credential.id).await?;
-    let binding = seed_binding(store, provider, credential.id).await?;
+    let mut binding = seed_binding(store, provider, credential.id).await?;
+    binding.items[0].created_at = 0;
     seed_capture(store, provider, credential.id).await?;
     store.put_tokenizer_vocab("owner/model", b"vocab").await?;
     assert_eq!(
@@ -133,6 +134,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(store.tokenizer_vocab("owner/model").await?, None);
     let rollup_requests = scalar(store, "SELECT requests FROM usage_rollups").await?;
     let wire_logs = scalar(store, "SELECT COUNT(*) AS value FROM wire_logs").await?;
+    let log = store.log_detail("request-1").await?.expect("log detail");
 
     assert_eq!(snapshot.providers.len(), 1);
     assert_eq!(snapshot.credentials.len(), 1);
@@ -147,7 +149,10 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(binding.items.len(), 1);
     assert_eq!(binding.next_cursor, None);
     assert_eq!(rollup_requests, 1);
-    assert_eq!(wire_logs, 1);
+    assert_eq!(wire_logs, 2);
+    assert_eq!(log.upstream.len(), 2);
+    assert_eq!(log.upstream[0].input.response_status, Some(503));
+    assert_eq!(log.upstream[1].input.response_status, Some(200));
 
     Ok(Outcome {
         snapshot,
