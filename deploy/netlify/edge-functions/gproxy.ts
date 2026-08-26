@@ -1,6 +1,10 @@
 import type { Context } from "@netlify/edge-functions"
 import init, { start } from "../pkg/gproxy_host_edge.js"
 
+declare const Deno: {
+  readFile(path: URL): Promise<Uint8Array>
+}
+
 const wasmReady = Deno.readFile(new URL("../pkg/gproxy_host_edge_bg.wasm", import.meta.url))
   .then((bytes) => init(bytes))
 let hostPromise: ReturnType<typeof start> | undefined

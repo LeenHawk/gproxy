@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "WebWorker"],
+    "lib": ["ESNext"],
     "strict": true,
     "noEmit": true,
     "types": ["@cloudflare/workers-types"]

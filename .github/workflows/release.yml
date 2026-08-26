@@ -48,6 +48,11 @@ jobs:
           path: crates/gproxy-host-axum/assets/web
           include-hidden-files: true
           retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: console-dist
+          path: console/dist
+          retention-days: 1
 
   native:
     name: Native ${{ matrix.target }}
@@ -167,4 +172,58 @@ jobs:
         with:
           name: signed-update-manifest
           path: dist/release/manifest.json
+          retention-days: 1
+
+  edge:
+    name: Edge bundles
+    needs: console
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: console-dist
+          path: console/dist
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-edge
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Install matching wasm-bindgen CLI
+        run: |
+          version="$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/"/, "", $3); print $3; exit}' Cargo.lock)"
+          test -n "$version"
+          cargo install wasm-bindgen-cli --version "$version" --locked
+      - run: scripts/package-edge-release.sh
+      - name: Check platform entries
+        run: |
+          pnpm --dir deploy/cloudflare install --no-frozen-lockfile
+          pnpm --dir deploy/cloudflare check
+          pnpm --dir deploy/netlify install --no-frozen-lockfile
+          pnpm --dir deploy/netlify check
+          deno check deploy/deno/main.ts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: edge-bundles
+          path: |
+            dist/release/gproxy-edge.wasm
+            dist/release/gproxy-edge.wasm.sha256
+            dist/release/gproxy-edge-cloudflare.zip
+            dist/release/gproxy-edge-cloudflare.zip.sha256
+            dist/release/gproxy-edge-deno.zip
+            dist/release/gproxy-edge-deno.zip.sha256
+            dist/release/gproxy-edge-netlify.zip
+            dist/release/gproxy-edge-netlify.zip.sha256
           retention-days: 1
