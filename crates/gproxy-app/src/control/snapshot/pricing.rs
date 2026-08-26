@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use gproxy_core::{Pricing, PricingTier, normalize_service_tier};
+use gproxy_core::{ConditionalMetricRate, Pricing, PricingTier, normalize_service_tier};
 use gproxy_store::StoreError;
 use gproxy_store::records::{PriceRateRecord, PriceRuleRecord, parse_price_tiers};
 use rust_decimal::Decimal;
@@ -12,7 +12,7 @@ pub(super) fn compile(
     rates: &[PriceRateRecord],
 ) -> Result<Vec<CompiledPriceRule>, StoreError> {
     let mut by_rule: BTreeMap<i64, Vec<&PriceRateRecord>> = BTreeMap::new();
-    for rate in rates.iter().filter(|rate| rate.conditions.is_none()) {
+    for rate in rates {
         by_rule.entry(rate.rule_id).or_default().push(rate);
     }
 
@@ -43,11 +43,10 @@ fn compile_rates(rates: Vec<&PriceRateRecord>) -> Result<Pricing, StoreError> {
     let mut output = Decimal::ZERO;
     let mut cached = None;
     let mut metric_rates = BTreeMap::new();
+    let mut conditional_metric_rates: BTreeMap<String, Vec<ConditionalMetricRate>> =
+        BTreeMap::new();
     let mut seen = BTreeSet::new();
     for rate in rates {
-        if !seen.insert(rate.metric.as_str()) {
-            continue;
-        }
         if rate.unit_size == 0 {
             return Err(StoreError::InvalidData {
                 field: "unit_size",
@@ -55,6 +54,19 @@ fn compile_rates(rates: Vec<&PriceRateRecord>) -> Result<Pricing, StoreError> {
             });
         }
         let unit = Decimal::from(rate.unit_size);
+        if let Some(conditions) = rate.conditions.as_ref() {
+            conditional_metric_rates
+                .entry(rate.metric.clone())
+                .or_default()
+                .push(ConditionalMetricRate {
+                    rate_per_unit: rate.price / unit,
+                    conditions: compile_conditions(conditions)?,
+                });
+            continue;
+        }
+        if !seen.insert(rate.metric.as_str()) {
+            continue;
+        }
         match rate.metric.as_str() {
             "input_tokens" => input = per_million(rate.price, unit),
             "output_tokens" => output = per_million(rate.price, unit),
@@ -71,7 +83,34 @@ fn compile_rates(rates: Vec<&PriceRateRecord>) -> Result<Pricing, StoreError> {
         service_tier: None,
         tiers: Vec::new(),
         metric_rates,
+        conditional_metric_rates,
     })
+}
+
+fn compile_conditions(value: &serde_json::Value) -> Result<BTreeMap<String, String>, StoreError> {
+    let conditions = value.as_object().ok_or_else(|| StoreError::InvalidData {
+        field: "conditions_json",
+        message: "price rate conditions must be an object".into(),
+    })?;
+    conditions
+        .iter()
+        .map(|(name, value)| {
+            let expected = match value {
+                serde_json::Value::String(value) => value.clone(),
+                serde_json::Value::Bool(value) => value.to_string(),
+                serde_json::Value::Number(value) => value.to_string(),
+                serde_json::Value::Null
+                | serde_json::Value::Array(_)
+                | serde_json::Value::Object(_) => {
+                    return Err(StoreError::InvalidData {
+                        field: "conditions_json",
+                        message: format!("price rate condition `{name}` must be a scalar"),
+                    });
+                }
+            };
+            Ok((name.clone(), expected))
+        })
+        .collect()
 }
 
 fn parse_tiers(value: Option<&serde_json::Value>) -> Result<Vec<PricingTier>, StoreError> {
@@ -142,4 +181,49 @@ fn glob_matches(pattern: &str, value: &str) -> bool {
         pattern_index += 1;
     }
     pattern_index == pattern.len()
+}
+
+#[test]
+fn conditional_rows_select_against_settlement_dimensions() {
+    let rules = [PriceRuleRecord {
+        id: 1,
+        provider_id: Some(7),
+        model_pattern: "image-*".into(),
+        tiers: None,
+        priority: 0,
+        enabled: true,
+    }];
+    let rates = [
+        PriceRateRecord {
+            id: 1,
+            rule_id: 1,
+            metric: "images".into(),
+            unit_size: 1,
+            price: Decimal::from(2),
+            conditions: Some(serde_json::json!({
+                "quality": "hd",
+                "size": "1024x1024"
+            })),
+            priority: 0,
+        },
+        PriceRateRecord {
+            id: 2,
+            rule_id: 1,
+            metric: "images".into(),
+            unit_size: 1,
+            price: Decimal::from(5),
+            conditions: Some(serde_json::json!({"quality": "standard"})),
+            priority: 1,
+        },
+    ];
+    let compiled = compile(&rules, &rates).expect("compiled conditions");
+    let pricing = resolve(&compiled, 7, "image-v1").expect("resolved pricing");
+    let mut usage = gproxy_core::NormalizedUsage::default();
+    usage.metrics.insert("images".into(), Decimal::ONE);
+    usage.dimensions.insert("quality".into(), "hd".into());
+    usage.dimensions.insert("size".into(), "1024x1024".into());
+    assert_eq!(pricing.cost(&usage), Decimal::from(2));
+
+    usage.dimensions.insert("quality".into(), "standard".into());
+    assert_eq!(pricing.cost(&usage), Decimal::from(5));
 }

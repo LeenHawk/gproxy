@@ -26,6 +26,7 @@ fn prompt_axis_selects_the_highest_absolute_step() {
             },
         ],
         metric_rates: BTreeMap::new(),
+        conditional_metric_rates: BTreeMap::new(),
     };
     let usage = NormalizedUsage {
         input_tokens: 1_000_000,
@@ -58,6 +59,7 @@ fn service_axis_uses_explicit_prices_before_multiplier() {
             },
         ],
         metric_rates: BTreeMap::from([("image_output_tokens".into(), Decimal::new(4, 6))]),
+        conditional_metric_rates: BTreeMap::new(),
     };
     let mut usage = NormalizedUsage {
         input_tokens: 2_000_000,
@@ -91,6 +93,7 @@ fn actual_serving_tier_overrides_the_requested_tier() {
             },
         ],
         metric_rates: BTreeMap::new(),
+        conditional_metric_rates: BTreeMap::new(),
     }
     .for_request(br#"{"service_tier":"fast"}"#);
     let usage = NormalizedUsage {
@@ -131,6 +134,7 @@ fn a_tier_multiplier_composes_with_the_prompt_ladder_but_an_explicit_price_repla
             service_tier: Some("batch".into()),
             tiers: vec![long_context.clone(), batch],
             metric_rates: BTreeMap::new(),
+            conditional_metric_rates: BTreeMap::new(),
         }
         .cost(&usage)
     };

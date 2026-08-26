@@ -15,6 +15,13 @@ pub struct Pricing {
     pub service_tier: Option<String>,
     pub tiers: Vec<PricingTier>,
     pub metric_rates: BTreeMap<String, Decimal>,
+    pub conditional_metric_rates: BTreeMap<String, Vec<ConditionalMetricRate>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionalMetricRate {
+    pub rate_per_unit: Decimal,
+    pub conditions: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -89,35 +96,55 @@ impl Pricing {
                             .unwrap_or(Decimal::ONE)
                 })
         };
-        let mut total = Decimal::from(uncached)
-            * price(self.input_per_million, |tier| tier.input_per_million)
+        let input = self
+            .metric_rate("input_tokens", usage)
+            .map(|rate| rate * million)
+            .unwrap_or(self.input_per_million);
+        let cached_input = self
+            .metric_rate("cached_input_tokens", usage)
+            .map(|rate| rate * million)
+            .or(self.cached_input_per_million)
+            .unwrap_or(input);
+        let output = self
+            .metric_rate("output_tokens", usage)
+            .map(|rate| rate * million)
+            .unwrap_or(self.output_per_million);
+        let mut total =
+            Decimal::from(uncached) * price(input, |tier| tier.input_per_million) / million;
+        total += Decimal::from(cached) * price(cached_input, |tier| tier.cached_input_per_million)
             / million;
-        total += Decimal::from(cached)
-            * price(
-                self.cached_input_per_million
-                    .unwrap_or(self.input_per_million),
-                |tier| tier.cached_input_per_million,
-            )
-            / million;
-        total += Decimal::from(usage.output_tokens)
-            * price(self.output_per_million, |tier| tier.output_per_million)
+        total += Decimal::from(usage.output_tokens) * price(output, |tier| tier.output_per_million)
             / million;
         for (metric, select) in tiered_metrics() {
             let Some(amount) = usage.metrics.get(metric) else {
                 continue;
             };
-            let base = self.metric_rates.get(metric).copied().unwrap_or_default() * million;
+            let base = self.metric_rate(metric, usage).unwrap_or_default() * million;
             total += *amount * price(base, select) / million;
         }
         for (metric, amount) in &usage.metrics {
             if tiered_metrics().iter().any(|(name, _)| metric == name) {
                 continue;
             }
-            if let Some(rate) = self.metric_rates.get(metric) {
-                total += *amount * *rate;
+            if let Some(rate) = self.metric_rate(metric, usage) {
+                total += *amount * rate;
             }
         }
         total
+    }
+
+    fn metric_rate(&self, metric: &str, usage: &NormalizedUsage) -> Option<Decimal> {
+        self.conditional_metric_rates
+            .get(metric)
+            .and_then(|rates| {
+                rates.iter().find(|rate| {
+                    rate.conditions
+                        .iter()
+                        .all(|(name, expected)| usage.dimensions.get(name) == Some(expected))
+                })
+            })
+            .map(|rate| rate.rate_per_unit)
+            .or_else(|| self.metric_rates.get(metric).copied())
     }
 }
 

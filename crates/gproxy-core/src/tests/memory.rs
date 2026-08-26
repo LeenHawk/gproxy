@@ -279,6 +279,7 @@ impl ControlPlane for MemoryHost {
             service_tier: None,
             tiers: Vec::new(),
             metric_rates: BTreeMap::new(),
+            conditional_metric_rates: BTreeMap::new(),
         })
     }
 

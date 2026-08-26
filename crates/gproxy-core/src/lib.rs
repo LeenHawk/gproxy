@@ -47,8 +47,8 @@ pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};
 pub use continuation::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore};
 pub use control::{
-    ConfiguredFingerprint, ControlPlane, FingerprintOverride, Plan, Pricing, PricingTier,
-    ProviderRef, Target, normalize_service_tier,
+    ConditionalMetricRate, ConfiguredFingerprint, ControlPlane, FingerprintOverride, Plan, Pricing,
+    PricingTier, ProviderRef, Target, normalize_service_tier,
 };
 pub use error::CoreError;
 pub use host::{
