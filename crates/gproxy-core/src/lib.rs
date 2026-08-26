@@ -18,6 +18,8 @@ pub mod continuation;
 pub mod control;
 pub mod error;
 pub mod host;
+pub mod process;
+pub mod routing;
 pub mod usage;
 
 mod attempt;

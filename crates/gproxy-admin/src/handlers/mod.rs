@@ -8,6 +8,7 @@ mod logs;
 pub(crate) mod observability;
 mod portal_settings;
 mod pricing;
+mod rules;
 mod util;
 
 use bytes::Bytes;
@@ -63,6 +64,9 @@ async fn delete(
             identity::delete(state, entity, id).await
         }
         Entity::PriceRates => pricing::delete(state, id).await,
+        Entity::RoutingRules | Entity::RuleSets | Entity::Rules | Entity::ProviderRuleSets => {
+            rules::delete(state, entity, id).await
+        }
         _ => Err(AdminError::NotFound),
     }
 }
@@ -83,6 +87,9 @@ async fn list(state: &impl State, entity: Entity) -> Result<Response<Bytes>, Adm
         | Entity::RateLimits
         | Entity::Quotas => identity::list(state, entity).await,
         Entity::PriceRules | Entity::PriceRates => pricing::list(state, entity).await,
+        Entity::RoutingRules | Entity::RuleSets | Entity::Rules | Entity::ProviderRuleSets => {
+            rules::list(state, entity).await
+        }
     }
 }
 
@@ -106,6 +113,9 @@ async fn create(
         | Entity::RateLimits
         | Entity::Quotas => identity::create(state, entity, body).await,
         Entity::PriceRules | Entity::PriceRates => pricing::create(state, entity, body).await,
+        Entity::RoutingRules | Entity::RuleSets | Entity::Rules | Entity::ProviderRuleSets => {
+            rules::create(state, entity, body).await
+        }
     }
 }
 
@@ -130,5 +140,8 @@ async fn update(
         | Entity::RateLimits
         | Entity::Quotas => identity::update(state, entity, id, body).await,
         Entity::PriceRules | Entity::PriceRates => pricing::update(state, entity, id, body).await,
+        Entity::RoutingRules | Entity::RuleSets | Entity::Rules | Entity::ProviderRuleSets => {
+            rules::update(state, entity, id, body).await
+        }
     }
 }

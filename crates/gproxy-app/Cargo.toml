@@ -15,7 +15,7 @@ futures-util.workspace = true
 gproxy-channel-api.workspace = true
 gproxy-admin.workspace = true
 gproxy-channels.workspace = true
-gproxy-core.workspace = true
+gproxy-core = { workspace = true, features = ["exhaustive"] }
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 gproxy-store.workspace = true
 gproxy-tokenize.workspace = true

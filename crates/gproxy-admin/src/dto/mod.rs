@@ -9,6 +9,7 @@ mod log;
 mod login;
 mod portal;
 mod pricing;
+mod rules;
 mod settings;
 mod usage;
 
@@ -23,6 +24,7 @@ pub use log::*;
 pub use login::*;
 pub use portal::*;
 pub use pricing::*;
+pub use rules::*;
 pub use settings::*;
 pub use usage::*;
 

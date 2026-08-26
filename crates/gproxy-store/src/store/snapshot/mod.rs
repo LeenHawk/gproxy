@@ -1,5 +1,6 @@
 mod control;
 mod identity;
+mod process;
 
 use crate::backend::QueryResult;
 use crate::query::{control as control_query, identity as identity_query};
@@ -25,6 +26,10 @@ impl Store {
             control_query::select_price_rules()?,
             control_query::select_price_rates()?,
             control_query::select_settings()?,
+            control_query::select_routing_rules()?,
+            control_query::select_rule_sets()?,
+            control_query::select_rules()?,
+            control_query::select_provider_rule_sets()?,
         ];
         let mut results = self.backend().batch(statements).await?.into_iter();
         Ok(ControlSnapshot {
@@ -44,6 +49,10 @@ impl Store {
             price_rules: control::price_rules(next(&mut results)?)?,
             price_rates: control::price_rates(next(&mut results)?)?,
             settings: control::settings(next(&mut results)?)?,
+            routing_rules: process::routing_rules(next(&mut results)?)?,
+            rule_sets: process::rule_sets(next(&mut results)?)?,
+            rules: process::rules(next(&mut results)?)?,
+            provider_rule_sets: process::provider_rule_sets(next(&mut results)?)?,
         })
     }
 }

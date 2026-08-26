@@ -91,6 +91,15 @@ impl WireFamily {
         }
     }
 
+    pub fn from_id(value: &str) -> Option<Self> {
+        Some(match value {
+            "openai" => Self::OpenAi,
+            "claude" => Self::Claude,
+            "gemini" => Self::Gemini,
+            _ => return None,
+        })
+    }
+
     /// Request headers that identify a client as speaking this family.
     /// Several families share ingress paths (`/v1/files` is both OpenAI and
     /// Claude), so classification disambiguates by the dialect the caller
@@ -114,6 +123,17 @@ impl ContentGenerationKind {
             Self::GeminiGenerateContent => "gemini_generate_content",
         }
     }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        Some(match value {
+            "openai_chat" => Self::OpenAiChat,
+            "openai_responses" => Self::OpenAiResponses,
+            "openai_responses_websocket" => Self::OpenAiResponsesWebSocket,
+            "claude_messages" => Self::ClaudeMessages,
+            "gemini_generate_content" => Self::GeminiGenerateContent,
+            _ => return None,
+        })
+    }
 }
 
 impl OperationKind {
@@ -122,6 +142,12 @@ impl OperationKind {
             Self::ContentGeneration(kind) => kind.id(),
             Self::Family(family) => family.id(),
         }
+    }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        ContentGenerationKind::from_id(value)
+            .map(Self::ContentGeneration)
+            .or_else(|| WireFamily::from_id(value).map(Self::Family))
     }
 }
 
@@ -231,6 +257,45 @@ impl Operation {
             ExtendVideo => "extend_video",
             CreateRealtimeCall => "create_realtime_call",
         }
+    }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        use Operation::*;
+        Some(match value {
+            "list_models" => ListModels,
+            "get_model" => GetModel,
+            "count_tokens" => CountTokens,
+            "summarize_memory" => SummarizeMemory,
+            "generate_content" => GenerateContent,
+            "stream_generate_content" => StreamGenerateContent,
+            "compact_content" => CompactContent,
+            "create_embedding" => CreateEmbedding,
+            "batch_create_embedding" => BatchCreateEmbedding,
+            "rerank" => Rerank,
+            "web_search" => WebSearch,
+            "create_image" => CreateImage,
+            "edit_image" => EditImage,
+            "create_speech" => CreateSpeech,
+            "create_transcription" => CreateTranscription,
+            "create_translation" => CreateTranslation,
+            "create_file" => CreateFile,
+            "list_files" => ListFiles,
+            "retrieve_file" => RetrieveFile,
+            "retrieve_file_content" => RetrieveFileContent,
+            "delete_file" => DeleteFile,
+            "create_video" => CreateVideo,
+            "retrieve_video" => RetrieveVideo,
+            "list_videos" => ListVideos,
+            "delete_video" => DeleteVideo,
+            "download_video_content" => DownloadVideoContent,
+            "remix_video" => RemixVideo,
+            "create_video_character" => CreateVideoCharacter,
+            "get_video_character" => GetVideoCharacter,
+            "edit_video" => EditVideo,
+            "extend_video" => ExtendVideo,
+            "create_realtime_call" => CreateRealtimeCall,
+            _ => return None,
+        })
     }
 
     /// Exhaustive by design: a new operation fails to compile until its

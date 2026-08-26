@@ -13,6 +13,7 @@ bytes.workspace = true
 form_urlencoded.workspace = true
 getrandom.workspace = true
 gproxy-channel-api.workspace = true
+gproxy-core = { workspace = true, features = ["exhaustive"] }
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 gproxy-store.workspace = true
 http.workspace = true

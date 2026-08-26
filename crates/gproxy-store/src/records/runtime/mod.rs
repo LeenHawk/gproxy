@@ -17,8 +17,9 @@ use serde_json::Value;
 
 use super::{
     AliasRecord, CredentialMetaRecord, ExposedModelRecord, OrganizationRecord, PermissionRecord,
-    PriceRateRecord, PriceRuleRecord, ProviderRecord, QuotaRecord, RateLimitRecord,
-    RouteMemberRecord, RouteRecord, TeamRecord, UserKeyRecord, UserRecord,
+    PriceRateRecord, PriceRuleRecord, ProviderRecord, ProviderRuleSetRecord, QuotaRecord,
+    RateLimitRecord, RouteMemberRecord, RouteRecord, RoutingRuleRecord, RuleRecord, RuleSetRecord,
+    TeamRecord, UserKeyRecord, UserRecord,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -39,6 +40,10 @@ pub struct ControlSnapshot {
     pub price_rules: Vec<PriceRuleRecord>,
     pub price_rates: Vec<PriceRateRecord>,
     pub settings: Vec<SettingRecord>,
+    pub routing_rules: Vec<RoutingRuleRecord>,
+    pub rule_sets: Vec<RuleSetRecord>,
+    pub rules: Vec<RuleRecord>,
+    pub provider_rule_sets: Vec<ProviderRuleSetRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

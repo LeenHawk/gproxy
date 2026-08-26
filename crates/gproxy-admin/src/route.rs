@@ -17,6 +17,10 @@ pub(crate) enum Entity {
     Quotas,
     PriceRules,
     PriceRates,
+    RoutingRules,
+    RuleSets,
+    Rules,
+    ProviderRuleSets,
 }
 
 #[derive(Debug, Clone)]
@@ -133,6 +137,10 @@ fn entity(name: &str) -> Option<Entity> {
         "quotas" => Entity::Quotas,
         "price-rules" => Entity::PriceRules,
         "price-rates" => Entity::PriceRates,
+        "routing-rules" => Entity::RoutingRules,
+        "rule-sets" => Entity::RuleSets,
+        "rules" => Entity::Rules,
+        "provider-rule-sets" => Entity::ProviderRuleSets,
         _ => return None,
     })
 }
