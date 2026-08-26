@@ -128,18 +128,16 @@ impl<H: Host> Core<H> {
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
         let classified = crate::execution::request::classify(&ctx);
-        match crate::surface::dispatch(self, control, &ctx, None).await {
-            crate::surface::Dispatch::Unmatched => crate::execution::run(self, control, ctx).await,
+        match crate::surface::dispatch(self, control, ctx, None, classified).await {
             crate::surface::Dispatch::Outcome(result) => result,
             crate::surface::Dispatch::Continue {
+                ctx,
+                classified,
                 identity,
                 plan,
                 started,
             } => {
-                let classified = classified.inspect_err(|error| {
-                    crate::funnel::error::request_failed(&ctx, None, error);
-                })?;
-                crate::execution::resolved(self, control, ctx, plan, classified, identity, started)
+                crate::execution::resolved(self, control, *ctx, plan, classified, identity, started)
                     .await
             }
         }
@@ -155,20 +153,16 @@ impl<H: Host> Core<H> {
         plan: Plan,
     ) -> Result<ExecOutcome, CoreError> {
         let classified = crate::execution::request::classify(&ctx);
-        match crate::surface::dispatch(self, control, &ctx, Some(&plan)).await {
-            crate::surface::Dispatch::Unmatched => {
-                crate::execution::planned(self, control, ctx, plan).await
-            }
+        match crate::surface::dispatch(self, control, ctx, Some(&plan), classified).await {
             crate::surface::Dispatch::Outcome(result) => result,
             crate::surface::Dispatch::Continue {
+                ctx,
+                classified,
                 identity,
                 plan,
                 started,
             } => {
-                let classified = classified.inspect_err(|error| {
-                    crate::funnel::error::request_failed(&ctx, None, error);
-                })?;
-                crate::execution::resolved(self, control, ctx, plan, classified, identity, started)
+                crate::execution::resolved(self, control, *ctx, plan, classified, identity, started)
                     .await
             }
         }

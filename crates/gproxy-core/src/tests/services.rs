@@ -218,6 +218,9 @@ impl UpstreamTransport for MemoryHost {
                     .expect("text authorization")
                     .to_owned();
                 let mut state = state.lock().expect("state lock");
+                state
+                    .upstream_requests
+                    .push((request.headers().clone(), request.uri().to_string()));
                 state.authorizations.push(authorization);
                 if let Some(value) = request.headers().get("originator") {
                     state

@@ -20,8 +20,9 @@ mod template;
 use self::affinity::Selected;
 
 pub(crate) enum Dispatch {
-    Unmatched,
     Continue {
+        ctx: Box<RequestCtx>,
+        classified: crate::execution::request::Classified,
         identity: gproxy_channel_api::CallerIdentity,
         plan: Plan,
         started: Instant,
@@ -32,27 +33,26 @@ pub(crate) enum Dispatch {
 pub(crate) async fn dispatch<H: Host>(
     core: &Core<H>,
     control: &impl ControlPlane,
-    ctx: &RequestCtx,
+    ctx: RequestCtx,
     planned: Option<&Plan>,
+    classified: Result<crate::execution::request::Classified, CoreError>,
 ) -> Dispatch {
-    let matches = affinity::table_matches(core, ctx);
-    if matches.is_empty() {
-        return Dispatch::Unmatched;
-    }
-    run(core, control, ctx, planned, matches).await
+    let matches = affinity::table_matches(core, &ctx);
+    run(core, control, ctx, planned, classified, matches).await
 }
 
 async fn run<H: Host>(
     core: &Core<H>,
     control: &impl ControlPlane,
-    ctx: &RequestCtx,
+    ctx: RequestCtx,
     planned: Option<&Plan>,
+    classified: Result<crate::execution::request::Classified, CoreError>,
     matches: Vec<affinity::TableMatch>,
 ) -> Dispatch {
     let started = Instant::now();
-    let alias_request = match operation_alias_request(ctx, &matches) {
+    let mut alias_request = match operation_alias_request(&ctx, &matches) {
         Ok(alias) => alias,
-        Err(error) => return Dispatch::Outcome(reject(ctx, None, error)),
+        Err(error) => return Dispatch::Outcome(reject(&ctx, None, error)),
     };
     let matched_label = matches
         .first()
@@ -63,36 +63,44 @@ async fn run<H: Host>(
             gproxy_channel_api::SurfaceAffinity::BearerToken { .. }
         )
     });
-    let resolve = || match planned {
-        Some(plan) => Ok(plan.clone()),
-        None => control.resolve(
-            alias_request
-                .as_ref()
-                .and_then(|(_, classified)| classified.model.as_deref()),
-            &ctx.mode,
-        ),
+    let resolve = || {
+        planned.cloned().map_or_else(
+            || {
+                let model = alias_request
+                    .as_ref()
+                    .and_then(|(_, classified)| classified.model.as_deref())
+                    .or_else(|| {
+                        matches
+                            .is_empty()
+                            .then(|| classified.as_ref().ok()?.model.as_deref())
+                            .flatten()
+                    });
+                control.resolve(model, &ctx.mode)
+            },
+            Ok,
+        )
     };
     let (identity, plan) = if bearer_auth {
         let plan = match resolve() {
             Ok(plan) => plan,
-            Err(error) => return Dispatch::Outcome(reject(ctx, matched_label, error)),
+            Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
-        let identity = match affinity::bearer_identity(core, ctx, &plan, &matches).await {
+        let identity = match affinity::bearer_identity(core, &ctx, &plan, &matches).await {
             Ok(Some(identity)) => identity,
             Ok(None) => {
-                return Dispatch::Outcome(reject(ctx, matched_label, CoreError::Unauthorized));
+                return Dispatch::Outcome(reject(&ctx, matched_label, CoreError::Unauthorized));
             }
-            Err(error) => return Dispatch::Outcome(reject(ctx, matched_label, error)),
+            Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
         (identity, plan)
     } else {
-        let identity = match core.host.authenticate(ctx).await {
+        let identity = match core.host.authenticate(&ctx).await {
             Ok(identity) => identity,
-            Err(error) => return Dispatch::Outcome(reject(ctx, matched_label, error)),
+            Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
         let plan = match resolve() {
             Ok(plan) => plan,
-            Err(error) => return Dispatch::Outcome(reject(ctx, matched_label, error)),
+            Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
         (identity, plan)
     };
@@ -101,36 +109,85 @@ async fn run<H: Host>(
             .iter()
             .any(|matched| matched.channel == target.provider.channel)
     });
-    if !serves_surface {
-        return Dispatch::Continue {
-            identity,
-            plan,
-            started,
+    enum Route {
+        Continue(crate::execution::request::Classified),
+        Alias {
+            plan: Plan,
+            classified: crate::execution::request::Classified,
+        },
+        Surface {
+            selected: Box<Selected>,
+            affinity: gproxy_channel_api::SurfaceAffinity,
+            pin: Option<pin::AffinityPin>,
+            label: Option<&'static str>,
+        },
+    }
+    let (mut ctx, route) = if !serves_surface {
+        let classified = match classified {
+            Ok(classified) => classified,
+            Err(error) => return Dispatch::Outcome(reject(&ctx, None, error)),
         };
-    }
-    if let Some((request, classified)) = alias_request
-        && let Some(plan) = operation_alias_plan(&matches, &plan)
+        (ctx, Route::Continue(classified))
+    } else if let Some(alias_plan) = operation_alias_plan(&matches, &plan)
+        && let Some((request, classified)) = alias_request.take()
     {
-        return Dispatch::Outcome(
-            crate::execution::resolved(core, control, request, plan, classified, identity, started)
-                .await,
-        );
-    }
-    if let Err(error) = core.host.admit(&identity, ctx, None, &plan).await {
-        return Dispatch::Outcome(reject(ctx, matched_label, error));
-    }
-    let mut selected = match affinity::select(core, ctx, &identity, &plan, matches).await {
-        Ok(selected) => selected,
-        Err(error) => {
-            core.host.finish_admission(&ctx.request_id, None).await;
-            funnel_error::request_failed_surface(ctx, None, matched_label, &error);
-            return Dispatch::Outcome(Err(error));
+        (
+            request,
+            Route::Alias {
+                plan: alias_plan,
+                classified,
+            },
+        )
+    } else {
+        if let Err(error) = core.host.admit(&identity, &ctx, None, &plan).await {
+            return Dispatch::Outcome(reject(&ctx, matched_label, error));
         }
+        let mut selected = match affinity::select(core, &ctx, &identity, &plan, matches).await {
+            Ok(selected) => selected,
+            Err(error) => {
+                core.host.finish_admission(&ctx.request_id, None).await;
+                funnel_error::request_failed_surface(&ctx, None, matched_label, &error);
+                return Dispatch::Outcome(Err(error));
+            }
+        };
+        let label = action_label(&selected.entry.action);
+        let affinity = selected.entry.affinity;
+        let pin = selected.pin.take();
+        (
+            ctx,
+            Route::Surface {
+                selected: Box::new(selected),
+                affinity,
+                pin,
+                label,
+            },
+        )
     };
-    let surface_label = action_label(&selected.entry.action);
-    let affinity = selected.entry.affinity;
-    let pin = selected.pin.take();
-    let result = action(core, control, ctx, &plan, &identity, selected, started).await;
+    crate::execution::ingress::strip(&mut ctx);
+    let (selected, affinity, pin, surface_label) = match route {
+        Route::Continue(classified) => {
+            return Dispatch::Continue {
+                ctx: Box::new(ctx),
+                classified,
+                identity,
+                plan,
+                started,
+            };
+        }
+        Route::Alias { plan, classified } => {
+            return Dispatch::Outcome(
+                crate::execution::resolved(core, control, ctx, plan, classified, identity, started)
+                    .await,
+            );
+        }
+        Route::Surface {
+            selected,
+            affinity,
+            pin,
+            label,
+        } => (*selected, affinity, pin, label),
+    };
+    let result = action(core, control, &ctx, &plan, &identity, selected, started).await;
     if let Ok((outcome, winner)) = &result
         && outcome.disposition == Disposition::Success
     {
@@ -155,7 +212,7 @@ async fn run<H: Host>(
     }
     if let Err(error) = &result {
         core.host.finish_admission(&ctx.request_id, None).await;
-        funnel_error::request_failed_surface(ctx, None, surface_label, error);
+        funnel_error::request_failed_surface(&ctx, None, surface_label, error);
     }
     Dispatch::Outcome(result.map(|(outcome, _)| outcome))
 }

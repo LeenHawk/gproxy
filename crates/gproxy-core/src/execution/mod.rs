@@ -9,50 +9,12 @@ use crate::host::Host;
 
 pub(crate) mod credential;
 mod failover;
+pub(crate) mod ingress;
 pub(crate) mod invoke;
 pub(crate) mod request;
 pub(crate) mod resource;
 
 use self::request::Classified;
-
-pub(crate) async fn run<H: Host>(
-    core: &Core<H>,
-    control: &impl ControlPlane,
-    ctx: RequestCtx,
-) -> Result<ExecOutcome, CoreError> {
-    let started = Instant::now();
-    let classified = match request::classify(&ctx) {
-        Ok(classified) => classified,
-        Err(error) => return reject(&ctx, None, error),
-    };
-    let identity = match core.host.authenticate(&ctx).await {
-        Ok(identity) => identity,
-        Err(error) => return reject(&ctx, Some(classified.key), error),
-    };
-    let plan = match control.resolve(classified.model.as_deref(), &ctx.mode) {
-        Ok(plan) => plan,
-        Err(error) => return reject(&ctx, Some(classified.key), error),
-    };
-    resolved(core, control, ctx, plan, classified, identity, started).await
-}
-
-pub(crate) async fn planned<H: Host>(
-    core: &Core<H>,
-    control: &impl ControlPlane,
-    ctx: RequestCtx,
-    plan: Plan,
-) -> Result<ExecOutcome, CoreError> {
-    let started = Instant::now();
-    let classified = match request::classify(&ctx) {
-        Ok(classified) => classified,
-        Err(error) => return reject(&ctx, None, error),
-    };
-    let identity = match core.host.authenticate(&ctx).await {
-        Ok(identity) => identity,
-        Err(error) => return reject(&ctx, Some(classified.key), error),
-    };
-    resolved(core, control, ctx, plan, classified, identity, started).await
-}
 
 pub(crate) async fn resolved<H: Host>(
     core: &Core<H>,

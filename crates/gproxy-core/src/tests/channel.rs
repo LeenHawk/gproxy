@@ -8,6 +8,8 @@ use gproxy_channel_api::{
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
 use super::memory::MemoryHost;
+use super::{block_on, core, request, target};
+use crate::control::{FailoverBudget, Plan};
 
 const KEY: OperationKey = OperationKey::content(
     Operation::GenerateContent,
@@ -31,7 +33,9 @@ const REALTIME: OperationKey = OperationKey::family(
     Operation::CreateRealtimeCall,
     gproxy_protocol::WireFamily::OpenAi,
 );
-static SUPPORTS: [ChannelSupport; 8] = [
+const CLAUDE_MODELS: OperationKey =
+    OperationKey::family(Operation::ListModels, gproxy_protocol::WireFamily::Claude);
+static SUPPORTS: [ChannelSupport; 9] = [
     ChannelSupport::passthrough(KEY),
     ChannelSupport::passthrough(STREAM_KEY),
     ChannelSupport::passthrough(CREATE_FILE),
@@ -40,6 +44,7 @@ static SUPPORTS: [ChannelSupport; 8] = [
     ChannelSupport::passthrough(LIST_FILES),
     ChannelSupport::passthrough(WEB_SEARCH),
     ChannelSupport::passthrough(REALTIME),
+    ChannelSupport::passthrough(CLAUDE_MODELS),
 ];
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
@@ -129,12 +134,23 @@ impl Channel for MemoryHost {
         let token = ctx.secret["access_token"]
             .as_str()
             .ok_or_else(|| ChannelError::Secret("access_token missing".into()))?;
-        let request = http::Request::builder()
+        let mut uri = format!("https://upstream.test{}", ctx.path);
+        if let Some(query) = ctx.query {
+            uri.push('?');
+            uri.push_str(query);
+        }
+        let mut request = http::Request::builder()
             .method(ctx.method)
-            .uri(format!("https://upstream.test{}", ctx.path))
-            .header(http::header::AUTHORIZATION, format!("Bearer {token}"))
+            .uri(uri)
             .body(ctx.body.clone())
             .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+        *request.headers_mut() = ctx.headers.clone();
+        request.headers_mut().insert(
+            http::header::AUTHORIZATION,
+            format!("Bearer {token}")
+                .parse()
+                .map_err(|error| ChannelError::Prepare(format!("upstream credential: {error}")))?,
+        );
         Ok(PreparedRequest {
             request,
             framing: None,
@@ -274,6 +290,56 @@ impl Channel for MemoryHost {
     fn surfaces(&self) -> SurfaceTable {
         super::surface::table()
     }
+}
+
+#[test]
+fn ingress_floor_strips_credentials_after_claude_classification() -> Result<(), crate::InitError> {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let core = core(&host)?;
+    let mut request = request(false, "claude-ingress-floor");
+    request.method = http::Method::GET;
+    request.path = "/v1/models".into();
+    request.query = Some("key=caller-test-key&beta=true".into());
+    request.body = Bytes::new();
+    for (name, value) in [
+        ("x-api-key", "caller-test-key"),
+        ("anthropic-version", "2023-06-01"),
+        ("anthropic-beta", "files-api-2025-04-14"),
+        ("connection", "x-caller-hop"),
+        ("x-caller-hop", "drop-me"),
+        ("x-forwarded-for", "192.0.2.1"),
+        ("accept-encoding", "gzip"),
+    ] {
+        request.headers.insert(name, value.parse().expect("header"));
+    }
+
+    assert_eq!(
+        block_on(core.execute(&host, request))
+            .expect("Claude request remains classified and supported")
+            .status,
+        http::StatusCode::OK
+    );
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.auth_calls, 1);
+    let (headers, uri) = state.upstream_requests.last().expect("upstream request");
+    assert_eq!(headers[http::header::AUTHORIZATION], "Bearer fresh");
+    for denied in [
+        "x-api-key",
+        "connection",
+        "x-caller-hop",
+        "x-forwarded-for",
+        "accept-encoding",
+    ] {
+        assert!(!headers.contains_key(denied), "forwarded {denied}");
+    }
+    assert_eq!(headers["anthropic-version"], "2023-06-01");
+    assert_eq!(headers["anthropic-beta"], "files-api-2025-04-14");
+    assert_eq!(uri, "https://upstream.test/v1/models?beta=true");
+    Ok(())
 }
 
 fn prepare_test_session(ctx: SessionPrepareCtx<'_>) -> Result<PreparedSession, ChannelError> {
