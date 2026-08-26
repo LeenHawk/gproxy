@@ -37,7 +37,7 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - working-directory: console
@@ -90,7 +90,13 @@ jobs:
           case "${{ matrix.builder }}" in
             cargo) cargo build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
             cross) cross build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
-            cargo-ndk) cargo ndk -t "${{ matrix.ndk_target }}" build --locked --release --bin gproxy ;;
+            cargo-ndk)
+              target="${{ matrix.target }}"
+              bindgen="BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}"
+              export "$bindgen=--target=${target}28"
+              cargo ndk -p 28 -t "${{ matrix.ndk_target }}" \
+                build --locked --release --bin gproxy
+              ;;
           esac
       - name: Package Unix archive
         if: ${{ matrix.os != 'windows' }}
@@ -118,4 +124,6 @@ jobs:
             dist/release/${{ matrix.artifact }}.dmg.sha256
             dist/release/${{ matrix.artifact }}.msi
             dist/release/${{ matrix.artifact }}.msi.sha256
+            dist/release/${{ matrix.artifact }}.unsigned.apk
+            dist/release/${{ matrix.artifact }}.unsigned.apk.sha256
           retention-days: 1

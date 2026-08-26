@@ -1,0 +1,61 @@
+package __PACKAGE__;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.widget.Toast;
+
+public final class GproxyUpdateActivity extends Activity {
+    private static final int REQUEST_UNKNOWN_SOURCES = 1;
+    private static final int REQUEST_INSTALL = 2;
+
+    public static void launch(Context context) {
+        Intent intent = new Intent(context, GproxyUpdateActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        context.startActivity(intent);
+    }
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        continueInstall();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_UNKNOWN_SOURCES && canInstallPackages()) {
+            openPackageInstaller();
+        } else {
+            finish();
+        }
+    }
+
+    private void continueInstall() {
+        if (!GproxyUpdateProvider.hasPendingUpdate(this)) {
+            Toast.makeText(this, "No verified GPROXY update is pending.", Toast.LENGTH_SHORT).show();
+            finish();
+        } else if (canInstallPackages()) {
+            openPackageInstaller();
+        } else {
+            Intent permission = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+            permission.setData(Uri.parse("package:" + getPackageName()));
+            startActivityForResult(permission, REQUEST_UNKNOWN_SOURCES);
+        }
+    }
+
+    private boolean canInstallPackages() {
+        return Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
+    }
+
+    private void openPackageInstaller() {
+        Intent install = new Intent(Intent.ACTION_VIEW);
+        install.setDataAndType(
+            GproxyUpdateProvider.apkUri(), "application/vnd.android.package-archive");
+        install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(install, REQUEST_INSTALL);
+        GproxyUpdateProvider.markerFile(this).delete();
+    }
+}

@@ -1,0 +1,235 @@
+package __PACKAGE__;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.drawable.Icon;
+import android.os.IBinder;
+import android.util.Base64;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.SecureRandom;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Map;
+
+public final class GproxyService extends Service {
+    public static final String PREFS = "gproxy";
+    public static final String PREF_AUTO_START = "auto_start";
+    public static final String ACTION_EVENT = "__PACKAGE__.EVENT";
+    public static final String EXTRA_LOG = "log";
+    public static final int UPDATE_NOTIFICATION_ID = 8788;
+    private static final String ACTION_START = "__PACKAGE__.START";
+    private static final String ACTION_STOP = "__PACKAGE__.STOP";
+    private static final String CHANNEL_ID = "gproxy-background";
+    private static final int NOTIFICATION_ID = 8787;
+    private static final ArrayDeque<String> LOG = new ArrayDeque<String>();
+    private static volatile boolean running;
+    private static volatile boolean starting;
+    private Process process;
+
+    public static void start(Context context) {
+        Intent intent = new Intent(context, GproxyService.class).setAction(ACTION_START);
+        context.startForegroundService(intent);
+    }
+
+    public static void stop(Context context) {
+        Intent intent = new Intent(context, GproxyService.class).setAction(ACTION_STOP);
+        context.startForegroundService(intent);
+    }
+
+    public static String recentLog() {
+        StringBuilder text = new StringBuilder();
+        synchronized (LOG) { for (String line : LOG) { text.append(line).append('\n'); } }
+        return text.toString();
+    }
+
+    @Override public void onCreate() {
+        super.onCreate();
+        NotificationChannel channel = new NotificationChannel(
+            CHANNEL_ID, "GPROXY background service", NotificationManager.IMPORTANCE_LOW);
+        getSystemService(NotificationManager.class).createNotificationChannel(channel);
+        startForeground(NOTIFICATION_ID, notification("Starting…"));
+    }
+
+    @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            if (process != null) { process.destroy(); }
+            finishService();
+            return START_NOT_STICKY;
+        }
+        if (running || starting) { return START_STICKY; }
+        starting = true;
+        new Thread(new Runnable() {
+            @Override public void run() { launch(); }
+        }, "gproxy-start").start();
+        return START_STICKY;
+    }
+
+    private void launch() {
+        try {
+            File binDir = new File(getFilesDir(), "bin");
+            File dataDir = new File(getFilesDir(), "data");
+            ensureDirectory(binDir);
+            ensureDirectory(dataDir);
+            File executable = copyAsset("gproxy/gproxy.bin", new File(binDir, "gproxy"), true);
+            File libcxx = copyAsset(
+                "gproxy/libc++_shared.so", new File(binDir, "libc++_shared.so"), false);
+            File config = new File(getFilesDir(), "gproxy.toml");
+            writeConfig(config);
+
+            ArrayList<String> command = new ArrayList<String>();
+            command.add(executable.getAbsolutePath());
+            command.add(config.getAbsolutePath());
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.directory(getFilesDir());
+            Map<String, String> env = builder.environment();
+            env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
+            builder.redirectErrorStream(true);
+            process = builder.start();
+            final Process child = process;
+            readOutput(child);
+            if (!waitUntilHealthy(child)) {
+                child.destroy();
+                throw new IOException("server did not become healthy within 15 seconds");
+            }
+            running = true;
+            starting = false;
+            updateNotification("Running on 127.0.0.1:8787");
+            appendLog("Started. Console: http://127.0.0.1:8787/admin");
+        } catch (Exception error) {
+            appendLog("Start failed: " + error);
+            finishService();
+        }
+    }
+
+    private void writeConfig(File config) throws IOException {
+        if (config.isFile()) { return; }
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        String secret = Base64.encodeToString(random, Base64.NO_WRAP);
+        String content = "listen_addr = \"127.0.0.1:8787\"\n"
+            + "data_dir = \"data\"\nstore_backend = \"sqlite\"\n"
+            + "secret_key = \"" + secret + "\"\n";
+        File temporary = new File(config.getPath() + ".tmp");
+        FileOutputStream output = new FileOutputStream(temporary);
+        try { output.write(content.getBytes("UTF-8")); } finally { output.close(); }
+        if (!temporary.renameTo(config)) { throw new IOException("persist config"); }
+        config.setReadable(true, true);
+        config.setWritable(true, true);
+    }
+
+    private boolean waitUntilHealthy(Process child) throws InterruptedException {
+        for (int attempt = 0; attempt < 75; attempt++) {
+            if (!child.isAlive()) { return false; }
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL(
+                    "http://127.0.0.1:8787/admin").openConnection();
+                connection.setConnectTimeout(150);
+                connection.setReadTimeout(150);
+                if (connection.getResponseCode() < 400) { return true; }
+            } catch (IOException ignored) {
+            } finally {
+                if (connection != null) { connection.disconnect(); }
+            }
+            Thread.sleep(200);
+        }
+        return false;
+    }
+
+    private void readOutput(final Process child) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    InputStream input = child.getInputStream();
+                    byte[] buffer = new byte[4096];
+                    int read;
+                    while ((read = input.read(buffer)) != -1) {
+                        appendLog(new String(buffer, 0, read));
+                    }
+                    appendLog("GPROXY exited with code " + child.waitFor() + ".");
+                } catch (Exception error) {
+                    appendLog("Output reader failed: " + error);
+                } finally {
+                    if (process == child) { process = null; }
+                    finishService();
+                }
+            }
+        }, "gproxy-output").start();
+    }
+
+    private File copyAsset(String name, File out, boolean executable) throws IOException {
+        InputStream input = getAssets().open(name);
+        FileOutputStream output = new FileOutputStream(out);
+        try {
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = input.read(buffer)) != -1) { output.write(buffer, 0, read); }
+        } finally { output.close(); input.close(); }
+        out.setReadable(true, true);
+        out.setWritable(true, true);
+        out.setExecutable(executable, true);
+        return out;
+    }
+
+    private void ensureDirectory(File directory) throws IOException {
+        if (!directory.isDirectory() && !directory.mkdirs()) {
+            throw new IOException("create " + directory);
+        }
+    }
+
+    private void appendLog(String text) {
+        synchronized (LOG) {
+            LOG.addLast(text.trim());
+            while (LOG.size() > 200) { LOG.removeFirst(); }
+        }
+        Intent event = new Intent(ACTION_EVENT).setPackage(getPackageName());
+        event.putExtra(EXTRA_LOG, text.trim());
+        sendBroadcast(event);
+    }
+
+    private Notification notification(String text) {
+        PendingIntent open = PendingIntent.getActivity(this, 0,
+            new Intent(this, GproxyActivity.class), PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent stop = PendingIntent.getService(this, 1,
+            new Intent(this, GproxyService.class).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("GPROXY").setContentText(text)
+            .setSmallIcon(getApplicationInfo().icon).setContentIntent(open).setOngoing(true);
+        Icon icon = Icon.createWithResource(this, getApplicationInfo().icon);
+        builder.addAction(new Notification.Action.Builder(icon, "Stop", stop).build());
+        return builder.build();
+    }
+
+    private void updateNotification(String text) {
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+            .notify(NOTIFICATION_ID, notification(text));
+    }
+
+    private void finishService() {
+        running = false;
+        starting = false;
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf();
+    }
+
+    @Override public void onDestroy() {
+        if (process != null) { process.destroy(); process = null; }
+        running = false;
+        starting = false;
+        super.onDestroy();
+    }
+
+    @Override public IBinder onBind(Intent intent) { return null; }
+}
