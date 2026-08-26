@@ -106,6 +106,7 @@ export function ProviderCard(props: Props) {
         <CredentialList
           providerId={provider.id}
           channel={channel}
+          presets={props.presets}
           credentials={props.credentials}
           cyclesByCredential={props.cyclesByCredential}
           credentialsLoading={props.credentialsLoading}

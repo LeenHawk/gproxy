@@ -14,6 +14,7 @@
     "none": "無",
     "optional": "選填",
     "required": "必填",
+    "search": "搜尋…",
     "actions": {
       "create": "建立",
       "save": "儲存",
@@ -23,7 +24,9 @@
       "close": "關閉",
       "edit": "編輯",
       "enable": "啟用",
-      "disable": "停用"
+      "disable": "停用",
+      "add": "新增",
+      "delete": "刪除"
     },
     "status": {
       "label": "狀態",
@@ -55,6 +58,8 @@
     "usage": "用量與成本",
     "logs": "交換日誌",
     "channels": "通道",
+    "pricing": "定價",
+    "settings": "設定",
     "open": "開啟導覽",
     "close": "關閉導覽"
   },
@@ -96,8 +101,10 @@
       "createTitle": "新增供應商",
       "editTitle": "編輯供應商",
       "channelHint": "通道來自目前執行的 gproxy 二進位檔。",
-      "settingsHint": "傳給所選通道的 JSON 設定。",
+      "settingsHint": "進階 JSON 入口。日常編輯請使用上方由通道宣告的欄位。",
       "settingsInvalid": "請輸入有效的 JSON 物件。",
+      "advanced": "進階設定",
+      "jsonEscape": "編輯設定 JSON",
       "created": "已建立供應商。",
       "updated": "已更新供應商。",
       "createError": "無法建立供應商，請檢查欄位後重試。",
@@ -120,9 +127,13 @@
       "loadError": "無法載入憑證，請重試。",
       "label": "憑證標籤",
       "unnamed": "憑證 #{{id}}",
-      "secret": "憑證機密資料",
-      "secretHint": "機密資料會加密儲存，API 不會傳回其內容。",
       "keepSecret": "留空以保留已儲存的機密資料。",
+      "secretRequired": "請至少填寫一個憑證欄位。",
+      "manual": "手動填寫憑證欄位",
+      "weight": "流量權重",
+      "rpm": "每分鐘請求數",
+      "tpm": "每分鐘 Token 數",
+      "proxy": "代理覆寫 URL",
       "enabled": "啟用憑證",
       "healthObserved": "觀測於 {{time}}",
       "healthUnobserved": "尚無健康觀測",
@@ -134,8 +145,16 @@
       "createError": "無法新增憑證，請檢查機密資料後重試。",
       "updateError": "無法更新憑證，請重試。"
     },
+    "endpoints": {
+      "title": "端點覆寫",
+      "add": "新增端點",
+      "hint": "僅為必須使用不同絕對 URL 的操作新增覆寫。",
+      "kind": "操作",
+      "url": "端點 URL",
+      "urlPlaceholder": "https://api.example/v1/{model}",
+      "remove": "移除端點"
+    },
     "login": {
-      "description": "登入 {{channel}}，並在此畫面內直接新增取得的憑證。",
       "method": "登入方式",
       "modes": {
         "authcode": "瀏覽器登入",
@@ -199,8 +218,10 @@
       "credential": "固定憑證",
       "anyCredential": "任一已啟用憑證",
       "model": "上游模型",
-      "priority": "優先順序",
-      "priorityHint": "數值越小，嘗試順序越前。",
+      "tier": "容錯移轉層級",
+      "tierHint": "只有第 0 層全部不可用後，第 1 層才接收流量。",
+      "weight": "權重",
+      "weightHint": "在同層健康成員間按此比例分配流量。",
       "enabled": "啟用成員",
       "created": "已新增成員。",
       "updated": "已更新成員。",
@@ -231,6 +252,19 @@
       "updated": "已更新別名。",
       "saveError": "無法儲存模型別名，請確認名稱唯一。"
     }
+  },
+  "pricing": {
+    "title": "定價", "subtitle": "設定模型規則、維度費率和服務層級階梯。", "loadError": "無法載入定價，請重試。",
+    "rules": { "add": "新增定價規則", "edit": "編輯定價規則", "created": "已建立定價規則。", "updated": "已更新定價規則。", "saveError": "無法儲存定價規則，請重試。", "empty": "尚無定價規則。請先新增規則，流量結算才會產生非零成本。", "provider": "提供者", "allProviders": "所有提供者", "pattern": "模型比對模式", "priority": "優先順序", "enabled": "啟用規則" },
+    "tiers": { "title": "上下文與服務層級", "add": "新增層級列", "serviceTier": "服務層級", "threshold": "最小提示 Token", "multiplier": "倍率", "input_price": "每百萬輸入", "output_price": "每百萬輸出", "cache_read_price": "每百萬快取讀取", "cache_creation_5m_price": "每百萬 5 分鐘快取寫入", "cache_creation_30m_price": "每百萬 30 分鐘快取寫入", "cache_creation_1h_price": "每百萬 1 小時快取寫入", "image_output_price": "每百萬影像輸出" },
+    "warning": { "title": "缺少長上下文價格階梯", "longContext": "這個明確服務層價格會取代基礎階梯，但基礎階梯還有更高門檻。請新增對應的服務層門檻列，或改用倍率。" },
+    "rates": { "title": "費率", "add": "新增費率", "edit": "編輯費率", "created": "已建立費率。", "updated": "已更新費率。", "deleted": "已刪除費率。", "saveError": "無法儲存費率，請重試。", "deleteError": "無法刪除費率，請重試。", "empty": "此規則沒有維度費率。", "rule": "定價規則", "metric": "指標", "price": "價格", "unitSize": "單位大小", "priority": "優先順序", "conditions": "維度條件", "conditionKey": "維度名稱", "conditionValue": "預期值", "summary": "每 {{units}} 單位 {{price}}", "priorityValue": "優先順序 {{value}}" }
+  },
+  "settings": {
+    "title": "執行個體設定", "subtitle": "限制日誌儲存並選擇此執行個體記錄的內容。", "loadError": "無法載入執行個體設定，請重試。", "saved": "已儲存執行個體設定。", "saveError": "無法儲存執行個體設定，請重試。",
+    "storage": { "title": "保留與儲存", "description": "本文擷取至少需要一個正數上限，避免日誌無限成長。", "retention": "保留天數", "retentionHint": "留空可停用按時間清理。", "size": "資料庫大小上限（MiB）", "sizeHint": "留空可停用大小壓力清理。" },
+    "logs": { "enable_downstream_log": "下游中繼資料", "enable_downstream_logHint": "記錄呼叫端請求與回應中繼資料。", "enable_downstream_log_body": "下游本文", "enable_downstream_log_bodyHint": "同時儲存呼叫端請求與回應本文。", "enable_upstream_log": "上游中繼資料", "enable_upstream_logHint": "記錄每次上游嘗試及回應中繼資料。", "enable_upstream_log_body": "上游本文", "enable_upstream_log_bodyHint": "同時儲存上游請求與回應本文。" },
+    "redaction": { "title": "敏感資料遮罩", "disable": "停用日誌遮罩", "enabledMeaning": "遮罩已開啟。憑證、Cookie、授權標頭和已知密鑰欄位會在寫入日誌前移除。", "disabledMeaning": "遮罩已關閉。憑證、Cookie、使用者內容及其他敏感值可能以明文寫入資料庫。僅在你控制的執行個體上暫時使用。" }
   },
   "users": {
     "title": "使用者與金鑰",

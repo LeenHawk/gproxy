@@ -17,6 +17,8 @@ const ProvidersPage = lazy(() => import("@/pages/providers").then((module) => ({
 const RoutesPage = lazy(() => import("@/pages/routes").then((module) => ({ default: module.RoutesPage })))
 const UsagePage = lazy(() => import("@/pages/usage").then((module) => ({ default: module.UsagePage })))
 const LogsPage = lazy(() => import("@/pages/logs").then((module) => ({ default: module.LogsPage })))
+const PricingPage = lazy(() => import("@/pages/pricing").then((module) => ({ default: module.PricingPage })))
+const SettingsPage = lazy(() => import("@/pages/settings").then((module) => ({ default: module.SettingsPage })))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } })
 
@@ -52,6 +54,8 @@ function ConsoleApp() {
     usage: <UsagePage />,
     logs: <LogsPage />,
     channels: <ChannelsPage />,
+    pricing: <PricingPage />,
+    settings: <SettingsPage />,
   }[route]
   return (
     <AppShell route={route} username={state.user.username} onLogout={() => signOut.mutate()}>

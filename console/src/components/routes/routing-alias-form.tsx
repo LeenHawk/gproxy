@@ -7,8 +7,10 @@ import type { AliasDto } from "@/generated/AliasDto"
 import type { AliasWriteRequest } from "@/generated/AliasWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import { Button } from "@/components/ui/button"
+import { SearchableSelect } from "@/components/searchable-select"
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogFooter,
   DialogHeader,
@@ -16,7 +18,6 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { FormDialogContent } from "@/components/routes/form-dialog-content"
 
@@ -68,11 +69,11 @@ export function RoutingAliasForm({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <FormDialogContent opener={opener}>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t(alias ? "common.actions.edit" : "routes.routingAliases.add")}</DialogTitle>
           </DialogHeader>
-          <FieldGroup>
+          <DialogBody><FieldGroup>
             <Field>
               <FieldLabel htmlFor={aliasId}>{t("routes.routingAliases.alias")}</FieldLabel>
               <Input id={aliasId} className="font-mono" value={incoming} required autoFocus onChange={(event) => setIncoming(event.target.value)} />
@@ -83,15 +84,19 @@ export function RoutingAliasForm({
             </Field>
             <Field>
               <FieldLabel htmlFor={providerId}>{t("routes.routingAliases.provider")}</FieldLabel>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger id={providerId}><SelectValue /></SelectTrigger>
-                <SelectContent><SelectGroup>
-                  <SelectItem value="any">{t("routes.routingAliases.anyProvider")}</SelectItem>
-                  {providers.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
-                  ))}
-                </SelectGroup></SelectContent>
-              </Select>
+              <SearchableSelect
+                id={providerId}
+                value={provider}
+                options={[
+                  { value: "any", label: t("routes.routingAliases.anyProvider") },
+                  ...providers.map((item) => ({ value: String(item.id), label: item.name })),
+                ]}
+                placeholder={t("common.none")}
+                searchPlaceholder={t("common.search")}
+                emptyLabel={t("common.none")}
+                ariaLabel={t("routes.routingAliases.provider")}
+                onChange={setProvider}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor={priorityId}>{t("routes.routingAliases.priority")}</FieldLabel>
@@ -101,7 +106,7 @@ export function RoutingAliasForm({
               <FieldLabel htmlFor={enabledId}>{t("routes.routingAliases.enabled")}</FieldLabel>
               <Switch id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
             </Field>
-          </FieldGroup>
+          </FieldGroup></DialogBody>
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>
             <Button type="submit" disabled={mutation.isPending}>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/searchable-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { connectionSnippets, connectionSource } from "@/components/portal/connection-snippets"
 import { copyText } from "@/components/portal/copy-text"
@@ -70,12 +70,7 @@ export function ConnectionGuide({
           <>
             <Field>
               <FieldLabel htmlFor="portal-model">{t("portal.connect.model")}</FieldLabel>
-              <Select value={selectedModel} onValueChange={onModelChange}>
-                <SelectTrigger id="portal-model" className="w-full font-mono"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectGroup>{models.map((model) => (
-                  <SelectItem key={model.name} value={model.name}>{model.name}</SelectItem>
-                ))}</SelectGroup></SelectContent>
-              </Select>
+              <SearchableSelect id="portal-model" value={selectedModel} options={models.map((model) => ({ value: model.name, label: model.name }))} placeholder={t("common.none")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("portal.connect.model")} onChange={onModelChange} />
             </Field>
             {snippets.length > 0 ? <Tabs defaultValue={snippets[0].method}>
               <TabsList className="max-w-full overflow-x-auto">

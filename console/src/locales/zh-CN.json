@@ -14,6 +14,7 @@
     "none": "无",
     "optional": "可选",
     "required": "必填",
+    "search": "搜索…",
     "actions": {
       "create": "创建",
       "save": "保存",
@@ -23,7 +24,9 @@
       "close": "关闭",
       "edit": "编辑",
       "enable": "启用",
-      "disable": "停用"
+      "disable": "停用",
+      "add": "添加",
+      "delete": "删除"
     },
     "status": {
       "label": "状态",
@@ -55,6 +58,8 @@
     "usage": "用量与成本",
     "logs": "交换日志",
     "channels": "渠道",
+    "pricing": "定价",
+    "settings": "设置",
     "open": "打开导航",
     "close": "关闭导航"
   },
@@ -96,8 +101,10 @@
       "createTitle": "添加提供商",
       "editTitle": "编辑提供商",
       "channelHint": "渠道来自当前运行的 gproxy 二进制文件。",
-      "settingsHint": "传给所选渠道的 JSON 设置。",
+      "settingsHint": "高级 JSON 入口。日常编辑请使用上方由渠道声明的字段。",
       "settingsInvalid": "请输入有效的 JSON 对象。",
+      "advanced": "高级设置",
+      "jsonEscape": "编辑设置 JSON",
       "created": "已创建提供商。",
       "updated": "已更新提供商。",
       "createError": "无法创建提供商，请检查字段后重试。",
@@ -120,9 +127,13 @@
       "loadError": "无法加载凭据，请重试。",
       "label": "凭据标签",
       "unnamed": "凭据 #{{id}}",
-      "secret": "凭据密文",
-      "secretHint": "密文会加密存储，API 不会返回其内容。",
       "keepSecret": "留空以保留已存储的密文。",
+      "secretRequired": "请至少填写一个凭据字段。",
+      "manual": "手动填写凭据字段",
+      "weight": "流量权重",
+      "rpm": "每分钟请求数",
+      "tpm": "每分钟 Token 数",
+      "proxy": "代理覆盖 URL",
       "enabled": "启用凭据",
       "healthObserved": "观测于 {{time}}",
       "healthUnobserved": "尚无健康观测",
@@ -134,8 +145,16 @@
       "createError": "无法添加凭据，请检查密文后重试。",
       "updateError": "无法更新凭据，请重试。"
     },
+    "endpoints": {
+      "title": "端点覆盖",
+      "add": "添加端点",
+      "hint": "仅为必须使用不同绝对 URL 的操作添加覆盖。",
+      "kind": "操作",
+      "url": "端点 URL",
+      "urlPlaceholder": "https://api.example/v1/{model}",
+      "remove": "移除端点"
+    },
     "login": {
-      "description": "登录 {{channel}}，并在此页面内直接添加获得的凭据。",
       "method": "登录方式",
       "modes": {
         "authcode": "浏览器登录",
@@ -199,8 +218,10 @@
       "credential": "固定凭据",
       "anyCredential": "任意已启用凭据",
       "model": "上游模型",
-      "priority": "优先级",
-      "priorityHint": "数值越小，尝试顺序越靠前。",
+      "tier": "故障转移层级",
+      "tierHint": "只有第 0 层全部不可用后，第 1 层才接收流量。",
+      "weight": "权重",
+      "weightHint": "在同层健康成员间按此比例分配流量。",
       "enabled": "启用成员",
       "created": "已添加成员。",
       "updated": "已更新成员。",
@@ -231,6 +252,19 @@
       "updated": "已更新别名。",
       "saveError": "无法保存模型别名，请确认名称唯一。"
     }
+  },
+  "pricing": {
+    "title": "定价", "subtitle": "配置模型规则、维度费率和服务层级阶梯。", "loadError": "无法加载定价，请重试。",
+    "rules": { "add": "添加定价规则", "edit": "编辑定价规则", "created": "已创建定价规则。", "updated": "已更新定价规则。", "saveError": "无法保存定价规则，请重试。", "empty": "尚无定价规则。请先添加规则，流量结算才会产生非零成本。", "provider": "提供商", "allProviders": "所有提供商", "pattern": "模型匹配模式", "priority": "优先级", "enabled": "启用规则" },
+    "tiers": { "title": "上下文与服务层级", "add": "添加层级行", "serviceTier": "服务层级", "threshold": "最小提示 Token", "multiplier": "倍率", "input_price": "每百万输入", "output_price": "每百万输出", "cache_read_price": "每百万缓存读取", "cache_creation_5m_price": "每百万 5 分钟缓存写入", "cache_creation_30m_price": "每百万 30 分钟缓存写入", "cache_creation_1h_price": "每百万 1 小时缓存写入", "image_output_price": "每百万图像输出" },
+    "warning": { "title": "缺少长上下文价格阶梯", "longContext": "这个显式服务层价格会替换基础阶梯，但基础阶梯还有更高阈值。请添加对应的服务层阈值行，或改用倍率。" },
+    "rates": { "title": "费率", "add": "添加费率", "edit": "编辑费率", "created": "已创建费率。", "updated": "已更新费率。", "deleted": "已删除费率。", "saveError": "无法保存费率，请重试。", "deleteError": "无法删除费率，请重试。", "empty": "此规则没有维度费率。", "rule": "定价规则", "metric": "指标", "price": "价格", "unitSize": "单位大小", "priority": "优先级", "conditions": "维度条件", "conditionKey": "维度名称", "conditionValue": "期望值", "summary": "每 {{units}} 单位 {{price}}", "priorityValue": "优先级 {{value}}" }
+  },
+  "settings": {
+    "title": "实例设置", "subtitle": "限制日志存储并选择此实例记录的内容。", "loadError": "无法加载实例设置，请重试。", "saved": "已保存实例设置。", "saveError": "无法保存实例设置，请重试。",
+    "storage": { "title": "保留与存储", "description": "正文捕获至少需要一个正数上限，避免日志无限增长。", "retention": "保留天数", "retentionHint": "留空可停用按时间清理。", "size": "数据库大小上限（MiB）", "sizeHint": "留空可停用大小压力清理。" },
+    "logs": { "enable_downstream_log": "下游元数据", "enable_downstream_logHint": "记录调用方请求与响应元数据。", "enable_downstream_log_body": "下游正文", "enable_downstream_log_bodyHint": "同时存储调用方请求与响应正文。", "enable_upstream_log": "上游元数据", "enable_upstream_logHint": "记录每次上游尝试及响应元数据。", "enable_upstream_log_body": "上游正文", "enable_upstream_log_bodyHint": "同时存储上游请求与响应正文。" },
+    "redaction": { "title": "敏感数据脱敏", "disable": "停用日志脱敏", "enabledMeaning": "脱敏已开启。凭据、Cookie、授权请求头和已知密钥字段会在写入日志前移除。", "disabledMeaning": "脱敏已关闭。凭据、Cookie、用户内容及其他敏感值可能以明文写入数据库。仅在你控制的实例上临时使用。" }
   },
   "users": {
     "title": "用户与密钥",

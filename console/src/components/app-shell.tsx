@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, CableIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, RouteIcon } from "lucide-react"
+import { ActivityIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, RouteIcon, SettingsIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { LocaleSwitcher } from "@/components/locale-switcher"
@@ -15,6 +15,8 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "usage", icon: ActivityIcon },
   { route: "logs", icon: LogsIcon },
   { route: "channels", icon: NetworkIcon },
+  { route: "pricing", icon: CircleDollarSignIcon },
+  { route: "settings", icon: SettingsIcon },
 ]
 
 export function AppShell({ route, username, children, onLogout }: { route: AdminRoute; username: string; children: ReactNode; onLogout: () => void }) {

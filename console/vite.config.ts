@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
 
 const consoleDir = path.dirname(fileURLToPath(import.meta.url))
-const backend = "http://127.0.0.1:8787"
+const backend = process.env.GPROXY_DEV_BACKEND ?? "http://127.0.0.1:8787"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

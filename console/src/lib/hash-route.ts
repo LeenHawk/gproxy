@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react"
 
-export type AdminRoute = "overview" | "providers" | "routes" | "keys" | "usage" | "logs" | "channels"
+export type AdminRoute = "overview" | "providers" | "routes" | "keys" | "usage" | "logs" | "channels" | "pricing" | "settings"
 
-const routes = new Set<AdminRoute>(["overview", "providers", "routes", "keys", "usage", "logs", "channels"])
+const routes = new Set<AdminRoute>(["overview", "providers", "routes", "keys", "usage", "logs", "channels", "pricing", "settings"])
 
 function readRoute(): AdminRoute {
   const value = window.location.hash.replace(/^#\/?/, "") as AdminRoute

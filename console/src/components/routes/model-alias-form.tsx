@@ -7,8 +7,10 @@ import type { ModelAliasDto } from "@/generated/ModelAliasDto"
 import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
 import type { RouteDto } from "@/generated/RouteDto"
 import { Button } from "@/components/ui/button"
+import { SearchableSelect } from "@/components/searchable-select"
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogFooter,
   DialogHeader,
@@ -16,7 +18,6 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { FormDialogContent } from "@/components/routes/form-dialog-content"
 
@@ -58,29 +59,33 @@ export function ModelAliasForm({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <FormDialogContent opener={opener}>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t(alias ? "common.actions.edit" : "routes.aliases.add")}</DialogTitle>
           </DialogHeader>
-          <FieldGroup>
+          <DialogBody><FieldGroup>
             <Field>
               <FieldLabel htmlFor={nameId}>{t("routes.aliases.name")}</FieldLabel>
               <Input id={nameId} className="font-mono" value={name} required autoFocus onChange={(event) => setName(event.target.value)} />
             </Field>
             <Field>
               <FieldLabel htmlFor={routeId}>{t("routes.aliases.route")}</FieldLabel>
-              <Select value={selectedRoute} onValueChange={setSelectedRoute}>
-                <SelectTrigger id={routeId}><SelectValue /></SelectTrigger>
-                <SelectContent><SelectGroup>{routes.map((route) => (
-                  <SelectItem key={route.id} value={String(route.id)}>{route.name}</SelectItem>
-                ))}</SelectGroup></SelectContent>
-              </Select>
+              <SearchableSelect
+                id={routeId}
+                value={selectedRoute}
+                options={routes.map((route) => ({ value: String(route.id), label: route.name }))}
+                placeholder={t("common.none")}
+                searchPlaceholder={t("common.search")}
+                emptyLabel={t("common.none")}
+                ariaLabel={t("routes.aliases.route")}
+                onChange={setSelectedRoute}
+              />
             </Field>
             <Field orientation="horizontal">
               <FieldLabel htmlFor={enabledId}>{t("routes.aliases.enabled")}</FieldLabel>
               <Switch id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
             </Field>
-          </FieldGroup>
+          </FieldGroup></DialogBody>
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>
             <Button type="submit" disabled={mutation.isPending}>

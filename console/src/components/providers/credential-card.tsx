@@ -1,6 +1,8 @@
+import type { ChannelDto } from "@/generated/ChannelDto"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
+import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { PencilIcon } from "lucide-react"
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
@@ -17,6 +19,8 @@ import { formatInstant } from "@/lib/format"
 
 type Props = {
   credential: CredentialDto
+  channel?: ChannelDto
+  presets: Array<TlsPresetDto>
   cycles: Array<CredentialQuotaCycleDto>
   cyclesLoading: boolean
   cyclesError: boolean
@@ -38,6 +42,11 @@ export function CredentialCard(props: Props) {
         label: credential.label,
         secret: null,
         enabled,
+        weight: credential.weight,
+        rpm_limit: credential.rpm_limit,
+        tpm_limit: credential.tpm_limit,
+        proxy_url: credential.proxy_url,
+        tls_fingerprint: credential.tls_fingerprint,
       }, credential.id)
       toast.success(t("providers.credentials.updated"))
     } catch {
@@ -72,6 +81,8 @@ export function CredentialCard(props: Props) {
           <CredentialDialog
             providerId={credential.provider_id}
             credential={credential}
+            channel={props.channel}
+            presets={props.presets}
             onSave={props.onSave}
             trigger={<Button variant="outline" size="sm" aria-label={`${t("common.actions.edit")}: ${name}`}><PencilIcon data-icon="inline-start" />{t("common.actions.edit")}</Button>}
           />

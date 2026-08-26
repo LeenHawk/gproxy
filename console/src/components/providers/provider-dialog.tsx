@@ -10,9 +10,12 @@ import { ApiError } from "@/api/client"
 import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "@/components/providers/fingerprint"
 import { FingerprintField } from "@/components/providers/fingerprint-field"
 import { parseJsonObject, prettyJson } from "@/components/providers/json"
+import { ProviderSettingsFields } from "@/components/providers/provider-settings-fields"
+import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -23,9 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 
 type Draft = {
   name: string
@@ -85,6 +86,7 @@ export function ProviderDialog(props: Props) {
     if (value === DEFAULT_FINGERPRINT) change("fingerprint", "")
     else if (value !== CUSTOM_FINGERPRINT) change("fingerprint", prettyJson(props.presets.find((item) => item.id === value)?.fingerprint))
   }
+  const selectedChannel = props.channels.find((channel) => channel.id === draft.channel)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -125,12 +127,12 @@ export function ProviderDialog(props: Props) {
     <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (value) reset() }}>
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-2xl" showCloseButton={false}>
-        <form className="flex flex-col gap-5" onSubmit={submit}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t(props.provider ? "providers.form.editTitle" : "providers.form.createTitle")}</DialogTitle>
             <DialogDescription>{t("providers.subtitle")}</DialogDescription>
           </DialogHeader>
-          <FieldGroup>
+          <DialogBody><FieldGroup>
             <Field data-invalid={Boolean(errors.name) || undefined}>
               <FieldLabel htmlFor={`${id}-name`}>{t("providers.fields.name")}</FieldLabel>
               <Input id={`${id}-name`} value={draft.name} onChange={(event) => change("name", event.target.value)} aria-invalid={Boolean(errors.name) || undefined} />
@@ -138,39 +140,46 @@ export function ProviderDialog(props: Props) {
             </Field>
             <Field data-invalid={Boolean(errors.channel) || props.channelsError || undefined}>
               <FieldLabel htmlFor={`${id}-channel`}>{t("providers.fields.channel")}</FieldLabel>
-              <Select value={draft.channel} onValueChange={(value) => change("channel", value)} disabled={props.channelsLoading}>
-                <SelectTrigger id={`${id}-channel`} className="w-full" aria-invalid={Boolean(errors.channel) || props.channelsError || undefined}>
-                  <SelectValue placeholder={props.channelsLoading ? t("common.loading") : t("common.none")} />
-                </SelectTrigger>
-                <SelectContent><SelectGroup>{props.channels.map((channel) => <SelectItem key={channel.id} value={channel.id}>{channel.display_name}</SelectItem>)}</SelectGroup></SelectContent>
-              </Select>
+              <SearchableSelect
+                value={draft.channel}
+                id={`${id}-channel`}
+                options={props.channels.map((channel) => ({ value: channel.id, label: channel.display_name, keywords: channel.id }))}
+                placeholder={props.channelsLoading ? t("common.loading") : t("common.none")}
+                searchPlaceholder={t("common.search")}
+                emptyLabel={t("common.none")}
+                ariaLabel={t("providers.fields.channel")}
+                disabled={props.channelsLoading}
+                onChange={(value) => change("channel", value)}
+              />
               <FieldDescription>{t("providers.form.channelHint")}</FieldDescription>
               {props.channelsError ? <FieldError>{t("common.errors.load")}</FieldError> : null}
               {errors.channel ? <FieldError>{errors.channel}</FieldError> : null}
             </Field>
-            <Field data-invalid={Boolean(errors.settings) || undefined}>
-              <FieldLabel htmlFor={`${id}-settings`}>{t("providers.fields.settings")}</FieldLabel>
-              <Textarea id={`${id}-settings`} className="machine-text min-h-32" value={draft.settings} onChange={(event) => change("settings", event.target.value)} aria-invalid={Boolean(errors.settings) || undefined} />
-              <FieldDescription>{t("providers.form.settingsHint")}</FieldDescription>
-              {errors.settings ? <FieldError>{errors.settings}</FieldError> : null}
-            </Field>
-            <FingerprintField
-              text={draft.fingerprint}
-              preset={draft.preset}
-              presets={props.presets}
-              presetsLoading={props.presetsLoading}
-              presetsError={props.presetsError}
-              validationError={errors.fingerprint}
-              serverError={serverFingerprintError}
-              onPresetChange={selectPreset}
-              onTextChange={(value) => { change("fingerprint", value); change("preset", CUSTOM_FINGERPRINT); setServerFingerprintError("") }}
+            <ProviderSettingsFields
+              channel={selectedChannel}
+              text={draft.settings}
+              error={errors.settings}
+              onChange={(value) => change("settings", value)}
+              advancedChildren={(
+                <FingerprintField
+                  text={draft.fingerprint}
+                  preset={draft.preset}
+                  presets={props.presets}
+                  presetsLoading={props.presetsLoading}
+                  presetsError={props.presetsError}
+                  validationError={errors.fingerprint}
+                  serverError={serverFingerprintError}
+                  onPresetChange={selectPreset}
+                  onTextChange={(value) => { change("fingerprint", value); change("preset", CUSTOM_FINGERPRINT); setServerFingerprintError("") }}
+                />
+              )}
             />
             <Field orientation="horizontal">
               <FieldLabel htmlFor={`${id}-enabled`}>{t("providers.fields.enabled")}</FieldLabel>
               <Switch id={`${id}-enabled`} checked={draft.enabled} onCheckedChange={(value) => change("enabled", value)} />
             </Field>
           </FieldGroup>
-          {errors.submit ? <FieldError>{errors.submit}</FieldError> : null}
+          {errors.submit ? <FieldError>{errors.submit}</FieldError> : null}</DialogBody>
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>
             <Button type="submit" disabled={saving}>{t(saving ? "common.actions.saving" : props.provider ? "common.actions.save" : "common.actions.create")}</Button>

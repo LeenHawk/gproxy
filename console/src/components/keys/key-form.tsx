@@ -4,7 +4,7 @@ import type { UserDto } from "@/generated/UserDto"
 import type { UserKeyCreateRequest } from "@/generated/UserKeyCreateRequest"
 import type { UserKeyPrefix } from "@/generated/UserKeyPrefix"
 import { Button } from "@/components/ui/button"
-import { DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -36,8 +36,8 @@ export function KeyForm({ users, pending, onSubmit, returnFocus }: { users: Arra
   return (
     <DialogContent showCloseButton={false} onCloseAutoFocus={(event) => { event.preventDefault(); returnFocus() }}>
       <DialogHeader><DialogTitle>{t("users.keys.create")}</DialogTitle></DialogHeader>
-      <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
-        <FieldGroup>
+      <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void submit(event)}>
+        <DialogBody><FieldGroup>
           <Field>
             <FieldLabel htmlFor={`${id}-user`}>{t("access.subjectKinds.user")}</FieldLabel>
             <Select value={userId} onValueChange={setUserId}>
@@ -60,7 +60,7 @@ export function KeyForm({ users, pending, onSubmit, returnFocus }: { users: Arra
             <FieldLabel htmlFor={`${id}-expires`}>{t("users.keys.expiresAt")}</FieldLabel>
             <Input id={`${id}-expires`} type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
           </Field>
-        </FieldGroup>
+        </FieldGroup></DialogBody>
         <DialogFooter>
           <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>
           <Button type="submit" disabled={pending || !userId}>{t(pending ? "common.actions.saving" : "common.actions.create")}</Button>

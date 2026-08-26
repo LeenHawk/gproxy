@@ -4,6 +4,7 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ModelAliasDto } from "@/generated/ModelAliasDto"
 import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
+import type { InstanceSettingsDto } from "@/generated/InstanceSettingsDto"
 import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { PriceRateWriteRequest } from "@/generated/PriceRateWriteRequest"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
@@ -45,3 +46,6 @@ export const savePriceRate = (value: PriceRateWriteRequest, id?: number) =>
   save("/admin/price-rates", value, id)
 export const deletePriceRate = (id: number) =>
   api<void>(`/admin/price-rates/${id}`, { method: "DELETE" })
+export const instanceSettings = () => api<InstanceSettingsDto>("/admin/instance-settings")
+export const saveInstanceSettings = (value: InstanceSettingsDto) =>
+  api<InstanceSettingsDto>("/admin/instance-settings", json("PATCH", value))

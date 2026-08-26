@@ -8,6 +8,7 @@ import type { RouteWriteRequest } from "@/generated/RouteWriteRequest"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogFooter,
   DialogHeader,
@@ -54,11 +55,11 @@ export function RouteForm({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <FormDialogContent opener={opener}>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t(route ? "routes.form.editTitle" : "routes.form.createTitle")}</DialogTitle>
           </DialogHeader>
-          <FieldGroup>
+          <DialogBody><FieldGroup>
             <Field>
               <FieldLabel htmlFor={nameId}>{t("routes.fields.name")}</FieldLabel>
               <Input id={nameId} value={name} required autoFocus onChange={(event) => setName(event.target.value)} />
@@ -80,7 +81,7 @@ export function RouteForm({
               <FieldLabel htmlFor={enabledId}>{t("routes.fields.enabled")}</FieldLabel>
               <Switch id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
             </Field>
-          </FieldGroup>
+          </FieldGroup></DialogBody>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">{t("common.actions.cancel")}</Button>

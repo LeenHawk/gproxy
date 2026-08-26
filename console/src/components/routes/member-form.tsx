@@ -9,8 +9,10 @@ import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import type { RouteMemberWriteRequest } from "@/generated/RouteMemberWriteRequest"
 import { Button } from "@/components/ui/button"
+import { SearchableSelect } from "@/components/searchable-select"
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogFooter,
   DialogHeader,
@@ -18,7 +20,6 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { FormDialogContent } from "@/components/routes/form-dialog-content"
 
@@ -43,12 +44,14 @@ export function MemberForm({
   const providerIdField = useId()
   const credentialIdField = useId()
   const modelId = useId()
-  const priorityId = useId()
+  const tierId = useId()
+  const weightId = useId()
   const enabledId = useId()
   const [providerId, setProviderId] = useState(member?.provider_id ?? providers[0]?.id ?? 0)
   const [credentialId, setCredentialId] = useState(member?.credential_id == null ? "any" : String(member.credential_id))
   const [model, setModel] = useState(member?.upstream_model ?? "")
-  const [priority, setPriority] = useState(String(member?.priority ?? 0))
+  const [tier, setTier] = useState(String(member?.tier ?? 0))
+  const [weight, setWeight] = useState(String(member?.weight ?? 100))
   const [enabled, setEnabled] = useState(member?.enabled ?? true)
   const providerCredentials = useMemo(
     () => credentials.filter((credential) => credential.provider_id === providerId),
@@ -71,7 +74,8 @@ export function MemberForm({
       provider_id: providerId,
       credential_id: credentialId === "any" ? null : Number(credentialId),
       upstream_model: model.trim(),
-      priority: Number(priority),
+      tier: Number(tier),
+      weight: Number(weight),
       enabled,
     })
   }
@@ -79,54 +83,64 @@ export function MemberForm({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <FormDialogContent opener={opener}>
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t(member ? "common.actions.edit" : "routes.members.add")}</DialogTitle>
           </DialogHeader>
-          <FieldGroup>
+          <DialogBody><FieldGroup>
             <Field>
               <FieldLabel htmlFor={providerIdField}>{t("routes.members.provider")}</FieldLabel>
-              <Select
+              <SearchableSelect
                 value={String(providerId)}
-                onValueChange={(value) => {
+                id={providerIdField}
+                options={providers.map((provider) => ({ value: String(provider.id), label: provider.name, keywords: provider.channel }))}
+                placeholder={t("common.none")}
+                searchPlaceholder={t("common.search")}
+                emptyLabel={t("common.none")}
+                ariaLabel={t("routes.members.provider")}
+                onChange={(value) => {
                   setProviderId(Number(value))
                   setCredentialId("any")
                 }}
-              >
-                <SelectTrigger id={providerIdField}><SelectValue /></SelectTrigger>
-                <SelectContent><SelectGroup>{providers.map((provider) => (
-                  <SelectItem key={provider.id} value={String(provider.id)}>{provider.name}</SelectItem>
-                ))}</SelectGroup></SelectContent>
-              </Select>
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor={credentialIdField}>{t("routes.members.credential")}</FieldLabel>
-              <Select value={credentialId} onValueChange={setCredentialId}>
-                <SelectTrigger id={credentialIdField}><SelectValue /></SelectTrigger>
-                <SelectContent><SelectGroup>
-                  <SelectItem value="any">{t("routes.members.anyCredential")}</SelectItem>
-                  {providerCredentials.map((credential) => (
-                    <SelectItem key={credential.id} value={String(credential.id)}>
-                      {credential.label ?? String(credential.id)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup></SelectContent>
-              </Select>
+              <SearchableSelect
+                value={credentialId}
+                id={credentialIdField}
+                options={[
+                  { value: "any", label: t("routes.members.anyCredential") },
+                  ...providerCredentials.map((credential) => ({ value: String(credential.id), label: credential.label ?? String(credential.id) })),
+                ]}
+                placeholder={t("common.none")}
+                searchPlaceholder={t("common.search")}
+                emptyLabel={t("common.none")}
+                ariaLabel={t("routes.members.credential")}
+                onChange={setCredentialId}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor={modelId}>{t("routes.members.model")}</FieldLabel>
               <Input id={modelId} className="font-mono" value={model} required onChange={(event) => setModel(event.target.value)} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor={priorityId}>{t("routes.members.priority")}</FieldLabel>
-              <Input id={priorityId} type="number" step={1} value={priority} required onChange={(event) => setPriority(event.target.value)} />
-              <FieldDescription>{t("routes.members.priorityHint")}</FieldDescription>
-            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor={tierId}>{t("routes.members.tier")}</FieldLabel>
+                <Input id={tierId} type="number" min={0} step={1} value={tier} required onChange={(event) => setTier(event.target.value)} />
+                <FieldDescription>{t("routes.members.tierHint")}</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={weightId}>{t("routes.members.weight")}</FieldLabel>
+                <Input id={weightId} type="number" min={1} step={1} value={weight} required onChange={(event) => setWeight(event.target.value)} />
+                <FieldDescription>{t("routes.members.weightHint")}</FieldDescription>
+              </Field>
+            </div>
             <Field orientation="horizontal">
               <FieldLabel htmlFor={enabledId}>{t("routes.members.enabled")}</FieldLabel>
               <Switch id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
             </Field>
-          </FieldGroup>
+          </FieldGroup></DialogBody>
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>
             <Button type="submit" disabled={mutation.isPending}>

@@ -4,6 +4,7 @@ import type { PermissionWriteRequest } from "@/generated/PermissionWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import { SubjectSelect, type SubjectSelectProps } from "@/components/keys/subject-select"
 import { Button } from "@/components/ui/button"
+import { SearchableSelect } from "@/components/searchable-select"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -45,13 +46,7 @@ export function PermissionForm(props: PermissionFormProps) {
       <FieldGroup className="grid sm:grid-cols-3">
         <Field>
           <FieldLabel htmlFor={`${id}-provider`}>{t("access.permissions.provider")}</FieldLabel>
-          <Select value={providerId} onValueChange={setProviderId}>
-            <SelectTrigger id={`${id}-provider`}><SelectValue /></SelectTrigger>
-            <SelectContent><SelectGroup>
-              <SelectItem value="all">{t("access.permissions.allProviders")}</SelectItem>
-              {props.providers.map((provider) => <SelectItem key={provider.id} value={String(provider.id)}>{provider.name}</SelectItem>)}
-            </SelectGroup></SelectContent>
-          </Select>
+          <SearchableSelect id={`${id}-provider`} value={providerId} options={[{ value: "all", label: t("access.permissions.allProviders") }, ...props.providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} placeholder={t("common.none")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("access.permissions.provider")} onChange={setProviderId} />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-group`}>{t("access.permissions.operationGroup")}</FieldLabel>

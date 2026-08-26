@@ -29,7 +29,7 @@ export function MembersPanel({
   const { t } = useTranslation()
   const [form, setForm] = useState<{ member: RouteMemberDto | null; opener: HTMLElement } | null>(null)
   const routeMembers = useMemo(
-    () => members.filter((member) => member.route_id === route.id).sort((a, b) => a.priority - b.priority || a.id - b.id),
+    () => members.filter((member) => member.route_id === route.id).sort((a, b) => a.tier - b.tier || b.weight - a.weight || a.id - b.id),
     [members, route.id],
   )
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
@@ -68,7 +68,8 @@ export function MembersPanel({
               <TableHead>{t("routes.members.provider")}</TableHead>
               <TableHead>{t("routes.members.credential")}</TableHead>
               <TableHead>{t("routes.members.model")}</TableHead>
-              <TableHead>{t("routes.members.priority")}</TableHead>
+              <TableHead>{t("routes.members.tier")}</TableHead>
+              <TableHead>{t("routes.members.weight")}</TableHead>
               <TableHead>{t("routes.members.enabled")}</TableHead>
               <TableHead><span className="sr-only">{t("common.actions.edit")}</span></TableHead>
             </TableRow></TableHeader>
@@ -83,7 +84,8 @@ export function MembersPanel({
                       : credential?.label ?? member.credential_id}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{member.upstream_model}</TableCell>
-                  <TableCell className="font-mono tabular-nums">{member.priority}</TableCell>
+                  <TableCell className="font-mono tabular-nums">{member.tier}</TableCell>
+                  <TableCell className="font-mono tabular-nums">{member.weight}</TableCell>
                   <TableCell>
                     <EnabledSwitch
                       checked={member.enabled}
@@ -94,7 +96,8 @@ export function MembersPanel({
                         provider_id: member.provider_id,
                         credential_id: member.credential_id,
                         upstream_model: member.upstream_model,
-                        priority: member.priority,
+                        tier: member.tier,
+                        weight: member.weight,
                         enabled,
                       }, member.id)}
                       onChanged={onChanged}

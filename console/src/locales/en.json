@@ -14,6 +14,7 @@
     "none": "None",
     "optional": "Optional",
     "required": "Required",
+    "search": "Search…",
     "actions": {
       "create": "Create",
       "save": "Save",
@@ -23,7 +24,9 @@
       "close": "Close",
       "edit": "Edit",
       "enable": "Enable",
-      "disable": "Disable"
+      "disable": "Disable",
+      "add": "Add",
+      "delete": "Delete"
     },
     "status": {
       "label": "Status",
@@ -55,6 +58,8 @@
     "usage": "Usage and cost",
     "logs": "Exchange logs",
     "channels": "Channels",
+    "pricing": "Pricing",
+    "settings": "Settings",
     "open": "Open navigation",
     "close": "Close navigation"
   },
@@ -96,8 +101,10 @@
       "createTitle": "Add provider",
       "editTitle": "Edit provider",
       "channelHint": "Channels come from this running gproxy binary.",
-      "settingsHint": "JSON settings passed to the selected channel.",
+      "settingsHint": "Advanced JSON escape hatch. Declared fields above remain the normal editing path.",
       "settingsInvalid": "Enter a valid JSON object.",
+      "advanced": "Advanced settings",
+      "jsonEscape": "Edit settings JSON",
       "created": "Provider created.",
       "updated": "Provider updated.",
       "createError": "Could not create the provider. Check the fields and retry.",
@@ -120,9 +127,13 @@
       "loadError": "Could not load credentials. Retry.",
       "label": "Credential label",
       "unnamed": "Credential #{{id}}",
-      "secret": "Credential secret",
-      "secretHint": "Secrets are encrypted at rest and are never returned by the API.",
       "keepSecret": "Leave empty to keep the stored secret.",
+      "secretRequired": "Enter at least one credential field.",
+      "manual": "Enter credential fields manually",
+      "weight": "Traffic weight",
+      "rpm": "Requests per minute",
+      "tpm": "Tokens per minute",
+      "proxy": "Proxy override URL",
       "enabled": "Credential enabled",
       "healthObserved": "Observed {{time}}",
       "healthUnobserved": "No health observation yet",
@@ -134,8 +145,16 @@
       "createError": "Could not add the credential. Check the secret and retry.",
       "updateError": "Could not update the credential. Retry."
     },
+    "endpoints": {
+      "title": "Endpoint overrides",
+      "add": "Add endpoint",
+      "hint": "Override only operations that must use a different absolute URL.",
+      "kind": "Operation",
+      "url": "Endpoint URL",
+      "urlPlaceholder": "https://api.example/v1/{model}",
+      "remove": "Remove endpoint"
+    },
     "login": {
-      "description": "Sign in to {{channel}} and add the resulting credential without leaving this screen.",
       "method": "Sign-in method",
       "modes": {
         "authcode": "Browser sign-in",
@@ -199,8 +218,10 @@
       "credential": "Pinned credential",
       "anyCredential": "Any enabled credential",
       "model": "Upstream model",
-      "priority": "Priority",
-      "priorityHint": "Lower numbers are attempted first.",
+      "tier": "Failover tier",
+      "tierHint": "Tier 0 is exhausted before tier 1 receives traffic.",
+      "weight": "Weight",
+      "weightHint": "Splits traffic among healthy members in this tier.",
       "enabled": "Member enabled",
       "created": "Member added.",
       "updated": "Member updated.",
@@ -231,6 +252,29 @@
       "updated": "Alias updated.",
       "saveError": "Could not save the model alias. Check that the name is unique."
     }
+  },
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "Configure model rules, dimensional rates, and service-tier ladders.",
+    "loadError": "Could not load pricing. Retry.",
+    "rules": {
+      "add": "Add price rule", "edit": "Edit price rule", "created": "Price rule created.", "updated": "Price rule updated.", "saveError": "Could not save the price rule. Retry.", "empty": "No price rules. Add one before traffic can settle at a non-zero cost.", "provider": "Provider", "allProviders": "All providers", "pattern": "Model pattern", "priority": "Priority", "enabled": "Rule enabled"
+    },
+    "tiers": {
+      "title": "Prompt and service tiers", "add": "Add tier row", "serviceTier": "Service tier", "threshold": "Minimum prompt tokens", "multiplier": "Multiplier", "input_price": "Input per million", "output_price": "Output per million", "cache_read_price": "Cache read per million", "cache_creation_5m_price": "5m cache write per million", "cache_creation_30m_price": "30m cache write per million", "cache_creation_1h_price": "1h cache write per million", "image_output_price": "Image output per million"
+    },
+    "warning": { "title": "Long-context price step is missing", "longContext": "This explicit service-tier price replaces the base ladder, but the base ladder has a higher threshold. Add the matching service-tier threshold row or use a multiplier." },
+    "rates": {
+      "title": "Rates", "add": "Add rate", "edit": "Edit rate", "created": "Rate created.", "updated": "Rate updated.", "deleted": "Rate deleted.", "saveError": "Could not save the rate. Retry.", "deleteError": "Could not delete the rate. Retry.", "empty": "No dimensional rates for this rule.", "rule": "Price rule", "metric": "Metric", "price": "Price", "unitSize": "Unit size", "priority": "Priority", "conditions": "Dimension conditions", "conditionKey": "Dimension name", "conditionValue": "Expected value", "summary": "{{price}} per {{units}} units", "priorityValue": "Priority {{value}}"
+    }
+  },
+  "settings": {
+    "title": "Instance settings", "subtitle": "Bound log storage and choose exactly what this instance records.", "loadError": "Could not load instance settings. Retry.", "saved": "Instance settings saved.", "saveError": "Could not save instance settings. Retry.",
+    "storage": { "title": "Retention and storage", "description": "Body capture requires at least one positive bound so logs cannot grow without limit.", "retention": "Retention days", "retentionHint": "Leave empty to disable age-based cleanup.", "size": "Database size cap (MiB)", "sizeHint": "Leave empty to disable size-pressure cleanup." },
+    "logs": {
+      "enable_downstream_log": "Downstream metadata", "enable_downstream_logHint": "Record caller request and response metadata.", "enable_downstream_log_body": "Downstream bodies", "enable_downstream_log_bodyHint": "Also store caller request and response bodies.", "enable_upstream_log": "Upstream metadata", "enable_upstream_logHint": "Record every upstream attempt and response metadata.", "enable_upstream_log_body": "Upstream bodies", "enable_upstream_log_bodyHint": "Also store upstream request and response bodies."
+    },
+    "redaction": { "title": "Sensitive-data redaction", "disable": "Disable log redaction", "enabledMeaning": "Redaction is on. Credentials, cookies, authorization headers, and known secret fields are removed before logs are stored.", "disabledMeaning": "Redaction is off. Credentials, cookies, user content, and other sensitive values may be written to the database in clear text. Use this only temporarily on an instance you control." }
   },
   "users": {
     "title": "Users and keys",

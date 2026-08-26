@@ -1,6 +1,8 @@
+import type { ChannelDto } from "@/generated/ChannelDto"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
+import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { CredentialCard } from "@/components/providers/credential-card"
@@ -11,6 +13,7 @@ import { Button } from "@/components/ui/button"
 type Props = {
   providerId: number
   channel?: ChannelDto
+  presets: Array<TlsPresetDto>
   credentials: Array<CredentialDto>
   cyclesByCredential: Map<number, Array<CredentialQuotaCycleDto>>
   credentialsLoading: boolean
@@ -31,6 +34,7 @@ export function CredentialList(props: Props) {
         <CredentialDialog
           providerId={props.providerId}
           channel={props.channel}
+          presets={props.presets}
           onSave={props.onSave}
           trigger={<Button variant="outline" size="sm"><PlusIcon data-icon="inline-start" />{t("providers.credentials.add")}</Button>}
         />
@@ -45,6 +49,8 @@ export function CredentialList(props: Props) {
             <CredentialCard
               key={credential.id}
               credential={credential}
+              channel={props.channel}
+              presets={props.presets}
               cycles={props.cyclesByCredential.get(credential.id) ?? []}
               cyclesLoading={props.cyclesLoading}
               cyclesError={props.cyclesError}
@@ -57,4 +63,3 @@ export function CredentialList(props: Props) {
     </section>
   )
 }
-import type { ChannelDto } from "@/generated/ChannelDto"
