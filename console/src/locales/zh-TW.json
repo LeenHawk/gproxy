@@ -132,6 +132,42 @@
       "updated": "已更新憑證。",
       "createError": "無法新增憑證，請檢查機密資料後重試。",
       "updateError": "無法更新憑證，請重試。"
+    },
+    "login": {
+      "description": "登入 {{channel}}，並在此畫面內直接新增取得的憑證。",
+      "method": "登入方式",
+      "modes": {
+        "authcode": "瀏覽器登入",
+        "device": "裝置代碼",
+        "cookie": "瀏覽器 Cookie"
+      },
+      "labelHint": "選填。建議使用能區分上游帳號的標籤。",
+      "start": "開始登入",
+      "starting": "正在開始…",
+      "openAuthorize": "開啟授權頁面",
+      "callbackLabel": "重新導向後的網址",
+      "callbackHint": "授權後，將瀏覽器網址列中的完整網址貼到這裡。",
+      "complete": "完成登入",
+      "completing": "正在完成…",
+      "openVerification": "開啟驗證頁面",
+      "deviceCode": "輸入此代碼",
+      "pending": "正在等待授權…",
+      "retryPoll": "重試狀態檢查",
+      "restart": "重新開始",
+      "cookieLabel": "瀏覽器工作階段 Cookie",
+      "cookieHint": "貼上工作階段 Cookie。它只會傳送一次，API 不會將其傳回。",
+      "errors": {
+        "startTitle": "無法開始登入",
+        "startDescription": "供應商拒絕了啟動步驟。請檢查供應商設定後重試。",
+        "completeTitle": "無法完成登入",
+        "completeDescription": "代碼交換失敗。請檢查重新導向後的網址並重試此步驟。",
+        "pollTitle": "無法檢查授權狀態",
+        "pollDescription": "供應商狀態檢查失敗。無需重新開始，直接重試即可。",
+        "deniedTitle": "授權已拒絕",
+        "deniedDescription": "供應商拒絕了此裝置請求，或請求已過期。請重新開始以取得新代碼。",
+        "cookieTitle": "無法交換 Cookie",
+        "cookieDescription": "供應商拒絕了 Cookie。請檢查後重試此步驟。"
+      }
     }
   },
   "routes": {

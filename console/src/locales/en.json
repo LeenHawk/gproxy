@@ -132,6 +132,42 @@
       "updated": "Credential updated.",
       "createError": "Could not add the credential. Check the secret and retry.",
       "updateError": "Could not update the credential. Retry."
+    },
+    "login": {
+      "description": "Sign in to {{channel}} and add the resulting credential without leaving this screen.",
+      "method": "Sign-in method",
+      "modes": {
+        "authcode": "Browser sign-in",
+        "device": "Device code",
+        "cookie": "Browser cookie"
+      },
+      "labelHint": "Optional. Use a label that identifies the upstream account.",
+      "start": "Start sign-in",
+      "starting": "Starting…",
+      "openAuthorize": "Open authorization page",
+      "callbackLabel": "Redirected URL",
+      "callbackHint": "After authorizing, paste the full URL from the browser address bar here.",
+      "complete": "Complete sign-in",
+      "completing": "Completing…",
+      "openVerification": "Open verification page",
+      "deviceCode": "Enter this code",
+      "pending": "Waiting for authorization…",
+      "retryPoll": "Retry status check",
+      "restart": "Start again",
+      "cookieLabel": "Browser session cookie",
+      "cookieHint": "Paste the session cookie. It is sent once and never returned by the API.",
+      "errors": {
+        "startTitle": "Could not start sign-in",
+        "startDescription": "The provider rejected the start step. Check the provider settings and retry.",
+        "completeTitle": "Could not complete sign-in",
+        "completeDescription": "The code exchange failed. Check the redirected URL and retry this step.",
+        "pollTitle": "Could not check authorization",
+        "pollDescription": "The provider status check failed. Retry without starting over.",
+        "deniedTitle": "Authorization denied",
+        "deniedDescription": "The provider denied or expired this device request. Start again to get a new code.",
+        "cookieTitle": "Could not exchange cookie",
+        "cookieDescription": "The provider rejected the cookie. Check it and retry this step."
+      }
     }
   },
   "routes": {

@@ -5,6 +5,7 @@ import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { parseJson } from "@/components/providers/json"
+import { CredentialWizard } from "@/components/providers/credential-wizard"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 type Props = {
   providerId: number
+  channel?: ChannelDto
   credential?: CredentialDto
   trigger: ReactElement
   onSave: (value: CredentialWriteRequest, id?: number) => Promise<void>
@@ -81,6 +83,18 @@ export function CredentialDialog(props: Props) {
     <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (value) reset() }}>
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+        {!props.credential && props.channel?.login ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("providers.credentials.add")}</DialogTitle>
+              <DialogDescription>{t("providers.login.description", { channel: props.channel.display_name })}</DialogDescription>
+            </DialogHeader>
+            <CredentialWizard providerId={props.providerId} channel={props.channel} onDone={() => setOpen(false)} />
+            <DialogFooter>
+              <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>
+            </DialogFooter>
+          </>
+        ) : (
         <form className="flex flex-col gap-5" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t(props.credential ? "common.actions.edit" : "providers.credentials.add")}</DialogTitle>
@@ -116,7 +130,9 @@ export function CredentialDialog(props: Props) {
             <Button type="submit" disabled={saving}>{t(saving ? "common.actions.saving" : props.credential ? "common.actions.save" : "common.actions.create")}</Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   )
 }
+import type { ChannelDto } from "@/generated/ChannelDto"

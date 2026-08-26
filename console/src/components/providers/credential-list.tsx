@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 
 type Props = {
   providerId: number
+  channel?: ChannelDto
   credentials: Array<CredentialDto>
   cyclesByCredential: Map<number, Array<CredentialQuotaCycleDto>>
   credentialsLoading: boolean
@@ -29,6 +30,7 @@ export function CredentialList(props: Props) {
         <h3 id={`provider-${props.providerId}-credentials`} className="font-medium">{t("providers.credentials.title")}</h3>
         <CredentialDialog
           providerId={props.providerId}
+          channel={props.channel}
           onSave={props.onSave}
           trigger={<Button variant="outline" size="sm"><PlusIcon data-icon="inline-start" />{t("providers.credentials.add")}</Button>}
         />
@@ -55,3 +57,4 @@ export function CredentialList(props: Props) {
     </section>
   )
 }
+import type { ChannelDto } from "@/generated/ChannelDto"

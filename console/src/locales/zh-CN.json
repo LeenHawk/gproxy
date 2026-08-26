@@ -132,6 +132,42 @@
       "updated": "已更新凭据。",
       "createError": "无法添加凭据，请检查密文后重试。",
       "updateError": "无法更新凭据，请重试。"
+    },
+    "login": {
+      "description": "登录 {{channel}}，并在此页面内直接添加获得的凭据。",
+      "method": "登录方式",
+      "modes": {
+        "authcode": "浏览器登录",
+        "device": "设备代码",
+        "cookie": "浏览器 Cookie"
+      },
+      "labelHint": "可选。建议使用能区分上游账号的标签。",
+      "start": "开始登录",
+      "starting": "正在开始…",
+      "openAuthorize": "打开授权页面",
+      "callbackLabel": "跳转后的网址",
+      "callbackHint": "授权后，将浏览器地址栏中的完整网址粘贴到这里。",
+      "complete": "完成登录",
+      "completing": "正在完成…",
+      "openVerification": "打开验证页面",
+      "deviceCode": "输入此代码",
+      "pending": "正在等待授权…",
+      "retryPoll": "重试状态检查",
+      "restart": "重新开始",
+      "cookieLabel": "浏览器会话 Cookie",
+      "cookieHint": "粘贴会话 Cookie。它只发送一次，API 不会将其返回。",
+      "errors": {
+        "startTitle": "无法开始登录",
+        "startDescription": "提供商拒绝了启动步骤。请检查提供商设置后重试。",
+        "completeTitle": "无法完成登录",
+        "completeDescription": "代码交换失败。请检查跳转后的网址并重试此步骤。",
+        "pollTitle": "无法检查授权状态",
+        "pollDescription": "提供商状态检查失败。无需重新开始，直接重试即可。",
+        "deniedTitle": "授权已拒绝",
+        "deniedDescription": "提供商拒绝了此设备请求，或请求已过期。请重新开始以获取新代码。",
+        "cookieTitle": "无法交换 Cookie",
+        "cookieDescription": "提供商拒绝了 Cookie。请检查后重试此步骤。"
+      }
     }
   },
   "routes": {
