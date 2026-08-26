@@ -1,0 +1,93 @@
+{
+  "access": {
+    "title": "访问权限与限制",
+    "subtitle": "为用户或密钥设置权限、请求限制和成本配额。",
+    "subject": "应用于",
+    "subjectKinds": {
+      "user": "用户",
+      "userKey": "API 密钥"
+    },
+    "permissions": {
+      "title": "权限",
+      "add": "添加权限",
+      "empty": "此主体尚未配置权限。",
+      "provider": "提供商",
+      "allProviders": "所有提供商",
+      "operationGroup": "操作组",
+      "allOperations": "所有操作",
+      "effect": "效果",
+      "allow": "允许",
+      "deny": "拒绝",
+      "saved": "已保存权限。",
+      "saveError": "无法保存权限，请重试。",
+      "delete": "删除权限",
+      "deleteError": "无法删除权限，请重试。"
+    },
+    "rateLimits": {
+      "title": "速率限制",
+      "add": "添加速率限制",
+      "empty": "此主体尚未配置速率限制。",
+      "requests": "请求数",
+      "windowSeconds": "窗口秒数",
+      "summary": "每 {{seconds}} 秒 {{requests}} 个请求",
+      "saved": "已保存速率限制。",
+      "saveError": "无法保存速率限制，请重试。",
+      "delete": "删除速率限制",
+      "deleteError": "无法删除速率限制，请重试。"
+    },
+    "quotas": {
+      "title": "成本配额",
+      "add": "设置配额",
+      "empty": "此主体尚未配置成本配额。",
+      "loadError": "无法加载配额，请重试。",
+      "total": "总限额",
+      "daily": "每日限额",
+      "weekly": "每周限额",
+      "monthly": "每月限额",
+      "fiveHour": "5 小时限额",
+      "sevenDay": "7 天限额",
+      "enabled": "启用配额",
+      "saved": "已保存配额。",
+      "saveError": "无法保存配额，请检查金额后重试。",
+      "delete": "删除配额",
+      "deleteError": "无法删除配额，请重试。"
+    }
+  },
+  "users": {
+    "title": "用户与密钥",
+    "subtitle": "管理身份、API 密钥、访问权限和支出限制。",
+    "empty": "尚无用户。请先添加用户再签发 API 密钥。",
+    "loadError": "无法加载用户，请重试。",
+    "fields": {
+      "organization": "组织",
+      "team": "团队"
+    },
+    "created": "已创建用户。",
+    "updated": "已更新用户。",
+    "saveError": "无法保存用户，请检查字段后重试。",
+    "keys": {
+      "title": "API 密钥",
+      "create": "创建 API 密钥",
+      "empty": "尚无 API 密钥。请为此用户创建一个。",
+      "label": "密钥标签",
+      "prefix": "前缀",
+      "standardPrefix": "标准密钥 (sk-)",
+      "codexPrefix": "Codex 密钥 (at-)",
+      "expiresAt": "过期时间",
+      "neverExpires": "永不过期",
+      "masked": "{{prefix}}••••••••••••",
+      "reveal": "显示密钥",
+      "revealed": "密钥已显示，稍后将自动隐藏。",
+      "revealError": "无法显示此密钥，请重试。",
+      "notRevealable": "此密钥无法显示。",
+      "copy": "复制完整密钥",
+      "copied": "已复制完整密钥。",
+      "copyError": "无法复制密钥，请选中后手动复制。",
+      "remask": "隐藏密钥",
+      "created": "API 密钥已创建，请在关闭前复制。",
+      "createError": "无法创建 API 密钥，请重试。",
+      "updated": "已更新 API 密钥。",
+      "updateError": "无法更新 API 密钥，请重试。"
+    }
+  }
+}

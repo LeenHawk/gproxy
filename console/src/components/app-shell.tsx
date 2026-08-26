@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { ActivityIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, RouteIcon, SettingsIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { LocaleSwitcher } from "@/components/locale-switcher"
+import { LocaleControls } from "@/components/locale-controls"
 import { navigate, type AdminRoute } from "@/lib/hash-route"
 import { cn } from "@/lib/utils"
 
@@ -32,7 +32,7 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
             </div>
             <div className="flex items-center gap-2 lg:hidden">
               <span className="max-w-24 truncate font-mono text-xs text-muted-foreground">{username}</span>
-              <LocaleSwitcher />
+              <LocaleControls />
               <Button size="icon-sm" variant="ghost" aria-label={t("auth.logout")} onClick={onLogout}><LogOutIcon /></Button>
             </div>
           </header>
@@ -46,7 +46,7 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
             ))}
           </nav>
           <div className="hidden flex-col gap-3 border-t p-3 lg:flex">
-            <LocaleSwitcher />
+            <LocaleControls />
             <div className="flex items-center justify-between gap-2">
               <span className="truncate font-mono text-xs text-muted-foreground">{username}</span>
               <Button size="icon-sm" variant="ghost" aria-label={t("auth.logout")} onClick={onLogout}><LogOutIcon /></Button>

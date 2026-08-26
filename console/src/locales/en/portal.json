@@ -1,0 +1,187 @@
+{
+  "portal": {
+    "brand": "GPROXY",
+    "surface": "User portal",
+    "common": {
+      "unknown": "Unknown"
+    },
+    "account": {
+      "maskedKey": "{{prefix}}••••••••",
+      "logout": "Sign out"
+    },
+    "login": {
+      "title": "Open your portal",
+      "description": "Enter the API key you were given to view connection details and usage.",
+      "key": "API key",
+      "keyHint": "The key stays in this browser tab and is never saved by the portal.",
+      "action": "Continue",
+      "submitting": "Checking key…",
+      "error": "This key could not be authenticated. Check it and try again."
+    },
+    "overview": {
+      "title": "Welcome, {{name}}",
+      "description": "Connect your tools, check what this key can call, and track settled spend."
+    },
+    "connect": {
+      "title": "Connect",
+      "description": "Choose an allowed model, then copy a ready-to-run example.",
+      "baseUrl": "Base URL",
+      "copyBaseUrl": "Copy base URL",
+      "model": "Model",
+      "keyPlaceholder": "<YOUR_GPROXY_KEY>",
+      "prompt": "Hello from GPROXY",
+      "noCompatibleExamples": "No compatible connection example",
+      "noCompatibleExamplesDescription": "This model is allowed, but none of the supported client wire formats match these examples.",
+      "copy": "Copy",
+      "copied": "Copied to clipboard.",
+      "copyError": "Could not copy. Try again in a secure browser context.",
+      "methods": {
+        "curl": "curl",
+        "openai": "OpenAI Python",
+        "claude": "Claude Python",
+        "gemini": "Gemini Python",
+        "codex": "Codex CLI",
+        "claudeCode": "Claude Code"
+      }
+    },
+    "models": {
+      "title": "Allowed models",
+      "description": "Live routes and capabilities available to this key.",
+      "model": "Model",
+      "capabilities": "Capabilities",
+      "empty": "No models are available",
+      "emptyDescription": "Ask the operator to expose a route and grant this key access.",
+      "loadError": "Could not load allowed models. Retry."
+    },
+    "quota": {
+      "title": "Quota windows",
+      "description": "The spending windows currently applied to this key.",
+      "loadError": "Could not load quota windows. Retry.",
+      "empty": "No spending quota is assigned",
+      "emptyDescription": "This key currently has no configured cost window.",
+      "windowLabel": "{{scope}} · {{window}}",
+      "scopes": {
+        "user_key": "Key",
+        "user": "User",
+        "organization": "Organization",
+        "team": "Team"
+      },
+      "kinds": {
+        "total": "Total",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "5h": "5 hours",
+        "7d": "7 days"
+      }
+    },
+    "usage": {
+      "title": "Usage and cost",
+      "description": "Settled usage for this key over the selected range.",
+      "rangeLabel": "Usage range",
+      "ranges": {
+        "1": "1 day",
+        "7": "7 days",
+        "30": "30 days"
+      },
+      "loadError": "Could not load usage. Retry.",
+      "cost": "Cost",
+      "requests": "Requests",
+      "inputTokens": "Input tokens",
+      "outputTokens": "Output tokens",
+      "cachedTokens": "Cached input tokens"
+    },
+    "recent": {
+      "title": "Recent settled requests",
+      "description": "The latest settled requests for this key. Request and response bodies are never shown here.",
+      "loadError": "Could not load recent requests. Retry.",
+      "empty": "No settled requests yet",
+      "emptyDescription": "Completed requests will appear here after settlement.",
+      "time": "Time",
+      "request": "Request",
+      "provider": "Provider",
+      "operation": "Operation",
+      "model": "Upstream model",
+      "tokens": "Input / output",
+      "cost": "Cost",
+      "latency": "{{value}} ms",
+      "tokenPair": "{{input}} / {{output}}",
+      "ended": {
+        "complete": "Complete",
+        "interrupted": "Interrupted"
+      }
+    },
+    "admin": {
+      "recentRequests": {
+        "title": "User portal request history",
+        "description": "Control whether key holders can view their own settled request summaries.",
+        "label": "Show recent settled requests",
+        "hint": "This exposes metadata and usage only, never captured request or response bodies.",
+        "saved": "Portal request-history setting saved.",
+        "saveError": "Could not save the portal request-history setting. Retry.",
+        "loadError": "Could not load the portal request-history setting. Retry."
+      }
+    }
+  },
+  "public": {
+    "nav": {
+      "label": "Public site navigation",
+      "admin": "Admin console",
+      "portal": "Use your key"
+    },
+    "hero": {
+      "title": "One request. Every provider dialect. Nothing dropped.",
+      "description": "Send the wire your client already speaks. GPROXY translates directly, preserves unknown fields, and makes every response pass through settlement.",
+      "labLabel": "Live request translation",
+      "labTitle": "Live wire translation",
+      "switchLabel": "Provider wire format",
+      "clientLabel": "Client request",
+      "providerLabel": "Provider wire",
+      "dialects": {
+        "openai": "OpenAI Chat",
+        "claude": "Claude Messages",
+        "gemini": "Gemini"
+      },
+      "endpoints": {
+        "openai": "POST /v1/chat/completions",
+        "claude": "POST /v1/messages",
+        "gemini": "POST /v1beta/models/reviewer:generateContent"
+      },
+      "clientCode": "{\n  \"model\": \"reviewer\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Inspect src/auth.rs for a refresh race.\"\n  }],\n  \"tools\": [{\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"read_file\",\n      \"description\": \"Read a repository file.\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"path\": { \"type\": \"string\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }\n  }],\n  \"tool_choice\": \"auto\"\n}",
+      "wires": {
+        "openai": "{\n  \"model\": \"reviewer\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Inspect src/auth.rs for a refresh race.\"\n  }],\n  \"tools\": [{\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"read_file\",\n      \"description\": \"Read a repository file.\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"path\": { \"type\": \"string\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }\n  }],\n  \"tool_choice\": \"auto\"\n}",
+        "claude": "{\n  \"model\": \"reviewer\",\n  \"max_tokens\": 1024,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Inspect src/auth.rs for a refresh race.\"\n  }],\n  \"tools\": [{\n    \"name\": \"read_file\",\n    \"description\": \"Read a repository file.\",\n    \"input_schema\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"path\": { \"type\": \"string\" }\n      },\n      \"required\": [\"path\"]\n    }\n  }],\n  \"tool_choice\": { \"type\": \"auto\" }\n}",
+        "gemini": "{\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": \"Inspect src/auth.rs for a refresh race.\"\n    }]\n  }],\n  \"tools\": [{\n    \"functionDeclarations\": [{\n      \"name\": \"read_file\",\n      \"description\": \"Read a repository file.\",\n      \"parameters\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"path\": { \"type\": \"STRING\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }]\n  }],\n  \"toolConfig\": {\n    \"functionCallingConfig\": { \"mode\": \"AUTO\" }\n  }\n}"
+      }
+    },
+    "claims": {
+      "title": "Many wires enter. Every response exits through settlement.",
+      "convergenceLabel": "OpenAI Chat, Claude Messages, and Gemini converge on one settlement funnel.",
+      "funnel": "settlement funnel",
+      "compile": {
+        "title": "Skipping billing is a compile error.",
+        "body": "Every response carries a proof token only the settlement funnel can construct. Bypass it and Rust refuses the build."
+      },
+      "pairwise": {
+        "title": "No IR sands off the edges.",
+        "body": "Conversions are direct pairs between real wire formats. There is no hub schema deciding which details survive."
+      },
+      "unknown": {
+        "title": "Unknown fields survive the round trip.",
+        "body": "Every typed model retains unmodeled JSON. A field a provider ships today still reaches your client."
+      },
+      "cli": {
+        "title": "Your CLIs stay vendor-native.",
+        "body": "Codex CLI and Claude Code run against pooled credentials through the same metered execution path."
+      },
+      "providers": {
+        "title": "28 providers. One base URL.",
+        "body": "Pool credentials, fail over between route members, and enforce spend limits per key without reconfiguring clients."
+      },
+      "runtime": {
+        "title": "Native binary or wasm at the edge.",
+        "body": "The same framework-free request and outcome boundary runs behind a TCP host or a fetch worker."
+      }
+    }
+  }
+}

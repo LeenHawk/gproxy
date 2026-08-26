@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { LogOutIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { PortalContextDto } from "@/generated/PortalContextDto"
-import { LocaleSwitcher } from "@/components/locale-switcher"
+import { LocaleControls } from "@/components/locale-controls"
 import { Button } from "@/components/ui/button"
 
 export function PortalShell({
@@ -25,7 +25,7 @@ export function PortalShell({
             <p className="text-xs text-muted-foreground">{t("portal.surface")}</p>
           </div>
           <div className="flex items-center gap-3">
-            <LocaleSwitcher />
+            <LocaleControls />
             {context && onLogout ? (
               <>
                 <div className="hidden text-right sm:block">

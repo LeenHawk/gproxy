@@ -1,0 +1,65 @@
+{
+  "routes": {
+    "title": "路由",
+    "subtitle": "将客户端模型名映射到有序的上游成员。",
+    "add": "添加路由",
+    "empty": "尚无路由。请添加一个以公开模型。",
+    "loadError": "无法加载路由，请重试。",
+    "fields": {
+      "name": "路由名称",
+      "maxAttempts": "最大尝试次数",
+      "enabled": "启用路由"
+    },
+    "form": {
+      "createTitle": "添加路由",
+      "editTitle": "编辑路由",
+      "attemptsHint": "包括首次请求和所有故障转移尝试。",
+      "created": "已创建路由。",
+      "updated": "已更新路由。",
+      "createError": "无法创建路由，请检查字段后重试。",
+      "updateError": "无法更新路由，请重试。"
+    },
+    "members": {
+      "title": "成员",
+      "add": "添加成员",
+      "empty": "尚无成员。此路由无法向上游发送流量。",
+      "provider": "提供商",
+      "credential": "固定凭据",
+      "anyCredential": "任意已启用凭据",
+      "model": "上游模型",
+      "tier": "故障转移层级",
+      "tierHint": "只有第 0 层全部不可用后，第 1 层才接收流量。",
+      "weight": "权重",
+      "weightHint": "在同层健康成员间按此比例分配流量。",
+      "enabled": "启用成员",
+      "created": "已添加成员。",
+      "updated": "已更新成员。",
+      "saveError": "无法保存路由成员，请重试。"
+    },
+    "routingAliases": {
+      "title": "路由别名",
+      "add": "添加路由别名",
+      "empty": "尚未配置提供商路由别名。",
+      "alias": "传入名称",
+      "target": "上游名称",
+      "provider": "提供商",
+      "anyProvider": "任意提供商",
+      "priority": "优先级",
+      "enabled": "启用别名",
+      "created": "已添加路由别名。",
+      "updated": "已更新路由别名。",
+      "saveError": "无法保存路由别名，请重试。"
+    },
+    "aliases": {
+      "title": "模型别名",
+      "add": "添加别名",
+      "empty": "尚无别名指向此路由。",
+      "name": "客户端模型名",
+      "route": "路由",
+      "enabled": "启用别名",
+      "created": "已添加别名。",
+      "updated": "已更新别名。",
+      "saveError": "无法保存模型别名，请确认名称唯一。"
+    }
+  }
+}

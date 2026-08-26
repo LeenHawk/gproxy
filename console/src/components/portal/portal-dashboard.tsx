@@ -58,7 +58,7 @@ export function PortalDashboard({
   return (
     <>
       <section className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{t("portal.overview.title", { name: context.user_name })}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("portal.overview.title", { name: context.user_name })}</h1>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{t("portal.overview.description")}</p>
       </section>
       <QueryState loading={modelsLoading} error={modelsError ? t("portal.models.loadError") : ""}>

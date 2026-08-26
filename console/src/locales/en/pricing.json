@@ -1,0 +1,59 @@
+{
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "Configure model rules, dimensional rates, and service-tier ladders.",
+    "loadError": "Could not load pricing. Retry.",
+    "rules": {
+      "add": "Add price rule",
+      "edit": "Edit price rule",
+      "created": "Price rule created.",
+      "updated": "Price rule updated.",
+      "saveError": "Could not save the price rule. Retry.",
+      "empty": "No price rules. Add one before traffic can settle at a non-zero cost.",
+      "provider": "Provider",
+      "allProviders": "All providers",
+      "pattern": "Model pattern",
+      "priority": "Priority",
+      "enabled": "Rule enabled"
+    },
+    "tiers": {
+      "title": "Prompt and service tiers",
+      "add": "Add tier row",
+      "serviceTier": "Service tier",
+      "threshold": "Minimum prompt tokens",
+      "multiplier": "Multiplier",
+      "input_price": "Input per million",
+      "output_price": "Output per million",
+      "cache_read_price": "Cache read per million",
+      "cache_creation_5m_price": "5m cache write per million",
+      "cache_creation_30m_price": "30m cache write per million",
+      "cache_creation_1h_price": "1h cache write per million",
+      "image_output_price": "Image output per million"
+    },
+    "warning": {
+      "title": "Long-context price step is missing",
+      "longContext": "This explicit service-tier price replaces the base ladder, but the base ladder has a higher threshold. Add the matching service-tier threshold row or use a multiplier."
+    },
+    "rates": {
+      "title": "Rates",
+      "add": "Add rate",
+      "edit": "Edit rate",
+      "created": "Rate created.",
+      "updated": "Rate updated.",
+      "deleted": "Rate deleted.",
+      "saveError": "Could not save the rate. Retry.",
+      "deleteError": "Could not delete the rate. Retry.",
+      "empty": "No dimensional rates for this rule.",
+      "rule": "Price rule",
+      "metric": "Metric",
+      "price": "Price",
+      "unitSize": "Unit size",
+      "priority": "Priority",
+      "conditions": "Dimension conditions",
+      "conditionKey": "Dimension name",
+      "conditionValue": "Expected value",
+      "summary": "{{price}} per {{units}} units",
+      "priorityValue": "Priority {{value}}"
+    }
+  }
+}

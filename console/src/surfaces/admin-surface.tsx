@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect } from "react"
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ThemeProvider } from "next-themes"
 import { useTranslation } from "react-i18next"
 import { login, logout, session, setup } from "@/api/auth"
 import { AppShell } from "@/components/app-shell"
@@ -66,10 +65,8 @@ function ConsoleApp() {
 
 export function AdminSurface() {
   return (
-    <ThemeProvider attribute="class" forcedTheme="light">
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider><ConsoleApp /><Toaster /></TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider><ConsoleApp /><Toaster /></TooltipProvider>
+    </QueryClientProvider>
   )
 }

@@ -1,0 +1,103 @@
+{
+  "logs": {
+    "title": "交换日志",
+    "description": "并排查看调用方请求及其产生的每一次上游尝试。",
+    "pending": "处理中",
+    "filters": {
+      "user": "用户",
+      "key": "API 密钥",
+      "provider": "提供商",
+      "status": "响应状态码",
+      "statusPlaceholder": "例如 500",
+      "requestId": "请求 ID",
+      "all": "全部"
+    },
+    "list": {
+      "title": "请求",
+      "empty": "没有符合筛选条件的已采集请求。",
+      "next": "下一页"
+    },
+    "settings": {
+      "title": "采集设置",
+      "description": "面向调用方和上游的元数据与正文可分别控制。",
+      "saved": "采集设置已保存。",
+      "saveError": "无法保存采集设置，请重试。",
+      "bodyBlocked": "配置正数 retention_days 或 max_database_size_mb 前，系统会拒绝正文采集；元数据仍可采集。",
+      "retention": "保留天数：{{days}} · 数据库大小上限（MiB）：{{size}}",
+      "enable_downstream_log": {
+        "label": "下游元数据",
+        "description": "记录调用方方法、路径、查询参数、请求头、响应状态和响应头。"
+      },
+      "enable_downstream_log_body": {
+        "label": "下游正文",
+        "description": "存在保留边界时，记录调用方请求与响应正文。"
+      },
+      "enable_upstream_log": {
+        "label": "上游元数据",
+        "description": "记录每次上游尝试的方法、URL、请求头、提供商、凭据和状态。"
+      },
+      "enable_upstream_log_body": {
+        "label": "上游正文",
+        "description": "存在保留边界时，记录每次上游尝试的请求与响应正文。"
+      },
+      "disable_log_redaction": {
+        "label": "关闭日志脱敏",
+        "description": "凭据、Cookie、用户内容及其他敏感值将以明文写入数据库。仅在你控制的实例上临时启用。"
+      }
+    },
+    "detail": {
+      "title": "交换详情",
+      "select": "选择一个请求以加载完整交换。",
+      "loadError": "无法加载该交换，请重试。",
+      "downstream": "下游交换",
+      "upstream": "上游尝试",
+      "noAttempts": "该请求没有产生上游尝试。",
+      "attempt": "上游尝试 {{number}}",
+      "unknownProvider": "未知提供商",
+      "requestHeaders": "请求头",
+      "requestBody": "请求正文",
+      "responseHeaders": "响应头",
+      "responseBody": "响应正文",
+      "notCaptured": "未采集",
+      "status": "响应状态码"
+    }
+  },
+  "usage": {
+    "description": "按时间范围比较请求数、令牌数和结算成本。",
+    "overviewDescription": "查看当前凭据健康状态、成本和配额压力。",
+    "empty": "该时段没有用量记录，请扩大时间范围。",
+    "groupBy": {
+      "label": "分组方式",
+      "user_key": "API 密钥",
+      "userKey": "API 密钥",
+      "user": "用户",
+      "provider": "提供商",
+      "model": "模型"
+    },
+    "filters": {
+      "provider": "提供商",
+      "user": "用户",
+      "key": "API 密钥",
+      "model": "模型",
+      "all": "全部"
+    },
+    "group": "分组",
+    "requests": "请求数",
+    "inputTokens": "输入令牌",
+    "cachedTokens": "缓存输入",
+    "outputTokens": "输出令牌",
+    "cost": {
+      "title": "用量成本",
+      "label": "成本"
+    },
+    "windows": "配额窗口",
+    "quotaWindows": "配额窗口",
+    "credentialCycles": "凭据配额周期",
+    "windowStates": {
+      "empty": "当前选择没有活动配额窗口。"
+    },
+    "cycleStates": {
+      "empty": "该时段未观测到凭据配额周期。"
+    }
+  }
+}

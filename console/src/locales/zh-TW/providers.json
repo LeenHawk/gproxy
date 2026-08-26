@@ -1,0 +1,117 @@
+{
+  "providers": {
+    "title": "供應商",
+    "subtitle": "設定上游通道和憑證池。",
+    "add": "新增供應商",
+    "empty": "尚無供應商。請新增一個以向上游路由流量。",
+    "loadError": "無法載入供應商，請重試。",
+    "fields": {
+      "name": "供應商名稱",
+      "channel": "通道",
+      "settings": "通道設定",
+      "enabled": "啟用供應商"
+    },
+    "form": {
+      "createTitle": "新增供應商",
+      "editTitle": "編輯供應商",
+      "channelHint": "通道來自目前執行的 GPROXY 二進位檔。",
+      "settingsHint": "進階 JSON 入口。日常編輯請使用上方由通道宣告的欄位。",
+      "settingsInvalid": "請輸入有效的 JSON 物件。",
+      "advanced": "進階設定",
+      "jsonEscape": "編輯設定 JSON",
+      "created": "已建立供應商。",
+      "updated": "已更新供應商。",
+      "createError": "無法建立供應商，請檢查欄位後重試。",
+      "updateError": "無法更新供應商，請重試。"
+    },
+    "fingerprint": {
+      "title": "用戶端指紋",
+      "description": "覆寫通道的預設標頭和傳輸設定檔。",
+      "preset": "預設集",
+      "defaultPreset": "通道預設值",
+      "custom": "自訂 JSON",
+      "hint": "若設定的指紋無法建立可用模擬，請求會明確失敗。",
+      "invalid": "請輸入有效的指紋物件。",
+      "presetError": "無法載入指紋預設集，請重試。"
+    },
+    "credentials": {
+      "title": "憑證",
+      "add": "新增憑證",
+      "empty": "尚無憑證。請先新增憑證再啟用流量。",
+      "loadError": "無法載入憑證，請重試。",
+      "label": "憑證標籤",
+      "unnamed": "憑證 #{{id}}",
+      "keepSecret": "留空以保留已儲存的機密資料。",
+      "secretRequired": "請至少填寫一個憑證欄位。",
+      "manual": "手動填寫憑證欄位",
+      "weight": "流量權重",
+      "rpm": "每分鐘請求數",
+      "tpm": "每分鐘 Token 數",
+      "proxy": "代理覆寫 URL",
+      "enabled": "啟用憑證",
+      "healthObserved": "觀測於 {{time}}",
+      "healthUnobserved": "尚無健康觀測",
+      "healthDetail": "健康詳細資料",
+      "quotaCycle": "配額週期",
+      "noQuotaCycle": "尚未觀測到上游配額週期。",
+      "created": "已新增憑證。",
+      "updated": "已更新憑證。",
+      "createError": "無法新增憑證，請檢查機密資料後重試。",
+      "updateError": "無法更新憑證，請重試。"
+    },
+    "endpoints": {
+      "title": "端點覆寫",
+      "add": "新增端點",
+      "hint": "僅為必須使用不同絕對 URL 的操作新增覆寫。",
+      "kind": "操作",
+      "url": "端點 URL",
+      "urlPlaceholder": "https://api.example/v1/{model}",
+      "remove": "移除端點"
+    },
+    "login": {
+      "method": "登入方式",
+      "modes": {
+        "authcode": "瀏覽器登入",
+        "device": "裝置代碼",
+        "cookie": "瀏覽器 Cookie"
+      },
+      "labelHint": "選填。建議使用能區分上游帳號的標籤。",
+      "start": "開始登入",
+      "starting": "正在開始…",
+      "openAuthorize": "開啟授權頁面",
+      "callbackLabel": "重新導向後的網址",
+      "callbackHint": "授權後，將瀏覽器網址列中的完整網址貼到這裡。",
+      "complete": "完成登入",
+      "completing": "正在完成…",
+      "openVerification": "開啟驗證頁面",
+      "deviceCode": "輸入此代碼",
+      "pending": "正在等待授權…",
+      "retryPoll": "重試狀態檢查",
+      "restart": "重新開始",
+      "cookieLabel": "瀏覽器工作階段 Cookie",
+      "cookieHint": "貼上工作階段 Cookie。它只會傳送一次，API 不會將其傳回。",
+      "errors": {
+        "startTitle": "無法開始登入",
+        "startDescription": "供應商拒絕了啟動步驟。請檢查供應商設定後重試。",
+        "completeTitle": "無法完成登入",
+        "completeDescription": "代碼交換失敗。請檢查重新導向後的網址並重試此步驟。",
+        "pollTitle": "無法檢查授權狀態",
+        "pollDescription": "供應商狀態檢查失敗。無需重新開始，直接重試即可。",
+        "deniedTitle": "授權已拒絕",
+        "deniedDescription": "供應商拒絕了此裝置請求，或請求已過期。請重新開始以取得新代碼。",
+        "cookieTitle": "無法交換 Cookie",
+        "cookieDescription": "供應商拒絕了 Cookie。請檢查後重試此步驟。"
+      }
+    }
+  },
+  "channels": {
+    "description": "目前 GPROXY 二進位檔註冊的功能。",
+    "channel": "通道",
+    "empty": "此二進位檔未註冊任何通道。",
+    "source": "來源協定",
+    "target": "目標協定",
+    "operation": "操作",
+    "group": "群組",
+    "noOperations": "此通道未宣告任何操作。"
+  }
+}

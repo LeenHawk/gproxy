@@ -1,0 +1,65 @@
+{
+  "routes": {
+    "title": "Routes",
+    "subtitle": "Map client-facing model names to ordered upstream members.",
+    "add": "Add route",
+    "empty": "No routes yet. Add one to expose a model.",
+    "loadError": "Could not load routes. Retry.",
+    "fields": {
+      "name": "Route name",
+      "maxAttempts": "Maximum attempts",
+      "enabled": "Route enabled"
+    },
+    "form": {
+      "createTitle": "Add route",
+      "editTitle": "Edit route",
+      "attemptsHint": "Includes the first attempt and any failover attempts.",
+      "created": "Route created.",
+      "updated": "Route updated.",
+      "createError": "Could not create the route. Check the fields and retry.",
+      "updateError": "Could not update the route. Retry."
+    },
+    "members": {
+      "title": "Members",
+      "add": "Add member",
+      "empty": "No members. This route cannot send traffic upstream.",
+      "provider": "Provider",
+      "credential": "Pinned credential",
+      "anyCredential": "Any enabled credential",
+      "model": "Upstream model",
+      "tier": "Failover tier",
+      "tierHint": "Tier 0 is exhausted before tier 1 receives traffic.",
+      "weight": "Weight",
+      "weightHint": "Splits traffic among healthy members in this tier.",
+      "enabled": "Member enabled",
+      "created": "Member added.",
+      "updated": "Member updated.",
+      "saveError": "Could not save the route member. Retry."
+    },
+    "routingAliases": {
+      "title": "Routing aliases",
+      "add": "Add routing alias",
+      "empty": "No provider routing aliases are configured.",
+      "alias": "Incoming name",
+      "target": "Upstream name",
+      "provider": "Provider",
+      "anyProvider": "Any provider",
+      "priority": "Priority",
+      "enabled": "Alias enabled",
+      "created": "Routing alias added.",
+      "updated": "Routing alias updated.",
+      "saveError": "Could not save the routing alias. Retry."
+    },
+    "aliases": {
+      "title": "Model aliases",
+      "add": "Add alias",
+      "empty": "No aliases point to this route.",
+      "name": "Client-facing model",
+      "route": "Route",
+      "enabled": "Alias enabled",
+      "created": "Alias added.",
+      "updated": "Alias updated.",
+      "saveError": "Could not save the model alias. Check that the name is unique."
+    }
+  }
+}

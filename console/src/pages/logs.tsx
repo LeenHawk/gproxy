@@ -36,6 +36,7 @@ export function LogsPage() {
           draft={draft}
           onDraft={setDraft}
           onSearch={() => { setSelected(null); setQuery({ ...draft, cursor: null }) }}
+          onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next); setSelected(null) }}
           page={logQuery.data!}
           settings={settingsQuery.data!}
           providers={providerQuery.data ?? []}

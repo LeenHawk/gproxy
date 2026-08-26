@@ -1,0 +1,59 @@
+{
+  "pricing": {
+    "title": "定價",
+    "subtitle": "設定模型規則、維度費率和服務層級階梯。",
+    "loadError": "無法載入定價，請重試。",
+    "rules": {
+      "add": "新增定價規則",
+      "edit": "編輯定價規則",
+      "created": "已建立定價規則。",
+      "updated": "已更新定價規則。",
+      "saveError": "無法儲存定價規則，請重試。",
+      "empty": "尚無定價規則。請先新增規則，流量結算才會產生非零成本。",
+      "provider": "提供者",
+      "allProviders": "所有提供者",
+      "pattern": "模型比對模式",
+      "priority": "優先順序",
+      "enabled": "啟用規則"
+    },
+    "tiers": {
+      "title": "上下文與服務層級",
+      "add": "新增層級列",
+      "serviceTier": "服務層級",
+      "threshold": "最小提示 Token",
+      "multiplier": "倍率",
+      "input_price": "每百萬輸入",
+      "output_price": "每百萬輸出",
+      "cache_read_price": "每百萬快取讀取",
+      "cache_creation_5m_price": "每百萬 5 分鐘快取寫入",
+      "cache_creation_30m_price": "每百萬 30 分鐘快取寫入",
+      "cache_creation_1h_price": "每百萬 1 小時快取寫入",
+      "image_output_price": "每百萬影像輸出"
+    },
+    "warning": {
+      "title": "缺少長上下文價格階梯",
+      "longContext": "這個明確服務層價格會取代基礎階梯，但基礎階梯還有更高門檻。請新增對應的服務層門檻列，或改用倍率。"
+    },
+    "rates": {
+      "title": "費率",
+      "add": "新增費率",
+      "edit": "編輯費率",
+      "created": "已建立費率。",
+      "updated": "已更新費率。",
+      "deleted": "已刪除費率。",
+      "saveError": "無法儲存費率，請重試。",
+      "deleteError": "無法刪除費率，請重試。",
+      "empty": "此規則沒有維度費率。",
+      "rule": "定價規則",
+      "metric": "指標",
+      "price": "價格",
+      "unitSize": "單位大小",
+      "priority": "優先順序",
+      "conditions": "維度條件",
+      "conditionKey": "維度名稱",
+      "conditionValue": "預期值",
+      "summary": "每 {{units}} 單位 {{price}}",
+      "priorityValue": "優先順序 {{value}}"
+    }
+  }
+}

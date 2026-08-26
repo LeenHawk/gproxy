@@ -1,0 +1,93 @@
+{
+  "access": {
+    "title": "Access and limits",
+    "subtitle": "Apply permissions, request limits, and cost quotas to a user or key.",
+    "subject": "Applies to",
+    "subjectKinds": {
+      "user": "User",
+      "userKey": "API key"
+    },
+    "permissions": {
+      "title": "Permissions",
+      "add": "Add permission",
+      "empty": "No permissions configured for this subject.",
+      "provider": "Provider",
+      "allProviders": "All providers",
+      "operationGroup": "Operation group",
+      "allOperations": "All operations",
+      "effect": "Effect",
+      "allow": "Allow",
+      "deny": "Deny",
+      "saved": "Permission saved.",
+      "saveError": "Could not save the permission. Retry.",
+      "delete": "Delete permission",
+      "deleteError": "Could not delete the permission. Retry."
+    },
+    "rateLimits": {
+      "title": "Rate limits",
+      "add": "Add rate limit",
+      "empty": "No rate limits configured for this subject.",
+      "requests": "Requests",
+      "windowSeconds": "Window in seconds",
+      "summary": "{{requests}} requests per {{seconds}} seconds",
+      "saved": "Rate limit saved.",
+      "saveError": "Could not save the rate limit. Retry.",
+      "delete": "Delete rate limit",
+      "deleteError": "Could not delete the rate limit. Retry."
+    },
+    "quotas": {
+      "title": "Cost quotas",
+      "add": "Set quota",
+      "empty": "No cost quota configured for this subject.",
+      "loadError": "Could not load quotas. Retry.",
+      "total": "Total limit",
+      "daily": "Daily limit",
+      "weekly": "Weekly limit",
+      "monthly": "Monthly limit",
+      "fiveHour": "5-hour limit",
+      "sevenDay": "7-day limit",
+      "enabled": "Quota enabled",
+      "saved": "Quota saved.",
+      "saveError": "Could not save the quota. Check the amounts and retry.",
+      "delete": "Delete quota",
+      "deleteError": "Could not delete the quota. Retry."
+    }
+  },
+  "users": {
+    "title": "Users and keys",
+    "subtitle": "Manage identities, API keys, access, and spending limits.",
+    "empty": "No users yet. Add one before issuing an API key.",
+    "loadError": "Could not load users. Retry.",
+    "fields": {
+      "organization": "Organization",
+      "team": "Team"
+    },
+    "created": "User created.",
+    "updated": "User updated.",
+    "saveError": "Could not save the user. Check the fields and retry.",
+    "keys": {
+      "title": "API keys",
+      "create": "Create API key",
+      "empty": "No API keys. Create one for this user.",
+      "label": "Key label",
+      "prefix": "Prefix",
+      "standardPrefix": "Standard key (sk-)",
+      "codexPrefix": "Codex key (at-)",
+      "expiresAt": "Expires at",
+      "neverExpires": "Never expires",
+      "masked": "{{prefix}}••••••••••••",
+      "reveal": "Reveal key",
+      "revealed": "Key revealed. It will be masked again shortly.",
+      "revealError": "Could not reveal this key. Retry.",
+      "notRevealable": "This key cannot be revealed.",
+      "copy": "Copy full key",
+      "copied": "Full key copied.",
+      "copyError": "Could not copy the key. Select it and copy manually.",
+      "remask": "Mask key",
+      "created": "API key created. Copy it before closing.",
+      "createError": "Could not create the API key. Retry.",
+      "updated": "API key updated.",
+      "updateError": "Could not update the API key. Retry."
+    }
+  }
+}

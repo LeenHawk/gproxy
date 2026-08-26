@@ -2,38 +2,56 @@ import { useTranslation } from "react-i18next"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
 import type { UsageAggregateDto } from "@/generated/UsageAggregateDto"
-import type { UsageGroupByDto } from "@/generated/UsageGroupByDto"
+import type { UsageQueryDto } from "@/generated/UsageQueryDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { UserDto } from "@/generated/UserDto"
 import type { UserKeyDto } from "@/generated/UserKeyDto"
+import { DateRangeFilterBar } from "@/components/date-range-filter-bar"
+import { SearchableSelect } from "@/components/searchable-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { UsageTable } from "@/components/usage/usage-table"
 import { WindowList } from "@/components/usage/window-list"
 
-const groups: Array<UsageGroupByDto> = ["user_key", "user", "provider", "model"]
+const groups: Array<UsageQueryDto["group_by"]> = ["user_key", "user", "provider", "model"]
 
-export function UsageExplorer({ group, onGroup, rangeDays, onRangeDays, rows, quotas, cycles, providers, users, keys }: { group: UsageGroupByDto; onGroup: (group: UsageGroupByDto) => void; rangeDays: number; onRangeDays: (days: number) => void; rows: Array<UsageAggregateDto>; quotas: Array<QuotaWindowDto>; cycles: Array<CredentialQuotaCycleDto>; providers: Array<ProviderDto>; users: Array<UserDto>; keys: Array<UserKeyDto> }) {
+type Props = {
+  draft: UsageQueryDto
+  onDraft: (value: UsageQueryDto) => void
+  onApply: () => void
+  onReset: () => void
+  rows: Array<UsageAggregateDto>
+  quotas: Array<QuotaWindowDto>
+  cycles: Array<CredentialQuotaCycleDto>
+  providers: Array<ProviderDto>
+  users: Array<UserDto>
+  keys: Array<UserKeyDto>
+}
+
+export function UsageExplorer({ draft, onDraft, onApply, onReset, rows, quotas, cycles, providers, users, keys }: Props) {
   const { t } = useTranslation()
+  const update = <K extends keyof UsageQueryDto>(key: K, value: UsageQueryDto[K]) => onDraft({ ...draft, [key]: value })
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <ToggleGroup type="single" variant="outline" className="flex-wrap justify-start" value={group} onValueChange={(value) => value && onGroup(value as UsageGroupByDto)} aria-label={t("usage.groupBy.label")}>
+      <ToggleGroup type="single" variant="outline" className="flex-wrap justify-start" value={draft.group_by} onValueChange={(value) => value && update("group_by", value as UsageQueryDto["group_by"])} aria-label={t("usage.groupBy.label")}>
           {groups.map((value) => <ToggleGroupItem key={value} value={value}>{t(`usage.groupBy.${value}`)}</ToggleGroupItem>)}
-        </ToggleGroup>
-        <Field className="w-auto">
-          <FieldLabel htmlFor="usage-range">{t("usage.range.label")}</FieldLabel>
-          <Select value={String(rangeDays)} onValueChange={(value) => onRangeDays(Number(value))}>
-            <SelectTrigger id="usage-range"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectGroup>{[1, 7, 30].map((days) => <SelectItem key={days} value={String(days)}>{t(`usage.range.${days}`)}</SelectItem>)}</SelectGroup></SelectContent>
-          </Select>
-        </Field>
-      </div>
+      </ToggleGroup>
+      <DateRangeFilterBar
+        range={{ start: draft.from, end: draft.to }}
+        onRange={({ start, end }) => onDraft({ ...draft, from: start, to: end })}
+        onApply={onApply}
+        onReset={onReset}
+      >
+        <Field><FieldLabel htmlFor="usage-provider">{t("usage.filters.provider")}</FieldLabel><SearchableSelect id="usage-provider" value={draft.provider_id == null ? "all" : String(draft.provider_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.provider")} onChange={(value) => update("provider_id", value === "all" ? null : Number(value))} /></Field>
+        <Field><FieldLabel htmlFor="usage-user">{t("usage.filters.user")}</FieldLabel><SearchableSelect id="usage-user" value={draft.user_id == null ? "all" : String(draft.user_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...users.map((user) => ({ value: String(user.id), label: user.name }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.user")} onChange={(value) => update("user_id", value === "all" ? null : Number(value))} /></Field>
+        <Field><FieldLabel htmlFor="usage-key">{t("usage.filters.key")}</FieldLabel><SearchableSelect id="usage-key" value={draft.user_key_id == null ? "all" : String(draft.user_key_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...keys.map((key) => ({ value: String(key.id), label: key.label ?? key.prefix ?? String(key.id) }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.key")} onChange={(value) => update("user_key_id", value === "all" ? null : Number(value))} /></Field>
+        <Field><FieldLabel htmlFor="usage-model">{t("usage.filters.model")}</FieldLabel><Input id="usage-model" className="machine-text" value={draft.model ?? ""} onChange={(event) => update("model", event.target.value || null)} /></Field>
+      </DateRangeFilterBar>
       <Tabs defaultValue="cost">
         <TabsList><TabsTrigger value="cost">{t("usage.cost.title")}</TabsTrigger><TabsTrigger value="windows">{t("usage.windows")}</TabsTrigger></TabsList>
-        <TabsContent value="cost" className="pt-4"><UsageTable rows={rows} group={group} providers={providers} users={users} keys={keys} /></TabsContent>
+        <TabsContent value="cost" className="pt-4"><UsageTable rows={rows} group={draft.group_by} providers={providers} users={users} keys={keys} /></TabsContent>
         <TabsContent value="windows" className="pt-5"><WindowList quotas={quotas} cycles={cycles} users={users} keys={keys} /></TabsContent>
       </Tabs>
     </div>

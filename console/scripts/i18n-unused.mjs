@@ -6,6 +6,8 @@ import ts from "typescript"
 
 const consoleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const localeRoot = path.join(consoleRoot, "src/locales")
+const locales = ["en", "zh-CN", "zh-TW"]
+const domains = ["common", "identity", "observability", "portal", "pricing", "providers", "routes", "rules", "settings", "update"]
 
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -84,7 +86,15 @@ if (unsupported.length) {
   throw new Error(`translation keys must be static strings, conditionals, or prefixed templates: ${unsupported.join(", ")}`)
 }
 
-const english = JSON.parse(await readFile(path.join(localeRoot, "en.json"), "utf8"))
+async function localeDomains(locale) {
+  return Promise.all(domains.map(async (domain) => [
+    domain,
+    JSON.parse(await readFile(path.join(localeRoot, locale, `${domain}.json`), "utf8")),
+  ]))
+}
+
+const englishDomains = await localeDomains("en")
+const english = Object.assign({}, ...englishDomains.map(([, value]) => value))
 const keys = flatten(english).map(([key]) => key)
 const known = new Set(keys)
 const missing = [...exact].filter((key) => !known.has(key)).sort()
@@ -94,10 +104,11 @@ const used = new Set(keys.filter((key) => exact.has(key) || [...prefixes].some((
 const unused = keys.filter((key) => !used.has(key))
 
 if (process.argv.includes("--write")) {
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
-    const file = path.join(localeRoot, `${locale}.json`)
-    const value = JSON.parse(await readFile(file, "utf8"))
-    await writeFile(file, `${JSON.stringify(prune(value, used), null, 2)}\n`)
+  for (const locale of locales) {
+    for (const [domain, value] of await localeDomains(locale)) {
+      const file = path.join(localeRoot, locale, `${domain}.json`)
+      await writeFile(file, `${JSON.stringify(prune(value, used), null, 2)}\n`)
+    }
   }
 } else if (unused.length) {
   throw new Error(`unused locale keys: ${unused.join(", ")}`)

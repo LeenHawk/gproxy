@@ -1,0 +1,187 @@
+{
+  "portal": {
+    "brand": "GPROXY",
+    "surface": "用户门户",
+    "common": {
+      "unknown": "未知"
+    },
+    "account": {
+      "maskedKey": "{{prefix}}••••••••",
+      "logout": "退出登录"
+    },
+    "login": {
+      "title": "打开你的门户",
+      "description": "输入你收到的 API 密钥，查看连接方式和用量。",
+      "key": "API 密钥",
+      "keyHint": "密钥只保留在当前浏览器标签页中，门户不会保存。",
+      "action": "继续",
+      "submitting": "正在检查密钥…",
+      "error": "无法验证此密钥。请检查后重试。"
+    },
+    "overview": {
+      "title": "欢迎，{{name}}",
+      "description": "连接你的工具，查看此密钥可调用的模型，并跟踪已结算支出。"
+    },
+    "connect": {
+      "title": "连接",
+      "description": "选择获准使用的模型，然后复制可直接运行的示例。",
+      "baseUrl": "Base URL",
+      "copyBaseUrl": "复制 Base URL",
+      "model": "模型",
+      "keyPlaceholder": "<你的_GPROXY_密钥>",
+      "prompt": "来自 GPROXY 的问候",
+      "noCompatibleExamples": "没有兼容的连接示例",
+      "noCompatibleExamplesDescription": "此模型已获准使用，但其支持的客户端协议格式与这些示例均不匹配。",
+      "copy": "复制",
+      "copied": "已复制到剪贴板。",
+      "copyError": "无法复制。请在安全的浏览器上下文中重试。",
+      "methods": {
+        "curl": "curl",
+        "openai": "OpenAI Python",
+        "claude": "Claude Python",
+        "gemini": "Gemini Python",
+        "codex": "Codex CLI",
+        "claudeCode": "Claude Code"
+      }
+    },
+    "models": {
+      "title": "获准使用的模型",
+      "description": "此密钥可用的实时路由和能力。",
+      "model": "模型",
+      "capabilities": "能力",
+      "empty": "没有可用模型",
+      "emptyDescription": "请让运营方公开路由并授予此密钥访问权限。",
+      "loadError": "无法加载获准使用的模型，请重试。"
+    },
+    "quota": {
+      "title": "配额窗口",
+      "description": "当前应用于此密钥的支出窗口。",
+      "loadError": "无法加载配额窗口，请重试。",
+      "empty": "尚未分配支出配额",
+      "emptyDescription": "此密钥当前没有已配置的成本窗口。",
+      "windowLabel": "{{scope}} · {{window}}",
+      "scopes": {
+        "user_key": "密钥",
+        "user": "用户",
+        "organization": "组织",
+        "team": "团队"
+      },
+      "kinds": {
+        "total": "总计",
+        "daily": "每日",
+        "weekly": "每周",
+        "monthly": "每月",
+        "5h": "5 小时",
+        "7d": "7 天"
+      }
+    },
+    "usage": {
+      "title": "用量与成本",
+      "description": "所选范围内此密钥的已结算用量。",
+      "rangeLabel": "用量范围",
+      "ranges": {
+        "1": "1 天",
+        "7": "7 天",
+        "30": "30 天"
+      },
+      "loadError": "无法加载用量，请重试。",
+      "cost": "成本",
+      "requests": "请求数",
+      "inputTokens": "输入令牌",
+      "outputTokens": "输出令牌",
+      "cachedTokens": "缓存输入令牌"
+    },
+    "recent": {
+      "title": "最近结算请求",
+      "description": "此密钥最近结算的请求。此处绝不会显示请求或响应正文。",
+      "loadError": "无法加载最近请求，请重试。",
+      "empty": "尚无结算请求",
+      "emptyDescription": "请求完成结算后会显示在这里。",
+      "time": "时间",
+      "request": "请求",
+      "provider": "提供商",
+      "operation": "操作",
+      "model": "上游模型",
+      "tokens": "输入 / 输出",
+      "cost": "成本",
+      "latency": "{{value}} 毫秒",
+      "tokenPair": "{{input}} / {{output}}",
+      "ended": {
+        "complete": "已完成",
+        "interrupted": "已中断"
+      }
+    },
+    "admin": {
+      "recentRequests": {
+        "title": "用户门户请求历史",
+        "description": "控制密钥持有者能否查看自己的已结算请求摘要。",
+        "label": "显示最近结算请求",
+        "hint": "仅公开元数据和用量，绝不公开捕获的请求或响应正文。",
+        "saved": "已保存门户请求历史设置。",
+        "saveError": "无法保存门户请求历史设置，请重试。",
+        "loadError": "无法加载门户请求历史设置，请重试。"
+      }
+    }
+  },
+  "public": {
+    "nav": {
+      "label": "公共站点导航",
+      "admin": "管理控制台",
+      "portal": "使用密钥"
+    },
+    "hero": {
+      "title": "一次请求。每种提供商协议。信息不丢失。",
+      "description": "继续发送客户端原本使用的协议。GPROXY 直接转换，保留未知字段，并让每个响应都经过结算。",
+      "labLabel": "实时请求转换",
+      "labTitle": "实时协议转换",
+      "switchLabel": "提供商协议格式",
+      "clientLabel": "客户端请求",
+      "providerLabel": "提供商协议",
+      "dialects": {
+        "openai": "OpenAI Chat",
+        "claude": "Claude Messages",
+        "gemini": "Gemini"
+      },
+      "endpoints": {
+        "openai": "POST /v1/chat/completions",
+        "claude": "POST /v1/messages",
+        "gemini": "POST /v1beta/models/reviewer:generateContent"
+      },
+      "clientCode": "{\n  \"model\": \"reviewer\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"检查 src/auth.rs 中的令牌刷新竞态。\"\n  }],\n  \"tools\": [{\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"read_file\",\n      \"description\": \"读取仓库文件。\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"path\": { \"type\": \"string\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }\n  }],\n  \"tool_choice\": \"auto\"\n}",
+      "wires": {
+        "openai": "{\n  \"model\": \"reviewer\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"检查 src/auth.rs 中的令牌刷新竞态。\"\n  }],\n  \"tools\": [{\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"read_file\",\n      \"description\": \"读取仓库文件。\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"path\": { \"type\": \"string\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }\n  }],\n  \"tool_choice\": \"auto\"\n}",
+        "claude": "{\n  \"model\": \"reviewer\",\n  \"max_tokens\": 1024,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"检查 src/auth.rs 中的令牌刷新竞态。\"\n  }],\n  \"tools\": [{\n    \"name\": \"read_file\",\n    \"description\": \"读取仓库文件。\",\n    \"input_schema\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"path\": { \"type\": \"string\" }\n      },\n      \"required\": [\"path\"]\n    }\n  }],\n  \"tool_choice\": { \"type\": \"auto\" }\n}",
+        "gemini": "{\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": \"检查 src/auth.rs 中的令牌刷新竞态。\"\n    }]\n  }],\n  \"tools\": [{\n    \"functionDeclarations\": [{\n      \"name\": \"read_file\",\n      \"description\": \"读取仓库文件。\",\n      \"parameters\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"path\": { \"type\": \"STRING\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }]\n  }],\n  \"toolConfig\": {\n    \"functionCallingConfig\": { \"mode\": \"AUTO\" }\n  }\n}"
+      }
+    },
+    "claims": {
+      "title": "多种协议进入。每个响应都经结算后离开。",
+      "convergenceLabel": "OpenAI Chat、Claude Messages 和 Gemini 汇聚到同一个结算漏斗。",
+      "funnel": "结算漏斗",
+      "compile": {
+        "title": "跳过计费，编译就会失败。",
+        "body": "每个响应都携带只有结算漏斗才能构造的证明令牌。绕过它，Rust 就会拒绝构建。"
+      },
+      "pairwise": {
+        "title": "没有中间表示磨掉细节。",
+        "body": "转换直接发生在真实协议之间。不存在一个枢纽模式来决定哪些细节可以保留。"
+      },
+      "unknown": {
+        "title": "未知字段也能完整往返。",
+        "body": "每个类型化模型都保留尚未建模的 JSON。提供商今天发布的字段，仍能到达你的客户端。"
+      },
+      "cli": {
+        "title": "你的 CLI 仍像在直连提供商。",
+        "body": "Codex CLI 和 Claude Code 使用池化凭据运行，并经过同一条计量执行路径。"
+      },
+      "providers": {
+        "title": "28 个提供商，一个 Base URL。",
+        "body": "池化凭据、在路由成员间故障转移，并按密钥执行支出限制，无需重新配置客户端。"
+      },
+      "runtime": {
+        "title": "原生二进制，或边缘 wasm。",
+        "body": "同一套无框架请求与结果边界，可以运行在 TCP 主机或 fetch worker 之后。"
+      }
+    }
+  }
+}

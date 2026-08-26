@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import "@/i18n"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
+import { validDateRange } from "@/lib/date-range"
 
 const cycle: CredentialQuotaCycleDto = {
   id: 1,
@@ -39,5 +40,11 @@ describe("CredentialCycleList", () => {
     const bars = screen.getAllByRole("progressbar")
     expect(bars).toHaveLength(1)
     expect(bars[0]).toHaveAttribute("aria-valuenow", "20")
+  })
+
+  it("accepts only explicit start and end bounds in chronological order", () => {
+    expect(validDateRange({ start: 100, end: 200 })).toBe(true)
+    expect(validDateRange({ start: 200, end: 200 })).toBe(false)
+    expect(validDateRange({ start: 300, end: 200 })).toBe(false)
   })
 })

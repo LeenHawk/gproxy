@@ -1,0 +1,130 @@
+import { useDeferredValue, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
+import { DataTablePagination } from "@/components/data-table-pagination"
+import { useColumnVisibility } from "@/components/data-table-state"
+import { DataTableToolbar } from "@/components/data-table-toolbar"
+import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
+
+export type DataTableColumn<T> = {
+  key: string
+  label: string
+  header: ReactNode
+  cell: (row: T) => ReactNode
+  className?: string
+}
+
+export type DataTableProps<T> = {
+  columns: Array<DataTableColumn<T>>
+  rows: Array<T>
+  rowKey: (row: T) => string | number
+  searchText: (row: T) => string
+  renderCard: (row: T) => ReactNode
+  empty: ReactNode
+  storageKey: string
+  onRowClick?: (row: T) => void
+  selectable?: boolean
+  batchActions?: (selectedRows: Array<T>) => ReactNode
+  pageSize?: number
+}
+
+export function DataTable<T>({
+  columns,
+  rows,
+  rowKey,
+  searchText,
+  renderCard,
+  empty,
+  storageKey,
+  onRowClick,
+  selectable = false,
+  batchActions,
+  pageSize = 10,
+}: DataTableProps<T>) {
+  const { t } = useTranslation()
+  const [query, setQuery] = useState("")
+  const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase())
+  const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<Set<string | number>>(() => new Set())
+  const { hidden, toggle } = useColumnVisibility(`gproxy.table.${storageKey}.columns`)
+  const visibleColumns = columns.filter((column) => !hidden.has(column.key))
+  const filtered = useMemo(() => deferredQuery
+    ? rows.filter((row) => searchText(row).toLocaleLowerCase().includes(deferredQuery))
+    : rows, [deferredQuery, rows, searchText])
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const currentPage = Math.min(page, pages)
+  const visibleRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const selectedRows = rows.filter((row) => selected.has(rowKey(row)))
+  const allSelected = filtered.length > 0 && filtered.every((row) => selected.has(rowKey(row)))
+  const someSelected = filtered.some((row) => selected.has(rowKey(row)))
+
+  const toggleRow = (id: string | number) => setSelected((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+  const toggleAll = () => setSelected((current) => {
+    const next = new Set(current)
+    for (const row of filtered) {
+      const id = rowKey(row)
+      if (allSelected) next.delete(id)
+      else next.add(id)
+    }
+    return next
+  })
+  const activate = (row: T) => (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onRowClick?.(row)
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <DataTableToolbar
+        query={query}
+        onQuery={(value) => { setQuery(value); setPage(1) }}
+        columns={columns}
+        hidden={hidden}
+        onToggleColumn={toggle}
+        selectedCount={selectedRows.length}
+        onClearSelection={() => setSelected(new Set())}
+        batchActions={batchActions?.(selectedRows)}
+      />
+      {filtered.length === 0 ? (
+        <Empty><EmptyHeader><EmptyTitle>{empty}</EmptyTitle></EmptyHeader></Empty>
+      ) : (
+        <>
+          <div className="hidden overflow-hidden rounded-md border bg-card md:block">
+            <Table>
+              <TableHeader><TableRow>
+                {selectable ? <TableHead className="w-10"><Checkbox checked={allSelected ? true : someSelected ? "indeterminate" : false} onCheckedChange={toggleAll} aria-label={t("common.dataTable.selectAll")} /></TableHead> : null}
+                {visibleColumns.map((column) => <TableHead key={column.key} className={column.className}>{column.header}</TableHead>)}
+              </TableRow></TableHeader>
+              <TableBody>{visibleRows.map((row) => {
+                const id = rowKey(row)
+                return <TableRow key={id} data-state={selected.has(id) ? "selected" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
+                  {selectable ? <TableCell><Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /></TableCell> : null}
+                  {visibleColumns.map((column) => <TableCell key={column.key} className={column.className}>{column.cell(row)}</TableCell>)}
+                </TableRow>
+              })}</TableBody>
+            </Table>
+          </div>
+          <div className="grid gap-2 md:hidden">{visibleRows.map((row) => {
+            const id = rowKey(row)
+            return <Card key={id} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", selected.has(id) && "ring-2 ring-ring")}>
+              <CardContent className="flex items-start gap-3">
+                {selectable ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
+                <div className="min-w-0 flex-1">{renderCard(row)}</div>
+              </CardContent>
+            </Card>
+          })}</div>
+        </>
+      )}
+      <DataTablePagination page={currentPage} pages={pages} onPage={setPage} />
+    </div>
+  )
+}

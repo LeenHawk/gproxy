@@ -1,0 +1,140 @@
+{
+  "common": {
+    "product": "GPROXY",
+    "console": "管理控制台",
+    "name": "名称",
+    "language": "语言",
+    "languages": {
+      "en": "English",
+      "zh-CN": "简体中文",
+      "zh-TW": "繁體中文"
+    },
+    "loading": "正在加载…",
+    "loadError": "无法加载数据，请重试。",
+    "none": "无",
+    "optional": "可选",
+    "required": "必填",
+    "search": "搜索…",
+    "actions": {
+      "create": "创建",
+      "save": "保存",
+      "saving": "正在保存…",
+      "saved": "已保存",
+      "cancel": "取消",
+      "close": "关闭",
+      "edit": "编辑",
+      "enable": "启用",
+      "disable": "停用",
+      "add": "添加",
+      "delete": "删除"
+    },
+    "status": {
+      "label": "状态",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "healthy": "健康",
+      "degraded": "性能下降",
+      "dead": "不可用",
+      "unknown": "未知",
+      "open": "进行中",
+      "closed": "已结束",
+      "active": "活跃",
+      "inactive": "非活跃"
+    },
+    "errors": {
+      "load": "无法加载数据，请重试。",
+      "save": "无法保存更改，请重试。",
+      "invalid": "请检查标记的字段。",
+      "required": "此字段为必填项。"
+    },
+    "theme": {
+      "label": "主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "dataTable": {
+      "search": "搜索",
+      "columns": "列",
+      "previous": "上一页",
+      "next": "下一页",
+      "page": "第 {{page}} / {{pages}} 页",
+      "selected": "已选择 {{count}} 项",
+      "clearSelection": "清除选择",
+      "selectAll": "选择所有行",
+      "selectRow": "选择此行"
+    },
+    "filters": {
+      "start": "开始时间",
+      "end": "结束时间",
+      "apply": "应用",
+      "reset": "重置",
+      "invalidRange": "开始时间必须早于结束时间。"
+    }
+  },
+  "auth": {
+    "username": "用户名",
+    "password": "密码",
+    "logout": "退出登录",
+    "error": {
+      "title": "身份验证失败",
+      "description": "请检查凭据后重试。"
+    },
+    "login": {
+      "title": "登录 GPROXY",
+      "description": "使用此实例的管理员账户登录。",
+      "action": "登录"
+    },
+    "setup": {
+      "title": "创建管理员",
+      "description": "此账户用于管理实例，与数据平面 API 密钥相互独立。",
+      "action": "创建管理员"
+    },
+    "session": {
+      "loadError": "无法验证管理员会话，请重试。"
+    }
+  },
+  "nav": {
+    "label": "控制台导航",
+    "overview": "概览",
+    "providers": "提供商",
+    "routes": "路由",
+    "users": "用户与密钥",
+    "keys": "用户与密钥",
+    "usage": "用量与成本",
+    "logs": "交换日志",
+    "channels": "渠道",
+    "pricing": "定价",
+    "settings": "设置",
+    "open": "打开导航",
+    "close": "关闭导航"
+  },
+  "window": {
+    "resets": "重置于 {{value}}",
+    "started": "开始于 {{time}}",
+    "noReset": "重置时间未知",
+    "notStarted": "窗口尚未开始",
+    "boundary": {
+      "label": "边界",
+      "upstream": "上游报告",
+      "inferred": "GPROXY 推断",
+      "unknown": "边界未知"
+    },
+    "confidence": {
+      "label": "置信度",
+      "exact": "精确",
+      "derived": "推导",
+      "partial": "部分可信",
+      "unknown": "未知"
+    },
+    "coverage": {
+      "partial": "部分覆盖",
+      "unknown": "覆盖范围未知"
+    },
+    "closeReason": {
+      "boundary_crossed": "跨越周期边界",
+      "manual_reset": "手动重置"
+    },
+    "usageUnknown": "此周期的上游用量不可用。"
+  }
+}

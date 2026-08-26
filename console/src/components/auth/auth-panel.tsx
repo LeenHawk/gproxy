@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { LocaleSwitcher } from "@/components/locale-switcher"
+import { LocaleControls } from "@/components/locale-controls"
 
 export function AuthPanel({ setup, pending, failed, onSubmit }: { setup: boolean; pending: boolean; failed: boolean; onSubmit: (username: string, password: string) => void }) {
   const { t } = useTranslation()
@@ -21,7 +21,7 @@ export function AuthPanel({ setup, pending, failed, onSubmit }: { setup: boolean
   return (
     <main className="grid min-h-screen place-items-center px-5 py-10">
       <div className="flex w-full max-w-md flex-col gap-4">
-        <div className="flex justify-end"><LocaleSwitcher /></div>
+        <div className="flex justify-end"><LocaleControls /></div>
         <Card>
           <CardHeader>
             <p className="font-mono text-xs text-muted-foreground">{t("common.product")}</p>

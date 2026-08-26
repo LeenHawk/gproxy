@@ -1,0 +1,93 @@
+{
+  "access": {
+    "title": "存取權限與限制",
+    "subtitle": "為使用者或金鑰設定權限、請求限制和成本配額。",
+    "subject": "套用至",
+    "subjectKinds": {
+      "user": "使用者",
+      "userKey": "API 金鑰"
+    },
+    "permissions": {
+      "title": "權限",
+      "add": "新增權限",
+      "empty": "此主體尚未設定權限。",
+      "provider": "供應商",
+      "allProviders": "所有供應商",
+      "operationGroup": "操作群組",
+      "allOperations": "所有操作",
+      "effect": "效果",
+      "allow": "允許",
+      "deny": "拒絕",
+      "saved": "已儲存權限。",
+      "saveError": "無法儲存權限，請重試。",
+      "delete": "刪除權限",
+      "deleteError": "無法刪除權限，請重試。"
+    },
+    "rateLimits": {
+      "title": "速率限制",
+      "add": "新增速率限制",
+      "empty": "此主體尚未設定速率限制。",
+      "requests": "請求數",
+      "windowSeconds": "視窗秒數",
+      "summary": "每 {{seconds}} 秒 {{requests}} 個請求",
+      "saved": "已儲存速率限制。",
+      "saveError": "無法儲存速率限制，請重試。",
+      "delete": "刪除速率限制",
+      "deleteError": "無法刪除速率限制，請重試。"
+    },
+    "quotas": {
+      "title": "成本配額",
+      "add": "設定配額",
+      "empty": "此主體尚未設定成本配額。",
+      "loadError": "無法載入配額，請重試。",
+      "total": "總限額",
+      "daily": "每日限額",
+      "weekly": "每週限額",
+      "monthly": "每月限額",
+      "fiveHour": "5 小時限額",
+      "sevenDay": "7 天限額",
+      "enabled": "啟用配額",
+      "saved": "已儲存配額。",
+      "saveError": "無法儲存配額，請檢查金額後重試。",
+      "delete": "刪除配額",
+      "deleteError": "無法刪除配額，請重試。"
+    }
+  },
+  "users": {
+    "title": "使用者與金鑰",
+    "subtitle": "管理身分、API 金鑰、存取權限和支出限制。",
+    "empty": "尚無使用者。請先新增使用者再簽發 API 金鑰。",
+    "loadError": "無法載入使用者，請重試。",
+    "fields": {
+      "organization": "組織",
+      "team": "團隊"
+    },
+    "created": "已建立使用者。",
+    "updated": "已更新使用者。",
+    "saveError": "無法儲存使用者，請檢查欄位後重試。",
+    "keys": {
+      "title": "API 金鑰",
+      "create": "建立 API 金鑰",
+      "empty": "尚無 API 金鑰。請為此使用者建立一個。",
+      "label": "金鑰標籤",
+      "prefix": "前綴",
+      "standardPrefix": "標準金鑰 (sk-)",
+      "codexPrefix": "Codex 金鑰 (at-)",
+      "expiresAt": "到期時間",
+      "neverExpires": "永不到期",
+      "masked": "{{prefix}}••••••••••••",
+      "reveal": "顯示金鑰",
+      "revealed": "金鑰已顯示，稍後將自動隱藏。",
+      "revealError": "無法顯示此金鑰，請重試。",
+      "notRevealable": "此金鑰無法顯示。",
+      "copy": "複製完整金鑰",
+      "copied": "已複製完整金鑰。",
+      "copyError": "無法複製金鑰，請選取後手動複製。",
+      "remask": "隱藏金鑰",
+      "created": "API 金鑰已建立，請在關閉前複製。",
+      "createError": "無法建立 API 金鑰，請重試。",
+      "updated": "已更新 API 金鑰。",
+      "updateError": "無法更新 API 金鑰，請重試。"
+    }
+  }
+}

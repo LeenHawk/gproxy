@@ -15,6 +15,7 @@ type Props = {
   draft: LogQueryDto
   onDraft: Dispatch<SetStateAction<LogQueryDto>>
   onSearch: () => void
+  onReset: () => void
   page: LogPageDto
   settings: LogSettingsDto
   providers: Array<ProviderDto>

@@ -1,0 +1,140 @@
+{
+  "common": {
+    "product": "GPROXY",
+    "console": "Admin console",
+    "name": "Name",
+    "language": "Language",
+    "languages": {
+      "en": "English",
+      "zh-CN": "简体中文",
+      "zh-TW": "繁體中文"
+    },
+    "loading": "Loading…",
+    "loadError": "Could not load this data. Retry.",
+    "none": "None",
+    "optional": "Optional",
+    "required": "Required",
+    "search": "Search…",
+    "actions": {
+      "create": "Create",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "cancel": "Cancel",
+      "close": "Close",
+      "edit": "Edit",
+      "enable": "Enable",
+      "disable": "Disable",
+      "add": "Add",
+      "delete": "Delete"
+    },
+    "status": {
+      "label": "Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "dead": "Dead",
+      "unknown": "Unknown",
+      "open": "Open",
+      "closed": "Closed",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "errors": {
+      "load": "Could not load this data. Retry.",
+      "save": "Could not save changes. Retry.",
+      "invalid": "Check the highlighted fields.",
+      "required": "This field is required."
+    },
+    "theme": {
+      "label": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "dataTable": {
+      "search": "Search",
+      "columns": "Columns",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}} of {{pages}}",
+      "selected": "{{count}} selected",
+      "clearSelection": "Clear selection",
+      "selectAll": "Select all rows",
+      "selectRow": "Select row"
+    },
+    "filters": {
+      "start": "Start",
+      "end": "End",
+      "apply": "Apply",
+      "reset": "Reset",
+      "invalidRange": "Start must be before end."
+    }
+  },
+  "auth": {
+    "username": "Username",
+    "password": "Password",
+    "logout": "Sign out",
+    "error": {
+      "title": "Authentication failed",
+      "description": "Check the credentials and try again."
+    },
+    "login": {
+      "title": "Sign in to GPROXY",
+      "description": "Use an administrator account for this instance.",
+      "action": "Sign in"
+    },
+    "setup": {
+      "title": "Create the administrator",
+      "description": "This account manages the instance and is separate from data-plane API keys.",
+      "action": "Create administrator"
+    },
+    "session": {
+      "loadError": "Could not verify the admin session. Retry."
+    }
+  },
+  "nav": {
+    "label": "Console navigation",
+    "overview": "Overview",
+    "providers": "Providers",
+    "routes": "Routes",
+    "users": "Users and keys",
+    "keys": "Users and keys",
+    "usage": "Usage and cost",
+    "logs": "Exchange logs",
+    "channels": "Channels",
+    "pricing": "Pricing",
+    "settings": "Settings",
+    "open": "Open navigation",
+    "close": "Close navigation"
+  },
+  "window": {
+    "resets": "Resets {{value}}",
+    "started": "Started {{time}}",
+    "noReset": "Reset time is not known",
+    "notStarted": "Window has not started",
+    "boundary": {
+      "label": "Boundary",
+      "upstream": "Reported by upstream",
+      "inferred": "Inferred by GPROXY",
+      "unknown": "Boundary unknown"
+    },
+    "confidence": {
+      "label": "Confidence",
+      "exact": "Exact",
+      "derived": "Derived",
+      "partial": "Partial",
+      "unknown": "Unknown"
+    },
+    "coverage": {
+      "partial": "Partial coverage",
+      "unknown": "Coverage unknown"
+    },
+    "closeReason": {
+      "boundary_crossed": "Boundary crossed",
+      "manual_reset": "Manual reset"
+    },
+    "usageUnknown": "Upstream usage is unavailable for this period."
+  }
+}

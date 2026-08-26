@@ -1,0 +1,33 @@
+{
+  "settings": {
+    "title": "執行個體設定",
+    "subtitle": "限制日誌儲存並選擇此執行個體記錄的內容。",
+    "loadError": "無法載入執行個體設定，請重試。",
+    "saved": "已儲存執行個體設定。",
+    "saveError": "無法儲存執行個體設定，請重試。",
+    "storage": {
+      "title": "保留與儲存",
+      "description": "本文擷取至少需要一個正數上限，避免日誌無限成長。",
+      "retention": "保留天數",
+      "retentionHint": "留空可停用按時間清理。",
+      "size": "資料庫大小上限（MiB）",
+      "sizeHint": "留空可停用大小壓力清理。"
+    },
+    "logs": {
+      "enable_downstream_log": "下游中繼資料",
+      "enable_downstream_logHint": "記錄呼叫端請求與回應中繼資料。",
+      "enable_downstream_log_body": "下游本文",
+      "enable_downstream_log_bodyHint": "同時儲存呼叫端請求與回應本文。",
+      "enable_upstream_log": "上游中繼資料",
+      "enable_upstream_logHint": "記錄每次上游嘗試及回應中繼資料。",
+      "enable_upstream_log_body": "上游本文",
+      "enable_upstream_log_bodyHint": "同時儲存上游請求與回應本文。"
+    },
+    "redaction": {
+      "title": "敏感資料遮罩",
+      "disable": "停用日誌遮罩",
+      "enabledMeaning": "遮罩已開啟。憑證、Cookie、授權標頭和已知密鑰欄位會在寫入日誌前移除。",
+      "disabledMeaning": "遮罩已關閉。憑證、Cookie、使用者內容及其他敏感值可能以明文寫入資料庫。僅在你控制的執行個體上暫時使用。"
+    }
+  }
+}

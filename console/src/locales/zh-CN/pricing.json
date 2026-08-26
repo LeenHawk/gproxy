@@ -1,0 +1,59 @@
+{
+  "pricing": {
+    "title": "定价",
+    "subtitle": "配置模型规则、维度费率和服务层级阶梯。",
+    "loadError": "无法加载定价，请重试。",
+    "rules": {
+      "add": "添加定价规则",
+      "edit": "编辑定价规则",
+      "created": "已创建定价规则。",
+      "updated": "已更新定价规则。",
+      "saveError": "无法保存定价规则，请重试。",
+      "empty": "尚无定价规则。请先添加规则，流量结算才会产生非零成本。",
+      "provider": "提供商",
+      "allProviders": "所有提供商",
+      "pattern": "模型匹配模式",
+      "priority": "优先级",
+      "enabled": "启用规则"
+    },
+    "tiers": {
+      "title": "上下文与服务层级",
+      "add": "添加层级行",
+      "serviceTier": "服务层级",
+      "threshold": "最小提示 Token",
+      "multiplier": "倍率",
+      "input_price": "每百万输入",
+      "output_price": "每百万输出",
+      "cache_read_price": "每百万缓存读取",
+      "cache_creation_5m_price": "每百万 5 分钟缓存写入",
+      "cache_creation_30m_price": "每百万 30 分钟缓存写入",
+      "cache_creation_1h_price": "每百万 1 小时缓存写入",
+      "image_output_price": "每百万图像输出"
+    },
+    "warning": {
+      "title": "缺少长上下文价格阶梯",
+      "longContext": "这个显式服务层价格会替换基础阶梯，但基础阶梯还有更高阈值。请添加对应的服务层阈值行，或改用倍率。"
+    },
+    "rates": {
+      "title": "费率",
+      "add": "添加费率",
+      "edit": "编辑费率",
+      "created": "已创建费率。",
+      "updated": "已更新费率。",
+      "deleted": "已删除费率。",
+      "saveError": "无法保存费率，请重试。",
+      "deleteError": "无法删除费率，请重试。",
+      "empty": "此规则没有维度费率。",
+      "rule": "定价规则",
+      "metric": "指标",
+      "price": "价格",
+      "unitSize": "单位大小",
+      "priority": "优先级",
+      "conditions": "维度条件",
+      "conditionKey": "维度名称",
+      "conditionValue": "期望值",
+      "summary": "每 {{units}} 单位 {{price}}",
+      "priorityValue": "优先级 {{value}}"
+    }
+  }
+}
