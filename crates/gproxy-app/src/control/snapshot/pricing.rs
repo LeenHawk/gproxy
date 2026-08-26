@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use gproxy_core::Pricing;
+use gproxy_core::{Pricing, PricingTier, normalize_service_tier};
 use gproxy_store::StoreError;
-use gproxy_store::records::{PriceRateRecord, PriceRuleRecord};
+use gproxy_store::records::{PriceRateRecord, PriceRuleRecord, parse_price_tiers};
 use rust_decimal::Decimal;
 
 use super::types::CompiledPriceRule;
@@ -28,7 +28,10 @@ pub(super) fn compile(
             provider_id: rule.provider_id,
             model_pattern: rule.model_pattern.clone(),
             priority: rule.priority,
-            rates,
+            rates: Pricing {
+                tiers: parse_tiers(rule.tiers.as_ref())?,
+                ..rates
+            },
         });
     }
     compiled.sort_by_key(|rule| (rule.priority, rule.id));
@@ -65,8 +68,33 @@ fn compile_rates(rates: Vec<&PriceRateRecord>) -> Result<Pricing, StoreError> {
         input_per_million: input,
         output_per_million: output,
         cached_input_per_million: cached,
+        service_tier: None,
+        tiers: Vec::new(),
         metric_rates,
     })
+}
+
+fn parse_tiers(value: Option<&serde_json::Value>) -> Result<Vec<PricingTier>, StoreError> {
+    parse_price_tiers(value)?
+        .into_iter()
+        .map(|tier| {
+            Ok(PricingTier {
+                service_tier: tier
+                    .service_tier
+                    .as_deref()
+                    .and_then(normalize_service_tier),
+                min_prompt_tokens: tier.min_prompt_tokens,
+                multiplier: tier.multiplier,
+                input_per_million: tier.input,
+                output_per_million: tier.output,
+                cached_input_per_million: tier.cache_read,
+                cache_creation_5m_per_million: tier.cache_creation_5m,
+                cache_creation_30m_per_million: tier.cache_creation_30m,
+                cache_creation_1h_per_million: tier.cache_creation_1h,
+                image_output_per_million: tier.image_output,
+            })
+        })
+        .collect()
 }
 
 fn per_million(price: Decimal, unit: Decimal) -> Decimal {

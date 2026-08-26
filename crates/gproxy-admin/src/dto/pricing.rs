@@ -7,6 +7,8 @@ pub struct PriceRuleDto {
     pub id: i64,
     pub provider_id: Option<i64>,
     pub model_pattern: String,
+    #[ts(type = "unknown | null")]
+    pub tiers: Option<Value>,
     pub priority: i64,
     pub enabled: bool,
 }
@@ -15,6 +17,8 @@ pub struct PriceRuleDto {
 pub struct PriceRuleWriteRequest {
     pub provider_id: Option<i64>,
     pub model_pattern: String,
+    #[ts(type = "unknown | null")]
+    pub tiers: Option<Value>,
     pub priority: i64,
     pub enabled: bool,
 }

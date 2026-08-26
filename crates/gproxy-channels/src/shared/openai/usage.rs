@@ -11,12 +11,31 @@ pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
         return speech(ctx.request_body, ctx.response_headers, ctx.response_body);
     }
     let value = serde_json::from_slice::<Value>(ctx.response_body).ok()?;
-    match ctx.key.operation {
+    let mut usage = match ctx.key.operation {
         Operation::CreateImage | Operation::EditImage => from_image_value(&value),
         Operation::CreateTranscription => from_transcription_value(&value),
         Operation::RetrieveVideo => from_video_value(&value),
         _ => value.get("usage").and_then(from_usage),
+    }?;
+    apply_service_tier(&mut usage, &value);
+    Some(usage)
+}
+
+pub(super) fn apply_service_tier(usage: &mut NormalizedUsage, value: &Value) {
+    if let Some(tier) = service_tier(value) {
+        usage.dimensions.insert("service_tier".into(), tier.into());
     }
+}
+
+pub(super) fn service_tier(value: &Value) -> Option<&str> {
+    value
+        .get("service_tier")
+        .or_else(|| value.pointer("/response/service_tier"))
+        .and_then(|value| {
+            value
+                .as_str()
+                .or_else(|| value.get("type").and_then(Value::as_str))
+        })
 }
 
 pub(crate) fn speech(

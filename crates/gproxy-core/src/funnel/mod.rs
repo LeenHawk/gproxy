@@ -55,6 +55,7 @@ impl FunnelCtx {
 pub(crate) struct BufferedRelay {
     pub response: http::Response<Bytes>,
     pub usage: Option<NormalizedUsage>,
+    pub actual_service_tier: Option<String>,
     pub capture_body: Option<Bytes>,
     pub outward_ready: bool,
 }
@@ -64,6 +65,7 @@ impl BufferedRelay {
         Self {
             response,
             usage: None,
+            actual_service_tier: None,
             capture_body: None,
             outward_ready: false,
         }
@@ -80,10 +82,13 @@ pub(crate) async fn buffered<H: Host>(
     let BufferedRelay {
         response,
         usage: usage_override,
+        actual_service_tier,
         capture_body,
         outward_ready,
     } = relay;
     let (parts, body) = response.into_parts();
+    let actual_service_tier = actual_service_tier
+        .or_else(|| crate::control::response_service_tier(&parts.headers, &body));
     let (record_usage, extracted) = if usage_override.is_some() {
         (matches!(ctx.settle, SettleMode::OnResponse), None)
     } else {
@@ -126,6 +131,7 @@ pub(crate) async fn buffered<H: Host>(
             estimated_output_chars: None,
             record_usage,
             usage,
+            actual_service_tier,
             ended: Ended::Complete,
         },
     )
@@ -218,6 +224,7 @@ pub(crate) async fn free_buffered<H: Host>(
             estimated_output_chars: None,
             record_usage: false,
             usage: None,
+            actual_service_tier: None,
             ended: Ended::Complete,
         },
     )
@@ -293,6 +300,7 @@ pub(crate) async fn interrupted<H: Host>(
     body: Bytes,
 ) {
     let (record_usage, usage) = settlement::usage(channel, &ctx, &headers, &body);
+    let actual_service_tier = crate::control::response_service_tier(&headers, &body);
     settlement::complete(
         host,
         &ctx,
@@ -302,6 +310,7 @@ pub(crate) async fn interrupted<H: Host>(
             estimated_output_chars: None,
             record_usage,
             usage,
+            actual_service_tier,
             ended: Ended::Interrupted,
         },
     )
@@ -313,6 +322,7 @@ pub(crate) async fn complete_stream<H: Host>(
     ctx: FunnelCtx,
     status: http::StatusCode,
     usage: Option<NormalizedUsage>,
+    actual_service_tier: Option<String>,
     estimated_output_chars: Option<u64>,
     ended: Ended,
 ) {
@@ -326,6 +336,7 @@ pub(crate) async fn complete_stream<H: Host>(
             estimated_output_chars,
             record_usage,
             usage,
+            actual_service_tier,
             ended,
         },
     )

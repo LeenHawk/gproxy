@@ -116,7 +116,9 @@ pub(crate) async fn prepare<H: Host>(
         source_framing: classified.framing,
         target_framing,
         settle: support.target.operation.spec().settle,
-        pricing: control.pricing(&target.provider, &target.upstream_model),
+        pricing: control
+            .pricing(&target.provider, &target.upstream_model)
+            .map(|pricing| pricing.for_request(&ctx.body)),
         started,
         upstream_url: None,
         request_body: body.clone(),

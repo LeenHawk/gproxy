@@ -270,6 +270,7 @@ impl StreamDecoder for MemoryHost {
                 output_tokens: 5,
                 ..Default::default()
             }),
+            actual_service_tier: None,
         })
     }
 }

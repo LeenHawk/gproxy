@@ -13,6 +13,7 @@ pub(crate) struct OpenAiSseDecoder {
     kind: Kind,
     buffer: Vec<u8>,
     redactor: B64Redactor,
+    service_tier: Option<String>,
     usage: Option<NormalizedUsage>,
     audio_bytes: u64,
     audio_bytes_per_second: Option<u64>,
@@ -59,6 +60,7 @@ impl OpenAiSseDecoder {
             kind,
             buffer: Vec::new(),
             redactor: B64Redactor::default(),
+            service_tier: None,
             usage: None,
             audio_bytes: 0,
             audio_bytes_per_second,
@@ -79,7 +81,10 @@ impl OpenAiSseDecoder {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(&data) else {
             return;
         };
-        let usage = match self.kind {
+        if let Some(tier) = super::usage::service_tier(&value) {
+            self.service_tier = Some(tier.to_owned());
+        }
+        let mut usage = match self.kind {
             Kind::Chat => value.get("usage").and_then(super::usage::from_usage),
             Kind::Responses => {
                 let completed = event.as_deref() == Some("response.completed")
@@ -108,6 +113,9 @@ impl OpenAiSseDecoder {
                 None
             }
         };
+        if let (Some(usage), Some(tier)) = (usage.as_mut(), self.service_tier.as_ref()) {
+            usage.dimensions.insert("service_tier".into(), tier.clone());
+        }
         if usage.is_some() {
             self.usage = usage;
         }
@@ -151,6 +159,7 @@ impl StreamDecoder for OpenAiSseDecoder {
         Ok(StreamTail {
             frames: Vec::new(),
             usage: self.usage.take(),
+            actual_service_tier: self.service_tier.take(),
         })
     }
 }

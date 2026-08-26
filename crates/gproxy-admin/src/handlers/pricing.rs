@@ -22,6 +22,7 @@ pub(super) async fn list(
                     id: value.id,
                     provider_id: value.provider_id,
                     model_pattern: value.model_pattern.clone(),
+                    tiers: value.tiers.clone(),
                     priority: value.priority,
                     enabled: value.enabled,
                 })
@@ -104,6 +105,7 @@ fn rule(request: PriceRuleWriteRequest) -> Result<PriceRuleInput, AdminError> {
     Ok(PriceRuleInput {
         provider_id: request.provider_id,
         model_pattern: request.model_pattern,
+        tiers: request.tiers,
         priority: request.priority,
         enabled: request.enabled,
     })

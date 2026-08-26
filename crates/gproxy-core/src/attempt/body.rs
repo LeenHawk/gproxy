@@ -15,6 +15,7 @@ pub(crate) struct BodyFailure {
 pub(crate) struct CollectedStream {
     pub response: http::Response<Bytes>,
     pub usage: Option<NormalizedUsage>,
+    pub actual_service_tier: Option<String>,
     pub capture_body: Bytes,
 }
 
@@ -145,6 +146,7 @@ pub(crate) async fn collect_stream(
     Ok(CollectedStream {
         response: http::Response::from_parts(parts, body),
         usage: tail.usage,
+        actual_service_tier: tail.actual_service_tier,
         capture_body: capture.freeze(),
     })
 }

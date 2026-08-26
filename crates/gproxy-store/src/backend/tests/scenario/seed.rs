@@ -77,6 +77,11 @@ pub(super) async fn seed_pricing(store: &Store, provider_id: i64) -> Result<(), 
         .insert_price_rule(&PriceRuleInput {
             provider_id: Some(provider_id),
             model_pattern: "upstream-model".into(),
+            tiers: Some(json!([{
+                "service_tier": "priority",
+                "input_price": "2",
+                "output_price": "4"
+            }])),
             priority: 0,
             enabled: true,
         })

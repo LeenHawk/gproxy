@@ -143,6 +143,9 @@ pub struct StreamTail {
     /// event whose final blank-line delimiter was omitted.
     pub frames: Vec<Frame>,
     pub usage: Option<NormalizedUsage>,
+    /// Provider-reported serving tier, independent of whether the event also
+    /// carried usage.
+    pub actual_service_tier: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

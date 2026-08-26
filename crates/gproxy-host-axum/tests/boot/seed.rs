@@ -107,6 +107,7 @@ pub(crate) async fn operational(
             gproxy_store::records::PriceRuleInput {
                 provider_id: Some(provider),
                 model_pattern: "upstream-model".into(),
+                tiers: None,
                 priority: 0,
                 enabled: true,
             },

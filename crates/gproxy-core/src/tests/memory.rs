@@ -250,6 +250,8 @@ impl ControlPlane for MemoryHost {
             input_per_million: Decimal::ONE,
             output_per_million: Decimal::from(2),
             cached_input_per_million: None,
+            service_tier: None,
+            tiers: Vec::new(),
             metric_rates: BTreeMap::new(),
         })
     }

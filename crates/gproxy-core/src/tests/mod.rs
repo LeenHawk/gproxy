@@ -3,6 +3,7 @@ mod channel;
 mod channels;
 mod memory;
 mod orchestration;
+mod pricing;
 mod services;
 mod surface;
 mod surface_engine;

@@ -158,6 +158,7 @@ pub(crate) async fn send<H: Host>(
                     body: AttemptBody::Buffered(funnel::BufferedRelay {
                         response: collected.response,
                         usage: collected.usage,
+                        actual_service_tier: collected.actual_service_tier,
                         capture_body: Some(collected.capture_body),
                         outward_ready: true,
                     }),

@@ -124,7 +124,7 @@ fn maximum_cost(
                 input_tokens: gproxy_tokenize::count(model, body, map.as_ref(), registry),
                 ..Default::default()
             };
-            pricing.cost(&usage)
+            pricing.clone().for_request(body).cost(&usage)
         })
         .max()
         .unwrap_or_default()

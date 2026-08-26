@@ -114,6 +114,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::id(),
             Col::optional("provider_id", Integer),
             Col::required("model_pattern", Text),
+            Col::optional("tiers_json", Text).since(SchemaVersion::Pricing),
             Col::required("priority", Integer),
             Col::required("enabled", Integer),
         ],

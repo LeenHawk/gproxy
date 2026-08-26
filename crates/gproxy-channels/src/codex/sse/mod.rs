@@ -20,6 +20,7 @@ pub(super) struct CodexSseDecoder {
     lifecycle: lifecycle::Lifecycle,
     tools: tools::ToolAliases,
     usage: Option<NormalizedUsage>,
+    actual_service_tier: Option<String>,
     done_seen: bool,
 }
 
@@ -33,6 +34,7 @@ impl CodexSseDecoder {
             lifecycle: Default::default(),
             tools: Default::default(),
             usage: None,
+            actual_service_tier: None,
             done_seen: false,
         })
     }
@@ -73,12 +75,16 @@ impl CodexSseDecoder {
             for event in self.tools.normalize(event)? {
                 if let ResponseStreamEvent::Known(known) = &event
                     && let Some(response) = event::response(known)
-                    && let Some(usage) = response.usage.as_ref()
                 {
-                    self.usage = Some(super::usage::from_response_with_tier(
-                        usage,
-                        response.service_tier.as_ref(),
-                    ));
+                    if let Some(tier) = response.service_tier.as_ref() {
+                        self.actual_service_tier = Some(tier.as_str().into());
+                    }
+                    if let Some(usage) = response.usage.as_ref() {
+                        self.usage = Some(super::usage::from_response_with_tier(
+                            usage,
+                            response.service_tier.as_ref(),
+                        ));
+                    }
                 }
                 let name = event.event_name().or(fallback_event);
                 let data = serde_json::to_string(&event)
@@ -107,6 +113,7 @@ impl StreamDecoder for CodexSseDecoder {
             return Ok(StreamTail {
                 frames: Vec::new(),
                 usage: self.usage.take(),
+                actual_service_tier: self.actual_service_tier.take(),
             });
         }
         let mut frames = if self.buffer.is_empty() {
@@ -126,6 +133,7 @@ impl StreamDecoder for CodexSseDecoder {
         Ok(StreamTail {
             frames,
             usage: self.usage.take(),
+            actual_service_tier: self.actual_service_tier.take(),
         })
     }
 }

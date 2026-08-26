@@ -95,6 +95,7 @@ impl StreamDecoder for ChatDecoder {
         Ok(StreamTail {
             frames,
             usage: self.usage.take(),
+            actual_service_tier: None,
         })
     }
 }

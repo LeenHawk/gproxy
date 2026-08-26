@@ -154,6 +154,7 @@ pub struct ExposedModelRecord {
 pub struct PriceRuleInput {
     pub provider_id: Option<i64>,
     pub model_pattern: String,
+    pub tiers: Option<Value>,
     pub priority: i64,
     pub enabled: bool,
 }
@@ -163,6 +164,7 @@ pub struct PriceRuleRecord {
     pub id: i64,
     pub provider_id: Option<i64>,
     pub model_pattern: String,
+    pub tiers: Option<Value>,
     pub priority: i64,
     pub enabled: bool,
 }

@@ -82,6 +82,7 @@ impl StreamDecoder for ClaudeSseDecoder {
         Ok(StreamTail {
             frames: Vec::new(),
             usage: super::usage::merge_stream(self.start.as_ref(), self.delta.as_ref()),
+            actual_service_tier: None,
         })
     }
 }

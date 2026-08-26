@@ -31,6 +31,7 @@ impl<H: Host> FunnelSocket<H> {
             http::StatusCode::SWITCHING_PROTOCOLS,
             None,
             None,
+            None,
             ended,
         )
         .await;
@@ -86,6 +87,7 @@ impl<H: Host> Drop for FunnelSocket<H> {
                 self.host.clone(),
                 ctx,
                 http::StatusCode::SWITCHING_PROTOCOLS,
+                None,
                 None,
                 None,
                 Ended::Interrupted,

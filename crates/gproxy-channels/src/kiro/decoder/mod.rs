@@ -99,6 +99,7 @@ impl StreamDecoder for KiroDecoder {
             return Ok(StreamTail {
                 frames: Vec::new(),
                 usage: self.usage.take(),
+                actual_service_tier: None,
             });
         }
         self.parser.finish()?;
@@ -119,6 +120,10 @@ impl StreamDecoder for KiroDecoder {
         }
         let frames = terminal::finish(self);
         let usage = self.usage.take();
-        Ok(StreamTail { frames, usage })
+        Ok(StreamTail {
+            frames,
+            usage,
+            actual_service_tier: None,
+        })
     }
 }

@@ -10,7 +10,9 @@ pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
             let response =
                 serde_json::from_slice::<gemini::GenerateContentResponse>(ctx.response_body)
                     .ok()?;
-            normalize(response.usage_metadata.as_ref()?).ok()
+            let mut usage = normalize(response.usage_metadata.as_ref()?).ok()?;
+            apply_response_tier(&mut usage, ctx.response_headers);
+            Some(usage)
         }
         Operation::CreateEmbedding => {
             let response =
@@ -155,8 +157,21 @@ fn validate_details(details: &[gemini::ModalityTokenCount]) -> Result<(), String
     Ok(())
 }
 
-fn tier_name(tier: &gemini::ServiceTier) -> Option<String> {
+pub(super) fn tier_name(tier: &gemini::ServiceTier) -> Option<String> {
     serde_json::to_value(tier).ok()?.as_str().map(str::to_owned)
+}
+
+pub(super) fn response_tier(headers: &http::HeaderMap) -> Option<String> {
+    headers
+        .get("x-gemini-service-tier")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+}
+
+pub(super) fn apply_response_tier(usage: &mut NormalizedUsage, headers: &http::HeaderMap) {
+    if let Some(tier) = response_tier(headers) {
+        usage.dimensions.insert("service_tier".into(), tier);
+    }
 }
 
 fn add_metric(usage: &mut NormalizedUsage, name: &str, value: u64) {

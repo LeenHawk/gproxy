@@ -117,6 +117,10 @@ pub(super) fn price_rules(result: QueryResult) -> Result<Vec<PriceRuleRecord>, S
                 id: row.i64("id")?,
                 provider_id: row.optional_i64("provider_id")?,
                 model_pattern: row.text("model_pattern")?.to_owned(),
+                tiers: row
+                    .optional_text("tiers_json")?
+                    .map(|value| json(value, "tiers_json"))
+                    .transpose()?,
                 priority: row.i64("priority")?,
                 enabled: row.i64("enabled")? != 0,
             })

@@ -101,7 +101,12 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 funnel_error::request_failed_surface(&ctx, request.key, Some(label), &error);
                 return Ok(super::reply::error(error));
             }
-            let pricing = self.pricing.get(&target.credential).cloned().flatten();
+            let pricing = self
+                .pricing
+                .get(&target.credential)
+                .cloned()
+                .flatten()
+                .map(|pricing| pricing.for_request(&ctx.body));
             match super::forward::request(
                 self.core, &target, request, false, request_id, started, pricing,
             )

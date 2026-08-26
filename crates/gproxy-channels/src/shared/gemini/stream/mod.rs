@@ -13,6 +13,7 @@ use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind, StreamFra
 pub(crate) struct GeminiStreamDecoder {
     parser: Parser,
     terminal: Terminal,
+    response_tier: Option<String>,
     usage: Option<gproxy_channel_api::NormalizedUsage>,
 }
 
@@ -37,6 +38,7 @@ impl GeminiStreamDecoder {
         Some(Self {
             parser,
             terminal: Terminal::default(),
+            response_tier: super::usage::response_tier(ctx.response_headers),
             usage: None,
         })
     }
@@ -58,10 +60,18 @@ impl GeminiStreamDecoder {
     fn observe(&mut self, chunks: Vec<GenerateContentResponse>) -> Result<(), ChannelError> {
         for chunk in chunks {
             if let Some(metadata) = chunk.usage_metadata.as_ref() {
-                self.usage = Some(
-                    super::usage::normalize(metadata)
-                        .map_err(|error| ChannelError::Decode(format!("Gemini usage: {error}")))?,
-                );
+                if self.response_tier.is_none() {
+                    self.response_tier = metadata
+                        .service_tier
+                        .as_ref()
+                        .and_then(super::usage::tier_name);
+                }
+                let mut usage = super::usage::normalize(metadata)
+                    .map_err(|error| ChannelError::Decode(format!("Gemini usage: {error}")))?;
+                if let Some(tier) = self.response_tier.as_ref() {
+                    usage.dimensions.insert("service_tier".into(), tier.clone());
+                }
+                self.usage = Some(usage);
             }
             self.terminal.observe(&chunk)?;
         }
@@ -85,6 +95,7 @@ impl StreamDecoder for GeminiStreamDecoder {
             return Ok(StreamTail {
                 frames: Vec::new(),
                 usage: self.usage.take(),
+                actual_service_tier: self.response_tier.take(),
             });
         }
         let parsed = self.parse_finish()?;
@@ -97,6 +108,7 @@ impl StreamDecoder for GeminiStreamDecoder {
         Ok(StreamTail {
             frames: Vec::new(),
             usage: self.usage.take(),
+            actual_service_tier: self.response_tier.take(),
         })
     }
 }

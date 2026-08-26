@@ -53,6 +53,7 @@ async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
             gproxy_store::records::PriceRuleInput {
                 provider_id: Some(provider),
                 model_pattern: "gpt-4o-mini".into(),
+                tiers: None,
                 priority: 0,
                 enabled: true,
             },

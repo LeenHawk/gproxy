@@ -129,13 +129,27 @@ pub(crate) fn update_exposed_model(
 }
 
 pub(crate) fn update_price_rule(id: i64, input: &PriceRuleInput) -> Result<Statement, StoreError> {
+    crate::records::parse_price_tiers(input.tiers.as_ref())?;
     update(
         "price_rules",
         id,
-        &["provider_id", "model_pattern", "priority", "enabled"],
+        &[
+            "provider_id",
+            "model_pattern",
+            "tiers_json",
+            "priority",
+            "enabled",
+        ],
         vec![
             value(input.provider_id),
             value(input.model_pattern.clone()),
+            value(
+                input
+                    .tiers
+                    .as_ref()
+                    .map(|tiers| json(tiers, "tiers"))
+                    .transpose()?,
+            ),
             value(input.priority),
             value(input.enabled),
         ],

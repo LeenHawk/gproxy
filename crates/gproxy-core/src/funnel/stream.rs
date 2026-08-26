@@ -23,6 +23,7 @@ pub(crate) struct FunnelStream<H: Host> {
     state: State,
     ended: Option<Ended>,
     tail_usage: Option<gproxy_channel_api::NormalizedUsage>,
+    actual_service_tier: Option<String>,
     output_chars: u64,
     terminal_error: Option<TransportError>,
 }
@@ -52,6 +53,7 @@ impl<H: Host> FunnelStream<H> {
             state: State::Relaying,
             ended: None,
             tail_usage: None,
+            actual_service_tier: None,
             output_chars: 0,
             terminal_error: None,
         }
@@ -73,6 +75,7 @@ impl<H: Host> FunnelStream<H> {
             self.pending
                 .extend(tail.frames.into_iter().map(|frame| frame.0));
             self.tail_usage = tail.usage;
+            self.actual_service_tier = tail.actual_service_tier;
         }
         self.ended = Some(ended);
         self.terminal_error = error;
@@ -80,10 +83,14 @@ impl<H: Host> FunnelStream<H> {
     }
 
     fn abort_relay(&mut self, error: TransportError) {
-        self.tail_usage = self
+        if let Some(tail) = self
             .decoder
             .take()
-            .and_then(|mut decoder| decoder.finish(StreamEnd::Interrupted).ok()?.usage);
+            .and_then(|mut decoder| decoder.finish(StreamEnd::Interrupted).ok())
+        {
+            self.tail_usage = tail.usage;
+            self.actual_service_tier = tail.actual_service_tier;
+        }
         self.ended = Some(Ended::Interrupted);
         self.terminal_error = Some(error);
         self.state = State::Draining;
@@ -101,6 +108,7 @@ impl<H: Host> FunnelStream<H> {
             ctx,
             self.status,
             usage,
+            self.actual_service_tier.take(),
             Some(self.output_chars),
             ended,
         ));
@@ -172,11 +180,18 @@ impl<H: Host> Drop for FunnelStream<H> {
             return;
         };
         let usage = if matches!(self.state, State::Relaying) {
-            self.decoder.take().and_then(|mut decoder| {
+            let tail = self
+                .decoder
+                .take()
+                .and_then(|mut decoder| decoder.finish(StreamEnd::Interrupted).ok());
+            if let Some(tail) = tail {
+                self.actual_service_tier = tail.actual_service_tier;
                 matches!(ctx.settle, SettleMode::OnResponse)
-                    .then(|| decoder.finish(StreamEnd::Interrupted).ok()?.usage)
+                    .then_some(tail.usage)
                     .flatten()
-            })
+            } else {
+                None
+            }
         } else {
             matches!(ctx.settle, SettleMode::OnResponse)
                 .then(|| self.tail_usage.take())
@@ -193,6 +208,7 @@ impl<H: Host> Drop for FunnelStream<H> {
                 ctx,
                 self.status,
                 usage,
+                self.actual_service_tier.take(),
                 Some(self.output_chars),
                 ended,
             )));

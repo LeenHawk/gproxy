@@ -60,6 +60,7 @@ impl StreamDecoder for TransformDecoder {
             return Ok(StreamTail {
                 frames: Vec::new(),
                 usage: tail.usage,
+                actual_service_tier: tail.actual_service_tier,
             });
         }
         let mut frames = self.convert(tail.frames)?;
@@ -73,6 +74,7 @@ impl StreamDecoder for TransformDecoder {
         Ok(StreamTail {
             frames,
             usage: tail.usage,
+            actual_service_tier: tail.actual_service_tier,
         })
     }
 }

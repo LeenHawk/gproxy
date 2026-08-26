@@ -121,12 +121,26 @@ pub(crate) fn insert_exposed_model(input: &ExposedModelInput) -> Result<Statemen
 }
 
 pub(crate) fn insert_price_rule(input: &PriceRuleInput) -> Result<Statement, StoreError> {
+    crate::records::parse_price_tiers(input.tiers.as_ref())?;
     insert(
         "price_rules",
-        &["provider_id", "model_pattern", "priority", "enabled"],
+        &[
+            "provider_id",
+            "model_pattern",
+            "tiers_json",
+            "priority",
+            "enabled",
+        ],
         vec![
             value(input.provider_id),
             value(input.model_pattern.clone()),
+            value(
+                input
+                    .tiers
+                    .as_ref()
+                    .map(|tiers| json(tiers, "tiers"))
+                    .transpose()?,
+            ),
             value(input.priority),
             value(input.enabled),
         ],

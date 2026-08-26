@@ -35,6 +35,7 @@ impl StreamDecoder for BedrockStreamDecoder {
             return Ok(StreamTail {
                 frames: Vec::new(),
                 usage: self.state.normalized.take(),
+                actual_service_tier: None,
             });
         }
         self.parser.finish()?;
@@ -50,6 +51,7 @@ impl StreamDecoder for BedrockStreamDecoder {
         Ok(StreamTail {
             frames: Vec::new(),
             usage: self.state.normalized.take(),
+            actual_service_tier: None,
         })
     }
 }

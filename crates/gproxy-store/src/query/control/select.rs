@@ -67,7 +67,14 @@ pub(crate) fn select_exposed_models() -> Result<Statement, StoreError> {
 pub(crate) fn select_price_rules() -> Result<Statement, StoreError> {
     select_all(
         "price_rules",
-        &["id", "provider_id", "model_pattern", "priority", "enabled"],
+        &[
+            "id",
+            "provider_id",
+            "model_pattern",
+            "tiers_json",
+            "priority",
+            "enabled",
+        ],
     )
 }
 

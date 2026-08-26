@@ -14,6 +14,7 @@ pub(super) struct Completion {
     pub estimated_output_chars: Option<u64>,
     pub record_usage: bool,
     pub usage: Option<NormalizedUsage>,
+    pub actual_service_tier: Option<String>,
     pub ended: Ended,
 }
 
@@ -24,8 +25,12 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         estimated_output_chars,
         record_usage,
         usage,
+        actual_service_tier,
         ended,
     } = completion;
+    let actual_service_tier = actual_service_tier
+        .as_deref()
+        .and_then(crate::control::normalize_service_tier);
     let latency_ms = ctx.started.elapsed().as_millis() as u64;
     let unique = match (record_usage, ctx.dedupe_key.as_deref()) {
         (true, Some(key)) => match host.cache().incr(key, 1, None).await {
@@ -56,7 +61,7 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
     } else {
         UsageSource::Estimated
     };
-    let usage = if unique {
+    let mut usage = if unique {
         usage.unwrap_or_else(|| {
             estimate(
                 &ctx.request_body,
@@ -68,6 +73,9 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
     } else {
         NormalizedUsage::default()
     };
+    if let Some(tier) = actual_service_tier.as_ref() {
+        usage.dimensions.insert("service_tier".into(), tier.clone());
+    }
     let settlement = Settlement {
         request_id: ctx.request_id.clone(),
         provider_id: ctx.target.provider.id,
@@ -76,7 +84,13 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         cost: if unique {
             ctx.pricing
                 .as_ref()
-                .map_or(rust_decimal::Decimal::ZERO, |pricing| pricing.cost(&usage))
+                .map_or(
+                    rust_decimal::Decimal::ZERO,
+                    |pricing| match actual_service_tier.as_deref() {
+                        Some(tier) => pricing.clone().with_service_tier(tier).cost(&usage),
+                        None => pricing.cost(&usage),
+                    },
+                )
         } else {
             rust_decimal::Decimal::ZERO
         },
