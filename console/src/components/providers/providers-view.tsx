@@ -5,6 +5,10 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
+import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
+import type { RuleDto } from "@/generated/RuleDto"
+import type { RuleSetDto } from "@/generated/RuleSetDto"
 import { PlusIcon } from "lucide-react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -12,6 +16,7 @@ import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { PageHeader } from "@/components/page-header"
 import { ProviderDetail } from "@/components/providers/provider-detail"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
+import type { RuleMutations } from "@/components/rules/rules-workspace"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
@@ -37,6 +42,11 @@ type Props = {
   savingCredentialId: number | null
   onSaveProvider: (value: ProviderWriteRequest, id?: number) => Promise<void>
   onSaveCredential: (value: CredentialWriteRequest, id?: number) => Promise<void>
+  ruleSets: Array<RuleSetDto>
+  rules: Array<RuleDto>
+  attachments: Array<ProviderRuleSetDto>
+  routingRules: Array<RoutingRuleDto>
+  ruleMutations: RuleMutations
 }
 
 export function ProvidersView(props: Props) {
@@ -44,7 +54,7 @@ export function ProvidersView(props: Props) {
   const location = useAdminLocation()
   const selectedId = Number(location.segments[0])
   const selected = props.providers.find((provider) => provider.id === selectedId) ?? null
-  const tab = location.segments[1] === "settings" ? "settings" : "credentials"
+  const tab = ["rules", "routing", "settings"].includes(location.segments[1]) ? location.segments[1] as "rules" | "routing" | "settings" : "credentials"
   const activeCredentialId = tab === "credentials" ? Number(location.segments[2]) : Number.NaN
   const credentialsByProvider = useMemo(() => {
     const groups = new Map<number, Array<CredentialDto>>()
@@ -109,6 +119,7 @@ export function ProvidersView(props: Props) {
               <Button className="mb-3 md:hidden" variant="ghost" onClick={() => navigateAdminPath(adminPath("providers"))}>{t("common.actions.back")}</Button>
               <ProviderDetail
                 provider={selected}
+                providers={props.providers}
                 tab={tab}
                 onTab={(value) => navigateAdminPath(`/admin/providers/${selected.id}/${value}`, true)}
                 channel={props.channels.find((channel) => channel.id === selected.channel)}
@@ -126,6 +137,11 @@ export function ProvidersView(props: Props) {
                 onSaveCredential={props.onSaveCredential}
                 activeCredentialId={Number.isFinite(activeCredentialId) ? activeCredentialId : null}
                 onCredentialOpen={(credential) => navigateAdminPath(`/admin/providers/${selected.id}/credentials/${credential.id}`)}
+                ruleSets={props.ruleSets}
+                rules={props.rules}
+                attachments={props.attachments}
+                routingRules={props.routingRules}
+                ruleMutations={props.ruleMutations}
               />
             </> : <div className="grid min-h-80 place-items-center text-sm text-muted-foreground">{t("providers.selectPrompt")}</div>}
           </section>

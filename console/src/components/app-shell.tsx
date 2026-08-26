@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, BookOpenIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon } from "lucide-react"
+import { ActivityIcon, BookOpenIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { LocaleControls } from "@/components/locale-controls"
@@ -13,6 +13,7 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "overview", icon: ActivityIcon },
   { route: "providers", icon: CableIcon },
   { route: "routes", icon: RouteIcon },
+  { route: "rules", icon: WorkflowIcon },
   { route: "keys", icon: KeyRoundIcon },
   { route: "usage", icon: ActivityIcon },
   { route: "logs", icon: LogsIcon },

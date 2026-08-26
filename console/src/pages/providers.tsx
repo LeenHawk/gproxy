@@ -6,6 +6,10 @@ import {
   providers as fetchProviders,
   saveCredential,
   saveProvider,
+  providerRuleSets,
+  routingRules,
+  ruleSets,
+  rules,
 } from "@/api/control"
 import {
   channels as fetchChannels,
@@ -13,6 +17,7 @@ import {
   tlsPresets as fetchTlsPresets,
 } from "@/api/observability"
 import { ProvidersView } from "@/components/providers/providers-view"
+import { useRuleMutations } from "@/components/rules/use-rule-mutations"
 import { useNow } from "@/lib/use-now"
 
 const MAX_CYCLE_RANGE_SECONDS = 366 * 24 * 60 * 60
@@ -22,6 +27,7 @@ type CredentialMutation = { value: CredentialWriteRequest; id?: number }
 
 export function ProvidersPage() {
   const queryClient = useQueryClient()
+  const ruleMutations = useRuleMutations()
   const to = useNow() + 1
   const cycleRange = { from: to - MAX_CYCLE_RANGE_SECONDS, to }
   const providers = useQuery({ queryKey: ["providers"], queryFn: fetchProviders })
@@ -32,6 +38,10 @@ export function ProvidersPage() {
     queryKey: ["credential-cycles", cycleRange.from, cycleRange.to],
     queryFn: () => fetchCredentialCycles(cycleRange.from, cycleRange.to),
   })
+  const setQuery = useQuery({ queryKey: ["rule-sets"], queryFn: ruleSets })
+  const ruleQuery = useQuery({ queryKey: ["rules"], queryFn: rules })
+  const attachmentQuery = useQuery({ queryKey: ["provider-rule-sets"], queryFn: providerRuleSets })
+  const routingQuery = useQuery({ queryKey: ["routing-rules"], queryFn: routingRules })
   const providerMutation = useMutation({
     mutationFn: ({ value, id }: ProviderMutation) => saveProvider(value, id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
@@ -67,6 +77,11 @@ export function ProvidersPage() {
       savingCredentialId={credentialMutation.isPending ? credentialMutation.variables?.id ?? null : null}
       onSaveProvider={async (value, id) => { await providerMutation.mutateAsync({ value, id }) }}
       onSaveCredential={async (value, id) => { await credentialMutation.mutateAsync({ value, id }) }}
+      ruleSets={setQuery.data ?? []}
+      rules={ruleQuery.data ?? []}
+      attachments={attachmentQuery.data ?? []}
+      routingRules={routingQuery.data ?? []}
+      ruleMutations={ruleMutations}
     />
   )
 }

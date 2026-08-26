@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useId, type ReactNode } from "react"
 import { Columns3Icon, SearchIcon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { DataTableColumn } from "@/components/data-table"
@@ -32,11 +32,13 @@ export function DataTableToolbar<T>({
   batchActions?: ReactNode
 }) {
   const { t } = useTranslation()
+  const searchId = useId()
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-48 flex-1 sm:max-w-sm">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
+          id={searchId}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
           className="pl-8"

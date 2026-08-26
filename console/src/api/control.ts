@@ -15,6 +15,14 @@ import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import type { RouteMemberWriteRequest } from "@/generated/RouteMemberWriteRequest"
 import type { RouteWriteRequest } from "@/generated/RouteWriteRequest"
+import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { ProviderRuleSetWriteRequest } from "@/generated/ProviderRuleSetWriteRequest"
+import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
+import type { RoutingRuleWriteRequest } from "@/generated/RoutingRuleWriteRequest"
+import type { RuleDto } from "@/generated/RuleDto"
+import type { RuleSetDto } from "@/generated/RuleSetDto"
+import type { RuleSetWriteRequest } from "@/generated/RuleSetWriteRequest"
+import type { RuleWriteRequest } from "@/generated/RuleWriteRequest"
 import { api, json } from "@/api/client"
 
 const save = <T>(path: string, value: T, id?: number) =>
@@ -46,6 +54,18 @@ export const savePriceRate = (value: PriceRateWriteRequest, id?: number) =>
   save("/admin/price-rates", value, id)
 export const deletePriceRate = (id: number) =>
   api<void>(`/admin/price-rates/${id}`, { method: "DELETE" })
+export const routingRules = () => api<Array<RoutingRuleDto>>("/admin/routing-rules")
+export const saveRoutingRule = (value: RoutingRuleWriteRequest, id?: number) => save("/admin/routing-rules", value, id)
+export const deleteRoutingRule = (id: number) => api<void>(`/admin/routing-rules/${id}`, { method: "DELETE" })
+export const ruleSets = () => api<Array<RuleSetDto>>("/admin/rule-sets")
+export const saveRuleSet = (value: RuleSetWriteRequest, id?: number) => save("/admin/rule-sets", value, id)
+export const deleteRuleSet = (id: number) => api<void>(`/admin/rule-sets/${id}`, { method: "DELETE" })
+export const rules = () => api<Array<RuleDto>>("/admin/rules")
+export const saveRule = (value: RuleWriteRequest, id?: number) => save("/admin/rules", value, id)
+export const deleteRule = (id: number) => api<void>(`/admin/rules/${id}`, { method: "DELETE" })
+export const providerRuleSets = () => api<Array<ProviderRuleSetDto>>("/admin/provider-rule-sets")
+export const saveProviderRuleSet = (value: ProviderRuleSetWriteRequest, id?: number) => save("/admin/provider-rule-sets", value, id)
+export const deleteProviderRuleSet = (id: number) => api<void>(`/admin/provider-rule-sets/${id}`, { method: "DELETE" })
 export const instanceSettings = () => api<InstanceSettingsDto>("/admin/instance-settings")
 export const saveInstanceSettings = (value: InstanceSettingsDto) =>
   api<InstanceSettingsDto>("/admin/instance-settings", json("PATCH", value))

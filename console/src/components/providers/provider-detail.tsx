@@ -8,9 +8,15 @@ import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDt
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
+import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
+import type { RuleDto } from "@/generated/RuleDto"
+import type { RuleSetDto } from "@/generated/RuleSetDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { CredentialList } from "@/components/providers/credential-list"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
+import { ProviderRoutingRules } from "@/components/rules/provider-routing-rules"
+import { RulesWorkspace, type RuleMutations } from "@/components/rules/rules-workspace"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,7 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type Props = {
   provider: ProviderDto
-  tab: "credentials" | "settings"
+  providers: Array<ProviderDto>
+  tab: "credentials" | "rules" | "routing" | "settings"
   onTab: (tab: Props["tab"]) => void
   channel?: ChannelDto
   channels: Array<ChannelDto>
@@ -38,6 +45,11 @@ type Props = {
   onSaveCredential: (value: CredentialWriteRequest, id?: number) => Promise<void>
   activeCredentialId?: number | null
   onCredentialOpen?: (credential: CredentialDto) => void
+  ruleSets: Array<RuleSetDto>
+  rules: Array<RuleDto>
+  attachments: Array<ProviderRuleSetDto>
+  routingRules: Array<RoutingRuleDto>
+  ruleMutations: RuleMutations
 }
 
 export function ProviderDetail(props: Props) {
@@ -91,6 +103,8 @@ export function ProviderDetail(props: Props) {
       <Tabs value={props.tab} onValueChange={(value) => props.onTab(value as Props["tab"])}>
         <TabsList>
           <TabsTrigger value="credentials">{t("providers.credentials.title")}</TabsTrigger>
+          <TabsTrigger value="rules">{t("rules.providerTab")}</TabsTrigger>
+          <TabsTrigger value="routing">{t("rules.routing.tab")}</TabsTrigger>
           <TabsTrigger value="settings">{t("providers.tabs.settings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="credentials" className="pt-4">
@@ -110,6 +124,8 @@ export function ProviderDetail(props: Props) {
             onCredentialOpen={props.onCredentialOpen}
           />
         </TabsContent>
+        <TabsContent value="rules" className="pt-4"><RulesWorkspace ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} providers={props.providers} scopeProviderId={props.provider.id} mutations={props.ruleMutations} /></TabsContent>
+        <TabsContent value="routing" className="pt-4"><ProviderRoutingRules provider={props.provider} channel={props.channel} rules={props.routingRules} /></TabsContent>
         <TabsContent value="settings" className="pt-4">
           <Card size="sm"><CardHeader><CardTitle>{t("providers.tabs.settings")}</CardTitle><CardDescription>{t("providers.settings.description")}</CardDescription></CardHeader><CardContent className="flex justify-end">{edit}</CardContent></Card>
         </TabsContent>

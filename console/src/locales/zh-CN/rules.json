@@ -1,1 +1,18 @@
-{}
+{
+  "rules": {
+    "title": "规则", "subtitle": "无需发布新版本，即可编译复用的 Provider 原生请求与响应变更。", "providerTab": "规则", "loadError": "无法加载规则，请重试。", "saved": "规则已更新", "saveError": "无法更新规则，请检查配置后重试。",
+    "sets": { "add": "新建规则集", "edit": "编辑规则集", "empty": "暂无规则集", "noDescription": "暂无说明", "selectPrompt": "选择一个规则集进行编辑。" },
+    "entries": { "title": "变更规则", "add": "添加规则", "edit": "编辑规则", "empty": "暂无变更规则", "emptyDescription": "此规则集不会修改 Provider 原生流量。", "orderDescription": "实际顺序先按类型 rank 固定排序，再按相同 rank 内的声明顺序排序。", "effectiveOrder": "实际第 {{order}} 个", "orderMeta": "rank {{rank}} · 声明顺序 {{declared}}", "summary": { "system_text": "{{position}}系统文本", "cache_breakpoint": "在{{target}}设置缓存断点 · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}}变换 · {{count}} 个动作", "header": "{{mode}}请求头 {{name}}" } },
+    "attachments": { "title": "已附加 Provider", "add": "附加规则集", "attach": "附加", "attachExisting": "附加已有规则集", "detach": "移除附加", "empty": "此 Provider 尚未附加规则集。" },
+    "scope": { "unused": "未使用", "private": "一个 Provider", "shared": "共享" },
+    "routing": { "tab": "变换路由", "title": "变换分派", "description": "每个源操作与线格式默认继承 Channel 声明，直到显式的 Provider 规则覆盖它。", "add": "添加路由规则", "edit": "编辑路由规则", "override": "覆盖继承的分派", "transformSummary": "{{implementation}} {{destination}}" },
+    "fields": { "name": "名称", "description": "说明", "enabled": "启用", "provider": "Provider", "ruleSet": "规则集", "scope": "作用域", "kind": "类型", "text": "文本", "position": "位置", "target": "目标", "index": "内容块索引", "ttl": "TTL", "path": "JSON 路径", "action": "动作", "value": "JSON 值", "phase": "阶段", "locate": "定位方式", "locateValue": { "path": "路径", "paths": "路径，每行一个", "match": "正文正则" }, "actions": "变换动作", "from": "精确源文本", "pattern": "正则表达式", "with": "替换内容", "limit": "匹配上限", "headerName": "请求头名称", "headerValue": "请求头值", "mergeMode": "合并模式", "declaredOrder": "声明顺序", "operation": "操作", "implementation": "实现", "destinationOperation": "目标操作", "destinationKind": "目标线格式" },
+    "filters": { "model": "模型过滤", "modelHelp": "同时对上游模型 ID 和客户端请求的路由或变体名称做 Glob 匹配。", "operations": "操作过滤", "operationsHelp": "使用逗号分隔的稳定操作 ID。", "headers": "入站请求头过滤", "headersHelp": "不区分大小写的正则，逐条匹配入站 name: value。" },
+    "help": { "jsonValue": "请输入有效的 JSON 值或对象。" },
+    "placeholders": { "lastBlock": "最后一个内容块（继承默认值）", "anyText": "任意文本", "unlimited": "不限（继承默认值）", "allModels": "全部模型（继承）", "allOperations": "全部操作（继承）", "allHeaders": "全部入站客户端（继承）" },
+    "actions": { "addAction": "添加动作", "removeAction": "移除动作" }, "validation": { "config": "规则配置无效，请检查 JSON 值、正则和必填字段。" },
+    "kinds": { "system_text": "系统文本", "cache_breakpoint": "缓存断点", "rewrite": "重写", "transform": "变换", "header": "请求头" },
+    "values": { "inherited": "继承", "prepend": "前置", "append": "追加", "top_level": "顶层", "system": "系统内容", "tools": "工具", "message": "消息", "5m": "5 分钟", "30m": "30 分钟", "1h": "1 小时", "set": "设置", "delete": "删除", "merge": "合并", "override": "覆盖", "request": "请求", "response": "响应", "both": "请求与响应", "path": "路径", "paths": "多路径", "match": "正则匹配", "replace_text": "替换文本", "replace_regex": "正则替换", "passthrough": "直通", "transform_to": "变换为", "local": "本地", "unsupported": "不支持" },
+    "operations": {}, "wires": {}
+  }
+}

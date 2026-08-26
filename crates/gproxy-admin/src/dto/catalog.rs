@@ -8,6 +8,7 @@ pub struct ChannelSupportDto {
     pub source: String,
     pub target: String,
     pub operation: String,
+    pub target_operation: String,
     pub group: String,
 }
 
@@ -95,6 +96,7 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                 source: support.source.kind.id().into(),
                 target: support.target.kind.id().into(),
                 operation: support.source.operation.id().into(),
+                target_operation: support.target.operation.id().into(),
                 group: support.source.operation.group().id().into(),
             })
             .collect(),
