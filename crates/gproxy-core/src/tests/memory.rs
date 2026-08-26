@@ -198,6 +198,14 @@ impl Host for MemoryHost {
             .push(settlement.is_some());
         Box::pin(async {})
     }
+
+    fn admit_credential<'a>(
+        &'a self,
+        _: &'a crate::Target,
+        _: &'a Bytes,
+    ) -> BoxFuture<'a, Result<(), CoreError>> {
+        Box::pin(async { Ok(()) })
+    }
     fn record_credential_health<'a>(
         &'a self,
         credential: CredentialId,

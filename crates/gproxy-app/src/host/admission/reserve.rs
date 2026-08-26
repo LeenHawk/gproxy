@@ -84,7 +84,7 @@ pub(in crate::host) fn admit<'a>(
     })
 }
 
-async fn increment_window(
+pub(super) async fn increment_window(
     host: &AppHost,
     key: &str,
     amount: i64,
@@ -102,7 +102,7 @@ async fn increment_window(
         .await?)
 }
 
-async fn rollback_error(
+pub(super) async fn rollback_error(
     host: &AppHost,
     charges: Vec<CounterCharge>,
     error: CoreError,

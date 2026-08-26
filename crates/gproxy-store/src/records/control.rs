@@ -67,6 +67,8 @@ pub struct CredentialMetaRecord {
     pub version: u64,
     pub enabled: bool,
     pub weight: u32,
+    pub rpm_limit: Option<u32>,
+    pub tpm_limit: Option<u64>,
     pub proxy_url: Option<String>,
     pub tls_fingerprint: Option<Value>,
 }

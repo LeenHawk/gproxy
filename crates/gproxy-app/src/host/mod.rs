@@ -110,6 +110,14 @@ impl Host for AppHost {
         }
     }
 
+    fn admit_credential<'a>(
+        &'a self,
+        target: &'a gproxy_core::Target,
+        body: &'a bytes::Bytes,
+    ) -> BoxFuture<'a, Result<(), gproxy_core::CoreError>> {
+        admission::admit_credential(self, target, body)
+    }
+
     fn record_credential_health<'a>(
         &'a self,
         credential: gproxy_channel_api::CredentialId,

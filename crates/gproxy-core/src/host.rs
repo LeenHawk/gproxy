@@ -218,6 +218,11 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         request_id: &'a str,
         settlement: Option<&'a Settlement>,
     ) -> BoxFuture<'a, ()>;
+    fn admit_credential<'a>(
+        &'a self,
+        target: &'a crate::control::Target,
+        body: &'a bytes::Bytes,
+    ) -> BoxFuture<'a, Result<(), CoreError>>;
     fn record_credential_health<'a>(
         &'a self,
         credential: CredentialId,

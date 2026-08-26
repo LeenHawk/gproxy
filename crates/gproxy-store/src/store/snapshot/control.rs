@@ -39,6 +39,14 @@ pub(super) fn credential_meta(
                 version: unsigned(row.i64("version")?, "credential version")?,
                 enabled: row.i64("enabled")? != 0,
                 weight: unsigned32(row.i64("weight")?, "credential weight")?,
+                rpm_limit: row
+                    .optional_i64("rpm_limit")?
+                    .map(|value| unsigned32(value, "credential rpm_limit"))
+                    .transpose()?,
+                tpm_limit: row
+                    .optional_i64("tpm_limit")?
+                    .map(|value| unsigned(value, "credential tpm_limit"))
+                    .transpose()?,
                 proxy_url: row.optional_text("proxy_url")?.map(str::to_owned),
                 tls_fingerprint: row
                     .optional_text("tls_fingerprint")?

@@ -44,10 +44,19 @@ pub(super) async fn run<H: Host>(
         );
     let mut attempts = 0;
     let mut dead = BTreeSet::new();
+    let mut admission_error = None;
     let mut last = "no eligible credential";
     for target in &selected.candidates {
         if attempts >= limit || dead.contains(&target.credential) {
             continue;
+        }
+        if let Err(error) = core.host.admit_credential(target, &ctx.body).await {
+            if retryable && matches!(error, CoreError::RateLimited { .. }) {
+                admission_error = Some(error);
+                last = "credential rate limit reached";
+                continue;
+            }
+            return Err(error);
         }
         let request = SurfaceRequest {
             label: spec.label,
@@ -99,6 +108,11 @@ pub(super) async fn run<H: Host>(
             }
             Err(error) => return Err(error),
         }
+    }
+    if attempts == 0
+        && let Some(error) = admission_error
+    {
+        return Err(error);
     }
     Err(CoreError::UpstreamExhausted(format!(
         "surface forwarding exhausted {attempts} upstream attempt(s): {last}"

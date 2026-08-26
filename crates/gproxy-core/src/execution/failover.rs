@@ -60,6 +60,16 @@ pub(crate) async fn run<H: Host>(
             continue;
         }
         supported = true;
+        if let Err(error) = core.host.admit_credential(target, &ctx.body).await {
+            if matches!(error, CoreError::RateLimited { .. }) {
+                let reason = "credential rate limit reached";
+                last_reason = Some(reason);
+                funnel_error::pre_send(&ctx, target, classified.key, reason);
+                pre_send_error = Some(error);
+                continue;
+            }
+            return Err(error);
+        }
         let admission = AdmissionCtx {
             admitted: true,
             owner_user_id: Some(owner_user_id),

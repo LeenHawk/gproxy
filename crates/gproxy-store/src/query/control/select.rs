@@ -25,6 +25,8 @@ pub(crate) fn select_credential_meta() -> Result<Statement, StoreError> {
             "version",
             "enabled",
             "weight",
+            "rpm_limit",
+            "tpm_limit",
             "proxy_url",
             "tls_fingerprint",
         ],
