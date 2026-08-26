@@ -107,3 +107,54 @@ fn actual_serving_tier_overrides_the_requested_tier() {
         Decimal::from(4)
     );
 }
+
+/// The composition rule from design/architecture.md, "Tiered pricing":
+/// a tier's `multiplier` composes with the prompt ladder, an explicit tier
+/// price replaces it. The middle case undercharges by design — an explicit
+/// tier price must declare the thresholds it means to cover.
+#[test]
+fn a_tier_multiplier_composes_with_the_prompt_ladder_but_an_explicit_price_replaces_it() {
+    let long_context = PricingTier {
+        min_prompt_tokens: 200_000,
+        input_per_million: Some(Decimal::from(2)),
+        ..Default::default()
+    };
+    let usage = NormalizedUsage {
+        input_tokens: 300_000,
+        ..Default::default()
+    };
+    let priced = |batch: PricingTier| {
+        Pricing {
+            input_per_million: Decimal::ONE,
+            output_per_million: Decimal::ZERO,
+            cached_input_per_million: None,
+            service_tier: Some("batch".into()),
+            tiers: vec![long_context.clone(), batch],
+            metric_rates: BTreeMap::new(),
+        }
+        .cost(&usage)
+    };
+    let rate = |cost: Decimal| cost / Decimal::new(3, 1);
+
+    let multiplier = priced(PricingTier {
+        service_tier: Some("batch".into()),
+        multiplier: Some(Decimal::new(5, 1)),
+        ..Default::default()
+    });
+    assert_eq!(rate(multiplier), Decimal::ONE);
+
+    let explicit_without_threshold = priced(PricingTier {
+        service_tier: Some("batch".into()),
+        input_per_million: Some(Decimal::new(5, 1)),
+        ..Default::default()
+    });
+    assert_eq!(rate(explicit_without_threshold), Decimal::new(5, 1));
+
+    let cross_declared = priced(PricingTier {
+        service_tier: Some("batch".into()),
+        min_prompt_tokens: 200_000,
+        input_per_million: Some(Decimal::ONE),
+        ..Default::default()
+    });
+    assert_eq!(rate(cross_declared), Decimal::ONE);
+}
