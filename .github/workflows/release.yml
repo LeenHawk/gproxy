@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.metadata.outputs.matrix }}
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: metadata
+        run: |
+          scripts/release-metadata.sh verify-tag "$GITHUB_REF_NAME"
+          echo "version=$(scripts/release-metadata.sh version)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(jq -c . scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+
+  console:
+    name: Build console once
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+      - working-directory: console
+        run: pnpm install --frozen-lockfile && pnpm build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: console-embed
+          path: crates/gproxy-host-axum/assets/web
+          include-hidden-files: true
+          retention-days: 1
+
+  native:
+    name: Native ${{ matrix.target }}
+    needs: [prepare, console]
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: console-embed
+          path: crates/gproxy-host-axum/assets/web
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - if: ${{ matrix.builder == 'cross' }}
+        run: cargo install cross --locked
+      - if: ${{ matrix.builder == 'cargo-ndk' }}
+        uses: android-actions/setup-android@v4
+      - if: ${{ matrix.builder == 'cargo-ndk' }}
+        run: cargo install cargo-ndk --locked
+      - name: Build
+        env:
+          RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
+        run: |
+          case "${{ matrix.builder }}" in
+            cargo) cargo build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
+            cross) cross build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
+            cargo-ndk) cargo ndk -t "${{ matrix.ndk_target }}" build --locked --release --bin gproxy ;;
+          esac
+      - name: Package Unix archive
+        if: ${{ matrix.os != 'windows' }}
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          TARGET_OS: ${{ matrix.os }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: scripts/package-native-release.sh
+      - name: Package Windows archive
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: scripts/package-native-release.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.target }}
+          path: |
+            dist/release/${{ matrix.artifact }}.zip
+            dist/release/${{ matrix.artifact }}.zip.sha256
+          retention-days: 1
