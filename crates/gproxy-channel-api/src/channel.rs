@@ -8,6 +8,7 @@ use crate::BoxFuture;
 use crate::disposition::Disposition;
 use crate::operation::OperationDriver;
 use crate::resource::{ResourceCtx, ResourceMutation};
+use crate::session::SessionPreparer;
 use crate::surface::{SurfaceRequest, SurfaceTable};
 use crate::usage::NormalizedUsage;
 use crate::wire::ClientProfile;
@@ -215,6 +216,13 @@ pub trait Channel: Send + Sync {
 
     /// Pull usage out of a buffered response body.
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage>;
+
+    /// Prepare the trusted observer for a successful long-lived session.
+    /// The channel owns Location parsing, authentication, and event-meter
+    /// construction; core owns the socket and final settlement.
+    fn session_preparer(&self) -> Option<SessionPreparer> {
+        None
+    }
 
     /// Whether an asynchronous operation poll is a successful billable
     /// terminal response. The operation spec decides when this hook applies.

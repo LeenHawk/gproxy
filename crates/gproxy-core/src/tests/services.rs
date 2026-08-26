@@ -161,6 +161,32 @@ impl CacheBackend for MemoryHost {
         })();
         Box::pin(async move { result })
     }
+
+    fn compare_and_swap<'a>(
+        &'a self,
+        key: &'a str,
+        expected: Option<Vec<u8>>,
+        value: Option<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        let mut state = self.state.lock().expect("state lock");
+        if state.cache.get(key) != expected.as_ref() {
+            return Box::pin(async { Ok(false) });
+        }
+        match value {
+            Some(value) => {
+                state.cache.insert(key.into(), value);
+                if let Some(ttl) = ttl {
+                    state.cache_ttls.insert(key.into(), ttl.as_secs());
+                }
+            }
+            None => {
+                state.cache.remove(key);
+                state.cache_ttls.remove(key);
+            }
+        }
+        Box::pin(async { Ok(true) })
+    }
 }
 
 impl UpstreamTransport for MemoryHost {
@@ -170,6 +196,7 @@ impl UpstreamTransport for MemoryHost {
     ) -> BoxFuture<'a, Result<http::Response<crate::ByteStream>, TransportError>> {
         let state = self.state.clone();
         Box::pin(async move {
+            let realtime_call = request.uri().path() == "/v1/realtime/calls";
             let (status, bodies) = if request.uri().path() == "/refresh" {
                 (
                     http::StatusCode::OK,
@@ -197,6 +224,9 @@ impl UpstreamTransport for MemoryHost {
                         .push(value.to_str().expect("fingerprint header text").to_owned());
                 }
                 let body = match (method, path.as_str()) {
+                    (http::Method::POST, "/v1/realtime/calls") => {
+                        Bytes::from_static(b"v=answer")
+                    }
                     (http::Method::POST, "/v1/files") => {
                         Bytes::from_static(br#"{"id":"file-1","object":"file"}"#)
                     }
@@ -263,6 +293,14 @@ impl UpstreamTransport for MemoryHost {
                 Box::pin(futures_util::stream::iter(bodies.into_iter().map(Ok)));
             let mut response = http::Response::new(stream);
             *response.status_mut() = status;
+            if realtime_call {
+                response.headers_mut().insert(
+                    http::header::LOCATION,
+                    "/v1/realtime/calls/rtc_test"
+                        .parse()
+                        .expect("test Location"),
+                );
+            }
             Ok(response)
         })
     }
@@ -271,7 +309,14 @@ impl UpstreamTransport for MemoryHost {
         &'a self,
         _: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
-        self.state.lock().expect("state lock").socket_opens += 1;
+        let status = {
+            let mut state = self.state.lock().expect("state lock");
+            state.socket_opens += 1;
+            state.socket_statuses.pop_front().unwrap_or(101)
+        };
+        if status != 101 {
+            return Box::pin(async move { Err(TransportError::Status(status)) });
+        }
         let socket: Box<dyn WsDuplex> = Box::new(self.clone());
         Box::pin(async move { Ok(socket) })
     }
@@ -287,7 +332,9 @@ impl WsDuplex for MemoryHost {
 
     fn recv<'a>(&'a mut self) -> BoxFuture<'a, Result<Option<WsFrame>, TransportError>> {
         let mut state = self.state.lock().expect("state lock");
-        let frame = if state.socket_closed {
+        let frame = if let Some(frame) = state.socket_frames.pop_front() {
+            Some(frame)
+        } else if state.socket_closed {
             None
         } else {
             state.socket_closed = true;
@@ -387,5 +434,19 @@ impl ContinuationStore for MemoryHost {
 }
 
 impl Spawner for MemoryHost {
-    fn spawn(&self, _task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {}
+    fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {
+        let run = {
+            let mut state = self.state.lock().expect("state lock");
+            if state.drop_spawn_once {
+                state.drop_spawn_once = false;
+                state.run_spawned = true;
+                false
+            } else {
+                state.run_spawned
+            }
+        };
+        if run {
+            crate::tests::block_on(task);
+        }
+    }
 }

@@ -20,7 +20,8 @@ pub struct RealtimeResponse {
     pub status: Option<RealtimeResponseStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_details: Option<RealtimeStatusDetails>,
-    pub output: Vec<RealtimeItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<Vec<RealtimeItem>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_modalities: Option<Vec<RealtimeOutputModality>>,
     #[serde(skip_serializing_if = "Option::is_none")]

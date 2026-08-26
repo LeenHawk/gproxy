@@ -1,6 +1,7 @@
 //! The channel registry: id → adapter, fixed at startup.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::channel::Channel;
 
@@ -8,7 +9,7 @@ use crate::channel::Channel;
 /// linked extensions (the native `linkme` collection lives with the app,
 /// not here). Duplicate ids fail construction — v2 policy, kept.
 pub struct ChannelRegistry {
-    channels: BTreeMap<&'static str, Box<dyn Channel>>,
+    channels: BTreeMap<&'static str, Arc<dyn Channel>>,
 }
 
 impl ChannelRegistry {
@@ -18,7 +19,7 @@ impl ChannelRegistry {
         let mut map = BTreeMap::new();
         for channel in channels {
             let id = channel.descriptor().id;
-            if map.insert(id, channel).is_some() {
+            if map.insert(id, Arc::from(channel)).is_some() {
                 return Err(DuplicateChannel(id));
             }
         }
@@ -27,6 +28,10 @@ impl ChannelRegistry {
 
     pub fn get(&self, id: &str) -> Option<&dyn Channel> {
         self.channels.get(id).map(AsRef::as_ref)
+    }
+
+    pub fn shared(&self, id: &str) -> Option<Arc<dyn Channel>> {
+        self.channels.get(id).cloned()
     }
 
     /// Runtime catalog for the console and admin API.

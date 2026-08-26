@@ -32,7 +32,10 @@ pub(crate) async fn request<H: Host>(
             .supports
             .iter()
             .any(|support| support.target == key)
-            || key.operation.spec().settle == SettleMode::OnCompletedStatus)
+            || matches!(
+                key.operation.spec().settle,
+                SettleMode::OnCompletedStatus | SettleMode::OnSessionEnd
+            ))
     {
         return Err(CoreError::Unsupported);
     }
@@ -104,6 +107,7 @@ pub(crate) async fn request<H: Host>(
         started,
         upstream_url: Some(prepared.request.uri().to_string()),
         request_body: prepared.request.body().clone(),
+        request_headers: None,
         dedupe_key: None,
         owner_user_id: None,
         resource: None,

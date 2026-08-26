@@ -138,6 +138,10 @@ impl ControlPlane for SnapshotControl {
     fn pricing(&self, provider: &ProviderRef, upstream_model: &str) -> Option<Pricing> {
         pricing::resolve(&self.snapshot.load().pricing, provider.id, upstream_model)
     }
+
+    fn detached(&self) -> Box<dyn ControlPlane> {
+        Box::new(self.clone())
+    }
 }
 
 async fn load_pressure(store: &Store) -> Result<CredentialPressureMap, StoreError> {

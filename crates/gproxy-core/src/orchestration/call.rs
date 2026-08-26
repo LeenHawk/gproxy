@@ -34,6 +34,7 @@ pub(super) async fn run<H: Host>(
         started: Instant::now(),
         upstream_url: Some(url),
         request_body: body,
+        request_headers: None,
         dedupe_key: None,
         owner_user_id: None,
         resource: None,

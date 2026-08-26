@@ -86,8 +86,10 @@ pub(super) async fn relay<H: Host>(
     .await;
     if key.is_some() {
         Ok(funnel::buffered(
-            core.host.as_ref(),
+            core.host.clone(),
             channel,
+            None,
+            None,
             facts,
             funnel::BufferedRelay::native(response),
             disposition,

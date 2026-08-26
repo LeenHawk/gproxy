@@ -19,7 +19,7 @@ pub use service_tier::{normalize_service_tier, response_service_tier};
 /// Read-only view of routing and pricing state. Synchronous by design:
 /// implementations answer from an in-memory snapshot, never from I/O on
 /// the hot path (v2's §7.2 model, kept).
-pub trait ControlPlane {
+pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::MaybeSync {
     /// Resolve a requested model under a routing mode into an ordered
     /// candidate plan (route members or a scoped provider's pool).
     fn resolve(&self, model: Option<&str>, mode: &RoutingMode) -> Result<Plan, CoreError>;
@@ -27,6 +27,9 @@ pub trait ControlPlane {
     /// Pricing for settlement. `None` settles at zero cost with a warning
     /// rather than refusing the request.
     fn pricing(&self, provider: &ProviderRef, upstream_model: &str) -> Option<Pricing>;
+
+    /// Owned view for a long-lived task that outlives the execute call.
+    fn detached(&self) -> Box<dyn ControlPlane>;
 }
 
 /// The ordered candidates one request may try, plus the failover budget.

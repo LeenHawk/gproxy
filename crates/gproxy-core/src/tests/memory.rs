@@ -49,6 +49,10 @@ pub(super) struct State {
     pub(super) caller_key_id: i64,
     pub(super) socket_opens: usize,
     pub(super) socket_closed: bool,
+    pub(super) socket_frames: VecDeque<gproxy_channel_api::WsFrame>,
+    pub(super) socket_statuses: VecDeque<u16>,
+    pub(super) run_spawned: bool,
+    pub(super) drop_spawn_once: bool,
     pub(super) omit_usage: bool,
     pub(super) quota_windows: Vec<QuotaWindow>,
     pub(super) continuations_enabled: bool,
@@ -97,6 +101,10 @@ impl MemoryHost {
                 caller_key_id: 2,
                 socket_opens: 0,
                 socket_closed: false,
+                socket_frames: VecDeque::new(),
+                socket_statuses: VecDeque::new(),
+                run_spawned: false,
+                drop_spawn_once: false,
                 omit_usage: false,
                 quota_windows: Vec::new(),
                 continuations_enabled: false,
@@ -114,6 +122,18 @@ impl MemoryHost {
     pub(super) fn with_continuations() -> Self {
         let host = Self::new(false);
         host.state.lock().expect("state lock").continuations_enabled = true;
+        host
+    }
+
+    pub(super) fn with_session_spawner() -> Self {
+        let host = Self::with_continuations();
+        host.state.lock().expect("state lock").run_spawned = true;
+        host
+    }
+
+    pub(super) fn with_cancelling_session_spawner() -> Self {
+        let host = Self::with_continuations();
+        host.state.lock().expect("state lock").drop_spawn_once = true;
         host
     }
 }
@@ -245,14 +265,22 @@ impl ControlPlane for MemoryHost {
             .ok_or_else(|| CoreError::UnknownRoute("unused".into()))
     }
 
-    fn pricing(&self, _: &ProviderRef, _: &str) -> Option<Pricing> {
+    fn pricing(&self, _: &ProviderRef, upstream_model: &str) -> Option<Pricing> {
         Some(Pricing {
-            input_per_million: Decimal::ONE,
+            input_per_million: match upstream_model {
+                "transcription-model" => Decimal::from(3),
+                "transcription-model-2" => Decimal::from(5),
+                _ => Decimal::ONE,
+            },
             output_per_million: Decimal::from(2),
             cached_input_per_million: None,
             service_tier: None,
             tiers: Vec::new(),
             metric_rates: BTreeMap::new(),
         })
+    }
+
+    fn detached(&self) -> Box<dyn ControlPlane> {
+        Box::new(self.clone())
     }
 }

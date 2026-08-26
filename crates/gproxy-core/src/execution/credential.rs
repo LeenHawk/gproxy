@@ -19,10 +19,29 @@ pub(crate) async fn load_fresh<H: Host>(
     id: CredentialId,
     provider: &ProviderRef,
 ) -> Result<CredentialRecord, CoreError> {
+    load(host, channel, id, provider, false).await
+}
+
+pub(crate) async fn refresh_now<H: Host>(
+    host: &H,
+    channel: &dyn Channel,
+    id: CredentialId,
+    provider: &ProviderRef,
+) -> Result<CredentialRecord, CoreError> {
+    load(host, channel, id, provider, true).await
+}
+
+async fn load<H: Host>(
+    host: &H,
+    channel: &dyn Channel,
+    id: CredentialId,
+    provider: &ProviderRef,
+    force: bool,
+) -> Result<CredentialRecord, CoreError> {
     let channel_id = channel.descriptor().id;
     let record = load_checked(host, id, channel_id).await?;
     let now = unix_now()?;
-    if !refresh_due(channel, &record, now) {
+    if !force && !refresh_due(channel, &record, now) {
         return Ok(record);
     }
 
@@ -39,7 +58,7 @@ pub(crate) async fn load_fresh<H: Host>(
     }
 
     let current = load_checked(host, id, channel_id).await?;
-    if !refresh_due(channel, &current, unix_now()?) {
+    if !force && !refresh_due(channel, &current, unix_now()?) {
         return Ok(current);
     }
     let http = BufferedHttp(host.transport(), provider);

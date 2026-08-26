@@ -131,23 +131,10 @@ fn location(
     kind: &'static str,
     headers: &http::HeaderMap,
 ) -> Result<Vec<ResourceMutation>, ChannelError> {
-    let Some(location) = headers
-        .get(http::header::LOCATION)
-        .and_then(|value| value.to_str().ok())
-    else {
-        return Ok(Vec::new());
-    };
-    let path = location
-        .parse::<http::Uri>()
-        .map_err(|error| ChannelError::Observe(format!("invalid Location URI: {error}")))?;
-    let id = path
-        .path()
-        .rsplit('/')
-        .find(|part| !part.is_empty())
-        .ok_or_else(|| ChannelError::Observe("Location has no resource id".into()))?;
+    let id = super::realtime::call_id(headers)?;
     Ok(vec![ResourceMutation::Save {
         kind,
-        id: id.to_owned(),
-        summary: serde_json::json!({"id": id, "location": location}),
+        summary: serde_json::json!({"id": id}),
+        id,
     }])
 }

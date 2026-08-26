@@ -122,6 +122,37 @@ impl CacheBackend for InProcessCache {
         });
         Box::pin(async move { result })
     }
+
+    fn compare_and_swap<'a>(
+        &'a self,
+        key: &'a str,
+        expected: Option<Vec<u8>>,
+        value: Option<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<bool, gproxy_core::error::StoreError>> {
+        let result = self.with_entries(|entries| {
+            expire(entries, key);
+            if entries.get(key).map(|entry| &entry.value) != expected.as_ref() {
+                return Ok(false);
+            }
+            match value {
+                Some(value) => {
+                    entries.insert(
+                        key.into(),
+                        Entry {
+                            value,
+                            expires_at: expiry(ttl)?,
+                        },
+                    );
+                }
+                None => {
+                    entries.remove(key);
+                }
+            }
+            Ok(true)
+        });
+        Box::pin(async move { result })
+    }
 }
 
 impl InProcessCache {

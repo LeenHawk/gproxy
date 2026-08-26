@@ -3,8 +3,8 @@ use crate::spec::{Affinity, OperationSpec, SettleMode};
 
 use super::{FAM_OAI, NEVER, POST, ing};
 
-// The SDP answer has no usage. Realtime usage arrives on the session event
-// stream, or not at all when WebRTC media bypasses the proxy.
+// The SDP answer has no usage. Realtime usage arrives through the trusted
+// server-side observer for the call.
 pub(super) const REALTIME_CALL: OperationSpec = OperationSpec {
     ingress: &[ing(
         POST,
@@ -12,6 +12,6 @@ pub(super) const REALTIME_CALL: OperationSpec = OperationSpec {
         FAM_OAI,
         NEVER,
     )],
-    settle: SettleMode::Free,
+    settle: SettleMode::OnSessionEnd,
     affinity: Affinity::Resource("realtime_call"),
 };

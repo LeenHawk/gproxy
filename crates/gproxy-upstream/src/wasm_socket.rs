@@ -89,7 +89,9 @@ export async function gproxyOpenSocket(url, headerEntries) {
   headers.set("Upgrade", "websocket");
   const response = await globalThis.fetch(url, { method: "GET", headers });
   if (!response.webSocket) {
-    throw new Error(`websocket upgrade failed with status ${response.status}`);
+    const error = new Error(`websocket upgrade failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   if (typeof response.webSocket.accept === "function") response.webSocket.accept();
   return new GproxySocket(response.webSocket);
@@ -143,14 +145,23 @@ impl WasmSocket {
             pair.push(&JsValue::from_str(value));
             entries.push(&pair);
         }
-        let handle = open_socket(url, entries)
-            .await
-            .map_err(|error| TransportError::Connect(js_message(&error)))?;
+        let handle = open_socket(url, entries).await.map_err(socket_open_error)?;
         Ok(Box::new(Self {
             handle,
             pending_recv: None,
         }))
     }
+}
+
+fn socket_open_error(error: JsValue) -> TransportError {
+    let status = Reflect::get(&error, &JsValue::from_str("status"))
+        .ok()
+        .and_then(|value| value.as_f64())
+        .and_then(|value| u16::try_from(value as u64).ok());
+    status.map_or_else(
+        || TransportError::Connect(js_message(&error)),
+        TransportError::Status,
+    )
 }
 
 fn js_message(error: &JsValue) -> String {

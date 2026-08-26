@@ -1,5 +1,6 @@
 pub(crate) mod endpoint;
 pub(crate) mod model;
+pub(crate) mod realtime;
 pub(crate) mod redact;
 pub(crate) mod resource;
 pub(crate) mod sse;

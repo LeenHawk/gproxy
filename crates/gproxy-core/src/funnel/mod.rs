@@ -12,6 +12,7 @@ use crate::usage::Ended;
 
 pub(crate) mod error;
 pub(crate) mod health;
+mod session;
 mod settlement;
 mod socket;
 mod stream;
@@ -37,6 +38,7 @@ pub(crate) struct FunnelCtx {
     pub started: Instant,
     pub upstream_url: Option<String>,
     pub request_body: Bytes,
+    pub request_headers: Option<http::HeaderMap>,
     pub dedupe_key: Option<String>,
     pub owner_user_id: Option<i64>,
     pub resource: Option<(&'static str, String)>,
@@ -73,12 +75,25 @@ impl BufferedRelay {
 }
 
 pub(crate) async fn buffered<H: Host>(
-    host: &H,
+    host: Shared<H>,
     channel: &dyn Channel,
+    control: Option<&dyn crate::control::ControlPlane>,
+    session_channel: Option<std::sync::Arc<dyn Channel>>,
     ctx: FunnelCtx,
     relay: BufferedRelay,
     disposition: Disposition,
 ) -> ExecOutcome {
+    if ctx.settle == SettleMode::OnSessionEnd {
+        return session::buffered(
+            host,
+            session_channel.expect("session funnel has its channel owner"),
+            control.expect("session funnel has its control plane"),
+            ctx,
+            relay,
+            disposition,
+        )
+        .await;
+    }
     let BufferedRelay {
         response,
         usage: usage_override,
@@ -96,7 +111,7 @@ pub(crate) async fn buffered<H: Host>(
     };
     let usage = usage_override.or(extracted);
     crate::execution::resource::observe(
-        host,
+        host.as_ref(),
         channel,
         &ctx,
         parts.status,
@@ -123,7 +138,7 @@ pub(crate) async fn buffered<H: Host>(
         transform_buffered(&ctx, upstream_status, upstream_headers, shaped, disposition)
     };
     settlement::complete(
-        host,
+        host.as_ref(),
         &ctx,
         settlement::Completion {
             status: Some(upstream_status),
@@ -132,6 +147,8 @@ pub(crate) async fn buffered<H: Host>(
             record_usage,
             usage,
             actual_service_tier,
+            cost_override: None,
+            capture_response: true,
             ended: Ended::Complete,
         },
     )
@@ -225,6 +242,8 @@ pub(crate) async fn free_buffered<H: Host>(
             record_usage: false,
             usage: None,
             actual_service_tier: None,
+            cost_override: None,
+            capture_response: true,
             ended: Ended::Complete,
         },
     )
@@ -311,6 +330,8 @@ pub(crate) async fn interrupted<H: Host>(
             record_usage,
             usage,
             actual_service_tier,
+            cost_override: None,
+            capture_response: true,
             ended: Ended::Interrupted,
         },
     )
@@ -337,6 +358,8 @@ pub(crate) async fn complete_stream<H: Host>(
             record_usage,
             usage,
             actual_service_tier,
+            cost_override: None,
+            capture_response: true,
             ended,
         },
     )

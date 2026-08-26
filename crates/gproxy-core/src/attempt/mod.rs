@@ -237,16 +237,22 @@ fn committed_disposition(disposition: Disposition, committed: bool) -> Dispositi
     }
 }
 
-pub(crate) async fn finish<H: Host>(core: &Core<H>, completed: Completed) -> ExecOutcome {
+pub(crate) async fn finish<H: Host>(
+    core: &Core<H>,
+    control: &impl crate::control::ControlPlane,
+    completed: Completed,
+) -> ExecOutcome {
     let channel = core
         .channels
-        .get(completed.channel)
+        .shared(completed.channel)
         .expect("completed attempt channel remains registered");
     match completed.body {
         AttemptBody::Buffered(response) => {
             funnel::buffered(
-                core.host.as_ref(),
-                channel,
+                core.host.clone(),
+                channel.as_ref(),
+                Some(control as &dyn crate::control::ControlPlane),
+                Some(channel.clone()),
                 completed.facts,
                 response,
                 completed.disposition,

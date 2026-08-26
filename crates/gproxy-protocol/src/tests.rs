@@ -62,6 +62,10 @@ fn ingress_registry_matches_canonical_paths() {
     assert_eq!(streaming_sibling(Operation::CreateImage), None);
     assert_eq!(streaming_sibling(Operation::EditImage), None);
     assert_eq!(
+        Operation::CreateRealtimeCall.spec().settle,
+        SettleMode::OnSessionEnd
+    );
+    assert_eq!(
         request_target(
             OperationKey::family(Operation::CreateEmbedding, WireFamily::Gemini),
             "gemini-embedding-001",

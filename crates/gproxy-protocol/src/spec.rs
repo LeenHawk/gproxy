@@ -74,6 +74,9 @@ pub enum SettleMode {
     Free,
     /// Settle from the response (or stream tail) usage.
     OnResponse,
+    /// Long-lived session: the setup response carries no usage; settle when
+    /// the trusted server-side observer closes.
+    OnSessionEnd,
     /// Async-job pattern (video): settle only when the polled body reports
     /// `status == "completed"`, deduplicated across polls.
     OnCompletedStatus,

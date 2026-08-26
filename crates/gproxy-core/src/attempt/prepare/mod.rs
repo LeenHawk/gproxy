@@ -54,6 +54,11 @@ pub(crate) async fn prepare<H: Host>(
 ) -> Result<Prepared, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
     support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
+    if classified.key.operation.spec().settle == gproxy_protocol::SettleMode::OnSessionEnd
+        && core.host.spawner().is_none()
+    {
+        return Err(CoreError::Unsupported);
+    }
     let credential = crate::execution::credential::load_fresh(
         core.host.as_ref(),
         channel,
@@ -122,6 +127,9 @@ pub(crate) async fn prepare<H: Host>(
         started,
         upstream_url: None,
         request_body: body.clone(),
+        request_headers: (support.target.operation.spec().settle
+            == gproxy_protocol::SettleMode::OnSessionEnd)
+            .then(|| ctx.headers.clone()),
         dedupe_key: classified.dedupe_key(target.provider.id),
         owner_user_id: admission.owner_user_id,
         resource: classified
@@ -153,6 +161,9 @@ pub(crate) async fn prepare<H: Host>(
     facts.target_framing = target_framing;
     facts.upstream_url = Some(prepared.request.uri().to_string());
     facts.request_body = prepared.request.body().clone();
+    if facts.request_headers.is_some() {
+        facts.request_headers = Some(prepared.request.headers().clone());
+    }
     Ok(Prepared {
         channel: channel.descriptor().id,
         stream,

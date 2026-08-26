@@ -1,9 +1,9 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
     BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition, Frame,
-    NormalizedUsage, PrepareCtx, PreparedRequest, ResourceCtx, ResourceMutation, ResponseView,
-    SimpleHttp, StreamCtx, StreamDecoder, StreamEnd, StreamTail, SurfaceRequest, SurfaceTable,
-    UsageCtx,
+    NormalizedUsage, PrepareCtx, PreparedRequest, PreparedSession, RealtimeMeter, ResourceCtx,
+    ResourceMutation, ResponseView, SessionPrepareCtx, SessionPreparer, SimpleHttp, StreamCtx,
+    StreamDecoder, StreamEnd, StreamTail, SurfaceRequest, SurfaceTable, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
@@ -27,7 +27,11 @@ const LIST_FILES: OperationKey =
     OperationKey::family(Operation::ListFiles, gproxy_protocol::WireFamily::OpenAi);
 const WEB_SEARCH: OperationKey =
     OperationKey::family(Operation::WebSearch, gproxy_protocol::WireFamily::OpenAi);
-static SUPPORTS: [ChannelSupport; 7] = [
+const REALTIME: OperationKey = OperationKey::family(
+    Operation::CreateRealtimeCall,
+    gproxy_protocol::WireFamily::OpenAi,
+);
+static SUPPORTS: [ChannelSupport; 8] = [
     ChannelSupport::passthrough(KEY),
     ChannelSupport::passthrough(STREAM_KEY),
     ChannelSupport::passthrough(CREATE_FILE),
@@ -35,6 +39,7 @@ static SUPPORTS: [ChannelSupport; 7] = [
     ChannelSupport::passthrough(DELETE_FILE),
     ChannelSupport::passthrough(LIST_FILES),
     ChannelSupport::passthrough(WEB_SEARCH),
+    ChannelSupport::passthrough(REALTIME),
 ];
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
@@ -160,6 +165,10 @@ impl Channel for MemoryHost {
         })
     }
 
+    fn session_preparer(&self) -> Option<SessionPreparer> {
+        Some(prepare_test_session)
+    }
+
     fn stream_decoder(&self, _: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
         Some(Box::new(self.clone()))
     }
@@ -168,6 +177,19 @@ impl Channel for MemoryHost {
         &self,
         ctx: ResourceCtx<'_>,
     ) -> Result<Vec<ResourceMutation>, ChannelError> {
+        if ctx.key.operation == Operation::CreateRealtimeCall {
+            let id = ctx
+                .response_headers
+                .get(http::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.rsplit('/').next())
+                .ok_or_else(|| ChannelError::Observe("test call id missing".into()))?;
+            return Ok(vec![ResourceMutation::Save {
+                kind: "realtime_call",
+                id: id.into(),
+                summary: serde_json::json!({"id": id}),
+            }]);
+        }
         if ctx.key.operation == Operation::DeleteFile {
             return Ok(ctx
                 .request_resource
@@ -251,6 +273,28 @@ impl Channel for MemoryHost {
     fn surfaces(&self) -> SurfaceTable {
         super::surface::table()
     }
+}
+
+fn prepare_test_session(ctx: SessionPrepareCtx<'_>) -> Result<PreparedSession, ChannelError> {
+    let id = ctx
+        .response_headers
+        .get(http::header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.rsplit('/').next())
+        .ok_or_else(|| ChannelError::Observe("test call id missing".into()))?;
+    let request = http::Request::get(format!("wss://upstream.test/session?call_id={id}"))
+        .body(Bytes::new())
+        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+    Ok(PreparedSession {
+        id: id.into(),
+        request: PreparedRequest {
+            request,
+            framing: None,
+            websocket: true,
+            profile: None,
+        },
+        meter: RealtimeMeter::new(ctx.request_body, ctx.upstream_model),
+    })
 }
 
 impl StreamDecoder for MemoryHost {

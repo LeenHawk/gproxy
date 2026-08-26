@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::common::Rest;
 
-use super::super::super::{RealtimeError, RealtimeUsage};
+use crate::openai::audio::AudioUsage;
+
+use super::super::super::RealtimeError;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RealtimeInputTranscriptionDeltaEvent {
@@ -21,7 +23,7 @@ pub struct RealtimeInputTranscriptionCompletedEvent {
     pub content_index: Option<u32>,
     pub transcript: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub usage: Option<RealtimeUsage>,
+    pub usage: Option<AudioUsage>,
     #[serde(default, flatten)]
     pub rest: Rest,
 }

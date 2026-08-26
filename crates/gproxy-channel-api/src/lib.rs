@@ -16,6 +16,7 @@ pub mod disposition;
 pub mod operation;
 pub mod registry;
 pub mod resource;
+pub mod session;
 pub mod surface;
 pub mod usage;
 pub mod wire;
@@ -31,6 +32,10 @@ pub use operation::{
 };
 pub use registry::ChannelRegistry;
 pub use resource::{ResourceCtx, ResourceMutation};
+pub use session::{
+    PreparedSession, RealtimeMeter, SessionObservation, SessionPrepareCtx, SessionPreparer,
+    SessionUsage, SessionUsageKind,
+};
 pub use surface::{
     Binding, BindingPage, BindingStore, CallerIdentity, ForwardSpec, Page, ProviderView,
     QuotaWindow, StateError, SurfaceAction, SurfaceAffinity, SurfaceBody, SurfaceEntry,

@@ -96,6 +96,15 @@ pub trait CacheBackend {
         expected_state: Vec<u8>,
         state: Vec<u8>,
     ) -> BoxFuture<'a, Result<Option<i64>, StoreError>>;
+    /// Compare one opaque value and atomically replace or delete it.
+    /// Long-lived ownership leases use the token to prevent stale renewals.
+    fn compare_and_swap<'a>(
+        &'a self,
+        key: &'a str,
+        expected: Option<Vec<u8>>,
+        value: Option<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> BoxFuture<'a, Result<bool, StoreError>>;
 }
 
 /// Settlement output. `gproxy-app` writes usage rows; an embedder may

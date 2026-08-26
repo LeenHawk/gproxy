@@ -15,6 +15,8 @@ pub(super) struct Completion {
     pub record_usage: bool,
     pub usage: Option<NormalizedUsage>,
     pub actual_service_tier: Option<String>,
+    pub cost_override: Option<Decimal>,
+    pub capture_response: bool,
     pub ended: Ended,
 }
 
@@ -26,6 +28,8 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         record_usage,
         usage,
         actual_service_tier,
+        cost_override,
+        capture_response,
         ended,
     } = completion;
     let actual_service_tier = actual_service_tier
@@ -48,7 +52,7 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         (true, None) => true,
         (false, _) => false,
     };
-    if unique && ctx.pricing.is_none() {
+    if unique && ctx.pricing.is_none() && cost_override.is_none() {
         tracing::warn!(
             request_id = %ctx.request_id,
             provider_id = ctx.target.provider.id,
@@ -82,15 +86,17 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         credential_id: ctx.target.credential,
         upstream_model: ctx.target.upstream_model.clone(),
         cost: if unique {
-            ctx.pricing
-                .as_ref()
-                .map_or(
-                    rust_decimal::Decimal::ZERO,
-                    |pricing| match actual_service_tier.as_deref() {
-                        Some(tier) => pricing.clone().with_service_tier(tier).cost(&usage),
-                        None => pricing.cost(&usage),
-                    },
-                )
+            cost_override.unwrap_or_else(|| {
+                ctx.pricing
+                    .as_ref()
+                    .map_or(
+                        rust_decimal::Decimal::ZERO,
+                        |pricing| match actual_service_tier.as_deref() {
+                            Some(tier) => pricing.clone().with_service_tier(tier).cost(&usage),
+                            None => pricing.cost(&usage),
+                        },
+                    )
+            })
         } else {
             rust_decimal::Decimal::ZERO
         },
@@ -106,18 +112,20 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         host.finish_admission(&ctx.request_id, Some(&settlement))
             .await;
     }
-    let (provider_id, credential_id) = ctx.capture_attribution();
-    host.capture()
-        .record(&Capture {
-            request_id: ctx.request_id.clone(),
-            provider_id,
-            credential_id,
-            upstream_url: ctx.upstream_url.clone(),
-            request_body: ctx.request_body.clone(),
-            response_status: status,
-            response_body,
-        })
-        .await;
+    if capture_response {
+        let (provider_id, credential_id) = ctx.capture_attribution();
+        host.capture()
+            .record(&Capture {
+                request_id: ctx.request_id.clone(),
+                provider_id,
+                credential_id,
+                upstream_url: ctx.upstream_url.clone(),
+                request_body: ctx.request_body.clone(),
+                response_status: status,
+                response_body,
+            })
+            .await;
+    }
     tracing::info!(
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
@@ -165,7 +173,7 @@ pub(crate) fn usage(
         response_body: body,
     };
     match ctx.settle {
-        SettleMode::Free => (false, None),
+        SettleMode::Free | SettleMode::OnSessionEnd => (false, None),
         SettleMode::OnResponse => (true, channel.extract_usage(view())),
         SettleMode::OnCompletedStatus => {
             let completed = match channel.settlement_ready(view()) {

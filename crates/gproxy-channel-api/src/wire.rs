@@ -11,6 +11,8 @@ pub enum TransportError {
     Connect(String),
     #[error("timed out")]
     Timeout,
+    #[error("upstream status {0}")]
+    Status(u16),
     #[error("stream interrupted: {0}")]
     Interrupted(String),
 }

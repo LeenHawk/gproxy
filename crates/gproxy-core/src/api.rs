@@ -28,6 +28,8 @@ pub enum InitError {
     ContinuationsUnavailable { channel: &'static str },
     #[error("channel `{channel}` requires a native background spawner")]
     ContinuationSpawnerUnavailable { channel: &'static str },
+    #[error("channel `{channel}` declares a long-lived session without a trusted meter")]
+    SessionMeterUnavailable { channel: &'static str },
 }
 
 /// The engine. Generic over the host so everything is statically
@@ -50,6 +52,17 @@ impl<H: Host> Core<H> {
     /// resource-affinity operations silently degrading (or fragmenting across
     /// instances) is exactly the class of bug this constructor refuses to ship.
     pub fn new(host: H, channels: ChannelRegistry) -> Result<Self, InitError> {
+        if let Some(channel) = channels.iter().find(|channel| {
+            channel.session_preparer().is_none()
+                && channel.descriptor().supports.iter().any(|support| {
+                    support.target.operation.spec().settle
+                        == gproxy_protocol::SettleMode::OnSessionEnd
+                })
+        }) {
+            return Err(InitError::SessionMeterUnavailable {
+                channel: channel.descriptor().id,
+            });
+        }
         if host.bindings().is_none()
             && let Some(channel) = channels
                 .iter()

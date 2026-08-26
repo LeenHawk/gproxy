@@ -159,6 +159,7 @@ pub(crate) fn transport_error_kind(error: &TransportError) -> &'static str {
     match error {
         TransportError::Connect(_) => "connect",
         TransportError::Timeout => "timeout",
+        TransportError::Status(_) => "status",
         TransportError::Interrupted(_) => "interrupted",
     }
 }

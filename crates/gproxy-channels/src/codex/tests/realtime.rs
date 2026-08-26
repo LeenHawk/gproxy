@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, PrepareCtx, SurfaceRequest};
+use gproxy_channel_api::{Channel, PrepareCtx, SessionPrepareCtx, SurfaceRequest};
 use gproxy_protocol::{Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method};
 use serde_json::json;
@@ -33,6 +33,58 @@ fn raw_sdp_realtime_call_preserves_body_and_content_type() {
         prepared.request.headers()[http::header::CONTENT_TYPE],
         "application/sdp; charset=utf-8"
     );
+}
+
+#[test]
+fn sideband_reuses_selected_codex_credential_and_fixed_openai_uri() {
+    let request_body = Bytes::from_static(
+        br#"{"sdp":"v=offer","session":{"type":"realtime","model":"gpt-realtime"}}"#,
+    );
+    let response_headers = HeaderMap::from_iter([(
+        http::header::LOCATION,
+        "/v1/realtime/calls/rtc_selected".parse().unwrap(),
+    )]);
+    let mut request_headers = HeaderMap::new();
+    request_headers.insert("session-id", "setup-session".parse().unwrap());
+    request_headers.insert("x-client-request-id", "setup-request".parse().unwrap());
+    let prepared = CodexChannel.session_preparer().expect("session preparer")(SessionPrepareCtx {
+        request_body: &request_body,
+        request_headers: &request_headers,
+        response_headers: &response_headers,
+        upstream_model: "gpt-realtime",
+        secret: &json!({"access_token":"oauth-token","account_id":"acct-1"}),
+    })
+    .unwrap();
+    assert_eq!(
+        prepared.request.request.uri(),
+        "wss://api.openai.com/v1/realtime?call_id=rtc_selected"
+    );
+    assert_eq!(
+        prepared.request.request.headers()[http::header::AUTHORIZATION],
+        "Bearer oauth-token"
+    );
+    assert_eq!(
+        prepared.request.request.headers()["chatgpt-account-id"],
+        "acct-1"
+    );
+    assert_eq!(
+        prepared.request.request.headers()["originator"],
+        "codex_exec"
+    );
+    assert_eq!(
+        prepared.request.request.headers()[http::header::USER_AGENT],
+        super::super::auth::USER_AGENT
+    );
+    assert_eq!(
+        prepared.request.request.headers()["session-id"],
+        "setup-session"
+    );
+    assert_eq!(
+        prepared.request.request.headers()["x-client-request-id"],
+        "setup-request"
+    );
+    assert!(prepared.request.websocket);
+    assert!(prepared.request.profile.is_some());
 }
 
 #[test]

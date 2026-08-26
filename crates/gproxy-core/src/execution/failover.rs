@@ -99,7 +99,7 @@ pub(crate) async fn run<H: Host>(
             Ok(completed) => {
                 let disposition = completed.disposition;
                 if !disposition.should_failover() {
-                    return Ok(attempt::finish(core, completed).await);
+                    return Ok(attempt::finish(core, control, completed).await);
                 }
                 if disposition == Disposition::CredentialDead {
                     dead.insert(completed.facts.target.credential);

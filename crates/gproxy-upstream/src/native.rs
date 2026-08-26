@@ -151,6 +151,8 @@ fn interrupted_error(error: wreq::Error) -> TransportError {
 fn map_error(error: wreq::Error, other: fn(String) -> TransportError) -> TransportError {
     if error.is_timeout() {
         TransportError::Timeout
+    } else if let Some(status) = error.status() {
+        TransportError::Status(status.as_u16())
     } else {
         other(error.without_uri().to_string())
     }
