@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   prepare:
@@ -27,36 +28,67 @@ jobs:
           echo "version=$(scripts/release-metadata.sh version)" >> "$GITHUB_OUTPUT"
           echo "matrix=$(jq -c . scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
 
-  console:
-    name: Build console once
+  container:
+    name: Console and container image
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
-          package_json_file: console/package.json
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 'lts/*'
-          cache: pnpm
-          cache-dependency-path: console/pnpm-lock.yaml
-      - working-directory: console
-        run: pnpm install --frozen-lockfile && pnpm build
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build console once
+        run: |
+          docker buildx build --target console-dist \
+            --output type=local,dest=dist/console .
+      - name: Build, archive, and push container
+        env:
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: |
+          test -n "$GPROXY_UPDATE_PUBKEY" || { echo "missing update signing public key" >&2; exit 1; }
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}"
+          docker buildx build --load \
+            --provenance=mode=max --sbom=true \
+            --build-arg "GPROXY_UPDATE_PUBKEY=$GPROXY_UPDATE_PUBKEY" \
+            --build-arg "GPROXY_VERSION=${{ needs.prepare.outputs.version }}" \
+            --build-arg "GPROXY_REVISION=$GITHUB_SHA" \
+            --tag "$image" .
+          mkdir -p dist/container
+          docker save "$image" | gzip -9 > dist/container/gproxy-container-linux-amd64.tar.gz
+          (cd dist/container && sha256sum gproxy-container-linux-amd64.tar.gz \
+            > gproxy-container-linux-amd64.tar.gz.sha256)
+          docker push "$image"
+      - name: Record build provenance
+        env:
+          ARTIFACT_NAME: gproxy-container-linux-amd64
+          GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+          BUILDER: docker
+        run: |
+          scripts/build-provenance.sh
+          mv dist/release/*.provenance.json dist/container/
       - uses: actions/upload-artifact@v7
         with:
           name: console-embed
-          path: crates/gproxy-host-axum/assets/web
+          path: dist/console
           include-hidden-files: true
           retention-days: 1
       - uses: actions/upload-artifact@v7
         with:
           name: console-dist
-          path: console/dist
+          path: dist/console
+          retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: container-image
+          path: dist/container/*
           retention-days: 1
 
   native:
     name: Native ${{ matrix.target }}
-    needs: [prepare, console]
+    needs: [prepare, container]
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -132,10 +164,18 @@ jobs:
           TARGET_TRIPLE: ${{ matrix.target }}
           ARTIFACT_NAME: ${{ matrix.artifact }}
         run: scripts/package-native-release.ps1
+      - name: Record build provenance
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+          GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+          TARGET_TRIPLE: ${{ matrix.target }}
+          BUILDER: ${{ matrix.builder }}
+        run: scripts/build-provenance.sh
       - uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.target }}
           path: |
+            dist/release/${{ matrix.artifact }}.provenance.json
             dist/release/${{ matrix.artifact }}.zip
             dist/release/${{ matrix.artifact }}.zip.sha256
             dist/release/${{ matrix.artifact }}.deb
@@ -176,7 +216,7 @@ jobs:
 
   edge:
     name: Edge bundles
-    needs: console
+    needs: container
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -195,7 +235,7 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - uses: denoland/setup-deno@v2
@@ -207,6 +247,13 @@ jobs:
           test -n "$version"
           cargo install wasm-bindgen-cli --version "$version" --locked
       - run: scripts/package-edge-release.sh
+      - name: Record build provenance
+        env:
+          ARTIFACT_NAME: gproxy-edge
+          GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+          TARGET_TRIPLE: wasm32-unknown-unknown
+          BUILDER: wasm-bindgen
+        run: scripts/build-provenance.sh
       - name: Check platform entries
         run: |
           pnpm --dir deploy/cloudflare install --no-frozen-lockfile
@@ -218,6 +265,7 @@ jobs:
         with:
           name: edge-bundles
           path: |
+            dist/release/gproxy-edge.provenance.json
             dist/release/gproxy-edge.wasm
             dist/release/gproxy-edge.wasm.sha256
             dist/release/gproxy-edge-cloudflare.zip
@@ -227,3 +275,39 @@ jobs:
             dist/release/gproxy-edge-netlify.zip
             dist/release/gproxy-edge-netlify.zip.sha256
           retention-days: 1
+
+  publish:
+    name: Publish release
+    needs: [manifest, edge, container]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: dist/publish
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: signed-update-manifest
+          path: dist/publish
+      - uses: actions/download-artifact@v8
+        with:
+          name: edge-bundles
+          path: dist/publish
+      - uses: actions/download-artifact@v8
+        with:
+          name: container-image
+          path: dist/publish
+      - name: Publish GitHub Release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mapfile -d '' files < <(find dist/publish -maxdepth 1 -type f -print0 | sort -z)
+          test "${#files[@]}" -gt 0
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --verify-tag --title "gproxy $GITHUB_REF_NAME" --generate-notes
+          fi
