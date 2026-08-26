@@ -8,7 +8,7 @@ use gproxy_store::StoreError;
 use gproxy_store::records::ControlSnapshot;
 
 use super::types::{CompiledRoute, CompiledSnapshot, TargetSeed};
-use super::{index, pricing};
+use super::{index, pricing, rules};
 
 impl CompiledSnapshot {
     pub(super) fn build(stored: ControlSnapshot) -> Result<Self, StoreError> {
@@ -58,6 +58,7 @@ impl CompiledSnapshot {
         let (global_aliases, provider_aliases) = index::aliases(&stored.aliases);
         let pricing = pricing::compile(&stored.price_rules, &stored.price_rates)?;
         let identities = index::identities(&stored);
+        let (routing_rules, process_rules) = rules::compile(&stored)?;
         Ok(Self {
             stored,
             providers,
@@ -71,6 +72,8 @@ impl CompiledSnapshot {
             provider_aliases,
             pricing,
             identities,
+            routing_rules,
+            process_rules,
         })
     }
 }

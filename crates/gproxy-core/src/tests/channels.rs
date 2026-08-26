@@ -456,6 +456,7 @@ fn claude_target() -> Target {
         credential: CredentialId(7),
         upstream_model: "claude-test".into(),
         tier: 0,
+        rules: Default::default(),
     }
 }
 
@@ -480,6 +481,7 @@ fn codex_target() -> Target {
         credential: CredentialId(7),
         upstream_model: "gpt-test".into(),
         tier: 0,
+        rules: Default::default(),
     }
 }
 

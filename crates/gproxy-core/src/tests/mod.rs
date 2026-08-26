@@ -4,6 +4,7 @@ mod channels;
 mod memory;
 mod orchestration;
 mod pricing;
+mod process;
 mod realtime;
 mod services;
 mod surface;
@@ -450,6 +451,7 @@ fn target() -> Target {
         credential: CredentialId(7),
         upstream_model: "upstream-model".into(),
         tier: 0,
+        rules: Default::default(),
     }
 }
 

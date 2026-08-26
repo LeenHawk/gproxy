@@ -25,6 +25,7 @@ fn claudeweb_new_and_resume_turns_transfer_one_scoped_stream() {
         credential: CredentialId(7),
         upstream_model: "claude-opus-4-8".into(),
         tier: 0,
+        rules: Default::default(),
     };
     let plan = Plan {
         targets: vec![target],

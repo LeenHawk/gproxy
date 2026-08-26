@@ -126,6 +126,8 @@ pub(crate) async fn request<H: Host>(
         request_method: Some(prepared.request.method().clone()),
         request_body: prepared.request.body().clone(),
         request_headers: Some(prepared.request.headers().clone()),
+        client_headers: request.headers.clone(),
+        requested_model: None,
         response_headers: None,
         dedupe_key: None,
         owner_user_id: None,

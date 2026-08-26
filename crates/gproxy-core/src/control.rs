@@ -49,6 +49,13 @@ pub struct Target {
     /// mapping).
     pub upstream_model: String,
     pub tier: u32,
+    pub rules: TargetRules,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TargetRules {
+    pub routing: std::sync::Arc<[crate::routing::CompiledRoutingRule]>,
+    pub process: std::sync::Arc<[crate::process::CompiledRule]>,
 }
 
 /// Provider identity plus the channel that talks to it. Settings carry the

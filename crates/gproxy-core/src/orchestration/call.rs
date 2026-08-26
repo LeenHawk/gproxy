@@ -40,6 +40,8 @@ pub(super) async fn run<H: Host>(
         request_method: Some(method),
         request_body: body,
         request_headers: Some(headers),
+        client_headers: Default::default(),
+        requested_model: None,
         response_headers: None,
         dedupe_key: None,
         owner_user_id: None,

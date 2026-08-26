@@ -69,5 +69,6 @@ pub(super) fn target(provider_id: i64, credential: i64) -> crate::Target {
         credential: crate::CredentialId(credential),
         upstream_model: "upstream-model".into(),
         tier: 0,
+        rules: Default::default(),
     }
 }

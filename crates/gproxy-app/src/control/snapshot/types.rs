@@ -36,6 +36,8 @@ pub(super) struct CompiledSnapshot {
     pub provider_aliases: BTreeMap<i64, BTreeMap<String, String>>,
     pub pricing: Vec<CompiledPriceRule>,
     pub identities: BTreeMap<(u32, Vec<u8>), KeyIdentity>,
+    pub routing_rules: BTreeMap<i64, Arc<[gproxy_core::routing::CompiledRoutingRule]>>,
+    pub process_rules: BTreeMap<i64, Arc<[gproxy_core::process::CompiledRule]>>,
 }
 
 pub(super) struct CompiledRoute {

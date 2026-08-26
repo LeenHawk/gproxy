@@ -221,6 +221,8 @@ impl UpstreamTransport for MemoryHost {
                 state
                     .upstream_requests
                     .push((request.headers().clone(), request.uri().to_string()));
+                state.upstream_bodies.push(request_body.clone());
+                state.upstream_bodies.push(request_body.clone());
                 state.authorizations.push(authorization);
                 if let Some(value) = request.headers().get("originator") {
                     state

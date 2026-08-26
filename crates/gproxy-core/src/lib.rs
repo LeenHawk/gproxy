@@ -51,7 +51,7 @@ pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBod
 pub use continuation::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore};
 pub use control::{
     ConditionalMetricRate, ConfiguredFingerprint, ControlPlane, FingerprintOverride, Plan, Pricing,
-    PricingTier, ProviderRef, Target, UpstreamProxy, normalize_service_tier,
+    PricingTier, ProviderRef, Target, TargetRules, UpstreamProxy, normalize_service_tier,
 };
 pub use error::CoreError;
 pub use host::{

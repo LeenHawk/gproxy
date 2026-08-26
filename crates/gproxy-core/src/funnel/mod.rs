@@ -40,6 +40,8 @@ pub(crate) struct FunnelCtx {
     pub request_method: Option<http::Method>,
     pub request_body: Bytes,
     pub request_headers: Option<http::HeaderMap>,
+    pub client_headers: http::HeaderMap,
+    pub requested_model: Option<String>,
     pub response_headers: Option<http::HeaderMap>,
     pub dedupe_key: Option<String>,
     pub owner_user_id: Option<i64>,
@@ -137,6 +139,21 @@ pub(crate) async fn buffered<H: Host>(
                 })
             },
         );
+        let shaped = if upstream_status.is_success()
+            && let Some(key) = ctx.key
+        {
+            shaped.map(|body| {
+                crate::process::apply_response(
+                    &ctx.target.rules.process,
+                    key,
+                    process_models(&ctx),
+                    &ctx.client_headers,
+                    body,
+                )
+            })
+        } else {
+            shaped
+        };
         transform_buffered(&ctx, upstream_status, upstream_headers, shaped, disposition)
     };
     settlement::complete(
@@ -162,6 +179,15 @@ pub(crate) async fn buffered<H: Host>(
         disposition,
         _settled: Settled(()),
     }
+}
+
+fn process_models(ctx: &FunnelCtx) -> crate::process::RuleModels<'_> {
+    crate::process::RuleModels::new(
+        &ctx.target.upstream_model,
+        ctx.requested_model
+            .as_deref()
+            .filter(|model| *model != ctx.target.upstream_model),
+    )
 }
 
 fn transform_buffered(

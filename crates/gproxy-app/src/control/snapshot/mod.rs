@@ -5,6 +5,7 @@ mod materialize;
 mod pressure;
 mod pricing;
 mod resolve;
+mod rules;
 mod types;
 
 use std::sync::Arc;

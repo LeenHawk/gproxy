@@ -21,12 +21,13 @@ pub(crate) fn support<H: Host>(
     key: OperationKey,
 ) -> Result<Option<ChannelSupport>, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    Ok(channel
+    let selected = channel
         .descriptor()
         .supports
         .iter()
         .find(|support| support.source == key)
-        .copied())
+        .copied();
+    Ok(selected.and_then(|support| route_support(target, support)))
 }
 
 pub(crate) fn native_support<H: Host>(
@@ -69,6 +70,7 @@ pub(crate) async fn prepare<H: Host>(
     let support = channel
         .select_support(classified.key, &credential.secret)
         .filter(|selected| channel.descriptor().supports.contains(selected))
+        .and_then(|support| route_support(target, support))
         .ok_or(CoreError::Unsupported)?;
     if !admission.admitted && support.source != support.target {
         return Err(CoreError::Unsupported);
@@ -92,13 +94,28 @@ pub(crate) async fn prepare<H: Host>(
                 CoreError::Transform(format!("no request target for {:?}", support.target))
             })?;
     }
+    let mutation = crate::process::apply_request(
+        &target.rules.process,
+        support.target,
+        crate::process::RuleModels::new(
+            &target.upstream_model,
+            classified
+                .model
+                .as_deref()
+                .filter(|model| *model != target.upstream_model),
+        ),
+        &ctx.headers,
+        body,
+    );
+    body = mutation.body;
+    let request_headers = mutation.headers;
     let context = || PrepareCtx {
         key: support.target,
         stream,
         method: &method,
         path: &path,
         query: ctx.query.as_deref(),
-        headers: &ctx.headers,
+        headers: request_headers.as_ref().unwrap_or(&ctx.headers),
         body: &body,
         upstream_model: &target.upstream_model,
         provider_settings: &target.provider.settings,
@@ -130,7 +147,9 @@ pub(crate) async fn prepare<H: Host>(
         request_body: body.clone(),
         request_headers: (support.target.operation.spec().settle
             == gproxy_protocol::SettleMode::OnSessionEnd)
-            .then(|| ctx.headers.clone()),
+            .then(|| request_headers.as_ref().unwrap_or(&ctx.headers).clone()),
+        client_headers: ctx.headers.clone(),
+        requested_model: classified.model.clone(),
         response_headers: None,
         dedupe_key: classified.dedupe_key(target.provider.id),
         owner_user_id: admission.owner_user_id,
@@ -172,6 +191,22 @@ pub(crate) async fn prepare<H: Host>(
         facts,
         egress: Egress::Http(Box::new(prepared.request)),
     })
+}
+
+fn route_support(target: &Target, support: ChannelSupport) -> Option<ChannelSupport> {
+    match crate::routing::decide(&target.rules.routing, support.source) {
+        None => Some(support),
+        Some(crate::routing::RoutingDecision::Passthrough) => Some(ChannelSupport {
+            source: support.source,
+            target: support.source,
+        }),
+        Some(crate::routing::RoutingDecision::TransformTo(destination)) => Some(ChannelSupport {
+            source: support.source,
+            target: destination,
+        }),
+        Some(crate::routing::RoutingDecision::Local)
+        | Some(crate::routing::RoutingDecision::Unsupported) => None,
+    }
 }
 
 fn channel<'a, H: Host>(core: &'a Core<H>, id: &str) -> Result<&'a dyn Channel, CoreError> {

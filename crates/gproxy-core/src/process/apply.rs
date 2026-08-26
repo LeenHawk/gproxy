@@ -140,6 +140,17 @@ pub fn apply_response(
     body
 }
 
+pub fn applies_to_response(
+    rules: &[CompiledRule],
+    operation: gproxy_protocol::OperationKey,
+    models: RuleModels<'_>,
+    client_headers: &HeaderMap,
+) -> bool {
+    applicable(rules, operation, models, client_headers)
+        .iter()
+        .any(|rule| response_value(&rule.config) || response_text(&rule.config))
+}
+
 fn applicable<'a>(
     rules: &'a [CompiledRule],
     operation: gproxy_protocol::OperationKey,

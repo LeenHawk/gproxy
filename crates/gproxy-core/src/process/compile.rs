@@ -126,7 +126,7 @@ fn rewrite(value: Value) -> Result<RuleConfig, String> {
     struct Raw {
         path: String,
         action: String,
-        #[serde(default)]
+        #[serde(default, rename = "value_json")]
         value: Value,
     }
     let raw: Raw = parse(value)?;

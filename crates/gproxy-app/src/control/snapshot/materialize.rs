@@ -29,6 +29,18 @@ impl CompiledSnapshot {
                         credential: seed.credential,
                         upstream_model: seed.upstream_model,
                         tier: seed.tier,
+                        rules: gproxy_core::TargetRules {
+                            routing: self
+                                .routing_rules
+                                .get(&seed.provider_id)
+                                .cloned()
+                                .unwrap_or_default(),
+                            process: self
+                                .process_rules
+                                .get(&seed.provider_id)
+                                .cloned()
+                                .unwrap_or_default(),
+                        },
                     }
                 })
             })

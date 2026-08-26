@@ -114,6 +114,8 @@ async fn finish<H: Host>(
         request_method: None,
         request_body: request.body.clone(),
         request_headers: None,
+        client_headers: request.headers.clone(),
+        requested_model: None,
         response_headers: None,
         dedupe_key: None,
         owner_user_id: Some(owner_user_id),

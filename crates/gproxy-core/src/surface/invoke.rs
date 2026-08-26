@@ -184,6 +184,8 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 request_method: Some(parts.method.clone()),
                 request_body: body.clone(),
                 request_headers: Some(parts.headers.clone()),
+                client_headers: parts.headers.clone(),
+                requested_model: None,
                 response_headers: None,
                 dedupe_key: None,
                 owner_user_id: Some(self.identity.user_id),

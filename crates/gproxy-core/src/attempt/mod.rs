@@ -120,6 +120,29 @@ pub(crate) async fn send<H: Host>(
             request_body: &facts.request_body,
             response_headers: response.headers(),
         });
+        let requested_model = facts
+            .requested_model
+            .as_deref()
+            .filter(|model| *model != facts.target.upstream_model);
+        let models = crate::process::RuleModels::new(&facts.target.upstream_model, requested_model);
+        if crate::process::applies_to_response(
+            &facts.target.rules.process,
+            key,
+            models,
+            &facts.client_headers,
+        ) {
+            decoder = Some(Box::new(
+                crate::process::ResponseRuleDecoder::new(
+                    decoder,
+                    facts.target.rules.process.clone(),
+                    key,
+                    facts.target_framing,
+                    models,
+                    facts.client_headers.clone(),
+                )
+                .expect("HTTP response rules use byte-stream framing"),
+            ));
+        }
         let source = facts
             .source_key
             .expect("operation attempt has a source key");
