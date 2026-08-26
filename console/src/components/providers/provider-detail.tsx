@@ -24,6 +24,7 @@ type Props = {
   tab: "credentials" | "settings"
   onTab: (tab: Props["tab"]) => void
   channel?: ChannelDto
+  channels: Array<ChannelDto>
   presets: Array<TlsPresetDto>
   credentials: Array<CredentialDto>
   cyclesByCredential: Map<number, Array<CredentialQuotaCycleDto>>
@@ -60,7 +61,7 @@ export function ProviderDetail(props: Props) {
   const edit = (
     <ProviderDialog
       provider={props.provider}
-      channels={props.channel ? [props.channel] : []}
+      channels={props.channels}
       channelsLoading={false}
       channelsError={false}
       presets={props.presets}

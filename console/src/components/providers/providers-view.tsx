@@ -112,6 +112,7 @@ export function ProvidersView(props: Props) {
                 tab={tab}
                 onTab={(value) => navigateAdminPath(`/admin/providers/${selected.id}/${value}`, true)}
                 channel={props.channels.find((channel) => channel.id === selected.channel)}
+                channels={props.channels}
                 presets={props.presets}
                 credentials={credentialsByProvider.get(selected.id) ?? []}
                 cyclesByCredential={cyclesByCredential}

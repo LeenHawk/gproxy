@@ -35,7 +35,7 @@ export function KeysWorkspace(props: Props) {
   const access = { ...identity, providers: props.providers, groups: props.groups, permissions: props.permissions, rateLimits: props.rateLimits, quotas: props.quotas }
   return (
     <Tabs value={section} onValueChange={(value) => navigateAdminPath(`/admin/keys/${value}`)}>
-      <TabsList className="max-w-full"><TabsTrigger value="identities">{t("users.title")}</TabsTrigger><TabsTrigger value="api-keys">{t("users.keys.title")}</TabsTrigger><TabsTrigger value="access">{t("access.title")}</TabsTrigger><TabsTrigger value="requests">{t("portal.admin.recentRequests.title")}</TabsTrigger></TabsList>
+      <TabsList className="max-w-full"><TabsTrigger value="identities">{t("users.workspaceTabs.identities")}</TabsTrigger><TabsTrigger value="api-keys">{t("users.workspaceTabs.apiKeys")}</TabsTrigger><TabsTrigger value="access">{t("users.workspaceTabs.access")}</TabsTrigger><TabsTrigger value="requests">{t("users.workspaceTabs.requests")}</TabsTrigger></TabsList>
       <TabsContent value="identities" className="pt-5"><KeyManagement {...identity} mode="identities" onScopeOpen={(kind, id) => navigateAdminPath(`/admin/keys/access/${kind}/${id}`)} /></TabsContent>
       <TabsContent value="api-keys" className="pt-5"><KeyManagement {...identity} mode="keys" /></TabsContent>
       <TabsContent value="access" className="pt-5">{scope && Number.isFinite(scopeId) ? <ScopeAccessEditor {...access} scope={scope} scopeId={scopeId} /> : <AccessManager {...access} />}</TabsContent>

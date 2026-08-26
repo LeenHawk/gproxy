@@ -15,12 +15,12 @@ import type { Theme } from "@/lib/theme-state"
 
 const themes: Array<Theme> = ["light", "dark", "system"]
 
-export function LocaleControls() {
+export function LocaleControls({ showTheme = true }: { showTheme?: boolean }) {
   const { t, i18n } = useTranslation()
   const { theme, setTheme } = useTheme()
   return (
     <div className="flex items-center gap-1">
-      <DropdownMenu>
+      {showTheme ? <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label={t("common.theme.label")}>
             <SunIcon className="dark:hidden" aria-hidden />
@@ -34,7 +34,7 @@ export function LocaleControls() {
             ))}
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
-      </DropdownMenu>
+      </DropdownMenu> : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label={t("common.language")}>

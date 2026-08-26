@@ -19,7 +19,13 @@ export default defineConfig({
   resolve: { alias: { "@": path.join(consoleDir, "src") } },
   server: {
     proxy: {
-      "/admin": { target: backend, changeOrigin: true, headers: { origin: backend } },
+      "/admin": {
+        target: backend,
+        changeOrigin: true,
+        headers: { origin: backend },
+        bypass: (request) => request.method === "GET" && request.headers.accept?.includes("text/html") ? "/index.html" : undefined,
+      },
+      "/portal/api": { target: backend, changeOrigin: true, headers: { origin: backend } },
     },
   },
   build: { outDir: "dist", assetsDir: "assets", emptyOutDir: true },

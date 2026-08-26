@@ -8,7 +8,7 @@ export function PublicHeader() {
     <header className="public-masthead">
       <a className="public-brand public-display" href="/">{t("common.product")}</a>
       <nav className="public-nav" aria-label={t("public.nav.label")}>
-        <LocaleControls />
+        <LocaleControls showTheme={false} />
         <Button asChild variant="outline" size="sm"><a href="/admin">{t("public.nav.admin")}</a></Button>
         <Button asChild size="sm"><a href="/portal">{t("public.nav.portal")}</a></Button>
       </nav>

@@ -4,13 +4,24 @@ export type AdminRoute = "overview" | "providers" | "routes" | "keys" | "usage" 
 export type AdminLocation = { route: AdminRoute; segments: Array<string> }
 
 const routes = new Set<AdminRoute>(["overview", "providers", "routes", "keys", "usage", "logs", "channels", "pricing", "settings"])
+const serverLocation: AdminLocation = { route: "overview", segments: [] }
+let cachedPath = ""
+let cachedLocation = serverLocation
 
 function readLocation(): AdminLocation {
-  const parts = window.location.pathname.split("/").filter(Boolean)
-  if (parts[0] !== "admin") return { route: "overview", segments: [] }
+  const pathname = window.location.pathname
+  if (pathname === cachedPath) return cachedLocation
+  const parts = pathname.split("/").filter(Boolean)
+  cachedPath = pathname
+  if (parts[0] !== "admin") {
+    cachedLocation = serverLocation
+    return cachedLocation
+  }
   const candidate = parts[1] as AdminRoute | undefined
-  if (!candidate || !routes.has(candidate)) return { route: "overview", segments: [] }
-  return { route: candidate, segments: parts.slice(2).map(decodeURIComponent) }
+  cachedLocation = !candidate || !routes.has(candidate)
+    ? serverLocation
+    : { route: candidate, segments: parts.slice(2).map(decodeURIComponent) }
+  return cachedLocation
 }
 
 function subscribe(listener: () => void) {
@@ -19,7 +30,7 @@ function subscribe(listener: () => void) {
 }
 
 export function useAdminLocation() {
-  return useSyncExternalStore(subscribe, readLocation, (): AdminLocation => ({ route: "overview", segments: [] }))
+  return useSyncExternalStore(subscribe, readLocation, () => serverLocation)
 }
 
 export function adminPath(route: AdminRoute) {

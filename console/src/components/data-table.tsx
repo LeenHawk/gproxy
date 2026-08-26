@@ -117,7 +117,7 @@ export function DataTable<T>({
           </div>
           <div className="grid gap-2 md:hidden">{visibleRows.map((row) => {
             const id = rowKey(row)
-            return <Card key={id} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
+            return <Card key={id} role={onRowClick ? "button" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
               <CardContent className="flex items-start gap-3">
                 {selectable ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
                 <div className="min-w-0 flex-1">{renderCard(row)}</div>

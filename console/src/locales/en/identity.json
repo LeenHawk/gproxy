@@ -59,6 +59,7 @@
     }
   },
   "users": {
+    "workspaceTabs": { "identities": "Identities", "apiKeys": "API keys", "access": "Access", "requests": "Portal" },
     "title": "Users and keys",
     "subtitle": "Manage identities, API keys, access, and spending limits.",
     "empty": "No users yet. Add one before issuing an API key.",

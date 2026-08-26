@@ -59,6 +59,7 @@
     }
   },
   "users": {
+    "workspaceTabs": { "identities": "身份", "apiKeys": "API 密钥", "access": "访问", "requests": "门户" },
     "title": "用户与密钥",
     "subtitle": "管理身份、API 密钥、访问权限和支出限制。",
     "empty": "尚无用户。请先添加用户再签发 API 密钥。",

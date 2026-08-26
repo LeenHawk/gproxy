@@ -59,6 +59,7 @@
     }
   },
   "users": {
+    "workspaceTabs": { "identities": "身分", "apiKeys": "API 金鑰", "access": "存取", "requests": "入口" },
     "title": "使用者與金鑰",
     "subtitle": "管理身分、API 金鑰、存取權限和支出限制。",
     "empty": "尚無使用者。請先新增使用者再簽發 API 金鑰。",
