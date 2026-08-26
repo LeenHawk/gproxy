@@ -188,6 +188,17 @@ fn terminal_frame(op: OperationKey, frame: &crate::transform::common::sse::SseFr
     match op.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions) => {
             value.get("usage").is_some_and(Value::is_object)
+                && value
+                    .get("choices")
+                    .and_then(Value::as_array)
+                    .is_some_and(|choices| {
+                        choices.is_empty()
+                            || choices.iter().any(|choice| {
+                                choice
+                                    .get("finish_reason")
+                                    .is_some_and(|reason| !reason.is_null())
+                            })
+                    })
         }
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiResponses
@@ -477,7 +488,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn decorates_stream_terminal_usage_before_done() {
+    async fn streams_non_terminal_usage_and_decorates_terminal_before_done() {
         use futures_util::StreamExt;
         let op = OperationKey::content_generation(
             Operation::StreamGenerateContent,
@@ -488,7 +499,12 @@ mod tests {
         let source: crate::pipeline::outcome::ByteStream = Box::pin(
             futures_util::stream::iter(vec![
                 Ok(Bytes::from_static(
-                    br#"data: {"choices":[{"delta":{"content":"hi"}}]}
+                    br#"data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}],"usage":{"prompt_tokens":12,"completion_tokens":0,"total_tokens":12}}
+
+"#,
+                )),
+                Ok(Bytes::from_static(
+                    br#"data: {"choices":[{"delta":{"content":"hi"},"finish_reason":null}]}
 
 "#,
                 )),
@@ -505,6 +521,10 @@ data: [DONE]
             .map(|item| item.unwrap())
             .collect()
             .await;
+        let first = String::from_utf8(chunks.first().expect("first chunk").to_vec()).unwrap();
+        assert!(first.contains("\"role\":\"assistant\""));
+        assert!(!first.contains("\"content\":\"hi\""));
+        assert!(chunks.len() > 1, "non-terminal usage buffered the stream");
         let text = String::from_utf8(chunks.concat()).unwrap();
         assert!(text.contains("\"cost\":0.000123"));
         assert!(text.find("\"cost\"").unwrap() < text.find("[DONE]").unwrap());
