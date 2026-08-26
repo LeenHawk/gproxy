@@ -39,7 +39,7 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile

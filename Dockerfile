@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/node:22.23.2-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS console
+FROM public.ecr.aws/docker/library/node:lts-trixie-slim AS console
 
 WORKDIR /source/console
 RUN corepack enable
@@ -7,7 +7,7 @@ RUN pnpm install --frozen-lockfile
 COPY console/ ./
 RUN pnpm build
 
-FROM public.ecr.aws/docker/library/rust:1.96.1-bookworm@sha256:d99f7b31f49909348dc59b51f3c95d1efded1701ffb222f095aaab7de3c4abd8 AS builder
+FROM public.ecr.aws/docker/library/rust:1-trixie AS builder
 
 ARG CARGO_NET_OFFLINE=false
 WORKDIR /source
@@ -19,7 +19,7 @@ COPY --from=console /source/console/dist/ crates/gproxy-host-axum/assets/web/
 RUN CARGO_NET_OFFLINE="$CARGO_NET_OFFLINE" \
     cargo build --locked --release --package gproxy-host-axum --bin gproxy
 
-FROM public.ecr.aws/docker/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+FROM public.ecr.aws/docker/library/debian:trixie-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
