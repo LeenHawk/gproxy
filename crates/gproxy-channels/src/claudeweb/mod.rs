@@ -98,6 +98,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "claudeweb",
     display_name: "Claude Web",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::CLAUDE_WEB,
+    endpoint_overrides: true,
 };
 
 impl Channel for ClaudeWebChannel {

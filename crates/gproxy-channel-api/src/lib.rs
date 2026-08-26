@@ -13,6 +13,7 @@
 
 pub mod channel;
 pub mod disposition;
+pub mod endpoint;
 pub mod login;
 pub mod operation;
 pub mod registry;
@@ -23,11 +24,12 @@ pub mod usage;
 pub mod wire;
 
 pub use channel::{
-    Channel, ChannelDescriptor, ChannelError, ChannelSupport, Frame, PrepareCtx, PreparedRequest,
-    ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, StreamEnd, StreamTail,
-    UsageCtx,
+    Channel, ChannelDescriptor, ChannelError, ChannelField, ChannelFieldControl, ChannelSupport,
+    Frame, PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
+    StreamDecoder, StreamEnd, StreamTail, UsageCtx,
 };
 pub use disposition::Disposition;
+pub use endpoint::endpoint_override_key;
 pub use login::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, ChannelLogin, ChannelLoginRef,
     CookieExchangeCtx, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, LoginDescriptor,

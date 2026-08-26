@@ -39,13 +39,21 @@ pub enum CredentialHealthDto {
     Dead,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct CredentialDto {
     pub id: i64,
     pub provider_id: i64,
     pub label: Option<String>,
     pub version: u64,
     pub enabled: bool,
+    pub weight: u32,
+    pub rpm_limit: Option<u32>,
+    pub tpm_limit: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub tls_fingerprint: Option<TlsFingerprintDto>,
+    #[ts(type = "unknown | null")]
+    pub invalid_tls_fingerprint: Option<Value>,
+    pub tls_fingerprint_error: Option<String>,
     pub health: CredentialHealthDto,
     pub health_observed_at: Option<i64>,
     pub health_response_status: Option<u16>,
@@ -59,6 +67,11 @@ pub struct CredentialWriteRequest {
     #[ts(type = "unknown | null")]
     pub secret: Option<Value>,
     pub enabled: bool,
+    pub weight: u32,
+    pub rpm_limit: Option<u32>,
+    pub tpm_limit: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub tls_fingerprint: Option<TlsFingerprintDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -83,7 +96,8 @@ pub struct RouteMemberDto {
     pub provider_id: i64,
     pub credential_id: Option<i64>,
     pub upstream_model: String,
-    pub priority: i64,
+    pub tier: u32,
+    pub weight: u32,
     pub enabled: bool,
 }
 
@@ -93,7 +107,8 @@ pub struct RouteMemberWriteRequest {
     pub provider_id: i64,
     pub credential_id: Option<i64>,
     pub upstream_model: String,
-    pub priority: i64,
+    pub tier: u32,
+    pub weight: u32,
     pub enabled: bool,
 }
 

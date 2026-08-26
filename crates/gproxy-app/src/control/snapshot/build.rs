@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -36,6 +37,7 @@ impl CompiledSnapshot {
                         fingerprint: super::super::fingerprint::parse(
                             provider.tls_fingerprint.as_ref(),
                         ),
+                        proxy_url: None,
                     },
                 ))
             })
@@ -107,8 +109,11 @@ fn validate_windows(stored: &ControlSnapshot) -> Result<(), StoreError> {
 fn credentials(
     stored: &ControlSnapshot,
     providers: &BTreeMap<i64, ProviderRef>,
-) -> (BTreeMap<i64, Vec<CredentialId>>, BTreeMap<i64, i64>) {
-    let mut by_provider: BTreeMap<i64, Vec<CredentialId>> = BTreeMap::new();
+) -> (
+    BTreeMap<i64, Vec<super::types::CredentialSeed>>,
+    BTreeMap<i64, i64>,
+) {
+    let mut by_provider: BTreeMap<i64, Vec<super::types::CredentialSeed>> = BTreeMap::new();
     let mut credential_providers = BTreeMap::new();
     for credential in stored
         .credentials
@@ -118,11 +123,17 @@ fn credentials(
         by_provider
             .entry(credential.provider_id)
             .or_default()
-            .push(CredentialId(credential.id));
+            .push(super::types::CredentialSeed {
+                id: CredentialId(credential.id),
+                version: credential.version,
+                weight: credential.weight,
+                proxy_url: credential.proxy_url.clone(),
+                fingerprint: super::super::fingerprint::parse(credential.tls_fingerprint.as_ref()),
+            });
         credential_providers.insert(credential.id, credential.provider_id);
     }
     for credentials in by_provider.values_mut() {
-        credentials.sort_by_key(|credential| credential.0);
+        credentials.sort_by_key(|credential| credential.id.0);
     }
     (by_provider, credential_providers)
 }
@@ -130,7 +141,7 @@ fn credentials(
 fn routes(
     stored: &ControlSnapshot,
     providers: &BTreeMap<i64, ProviderRef>,
-    credentials: &BTreeMap<i64, Vec<CredentialId>>,
+    credentials: &BTreeMap<i64, Vec<super::types::CredentialSeed>>,
     credential_providers: &BTreeMap<i64, i64>,
 ) -> BTreeMap<i64, CompiledRoute> {
     stored
@@ -143,7 +154,7 @@ fn routes(
                 .iter()
                 .filter(|member| member.enabled && member.route_id == route.id)
                 .collect::<Vec<_>>();
-            members.sort_by_key(|member| (member.priority, member.id));
+            members.sort_by_key(|member| (member.tier, Reverse(member.weight), member.id));
             let mut targets = Vec::new();
             for member in members {
                 if !providers.contains_key(&member.provider_id) {
@@ -151,7 +162,13 @@ fn routes(
                 }
                 let member_credentials: Vec<_> = match member.credential_id {
                     Some(id) if credential_providers.get(&id) == Some(&member.provider_id) => {
-                        vec![CredentialId(id)]
+                        credentials
+                            .get(&member.provider_id)
+                            .into_iter()
+                            .flatten()
+                            .filter(|credential| credential.id == CredentialId(id))
+                            .cloned()
+                            .collect()
                     }
                     Some(_) => Vec::new(),
                     None => credentials
@@ -160,8 +177,15 @@ fn routes(
                         .unwrap_or_default(),
                 };
                 targets.extend(member_credentials.into_iter().map(|credential| TargetSeed {
+                    member_id: member.id,
+                    tier: member.tier,
+                    member_weight: member.weight,
                     provider_id: member.provider_id,
-                    credential,
+                    credential: credential.id,
+                    credential_version: credential.version,
+                    credential_weight: credential.weight,
+                    proxy_url: credential.proxy_url,
+                    fingerprint: credential.fingerprint,
                     upstream_model: member.upstream_model.clone(),
                 }));
             }

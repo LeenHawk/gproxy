@@ -39,11 +39,37 @@ pub(crate) fn update_credential(
     id: i64,
     input: &CredentialUpdateInput,
 ) -> Result<Statement, StoreError> {
-    let mut columns = vec!["provider_id", "label", "enabled", "version"];
+    let mut columns = vec![
+        "provider_id",
+        "label",
+        "enabled",
+        "weight",
+        "rpm_limit",
+        "tpm_limit",
+        "proxy_url",
+        "tls_fingerprint",
+        "version",
+    ];
     let mut values = vec![
         value(input.provider_id),
         value(input.label.clone()),
         value(input.enabled),
+        value(unsigned32(input.weight)),
+        value(input.rpm_limit.map(unsigned32)),
+        value(
+            input
+                .tpm_limit
+                .map(|value| unsigned(value, "tpm_limit"))
+                .transpose()?,
+        ),
+        value(input.proxy_url.clone()),
+        value(
+            input
+                .tls_fingerprint
+                .as_ref()
+                .map(|fingerprint| json(fingerprint, "tls_fingerprint"))
+                .transpose()?,
+        ),
         Expr::col(Alias::new("version")).add(1),
     ];
     if let Some(envelope) = &input.envelope {
@@ -84,6 +110,8 @@ pub(crate) fn update_route_member(
             "credential_id",
             "upstream_model",
             "priority",
+            "tier",
+            "weight",
             "enabled",
         ],
         vec![
@@ -91,7 +119,9 @@ pub(crate) fn update_route_member(
             value(input.provider_id),
             value(input.credential_id),
             value(input.upstream_model.clone()),
-            value(input.priority),
+            value(unsigned32(input.tier)),
+            value(unsigned32(input.tier)),
+            value(unsigned32(input.weight)),
             value(input.enabled),
         ],
     )

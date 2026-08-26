@@ -78,6 +78,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "opencode",
     display_name: "OpenCode",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::OPENCODE,
+    credential_fields: crate::metadata::API_KEY_OR_OAUTH,
+    endpoint_overrides: true,
 };
 
 impl Channel for OpenCodeChannel {

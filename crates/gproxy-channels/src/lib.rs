@@ -21,6 +21,7 @@ mod groq;
 mod kimi;
 mod kiro;
 mod legacy;
+mod metadata;
 mod nvidia;
 mod openai;
 mod opencode;

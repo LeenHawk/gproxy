@@ -17,6 +17,30 @@ pub struct ChannelDto {
     pub display_name: String,
     pub supports: Vec<ChannelSupportDto>,
     pub login: Option<ChannelLoginDto>,
+    pub provider_fields: Vec<ChannelFieldDto>,
+    pub credential_fields: Vec<ChannelFieldDto>,
+    pub endpoint_kinds: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelFieldControlDto {
+    Text,
+    Secret,
+    Url,
+    Integer,
+    Boolean,
+    StringList,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ChannelFieldDto {
+    pub key: String,
+    pub control: ChannelFieldControlDto,
+    pub required: bool,
+    pub advanced: bool,
+    pub default_value: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -99,6 +123,47 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                 })
                 .collect(),
         }),
+        provider_fields: descriptor
+            .provider_fields
+            .iter()
+            .map(channel_field)
+            .collect(),
+        credential_fields: descriptor
+            .credential_fields
+            .iter()
+            .map(channel_field)
+            .collect(),
+        endpoint_kinds: if descriptor.endpoint_overrides {
+            descriptor
+                .supports
+                .iter()
+                .filter_map(|support| gproxy_channel_api::endpoint_override_key(support.target))
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .map(Into::into)
+                .collect()
+        } else {
+            Vec::new()
+        },
+    }
+}
+
+fn channel_field(field: &gproxy_channel_api::ChannelField) -> ChannelFieldDto {
+    ChannelFieldDto {
+        key: field.key.into(),
+        control: match field.control {
+            gproxy_channel_api::ChannelFieldControl::Text => ChannelFieldControlDto::Text,
+            gproxy_channel_api::ChannelFieldControl::Secret => ChannelFieldControlDto::Secret,
+            gproxy_channel_api::ChannelFieldControl::Url => ChannelFieldControlDto::Url,
+            gproxy_channel_api::ChannelFieldControl::Integer => ChannelFieldControlDto::Integer,
+            gproxy_channel_api::ChannelFieldControl::Boolean => ChannelFieldControlDto::Boolean,
+            gproxy_channel_api::ChannelFieldControl::StringList => {
+                ChannelFieldControlDto::StringList
+            }
+        },
+        required: field.required,
+        advanced: field.advanced,
+        default_value: field.default_value.map(Into::into),
     }
 }
 

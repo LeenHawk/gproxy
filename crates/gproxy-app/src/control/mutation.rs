@@ -60,6 +60,11 @@ pub(crate) async fn apply(
                         label,
                         envelope,
                         enabled,
+                        weight: 100,
+                        rpm_limit: None,
+                        tpm_limit: None,
+                        proxy_url: None,
+                        tls_fingerprint: None,
                     })
                     .await?,
             )

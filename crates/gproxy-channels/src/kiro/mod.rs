@@ -90,6 +90,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "kiro",
     display_name: "Kiro",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::KIRO,
+    credential_fields: crate::metadata::OAUTH,
+    endpoint_overrides: true,
 };
 
 impl Channel for KiroChannel {

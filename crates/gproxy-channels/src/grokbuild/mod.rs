@@ -110,6 +110,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "grokbuild",
     display_name: "Grok Build",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::OAUTH,
+    endpoint_overrides: true,
 };
 
 impl Channel for GrokBuildChannel {

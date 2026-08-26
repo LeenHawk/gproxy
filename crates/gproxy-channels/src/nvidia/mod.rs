@@ -105,6 +105,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "nvidia",
     display_name: "NVIDIA NIM",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::API_KEY,
+    endpoint_overrides: true,
 };
 
 impl Channel for NvidiaChannel {

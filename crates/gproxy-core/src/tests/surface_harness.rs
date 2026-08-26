@@ -64,8 +64,10 @@ pub(super) fn target(provider_id: i64, credential: i64) -> crate::Target {
             channel: "memory".into(),
             settings: serde_json::json!({"slot": credential}),
             fingerprint: None,
+            proxy_url: None,
         },
         credential: crate::CredentialId(credential),
         upstream_model: "upstream-model".into(),
+        tier: 0,
     }
 }

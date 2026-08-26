@@ -3,7 +3,7 @@ use futures_util::StreamExt;
 use gproxy_channel_api::{
     BoxFuture, ByteStream, ConfiguredClientProfile, TransportError, WsDuplex,
 };
-use gproxy_core::UpstreamTransport;
+use gproxy_core::{UpstreamProxy, UpstreamTransport};
 use js_sys::{Array, Promise, Uint8Array};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -100,6 +100,12 @@ async fn fetch_response(
 }
 
 fn reject_configured_profile(request: &http::Request<Bytes>) -> Result<(), TransportError> {
+    if request.extensions().get::<UpstreamProxy>().is_some() {
+        tracing::warn!("configured upstream proxy is unavailable in the fetch runtime");
+        return Err(TransportError::Connect(
+            "configured upstream proxy is unavailable in the fetch runtime".into(),
+        ));
+    }
     if request
         .extensions()
         .get::<ConfiguredClientProfile>()

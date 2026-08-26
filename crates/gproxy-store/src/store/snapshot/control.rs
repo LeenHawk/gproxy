@@ -38,6 +38,12 @@ pub(super) fn credential_meta(
                 provider_id: row.i64("provider_id")?,
                 version: unsigned(row.i64("version")?, "credential version")?,
                 enabled: row.i64("enabled")? != 0,
+                weight: unsigned32(row.i64("weight")?, "credential weight")?,
+                proxy_url: row.optional_text("proxy_url")?.map(str::to_owned),
+                tls_fingerprint: row
+                    .optional_text("tls_fingerprint")?
+                    .map(|value| json(value, "credential tls_fingerprint"))
+                    .transpose()?,
             })
         })
         .collect()
@@ -69,7 +75,8 @@ pub(super) fn route_members(result: QueryResult) -> Result<Vec<RouteMemberRecord
                 provider_id: row.i64("provider_id")?,
                 credential_id: row.optional_i64("credential_id")?,
                 upstream_model: row.text("upstream_model")?.to_owned(),
-                priority: row.i64("priority")?,
+                tier: unsigned32(row.i64("tier")?, "route member tier")?,
+                weight: unsigned32(row.i64("weight")?, "route member weight")?,
                 enabled: row.i64("enabled")? != 0,
             })
         })

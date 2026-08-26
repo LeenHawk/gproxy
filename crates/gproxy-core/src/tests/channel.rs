@@ -50,6 +50,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
     display_name: "Memory",
     supports: &SUPPORTS,
+    provider_fields: &[],
+    credential_fields: &[],
+    endpoint_overrides: false,
 };
 
 pub(super) struct ForeignSurface;
@@ -60,11 +63,17 @@ static FOREIGN_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "foreign",
     display_name: "Foreign",
     supports: &FOREIGN_SUPPORTS,
+    provider_fields: &[],
+    credential_fields: &[],
+    endpoint_overrides: false,
 };
 static CONTINUATION_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "continuation-test",
     display_name: "Continuation Test",
     supports: &[],
+    provider_fields: &[],
+    credential_fields: &[],
+    endpoint_overrides: false,
 };
 
 impl Channel for NeedsContinuation {

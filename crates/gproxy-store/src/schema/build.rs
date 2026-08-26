@@ -49,6 +49,9 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
                 .map(|index| create_index(table.name, index)),
         );
     }
+    if version == SchemaVersion::Routing {
+        statements.push("UPDATE route_members SET tier = priority".to_owned());
+    }
     statements
 }
 

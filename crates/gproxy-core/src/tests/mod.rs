@@ -445,9 +445,11 @@ fn target() -> Target {
             channel: "memory".into(),
             settings: json!({}),
             fingerprint: None,
+            proxy_url: None,
         },
         credential: CredentialId(7),
         upstream_model: "upstream-model".into(),
+        tier: 0,
     }
 }
 

@@ -65,7 +65,8 @@ pub(super) async fn fixture() -> Fixture {
             provider_id: provider,
             credential_id: Some(credential),
             upstream_model: "upstream-model".into(),
-            priority: 0,
+            tier: 0,
+            weight: 100,
             enabled: true,
         },
     ))

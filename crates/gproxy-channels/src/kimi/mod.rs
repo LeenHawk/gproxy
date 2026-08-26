@@ -19,6 +19,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "kimi",
     display_name: "Kimi",
     supports: &supports::SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::API_KEY_OR_OAUTH,
+    endpoint_overrides: true,
 };
 
 impl Channel for KimiChannel {

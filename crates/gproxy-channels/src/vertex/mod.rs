@@ -82,6 +82,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "vertex",
     display_name: "Google Vertex AI",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::VERTEX,
+    credential_fields: crate::metadata::SERVICE_ACCOUNT,
+    endpoint_overrides: true,
 };
 
 impl Channel for VertexChannel {

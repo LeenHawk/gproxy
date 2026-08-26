@@ -42,7 +42,8 @@ async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
             provider_id: provider,
             credential_id: Some(credential),
             upstream_model: "gpt-4o-mini".into(),
-            priority: 1,
+            tier: 1,
+            weight: 100,
             enabled: true,
         },
     ))

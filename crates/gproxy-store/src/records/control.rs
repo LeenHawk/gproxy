@@ -42,6 +42,11 @@ pub struct CredentialInput {
     pub label: Option<String>,
     pub envelope: CredentialEnvelope,
     pub enabled: bool,
+    pub weight: u32,
+    pub rpm_limit: Option<u32>,
+    pub tpm_limit: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub tls_fingerprint: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -61,6 +66,9 @@ pub struct CredentialMetaRecord {
     pub provider_id: i64,
     pub version: u64,
     pub enabled: bool,
+    pub weight: u32,
+    pub proxy_url: Option<String>,
+    pub tls_fingerprint: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +78,11 @@ pub struct CredentialAdminRecord {
     pub label: Option<String>,
     pub version: u64,
     pub enabled: bool,
+    pub weight: u32,
+    pub rpm_limit: Option<u32>,
+    pub tpm_limit: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub tls_fingerprint: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -78,6 +91,11 @@ pub struct CredentialUpdateInput {
     pub label: Option<String>,
     pub envelope: Option<CredentialEnvelope>,
     pub enabled: bool,
+    pub weight: u32,
+    pub rpm_limit: Option<u32>,
+    pub tpm_limit: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub tls_fingerprint: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,7 +119,8 @@ pub struct RouteMemberInput {
     pub provider_id: i64,
     pub credential_id: Option<i64>,
     pub upstream_model: String,
-    pub priority: i64,
+    pub tier: u32,
+    pub weight: u32,
     pub enabled: bool,
 }
 
@@ -112,7 +131,8 @@ pub struct RouteMemberRecord {
     pub provider_id: i64,
     pub credential_id: Option<i64>,
     pub upstream_model: String,
-    pub priority: i64,
+    pub tier: u32,
+    pub weight: u32,
     pub enabled: bool,
 }
 

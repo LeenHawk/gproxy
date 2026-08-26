@@ -451,9 +451,11 @@ fn claude_target() -> Target {
             channel: "claudecode".into(),
             settings: json!({}),
             fingerprint: None,
+            proxy_url: None,
         },
         credential: CredentialId(7),
         upstream_model: "claude-test".into(),
+        tier: 0,
     }
 }
 
@@ -473,9 +475,11 @@ fn codex_target() -> Target {
             channel: "codex".into(),
             settings: json!({}),
             fingerprint: None,
+            proxy_url: None,
         },
         credential: CredentialId(7),
         upstream_model: "gpt-test".into(),
+        tier: 0,
     }
 }
 

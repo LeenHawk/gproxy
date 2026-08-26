@@ -173,6 +173,11 @@ async fn insert(
             label,
             envelope: app.seal_credential(secret)?,
             enabled: true,
+            weight: 100,
+            rpm_limit: None,
+            tpm_limit: None,
+            proxy_url: None,
+            tls_fingerprint: None,
         })
         .await?;
     app.reload().await?;

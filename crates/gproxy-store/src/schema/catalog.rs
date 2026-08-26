@@ -9,18 +9,20 @@ pub enum SchemaVersion {
     Admin = 4,
     Pricing = 5,
     Logging = 6,
+    Routing = 7,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Control,
         Self::Runtime,
         Self::Tokenizers,
         Self::Admin,
         Self::Pricing,
         Self::Logging,
+        Self::Routing,
     ];
-    pub const LATEST: Self = Self::Logging;
+    pub const LATEST: Self = Self::Routing;
 
     pub const fn number(self) -> i64 {
         self as i64

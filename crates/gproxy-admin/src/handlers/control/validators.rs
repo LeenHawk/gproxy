@@ -2,6 +2,22 @@ use gproxy_store::records::{AliasInput, ExposedModelInput, RouteMemberInput};
 
 use crate::{AdminError, State};
 
+pub(crate) fn credential_settings(
+    request: &crate::dto::CredentialWriteRequest,
+) -> Result<(), AdminError> {
+    if request.weight == 0 {
+        return Err(AdminError::BadRequest(
+            "credential weight must be positive".into(),
+        ));
+    }
+    if let Some(fingerprint) = &request.tls_fingerprint {
+        fingerprint
+            .validate()
+            .map_err(|message| AdminError::BadRequest(message.into()))?;
+    }
+    Ok(())
+}
+
 pub(crate) async fn provider(state: &impl State, id: i64) -> Result<(), AdminError> {
     let snapshot = state.store().control_snapshot().await?;
     if snapshot.providers.iter().any(|provider| provider.id == id) {

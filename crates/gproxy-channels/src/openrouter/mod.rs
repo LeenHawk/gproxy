@@ -66,6 +66,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "openrouter",
     display_name: "OpenRouter",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::API_KEY,
+    endpoint_overrides: true,
 };
 
 impl Channel for OpenRouterChannel {

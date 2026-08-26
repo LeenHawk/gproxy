@@ -20,6 +20,7 @@ pub(super) async fn create(
         Entity::Credentials => {
             let request: CredentialWriteRequest = util::parse(body)?;
             super::validators::provider(state, request.provider_id).await?;
+            super::validators::credential_settings(&request)?;
             let secret = request
                 .secret
                 .as_ref()
@@ -31,6 +32,15 @@ pub(super) async fn create(
                     label: request.label,
                     envelope: state.seal_credential(secret)?,
                     enabled: request.enabled,
+                    weight: request.weight,
+                    rpm_limit: request.rpm_limit,
+                    tpm_limit: request.tpm_limit,
+                    proxy_url: request.proxy_url,
+                    tls_fingerprint: request
+                        .tls_fingerprint
+                        .map(serde_json::to_value)
+                        .transpose()
+                        .map_err(|error| AdminError::BadRequest(error.to_string()))?,
                 })
                 .await?
         }
@@ -74,6 +84,7 @@ pub(super) async fn update(
         Entity::Credentials => {
             let request: CredentialWriteRequest = util::parse(body)?;
             super::validators::provider(state, request.provider_id).await?;
+            super::validators::credential_settings(&request)?;
             let envelope = request
                 .secret
                 .as_ref()
@@ -88,6 +99,15 @@ pub(super) async fn update(
                         label: request.label,
                         envelope,
                         enabled: request.enabled,
+                        weight: request.weight,
+                        rpm_limit: request.rpm_limit,
+                        tpm_limit: request.tpm_limit,
+                        proxy_url: request.proxy_url,
+                        tls_fingerprint: request
+                            .tls_fingerprint
+                            .map(serde_json::to_value)
+                            .transpose()
+                            .map_err(|error| AdminError::BadRequest(error.to_string()))?,
                     },
                 )
                 .await?

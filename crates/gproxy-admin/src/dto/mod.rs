@@ -9,6 +9,7 @@ mod log;
 mod login;
 mod portal;
 mod pricing;
+mod settings;
 mod usage;
 
 pub use audit::*;
@@ -22,6 +23,7 @@ pub use log::*;
 pub use login::*;
 pub use portal::*;
 pub use pricing::*;
+pub use settings::*;
 pub use usage::*;
 
 #[cfg(test)]

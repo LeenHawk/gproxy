@@ -24,6 +24,40 @@ impl Store {
                         }
                     })?,
                     enabled: row.i64("enabled")? != 0,
+                    weight: u32::try_from(row.i64("weight")?).map_err(|error| {
+                        StoreError::InvalidData {
+                            field: "credential weight",
+                            message: error.to_string(),
+                        }
+                    })?,
+                    rpm_limit: row
+                        .optional_i64("rpm_limit")?
+                        .map(|value| {
+                            u32::try_from(value).map_err(|error| StoreError::InvalidData {
+                                field: "credential rpm_limit",
+                                message: error.to_string(),
+                            })
+                        })
+                        .transpose()?,
+                    tpm_limit: row
+                        .optional_i64("tpm_limit")?
+                        .map(|value| {
+                            u64::try_from(value).map_err(|error| StoreError::InvalidData {
+                                field: "credential tpm_limit",
+                                message: error.to_string(),
+                            })
+                        })
+                        .transpose()?,
+                    proxy_url: row.optional_text("proxy_url")?.map(str::to_owned),
+                    tls_fingerprint: row
+                        .optional_text("tls_fingerprint")?
+                        .map(|value| {
+                            serde_json::from_str(value).map_err(|error| StoreError::InvalidData {
+                                field: "credential tls_fingerprint",
+                                message: error.to_string(),
+                            })
+                        })
+                        .transpose()?,
                 })
             })
             .collect()

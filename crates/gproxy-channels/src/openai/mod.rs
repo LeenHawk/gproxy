@@ -116,6 +116,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "openai",
     display_name: "OpenAI",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::API_KEY,
+    endpoint_overrides: true,
 };
 
 impl Channel for OpenAiChannel {

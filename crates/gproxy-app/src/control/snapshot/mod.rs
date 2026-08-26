@@ -1,5 +1,8 @@
+mod balance;
 mod build;
 mod index;
+mod materialize;
+mod pressure;
 mod pricing;
 mod resolve;
 mod types;
@@ -14,6 +17,7 @@ use gproxy_store::records::{
 use gproxy_store::{Store, StoreError};
 use rust_decimal::Decimal;
 
+use types::CredentialHealthMap;
 pub(crate) use types::KeyIdentity;
 use types::{CompiledSnapshot, CredentialPressure, CredentialPressureMap};
 
@@ -22,6 +26,8 @@ pub(crate) struct SnapshotControl {
     store: Store,
     snapshot: Arc<ArcSwap<CompiledSnapshot>>,
     credential_pressure: Arc<ArcSwap<CredentialPressureMap>>,
+    credential_health: Arc<ArcSwap<CredentialHealthMap>>,
+    rotation: Arc<balance::RotationCounters>,
 }
 
 impl SnapshotControl {
@@ -29,18 +35,37 @@ impl SnapshotControl {
         let stored = store.control_snapshot().await?;
         let snapshot = CompiledSnapshot::build(stored)?;
         let credential_pressure = load_pressure(&store).await?;
+        let credential_health = load_health(&store).await?;
         Ok(Self {
             store,
             snapshot: Arc::new(ArcSwap::from_pointee(snapshot)),
             credential_pressure: Arc::new(ArcSwap::from_pointee(credential_pressure)),
+            credential_health: Arc::new(ArcSwap::from_pointee(credential_health)),
+            rotation: Arc::new(balance::RotationCounters::default()),
         })
     }
 
     pub(crate) async fn reload(&self) -> Result<(), StoreError> {
         let stored = self.store.control_snapshot().await?;
+        let health = load_health(&self.store).await?;
         self.snapshot
             .store(Arc::new(CompiledSnapshot::build(stored)?));
+        self.credential_health.store(Arc::new(health));
         Ok(())
+    }
+
+    pub(crate) fn observe_credential_health(
+        &self,
+        input: &gproxy_store::records::CredentialHealthInput,
+    ) {
+        let credential = gproxy_channel_api::CredentialId(input.credential_id);
+        let version = input.credential_version;
+        let dead = input.state == gproxy_store::records::CredentialHealthState::Dead;
+        self.credential_health.rcu(|current| {
+            let mut updated = (**current).clone();
+            updated.insert(credential, (version, dead));
+            Arc::new(updated)
+        });
     }
 
     pub(crate) async fn observe_credential_quota_cycle(
@@ -134,8 +159,13 @@ impl SnapshotControl {
 
 impl ControlPlane for SnapshotControl {
     fn resolve(&self, model: Option<&str>, mode: &RoutingMode) -> Result<Plan, CoreError> {
-        let mut plan = self.snapshot.load().resolve(model, mode)?;
-        resolve::apply_pressure(&mut plan, &self.credential_pressure.load(), unix_now());
+        let mut plan = self.snapshot.load().resolve(
+            model,
+            mode,
+            &self.credential_health.load(),
+            &self.rotation,
+        )?;
+        pressure::apply(&mut plan, &self.credential_pressure.load(), unix_now());
         Ok(plan)
     }
 
@@ -146,6 +176,23 @@ impl ControlPlane for SnapshotControl {
     fn detached(&self) -> Box<dyn ControlPlane> {
         Box::new(self.clone())
     }
+}
+
+async fn load_health(store: &Store) -> Result<CredentialHealthMap, StoreError> {
+    Ok(store
+        .credential_health()
+        .await?
+        .into_iter()
+        .map(|record| {
+            (
+                gproxy_channel_api::CredentialId(record.credential_id),
+                (
+                    record.credential_version,
+                    record.state == gproxy_store::records::CredentialHealthState::Dead,
+                ),
+            )
+        })
+        .collect())
 }
 
 async fn load_pressure(store: &Store) -> Result<CredentialPressureMap, StoreError> {

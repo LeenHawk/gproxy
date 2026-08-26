@@ -100,6 +100,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "aws-bedrock",
     display_name: "AWS Bedrock",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BEDROCK,
+    credential_fields: crate::metadata::AWS,
+    endpoint_overrides: true,
 };
 
 impl Channel for AwsBedrockChannel {

@@ -109,6 +109,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "xai",
     display_name: "xAI",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::API_KEY,
+    endpoint_overrides: true,
 };
 
 impl Channel for XaiChannel {

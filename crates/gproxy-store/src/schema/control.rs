@@ -27,6 +27,13 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("key_nonce", Blob),
             Col::required("version", Integer),
             Col::required("enabled", Integer),
+            Col::required("weight", Integer)
+                .default("100")
+                .since(SchemaVersion::Routing),
+            Col::optional("rpm_limit", Integer).since(SchemaVersion::Routing),
+            Col::optional("tpm_limit", Integer).since(SchemaVersion::Routing),
+            Col::optional("proxy_url", Text).since(SchemaVersion::Routing),
+            Col::optional("tls_fingerprint", Text).since(SchemaVersion::Routing),
         ],
         indexes: &[IndexSpec {
             name: "ix_credentials_provider_enabled",
@@ -56,6 +63,12 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("credential_id", Integer),
             Col::required("upstream_model", Text),
             Col::required("priority", Integer),
+            Col::required("tier", Integer)
+                .default("0")
+                .since(SchemaVersion::Routing),
+            Col::required("weight", Integer)
+                .default("100")
+                .since(SchemaVersion::Routing),
             Col::required("enabled", Integer),
         ],
         indexes: &[
@@ -64,6 +77,12 @@ pub const TABLES: &[TableSpec] = &[
                 columns: &["route_id", "enabled", "priority", "id"],
                 unique: false,
                 added_in: None,
+            },
+            IndexSpec {
+                name: "ix_route_members_route_balance",
+                columns: &["route_id", "enabled", "tier", "weight", "id"],
+                unique: false,
+                added_in: Some(SchemaVersion::Routing),
             },
             IndexSpec {
                 name: "ix_route_members_provider",

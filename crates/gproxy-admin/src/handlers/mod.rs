@@ -2,6 +2,7 @@ mod audit;
 mod catalogue;
 mod control;
 mod identity;
+mod instance_settings;
 pub(crate) mod login;
 mod logs;
 pub(crate) mod observability;
@@ -40,6 +41,8 @@ pub(crate) async fn dispatch(
         Route::LogDetail(request_id) => logs::detail(state, &request_id).await,
         Route::LogSettingsRead => logs::get_settings(state).await,
         Route::LogSettingsWrite => logs::update_settings(state, body).await,
+        Route::InstanceSettingsRead => instance_settings::get(state).await,
+        Route::InstanceSettingsWrite => instance_settings::update(state, body).await,
         Route::PortalSettingsRead => portal_settings::get(state).await,
         Route::PortalSettingsWrite => portal_settings::update(state, body).await,
         Route::LoginAuthCodeStart => login::authcode_start(state, body).await,

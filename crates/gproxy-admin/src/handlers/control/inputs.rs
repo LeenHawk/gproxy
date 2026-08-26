@@ -63,12 +63,18 @@ pub(super) fn route_member(
             "upstream_model must not be blank".into(),
         ));
     }
+    if request.weight == 0 {
+        return Err(AdminError::BadRequest(
+            "route member weight must be positive".into(),
+        ));
+    }
     Ok(RouteMemberInput {
         route_id: request.route_id,
         provider_id: request.provider_id,
         credential_id: request.credential_id,
         upstream_model: request.upstream_model,
-        priority: request.priority,
+        tier: request.tier,
+        weight: request.weight,
         enabled: request.enabled,
     })
 }

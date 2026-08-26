@@ -27,6 +27,14 @@ pub(super) fn credential(
     value: &gproxy_store::records::CredentialAdminRecord,
     health: Option<&gproxy_store::records::CredentialHealthRecord>,
 ) -> CredentialDto {
+    let (tls_fingerprint, invalid_tls_fingerprint, tls_fingerprint_error) =
+        match value.tls_fingerprint.clone() {
+            Some(raw) => match serde_json::from_value(raw.clone()) {
+                Ok(fingerprint) => (Some(fingerprint), None, None),
+                Err(error) => (None, Some(raw), Some(error.to_string())),
+            },
+            None => (None, None, None),
+        };
     let state = health.map(|health| match health.state {
         gproxy_store::records::CredentialHealthState::Healthy => CredentialHealthDto::Healthy,
         gproxy_store::records::CredentialHealthState::Degraded => CredentialHealthDto::Degraded,
@@ -38,6 +46,13 @@ pub(super) fn credential(
         label: value.label.clone(),
         version: value.version,
         enabled: value.enabled,
+        weight: value.weight,
+        rpm_limit: value.rpm_limit,
+        tpm_limit: value.tpm_limit,
+        proxy_url: value.proxy_url.clone(),
+        tls_fingerprint,
+        invalid_tls_fingerprint,
+        tls_fingerprint_error,
         health: if value.enabled {
             state.unwrap_or(CredentialHealthDto::Unknown)
         } else {
@@ -65,7 +80,8 @@ pub(super) fn route_member(value: &gproxy_store::records::RouteMemberRecord) -> 
         provider_id: value.provider_id,
         credential_id: value.credential_id,
         upstream_model: value.upstream_model.clone(),
-        priority: value.priority,
+        tier: value.tier,
+        weight: value.weight,
         enabled: value.enabled,
     }
 }

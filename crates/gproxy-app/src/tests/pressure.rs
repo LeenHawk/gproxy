@@ -33,7 +33,8 @@ async fn near_limit_credential_is_deprioritized() {
             provider_id: provider,
             credential_id: Some(second),
             upstream_model: "upstream-model".into(),
-            priority: 1,
+            tier: 0,
+            weight: 100,
             enabled: true,
         },
     ))

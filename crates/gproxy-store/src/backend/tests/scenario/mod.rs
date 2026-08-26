@@ -46,6 +46,11 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             label: None,
             envelope: envelope(1),
             enabled: true,
+            weight: 100,
+            rpm_limit: None,
+            tpm_limit: None,
+            proxy_url: None,
+            tls_fingerprint: None,
         })
         .await?;
     let route = store
@@ -61,7 +66,8 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             provider_id: provider,
             credential_id: Some(credential),
             upstream_model: "upstream-model".into(),
-            priority: 0,
+            tier: 0,
+            weight: 100,
             enabled: true,
         })
         .await?;

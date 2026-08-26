@@ -17,13 +17,35 @@ pub(crate) fn select_providers() -> Result<Statement, StoreError> {
 }
 
 pub(crate) fn select_credential_meta() -> Result<Statement, StoreError> {
-    select_all("credentials", &["id", "provider_id", "version", "enabled"])
+    select_all(
+        "credentials",
+        &[
+            "id",
+            "provider_id",
+            "version",
+            "enabled",
+            "weight",
+            "proxy_url",
+            "tls_fingerprint",
+        ],
+    )
 }
 
 pub(crate) fn select_admin_credentials() -> Result<Statement, StoreError> {
     select_all(
         "credentials",
-        &["id", "provider_id", "label", "version", "enabled"],
+        &[
+            "id",
+            "provider_id",
+            "label",
+            "version",
+            "enabled",
+            "weight",
+            "rpm_limit",
+            "tpm_limit",
+            "proxy_url",
+            "tls_fingerprint",
+        ],
     )
 }
 
@@ -40,7 +62,8 @@ pub(crate) fn select_route_members() -> Result<Statement, StoreError> {
             "provider_id",
             "credential_id",
             "upstream_model",
-            "priority",
+            "tier",
+            "weight",
             "enabled",
         ],
     )

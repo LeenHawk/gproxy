@@ -107,6 +107,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "workbuddy",
     display_name: "WorkBuddy",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::OAUTH,
+    endpoint_overrides: true,
 };
 
 impl Channel for WorkBuddyChannel {

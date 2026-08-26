@@ -84,6 +84,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "cline",
     display_name: "Cline",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::API_KEY_OR_OAUTH,
+    endpoint_overrides: true,
 };
 
 impl Channel for ClineChannel {

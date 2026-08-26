@@ -17,6 +17,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "custom",
     display_name: "Custom Compatible",
     supports: &supports::SUPPORTS,
+    provider_fields: crate::metadata::CUSTOM,
+    credential_fields: crate::metadata::API_KEY,
+    endpoint_overrides: true,
 };
 
 impl Channel for CustomChannel {

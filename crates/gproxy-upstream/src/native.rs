@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
 use gproxy_channel_api::{BoxFuture, ByteStream, ClientProfile, TransportError, WsDuplex, WsFrame};
-use gproxy_core::UpstreamTransport;
+use gproxy_core::{UpstreamProxy, UpstreamTransport};
 
 mod profile;
 
@@ -39,20 +39,19 @@ impl UpstreamTransport for WreqTransport {
         let client = self.client.clone();
         Box::pin(async move {
             let profile = request.extensions().get::<ClientProfile>().cloned();
-            let response = match profile {
-                None => client.execute(request.into()).await,
-                Some(profile) => {
-                    let (parts, body) = request.into_parts();
-                    client
-                        .request(parts.method, parts.uri.to_string())
-                        .headers(parts.headers)
-                        .body(body)
-                        .emulation(profile::client_emulation(&profile))
-                        .send()
-                        .await
-                }
+            let proxy = request.extensions().get::<UpstreamProxy>().cloned();
+            let (parts, body) = request.into_parts();
+            let mut request = client
+                .request(parts.method, parts.uri.to_string())
+                .headers(parts.headers)
+                .body(body);
+            if let Some(profile) = profile {
+                request = request.emulation(profile::client_emulation(&profile));
             }
-            .map_err(connect_error)?;
+            if let Some(proxy) = proxy {
+                request = request.proxy(wreq::Proxy::all(&proxy.0).map_err(connect_error)?);
+            }
+            let response = request.send().await.map_err(connect_error)?;
             let status = response.status();
             let version = response.version();
             let headers = response.headers().clone();
@@ -75,6 +74,7 @@ impl UpstreamTransport for WreqTransport {
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
         let client = self.client.clone();
         let profile = request.extensions().get::<ClientProfile>().cloned();
+        let proxy = request.extensions().get::<UpstreamProxy>().cloned();
         let (parts, _) = request.into_parts();
         Box::pin(async move {
             let mut request = client
@@ -84,10 +84,11 @@ impl UpstreamTransport for WreqTransport {
                 None => request,
                 Some(profile) => request.emulation(profile::client_emulation(&profile)),
             };
-            let response = wreq::ws::WebSocketRequestBuilder::new(request)
-                .send()
-                .await
-                .map_err(connect_error)?;
+            let mut request = wreq::ws::WebSocketRequestBuilder::new(request);
+            if let Some(proxy) = proxy {
+                request = request.proxy(wreq::Proxy::all(&proxy.0).map_err(connect_error)?);
+            }
+            let response = request.send().await.map_err(connect_error)?;
             let socket = response.into_websocket().await.map_err(connect_error)?;
             Ok(Box::new(WreqSocket { socket }) as Box<dyn WsDuplex>)
         })

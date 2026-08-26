@@ -10,9 +10,9 @@ pub(crate) fn apply_prepared(
 ) -> Result<(), CoreError> {
     if provider.fingerprint.is_none() {
         prepared.apply_profile();
-        return Ok(());
+    } else {
+        prepared.profile = None;
     }
-    prepared.profile = None;
     apply_request(&mut prepared.request, provider)
 }
 
@@ -20,6 +20,11 @@ pub(crate) fn apply_request(
     request: &mut http::Request<Bytes>,
     provider: &ProviderRef,
 ) -> Result<(), CoreError> {
+    if let Some(proxy_url) = &provider.proxy_url {
+        request
+            .extensions_mut()
+            .insert(crate::control::UpstreamProxy(proxy_url.clone()));
+    }
     let Some(configured) = &provider.fingerprint else {
         return Ok(());
     };

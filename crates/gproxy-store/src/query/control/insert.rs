@@ -46,6 +46,11 @@ pub(crate) fn insert_credential(input: &CredentialInput) -> Result<Statement, St
             "key_nonce",
             "version",
             "enabled",
+            "weight",
+            "rpm_limit",
+            "tpm_limit",
+            "proxy_url",
+            "tls_fingerprint",
         ],
         vec![
             value(input.provider_id),
@@ -56,6 +61,22 @@ pub(crate) fn insert_credential(input: &CredentialInput) -> Result<Statement, St
             value(input.envelope.key_nonce.clone()),
             value(0_i64),
             value(input.enabled),
+            value(unsigned32(input.weight)),
+            value(input.rpm_limit.map(unsigned32)),
+            value(
+                input
+                    .tpm_limit
+                    .map(|value| unsigned(value, "tpm_limit"))
+                    .transpose()?,
+            ),
+            value(input.proxy_url.clone()),
+            value(
+                input
+                    .tls_fingerprint
+                    .as_ref()
+                    .map(|fingerprint| json(fingerprint, "tls_fingerprint"))
+                    .transpose()?,
+            ),
         ],
     )
 }
@@ -81,6 +102,8 @@ pub(crate) fn insert_route_member(input: &RouteMemberInput) -> Result<Statement,
             "credential_id",
             "upstream_model",
             "priority",
+            "tier",
+            "weight",
             "enabled",
         ],
         vec![
@@ -88,7 +111,9 @@ pub(crate) fn insert_route_member(input: &RouteMemberInput) -> Result<Statement,
             value(input.provider_id),
             value(input.credential_id),
             value(input.upstream_model.clone()),
-            value(input.priority),
+            value(unsigned32(input.tier)),
+            value(unsigned32(input.tier)),
+            value(unsigned32(input.weight)),
             value(input.enabled),
         ],
     )

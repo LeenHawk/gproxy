@@ -48,6 +48,7 @@ pub struct Target {
     /// The model id the upstream actually receives (after alias/variant
     /// mapping).
     pub upstream_model: String,
+    pub tier: u32,
 }
 
 /// Provider identity plus the channel that talks to it. Settings carry the
@@ -59,6 +60,7 @@ pub struct ProviderRef {
     pub channel: String,
     pub settings: serde_json::Value,
     pub fingerprint: Option<ConfiguredFingerprint>,
+    pub proxy_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +74,9 @@ pub struct FingerprintOverride {
     pub headers: http::HeaderMap,
     pub profile: Option<gproxy_channel_api::ClientProfile>,
 }
+
+#[derive(Debug, Clone)]
+pub struct UpstreamProxy(pub String);
 
 #[derive(Debug, Clone, Copy)]
 pub struct FailoverBudget {

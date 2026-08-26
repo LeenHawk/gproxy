@@ -40,6 +40,25 @@ pub struct ChannelSupport {
     pub target: OperationKey,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChannelFieldControl {
+    Text,
+    Secret,
+    Url,
+    Integer,
+    Boolean,
+    StringList,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChannelField {
+    pub key: &'static str,
+    pub control: ChannelFieldControl,
+    pub required: bool,
+    pub advanced: bool,
+    pub default_value: Option<&'static str>,
+}
+
 impl ChannelSupport {
     pub const fn passthrough(key: OperationKey) -> Self {
         Self {
@@ -62,6 +81,9 @@ pub struct ChannelDescriptor {
     pub id: &'static str,
     pub display_name: &'static str,
     pub supports: &'static [ChannelSupport],
+    pub provider_fields: &'static [ChannelField],
+    pub credential_fields: &'static [ChannelField],
+    pub endpoint_overrides: bool,
 }
 
 /// Everything `prepare` may read. Borrowed views: preparation copies

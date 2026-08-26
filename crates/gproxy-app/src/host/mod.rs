@@ -140,6 +140,8 @@ impl Host for AppHost {
             };
             if let Err(error) = self.services.store.record_credential_health(&input).await {
                 tracing::error!(error = %error, "credential health persistence failed");
+            } else {
+                self.services.control.observe_credential_health(&input);
             }
         })
     }

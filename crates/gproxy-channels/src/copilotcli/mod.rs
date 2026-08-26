@@ -83,6 +83,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "copilotcli",
     display_name: "GitHub Copilot CLI",
     supports: &SUPPORTS,
+    provider_fields: crate::metadata::BASE_URL,
+    credential_fields: crate::metadata::GITHUB,
+    endpoint_overrides: true,
 };
 
 impl Channel for CopilotCliChannel {
