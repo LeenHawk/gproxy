@@ -1,0 +1,54 @@
+import { useState } from "react"
+import { useQueries, useQuery } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
+import type { LogQueryDto } from "@/generated/LogQueryDto"
+import { logDetail, logs, logSettings } from "@/api/observability"
+import { providers } from "@/api/control"
+import { userKeys, users } from "@/api/identity"
+import { LogExplorer } from "@/components/logs/log-explorer"
+import { PageLayout } from "@/components/page-layout"
+import { QueryState } from "@/components/query-state"
+
+function initialQuery(): LogQueryDto {
+  const end = Math.floor(Date.now() / 1000)
+  return { start: end - 86_400, end, user_id: null, user_key_id: null, provider_id: null, status: null, request_id: null, cursor: null, limit: 50 }
+}
+
+export function LogsPage() {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState<LogQueryDto>(initialQuery)
+  const [query, setQuery] = useState<LogQueryDto>(draft)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [logQuery, settingsQuery, providerQuery, userQuery, keyQuery] = useQueries({ queries: [
+    { queryKey: ["logs", query], queryFn: () => logs(query) },
+    { queryKey: ["log-settings"], queryFn: logSettings },
+    { queryKey: ["providers"], queryFn: providers },
+    { queryKey: ["users"], queryFn: users },
+    { queryKey: ["user-keys"], queryFn: userKeys },
+  ] })
+  const detailQuery = useQuery({ queryKey: ["log-detail", selected], queryFn: () => logDetail(selected!), enabled: selected != null })
+  const loading = [logQuery, settingsQuery, providerQuery, userQuery, keyQuery].some((item) => item.isLoading)
+  const error = [logQuery, settingsQuery, providerQuery, userQuery, keyQuery].some((item) => item.error)
+  return (
+    <PageLayout title={t("logs.title")} description={t("logs.description")}>
+      <QueryState loading={loading} error={error ? t("common.loadError") : ""}>
+        <LogExplorer
+          draft={draft}
+          onDraft={setDraft}
+          onSearch={() => { setSelected(null); setQuery({ ...draft, cursor: null }) }}
+          page={logQuery.data!}
+          settings={settingsQuery.data!}
+          providers={providerQuery.data ?? []}
+          users={userQuery.data ?? []}
+          keys={keyQuery.data ?? []}
+          selected={selected}
+          onSelect={setSelected}
+          detail={detailQuery.data ?? null}
+          detailLoading={detailQuery.isLoading}
+          detailError={Boolean(detailQuery.error)}
+          onNext={(cursor) => setQuery((value) => ({ ...value, cursor }))}
+        />
+      </QueryState>
+    </PageLayout>
+  )
+}

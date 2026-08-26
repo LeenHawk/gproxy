@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, CableIcon, KeyRoundIcon, LogOutIcon, NetworkIcon, RouteIcon } from "lucide-react"
+import { ActivityIcon, CableIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, RouteIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { LocaleSwitcher } from "@/components/locale-switcher"
@@ -13,6 +13,7 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "routes", icon: RouteIcon },
   { route: "keys", icon: KeyRoundIcon },
   { route: "usage", icon: ActivityIcon },
+  { route: "logs", icon: LogsIcon },
   { route: "channels", icon: NetworkIcon },
 ]
 

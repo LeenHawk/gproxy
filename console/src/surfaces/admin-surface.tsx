@@ -16,6 +16,7 @@ const OverviewPage = lazy(() => import("@/pages/overview").then((module) => ({ d
 const ProvidersPage = lazy(() => import("@/pages/providers").then((module) => ({ default: module.ProvidersPage })))
 const RoutesPage = lazy(() => import("@/pages/routes").then((module) => ({ default: module.RoutesPage })))
 const UsagePage = lazy(() => import("@/pages/usage").then((module) => ({ default: module.UsagePage })))
+const LogsPage = lazy(() => import("@/pages/logs").then((module) => ({ default: module.LogsPage })))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } })
 
@@ -49,6 +50,7 @@ function ConsoleApp() {
     routes: <RoutesPage />,
     keys: <KeysPage />,
     usage: <UsagePage />,
+    logs: <LogsPage />,
     channels: <ChannelsPage />,
   }[route]
   return (
