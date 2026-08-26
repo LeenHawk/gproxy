@@ -24,4 +24,4 @@ sha2.workspace = true
 web-time.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom_v02 = { version = "0.2", package = "getrandom", features = ["js"] }
+getrandom_v02.workspace = true

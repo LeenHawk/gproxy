@@ -38,6 +38,9 @@ gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.0-alpha.0" 
 gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.0-alpha.0" }
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.0-alpha.0" }
 getrandom = { version = "0.3", features = ["wasm_js"] }
+dashmap = { version = "6" }
+getrandom_v02 = { package = "getrandom", version = "0.2", features = ["js"] }
+gloo-timers = { version = "0.4", features = ["futures"] }
 bytes = "1"
 crc32fast = "1"
 futures-core = "0.3"

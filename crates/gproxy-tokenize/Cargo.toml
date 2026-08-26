@@ -10,7 +10,7 @@ repository.workspace = true
 serde_json.workspace = true
 
 bytes = { workspace = true, optional = true }
-dashmap = { version = "6", optional = true }
+dashmap = { workspace = true, optional = true }
 http = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 tiktoken-rs = { workspace = true, optional = true }
