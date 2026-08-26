@@ -1,0 +1,9 @@
+Package: gproxy
+Version: __VERSION__
+Section: net
+Priority: optional
+Architecture: __ARCHITECTURE__
+Maintainer: GPROXY maintainers
+Depends: coreutils, curl, xdg-utils, zenity
+Description: LLM proxy with an embedded management console
+ Installs a desktop launcher and starts GPROXY at user login.

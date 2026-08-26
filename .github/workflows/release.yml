@@ -77,6 +77,12 @@ jobs:
         uses: android-actions/setup-android@v4
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
+      - if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 4.0.6
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Build
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
@@ -106,4 +112,10 @@ jobs:
           path: |
             dist/release/${{ matrix.artifact }}.zip
             dist/release/${{ matrix.artifact }}.zip.sha256
+            dist/release/${{ matrix.artifact }}.deb
+            dist/release/${{ matrix.artifact }}.deb.sha256
+            dist/release/${{ matrix.artifact }}.dmg
+            dist/release/${{ matrix.artifact }}.dmg.sha256
+            dist/release/${{ matrix.artifact }}.msi
+            dist/release/${{ matrix.artifact }}.msi.sha256
           retention-days: 1

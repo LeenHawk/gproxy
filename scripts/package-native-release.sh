@@ -74,3 +74,8 @@ archive="$output_dir/$artifact.zip"
 rm -f "$archive" "$archive.sha256"
 (cd "$package" && zip -9 -q -r "$archive" .)
 (cd "$output_dir" && checksum "$artifact.zip" > "$artifact.zip.sha256")
+
+case "$target_os" in
+  linux) OUTPUT_DIR="$output_dir" scripts/package-linux-deb.sh ;;
+  macos) OUTPUT_DIR="$output_dir" scripts/package-macos-dmg.sh ;;
+esac

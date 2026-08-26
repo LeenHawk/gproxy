@@ -1,0 +1,46 @@
+#!/bin/sh
+set -eu
+
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+data_dir="$data_home/gproxy"
+log_dir="$state_home/gproxy"
+config="$data_dir/gproxy.toml"
+console_url="http://127.0.0.1:8787/admin"
+
+mkdir -p "$data_dir" "$log_dir"
+if [ ! -f "$config" ]; then
+  umask 077
+  secret="$(head -c 32 /dev/urandom | base64)"
+  temporary="$config.tmp.$$"
+  {
+    printf '%s\n' 'listen_addr = "127.0.0.1:8787"'
+    printf '%s\n' 'data_dir = "."'
+    printf '%s\n' 'store_backend = "sqlite"'
+    printf 'secret_key = "%s"\n' "$secret"
+  } > "$temporary"
+  mv "$temporary" "$config"
+fi
+
+if ! curl -fsS "$console_url" >/dev/null 2>&1; then
+  (cd "$data_dir" && nohup /usr/bin/gproxy gproxy.toml >>"$log_dir/gproxy.log" 2>&1 &)
+  healthy=false
+  attempt=0
+  while [ "$attempt" -lt 75 ]; do
+    if curl -fsS "$console_url" >/dev/null 2>&1; then
+      healthy=true
+      break
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.2
+  done
+  if [ "$healthy" != "true" ]; then
+    zenity --error --title="GPROXY" \
+      --text="GPROXY did not start. Check $log_dir/gproxy.log." 2>/dev/null || true
+    exit 1
+  fi
+fi
+
+if [ "${1:-}" = "--open-console" ]; then
+  xdg-open "$console_url" >/dev/null 2>&1 || true
+fi
