@@ -19,7 +19,7 @@ pub(crate) enum Entity {
     PriceRates,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) enum Route {
     List(Entity),
     Create(Entity),
@@ -32,6 +32,10 @@ pub(crate) enum Route {
     Channels,
     TlsPresets,
     Audit,
+    Logs,
+    LogDetail(String),
+    LogSettingsRead,
+    LogSettingsWrite,
     PortalSettingsRead,
     PortalSettingsWrite,
     LoginAuthCodeStart,
@@ -73,6 +77,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
             }
         });
     }
+    if segments.len() == 2 && segments[0] == "logs" && method == Method::GET {
+        return Some(Route::LogDetail(segments[1].to_owned()));
+    }
     if segments.len() == 2 && method == Method::PATCH {
         return Some(Route::Update(
             entity(segments[0])?,
@@ -96,6 +103,9 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::GET, "channels") => Some(Route::Channels),
         (&Method::GET, "tls-presets") => Some(Route::TlsPresets),
         (&Method::GET, "audit") => Some(Route::Audit),
+        (&Method::GET, "logs") => Some(Route::Logs),
+        (&Method::GET, "log-settings") => Some(Route::LogSettingsRead),
+        (&Method::PATCH, "log-settings") => Some(Route::LogSettingsWrite),
         (&Method::GET, "portal-settings") => Some(Route::PortalSettingsRead),
         (&Method::PATCH, "portal-settings") => Some(Route::PortalSettingsWrite),
         _ => None,

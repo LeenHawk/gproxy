@@ -127,4 +127,13 @@ impl Store {
             .await?;
         Ok(())
     }
+
+    pub async fn set_settings(&self, inputs: &[SettingInput]) -> Result<(), StoreError> {
+        let statements = inputs
+            .iter()
+            .map(control::insert_setting)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.backend().batch(statements).await?;
+        Ok(())
+    }
 }

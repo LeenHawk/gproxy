@@ -9,8 +9,8 @@ const SWEEP_INTERVAL: Duration = Duration::from_secs(5 * 60);
 const SECONDS_PER_DAY: u64 = 86_400;
 const MIB: u64 = 1024 * 1024;
 
-pub(crate) const RETENTION_DAYS: &str = "retention_days";
-pub(crate) const MAX_DATABASE_SIZE_MB: &str = "max_database_size_mb";
+pub(crate) const RETENTION_DAYS: &str = gproxy_store::records::RETENTION_DAYS;
+pub(crate) const MAX_DATABASE_SIZE_MB: &str = gproxy_store::records::MAX_DATABASE_SIZE_MB;
 
 pub(crate) fn schedule(host: &AppHost) {
     let Some(spawner) = host.spawner() else {

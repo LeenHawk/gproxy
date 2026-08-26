@@ -5,11 +5,10 @@ use gproxy_store::records::{RequestLogCompletion, RequestLogInput, SettingRecord
 
 use crate::host::AppHost;
 
-pub(crate) const ENABLE_DOWNSTREAM_LOG: &str = "enable_downstream_log";
-pub(crate) const ENABLE_DOWNSTREAM_LOG_BODY: &str = "enable_downstream_log_body";
-pub(crate) const ENABLE_UPSTREAM_LOG: &str = "enable_upstream_log";
-pub(crate) const ENABLE_UPSTREAM_LOG_BODY: &str = "enable_upstream_log_body";
-pub(crate) const DISABLE_LOG_REDACTION: &str = "disable_log_redaction";
+pub(crate) use gproxy_store::records::{
+    DISABLE_LOG_REDACTION, ENABLE_DOWNSTREAM_LOG, ENABLE_DOWNSTREAM_LOG_BODY, ENABLE_UPSTREAM_LOG,
+    ENABLE_UPSTREAM_LOG_BODY,
+};
 
 #[derive(Clone)]
 pub(crate) struct DownstreamCapture {

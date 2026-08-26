@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+pub const ENABLE_DOWNSTREAM_LOG: &str = "enable_downstream_log";
+pub const ENABLE_DOWNSTREAM_LOG_BODY: &str = "enable_downstream_log_body";
+pub const ENABLE_UPSTREAM_LOG: &str = "enable_upstream_log";
+pub const ENABLE_UPSTREAM_LOG_BODY: &str = "enable_upstream_log_body";
+pub const DISABLE_LOG_REDACTION: &str = "disable_log_redaction";
+pub const RETENTION_DAYS: &str = "retention_days";
+pub const MAX_DATABASE_SIZE_MB: &str = "max_database_size_mb";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaptureInput {
     pub request_id: String,
