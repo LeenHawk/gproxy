@@ -1,6 +1,6 @@
 use web_time::Instant;
 
-use gproxy_channel_api::SurfaceRequest;
+use gproxy_channel_api::{Disposition, ResponseView, SurfaceRequest};
 use gproxy_protocol::SettleMode;
 
 use crate::api::Core;
@@ -11,15 +11,32 @@ use crate::funnel::error as funnel_error;
 use crate::funnel::{self, FunnelCtx};
 use crate::host::{Host, UpstreamTransport};
 
+pub(crate) enum ForwardAttempt {
+    Outcome(ExecOutcome),
+    Retry(Disposition),
+}
+
+pub(crate) struct AttemptOptions {
+    pub websocket: bool,
+    pub request_id: String,
+    pub started: Instant,
+    pub pricing: Option<Pricing>,
+    pub retryable: bool,
+}
+
 pub(crate) async fn request<H: Host>(
     core: &Core<H>,
     target: &Target,
     request: SurfaceRequest,
-    websocket: bool,
-    request_id: String,
-    started: Instant,
-    pricing: Option<Pricing>,
-) -> Result<ExecOutcome, CoreError> {
+    options: AttemptOptions,
+) -> Result<ForwardAttempt, CoreError> {
+    let AttemptOptions {
+        websocket,
+        request_id,
+        started,
+        pricing,
+        retryable,
+    } = options;
     let channel = core.channels.get(&target.provider.channel).ok_or_else(|| {
         CoreError::Internal(format!(
             "provider references unknown channel `{}`",
@@ -128,7 +145,11 @@ pub(crate) async fn request<H: Host>(
                         "upstream websocket connected",
                     )
                     .await;
-                Ok(funnel::websocket(core.host.clone(), facts, socket))
+                Ok(ForwardAttempt::Outcome(funnel::websocket(
+                    core.host.clone(),
+                    facts,
+                    socket,
+                )))
             }
             Err(error) => {
                 crate::funnel::health::degraded(
@@ -160,5 +181,16 @@ pub(crate) async fn request<H: Host>(
             return Err(error.into());
         }
     };
-    super::response::relay(core, channel, request.stream, request.key, facts, response).await
+    let disposition = channel.classify(ResponseView {
+        status: response.status(),
+        headers: response.headers(),
+        body: &[],
+    });
+    if retryable && disposition.should_failover() {
+        super::response::discard_retryable(core, &facts, response, disposition).await;
+        return Ok(ForwardAttempt::Retry(disposition));
+    }
+    super::response::relay(core, channel, request.stream, request.key, facts, response)
+        .await
+        .map(ForwardAttempt::Outcome)
 }

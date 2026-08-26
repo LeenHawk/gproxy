@@ -1,5 +1,6 @@
 use gproxy_channel_api::{
-    ForwardSpec, SurfaceAction, SurfaceAffinity, SurfaceEntry, SurfaceTable, Synthesizer,
+    ForwardRetry, ForwardSpec, SurfaceAction, SurfaceAffinity, SurfaceEntry, SurfaceTable,
+    Synthesizer,
 };
 use gproxy_protocol::Seg::{Lit, Param};
 use gproxy_protocol::{PathPattern, Seg};
@@ -33,6 +34,7 @@ const fn forward(
     param: &'static str,
     label: &'static str,
     upstream_template: &'static str,
+    retry: ForwardRetry,
 ) -> SurfaceEntry {
     SurfaceEntry {
         method,
@@ -41,6 +43,7 @@ const fn forward(
         action: SurfaceAction::Forward(ForwardSpec {
             label,
             upstream_template,
+            retry,
         }),
     }
 }
@@ -101,6 +104,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "file_id",
         "claude_oauth_file_content",
         "/v1/files/{file_id}/content",
+        ForwardRetry::Retryable,
     ),
     synth(
         GET,
@@ -166,6 +170,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "file_id",
         "claude_file_retrieve",
         "/v1/files/{file_id}",
+        ForwardRetry::Retryable,
     ),
     synth(
         DELETE,
@@ -184,6 +189,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "file_id",
         "claude_file_content",
         "/v1/files/{file_id}/content",
+        ForwardRetry::Retryable,
     ),
     synth(
         GET,
@@ -206,6 +212,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "skill_id",
         "claude_skill_retrieve",
         "/v1/skills/{skill_id}",
+        ForwardRetry::Retryable,
     ),
     synth(
         DELETE,
@@ -224,6 +231,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "skill_id",
         "claude_skill_versions",
         "/v1/skills/{skill_id}/versions",
+        ForwardRetry::Retryable,
     ),
     synth(
         POST,
@@ -248,6 +256,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "skill_id",
         "claude_skill_version_retrieve",
         "/v1/skills/{skill_id}/versions/{version_id}",
+        ForwardRetry::Retryable,
     ),
     forward(
         DELETE,
@@ -262,6 +271,7 @@ static ENTRIES: [SurfaceEntry; 23] = [
         "skill_id",
         "claude_skill_version_delete",
         "/v1/skills/{skill_id}/versions/{version_id}",
+        ForwardRetry::SingleAttempt,
     ),
 ];
 

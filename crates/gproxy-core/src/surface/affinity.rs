@@ -20,6 +20,7 @@ pub(crate) struct Selected {
     pub entry: &'static SurfaceEntry,
     pub params: Vec<(&'static str, String)>,
     pub target: Target,
+    pub candidates: Vec<Target>,
     pub pin: Option<AffinityPin>,
 }
 
@@ -68,9 +69,15 @@ pub(crate) async fn select<H: Host>(
             .iter()
             .filter(|candidate| candidate.provider.id == target.provider.id)
             .collect();
-        let Some((target, pin)) = pin(core, ctx, identity, matched, &candidates).await? else {
+        let Some((target, pin, pinned)) = pin(core, ctx, identity, matched, &candidates).await?
+        else {
             binding_missing = true;
             continue;
+        };
+        let eligible = if pinned {
+            vec![target.clone()]
+        } else {
+            candidates.iter().map(|target| (*target).clone()).collect()
         };
         let matched = matches
             .into_iter()
@@ -80,6 +87,7 @@ pub(crate) async fn select<H: Host>(
             entry: matched.entry,
             params: matched.params,
             target,
+            candidates: eligible,
             pin,
         });
     }
@@ -140,13 +148,13 @@ async fn pin<H: Host>(
     identity: &CallerIdentity,
     matched: &TableMatch,
     candidates: &[&Target],
-) -> Result<Option<(Target, Option<AffinityPin>)>, CoreError> {
+) -> Result<Option<(Target, Option<AffinityPin>, bool)>, CoreError> {
     let first = candidates.first().ok_or(CoreError::NoCredentials)?;
     match matched.entry.affinity {
-        SurfaceAffinity::None => Ok(Some(((*first).clone(), None))),
+        SurfaceAffinity::None => Ok(Some(((*first).clone(), None, false))),
         SurfaceAffinity::Header { name, ttl_secs } => {
             let Some(value) = ctx.headers.get(name) else {
-                return Ok(Some(((*first).clone(), None)));
+                return Ok(Some(((*first).clone(), None, false)));
             };
             let value = value.to_str().map_err(|_| CoreError::Unsupported)?;
             let key = cache_key(first, identity, "header", name, value);
@@ -161,7 +169,7 @@ async fn pin<H: Host>(
                     let key = cache_key(first, identity, "body", name, &value);
                     cached(core, first, candidates, key, ttl_secs).await
                 }
-                None => Ok(Some(((*first).clone(), None))),
+                None => Ok(Some(((*first).clone(), None, false))),
             }
         }
         SurfaceAffinity::HeaderOrBodyField {
@@ -184,7 +192,7 @@ async fn pin<H: Host>(
                     let key = cache_key(first, identity, "body", body_field, &value);
                     cached(core, first, candidates, key, ttl_secs).await
                 }
-                None => Ok(Some(((*first).clone(), None))),
+                None => Ok(Some(((*first).clone(), None, false))),
             }
         }
         SurfaceAffinity::PathParam { name, ttl_secs } => {
@@ -193,7 +201,7 @@ async fn pin<H: Host>(
                 .iter()
                 .find_map(|(candidate, value)| (*candidate == name).then_some(value.as_str()))
             else {
-                return Ok(Some(((*first).clone(), None)));
+                return Ok(Some(((*first).clone(), None, false)));
             };
             let key = cache_key(first, identity, "path", name, value);
             cached(core, first, candidates, key, ttl_secs).await
@@ -204,7 +212,7 @@ async fn pin<H: Host>(
             ..
         } => {
             let Some(name) = request_body_field else {
-                return Ok(Some(((*first).clone(), None)));
+                return Ok(Some(((*first).clone(), None, false)));
             };
             let value = serde_json::from_slice::<serde_json::Value>(&ctx.body)
                 .ok()
@@ -215,7 +223,7 @@ async fn pin<H: Host>(
                     let key = cache_key(first, identity, "body", name, &value);
                     cached(core, first, candidates, key, ttl_secs).await
                 }
-                None => Ok(Some(((*first).clone(), None))),
+                None => Ok(Some(((*first).clone(), None, false))),
             }
         }
         SurfaceAffinity::BearerToken { namespace } => {
@@ -238,7 +246,7 @@ async fn pin<H: Host>(
                 .find(|target| target.credential == binding.credential)
                 .map(|target| (*target).clone())
                 .ok_or(CoreError::NoCredentials)?;
-            Ok(Some((target, None)))
+            Ok(Some((target, None, true)))
         }
         SurfaceAffinity::Binding { kind, param } => {
             let id = matched
@@ -260,7 +268,7 @@ async fn pin<H: Host>(
                 .find(|target| target.credential == binding.credential)
                 .map(|target| (*target).clone())
                 .ok_or(CoreError::NoCredentials)?;
-            Ok(Some((target, None)))
+            Ok(Some((target, None, true)))
         }
     }
 }

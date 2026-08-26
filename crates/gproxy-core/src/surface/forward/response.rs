@@ -109,6 +109,54 @@ pub(super) async fn relay<H: Host>(
     }
 }
 
+pub(super) async fn discard_retryable<H: Host>(
+    core: &Core<H>,
+    facts: &FunnelCtx,
+    response: http::Response<ByteStream>,
+    disposition: Disposition,
+) {
+    let status = response.status();
+    crate::funnel::health::response(
+        core.host.as_ref(),
+        &facts.target,
+        facts.credential_version,
+        disposition,
+        status,
+    )
+    .await;
+    match crate::attempt::body::collect(response).await {
+        Ok(response) => {
+            let (parts, body) = response.into_parts();
+            funnel_error::attempt_response(
+                core.host.as_ref(),
+                facts,
+                parts.status,
+                Some(body),
+                disposition,
+            )
+            .await;
+        }
+        Err(failure) => {
+            crate::funnel::health::degraded(
+                core.host.as_ref(),
+                &facts.target,
+                facts.credential_version,
+                Some(failure.status),
+                "surface retry response interrupted",
+            )
+            .await;
+            funnel_error::attempt_interrupted(
+                core.host.as_ref(),
+                facts,
+                failure.status,
+                failure.body,
+                &failure.error,
+            )
+            .await;
+        }
+    }
+}
+
 fn classify<B>(channel: &dyn Channel, response: &http::Response<B>, body: &[u8]) -> Disposition {
     channel.classify(ResponseView {
         status: response.status(),

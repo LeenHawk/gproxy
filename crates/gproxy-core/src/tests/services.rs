@@ -19,7 +19,8 @@ impl CredentialStore for MemoryHost {
     fn load<'a>(&'a self, id: CredentialId) -> BoxFuture<'a, Result<CredentialRecord, StoreError>> {
         let mut state = self.state.lock().expect("state lock");
         state.loaded_credentials.push(id);
-        let record = state.credential.clone();
+        let mut record = state.credential.clone();
+        record.id = id;
         Box::pin(async move { Ok(record) })
     }
 

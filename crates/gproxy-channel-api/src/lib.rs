@@ -37,10 +37,10 @@ pub use session::{
     SessionUsage, SessionUsageKind,
 };
 pub use surface::{
-    Binding, BindingPage, BindingStore, CallerIdentity, ForwardSpec, Page, ProviderView,
-    QuotaWindow, StateError, SurfaceAction, SurfaceAffinity, SurfaceBody, SurfaceEntry,
-    SurfaceInvoke, SurfaceReply, SurfaceRequest, SurfaceServices, SurfaceTable, SynthCtx,
-    Synthesizer, UsageView, UsageWindow,
+    Binding, BindingPage, BindingStore, CallerIdentity, ForwardRetry, ForwardSpec, Page,
+    ProviderView, QuotaWindow, StateError, SurfaceAction, SurfaceAffinity, SurfaceBody,
+    SurfaceEntry, SurfaceInvoke, SurfaceReply, SurfaceRequest, SurfaceServices, SurfaceTable,
+    SynthCtx, Synthesizer, UsageView, UsageWindow,
 };
 pub use usage::NormalizedUsage;
 pub use wire::{

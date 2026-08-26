@@ -94,6 +94,7 @@ static FOREIGN_SURFACES: [gproxy_channel_api::SurfaceEntry; 1] =
         action: gproxy_channel_api::SurfaceAction::Forward(gproxy_channel_api::ForwardSpec {
             label: "foreign_files",
             upstream_template: "/foreign/files",
+            retry: gproxy_channel_api::ForwardRetry::Retryable,
         }),
     }];
 

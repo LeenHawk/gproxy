@@ -129,24 +129,19 @@ async fn run<H: Host>(
     };
     let surface_label = action_label(&selected.entry.action);
     let affinity = selected.entry.affinity;
-    let pin_target = selected.target.clone();
     let pin = selected.pin.take();
     let result = action(core, control, ctx, &plan, &identity, selected, started).await;
-    let commits_pin = result
-        .as_ref()
-        .is_ok_and(|outcome| outcome.disposition == Disposition::Success);
-    if commits_pin {
-        let response_pins = result
-            .as_ref()
-            .map(|outcome| pin::response_pins(affinity, &identity, &pin_target, outcome))
-            .unwrap_or_default();
+    if let Ok((outcome, winner)) = &result
+        && outcome.disposition == Disposition::Success
+    {
+        let response_pins = pin::response_pins(affinity, &identity, winner, outcome);
         let mut committed = Ok(());
         if let Some(pin) = pin {
-            committed = pin::commit(core, pin).await;
+            committed = pin::commit(core, pin, winner).await;
         }
-        for pin in response_pins {
+        for response_pin in response_pins {
             if committed.is_ok() {
-                committed = pin::commit(core, pin).await;
+                committed = pin::commit(core, response_pin, winner).await;
             }
         }
         if let Err(error) = committed {
@@ -162,7 +157,7 @@ async fn run<H: Host>(
         core.host.finish_admission(&ctx.request_id, None).await;
         funnel_error::request_failed_surface(ctx, None, surface_label, error);
     }
-    Dispatch::Outcome(result)
+    Dispatch::Outcome(result.map(|(outcome, _)| outcome))
 }
 
 async fn action<H: Host>(
@@ -173,16 +168,19 @@ async fn action<H: Host>(
     identity: &gproxy_channel_api::CallerIdentity,
     selected: Selected,
     started: Instant,
-) -> Result<ExecOutcome, CoreError> {
+) -> Result<(ExecOutcome, crate::control::Target), CoreError> {
     match &selected.entry.action {
         SurfaceAction::Forward(_) | SurfaceAction::ForwardWebSocket(_) => {
-            forward::declared(core, &selected, ctx, started).await
+            forward::declared(core, &selected, ctx, plan.budget, started).await
         }
         SurfaceAction::OperationAlias { .. } => Err(CoreError::Internal(
             "operation alias reached the surface action engine".into(),
         )),
         SurfaceAction::Synthesize { .. } => {
-            synth::run(core, control, ctx, plan, identity, selected, started).await
+            let target = selected.target.clone();
+            synth::run(core, control, ctx, plan, identity, selected, started)
+                .await
+                .map(|outcome| (outcome, target))
         }
     }
 }

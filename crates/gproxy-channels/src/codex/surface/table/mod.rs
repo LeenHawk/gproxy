@@ -5,7 +5,8 @@ mod services;
 use std::sync::OnceLock;
 
 use gproxy_channel_api::{
-    ForwardSpec, SurfaceAction, SurfaceAffinity, SurfaceEntry, SurfaceTable, Synthesizer,
+    ForwardRetry, ForwardSpec, SurfaceAction, SurfaceAffinity, SurfaceEntry, SurfaceTable,
+    Synthesizer,
 };
 use gproxy_protocol::{PathPattern, Seg};
 use http::Method;
@@ -93,11 +94,13 @@ pub(super) fn forward(
     affinity: SurfaceAffinity,
     label: &'static str,
     upstream_template: &'static str,
+    retry: ForwardRetry,
     websocket: bool,
 ) -> SurfaceEntry {
     let spec = ForwardSpec {
         label,
         upstream_template,
+        retry,
     };
     SurfaceEntry {
         method,
@@ -114,6 +117,7 @@ pub(super) fn forward(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gproxy_channel_api::ForwardRetry;
     use gproxy_protocol::match_path;
 
     fn action(method: &Method, path: &str) -> Option<(&'static SurfaceAction, SurfaceAffinity)> {
@@ -134,6 +138,39 @@ mod tests {
                 canonical_path: "/v1/responses"
             }
         ));
+        for (method, path) in [
+            (&Method::GET, "/api/codex/models"),
+            (&Method::GET, "/plugins/featured"),
+            (&Method::POST, "/api/codex/ps/plugins/list"),
+        ] {
+            assert!(matches!(
+                action(method, path).unwrap().0,
+                SurfaceAction::Forward(ForwardSpec {
+                    retry: ForwardRetry::Retryable,
+                    ..
+                })
+            ));
+        }
+        for (method, path) in [
+            (&Method::POST, "/api/codex/agent-identities/me"),
+            (&Method::POST, "/api/codex/ps/plugins/installed"),
+            (&Method::POST, "/plugins/plugin-1/enable"),
+        ] {
+            assert!(matches!(
+                action(method, path).unwrap().0,
+                SurfaceAction::Forward(ForwardSpec {
+                    retry: ForwardRetry::SingleAttempt,
+                    ..
+                })
+            ));
+        }
+        assert!(table().0.iter().all(|entry| !matches!(
+            &entry.action,
+            SurfaceAction::ForwardWebSocket(ForwardSpec {
+                retry: ForwardRetry::Retryable,
+                ..
+            })
+        )));
         for path in [
             "/v1/memories/trace_summarize",
             "/api/codex/memories/trace_summarize",

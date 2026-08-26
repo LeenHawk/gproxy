@@ -118,6 +118,13 @@ pub struct ForwardSpec {
     /// Upstream path template with `{param}` placeholders filled from the
     /// matched pattern (`{rest}` for a `Seg::Rest` capture).
     pub upstream_template: &'static str,
+    pub retry: ForwardRetry,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForwardRetry {
+    Retryable,
+    SingleAttempt,
 }
 
 /// What a synthesizer may read from the inbound request.

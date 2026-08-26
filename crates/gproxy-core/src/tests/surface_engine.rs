@@ -5,6 +5,8 @@ use http::Method;
 use super::memory::MemoryHost;
 use super::surface_harness::{execute, outcome, plan, target};
 
+mod forward_retry;
+
 #[test]
 fn surfaces_scope_affinity_assemble_services_and_require_bindings() {
     let host = MemoryHost::new(false);

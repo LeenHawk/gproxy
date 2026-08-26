@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, ChannelError, ForwardSpec, SurfaceAction, SurfaceAffinity, SurfaceBody,
-    SurfaceEntry, SurfaceReply, SurfaceRequest, SurfaceServices, SurfaceTable, SynthCtx,
-    Synthesizer,
+    BoxFuture, ChannelError, ForwardRetry, ForwardSpec, SurfaceAction, SurfaceAffinity,
+    SurfaceBody, SurfaceEntry, SurfaceReply, SurfaceRequest, SurfaceServices, SurfaceTable,
+    SynthCtx, Synthesizer,
 };
 use gproxy_protocol::{PathPattern, Seg};
 use http::Method;
@@ -10,7 +10,7 @@ use http::Method;
 struct MemorySynth;
 
 static SYNTH: MemorySynth = MemorySynth;
-static ENTRIES: [SurfaceEntry; 11] = [
+static ENTRIES: [SurfaceEntry; 13] = [
     SurfaceEntry {
         method: &Method::GET,
         pattern: PathPattern(&[
@@ -75,6 +75,7 @@ static ENTRIES: [SurfaceEntry; 11] = [
         action: SurfaceAction::Forward(ForwardSpec {
             label: "forward-test",
             upstream_template: "/control/{task_id}",
+            retry: ForwardRetry::Retryable,
         }),
     },
     SurfaceEntry {
@@ -91,6 +92,7 @@ static ENTRIES: [SurfaceEntry; 11] = [
         action: SurfaceAction::ForwardWebSocket(ForwardSpec {
             label: "socket-test",
             upstream_template: "/socket/{task_id}",
+            retry: ForwardRetry::SingleAttempt,
         }),
     },
     SurfaceEntry {
@@ -158,6 +160,30 @@ static ENTRIES: [SurfaceEntry; 11] = [
         action: SurfaceAction::ForwardWebSocket(ForwardSpec {
             label: "token-socket-test",
             upstream_template: "/socket/token",
+            retry: ForwardRetry::SingleAttempt,
+        }),
+    },
+    SurfaceEntry {
+        method: &Method::GET,
+        pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("retry")]),
+        affinity: SurfaceAffinity::Header {
+            name: "x-retry-session",
+            ttl_secs: 60,
+        },
+        action: SurfaceAction::Forward(ForwardSpec {
+            label: "retry-test",
+            upstream_template: "/control/retry",
+            retry: ForwardRetry::Retryable,
+        }),
+    },
+    SurfaceEntry {
+        method: &Method::POST,
+        pattern: PathPattern(&[Seg::Lit("surface"), Seg::Lit("mutate")]),
+        affinity: SurfaceAffinity::None,
+        action: SurfaceAction::Forward(ForwardSpec {
+            label: "mutation-test",
+            upstream_template: "/control/mutate",
+            retry: ForwardRetry::SingleAttempt,
         }),
     },
 ];

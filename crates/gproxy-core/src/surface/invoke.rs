@@ -107,11 +107,26 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 .cloned()
                 .flatten()
                 .map(|pricing| pricing.for_request(&ctx.body));
-            match super::forward::request(
-                self.core, &target, request, false, request_id, started, pricing,
+            let result = super::forward::request(
+                self.core,
+                &target,
+                request,
+                super::forward::AttemptOptions {
+                    websocket: false,
+                    request_id,
+                    started,
+                    pricing,
+                    retryable: false,
+                },
             )
             .await
-            {
+            .and_then(|attempt| match attempt {
+                super::forward::ForwardAttempt::Outcome(outcome) => Ok(outcome),
+                super::forward::ForwardAttempt::Retry(_) => Err(CoreError::Internal(
+                    "non-retryable surface invoke requested failover".into(),
+                )),
+            });
+            match result {
                 Ok(outcome) => super::reply::from_outcome(outcome),
                 Err(error) => {
                     self.core.host.finish_admission(&ctx.request_id, None).await;

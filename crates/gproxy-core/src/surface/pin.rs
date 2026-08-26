@@ -12,6 +12,7 @@ pub(crate) struct AffinityPin {
     key: String,
     value: Vec<u8>,
     ttl: Duration,
+    retarget: bool,
 }
 
 pub(crate) struct TokenBinding {
@@ -25,7 +26,7 @@ pub(crate) async fn cached<H: Host>(
     candidates: &[&Target],
     key: String,
     ttl_secs: u64,
-) -> Result<Option<(Target, Option<AffinityPin>)>, CoreError> {
+) -> Result<Option<(Target, Option<AffinityPin>, bool)>, CoreError> {
     if let Some(credential) = core.host.cache().get(&key).await?.and_then(decode_id)
         && let Some(target) = candidates
             .iter()
@@ -37,7 +38,9 @@ pub(crate) async fn cached<H: Host>(
                 key,
                 value: credential.0.to_be_bytes().to_vec(),
                 ttl: Duration::from_secs(ttl_secs),
+                retarget: true,
             }),
+            true,
         )));
     }
     Ok(Some((
@@ -46,11 +49,20 @@ pub(crate) async fn cached<H: Host>(
             key,
             value: first.credential.0.to_be_bytes().to_vec(),
             ttl: Duration::from_secs(ttl_secs),
+            retarget: true,
         }),
+        false,
     )))
 }
 
-pub(crate) async fn commit<H: Host>(core: &Core<H>, pin: AffinityPin) -> Result<(), CoreError> {
+pub(crate) async fn commit<H: Host>(
+    core: &Core<H>,
+    mut pin: AffinityPin,
+    target: &Target,
+) -> Result<(), CoreError> {
+    if pin.retarget {
+        pin.value = target.credential.0.to_be_bytes().to_vec();
+    }
     core.host
         .cache()
         .set(&pin.key, pin.value, Some(pin.ttl))
@@ -85,6 +97,7 @@ pub(crate) fn response_pins(
                 key: token_key(target.provider.id, namespace, &value),
                 value: encode_token(target.credential, identity),
                 ttl: Duration::from_secs(ttl_secs),
+                retarget: false,
             });
         }
         if let Some(name) = also_body_field
@@ -94,6 +107,7 @@ pub(crate) fn response_pins(
                 key: cache_key(target, identity, "body", name, &value),
                 value: target.credential.0.to_be_bytes().to_vec(),
                 ttl: Duration::from_secs(ttl_secs),
+                retarget: false,
             });
         }
         if let Some(name) = also_path_field
@@ -103,6 +117,7 @@ pub(crate) fn response_pins(
                 key: cache_key(target, identity, "path", name, &value),
                 value: target.credential.0.to_be_bytes().to_vec(),
                 ttl: Duration::from_secs(ttl_secs),
+                retarget: false,
             });
         }
         return pins;
@@ -155,6 +170,7 @@ pub(crate) fn response_pins(
         key: cache_key(target, identity, source, name, &value),
         value: target.credential.0.to_be_bytes().to_vec(),
         ttl: Duration::from_secs(ttl_secs),
+        retarget: false,
     }]
 }
 
