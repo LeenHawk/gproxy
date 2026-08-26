@@ -7,7 +7,7 @@ import { AuthPanel } from "@/components/auth/auth-panel"
 import { QueryState } from "@/components/query-state"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { useAdminRoute } from "@/lib/hash-route"
+import { useAdminLocation } from "@/lib/admin-route"
 
 const ChannelsPage = lazy(() => import("@/pages/channels").then((module) => ({ default: module.ChannelsPage })))
 const KeysPage = lazy(() => import("@/pages/keys").then((module) => ({ default: module.KeysPage })))
@@ -24,7 +24,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15
 function ConsoleApp() {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const route = useAdminRoute()
+  const { route } = useAdminLocation()
   const sessionQuery = useQuery({ queryKey: ["session"], queryFn: session, retry: false })
   const auth = useMutation({
     mutationFn: ({ username, password, firstBoot }: { username: string; password: string; firstBoot: boolean }) => firstBoot ? setup({ username, password }) : login({ username, password }),

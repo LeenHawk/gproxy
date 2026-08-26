@@ -8,6 +8,7 @@ import { userKeys, users } from "@/api/identity"
 import { LogExplorer } from "@/components/logs/log-explorer"
 import { PageLayout } from "@/components/page-layout"
 import { QueryState } from "@/components/query-state"
+import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
 
 function initialQuery(): LogQueryDto {
   const end = Math.floor(Date.now() / 1000)
@@ -18,7 +19,8 @@ export function LogsPage() {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<LogQueryDto>(initialQuery)
   const [query, setQuery] = useState<LogQueryDto>(draft)
-  const [selected, setSelected] = useState<string | null>(null)
+  const location = useAdminLocation()
+  const selected = location.segments[0] ?? null
   const [logQuery, settingsQuery, providerQuery, userQuery, keyQuery] = useQueries({ queries: [
     { queryKey: ["logs", query], queryFn: () => logs(query) },
     { queryKey: ["log-settings"], queryFn: logSettings },
@@ -35,15 +37,15 @@ export function LogsPage() {
         <LogExplorer
           draft={draft}
           onDraft={setDraft}
-          onSearch={() => { setSelected(null); setQuery({ ...draft, cursor: null }) }}
-          onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next); setSelected(null) }}
+          onSearch={() => { navigateAdminPath(adminPath("logs"), true); setQuery({ ...draft, cursor: null }) }}
+          onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next); navigateAdminPath(adminPath("logs"), true) }}
           page={logQuery.data!}
           settings={settingsQuery.data!}
           providers={providerQuery.data ?? []}
           users={userQuery.data ?? []}
           keys={keyQuery.data ?? []}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={(requestId) => navigateAdminPath(`/admin/logs/${encodeURIComponent(requestId)}`)}
           detail={detailQuery.data ?? null}
           detailLoading={detailQuery.isLoading}
           detailError={Boolean(detailQuery.error)}

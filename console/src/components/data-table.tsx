@@ -26,6 +26,7 @@ export type DataTableProps<T> = {
   empty: ReactNode
   storageKey: string
   onRowClick?: (row: T) => void
+  activeRowKey?: string | number | null
   selectable?: boolean
   batchActions?: (selectedRows: Array<T>) => ReactNode
   pageSize?: number
@@ -40,6 +41,7 @@ export function DataTable<T>({
   empty,
   storageKey,
   onRowClick,
+  activeRowKey,
   selectable = false,
   batchActions,
   pageSize = 10,
@@ -106,7 +108,7 @@ export function DataTable<T>({
               </TableRow></TableHeader>
               <TableBody>{visibleRows.map((row) => {
                 const id = rowKey(row)
-                return <TableRow key={id} data-state={selected.has(id) ? "selected" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
+                return <TableRow key={id} data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
                   {selectable ? <TableCell><Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /></TableCell> : null}
                   {visibleColumns.map((column) => <TableCell key={column.key} className={column.className}>{column.cell(row)}</TableCell>)}
                 </TableRow>
@@ -115,7 +117,7 @@ export function DataTable<T>({
           </div>
           <div className="grid gap-2 md:hidden">{visibleRows.map((row) => {
             const id = rowKey(row)
-            return <Card key={id} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", selected.has(id) && "ring-2 ring-ring")}>
+            return <Card key={id} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
               <CardContent className="flex items-start gap-3">
                 {selectable ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
                 <div className="min-w-0 flex-1">{renderCard(row)}</div>

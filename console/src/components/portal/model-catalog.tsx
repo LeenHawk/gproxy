@@ -1,12 +1,16 @@
 import { useTranslation } from "react-i18next"
 import type { PortalModelDto } from "@/generated/PortalModelDto"
+import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export function ModelCatalog({ models }: { models: Array<PortalModelDto> }) {
   const { t } = useTranslation()
+  const capabilities = (model: PortalModelDto) => <ul className="flex min-w-0 flex-col gap-2">{model.capabilities.map((capability) => <li key={`${capability.source}:${capability.operation}:${capability.group}`} className="flex flex-wrap items-center gap-2"><Badge variant="outline"><code className="font-mono">{capability.group}</code></Badge><code className="font-mono text-xs">{capability.source}</code><code className="font-mono text-xs text-muted-foreground">{capability.operation}</code></li>)}</ul>
+  const columns: Array<DataTableColumn<PortalModelDto>> = [
+    { key: "model", label: t("portal.models.model"), header: t("portal.models.model"), cell: (model) => <span className="font-mono text-xs">{model.name}</span> },
+    { key: "capabilities", label: t("portal.models.capabilities"), header: t("portal.models.capabilities"), cell: capabilities },
+  ]
 
   return (
     <Card>
@@ -15,40 +19,7 @@ export function ModelCatalog({ models }: { models: Array<PortalModelDto> }) {
         <CardDescription>{t("portal.models.description")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {models.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>{t("portal.models.empty")}</EmptyTitle>
-              <EmptyDescription>{t("portal.models.emptyDescription")}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead>{t("portal.models.model")}</TableHead>
-              <TableHead>{t("portal.models.capabilities")}</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>{models.map((model) => (
-              <TableRow key={model.name}>
-                <TableCell className="font-mono text-xs">{model.name}</TableCell>
-                <TableCell>
-                  <ul className="flex min-w-80 flex-col gap-2">
-                    {model.capabilities.map((capability) => (
-                      <li
-                        key={`${capability.source}:${capability.operation}:${capability.group}`}
-                        className="flex flex-wrap items-center gap-2"
-                      >
-                        <Badge variant="outline"><code className="font-mono">{capability.group}</code></Badge>
-                        <code className="font-mono text-xs">{capability.source}</code>
-                        <code className="font-mono text-xs text-muted-foreground">{capability.operation}</code>
-                      </li>
-                    ))}
-                  </ul>
-                </TableCell>
-              </TableRow>
-            ))}</TableBody>
-          </Table>
-        )}
+        <DataTable columns={columns} rows={models} rowKey={(model) => model.name} searchText={(model) => `${model.name} ${model.capabilities.map((capability) => `${capability.group} ${capability.source} ${capability.operation}`).join(" ")}`} renderCard={(model) => <div className="flex flex-col gap-3"><p className="font-mono text-xs">{model.name}</p>{capabilities(model)}</div>} empty={t("portal.models.empty")} storageKey="portal-models" />
       </CardContent>
     </Card>
   )

@@ -5,6 +5,10 @@
     "add": "新增路由",
     "empty": "尚無路由。請新增一個以公開模型。",
     "loadError": "無法載入路由，請重試。",
+    "selectPrompt": "選擇一個路由以檢視成員和設定。",
+    "tabs": {
+      "settings": "設定"
+    },
     "fields": {
       "name": "路由名稱",
       "maxAttempts": "最大嘗試次數",

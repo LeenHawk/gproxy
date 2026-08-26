@@ -5,9 +5,12 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { CredentialCard } from "@/components/providers/credential-card"
+import { DataTable, type DataTableColumn } from "@/components/data-table"
+import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
+import { CredentialRowActions } from "@/components/providers/credential-row-actions"
 import { QueryState } from "@/components/query-state"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 
 type Props = {
@@ -22,10 +25,19 @@ type Props = {
   cyclesError: boolean
   savingCredentialId: number | null
   onSave: (value: CredentialWriteRequest, id?: number) => Promise<void>
+  activeCredentialId?: number | null
+  onCredentialOpen?: (credential: CredentialDto) => void
 }
 
 export function CredentialList(props: Props) {
   const { t } = useTranslation()
+  const columns: Array<DataTableColumn<CredentialDto>> = [
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => <div><p className="font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> },
+    { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <StatusBadge status={credential.health} /> },
+    { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },
+    { key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential) => <CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /> },
+    { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
+  ]
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby={`provider-${props.providerId}-credentials`}>
@@ -44,21 +56,18 @@ export function CredentialList(props: Props) {
         error={props.credentialsError ? t("providers.credentials.loadError") : ""}
         empty={!props.credentials.length ? t("providers.credentials.empty") : undefined}
       >
-        <div className="flex flex-col gap-3">
-          {props.credentials.map((credential) => (
-            <CredentialCard
-              key={credential.id}
-              credential={credential}
-              channel={props.channel}
-              presets={props.presets}
-              cycles={props.cyclesByCredential.get(credential.id) ?? []}
-              cyclesLoading={props.cyclesLoading}
-              cyclesError={props.cyclesError}
-              saving={props.savingCredentialId === credential.id}
-              onSave={props.onSave}
-            />
-          ))}
-        </div>
+        <DataTable
+          columns={columns}
+          rows={props.credentials}
+          rowKey={(credential) => credential.id}
+          searchText={(credential) => `${credential.label ?? ""} ${credential.id} ${credential.health}`}
+          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div><StatusBadge status={credential.health} /></div><CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
+          empty={t("providers.credentials.empty")}
+          storageKey="credentials"
+          selectable
+          activeRowKey={props.activeCredentialId}
+          onRowClick={props.onCredentialOpen}
+        />
       </QueryState>
     </section>
   )

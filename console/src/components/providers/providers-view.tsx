@@ -8,11 +8,14 @@ import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { PlusIcon } from "lucide-react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
+import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { PageHeader } from "@/components/page-header"
-import { ProviderCard } from "@/components/providers/provider-card"
+import { ProviderDetail } from "@/components/providers/provider-detail"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
-import { QueryState } from "@/components/query-state"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
+import { cn } from "@/lib/utils"
 
 type Props = {
   providers: Array<ProviderDto>
@@ -38,6 +41,11 @@ type Props = {
 
 export function ProvidersView(props: Props) {
   const { t } = useTranslation()
+  const location = useAdminLocation()
+  const selectedId = Number(location.segments[0])
+  const selected = props.providers.find((provider) => provider.id === selectedId) ?? null
+  const tab = location.segments[1] === "settings" ? "settings" : "credentials"
+  const activeCredentialId = tab === "credentials" ? Number(location.segments[2]) : Number.NaN
   const credentialsByProvider = useMemo(() => {
     const groups = new Map<number, Array<CredentialDto>>()
     for (const credential of props.credentials) {
@@ -56,6 +64,11 @@ export function ProvidersView(props: Props) {
     }
     return groups
   }, [props.cycles])
+  const columns: Array<DataTableColumn<ProviderDto>> = [
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (provider) => <span className="font-medium">{provider.name}</span> },
+    { key: "channel", label: t("providers.fields.channel"), header: t("providers.fields.channel"), cell: (provider) => <span className="font-mono text-xs">{provider.channel}</span> },
+    { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: (provider) => <Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge> },
+  ]
 
   return (
     <section className="flex flex-col gap-5">
@@ -75,36 +88,48 @@ export function ProvidersView(props: Props) {
           />
         )}
       />
-      <QueryState
-        loading={props.providersLoading}
-        error={props.providersError ? t("providers.loadError") : ""}
-        empty={!props.providers.length ? t("providers.empty") : undefined}
-      >
-        <div className="flex flex-col gap-4">
-          {props.providers.map((provider) => (
-            <ProviderCard
-              key={provider.id}
-              provider={provider}
-              channels={props.channels}
-              channelsLoading={props.channelsLoading}
-              channelsError={props.channelsError}
-              presets={props.presets}
-              presetsLoading={props.presetsLoading}
-              presetsError={props.presetsError}
-              credentials={credentialsByProvider.get(provider.id) ?? []}
-              cyclesByCredential={cyclesByCredential}
-              credentialsLoading={props.credentialsLoading}
-              credentialsError={props.credentialsError}
-              cyclesLoading={props.cyclesLoading}
-              cyclesError={props.cyclesError}
-              savingProviderId={props.savingProviderId}
-              savingCredentialId={props.savingCredentialId}
-              onSaveProvider={props.onSaveProvider}
-              onSaveCredential={props.onSaveCredential}
+      {props.providersLoading || props.providersError ? <p className="text-sm text-muted-foreground">{props.providersError ? t("providers.loadError") : t("common.loading")}</p> : (
+        <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(18rem,0.75fr)_minmax(0,1.25fr)]">
+          <aside className={cn("min-w-0", selected && "hidden md:block")}>
+            <DataTable
+              columns={columns}
+              rows={props.providers}
+              rowKey={(provider) => provider.id}
+              searchText={(provider) => `${provider.name} ${provider.channel}`}
+              renderCard={(provider) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{provider.name}</p><p className="truncate font-mono text-xs text-muted-foreground">{provider.channel}</p></div><Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge></div>}
+              empty={t("providers.empty")}
+              storageKey="providers"
+              selectable
+              activeRowKey={selected?.id}
+              onRowClick={(provider) => navigateAdminPath(`/admin/providers/${provider.id}/credentials`)}
             />
-          ))}
+          </aside>
+          <section className={cn("min-w-0", !selected && "hidden md:block")}>
+            {selected ? <>
+              <Button className="mb-3 md:hidden" variant="ghost" onClick={() => navigateAdminPath(adminPath("providers"))}>{t("common.actions.back")}</Button>
+              <ProviderDetail
+                provider={selected}
+                tab={tab}
+                onTab={(value) => navigateAdminPath(`/admin/providers/${selected.id}/${value}`, true)}
+                channel={props.channels.find((channel) => channel.id === selected.channel)}
+                presets={props.presets}
+                credentials={credentialsByProvider.get(selected.id) ?? []}
+                cyclesByCredential={cyclesByCredential}
+                credentialsLoading={props.credentialsLoading}
+                credentialsError={props.credentialsError}
+                cyclesLoading={props.cyclesLoading}
+                cyclesError={props.cyclesError}
+                savingProviderId={props.savingProviderId}
+                savingCredentialId={props.savingCredentialId}
+                onSaveProvider={props.onSaveProvider}
+                onSaveCredential={props.onSaveCredential}
+                activeCredentialId={Number.isFinite(activeCredentialId) ? activeCredentialId : null}
+                onCredentialOpen={(credential) => navigateAdminPath(`/admin/providers/${selected.id}/credentials/${credential.id}`)}
+              />
+            </> : <div className="grid min-h-80 place-items-center text-sm text-muted-foreground">{t("providers.selectPrompt")}</div>}
+          </section>
         </div>
-      </QueryState>
+      )}
     </section>
   )
 }

@@ -2,6 +2,11 @@
   "access": {
     "title": "访问权限与限制",
     "subtitle": "为用户或密钥设置权限、请求限制和成本配额。",
+    "scope": {
+      "title": "{{scope}} 的访问控制",
+      "description": "此作用域设置的值会与上级继承值一同显示。",
+      "inheritedFrom": "继承自 {{scope}}"
+    },
     "subject": "应用于",
     "subjectKinds": {
       "user": "用户",

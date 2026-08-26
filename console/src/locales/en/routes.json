@@ -5,6 +5,10 @@
     "add": "Add route",
     "empty": "No routes yet. Add one to expose a model.",
     "loadError": "Could not load routes. Retry.",
+    "selectPrompt": "Select a route to inspect its members and settings.",
+    "tabs": {
+      "settings": "Settings"
+    },
     "fields": {
       "name": "Route name",
       "maxAttempts": "Maximum attempts",

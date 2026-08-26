@@ -2,6 +2,11 @@
   "access": {
     "title": "存取權限與限制",
     "subtitle": "為使用者或金鑰設定權限、請求限制和成本配額。",
+    "scope": {
+      "title": "{{scope}} 的存取控制",
+      "description": "此範圍設定的值會與上層繼承值一同顯示。",
+      "inheritedFrom": "繼承自 {{scope}}"
+    },
     "subject": "套用至",
     "subjectKinds": {
       "user": "使用者",

@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next"
 import type { PortalUsageDto } from "@/generated/PortalUsageDto"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { QueryState } from "@/components/query-state"
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { formatCost, formatCount } from "@/lib/format"
 
@@ -52,15 +51,15 @@ export function UsagePanel({
       </CardHeader>
       <CardContent>
         <QueryState loading={loading} error={error ? t("portal.usage.loadError") : ""}>
-          <Table>
-            <TableBody>
-              <TableRow><TableCell>{t("portal.usage.cost")}</TableCell><TableCell className="text-right font-mono">{formatCost(usage?.cost ?? "0", i18n.language)}</TableCell></TableRow>
-              <TableRow><TableCell>{t("portal.usage.requests")}</TableCell><TableCell className="text-right font-mono">{formatCount(usage?.requests ?? 0, i18n.language)}</TableCell></TableRow>
-              <TableRow><TableCell>{t("portal.usage.inputTokens")}</TableCell><TableCell className="text-right font-mono">{formatCount(usage?.input_tokens ?? 0, i18n.language)}</TableCell></TableRow>
-              <TableRow><TableCell>{t("portal.usage.outputTokens")}</TableCell><TableCell className="text-right font-mono">{formatCount(usage?.output_tokens ?? 0, i18n.language)}</TableCell></TableRow>
-              <TableRow><TableCell>{t("portal.usage.cachedTokens")}</TableCell><TableCell className="text-right font-mono">{formatCount(usage?.cached_input_tokens ?? 0, i18n.language)}</TableCell></TableRow>
-            </TableBody>
-          </Table>
+          <dl className="grid gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              [t("portal.usage.cost"), formatCost(usage?.cost ?? "0", i18n.language)],
+              [t("portal.usage.requests"), formatCount(usage?.requests ?? 0, i18n.language)],
+              [t("portal.usage.inputTokens"), formatCount(usage?.input_tokens ?? 0, i18n.language)],
+              [t("portal.usage.outputTokens"), formatCount(usage?.output_tokens ?? 0, i18n.language)],
+              [t("portal.usage.cachedTokens"), formatCount(usage?.cached_input_tokens ?? 0, i18n.language)],
+            ].map(([label, value]) => <div key={label} className="bg-card p-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 font-mono text-sm">{value}</dd></div>)}
+          </dl>
         </QueryState>
       </CardContent>
     </Card>

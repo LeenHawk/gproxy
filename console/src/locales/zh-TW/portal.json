@@ -96,7 +96,6 @@
       "description": "此金鑰最近結算的請求。此處絕不會顯示請求或回應內文。",
       "loadError": "無法載入最近請求，請重試。",
       "empty": "尚無結算請求",
-      "emptyDescription": "請求完成結算後會顯示在這裡。",
       "time": "時間",
       "request": "請求",
       "provider": "供應商",

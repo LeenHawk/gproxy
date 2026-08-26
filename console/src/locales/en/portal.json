@@ -96,7 +96,6 @@
       "description": "The latest settled requests for this key. Request and response bodies are never shown here.",
       "loadError": "Could not load recent requests. Retry.",
       "empty": "No settled requests yet",
-      "emptyDescription": "Completed requests will appear here after settlement.",
       "time": "Time",
       "request": "Request",
       "provider": "Provider",

@@ -96,7 +96,6 @@
       "description": "此密钥最近结算的请求。此处绝不会显示请求或响应正文。",
       "loadError": "无法加载最近请求，请重试。",
       "empty": "尚无结算请求",
-      "emptyDescription": "请求完成结算后会显示在这里。",
       "time": "时间",
       "request": "请求",
       "provider": "提供商",

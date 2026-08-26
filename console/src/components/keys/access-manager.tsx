@@ -19,7 +19,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCost } from "@/lib/format"
 
-type AccessManagerProps = {
+export type AccessScope = "organization" | "team" | "user" | "user_key"
+
+export type AccessManagerProps = {
   organizations: Array<OrganizationDto>
   teams: Array<TeamDto>
   users: Array<UserDto>
@@ -29,6 +31,8 @@ type AccessManagerProps = {
   permissions: Array<PermissionDto>
   rateLimits: Array<RateLimitDto>
   quotas: Array<QuotaDto>
+  scope?: AccessScope
+  scopeId?: number
 }
 
 export function AccessManager(props: AccessManagerProps) {
@@ -42,6 +46,29 @@ export function AccessManager(props: AccessManagerProps) {
   ]), [props.keys, props.organizations, props.teams, props.users])
   const providerNames = useMemo(() => new Map(props.providers.map((value) => [value.id, value.name])), [props.providers])
   const subject = (kind: string, id: number) => subjectNames.get(`${kind}:${id}`) ?? `${kind}:${id}`
+  const scopeChain = useMemo(() => {
+    if (!props.scope || props.scopeId == null) return null
+    const chain: Array<{ kind: AccessScope; id: number }> = [{ kind: props.scope, id: props.scopeId }]
+    const addUserParents = (userId: number) => {
+      const user = props.users.find((value) => value.id === userId)
+      if (!user) return
+      if (user.team_id != null) chain.push({ kind: "team", id: user.team_id })
+      if (user.organization_id != null) chain.push({ kind: "organization", id: user.organization_id })
+    }
+    if (props.scope === "user_key") {
+      const key = props.keys.find((value) => value.id === props.scopeId)
+      if (key) addUserParents(key.user_id)
+      if (key) chain.splice(1, 0, { kind: "user", id: key.user_id })
+    } else if (props.scope === "user") addUserParents(props.scopeId)
+    else if (props.scope === "team") {
+      const team = props.teams.find((value) => value.id === props.scopeId)
+      if (team) chain.push({ kind: "organization", id: team.organization_id })
+    }
+    return chain
+  }, [props.keys, props.scope, props.scopeId, props.teams, props.users])
+  const scoped = <T extends { subject_kind: string; subject_id: number }>(rows: Array<T>) => scopeChain ? rows.filter((row) => scopeChain.some((scope) => scope.kind === row.subject_kind && scope.id === row.subject_id)) : rows
+  const inherited = (kind: string, id: number) => scopeChain && scopeChain[0] && (scopeChain[0].kind !== kind || scopeChain[0].id !== id)
+  const inheritedLabel = (kind: string, id: number) => inherited(kind, id) ? t("access.scope.inheritedFrom", { scope: subject(kind, id) }) : subject(kind, id)
 
   const permissionMutation = useMutation({
     mutationFn: ({ value, id }: { value: Parameters<typeof savePermission>[0]; id?: number }) => savePermission(value, id),
@@ -65,13 +92,13 @@ export function AccessManager(props: AccessManagerProps) {
   })
   const shared = { organizations: props.organizations, teams: props.teams, users: props.users, keys: props.keys }
   const removing = (kind: Parameters<typeof removeIdentityRule>[0]) => removeMutation.isPending ? removeMutation.variables?.kind === kind ? removeMutation.variables.id : -1 : null
-  const permissionRows = props.permissions.map((value) => ({
+  const permissionRows = scoped(props.permissions).map((value) => ({
     id: value.id,
-    subject: subject(value.subject_kind, value.subject_id),
+    subject: inheritedLabel(value.subject_kind, value.subject_id),
     detail: [value.provider_id == null ? t("access.permissions.allProviders") : providerNames.get(value.provider_id) ?? value.provider_id, value.operation_group ?? t("access.permissions.allOperations"), t(value.allowed ? "access.permissions.allow" : "access.permissions.deny")].join(" · "),
   }))
-  const rateRows = props.rateLimits.map((value) => ({ id: value.id, subject: subject(value.subject_kind, value.subject_id), detail: t("access.rateLimits.summary", { requests: value.requests, seconds: value.window_seconds }) }))
-  const quotaRows = props.quotas.map((value) => ({
+  const rateRows = scoped(props.rateLimits).map((value) => ({ id: value.id, subject: inheritedLabel(value.subject_kind, value.subject_id), detail: t("access.rateLimits.summary", { requests: value.requests, seconds: value.window_seconds }) }))
+  const quotaRows = scoped(props.quotas).map((value) => ({
     id: value.id,
     subject: subject(value.subject_kind, value.subject_id),
     detail: [...[["total", value.quota_total], ["daily", value.quota_daily], ["weekly", value.quota_weekly], ["monthly", value.quota_monthly], ["fiveHour", value.quota_5h], ["sevenDay", value.quota_7d]].flatMap(([label, amount]) => amount == null ? [] : [`${t(`access.quotas.${label}`)}: ${formatCost(amount, i18n.language)}`]), t(value.enabled ? "common.status.enabled" : "common.status.disabled")].join(" · "),
@@ -79,7 +106,7 @@ export function AccessManager(props: AccessManagerProps) {
 
   return (
     <Card>
-      <CardHeader><CardTitle>{t("access.title")}</CardTitle><CardDescription>{t("access.subtitle")}</CardDescription></CardHeader>
+      <CardHeader><CardTitle>{scopeChain?.[0] ? t("access.scope.title", { scope: subject(scopeChain[0].kind, scopeChain[0].id) }) : t("access.title")}</CardTitle><CardDescription>{scopeChain ? t("access.scope.description") : t("access.subtitle")}</CardDescription></CardHeader>
       <CardContent><Tabs defaultValue="permissions">
         <TabsList className="max-w-full overflow-x-auto"><TabsTrigger value="permissions">{t("access.permissions.title")}</TabsTrigger><TabsTrigger value="rates">{t("access.rateLimits.title")}</TabsTrigger><TabsTrigger value="quotas">{t("access.quotas.title")}</TabsTrigger></TabsList>
         <TabsContent value="permissions" className="flex flex-col gap-6 pt-5"><PermissionForm {...shared} providers={props.providers} groups={props.groups} pending={permissionMutation.isPending} onSubmit={(value) => {
@@ -97,4 +124,8 @@ export function AccessManager(props: AccessManagerProps) {
       </Tabs></CardContent>
     </Card>
   )
+}
+
+export function ScopeAccessEditor(props: AccessManagerProps & { scope: AccessScope; scopeId: number }) {
+  return <AccessManager {...props} />
 }

@@ -5,6 +5,13 @@
     "add": "添加提供商",
     "empty": "尚无提供商。请添加一个以向上游路由流量。",
     "loadError": "无法加载提供商，请重试。",
+    "selectPrompt": "选择一个提供商以查看凭据和设置。",
+    "tabs": {
+      "settings": "设置"
+    },
+    "settings": {
+      "description": "编辑提供商的类型化端点、渠道和高级设置。"
+    },
     "fields": {
       "name": "提供商名称",
       "channel": "渠道",

@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next"
 import type { LogPageDto } from "@/generated/LogPageDto"
+import type { LogListItemDto } from "@/generated/LogListItemDto"
+import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatInstant } from "@/lib/format"
@@ -7,17 +9,16 @@ import { cn } from "@/lib/utils"
 
 export function LogList({ page, selected, onSelect, onNext }: { page: LogPageDto; selected: string | null; onSelect: (requestId: string) => void; onNext: (cursor: number) => void }) {
   const { t, i18n } = useTranslation()
+  const columns: Array<DataTableColumn<LogListItemDto>> = [
+    { key: "request", label: t("logs.list.title"), header: t("logs.list.title"), cell: (item) => <div><p className="font-medium">{item.method} {item.path}</p><p className="font-mono text-xs text-muted-foreground">{item.request_id}</p></div> },
+    { key: "status", label: t("logs.filters.status"), header: t("logs.filters.status"), cell: (item) => <span className={cn("font-mono text-xs", item.response_status != null && item.response_status >= 400 ? "text-destructive" : "text-muted-foreground")}>{item.response_status ?? t("logs.pending")}</span> },
+    { key: "time", label: t("common.filters.start"), header: t("common.filters.start"), cell: (item) => <span className="text-xs text-muted-foreground">{formatInstant(item.at, i18n.language)}</span> },
+  ]
   return (
     <Card size="sm" className="min-w-0">
       <CardHeader><CardTitle>{t("logs.list.title")}</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-2">
-        {page.items.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{t("logs.list.empty")}</p> : page.items.map((item) => (
-          <button key={item.id} type="button" aria-pressed={selected === item.request_id} onClick={() => onSelect(item.request_id)} className={cn("grid min-w-0 gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60", selected === item.request_id && "border-primary bg-muted")}>
-            <span className="flex items-center justify-between gap-3"><span className="truncate font-medium">{item.method} {item.path}</span><span className={cn("font-mono text-xs", item.response_status != null && item.response_status >= 400 ? "text-destructive" : "text-muted-foreground")}>{item.response_status ?? t("logs.pending")}</span></span>
-            <span className="truncate font-mono text-xs text-muted-foreground">{item.request_id}</span>
-            <span className="text-xs text-muted-foreground">{formatInstant(item.at, i18n.language)}</span>
-          </button>
-        ))}
+        <DataTable columns={columns} rows={page.items} rowKey={(item) => item.id} searchText={(item) => `${item.method} ${item.path} ${item.request_id} ${item.response_status ?? ""}`} renderCard={(item) => <div className="grid gap-1"><span className="flex items-center justify-between gap-3"><span className="truncate font-medium">{item.method} {item.path}</span><span className={cn("font-mono text-xs", item.response_status != null && item.response_status >= 400 ? "text-destructive" : "text-muted-foreground")}>{item.response_status ?? t("logs.pending")}</span></span><span className="truncate font-mono text-xs text-muted-foreground">{item.request_id}</span><span className="text-xs text-muted-foreground">{formatInstant(item.at, i18n.language)}</span></div>} empty={t("logs.list.empty")} storageKey="logs" activeRowKey={page.items.find((item) => item.request_id === selected)?.id} onRowClick={(item) => onSelect(item.request_id)} />
         {page.next_cursor != null ? <Button variant="outline" onClick={() => onNext(page.next_cursor!)}>{t("logs.list.next")}</Button> : null}
       </CardContent>
     </Card>

@@ -2,6 +2,11 @@
   "access": {
     "title": "Access and limits",
     "subtitle": "Apply permissions, request limits, and cost quotas to a user or key.",
+    "scope": {
+      "title": "Access for {{scope}}",
+      "description": "Values set on this scope appear with inherited values from its parents.",
+      "inheritedFrom": "Inherited from {{scope}}"
+    },
     "subject": "Applies to",
     "subjectKinds": {
       "user": "User",

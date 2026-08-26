@@ -96,8 +96,13 @@
     "windowStates": {
       "empty": "目前選擇沒有作用中的配額視窗。"
     },
-    "cycleStates": {
-      "empty": "此期間未觀測到憑證配額週期。"
-    }
+    "cycleStates": { "empty": "此期間未觀測到憑證配額週期。" }
+  },
+  "overview": {
+    "metrics": { "label": "執行個體健康摘要", "healthy": "健康憑證", "ratio": "{{value}} / {{total}}", "attention": "需要關注", "requests": "請求數 · 24 小時", "cost": "已結算費用 · 24 小時" },
+    "empty": { "title": "連接第一個供應商", "description": "憑證開始承載流量後，此處會顯示健康、費用和配額壓力。", "action": "新增供應商" },
+    "attention": { "title": "需要關注", "description": "目前不健康的已啟用憑證。", "empty": "所有已啟用憑證均健康。" },
+    "spending": { "title": "依供應商統計費用", "description": "過去 24 小時的已結算用量。" },
+    "pressure": { "title": "配額壓力", "description": "達到或超過 80% 的配額和上游週期。", "empty": "沒有接近上限的配額視窗。" }
   }
 }

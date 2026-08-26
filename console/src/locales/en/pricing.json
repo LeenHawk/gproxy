@@ -10,6 +10,7 @@
       "updated": "Price rule updated.",
       "saveError": "Could not save the price rule. Retry.",
       "empty": "No price rules. Add one before traffic can settle at a non-zero cost.",
+      "selectPrompt": "Select a price rule to inspect its dimensional rates.",
       "provider": "Provider",
       "allProviders": "All providers",
       "pattern": "Model pattern",
@@ -35,7 +36,6 @@
       "longContext": "This explicit service-tier price replaces the base ladder, but the base ladder has a higher threshold. Add the matching service-tier threshold row or use a multiplier."
     },
     "rates": {
-      "title": "Rates",
       "add": "Add rate",
       "edit": "Edit rate",
       "created": "Rate created.",

@@ -26,7 +26,8 @@
       "enable": "啟用",
       "disable": "停用",
       "add": "新增",
-      "delete": "刪除"
+      "delete": "刪除",
+      "back": "返回"
     },
     "status": {
       "label": "狀態",
@@ -70,7 +71,9 @@
       "apply": "套用",
       "reset": "重設",
       "invalidRange": "開始時間必須早於結束時間。"
-    }
+    },
+    "documentation": "文件",
+    "buildIdentity": "v{{version}} · {{hash}}"
   },
   "auth": {
     "username": "使用者名稱",
@@ -107,7 +110,8 @@
     "pricing": "定價",
     "settings": "設定",
     "open": "開啟導覽",
-    "close": "關閉導覽"
+    "close": "關閉導覽",
+    "resize": "調整導覽寬度"
   },
   "window": {
     "resets": "重設於 {{value}}",

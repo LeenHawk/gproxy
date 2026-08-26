@@ -26,7 +26,8 @@
       "enable": "启用",
       "disable": "停用",
       "add": "添加",
-      "delete": "删除"
+      "delete": "删除",
+      "back": "返回"
     },
     "status": {
       "label": "状态",
@@ -70,7 +71,9 @@
       "apply": "应用",
       "reset": "重置",
       "invalidRange": "开始时间必须早于结束时间。"
-    }
+    },
+    "documentation": "文档",
+    "buildIdentity": "v{{version}} · {{hash}}"
   },
   "auth": {
     "username": "用户名",
@@ -107,7 +110,8 @@
     "pricing": "定价",
     "settings": "设置",
     "open": "打开导航",
-    "close": "关闭导航"
+    "close": "关闭导航",
+    "resize": "调整导航宽度"
   },
   "window": {
     "resets": "重置于 {{value}}",

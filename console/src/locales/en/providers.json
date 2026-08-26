@@ -5,6 +5,13 @@
     "add": "Add provider",
     "empty": "No providers yet. Add one to route traffic upstream.",
     "loadError": "Could not load providers. Retry.",
+    "selectPrompt": "Select a provider to inspect credentials and settings.",
+    "tabs": {
+      "settings": "Settings"
+    },
+    "settings": {
+      "description": "Edit the provider's typed endpoint, channel, and advanced settings."
+    },
     "fields": {
       "name": "Provider name",
       "channel": "Channel",

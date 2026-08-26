@@ -4,10 +4,9 @@ import { useTranslation } from "react-i18next"
 import { saveAlias } from "@/api/control"
 import type { AliasDto } from "@/generated/AliasDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
+import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
 import { RoutingAliasForm } from "@/components/routes/routing-alias-form"
 
@@ -31,6 +30,18 @@ export function RoutingAliases({
   function openForm(value: AliasDto | null, element: HTMLElement) {
     setForm({ alias: value, opener: element })
   }
+  const providerLabel = (alias: AliasDto) => alias.provider_id == null ? t("routes.routingAliases.anyProvider") : providerById.get(alias.provider_id)?.name ?? alias.provider_id
+  const actions = (alias: AliasDto) => <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+    <EnabledSwitch checked={alias.enabled} label={`${alias.alias}: ${t("routes.routingAliases.enabled")}`} errorMessage={t("routes.routingAliases.saveError")} onChange={(enabled) => saveAlias({ alias: alias.alias, target: alias.target, provider_id: alias.provider_id, priority: alias.priority, enabled }, alias.id)} onChanged={onChanged} />
+    <Button size="sm" variant="outline" aria-label={`${t("common.actions.edit")}: ${alias.alias}`} onClick={(event) => openForm(alias, event.currentTarget)}>{t("common.actions.edit")}</Button>
+  </div>
+  const columns: Array<DataTableColumn<AliasDto>> = [
+    { key: "alias", label: t("routes.routingAliases.alias"), header: t("routes.routingAliases.alias"), cell: (alias) => <span className="font-mono text-xs">{alias.alias}</span> },
+    { key: "target", label: t("routes.routingAliases.target"), header: t("routes.routingAliases.target"), cell: (alias) => <span className="font-mono text-xs">{alias.target}</span> },
+    { key: "provider", label: t("routes.routingAliases.provider"), header: t("routes.routingAliases.provider"), cell: providerLabel },
+    { key: "priority", label: t("routes.routingAliases.priority"), header: t("routes.routingAliases.priority"), cell: (alias) => <span className="font-mono text-xs">{alias.priority}</span> },
+    { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: actions },
+  ]
 
   return (
     <Card>
@@ -44,53 +55,7 @@ export function RoutingAliases({
         </CardAction>
       </CardHeader>
       <CardContent>
-        {ordered.length === 0 ? (
-          <Empty>
-            <EmptyHeader><EmptyTitle>{t("routes.routingAliases.empty")}</EmptyTitle></EmptyHeader>
-            <EmptyContent><Button onClick={(event) => openForm(null, event.currentTarget)}>{t("routes.routingAliases.add")}</Button></EmptyContent>
-          </Empty>
-        ) : (
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead>{t("routes.routingAliases.alias")}</TableHead>
-              <TableHead>{t("routes.routingAliases.target")}</TableHead>
-              <TableHead>{t("routes.routingAliases.provider")}</TableHead>
-              <TableHead>{t("routes.routingAliases.priority")}</TableHead>
-              <TableHead>{t("routes.routingAliases.enabled")}</TableHead>
-              <TableHead><span className="sr-only">{t("common.actions.edit")}</span></TableHead>
-            </TableRow></TableHeader>
-            <TableBody>{ordered.map((alias) => (
-              <TableRow key={alias.id}>
-                <TableCell className="font-mono text-xs">{alias.alias}</TableCell>
-                <TableCell className="font-mono text-xs">{alias.target}</TableCell>
-                <TableCell>
-                  {alias.provider_id == null
-                    ? t("routes.routingAliases.anyProvider")
-                    : providerById.get(alias.provider_id)?.name ?? alias.provider_id}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">{alias.priority}</TableCell>
-                <TableCell>
-                  <EnabledSwitch
-                    checked={alias.enabled}
-                    label={`${alias.alias}: ${t("routes.routingAliases.enabled")}`}
-                    errorMessage={t("routes.routingAliases.saveError")}
-                    onChange={(enabled) => saveAlias({
-                      alias: alias.alias,
-                      target: alias.target,
-                      provider_id: alias.provider_id,
-                      priority: alias.priority,
-                      enabled,
-                    }, alias.id)}
-                    onChanged={onChanged}
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button size="sm" variant="outline" aria-label={`${t("common.actions.edit")}: ${alias.alias}`} onClick={(event) => openForm(alias, event.currentTarget)}>{t("common.actions.edit")}</Button>
-                </TableCell>
-              </TableRow>
-            ))}</TableBody>
-          </Table>
-        )}
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t("routes.routingAliases.empty")} storageKey="routing-aliases" selectable />
       </CardContent>
       {form ? (
         <RoutingAliasForm

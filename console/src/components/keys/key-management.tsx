@@ -35,6 +35,8 @@ type KeyManagementProps = {
   teams: Array<TeamDto>
   users: Array<UserDto>
   keys: Array<UserKeyDto>
+  mode: "identities" | "keys"
+  onScopeOpen?: (kind: "organization" | "team" | "user", id: number) => void
 }
 
 export function KeyManagement(props: KeyManagementProps) {
@@ -81,7 +83,7 @@ export function KeyManagement(props: KeyManagementProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
+      {props.mode === "identities" ? <Card>
         <CardHeader><CardTitle>{t("users.title")}</CardTitle><CardDescription>{t("users.subtitle")}</CardDescription></CardHeader>
         <CardContent className="flex flex-col gap-6">
           <IdentityForms
@@ -99,10 +101,13 @@ export function KeyManagement(props: KeyManagementProps) {
             onOrganizationToggle={(value) => organizationMutation.mutate({ id: value.id, value: { name: value.name, enabled: !value.enabled } })}
             onTeamToggle={(value) => teamMutation.mutate({ id: value.id, value: { organization_id: value.organization_id, name: value.name, enabled: !value.enabled } })}
             onUserToggle={(value) => userMutation.mutate({ id: value.id, value: { organization_id: value.organization_id, team_id: value.team_id, name: value.name, enabled: !value.enabled } })}
+            onOrganizationOpen={(value) => props.onScopeOpen?.("organization", value.id)}
+            onTeamOpen={(value) => props.onScopeOpen?.("team", value.id)}
+            onUserOpen={(value) => props.onScopeOpen?.("user", value.id)}
           />
         </CardContent>
-      </Card>
-      <Card>
+      </Card> : null}
+      {props.mode === "keys" ? <Card>
         <CardHeader>
           <CardTitle>{t("users.keys.title")}</CardTitle>
           <CardAction><Button type="button" size="sm" disabled={props.users.length === 0} onClick={openKeyForm}><PlusIcon data-icon="inline-start" />{t("users.keys.create")}</Button></CardAction>
@@ -114,11 +119,11 @@ export function KeyManagement(props: KeyManagementProps) {
             <KeyTable keys={props.keys} users={props.users} pending={keyUpdateMutation.isPending} reveal={revealUserKey} onEnabledChange={keyUpdateMutation.mutate} />
           )}
         </CardContent>
-      </Card>
-      <Dialog open={keyFormOpen} onOpenChange={setKeyFormOpen}>
+      </Card> : null}
+      {props.mode === "keys" ? <Dialog open={keyFormOpen} onOpenChange={setKeyFormOpen}>
         <KeyForm users={props.users} pending={keyMutation.isPending} returnFocus={returnKeyFocus} onSubmit={(value) => keyMutation.mutateAsync(value).then(() => undefined)} />
-      </Dialog>
-      <CreatedKeyDialog value={createdKey} onClose={() => setCreatedKey(null)} returnFocus={returnKeyFocus} />
+      </Dialog> : null}
+      {props.mode === "keys" ? <CreatedKeyDialog value={createdKey} onClose={() => setCreatedKey(null)} returnFocus={returnKeyFocus} /> : null}
     </div>
   )
 }

@@ -96,8 +96,13 @@
     "windowStates": {
       "empty": "当前选择没有活动配额窗口。"
     },
-    "cycleStates": {
-      "empty": "该时段未观测到凭据配额周期。"
-    }
+    "cycleStates": { "empty": "该时段未观测到凭据配额周期。" }
+  },
+  "overview": {
+    "metrics": { "label": "实例健康摘要", "healthy": "健康凭据", "ratio": "{{value}} / {{total}}", "attention": "需要关注", "requests": "请求数 · 24 小时", "cost": "已结算费用 · 24 小时" },
+    "empty": { "title": "连接第一个提供商", "description": "凭据开始承载流量后，此处会显示健康、费用和配额压力。", "action": "添加提供商" },
+    "attention": { "title": "需要关注", "description": "当前不健康的已启用凭据。", "empty": "所有已启用凭据均健康。" },
+    "spending": { "title": "按提供商统计费用", "description": "过去 24 小时的已结算用量。" },
+    "pressure": { "title": "配额压力", "description": "达到或超过 80% 的配额和上游周期。", "empty": "没有接近上限的配额窗口。" }
   }
 }

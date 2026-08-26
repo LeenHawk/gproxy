@@ -26,7 +26,8 @@
       "enable": "Enable",
       "disable": "Disable",
       "add": "Add",
-      "delete": "Delete"
+      "delete": "Delete",
+      "back": "Back"
     },
     "status": {
       "label": "Status",
@@ -70,7 +71,9 @@
       "apply": "Apply",
       "reset": "Reset",
       "invalidRange": "Start must be before end."
-    }
+    },
+    "documentation": "Documentation",
+    "buildIdentity": "v{{version}} · {{hash}}"
   },
   "auth": {
     "username": "Username",
@@ -107,7 +110,8 @@
     "pricing": "Pricing",
     "settings": "Settings",
     "open": "Open navigation",
-    "close": "Close navigation"
+    "close": "Close navigation",
+    "resize": "Resize navigation"
   },
   "window": {
     "resets": "Resets {{value}}",

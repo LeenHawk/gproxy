@@ -5,6 +5,13 @@
     "add": "新增供應商",
     "empty": "尚無供應商。請新增一個以向上游路由流量。",
     "loadError": "無法載入供應商，請重試。",
+    "selectPrompt": "選擇一個供應商以檢視憑證和設定。",
+    "tabs": {
+      "settings": "設定"
+    },
+    "settings": {
+      "description": "編輯供應商的型別化端點、通道和進階設定。"
+    },
     "fields": {
       "name": "供應商名稱",
       "channel": "通道",
