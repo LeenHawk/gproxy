@@ -1,4 +1,4 @@
-use gproxy_channel_api::{BoxFuture, MaybeSend, MaybeSync};
+use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll, MaybeSend, MaybeSync};
 use gproxy_store::records::CredentialEnvelope;
 
 use crate::dto::{ChannelDto, PortalModelDto};
@@ -34,6 +34,61 @@ pub trait State: MaybeSend + MaybeSync {
     ) -> BoxFuture<'_, Result<(), AdminError>>;
 
     fn reload(&self) -> BoxFuture<'_, Result<(), AdminError>>;
+
+    fn login_state_get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, AdminError>>;
+
+    fn login_state_set<'a>(
+        &'a self,
+        key: &'a str,
+        value: Vec<u8>,
+        ttl: std::time::Duration,
+    ) -> BoxFuture<'a, Result<(), AdminError>>;
+
+    fn login_state_delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), AdminError>>;
+
+    fn login_authcode_start<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        params: &'a serde_json::Value,
+        redirect_uri: &'a str,
+        flow_state: &'a str,
+        pkce_challenge: &'a str,
+    ) -> BoxFuture<'a, Result<Option<AuthCodeStart>, AdminError>>;
+
+    fn login_authcode_exchange<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        code: &'a str,
+        verifier: &'a str,
+        redirect_uri: &'a str,
+        extra: Option<&'a serde_json::Value>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>>;
+
+    fn login_device_start<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        params: &'a serde_json::Value,
+    ) -> BoxFuture<'a, Result<DeviceInit, AdminError>>;
+
+    fn login_device_poll<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        device_code: &'a str,
+    ) -> BoxFuture<'a, Result<DevicePoll, AdminError>>;
+
+    fn login_cookie_exchange<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        cookie: &'a str,
+    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>>;
 
     fn channel_catalogue(&self) -> Vec<ChannelDto>;
 

@@ -5,7 +5,7 @@ use std::time::Duration;
 use base64::Engine as _;
 use gproxy_admin::dto::{ChannelDto, PortalModelDto, channel_dto};
 use gproxy_admin::{AdminError, PortalIdentity, State};
-use gproxy_channel_api::BoxFuture;
+use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll};
 use gproxy_core::CacheBackend;
 use gproxy_store::records::{AuditEventInput, CredentialEnvelope};
 use sha2::{Digest, Sha256};
@@ -151,12 +151,145 @@ impl State for AppHandle {
         })
     }
 
+    fn login_state_get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, AdminError>> {
+        Box::pin(async move {
+            self.inner
+                .host
+                .services
+                .cache
+                .get(key)
+                .await
+                .map_err(cache_error)
+        })
+    }
+
+    fn login_state_set<'a>(
+        &'a self,
+        key: &'a str,
+        value: Vec<u8>,
+        ttl: Duration,
+    ) -> BoxFuture<'a, Result<(), AdminError>> {
+        Box::pin(async move {
+            self.inner
+                .host
+                .services
+                .cache
+                .set(key, value, Some(ttl))
+                .await
+                .map_err(cache_error)
+        })
+    }
+
+    fn login_state_delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), AdminError>> {
+        Box::pin(async move {
+            self.inner
+                .host
+                .services
+                .cache
+                .delete(key)
+                .await
+                .map_err(cache_error)
+        })
+    }
+
+    fn login_authcode_start<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        params: &'a serde_json::Value,
+        redirect_uri: &'a str,
+        flow_state: &'a str,
+        pkce_challenge: &'a str,
+    ) -> BoxFuture<'a, Result<Option<AuthCodeStart>, AdminError>> {
+        Box::pin(async move {
+            let provider = self.login_provider(provider_id, channel)?;
+            self.inner
+                .core
+                .login_authcode_start(
+                    channel,
+                    &provider,
+                    params,
+                    redirect_uri,
+                    flow_state,
+                    pkce_challenge,
+                )
+                .await
+                .map_err(login_error)
+        })
+    }
+
+    fn login_authcode_exchange<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        code: &'a str,
+        verifier: &'a str,
+        redirect_uri: &'a str,
+        extra: Option<&'a serde_json::Value>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+        Box::pin(async move {
+            let provider = self.login_provider(provider_id, channel)?;
+            self.inner
+                .core
+                .login_authcode_exchange(channel, &provider, code, verifier, redirect_uri, extra)
+                .await
+                .map_err(login_error)
+        })
+    }
+
+    fn login_device_start<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        params: &'a serde_json::Value,
+    ) -> BoxFuture<'a, Result<DeviceInit, AdminError>> {
+        Box::pin(async move {
+            let provider = self.login_provider(provider_id, channel)?;
+            self.inner
+                .core
+                .login_device_start(channel, &provider, params)
+                .await
+                .map_err(login_error)
+        })
+    }
+
+    fn login_device_poll<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        device_code: &'a str,
+    ) -> BoxFuture<'a, Result<DevicePoll, AdminError>> {
+        Box::pin(async move {
+            let provider = self.login_provider(provider_id, channel)?;
+            self.inner
+                .core
+                .login_device_poll(channel, &provider, device_code)
+                .await
+                .map_err(login_error)
+        })
+    }
+
+    fn login_cookie_exchange<'a>(
+        &'a self,
+        channel: &'a str,
+        provider_id: i64,
+        cookie: &'a str,
+    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+        Box::pin(async move {
+            let provider = self.login_provider(provider_id, channel)?;
+            self.inner
+                .core
+                .login_cookie_exchange(channel, &provider, cookie)
+                .await
+                .map_err(login_error)
+        })
+    }
+
     fn channel_catalogue(&self) -> Vec<ChannelDto> {
-        self.inner
-            .core
-            .channel_descriptors()
-            .map(channel_dto)
-            .collect()
+        self.inner.core.channels().map(channel_dto).collect()
     }
 
     fn normalize_provider_settings(
@@ -174,6 +307,35 @@ impl State for AppHandle {
 
     fn portal_models(&self, identity: &PortalIdentity) -> Vec<PortalModelDto> {
         portal::models(self, identity)
+    }
+}
+
+impl AppHandle {
+    fn login_provider(
+        &self,
+        provider_id: i64,
+        channel: &str,
+    ) -> Result<gproxy_core::ProviderRef, AdminError> {
+        self.inner
+            .host
+            .services
+            .control
+            .provider(provider_id)
+            .filter(|provider| provider.channel == channel)
+            .ok_or_else(|| AdminError::BadRequest("login provider is unavailable".into()))
+    }
+}
+
+fn cache_error(_: gproxy_core::error::StoreError) -> AdminError {
+    AdminError::Internal("login state cache failed".into())
+}
+
+fn login_error(error: gproxy_channel_api::ChannelError) -> AdminError {
+    match error {
+        gproxy_channel_api::ChannelError::Unsupported(_) => {
+            AdminError::BadRequest("channel does not support this login flow".into())
+        }
+        _ => AdminError::BadRequest("provider login step failed".into()),
     }
 }
 

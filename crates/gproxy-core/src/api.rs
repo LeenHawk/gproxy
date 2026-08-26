@@ -40,6 +40,10 @@ pub struct Core<H: Host> {
 }
 
 impl<H: Host> Core<H> {
+    pub fn channels(&self) -> impl Iterator<Item = &dyn gproxy_channel_api::Channel> + '_ {
+        self.channels.iter()
+    }
+
     pub fn channel_descriptors(
         &self,
     ) -> impl Iterator<Item = &'static gproxy_channel_api::ChannelDescriptor> + '_ {

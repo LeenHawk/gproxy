@@ -13,6 +13,7 @@
 
 pub mod channel;
 pub mod disposition;
+pub mod login;
 pub mod operation;
 pub mod registry;
 pub mod resource;
@@ -27,6 +28,11 @@ pub use channel::{
     UsageCtx,
 };
 pub use disposition::Disposition;
+pub use login::{
+    AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, ChannelLogin, ChannelLoginRef,
+    CookieExchangeCtx, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, LoginDescriptor,
+    LoginMode, LoginParam, LoginParamKind,
+};
 pub use operation::{
     DriverInput, OperationDriver, OperationStep, OperationStream, Pause, StepResponse, StreamOutput,
 };

@@ -34,10 +34,28 @@ pub(crate) enum Route {
     Audit,
     PortalSettingsRead,
     PortalSettingsWrite,
+    LoginAuthCodeStart,
+    LoginAuthCodeComplete,
+    LoginDeviceStart,
+    LoginDevicePoll,
+    LoginCookieExchange,
 }
 
 pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
     let segments = path.strip_prefix("/admin/")?.split('/').collect::<Vec<_>>();
+    if method == Method::POST {
+        let login = match segments.as_slice() {
+            ["login", "authcode", "start"] => Some(Route::LoginAuthCodeStart),
+            ["login", "authcode", "complete"] => Some(Route::LoginAuthCodeComplete),
+            ["login", "device", "start"] => Some(Route::LoginDeviceStart),
+            ["login", "device", "poll"] => Some(Route::LoginDevicePoll),
+            ["login", "cookie"] => Some(Route::LoginCookieExchange),
+            _ => None,
+        };
+        if login.is_some() {
+            return login;
+        }
+    }
     if segments.len() == 3
         && segments[0] == "user-keys"
         && segments[2] == "reveal"

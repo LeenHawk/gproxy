@@ -1,6 +1,10 @@
 use bytes::Bytes;
-use gproxy_channel_api::BoxFuture;
-use gproxy_store::records::CredentialEnvelope;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Mutex;
+use std::time::Duration;
+
+use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll};
+use gproxy_store::records::{CredentialEnvelope, ProviderInput};
 use http::{Method, StatusCode};
 use sha2::{Digest, Sha256};
 
@@ -9,6 +13,8 @@ use crate::{AdminError, PortalIdentity, State};
 
 struct TestState {
     store: gproxy_store::Store,
+    login_state: Mutex<HashMap<String, Vec<u8>>>,
+    device_polls: Mutex<VecDeque<DevicePoll>>,
     _directory: tempfile::TempDir,
 }
 
@@ -51,6 +57,90 @@ impl State for TestState {
 
     fn reload(&self) -> BoxFuture<'_, Result<(), AdminError>> {
         Box::pin(async { Ok(()) })
+    }
+
+    fn login_state_get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, AdminError>> {
+        let value = self.login_state.lock().unwrap().get(key).cloned();
+        Box::pin(async move { Ok(value) })
+    }
+
+    fn login_state_set<'a>(
+        &'a self,
+        key: &'a str,
+        value: Vec<u8>,
+        _: Duration,
+    ) -> BoxFuture<'a, Result<(), AdminError>> {
+        self.login_state.lock().unwrap().insert(key.into(), value);
+        Box::pin(async { Ok(()) })
+    }
+
+    fn login_state_delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), AdminError>> {
+        self.login_state.lock().unwrap().remove(key);
+        Box::pin(async { Ok(()) })
+    }
+
+    fn login_authcode_start<'a>(
+        &'a self,
+        _: &'a str,
+        _: i64,
+        _: &'a serde_json::Value,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+    ) -> BoxFuture<'a, Result<Option<AuthCodeStart>, AdminError>> {
+        Box::pin(async { Err(AdminError::BadRequest("unsupported".into())) })
+    }
+
+    fn login_authcode_exchange<'a>(
+        &'a self,
+        _: &'a str,
+        _: i64,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: Option<&'a serde_json::Value>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+        Box::pin(async { Err(AdminError::BadRequest("unsupported".into())) })
+    }
+
+    fn login_device_start<'a>(
+        &'a self,
+        _: &'a str,
+        provider_id: i64,
+        _: &'a serde_json::Value,
+    ) -> BoxFuture<'a, Result<DeviceInit, AdminError>> {
+        Box::pin(async move {
+            Ok(DeviceInit {
+                device_code: provider_id.to_string(),
+                user_code: provider_id.to_string(),
+                verification_uri: "https://example.invalid".into(),
+                interval_secs: 1,
+            })
+        })
+    }
+
+    fn login_device_poll<'a>(
+        &'a self,
+        _: &'a str,
+        _: i64,
+        _: &'a str,
+    ) -> BoxFuture<'a, Result<DevicePoll, AdminError>> {
+        let poll = self.device_polls.lock().unwrap().pop_front();
+        Box::pin(async move {
+            poll.ok_or_else(|| AdminError::Internal("missing test poll state".into()))
+        })
+    }
+
+    fn login_cookie_exchange<'a>(
+        &'a self,
+        _: &'a str,
+        _: i64,
+        _: &'a str,
+    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+        Box::pin(async { Err(AdminError::BadRequest("unsupported".into())) })
     }
 
     fn channel_catalogue(&self) -> Vec<ChannelDto> {
@@ -156,6 +246,89 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
+#[test]
+fn pkce_challenge_matches_rfc_7636_vector() {
+    assert_eq!(
+        crate::handlers::login::state::pkce_challenge(
+            "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+        ),
+        "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+    );
+}
+
+#[tokio::test]
+async fn device_poll_keeps_pending_then_creates_ready_and_clears_denied() {
+    let state = state().await;
+    let provider_id = state
+        .store
+        .insert_provider(&ProviderInput {
+            name: "device-flow".into(),
+            channel: "codex".into(),
+            settings: serde_json::json!({}),
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .expect("insert provider");
+    state.device_polls.lock().unwrap().extend([
+        DevicePoll::Pending,
+        DevicePoll::Ready(serde_json::json!({})),
+    ]);
+
+    let session = start_device(&state, provider_id).await;
+    let pending = poll_device(&state, &session).await;
+    assert!(matches!(pending, crate::dto::DevicePollResponse::Pending));
+    let ready = poll_device(&state, &session).await;
+    assert!(matches!(
+        ready,
+        crate::dto::DevicePollResponse::Ready { .. }
+    ));
+    assert_eq!(state.store.admin_credentials().await.unwrap().len(), 1);
+
+    state
+        .device_polls
+        .lock()
+        .unwrap()
+        .push_back(DevicePoll::Denied);
+    let denied_session = start_device(&state, provider_id).await;
+    let denied = poll_device(&state, &denied_session).await;
+    assert!(matches!(denied, crate::dto::DevicePollResponse::Denied));
+    let body = serde_json::to_vec(&crate::dto::DevicePollRequest {
+        login_session_id: denied_session,
+    })
+    .unwrap();
+    let error = crate::handlers::login::device_poll(&state, &Bytes::from(body))
+        .await
+        .expect_err("denied session must be cleared");
+    assert!(matches!(error, AdminError::BadRequest(_)));
+}
+
+async fn start_device(state: &TestState, provider_id: i64) -> String {
+    let body = serde_json::to_vec(&crate::dto::DeviceStartRequest {
+        provider_id,
+        params: None,
+        label: None,
+    })
+    .unwrap();
+    let response = crate::handlers::login::device_start(state, &Bytes::from(body))
+        .await
+        .expect("device start");
+    serde_json::from_slice::<crate::dto::DeviceStartResponse>(response.body())
+        .unwrap()
+        .login_session_id
+}
+
+async fn poll_device(state: &TestState, login_session_id: &str) -> crate::dto::DevicePollResponse {
+    let body = serde_json::to_vec(&crate::dto::DevicePollRequest {
+        login_session_id: login_session_id.into(),
+    })
+    .unwrap();
+    let response = crate::handlers::login::device_poll(state, &Bytes::from(body))
+        .await
+        .expect("device poll");
+    serde_json::from_slice(response.body()).unwrap()
+}
+
 async fn state() -> TestState {
     let directory = tempfile::tempdir().expect("admin tempdir");
     let store = gproxy_store::Store::open(gproxy_store::BackendConfig::Sqlite {
@@ -165,6 +338,8 @@ async fn state() -> TestState {
     .expect("admin store");
     TestState {
         store,
+        login_state: Mutex::new(HashMap::new()),
+        device_polls: Mutex::new(VecDeque::new()),
         _directory: directory,
     }
 }

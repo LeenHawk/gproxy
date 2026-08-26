@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::channel::Channel;
+use crate::login::ChannelLoginRef;
 
 /// Built once at startup from the built-in set plus any compile-time
 /// linked extensions (the native `linkme` collection lives with the app,
@@ -32,6 +33,10 @@ impl ChannelRegistry {
 
     pub fn shared(&self, id: &str) -> Option<Arc<dyn Channel>> {
         self.channels.get(id).cloned()
+    }
+
+    pub fn login_for(&self, id: &str) -> Option<ChannelLoginRef<'_>> {
+        self.get(id)?.login()
     }
 
     /// Runtime catalog for the console and admin API.

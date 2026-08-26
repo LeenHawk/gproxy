@@ -10,8 +10,8 @@ pub(super) const ORIGINATOR: &str = "codex_exec";
 pub(super) const USER_AGENT: &str =
     "codex_exec/0.147.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.147.0)";
 
-const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
-const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+pub(super) const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
+pub(super) const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const EXPIRY_SKEW_SECONDS: i64 = 60;
 
 pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
@@ -172,6 +172,11 @@ fn rotate(secret: &Value, token: &Value) -> Result<Value, ChannelError> {
         Value::from(unix_now_ms().saturating_add(expires_in.saturating_mul(1_000))),
     );
     Ok(output)
+}
+
+pub(super) fn login_secret(token: &Value) -> Result<Value, ChannelError> {
+    rotate(&serde_json::json!({}), token)
+        .map_err(|_| ChannelError::Login("invalid token response".into()))
 }
 
 fn account_id_from_jwt(token: &str) -> Option<String> {

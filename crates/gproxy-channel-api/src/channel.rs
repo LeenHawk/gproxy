@@ -6,12 +6,13 @@ use serde_json::Value;
 
 use crate::BoxFuture;
 use crate::disposition::Disposition;
+use crate::login::ChannelLoginRef;
 use crate::operation::OperationDriver;
 use crate::resource::{ResourceCtx, ResourceMutation};
 use crate::session::SessionPreparer;
 use crate::surface::{SurfaceRequest, SurfaceTable};
 use crate::usage::NormalizedUsage;
-use crate::wire::ClientProfile;
+use crate::wire::{ClientProfile, MaybeSync};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChannelError {
@@ -25,6 +26,10 @@ pub enum ChannelError {
     Observe(String),
     #[error("decode failed: {0}")]
     Decode(String),
+    #[error("login failed: {0}")]
+    Login(String),
+    #[error("unsupported channel operation: {0}")]
+    Unsupported(&'static str),
 }
 
 /// One declared route through a channel: the client's wire shape and the
@@ -166,7 +171,7 @@ pub trait StreamDecoder: Send {
 
 /// Minimal buffered HTTP the engine lends to `refresh` — refresh calls are
 /// small JSON exchanges; no streaming, no zero-copy concern.
-pub trait SimpleHttp {
+pub trait SimpleHttp: MaybeSync {
     fn send<'a>(
         &'a self,
         request: http::Request<Bytes>,
@@ -177,6 +182,11 @@ pub trait SimpleHttp {
 /// logic; I/O and state live in the engine and the host.
 pub trait Channel: Send + Sync {
     fn descriptor(&self) -> &'static ChannelDescriptor;
+
+    /// First-time credential acquisition when this channel supports it.
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        None
+    }
 
     /// Select one declared route after the credential secret is available.
     /// Most channels have one target per source; merged credential families

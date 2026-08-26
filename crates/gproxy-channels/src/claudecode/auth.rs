@@ -5,9 +5,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
-const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
-const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-const OAUTH_SCOPE: &str =
+pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
+pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+pub(super) const OAUTH_SCOPE: &str =
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
 pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";

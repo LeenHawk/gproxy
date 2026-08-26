@@ -91,6 +91,10 @@ impl SnapshotControl {
         self.snapshot.load().stored.clone()
     }
 
+    pub(crate) fn provider(&self, id: i64) -> Option<ProviderRef> {
+        self.snapshot.load().providers.get(&id).cloned()
+    }
+
     pub(crate) fn key_identity(&self, version: u32, digest: &[u8]) -> Option<KeyIdentity> {
         self.snapshot
             .load()

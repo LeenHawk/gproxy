@@ -2,6 +2,7 @@ mod audit;
 mod catalogue;
 mod control;
 mod identity;
+pub(crate) mod login;
 pub(crate) mod observability;
 mod portal_settings;
 mod pricing;
@@ -36,6 +37,11 @@ pub(crate) async fn dispatch(
         Route::Audit => audit::list(state, parts).await,
         Route::PortalSettingsRead => portal_settings::get(state).await,
         Route::PortalSettingsWrite => portal_settings::update(state, body).await,
+        Route::LoginAuthCodeStart => login::authcode_start(state, body).await,
+        Route::LoginAuthCodeComplete => login::authcode_complete(state, body).await,
+        Route::LoginDeviceStart => login::device_start(state, body).await,
+        Route::LoginDevicePoll => login::device_poll(state, body).await,
+        Route::LoginCookieExchange => login::cookie_exchange(state, body).await,
     }
 }
 

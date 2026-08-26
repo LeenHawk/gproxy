@@ -1,6 +1,7 @@
 mod auth;
 mod cch;
 mod hygiene;
+mod login;
 mod prepare;
 mod profile;
 mod sse;
@@ -8,8 +9,9 @@ mod surface;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelLoginRef, ChannelSupport, Disposition,
+    LoginDescriptor, LoginMode, NormalizedUsage, PrepareCtx, PreparedRequest, ResponseView,
+    SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
@@ -96,9 +98,21 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     supports: &SUPPORTS,
 };
 
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::AuthCode],
+    params: &[],
+};
+
 impl Channel for ClaudeCodeChannel {
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
+    }
+
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
     }
 
     fn prepare(

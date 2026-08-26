@@ -60,11 +60,14 @@ impl CoreError {
             Self::Transform(_) | Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Transport(_) => StatusCode::BAD_GATEWAY,
             Self::Store(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Channel(ChannelError::Secret(_) | ChannelError::Refresh(_)) => {
-                StatusCode::BAD_GATEWAY
-            }
             Self::Channel(
-                ChannelError::Prepare(_) | ChannelError::Decode(_) | ChannelError::Observe(_),
+                ChannelError::Secret(_) | ChannelError::Refresh(_) | ChannelError::Login(_),
+            ) => StatusCode::BAD_GATEWAY,
+            Self::Channel(
+                ChannelError::Prepare(_)
+                | ChannelError::Decode(_)
+                | ChannelError::Observe(_)
+                | ChannelError::Unsupported(_),
             ) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::SurfaceState(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }

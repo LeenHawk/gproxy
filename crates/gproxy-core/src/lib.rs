@@ -24,6 +24,7 @@ mod attempt;
 mod execution;
 mod fingerprint;
 mod funnel;
+mod login;
 mod orchestration;
 mod surface;
 
