@@ -126,6 +126,7 @@ pub(crate) async fn prepare<H: Host>(
             .map(|pricing| pricing.for_request(&ctx.body)),
         started,
         upstream_url: None,
+        request_method: None,
         request_body: body.clone(),
         request_headers: (support.target.operation.spec().settle
             == gproxy_protocol::SettleMode::OnSessionEnd)
@@ -160,10 +161,9 @@ pub(crate) async fn prepare<H: Host>(
     let mut facts = facts;
     facts.target_framing = target_framing;
     facts.upstream_url = Some(prepared.request.uri().to_string());
+    facts.request_method = Some(prepared.request.method().clone());
     facts.request_body = prepared.request.body().clone();
-    if facts.request_headers.is_some() {
-        facts.request_headers = Some(prepared.request.headers().clone());
-    }
+    facts.request_headers = Some(prepared.request.headers().clone());
     Ok(Prepared {
         channel: channel.descriptor().id,
         stream,

@@ -130,9 +130,13 @@ pub struct Capture {
     pub credential_id: Option<CredentialId>,
     /// `None` for a locally synthesized response.
     pub upstream_url: Option<String>,
+    /// `None` when an orchestrated exchange cannot expose one HTTP request.
+    pub request_method: Option<http::Method>,
+    pub request_headers: Option<http::HeaderMap>,
     pub request_body: bytes::Bytes,
     /// `None` when the transport failed before response headers arrived.
     pub response_status: Option<http::StatusCode>,
+    pub response_headers: Option<http::HeaderMap>,
     pub response_body: Option<bytes::Bytes>,
 }
 

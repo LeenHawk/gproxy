@@ -120,8 +120,11 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
                 provider_id,
                 credential_id,
                 upstream_url: ctx.upstream_url.clone(),
+                request_method: ctx.request_method.clone(),
+                request_headers: ctx.request_headers.clone(),
                 request_body: ctx.request_body.clone(),
                 response_status: status,
+                response_headers: None,
                 response_body,
             })
             .await;

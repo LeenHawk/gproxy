@@ -128,8 +128,11 @@ async fn capture_transport<H: Host>(host: &H, ctx: &FunnelCtx) {
             provider_id,
             credential_id,
             upstream_url: ctx.upstream_url.clone(),
+            request_method: ctx.request_method.clone(),
+            request_headers: ctx.request_headers.clone(),
             request_body: ctx.request_body.clone(),
             response_status: None,
+            response_headers: None,
             response_body: None,
         })
         .await;
@@ -148,8 +151,11 @@ async fn capture_response<H: Host>(
             provider_id,
             credential_id,
             upstream_url: ctx.upstream_url.clone(),
+            request_method: ctx.request_method.clone(),
+            request_headers: ctx.request_headers.clone(),
             request_body: ctx.request_body.clone(),
             response_status: Some(status),
+            response_headers: None,
             response_body: body,
         })
         .await;

@@ -20,6 +20,8 @@ pub(super) async fn run<H: Host>(
 ) -> Result<StepResponse, CoreError> {
     crate::fingerprint::apply_prepared(&mut prepared, &target.provider)?;
     let url = prepared.request.uri().to_string();
+    let method = prepared.request.method().clone();
+    let headers = prepared.request.headers().clone();
     let body = prepared.request.body().clone();
     let facts = FunnelCtx {
         request_id,
@@ -33,8 +35,9 @@ pub(super) async fn run<H: Host>(
         pricing: None,
         started: Instant::now(),
         upstream_url: Some(url),
+        request_method: Some(method),
         request_body: body,
-        request_headers: None,
+        request_headers: Some(headers),
         dedupe_key: None,
         owner_user_id: None,
         resource: None,

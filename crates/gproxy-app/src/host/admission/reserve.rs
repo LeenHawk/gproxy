@@ -131,6 +131,8 @@ async fn begin_capture(host: &AppHost, request: &RequestCtx) {
         method: request.method.to_string(),
         path: request.path.clone(),
         query: request.query.clone(),
+        request_headers: None,
+        request_body: None,
     };
     if let Err(error) = host.services.store.begin_request_log(&input).await {
         tracing::error!(request_id = %request.request_id, error = %error, "begin request capture failed");

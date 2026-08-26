@@ -83,8 +83,11 @@ impl CaptureSink for AppHost {
                 provider_id: capture.provider_id,
                 credential_id: capture.credential_id.map(|credential| credential.0),
                 upstream_url: capture.upstream_url.clone(),
+                request_method: capture.request_method.as_ref().map(ToString::to_string),
+                request_headers: None,
                 response_status: capture.response_status.map(|status| status.as_u16()),
-                request_body: capture.request_body.to_vec(),
+                response_headers: None,
+                request_body: Some(capture.request_body.to_vec()),
                 response_body: capture.response_body.as_ref().map(|body| body.to_vec()),
             };
             if let Err(error) = self.services.store.record_capture(&input).await {

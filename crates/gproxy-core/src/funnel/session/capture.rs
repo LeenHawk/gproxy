@@ -17,8 +17,11 @@ pub(super) async fn call<H: Host>(
             provider_id,
             credential_id,
             upstream_url: ctx.upstream_url.clone(),
+            request_method: ctx.request_method.clone(),
+            request_headers: ctx.request_headers.clone(),
             request_body: ctx.request_body.clone(),
             response_status: Some(status),
+            response_headers: None,
             response_body: Some(body),
         })
         .await;
@@ -38,8 +41,11 @@ pub(super) async fn sideband<H: Host>(
             provider_id: Some(ctx.target.provider.id),
             credential_id: Some(ctx.target.credential),
             upstream_url: Some(url),
+            request_method: None,
+            request_headers: None,
             request_body,
             response_status: connected.then_some(http::StatusCode::SWITCHING_PROTOCOLS),
+            response_headers: None,
             response_body: None,
         })
         .await;

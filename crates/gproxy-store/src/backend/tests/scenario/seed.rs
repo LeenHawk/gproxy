@@ -155,6 +155,8 @@ pub(super) async fn seed_capture(
             method: "POST".into(),
             path: "/v1/responses".into(),
             query: None,
+            request_headers: None,
+            request_body: None,
         })
         .await?;
     store
@@ -164,8 +166,11 @@ pub(super) async fn seed_capture(
             provider_id: Some(provider_id),
             credential_id: Some(credential_id),
             upstream_url: Some("https://upstream.invalid/v1/responses".into()),
+            request_method: Some("POST".into()),
+            request_headers: None,
             response_status: Some(200),
-            request_body: b"request".to_vec(),
+            response_headers: None,
+            request_body: Some(b"request".to_vec()),
             response_body: Some(b"response".to_vec()),
         })
         .await

@@ -111,6 +111,7 @@ async fn finish<H: Host>(
         pricing: None,
         started,
         upstream_url: None,
+        request_method: None,
         request_body: request.body.clone(),
         request_headers: None,
         dedupe_key: None,

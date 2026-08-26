@@ -37,6 +37,7 @@ pub(crate) struct FunnelCtx {
     pub pricing: Option<Pricing>,
     pub started: Instant,
     pub upstream_url: Option<String>,
+    pub request_method: Option<http::Method>,
     pub request_body: Bytes,
     pub request_headers: Option<http::HeaderMap>,
     pub dedupe_key: Option<String>,

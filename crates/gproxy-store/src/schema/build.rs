@@ -27,7 +27,13 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
                 .map(|index| create_index(table.name, index)),
         );
     }
+    if version == SchemaVersion::Logging {
+        statements.extend(rebuild_wire_logs(version));
+    }
     for table in tables().filter(|table| table.version != version) {
+        if version == SchemaVersion::Logging && table.name == "wire_logs" {
+            continue;
+        }
         for column in table
             .columns
             .iter()
@@ -43,6 +49,36 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
                 .map(|index| create_index(table.name, index)),
         );
     }
+    statements
+}
+
+fn rebuild_wire_logs(version: SchemaVersion) -> Vec<String> {
+    let spec = tables()
+        .find(|table| table.name == "wire_logs")
+        .expect("wire log schema exists");
+    let old_columns = [
+        "id",
+        "request_id",
+        "at",
+        "provider_id",
+        "credential_id",
+        "upstream_url",
+        "response_status",
+        "request_body",
+        "response_body",
+    ];
+    let columns = old_columns.join(", ");
+    let mut statements = vec![
+        "ALTER TABLE wire_logs RENAME TO wire_logs_before_logging".to_owned(),
+        create_table(spec, version),
+        format!("INSERT INTO wire_logs ({columns}) SELECT {columns} FROM wire_logs_before_logging"),
+        "DROP TABLE wire_logs_before_logging".to_owned(),
+    ];
+    statements.extend(
+        spec.indexes
+            .iter()
+            .map(|index| create_index(spec.name, index)),
+    );
     statements
 }
 
