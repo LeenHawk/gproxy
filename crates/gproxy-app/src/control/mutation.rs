@@ -135,12 +135,40 @@ pub(crate) async fn apply(
             MutationResult::Id(services.store.insert_price_rate(&input).await?)
         }
         ControlMutation::Setting(input) => {
+            validate_setting(&input)?;
             services.store.set_setting(&input).await?;
             MutationResult::Applied
         }
     };
     handle.reload().await?;
     Ok(result)
+}
+
+fn validate_setting(input: &gproxy_store::records::SettingInput) -> Result<(), AppError> {
+    if !matches!(
+        input.key.as_str(),
+        crate::cleanup::RETENTION_DAYS | crate::cleanup::MAX_DATABASE_SIZE_MB
+    ) {
+        return Ok(());
+    }
+    let Some(value) = input.value.as_i64() else {
+        return Err(AppError::Control(format!(
+            "{} must be an integer; non-positive disables it",
+            input.key
+        )));
+    };
+    let maximum = if input.key == crate::cleanup::RETENTION_DAYS {
+        i64::MAX / 86_400
+    } else {
+        i64::try_from(u64::MAX / (1024 * 1024)).expect("MiB limit fits i64")
+    };
+    if value > maximum {
+        return Err(AppError::Control(format!(
+            "{} exceeds its supported range",
+            input.key
+        )));
+    }
+    Ok(())
 }
 
 fn nonzero(value: impl Into<u64>, field: &'static str) -> Result<(), AppError> {

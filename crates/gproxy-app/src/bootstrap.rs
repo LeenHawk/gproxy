@@ -38,6 +38,7 @@ impl App {
         });
         let host = AppHost { services };
         let core = gproxy_core::Core::new(host.clone(), channels()?)?;
+        crate::cleanup::schedule(&host);
         #[cfg(not(target_arch = "wasm32"))]
         let shutdown = tokio::sync::watch::channel(false).0;
         #[cfg(target_arch = "wasm32")]

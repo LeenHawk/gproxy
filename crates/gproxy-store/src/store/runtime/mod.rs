@@ -1,6 +1,9 @@
+mod cleanup;
 mod cycle;
 mod health;
 mod quota;
+
+pub use cleanup::CleanupResult;
 
 use crate::query::runtime;
 use crate::records::{CaptureInput, RequestLogInput};

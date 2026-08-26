@@ -74,7 +74,7 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
 impl CaptureSink for AppHost {
     fn record<'a>(&'a self, capture: &'a gproxy_core::host::Capture) -> BoxFuture<'a, ()> {
         Box::pin(async move {
-            if !capture_enabled(self) {
+            if !crate::cleanup::body_capture_enabled(&self.services.control.current().settings) {
                 return;
             }
             let input = gproxy_store::records::CaptureInput {
@@ -92,17 +92,6 @@ impl CaptureSink for AppHost {
             }
         })
     }
-}
-
-fn capture_enabled(host: &AppHost) -> bool {
-    host.services
-        .control
-        .current()
-        .settings
-        .iter()
-        .any(|setting| {
-            setting.key == "capture_enabled" && setting.value == serde_json::Value::Bool(true)
-        })
 }
 
 fn unix_now() -> i64 {

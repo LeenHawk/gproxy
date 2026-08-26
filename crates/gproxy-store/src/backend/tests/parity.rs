@@ -71,6 +71,44 @@ async fn fresh_and_incrementally_migrated_databases_converge() {
     );
 }
 
+#[tokio::test]
+async fn size_pressure_purges_logs_and_preserves_usage_history() {
+    let native_dir = tempfile::tempdir().expect("native tempdir");
+    let remote_dir = tempfile::tempdir().expect("libsql tempdir");
+    let (native, _) = native_store(native_dir.path().join("native.db"))
+        .await
+        .expect("native store");
+    let (libsql, _) = libsql_store(remote_dir.path().join("remote.db"))
+        .await
+        .expect("libsql store");
+
+    for store in [native, libsql] {
+        scenario::run(&store).await;
+        let result = store
+            .cleanup_observability(None, Some(1))
+            .await
+            .expect("size-pressure sweep");
+        assert!(result.over_size_limit);
+        assert_eq!(result.pressure_rows, 2);
+        assert_eq!(row_count(&store, "request_logs").await, 0);
+        assert_eq!(row_count(&store, "wire_logs").await, 0);
+        assert_eq!(row_count(&store, "usage_rows").await, 1);
+    }
+}
+
+async fn row_count(store: &crate::Store, table: &str) -> i64 {
+    store
+        .backend()
+        .execute(Statement::plain(format!(
+            "SELECT COUNT(*) AS count FROM {table}"
+        )))
+        .await
+        .expect("row count")
+        .rows[0]
+        .i64("count")
+        .expect("count")
+}
+
 async fn schema_shape(executor: &dyn Executor) -> BTreeMap<String, BTreeSet<String>> {
     let tables = executor
         .execute(Statement::plain(

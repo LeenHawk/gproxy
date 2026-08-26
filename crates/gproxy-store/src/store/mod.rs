@@ -9,6 +9,8 @@ mod snapshot;
 mod tokenizers;
 mod usage;
 
+pub use runtime::CleanupResult;
+
 use crate::backend::{self, BackendConfig, Executor, SharedExecutor, Statement};
 use crate::schema::Dialect;
 use crate::{StoreError, migration};

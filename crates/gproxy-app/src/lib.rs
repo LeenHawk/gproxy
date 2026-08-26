@@ -3,6 +3,7 @@
 mod admin;
 mod bootstrap;
 mod cache;
+mod cleanup;
 mod config;
 mod control;
 mod error;

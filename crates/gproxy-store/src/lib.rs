@@ -10,4 +10,4 @@ mod store;
 
 pub use backend::BackendConfig;
 pub use error::StoreError;
-pub use store::Store;
+pub use store::{CleanupResult, Store};

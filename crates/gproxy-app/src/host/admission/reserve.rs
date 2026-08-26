@@ -122,16 +122,7 @@ async fn rollback_error(
 }
 
 async fn begin_capture(host: &AppHost, request: &RequestCtx) {
-    let enabled = host
-        .services
-        .control
-        .current()
-        .settings
-        .iter()
-        .any(|setting| {
-            setting.key == "capture_enabled" && setting.value == serde_json::Value::Bool(true)
-        });
-    if !enabled {
+    if !crate::cleanup::body_capture_enabled(&host.services.control.current().settings) {
         return;
     }
     let input = gproxy_store::records::RequestLogInput {
