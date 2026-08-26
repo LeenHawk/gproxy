@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::aws::{CacheTtl, Rest, StopReason};
 
-use super::{Message, PerformanceConfiguration, ServiceTier};
+use super::{ConverseTrace, Message, PerformanceConfiguration, ServiceTier};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +12,8 @@ pub struct ConverseResponse {
     pub stop_reason: StopReason,
     pub usage: TokenUsage,
     pub metrics: ConverseMetrics,
+    /// `upstream_docs/aws/docs/Converse.md`, `additionalModelResponseFields`:
+    /// model-specific response fields documented as a JSON value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_model_response_fields: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,7 +21,7 @@ pub struct ConverseResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<ServiceTier>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trace: Option<Value>,
+    pub trace: Option<ConverseTrace>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

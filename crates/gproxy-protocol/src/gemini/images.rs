@@ -6,7 +6,8 @@ use serde_json::Value;
 pub struct ImagenPredictRequest {
     // models.predict defines each instance as google.protobuf.Value.
     pub instances: Vec<Value>,
-    // models.predict defines its parameters as google.protobuf.Value.
+    /// `upstream_docs/gemini/docs/Models.md`, `models.predict.parameters`:
+    /// prediction parameters are an arbitrary `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]

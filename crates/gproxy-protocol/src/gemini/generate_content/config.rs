@@ -17,13 +17,15 @@ pub struct GenerationConfig {
     pub response_mime_type: Option<ResponseMimeType>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_schema: Option<Schema>,
-    // Gemini defines this JSON Schema form as google.protobuf.Value.
+    /// `upstream_docs/gemini/docs/Generating content.md`,
+    /// `GenerationConfig._responseJsonSchema`: JSON Schema as `google.protobuf.Value`.
     #[serde(
         rename = "_responseJsonSchema",
         skip_serializing_if = "Option::is_none"
     )]
     pub private_response_json_schema: Option<Value>,
-    // Gemini defines this JSON Schema form as google.protobuf.Value.
+    /// `upstream_docs/gemini/docs/Generating content.md`,
+    /// `GenerationConfig.responseJsonSchema`: an internal schema slot as `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_json_schema: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,7 +84,8 @@ pub struct ResponseFormatConfig {
 pub struct TextResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<TextResponseFormatMimeType>,
-    // Gemini defines the text response schema as google.protobuf.Value.
+    /// `upstream_docs/gemini/docs/Generating content.md`, `TextResponseFormat.schema`:
+    /// output JSON Schema encoded as `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]

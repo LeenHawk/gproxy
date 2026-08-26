@@ -43,12 +43,14 @@ pub struct FunctionDeclaration {
     pub behavior: Option<FunctionBehavior>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Schema>,
-    // Gemini exposes this JSON Schema form as google.protobuf.Value.
+    /// `upstream_docs/gemini/docs/Caching.md`, `FunctionDeclaration.parametersJsonSchema`:
+    /// the function parameter JSON Schema as `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters_json_schema: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Schema>,
-    // Gemini exposes this JSON Schema form as google.protobuf.Value.
+    /// `upstream_docs/gemini/docs/Caching.md`, `FunctionDeclaration.responseJsonSchema`:
+    /// the function result JSON Schema as `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_json_schema: Option<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
@@ -97,10 +99,12 @@ pub struct Schema {
     pub max_length: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
-    // A schema example may be any JSON value.
+    /// `upstream_docs/gemini/docs/Caching.md`, `Schema.example`:
+    /// an open JSON value documented as `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub example: Option<Value>,
-    // A schema default may be any JSON value.
+    /// `upstream_docs/gemini/docs/Caching.md`, `Schema.default`:
+    /// an open JSON value documented as `google.protobuf.Value`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<Value>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]

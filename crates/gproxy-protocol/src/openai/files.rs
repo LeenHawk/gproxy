@@ -60,7 +60,8 @@ pub struct FileObject {
     pub purpose: FilePurpose,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    // The checked-in OpenAI snapshot has no Files schema; retain the opaque v2 field.
+    /// Evidence gap: `upstream_docs/openai/` has no `/v1/files` schema;
+    /// preserve the v2 `FileObject.status_details` payload verbatim.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_details: Option<Value>,
     #[serde(default, flatten)]

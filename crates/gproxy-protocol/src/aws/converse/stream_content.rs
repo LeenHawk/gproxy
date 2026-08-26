@@ -152,7 +152,16 @@ pub struct ImageBlockDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<ImageSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<Value>,
+    pub error: Option<ErrorBlock>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+/// AWS `ConverseStream.ImageBlockDelta.error` (`ErrorBlock` object).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorBlock {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

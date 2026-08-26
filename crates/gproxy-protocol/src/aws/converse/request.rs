@@ -12,6 +12,8 @@ use super::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConverseRequest {
+    /// `upstream_docs/aws/docs/Converse.md`, `additionalModelRequestFields`:
+    /// model-specific parameters documented as a JSON value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_model_request_fields: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,6 +45,8 @@ pub struct ConverseRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConverseStreamRequest {
+    /// `upstream_docs/aws/docs/ConverseStream.md`, `additionalModelRequestFields`:
+    /// model-specific parameters documented as a JSON value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_model_request_fields: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

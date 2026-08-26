@@ -8,7 +8,8 @@ pub struct McpToolDescription {
     // OpenAI documents an MCP tool input schema as unknown.
     pub input_schema: Value,
     pub name: String,
-    // OpenAI documents MCP tool annotations as unknown.
+    /// `upstream_docs/openai/docs/Responses.md`,
+    /// `McpListTools.tools[].annotations`: optional unknown or null.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annotations: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

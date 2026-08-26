@@ -31,7 +31,7 @@ pub(super) fn frame(frame: Frame) -> Result<ConverseStreamEvent, ChannelError> {
         "contentBlockDelta" => ConverseStreamEvent::ContentBlockDelta(parse(&payload)?),
         "contentBlockStop" => ConverseStreamEvent::ContentBlockStop(parse(&payload)?),
         "messageStop" => ConverseStreamEvent::MessageStop(parse(&payload)?),
-        "metadata" => ConverseStreamEvent::Metadata(parse(&payload)?),
+        "metadata" => ConverseStreamEvent::Metadata(Box::new(parse(&payload)?)),
         "internalServerException" => ConverseStreamEvent::InternalServerException(parse(&payload)?),
         "modelStreamErrorException" => {
             ConverseStreamEvent::ModelStreamErrorException(parse(&payload)?)

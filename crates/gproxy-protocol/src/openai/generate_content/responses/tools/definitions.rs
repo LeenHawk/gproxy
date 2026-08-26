@@ -223,7 +223,8 @@ pub enum ResponseTool {
         description: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         execution: Option<ToolSearchExecution>,
-        // OpenAI documents client tool-search parameters as unknown.
+        /// `upstream_docs/openai/docs/Responses.md`, `ToolSearch.parameters`:
+        /// optional unknown or null.
         #[serde(skip_serializing_if = "Option::is_none")]
         parameters: Option<Value>,
         #[serde(default, flatten)]
@@ -281,7 +282,8 @@ pub enum ResponseNamespaceTool {
         description: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         output_schema: Option<JsonSchema>,
-        // OpenAI deliberately documents namespace function parameters as unknown.
+        /// `upstream_docs/openai/docs/Responses.md`,
+        /// `Namespace.tools[].Function.parameters`: optional unknown or null.
         #[serde(skip_serializing_if = "Option::is_none")]
         parameters: Option<Value>,
         #[serde(skip_serializing_if = "Option::is_none")]

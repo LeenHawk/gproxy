@@ -38,6 +38,8 @@ pub struct InvokeModelTokensRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConverseTokensRequest {
+    /// `upstream_docs/aws/docs/ConverseTokensRequest.md`,
+    /// `additionalModelRequestFields`: model-specific parameters as a JSON value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_model_request_fields: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

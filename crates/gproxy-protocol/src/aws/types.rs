@@ -56,6 +56,60 @@ extensible_string_enum!(GuardrailTrace, GuardrailTraceKnown {
 extensible_string_enum!(GuardrailStreamProcessingMode, GuardrailStreamProcessingModeKnown {
     Sync => "sync", Async => "async",
 });
+extensible_string_enum!(GuardrailOrigin, GuardrailOriginKnown {
+    Request => "REQUEST", AccountEnforced => "ACCOUNT_ENFORCED",
+    OrganizationEnforced => "ORGANIZATION_ENFORCED",
+});
+extensible_string_enum!(GuardrailOwnership, GuardrailOwnershipKnown {
+    SelfOwned => "SELF", CrossAccount => "CROSS_ACCOUNT",
+});
+extensible_string_enum!(GuardrailBlockAction, GuardrailBlockActionKnown {
+    Blocked => "BLOCKED", None => "NONE",
+});
+extensible_string_enum!(GuardrailSensitiveAction, GuardrailSensitiveActionKnown {
+    Anonymized => "ANONYMIZED", Blocked => "BLOCKED", None => "NONE",
+});
+extensible_string_enum!(GuardrailLevel, GuardrailLevelKnown {
+    None => "NONE", Low => "LOW", Medium => "MEDIUM", High => "HIGH",
+});
+extensible_string_enum!(GuardrailContentFilterType, GuardrailContentFilterTypeKnown {
+    Insults => "INSULTS", Hate => "HATE", Sexual => "SEXUAL", Violence => "VIOLENCE",
+    Misconduct => "MISCONDUCT", PromptAttack => "PROMPT_ATTACK",
+});
+extensible_string_enum!(
+    GuardrailContextualGroundingFilterType, GuardrailContextualGroundingFilterTypeKnown {
+        Grounding => "GROUNDING", Relevance => "RELEVANCE",
+    }
+);
+extensible_string_enum!(GuardrailTopicType, GuardrailTopicTypeKnown { Deny => "DENY" });
+extensible_string_enum!(GuardrailManagedWordType, GuardrailManagedWordTypeKnown {
+    Profanity => "PROFANITY",
+});
+extensible_string_enum!(
+    GuardrailAutomatedReasoningLogicWarningType,
+    GuardrailAutomatedReasoningLogicWarningTypeKnown {
+        AlwaysFalse => "ALWAYS_FALSE", AlwaysTrue => "ALWAYS_TRUE",
+    }
+);
+extensible_string_enum!(GuardrailPiiEntityType, GuardrailPiiEntityTypeKnown {
+    Address => "ADDRESS", Age => "AGE", AwsAccessKey => "AWS_ACCESS_KEY",
+    AwsSecretKey => "AWS_SECRET_KEY", CaHealthNumber => "CA_HEALTH_NUMBER",
+    CaSocialInsuranceNumber => "CA_SOCIAL_INSURANCE_NUMBER",
+    CreditDebitCardCvv => "CREDIT_DEBIT_CARD_CVV",
+    CreditDebitCardExpiry => "CREDIT_DEBIT_CARD_EXPIRY",
+    CreditDebitCardNumber => "CREDIT_DEBIT_CARD_NUMBER", DriverId => "DRIVER_ID",
+    Email => "EMAIL", InternationalBankAccountNumber => "INTERNATIONAL_BANK_ACCOUNT_NUMBER",
+    IpAddress => "IP_ADDRESS", LicensePlate => "LICENSE_PLATE", MacAddress => "MAC_ADDRESS",
+    Name => "NAME", Password => "PASSWORD", Phone => "PHONE", Pin => "PIN",
+    SwiftCode => "SWIFT_CODE", UkNationalHealthServiceNumber => "UK_NATIONAL_HEALTH_SERVICE_NUMBER",
+    UkNationalInsuranceNumber => "UK_NATIONAL_INSURANCE_NUMBER",
+    UkUniqueTaxpayerReferenceNumber => "UK_UNIQUE_TAXPAYER_REFERENCE_NUMBER", Url => "URL",
+    Username => "USERNAME", UsBankAccountNumber => "US_BANK_ACCOUNT_NUMBER",
+    UsBankRoutingNumber => "US_BANK_ROUTING_NUMBER",
+    UsIndividualTaxIdentificationNumber => "US_INDIVIDUAL_TAX_IDENTIFICATION_NUMBER",
+    UsPassportNumber => "US_PASSPORT_NUMBER", UsSocialSecurityNumber => "US_SOCIAL_SECURITY_NUMBER",
+    VehicleIdentificationNumber => "VEHICLE_IDENTIFICATION_NUMBER",
+});
 extensible_string_enum!(OutputFormatType, OutputFormatTypeKnown {
     JsonSchema => "json_schema",
 });

@@ -4,8 +4,8 @@ use serde_json::Value;
 use crate::aws::{ConversationRole, Rest, StopReason};
 
 use super::{
-    ContentBlockDelta, ContentBlockStart, ConverseMetrics, PerformanceConfiguration, ServiceTier,
-    TokenUsage,
+    ContentBlockDelta, ContentBlockStart, ConverseMetrics, ConverseStreamTrace,
+    PerformanceConfiguration, ServiceTier, TokenUsage,
 };
 
 /// A decoded Smithy event-stream item. The discriminant comes from the
@@ -19,7 +19,7 @@ pub enum ConverseStreamEvent {
     ContentBlockDelta(ContentBlockDeltaEvent),
     ContentBlockStop(ContentBlockStopEvent),
     MessageStop(MessageStopEvent),
-    Metadata(ConverseStreamMetadataEvent),
+    Metadata(Box<ConverseStreamMetadataEvent>),
     InternalServerException(StreamException),
     ModelStreamErrorException(ModelStreamErrorException),
     ValidationException(StreamException),
@@ -65,6 +65,8 @@ pub struct ContentBlockStopEvent {
 #[serde(rename_all = "camelCase")]
 pub struct MessageStopEvent {
     pub stop_reason: StopReason,
+    /// `upstream_docs/aws/docs/ConverseStream.md`,
+    /// `messageStop.additionalModelResponseFields`: model-specific fields as a JSON value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_model_response_fields: Option<Value>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -81,7 +83,7 @@ pub struct ConverseStreamMetadataEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<ServiceTier>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trace: Option<Value>,
+    pub trace: Option<ConverseStreamTrace>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

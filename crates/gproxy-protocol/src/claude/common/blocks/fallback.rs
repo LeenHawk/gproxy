@@ -9,7 +9,9 @@ pub struct FallbackBlockParam {
     pub to: FallbackInfo,
     #[serde(rename = "type")]
     pub type_: FallbackBlockType,
-    // Claude accepts any JSON value or null and requires a prior trigger echoed verbatim.
+    /// `upstream_docs/claude/docs/Create a Message.md`,
+    /// `BetaFallbackBlockParam.trigger`: optional unknown; echo it verbatim,
+    /// preserving explicit null separately from absence.
     #[serde(
         default,
         deserialize_with = "deserialize_present_value",
