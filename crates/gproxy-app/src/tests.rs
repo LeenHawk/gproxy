@@ -374,7 +374,7 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
 }
 
 #[tokio::test]
-async fn environment_admin_seed_is_first_run_only() {
+async fn explicit_environment_admin_password_updates_existing_account() {
     let directory = tempfile::tempdir().unwrap();
     let config = |password: &str| {
         test_config(directory.path(), crate::MasterKeyConfig::new(None)).with_native_options(
@@ -406,12 +406,12 @@ async fn environment_admin_seed_is_first_run_only() {
     let (parts, body) = login("first-password");
     assert_eq!(
         app.admin_dispatch(&parts, body).await.unwrap().status(),
-        http::StatusCode::OK
+        http::StatusCode::UNAUTHORIZED
     );
     let (parts, body) = login("second-password");
     assert_eq!(
         app.admin_dispatch(&parts, body).await.unwrap().status(),
-        http::StatusCode::UNAUTHORIZED
+        http::StatusCode::OK
     );
 }
 
