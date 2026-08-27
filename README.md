@@ -10,6 +10,30 @@ bundles from one tagged commit.
   lifecycle, transforms, execution) consumed by interchangeable hosts
   (axum server / edge wasm) and embeddable into other applications.
 
+## Run locally
+
+```sh
+cargo run -p gproxy-host-axum
+```
+
+No configuration file or encryption key is required. The native host reads
+`GPROXY_*` variables from the real process environment, then optionally from
+`.env` in the current directory and the data directory. A real environment
+variable always wins. The defaults are `127.0.0.1:8787`, `./data`, SQLite, and
+plaintext secret storage. `GPROXY_LIBSQL_URL` and
+`GPROXY_LIBSQL_AUTH_TOKEN` are required only when
+`GPROXY_STORE_BACKEND=libsql`.
+
+Set `GPROXY_SECRET_KEY` to a standard-base64 32-byte key to encrypt stored
+credential and user-key material. To rotate, keep the current key in
+`GPROXY_SECRET_KEY`, set the target in `GPROXY_SECRET_KEY_NEXT`, and explicitly
+arm one restart with `GPROXY_SECRET_KEY_ROTATE=on`. An empty `NEXT` rotates to
+plaintext. Rotation re-seals every secret and updates the key fingerprint in
+one database transaction; after success, move the target into
+`GPROXY_SECRET_KEY` (or unset it for plaintext) and clear `NEXT` and `ROTATE`.
+The stored fingerprint is never a key, and startup refuses a sealed store when
+the required fingerprint is not supplied.
+
 ## Release
 
 Configure the Android and update-signing CI secrets named in
