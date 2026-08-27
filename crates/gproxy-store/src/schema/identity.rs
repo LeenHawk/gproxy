@@ -35,9 +35,11 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("name", Text).unique(),
             Col::optional("organization_id", Integer),
             Col::optional("team_id", Integer),
-            Col::optional("password_hash", Text),
+            Col::optional("password_hash", Text).since(SchemaVersion::Wave26),
             Col::required("enabled", Integer),
-            Col::required("is_admin", Integer),
+            Col::required("is_admin", Integer)
+                .default("0")
+                .since(SchemaVersion::Wave26),
         ],
         indexes: &[
             IndexSpec {
@@ -81,7 +83,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Admin,
+        version: SchemaVersion::Wave26,
         name: "user_sessions",
         columns: &[
             Col::id(),

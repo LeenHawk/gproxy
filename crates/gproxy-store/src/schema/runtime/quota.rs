@@ -66,7 +66,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Wave26,
         name: "credential_quota_cycle_models",
         columns: &[
             Col::id(),

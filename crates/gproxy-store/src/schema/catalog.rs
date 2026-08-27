@@ -12,10 +12,11 @@ pub enum SchemaVersion {
     Routing = 7,
     Process = 8,
     Configuration = 9,
+    Wave26 = 10,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Control,
         Self::Runtime,
         Self::Tokenizers,
@@ -25,8 +26,9 @@ impl SchemaVersion {
         Self::Routing,
         Self::Process,
         Self::Configuration,
+        Self::Wave26,
     ];
-    pub const LATEST: Self = Self::Configuration;
+    pub const LATEST: Self = Self::Wave26;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -137,4 +139,8 @@ pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
         .chain(runtime::tables())
         .chain(tokenizer::TABLES)
         .chain(admin::TABLES)
+}
+
+pub(super) fn migration_tables() -> impl Iterator<Item = &'static TableSpec> {
+    tables().chain(admin::LEGACY_TABLES)
 }

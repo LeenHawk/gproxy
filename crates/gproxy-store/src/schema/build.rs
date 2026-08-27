@@ -3,7 +3,8 @@ use sea_query::{
     Table,
 };
 
-use super::{ColumnKind, IndexSpec, SchemaVersion, TableSpec, tables};
+use super::catalog::migration_tables;
+use super::{ColumnKind, IndexSpec, SchemaVersion, TableSpec, tables, wave26};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialect {
@@ -18,7 +19,11 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
     if version == SchemaVersion::Control && dialect == Dialect::NativeSqlite {
         statements.push("PRAGMA foreign_keys = ON".to_owned());
     }
-    for table in tables().filter(|table| table.version == version) {
+    for table in migration_tables().filter(|table| {
+        table.version == version
+            && !(version == SchemaVersion::Wave26
+                && matches!(table.name, "admin_audit_events" | "credential_health"))
+    }) {
         statements.push(create_table(table, version, dialect));
         statements.extend(
             table
@@ -57,6 +62,9 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
     if version == SchemaVersion::Routing {
         statements.push("UPDATE route_members SET tier = priority".to_owned());
     }
+    if version == SchemaVersion::Wave26 {
+        statements.extend(wave26::statements(dialect));
+    }
     statements
 }
 
@@ -90,7 +98,7 @@ fn rebuild_wire_logs(version: SchemaVersion, dialect: Dialect) -> Vec<String> {
     statements
 }
 
-fn create_table(spec: &TableSpec, version: SchemaVersion, dialect: Dialect) -> String {
+pub(super) fn create_table(spec: &TableSpec, version: SchemaVersion, dialect: Dialect) -> String {
     let mut table = Table::create();
     table.table(Alias::new(spec.name)).if_not_exists();
     for column in spec.columns.iter().filter(|column| {
@@ -164,7 +172,7 @@ fn column_definition(column: &super::ColumnSpec, dialect: Dialect, indexed: bool
     definition
 }
 
-fn create_index(table: &str, index: &IndexSpec, dialect: Dialect) -> String {
+pub(super) fn create_index(table: &str, index: &IndexSpec, dialect: Dialect) -> String {
     let mut statement = Index::create();
     statement
         .name(index.name)
