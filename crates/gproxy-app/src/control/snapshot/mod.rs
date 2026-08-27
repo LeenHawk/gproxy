@@ -189,6 +189,15 @@ impl ControlPlane for SnapshotControl {
         pricing::resolve(&self.snapshot.load().pricing, provider.id, upstream_model)
     }
 
+    fn exposed_models(&self) -> Vec<gproxy_core::ExposedModel> {
+        self.snapshot
+            .load()
+            .exposed
+            .keys()
+            .map(|id| gproxy_core::ExposedModel { id: id.clone() })
+            .collect()
+    }
+
     fn detached(&self) -> Box<dyn ControlPlane> {
         Box::new(self.clone())
     }

@@ -225,6 +225,14 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         target: &'a crate::control::Target,
         body: &'a bytes::Bytes,
     ) -> BoxFuture<'a, Result<(), CoreError>>;
+    /// Count the provider-native request with the host's local tokenizer
+    /// ladder. The model and optional map have already been resolved.
+    fn count_tokens<'a>(
+        &'a self,
+        model: &'a str,
+        body: &'a bytes::Bytes,
+        tokenizer_map: Option<&'a serde_json::Value>,
+    ) -> BoxFuture<'a, Result<u64, CoreError>>;
     fn record_credential_health<'a>(
         &'a self,
         credential: CredentialId,

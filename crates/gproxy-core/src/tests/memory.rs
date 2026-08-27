@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::boundary::RoutingMode;
 use crate::continuation::{Continuation, ContinuationKey};
-use crate::control::{ControlPlane, Plan, Pricing, ProviderRef};
+use crate::control::{ControlPlane, ExposedModel, Plan, Pricing, ProviderRef};
 use crate::error::CoreError;
 use crate::host::{CredentialHealth, CredentialId, CredentialRecord, Host};
 use crate::usage::Settlement;
@@ -42,6 +42,7 @@ pub(super) struct State {
     pub(super) plan: Option<Plan>,
     pub(super) statuses: VecDeque<StatusCode>,
     pub(super) resolved_models: Vec<Option<String>>,
+    pub(super) exposed_models: Vec<ExposedModel>,
     pub(super) admission_finishes: Vec<bool>,
     pub(super) bindings_enabled: bool,
     pub(super) bindings: BTreeMap<(i64, i64, String, String), Binding>,
@@ -97,6 +98,7 @@ impl MemoryHost {
                 plan: None,
                 statuses: VecDeque::new(),
                 resolved_models: Vec::new(),
+                exposed_models: vec![ExposedModel { id: "alias".into() }],
                 admission_finishes: Vec::new(),
                 bindings_enabled: true,
                 bindings: BTreeMap::new(),
@@ -209,6 +211,15 @@ impl Host for MemoryHost {
     ) -> BoxFuture<'a, Result<(), CoreError>> {
         Box::pin(async { Ok(()) })
     }
+    fn count_tokens<'a>(
+        &'a self,
+        _: &'a str,
+        body: &'a Bytes,
+        _: Option<&'a serde_json::Value>,
+    ) -> BoxFuture<'a, Result<u64, CoreError>> {
+        let tokens = crate::usage::estimate_input_tokens(body);
+        Box::pin(async move { Ok(tokens) })
+    }
     fn record_credential_health<'a>(
         &'a self,
         credential: CredentialId,
@@ -297,6 +308,14 @@ impl ControlPlane for MemoryHost {
             metric_rates: BTreeMap::new(),
             conditional_metric_rates: BTreeMap::new(),
         })
+    }
+
+    fn exposed_models(&self) -> Vec<ExposedModel> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .exposed_models
+            .clone()
     }
 
     fn detached(&self) -> Box<dyn ControlPlane> {

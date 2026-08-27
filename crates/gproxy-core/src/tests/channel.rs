@@ -35,7 +35,11 @@ const REALTIME: OperationKey = OperationKey::family(
 );
 const CLAUDE_MODELS: OperationKey =
     OperationKey::family(Operation::ListModels, gproxy_protocol::WireFamily::Claude);
-static SUPPORTS: [ChannelSupport; 9] = [
+const CLAUDE_MESSAGES: OperationKey = OperationKey::content(
+    Operation::GenerateContent,
+    ContentGenerationKind::ClaudeMessages,
+);
+static SUPPORTS: [ChannelSupport; 10] = [
     ChannelSupport::passthrough(KEY),
     ChannelSupport::passthrough(STREAM_KEY),
     ChannelSupport::passthrough(CREATE_FILE),
@@ -45,6 +49,7 @@ static SUPPORTS: [ChannelSupport; 9] = [
     ChannelSupport::passthrough(WEB_SEARCH),
     ChannelSupport::passthrough(REALTIME),
     ChannelSupport::passthrough(CLAUDE_MODELS),
+    ChannelSupport::passthrough(CLAUDE_MESSAGES),
 ];
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
@@ -310,10 +315,12 @@ fn ingress_floor_strips_credentials_after_claude_classification() -> Result<(), 
     });
     let core = core(&host)?;
     let mut request = request(false, "claude-ingress-floor");
-    request.method = http::Method::GET;
-    request.path = "/v1/models".into();
+    request.method = http::Method::POST;
+    request.path = "/v1/messages".into();
     request.query = Some("key=caller-test-key&beta=true".into());
-    request.body = Bytes::new();
+    request.body = Bytes::from_static(
+        br#"{"model":"alias","max_tokens":8,"messages":[{"role":"user","content":"hi"}]}"#,
+    );
     for (name, value) in [
         ("x-api-key", "caller-test-key"),
         ("anthropic-version", "2023-06-01"),
@@ -347,7 +354,33 @@ fn ingress_floor_strips_credentials_after_claude_classification() -> Result<(), 
     }
     assert_eq!(headers["anthropic-version"], "2023-06-01");
     assert_eq!(headers["anthropic-beta"], "files-api-2025-04-14");
-    assert_eq!(uri, "https://upstream.test/v1/models?beta=true");
+    assert_eq!(uri, "https://upstream.test/v1/messages?beta=true");
+    Ok(())
+}
+
+#[test]
+fn local_model_list_avoids_upstream_and_records_zero_settlement() -> Result<(), crate::InitError> {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let core = core(&host)?;
+    let mut request = request(false, "local-models");
+    request.method = http::Method::GET;
+    request.path = "/v1/models".into();
+    request.body = Bytes::new();
+    let outcome = block_on(core.execute(&host, request)).expect("local model list");
+    let crate::ResponseBody::Full(body) = outcome.body else {
+        panic!("local response was not buffered");
+    };
+    let body: serde_json::Value = serde_json::from_slice(&body).expect("model list JSON");
+    assert_eq!(body["data"][0]["id"], "alias");
+    let state = host.state.lock().expect("state lock");
+    assert!(state.upstream_requests.is_empty());
+    assert_eq!(state.settlements.len(), 1);
+    assert_eq!(state.settlements[0].cost, rust_decimal::Decimal::ZERO);
+    assert_eq!(state.admission_finishes, [true]);
     Ok(())
 }
 

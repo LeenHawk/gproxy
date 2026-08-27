@@ -33,8 +33,17 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
     /// rather than refusing the request.
     fn pricing(&self, provider: &ProviderRef, upstream_model: &str) -> Option<Pricing>;
 
+    /// Gateway-visible model ids. Implementations answer from the same
+    /// in-memory snapshot used by [`Self::resolve`].
+    fn exposed_models(&self) -> Vec<ExposedModel>;
+
     /// Owned view for a long-lived task that outlives the execute call.
     fn detached(&self) -> Box<dyn ControlPlane>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExposedModel {
+    pub id: String,
 }
 
 /// The ordered candidates one request may try, plus the failover budget.

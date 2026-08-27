@@ -118,6 +118,41 @@ impl Host for AppHost {
         admission::admit_credential(self, target, body)
     }
 
+    fn count_tokens<'a>(
+        &'a self,
+        model: &'a str,
+        body: &'a bytes::Bytes,
+        tokenizer_map: Option<&'a serde_json::Value>,
+    ) -> BoxFuture<'a, Result<u64, gproxy_core::CoreError>> {
+        let model = model.to_owned();
+        let body = body.clone();
+        let tokenizer_map = tokenizer_map.cloned();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let registry = self.services.tokenizers.clone();
+            Box::pin(async move {
+                tokio::task::spawn_blocking(move || {
+                    gproxy_tokenize::count(&model, &body, tokenizer_map.as_ref(), &registry)
+                })
+                .await
+                .map_err(|error| {
+                    gproxy_core::CoreError::Internal(format!("tokenizer task failed: {error}"))
+                })
+            })
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            Box::pin(async move {
+                Ok(gproxy_tokenize::count(
+                    &model,
+                    &body,
+                    tokenizer_map.as_ref(),
+                    (),
+                ))
+            })
+        }
+    }
+
     fn record_credential_health<'a>(
         &'a self,
         credential: gproxy_channel_api::CredentialId,

@@ -285,6 +285,39 @@ pub(crate) async fn free_buffered<H: Host>(
     }
 }
 
+pub(crate) async fn local_buffered<H: Host>(
+    host: &H,
+    ctx: FunnelCtx,
+    status: http::StatusCode,
+    headers: http::HeaderMap,
+    body: Bytes,
+    disposition: Disposition,
+) -> ExecOutcome {
+    settlement::complete(
+        host,
+        &ctx,
+        settlement::Completion {
+            status: Some(status),
+            response_body: Some(body.clone()),
+            estimated_output_chars: None,
+            record_usage: true,
+            usage: Some(NormalizedUsage::default()),
+            actual_service_tier: None,
+            cost_override: Some(rust_decimal::Decimal::ZERO),
+            capture_response: true,
+            ended: Ended::Complete,
+        },
+    )
+    .await;
+    ExecOutcome {
+        status,
+        headers,
+        body: ResponseBody::Full(body),
+        disposition,
+        _settled: Settled(()),
+    }
+}
+
 pub(crate) fn free_streaming<H: Host>(
     host: Shared<H>,
     ctx: FunnelCtx,

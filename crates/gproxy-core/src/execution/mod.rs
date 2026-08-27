@@ -11,6 +11,7 @@ pub(crate) mod credential;
 mod failover;
 pub(crate) mod ingress;
 pub(crate) mod invoke;
+mod local;
 pub(crate) mod request;
 pub(crate) mod resource;
 
@@ -55,7 +56,10 @@ async fn execute_admitted<H: Host>(
 ) -> Result<ExecOutcome, CoreError> {
     let telemetry_ctx = ctx.clone();
     let key = classified.key;
-    let result = failover::run(core, control, ctx, plan, classified, owner_user_id, started).await;
+    let result = match local::run(core, control, &ctx, &plan, &classified, started).await {
+        Some(result) => result,
+        None => failover::run(core, control, ctx, plan, classified, owner_user_id, started).await,
+    };
     if let Err(error) = &result {
         core.host
             .finish_admission(&telemetry_ctx.request_id, None)

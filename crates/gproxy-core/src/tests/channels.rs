@@ -347,16 +347,12 @@ fn codex_private_model_catalog_shapes_to_public_models_without_losing_rest() -> 
 {
     let host = MemoryHost::new(false);
     host.state.lock().expect("state lock").credential.channel = "codex".into();
-    host.state.lock().expect("state lock").plan = Some(Plan {
-        targets: vec![codex_target()],
-        budget: FailoverBudget { max_attempts: 1 },
-    });
     let core = codex_core(&host)?;
     let mut request = request(false, "codex-models");
     request.method = Method::GET;
     request.path = "/v1/models".into();
     request.body = Bytes::new();
-    let outcome = block_on(core.execute(&host, request)).expect("Codex models");
+    let outcome = block_on(core.invoke(&host, &codex_target(), request)).expect("Codex models");
     let ResponseBody::Full(body) = outcome.body else {
         panic!("Codex models were not buffered");
     };
