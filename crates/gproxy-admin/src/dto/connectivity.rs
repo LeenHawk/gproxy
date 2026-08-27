@@ -6,6 +6,7 @@ use ts_rs::TS;
 #[ts(rename_all = "snake_case")]
 pub enum ConnectivityScopeDto {
     Global,
+    Proxy,
     Provider,
     Credential,
 }
@@ -15,12 +16,14 @@ pub struct ConnectivityTestRequest {
     pub scope: ConnectivityScopeDto,
     pub provider_id: Option<i64>,
     pub credential_id: Option<i64>,
+    pub proxy_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 pub enum ConnectivityProxySourceDto {
+    Proxy,
     Credential,
     Provider,
     Global,

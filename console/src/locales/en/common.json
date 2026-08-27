@@ -98,6 +98,7 @@
     "route": "{{source}} · {{latency}} ms total",
     "latency": "{{value}} ms",
     "sources": {
+      "proxy": "Proxy under test",
       "credential": "Credential proxy",
       "provider": "Provider proxy",
       "global": "Global proxy",

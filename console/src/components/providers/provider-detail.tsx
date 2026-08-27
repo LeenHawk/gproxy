@@ -99,7 +99,7 @@ export function ProviderDetail(props: Props) {
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><CableIcon aria-hidden />{props.provider.name} · {props.channel?.display_name ?? props.provider.channel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <ConnectivityTest request={{ scope: "provider", provider_id: props.provider.id, credential_id: null }} label={props.provider.label ?? props.provider.name} />
+          <ConnectivityTest request={{ scope: "provider", provider_id: props.provider.id, credential_id: null, proxy_url: null }} label={props.provider.label ?? props.provider.name} />
           <Badge variant={props.provider.enabled ? "outline" : "secondary"}>{t(`common.status.${props.provider.enabled ? "enabled" : "disabled"}`)}</Badge>
           <Field orientation="horizontal" className="w-auto">
             <FieldLabel htmlFor={switchId} className="sr-only">{t("providers.fields.enabled")}</FieldLabel>

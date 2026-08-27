@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next"
+import { ConnectivityTest } from "@/components/connectivity-test"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type Props = {
@@ -36,7 +38,10 @@ export function ProviderIdentityFields(props: Props) {
         </Field>
         <Field>
           <FieldLabel htmlFor={`${props.id}-proxy`}>{t("providers.fields.proxy")}</FieldLabel>
-          <Input id={`${props.id}-proxy`} type="url" className="font-mono" value={props.proxyUrl} onChange={(event) => props.onProxy(event.target.value)} />
+          <InputGroup>
+            <InputGroupInput id={`${props.id}-proxy`} type="url" className="font-mono" value={props.proxyUrl} onChange={(event) => props.onProxy(event.target.value)} />
+            <InputGroupAddon align="inline-end"><ConnectivityTest request={{ scope: "proxy", provider_id: null, credential_id: null, proxy_url: props.proxyUrl }} label={t("providers.fields.proxy")} disabled={!props.proxyUrl.trim()} /></InputGroupAddon>
+          </InputGroup>
           <FieldDescription>{t("providers.form.proxyHint")}</FieldDescription>
         </Field>
       </div>

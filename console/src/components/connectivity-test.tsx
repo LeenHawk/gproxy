@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-export function ConnectivityTest({ request, label }: { request: ConnectivityTestRequest; label: string }) {
+export function ConnectivityTest({ request, label, disabled = false }: { request: ConnectivityTestRequest; label: string; disabled?: boolean }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const mutation = useMutation({
@@ -20,7 +20,7 @@ export function ConnectivityTest({ request, label }: { request: ConnectivityTest
     onError: () => toast.error(t("connectivity.requestError")),
   })
   return <>
-    <Button type="button" size="icon-sm" variant="outline" disabled={mutation.isPending} aria-label={`${t("connectivity.action")}: ${label}`} onClick={(event) => { event.stopPropagation(); mutation.mutate() }}>
+    <Button type="button" size="icon-sm" variant="outline" disabled={disabled || mutation.isPending} aria-label={`${t("connectivity.action")}: ${label}`} onClick={(event) => { event.stopPropagation(); mutation.mutate() }}>
       {mutation.isPending ? <LoaderCircleIcon className="animate-spin" aria-hidden /> : <WifiIcon aria-hidden />}
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>

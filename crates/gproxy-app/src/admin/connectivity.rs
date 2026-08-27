@@ -91,7 +91,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn credential_probe_uses_its_configured_proxy() {
+    async fn credential_and_standalone_probes_use_their_configured_proxies() {
         let directory = tempfile::tempdir().unwrap();
         let app = crate::App::start(crate::Config::sqlite(
             "127.0.0.1:0".parse().unwrap(),
@@ -146,6 +146,7 @@ mod tests {
                 scope: ConnectivityScopeDto::Credential,
                 provider_id: None,
                 credential_id: Some(credential),
+                proxy_url: None,
             },
             &transport,
         )
@@ -159,6 +160,27 @@ mod tests {
             [
                 "http://credential-proxy.invalid",
                 "http://credential-proxy.invalid",
+            ]
+        );
+        let standalone = run(
+            &app,
+            &ConnectivityTestRequest {
+                scope: ConnectivityScopeDto::Proxy,
+                provider_id: None,
+                credential_id: None,
+                proxy_url: Some("http://standalone-proxy.invalid".into()),
+            },
+            &transport,
+        )
+        .await
+        .unwrap();
+        assert!(standalone.ok);
+        assert_eq!(standalone.proxy_source, ConnectivityProxySourceDto::Proxy);
+        assert_eq!(
+            &transport.0.lock().unwrap()[2..],
+            [
+                "http://standalone-proxy.invalid",
+                "http://standalone-proxy.invalid",
             ]
         );
     }

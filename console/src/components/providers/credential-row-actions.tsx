@@ -42,7 +42,7 @@ export function CredentialRowActions({ credential, channel, presets, saving, onS
         <FieldLabel htmlFor={switchId} className="sr-only">{t("providers.credentials.enabled")}</FieldLabel>
         <Switch id={switchId} size="sm" checked={credential.enabled} onCheckedChange={(value) => void setEnabled(value)} disabled={saving} />
       </Field>
-      <ConnectivityTest request={{ scope: "credential", provider_id: null, credential_id: credential.id }} label={name} />
+      <ConnectivityTest request={{ scope: "credential", provider_id: null, credential_id: credential.id, proxy_url: null }} label={name} />
       <CredentialDialog
         providerId={credential.provider_id}
         credential={credential}

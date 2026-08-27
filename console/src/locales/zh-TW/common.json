@@ -98,6 +98,7 @@
     "route": "{{source}} · 總計 {{latency}} 毫秒",
     "latency": "{{value}} 毫秒",
     "sources": {
+      "proxy": "待測試代理",
       "credential": "憑證代理",
       "provider": "供應商代理",
       "global": "全域代理",

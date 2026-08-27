@@ -14,13 +14,27 @@ pub(super) async fn test(state: &impl State, body: &Bytes) -> Result<Response<By
 fn validate(request: &ConnectivityTestRequest) -> Result<(), AdminError> {
     let valid = match request.scope {
         crate::dto::ConnectivityScopeDto::Global => {
-            request.provider_id.is_none() && request.credential_id.is_none()
+            request.provider_id.is_none()
+                && request.credential_id.is_none()
+                && request.proxy_url.is_none()
+        }
+        crate::dto::ConnectivityScopeDto::Proxy => {
+            request.provider_id.is_none()
+                && request.credential_id.is_none()
+                && request
+                    .proxy_url
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
         }
         crate::dto::ConnectivityScopeDto::Provider => {
-            request.provider_id.is_some() && request.credential_id.is_none()
+            request.provider_id.is_some()
+                && request.credential_id.is_none()
+                && request.proxy_url.is_none()
         }
         crate::dto::ConnectivityScopeDto::Credential => {
-            request.provider_id.is_none() && request.credential_id.is_some()
+            request.provider_id.is_none()
+                && request.credential_id.is_some()
+                && request.proxy_url.is_none()
         }
     };
     if valid {

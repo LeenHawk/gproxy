@@ -12,6 +12,24 @@ pub(super) fn resolve(
 ) -> Result<(ProviderRef, ConnectivityProxySourceDto), AdminError> {
     let services = &app.inner.host.services;
     let settings = services.control.settings();
+    if request.scope == ConnectivityScopeDto::Proxy {
+        let proxy_url = request
+            .proxy_url
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| AdminError::BadRequest("proxy URL is required".into()))?;
+        return Ok((
+            ProviderRef {
+                id: 0,
+                name: "proxy connectivity probe".into(),
+                channel: String::new(),
+                settings: serde_json::json!({}),
+                fingerprint: None,
+                proxy_url: Some(proxy_url.trim().into()),
+            },
+            ConnectivityProxySourceDto::Proxy,
+        ));
+    }
     if request.scope == ConnectivityScopeDto::Global {
         let source = fallback(settings.proxy.as_ref(), settings.inherit_system_proxy);
         return Ok((
