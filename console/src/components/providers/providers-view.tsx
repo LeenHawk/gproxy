@@ -109,7 +109,7 @@ export function ProvidersView(props: Props) {
               rows={props.providers}
               rowKey={(provider) => provider.id}
               searchText={(provider) => `${provider.label ?? ""} ${provider.name} ${provider.channel}`}
-              renderCard={(provider) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{provider.label ?? provider.name}</p><p className="truncate font-mono text-xs text-muted-foreground">{provider.label ? `${provider.name} · ` : ""}{provider.channel}</p></div><Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge></div>}
+              renderCard={(provider) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{provider.label ?? provider.name}</p><p className="truncate font-mono text-xs text-muted-foreground">{provider.label ? `${provider.name} · ` : ""}{provider.channel}</p></div><div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}><Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge><ConnectivityTest request={{ scope: "provider", provider_id: provider.id, credential_id: null }} label={provider.label ?? provider.name} /></div></div>}
               empty={t("providers.empty")}
               storageKey="providers"
               selectable
