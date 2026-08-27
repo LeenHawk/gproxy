@@ -94,6 +94,13 @@ pub(crate) async fn prepare<H: Host>(
                 CoreError::Transform(format!("no request target for {:?}", support.target))
             })?;
     }
+    if support.target.kind
+        == gproxy_protocol::OperationKind::ContentGeneration(
+            gproxy_protocol::ContentGenerationKind::ClaudeMessages,
+        )
+    {
+        body = gproxy_channels::apply_claude_magic_cache(body)?;
+    }
     let mutation = crate::process::apply_request(
         &target.rules.process,
         support.target,

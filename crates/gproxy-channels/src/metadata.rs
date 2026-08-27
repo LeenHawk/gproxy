@@ -19,7 +19,6 @@ pub(crate) const BASE_URL: &[ChannelField] = &[field("base_url", Url, false, fal
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),
-    field("enable_claude_magic_cache", Boolean, false, true),
     field("claude_fable_fallbacks", StringList, false, true),
 ];
 pub(crate) const BEDROCK: &[ChannelField] = &[

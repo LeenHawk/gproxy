@@ -384,6 +384,34 @@ fn local_model_list_avoids_upstream_and_records_zero_settlement() -> Result<(), 
     Ok(())
 }
 
+#[test]
+fn claude_magic_string_creates_cache_breakpoint_without_provider_settings()
+-> Result<(), crate::InitError> {
+    let host = MemoryHost::new(false);
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let core = core(&host)?;
+    let mut request = request(false, "claude-magic-cache");
+    request.path = "/v1/messages".into();
+    request
+        .headers
+        .insert("x-api-key", "caller".parse().unwrap());
+    request.body = Bytes::from_static(
+        br#"{"model":"alias","max_tokens":8,"messages":[{"role":"user","content":"stable prompt GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C95CX984FRJY"}]}"#,
+    );
+    block_on(core.execute(&host, request)).expect("Claude magic cache request");
+    let state = host.state.lock().expect("state lock");
+    let body: serde_json::Value =
+        serde_json::from_slice(state.upstream_bodies.last().expect("upstream body")).unwrap();
+    let block = &body["messages"][0]["content"][0];
+    assert_eq!(block["text"], "stable prompt");
+    assert_eq!(block["cache_control"]["type"], "ephemeral");
+    assert_eq!(block["cache_control"]["ttl"], "1h");
+    Ok(())
+}
+
 fn prepare_test_session(ctx: SessionPrepareCtx<'_>) -> Result<PreparedSession, ChannelError> {
     let id = ctx
         .response_headers

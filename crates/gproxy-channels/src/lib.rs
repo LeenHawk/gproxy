@@ -64,6 +64,19 @@ pub use vertexexpress::VertexExpressChannel;
 pub use workbuddy::WorkBuddyChannel;
 pub use xai::XaiChannel;
 
+/// Apply the frozen client-to-proxy Claude cache marker protocol.
+pub fn apply_claude_magic_cache(
+    body: bytes::Bytes,
+) -> Result<bytes::Bytes, gproxy_channel_api::ChannelError> {
+    let mut value = serde_json::from_slice(&body).map_err(|error| {
+        gproxy_channel_api::ChannelError::Prepare(format!("Claude request JSON: {error}"))
+    })?;
+    shared::cache::claude(&mut value);
+    serde_json::to_vec(&value)
+        .map(bytes::Bytes::from)
+        .map_err(|error| gproxy_channel_api::ChannelError::Prepare(error.to_string()))
+}
+
 /// Canonicalize channel ids at the legacy configuration import boundary.
 pub fn canonical_channel_id(id: &str) -> &str {
     match id {
