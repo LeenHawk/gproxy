@@ -22,7 +22,11 @@ pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
     ) {
         "index.html"
     } else if let Some(path) = request_path.strip_prefix('/')
-        && (path.starts_with("assets/") || path == "favicon.svg")
+        && (path.starts_with("assets/")
+            || matches!(
+                path,
+                "favicon.ico" | "favicon-96x96.png" | "apple-touch-icon.png"
+            ))
     {
         path
     } else {
