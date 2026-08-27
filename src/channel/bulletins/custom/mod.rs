@@ -16,8 +16,6 @@ use crate::protocol::{ContentGenerationKind, OperationKind};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: None,
-    // Custom passthrough endpoints are often client-gated upstream (user-agent
-    // allow-lists), so forward the inbound UA to stay transparent.
     forward_headers: &["user-agent"],
     forward_query: &["after", "limit", "order", "variant"],
 };
