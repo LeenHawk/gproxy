@@ -13,6 +13,23 @@ const fn field(
         required,
         advanced,
         default_value: None,
+        options: &[],
+    }
+}
+
+const fn select(
+    key: &'static str,
+    options: &'static [&'static str],
+    default_value: &'static str,
+) -> ChannelField {
+    ChannelField {
+        key,
+        i18n_key: key,
+        control: Select,
+        required: true,
+        advanced: true,
+        default_value: Some(default_value),
+        options,
     }
 }
 
@@ -20,7 +37,9 @@ pub(crate) const BASE_URL: &[ChannelField] = &[field("base_url", Url, false, fal
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),
-    field("claude_fable_fallbacks", StringList, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
+    select("claude_fallback_mode", &["off", "default", "models"], "off"),
+    field("claude_fallback_models", StringList, false, true),
 ];
 pub(crate) const BEDROCK: &[ChannelField] = &[
     field("base_url", Url, false, false),
@@ -44,7 +63,11 @@ pub(crate) const OPENCODE: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("tier", Text, false, false),
     field("console_base_url", Url, false, true),
+    field("enable_openai_magic_cache", Boolean, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
 ];
+pub(crate) const OPENROUTER: &[ChannelField] = CUSTOM;
+pub(crate) const VERCEL: &[ChannelField] = CUSTOM;
 pub(crate) const OAUTH: &[ChannelField] = &[
     field("access_token", Secret, true, false),
     field("refresh_token", Secret, false, true),

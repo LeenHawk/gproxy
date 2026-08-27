@@ -54,10 +54,8 @@ fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, Channe
                 .get("enable_claude_magic_cache")
                 .and_then(Value::as_bool)
                 == Some(true));
-    let fallback = claude
-        .then(|| ctx.provider_settings.get("claude_fable_fallbacks"))
-        .flatten();
-    if !openai && !cache && fallback.is_none() {
+    let fallback = claude && crate::shared::claude::fallback::enabled(ctx.provider_settings);
+    if !openai && !cache && !fallback {
         return Ok(body);
     }
     with_object(body, |object| {
@@ -72,8 +70,8 @@ fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, Channe
                 crate::shared::cache::claude(&mut value);
             }
         }
-        if let Some(fallback) = fallback {
-            crate::shared::claude::fallback::apply_without_beta(&mut value, fallback);
+        if fallback {
+            crate::shared::claude::fallback::apply_without_beta(&mut value, ctx.provider_settings);
         }
         *object = value
             .as_object_mut()

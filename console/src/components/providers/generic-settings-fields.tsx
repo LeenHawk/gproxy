@@ -2,6 +2,7 @@ import type { ChannelFieldDto } from "@/generated/ChannelFieldDto"
 import { useTranslation } from "react-i18next"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { inputValue, settingValue, updateSetting } from "./settings-values"
 
@@ -34,6 +35,18 @@ export function GenericSettingsFields({
             checked={value === true}
             onCheckedChange={(next) => onChange(updateSetting(values, field, next))}
           />
+        </Field>
+      )
+    }
+    if (field.control === "select") {
+      return (
+        <Field key={field.key}>
+          <FieldLabel htmlFor={id}>{text.label}</FieldLabel>
+          <Select value={typeof value === "string" ? value : ""} onValueChange={(next) => onChange(updateSetting(values, field, next))}>
+            <SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup>{field.options.map((option) => <SelectItem key={option} value={option}>{t(`providers.channelFieldOptions.${field.i18n_key}.${option}`)}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+          <FieldDescription>{text.description}</FieldDescription>
         </Field>
       )
     }

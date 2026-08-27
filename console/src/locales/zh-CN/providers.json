@@ -16,7 +16,9 @@
     "channelFields": {
       "base_url": { "label": "Base URL", "description": "未配置精确端点覆盖时使用的默认上游地址。" },
       "enable_openai_magic_cache": { "label": "OpenAI 魔法字符串缓存", "description": "识别支持的触发字符串，并写入明确的 OpenAI 缓存断点。" },
-      "claude_fable_fallbacks": { "label": "Claude 回退模型", "description": "主 Claude 模型拒绝请求时按顺序尝试的模型名称。" },
+      "enable_claude_magic_cache": { "label": "Claude 魔法字符串缓存", "description": "识别支持的触发字符串，并写入 Claude cache-control 缓存断点。" },
+      "claude_fallback_mode": { "label": "Claude 回退模式", "description": "可关闭回退、使用上游默认路由，或应用明确的模型链。" },
+      "claude_fallback_models": { "label": "Claude 回退模型", "description": "回退模式为“模型”时按顺序尝试的逗号分隔模型。" },
       "region": { "label": "AWS 区域", "description": "选择此渠道使用的 AWS 区域端点。" },
       "video_output_s3_uri": { "label": "视频输出 S3 URI", "description": "生成的视频结果写入的 S3 目标地址。" },
       "location": { "label": "Vertex 区域", "description": "用于构造 Vertex AI 端点的 Google Cloud 区域。" },
@@ -39,6 +41,9 @@
       "access_key_id": { "label": "AWS Access Key ID", "description": "AWS 签名凭据的公开标识。" },
       "secret_access_key": { "label": "AWS Secret Access Key", "description": "用于签署 AWS 请求的秘密密钥。" },
       "session_token": { "label": "AWS Session Token", "description": "与 AWS Access Key 配套的临时会话 Token。" }
+    },
+    "channelFieldOptions": {
+      "claude_fallback_mode": { "off": "关闭", "default": "上游默认", "models": "模型" }
     },
     "tabs": {
       "settings": "设置"

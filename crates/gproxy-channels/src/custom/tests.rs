@@ -144,7 +144,7 @@ fn applies_only_the_enabled_protocol_cache_and_fallback_shaping() {
     let claude_settings = json!({
         "base_url":"https://claude.example",
         "enable_claude_magic_cache":true,
-        "claude_fable_fallbacks":"default"
+        "claude_fallback_mode":"default"
     });
     let claude_body = Bytes::from(
         json!({

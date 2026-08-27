@@ -87,7 +87,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "vercel",
     display_name: "Vercel AI Gateway",
     supports: &SUPPORTS,
-    provider_fields: crate::metadata::BASE_URL,
+    provider_fields: crate::metadata::VERCEL,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
 };

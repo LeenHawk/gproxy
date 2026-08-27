@@ -1,14 +1,32 @@
 use http::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
-pub(crate) fn apply(body: &mut Value, headers: &mut HeaderMap, configured: &Value) {
-    if let Some(beta) = insert(body, configured, true) {
+pub(crate) fn enabled(settings: &Value) -> bool {
+    configured(settings).is_some()
+}
+
+pub(crate) fn apply(body: &mut Value, headers: &mut HeaderMap, settings: &Value) {
+    let Some(configured) = configured(settings) else {
+        return;
+    };
+    if let Some(beta) = insert(body, &configured, true) {
         append_beta(headers, beta);
     }
 }
 
-pub(crate) fn apply_without_beta(body: &mut Value, configured: &Value) {
-    insert(body, configured, false);
+pub(crate) fn apply_without_beta(body: &mut Value, settings: &Value) {
+    if let Some(configured) = configured(settings) {
+        insert(body, &configured, false);
+    }
+}
+
+fn configured(settings: &Value) -> Option<Value> {
+    match settings.get("claude_fallback_mode").and_then(Value::as_str) {
+        Some("default") => Some(json!("default")),
+        Some("models") => settings.get("claude_fallback_models").cloned(),
+        Some("off") => None,
+        _ => settings.get("claude_fable_fallbacks").cloned(),
+    }
 }
 
 fn insert(body: &mut Value, configured: &Value, anthropic_policy: bool) -> Option<&'static str> {

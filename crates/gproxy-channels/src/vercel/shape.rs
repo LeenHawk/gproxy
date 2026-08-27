@@ -32,9 +32,7 @@ pub(super) fn request(
         } else {
             crate::shared::claude::hygiene::messages(&mut value, headers);
         }
-        if let Some(fallback) = ctx.provider_settings.get("claude_fable_fallbacks") {
-            crate::shared::claude::fallback::apply(&mut value, headers, fallback);
-        }
+        crate::shared::claude::fallback::apply(&mut value, headers, ctx.provider_settings);
     }
     serde_json::to_vec(&value)
         .map(Bytes::from)

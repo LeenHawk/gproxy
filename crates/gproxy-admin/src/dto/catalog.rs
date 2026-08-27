@@ -33,6 +33,7 @@ pub enum ChannelFieldControlDto {
     Integer,
     Boolean,
     StringList,
+    Select,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -43,6 +44,7 @@ pub struct ChannelFieldDto {
     pub required: bool,
     pub advanced: bool,
     pub default_value: Option<String>,
+    pub options: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -164,10 +166,12 @@ fn channel_field(field: &gproxy_channel_api::ChannelField) -> ChannelFieldDto {
             gproxy_channel_api::ChannelFieldControl::StringList => {
                 ChannelFieldControlDto::StringList
             }
+            gproxy_channel_api::ChannelFieldControl::Select => ChannelFieldControlDto::Select,
         },
         required: field.required,
         advanced: field.advanced,
         default_value: field.default_value.map(Into::into),
+        options: field.options.iter().map(|value| (*value).into()).collect(),
     }
 }
 

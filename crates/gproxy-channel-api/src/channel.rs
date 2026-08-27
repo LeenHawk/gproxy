@@ -48,6 +48,7 @@ pub enum ChannelFieldControl {
     Integer,
     Boolean,
     StringList,
+    Select,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +59,7 @@ pub struct ChannelField {
     pub required: bool,
     pub advanced: bool,
     pub default_value: Option<&'static str>,
+    pub options: &'static [&'static str],
 }
 
 impl ChannelSupport {

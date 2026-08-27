@@ -164,7 +164,7 @@ fn prepare_applies_service_tier_image_edit_and_video_wire_shaping() {
         &HeaderMap::new(),
         &claude_body,
         "anthropic/claude-fable-5",
-        &json!({"enable_claude_magic_cache":true,"claude_fable_fallbacks":"default"}),
+        &json!({"enable_claude_magic_cache":true,"claude_fallback_mode":"default"}),
     );
     let claude_value: Value = serde_json::from_slice(claude.body()).unwrap();
     assert_eq!(

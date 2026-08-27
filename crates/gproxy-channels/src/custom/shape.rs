@@ -19,10 +19,8 @@ pub(super) fn request(
     let claude =
         key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
     let claude_cache = claude && enabled(settings, "enable_claude_magic_cache");
-    let fallback = claude
-        .then(|| settings.get("claude_fable_fallbacks"))
-        .flatten();
-    if !openai && !claude_cache && fallback.is_none() {
+    let fallback = claude && crate::shared::claude::fallback::enabled(settings);
+    if !openai && !claude_cache && !fallback {
         return Ok(body);
     }
     let mut value: Value = serde_json::from_slice(&body)
@@ -33,8 +31,8 @@ pub(super) fn request(
     if claude_cache {
         crate::shared::cache::claude(&mut value);
     }
-    if let Some(fallback) = fallback {
-        crate::shared::claude::fallback::apply(&mut value, headers, fallback);
+    if fallback {
+        crate::shared::claude::fallback::apply(&mut value, headers, settings);
     }
     serde_json::to_vec(&value)
         .map(Bytes::from)
