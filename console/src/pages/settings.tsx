@@ -7,6 +7,7 @@ import { InstanceSettingsForm } from "@/components/settings/instance-settings-fo
 import { TokenizerVocabsCard } from "@/components/settings/tokenizer-vocabs-card"
 import { ConfigurationTransferCard } from "@/components/settings/configuration-transfer-card"
 import { AutostartCard } from "@/components/settings/autostart-card"
+import { UpdateCard } from "@/components/settings/update-card"
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -19,6 +20,7 @@ export function SettingsPage() {
       </QueryState>
       <ConfigurationTransferCard />
       <AutostartCard />
+      <UpdateCard />
       <QueryState loading={vocabs.isLoading} error={vocabs.error ? t("settings.tokenizers.loadError") : ""}>
         {query.data && vocabs.data ? <TokenizerVocabsCard values={vocabs.data} downloadEnabled={query.data.enable_tokenizer_download} /> : null}
       </QueryState>

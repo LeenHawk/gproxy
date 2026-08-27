@@ -15,6 +15,7 @@ pub struct HostConfig {
     cors_origins: Arc<[String]>,
     upstream_proxy_url: Option<String>,
     autostart: Option<Arc<crate::autostart::Manager>>,
+    selfupdate: Option<Arc<crate::selfupdate::Manager>>,
 }
 
 impl HostConfig {
@@ -25,6 +26,13 @@ impl HostConfig {
         if let Err(error) = autostart.initialize_default() {
             tracing::warn!(%error, "automatic startup initialization failed");
         }
+        let selfupdate = crate::selfupdate::Manager::new(
+            config.data_dir().to_owned(),
+            config.upstream_proxy_url(),
+        )
+        .map(Arc::new)
+        .map_err(|error| tracing::warn!(%error, "self-update initialization failed"))
+        .ok();
         Self {
             max_in_flight: config.max_in_flight(),
             instance_id: config.instance_id(),
@@ -32,6 +40,7 @@ impl HostConfig {
             cors_origins: config.cors_origins().into(),
             upstream_proxy_url: config.upstream_proxy_url().map(str::to_owned),
             autostart: Some(autostart),
+            selfupdate,
         }
     }
 }
@@ -45,6 +54,7 @@ impl Default for HostConfig {
             cors_origins: Arc::new([]),
             upstream_proxy_url: None,
             autostart: None,
+            selfupdate: None,
         }
     }
 }
@@ -58,6 +68,7 @@ pub(crate) struct HostState {
     pub uploads: Arc<UploadState>,
     pub announcements: crate::announce::Announcements,
     pub autostart: Option<Arc<crate::autostart::Manager>>,
+    pub selfupdate: Option<Arc<crate::selfupdate::Manager>>,
     instance_id: u64,
     request_prefix: u64,
     request_counter: Arc<AtomicU64>,
@@ -78,6 +89,7 @@ impl HostState {
             )
             .map_err(|_| HostError::AnnouncementClient)?,
             autostart: config.autostart,
+            selfupdate: config.selfupdate,
             instance_id: config.instance_id,
             request_prefix: u64::from_be_bytes(prefix),
             request_counter: Arc::new(AtomicU64::new(1)),

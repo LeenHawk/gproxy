@@ -81,6 +81,22 @@ async fn handle_request(
         let response = crate::autostart::dispatch(state.autostart.as_deref(), &method, &body);
         return crate::response::buffered_response(response, permit, &request_id);
     }
+    if path == "/admin/native/update" || path.starts_with("/admin/native/update/") {
+        if let Err(response) = gproxy_admin::authorize_host_route(
+            &state.app,
+            &parts,
+            method != Method::GET && method != Method::HEAD,
+        )
+        .await
+        {
+            return crate::response::buffered_response(response, permit, &request_id);
+        }
+        let response = match state.selfupdate.as_deref() {
+            Some(manager) => manager.dispatch(&method, &path).await,
+            None => crate::selfupdate::unavailable(),
+        };
+        return crate::response::buffered_response(response, permit, &request_id);
+    }
     if (path == "/admin" || path.starts_with("/admin/"))
         && let Some(response) = state.app.admin_dispatch(&parts, body.clone()).await
     {

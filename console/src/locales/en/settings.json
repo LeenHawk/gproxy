@@ -64,6 +64,20 @@
         "unsupported": "Login startup is unavailable on this installation."
       }
     },
+    "update": {
+      "title": "Native updates",
+      "description": "Check the signed maintainer manifest. An archive is verified before it is extracted, and the previous executable is kept for rollback.",
+      "loadError": "Could not verify update information.",
+      "versions": "Installed {{current}} · available {{latest}}",
+      "target": "{{channel}} · {{target}} · restart {{restart}}",
+      "apply": "Verify and apply",
+      "current": "Up to date",
+      "applied": "Version {{version}} was applied.",
+      "applyError": "The update was refused or could not be applied.",
+      "rollback": "Roll back",
+      "rolledBack": "The previous executable was restored.",
+      "rollbackError": "No usable rollback executable could be restored."
+    },
     "tokenizers": {
       "title": "Tokenizer vocabularies",
       "description": "Inspect, fetch, and remove vocabularies cached in this instance.",

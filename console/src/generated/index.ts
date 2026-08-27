@@ -127,6 +127,8 @@ export * from "./TokenizerVocabDto";
 export * from "./TransformActionDto";
 export * from "./TransformLocateDto";
 export * from "./TransformPhaseDto";
+export * from "./UpdateAppliedDto";
+export * from "./UpdateStatusDto";
 export * from "./UsageAggregateDto";
 export * from "./UsageGroupByDto";
 export * from "./UsageQueryDto";
