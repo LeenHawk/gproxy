@@ -11,11 +11,11 @@ mod request_policy;
 #[cfg(not(target_arch = "wasm32"))]
 mod response;
 #[cfg(not(target_arch = "wasm32"))]
+mod selfupdate;
+#[cfg(not(target_arch = "wasm32"))]
 mod server;
 #[cfg(not(target_arch = "wasm32"))]
 mod signature;
-#[cfg(not(target_arch = "wasm32"))]
-mod selfupdate;
 #[cfg(not(target_arch = "wasm32"))]
 mod static_assets;
 #[cfg(not(target_arch = "wasm32"))]
