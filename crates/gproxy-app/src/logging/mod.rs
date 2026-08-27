@@ -25,10 +25,9 @@ pub(crate) struct Policy {
 
 impl Policy {
     pub(crate) fn read(settings: &[SettingRecord]) -> Self {
-        let body_allowed = crate::cleanup::body_capture_enabled(settings);
         Self {
             upstream: enabled(settings, ENABLE_UPSTREAM_LOG),
-            upstream_body: enabled(settings, ENABLE_UPSTREAM_LOG_BODY) && body_allowed,
+            upstream_body: enabled(settings, ENABLE_UPSTREAM_LOG_BODY),
             redact: !enabled(settings, DISABLE_LOG_REDACTION),
         }
     }
@@ -43,8 +42,7 @@ pub(crate) async fn begin(
         return None;
     }
     let redact = !enabled(settings, DISABLE_LOG_REDACTION);
-    let body = enabled(settings, ENABLE_DOWNSTREAM_LOG_BODY)
-        && crate::cleanup::body_capture_enabled(settings);
+    let body = enabled(settings, ENABLE_DOWNSTREAM_LOG_BODY);
     let input = RequestLogInput {
         request_id: request.request_id.clone(),
         at: unix_now(),

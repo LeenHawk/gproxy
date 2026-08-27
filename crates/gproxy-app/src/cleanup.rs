@@ -12,6 +12,15 @@ const MIB: u64 = 1024 * 1024;
 pub(crate) const RETENTION_DAYS: &str = gproxy_store::records::RETENTION_DAYS;
 pub(crate) const MAX_DATABASE_SIZE_MB: &str = gproxy_store::records::MAX_DATABASE_SIZE_MB;
 
+/// Both bounds default rather than gating capture on being configured.
+/// Requiring an operator to understand retention before they may record one
+/// request is a refusal, not a safeguard — and defaulting is strictly safer,
+/// because every deployment gets a bound instead of only the configured ones.
+/// A century of retention means the calendar never purges and the size cap is
+/// the bound that actually bites.
+const DEFAULT_RETENTION_DAYS: u64 = 36_500;
+const DEFAULT_MAX_DATABASE_SIZE_MB: u64 = 1_024;
+
 pub(crate) fn schedule(host: &AppHost) {
     let Some(spawner) = host.spawner() else {
         return;
@@ -27,29 +36,19 @@ pub(crate) fn schedule(host: &AppHost) {
     }));
 }
 
-pub(crate) fn body_capture_enabled(settings: &[SettingRecord]) -> bool {
-    positive(settings, RETENTION_DAYS)
-        .and_then(|days| days.checked_mul(SECONDS_PER_DAY))
-        .and_then(|seconds| i64::try_from(seconds).ok())
-        .is_some()
-        || positive(settings, MAX_DATABASE_SIZE_MB)
-            .and_then(|megabytes| megabytes.checked_mul(MIB))
-            .is_some()
-}
-
 async fn sweep(host: &AppHost) -> Result<(), gproxy_store::StoreError> {
     let snapshot = host.services.control.current();
     let retention_cutoff = positive(&snapshot.settings, RETENTION_DAYS)
-        .and_then(|days| days.checked_mul(SECONDS_PER_DAY))
+        .unwrap_or(DEFAULT_RETENTION_DAYS)
+        .checked_mul(SECONDS_PER_DAY)
         .and_then(|seconds| i64::try_from(seconds).ok())
         .map(|seconds| unix_now().saturating_sub(seconds));
-    let max_database_bytes = positive(&snapshot.settings, MAX_DATABASE_SIZE_MB)
-        .map(|megabytes| {
-            megabytes
-                .checked_mul(MIB)
-                .ok_or_else(|| invalid_setting(MAX_DATABASE_SIZE_MB))
-        })
-        .transpose()?;
+    let max_database_bytes = Some(
+        positive(&snapshot.settings, MAX_DATABASE_SIZE_MB)
+            .unwrap_or(DEFAULT_MAX_DATABASE_SIZE_MB)
+            .checked_mul(MIB)
+            .ok_or_else(|| invalid_setting(MAX_DATABASE_SIZE_MB))?,
+    );
     let result = host
         .services
         .store
