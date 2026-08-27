@@ -108,7 +108,7 @@ export function AccessManager(props: AccessManagerProps) {
     <Card>
       <CardHeader><CardTitle>{scopeChain?.[0] ? t("access.scope.title", { scope: subject(scopeChain[0].kind, scopeChain[0].id) }) : t("access.title")}</CardTitle><CardDescription>{scopeChain ? t("access.scope.description") : t("access.subtitle")}</CardDescription></CardHeader>
       <CardContent><Tabs defaultValue="permissions">
-        <TabsList className="max-w-full overflow-x-auto"><TabsTrigger value="permissions">{t("access.permissions.title")}</TabsTrigger><TabsTrigger value="rates">{t("access.rateLimits.title")}</TabsTrigger><TabsTrigger value="quotas">{t("access.quotas.title")}</TabsTrigger></TabsList>
+        <TabsList className="max-w-full overflow-x-auto overflow-y-hidden"><TabsTrigger value="permissions">{t("access.permissions.title")}</TabsTrigger><TabsTrigger value="rates">{t("access.rateLimits.title")}</TabsTrigger><TabsTrigger value="quotas">{t("access.quotas.title")}</TabsTrigger></TabsList>
         <TabsContent value="permissions" className="flex flex-col gap-6 pt-5"><PermissionForm {...shared} providers={props.providers} groups={props.groups} pending={permissionMutation.isPending} onSubmit={(value) => {
           const stored = props.permissions.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.provider_id === value.provider_id && item.operation_group === value.operation_group)
           return permissionMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)

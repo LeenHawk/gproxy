@@ -50,7 +50,7 @@ export function IdentityTable(props: IdentityTableProps) {
 
   return (
     <Tabs defaultValue="users">
-      <TabsList className="max-w-full overflow-x-auto">
+      <TabsList className="max-w-full overflow-x-auto overflow-y-hidden">
         <TabsTrigger value="users">{t("access.subjectKinds.user")}</TabsTrigger>
         <TabsTrigger value="teams">{t("users.fields.team")}</TabsTrigger>
         <TabsTrigger value="organizations">{t("users.fields.organization")}</TabsTrigger>

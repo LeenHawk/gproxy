@@ -43,7 +43,7 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
             <Button className="hidden lg:inline-flex" size="icon-sm" variant="ghost" aria-label={t(sidebar.collapsed ? "nav.open" : "nav.close")} onClick={sidebar.toggle}>{sidebar.collapsed ? <PanelLeftOpenIcon aria-hidden /> : <PanelLeftCloseIcon aria-hidden />}</Button>
           </header>
           <Separator />
-          <nav className="flex gap-1 overflow-x-auto p-2 lg:flex-1 lg:flex-col" aria-label={t("nav.label")}>
+          <nav className="flex gap-1 overflow-x-auto overflow-y-hidden p-2 lg:flex-1 lg:flex-col" aria-label={t("nav.label")}>
             {items.map(({ route: itemRoute, icon: Icon }) => (
               <Button key={itemRoute} variant={route === itemRoute ? "secondary" : "ghost"} aria-current={route === itemRoute ? "page" : undefined} aria-label={t(`nav.${itemRoute}`)} className={cn("justify-start", sidebar.collapsed && "lg:justify-center", route === itemRoute && "font-medium")} onClick={() => navigateAdminPath(adminPath(itemRoute))}>
                 <Icon data-icon="inline-start" />

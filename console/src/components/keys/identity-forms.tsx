@@ -63,7 +63,7 @@ export function IdentityForms(props: IdentityFormsProps) {
 
   return (
     <Tabs defaultValue="user">
-      <TabsList className="max-w-full overflow-x-auto">
+      <TabsList className="max-w-full overflow-x-auto overflow-y-hidden">
         <TabsTrigger value="user">{t("access.subjectKinds.user")}</TabsTrigger>
         <TabsTrigger value="team">{t("users.fields.team")}</TabsTrigger>
         <TabsTrigger value="organization">{t("users.fields.organization")}</TabsTrigger>

@@ -73,7 +73,7 @@ export function ConnectionGuide({
               <SearchableSelect id="portal-model" value={selectedModel} options={models.map((model) => ({ value: model.name, label: model.name }))} placeholder={t("common.none")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("portal.connect.model")} onChange={onModelChange} />
             </Field>
             {snippets.length > 0 ? <Tabs defaultValue={snippets[0].method}>
-              <TabsList className="max-w-full overflow-x-auto">
+              <TabsList className="max-w-full overflow-x-auto overflow-y-hidden">
                 {snippets.map((snippet) => (
                   <TabsTrigger key={snippet.method} value={snippet.method}>
                     {t(`portal.connect.methods.${snippet.method}`)}
