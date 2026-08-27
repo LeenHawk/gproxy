@@ -6,6 +6,13 @@
     "empty": "No providers yet. Add one to route traffic upstream.",
     "loadError": "Could not load providers. Retry.",
     "selectPrompt": "Select a provider to inspect credentials and settings.",
+    "workspace": {
+      "search": "Search providers…",
+      "resize": "Resize provider list"
+    },
+    "summary": {
+      "credentialCount": "{{count}} credentials"
+    },
     "tabs": {
       "settings": "Settings"
     },

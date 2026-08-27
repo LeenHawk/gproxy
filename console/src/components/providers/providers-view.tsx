@@ -1,28 +1,28 @@
+import { PlugIcon, PlusIcon } from "lucide-react"
+import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import type { ChannelDto } from "@/generated/ChannelDto"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
-import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
 import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
 import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
-import { PlusIcon } from "lucide-react"
-import { useMemo } from "react"
-import { useTranslation } from "react-i18next"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
+import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { BatchActions } from "@/components/batch-actions"
-import { ConnectivityTest } from "@/components/connectivity-test"
-import { PageHeader } from "@/components/page-header"
 import { ProviderDetail } from "@/components/providers/provider-detail"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
+import { ProviderSummary } from "@/components/providers/provider-summary"
 import type { RuleMutations } from "@/components/rules/rules-workspace"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Switch } from "@/components/ui/switch"
+import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
 import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
-import { cn } from "@/lib/utils"
 
 type Props = {
   providers: Array<ProviderDto>
@@ -76,82 +76,80 @@ export function ProvidersView(props: Props) {
     }
     return groups
   }, [props.cycles])
-  const columns: Array<DataTableColumn<ProviderDto>> = [
-    { key: "name", label: t("common.name"), header: t("common.name"), cell: (provider) => <div><p className="font-medium">{provider.label ?? provider.name}</p>{provider.label ? <p className="font-mono text-xs text-muted-foreground">{provider.name}</p> : null}</div> },
-    { key: "channel", label: t("providers.fields.channel"), header: t("providers.fields.channel"), cell: (provider) => <span className="font-mono text-xs">{provider.channel}</span> },
-    { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: (provider) => <Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge> },
-    { key: "connectivity", label: t("connectivity.action"), header: <span className="sr-only">{t("connectivity.action")}</span>, cell: (provider) => <div onClick={(event) => event.stopPropagation()}><ConnectivityTest request={{ scope: "provider", provider_id: provider.id, credential_id: null }} label={provider.label ?? provider.name} /></div>, className: "text-right" },
-  ]
+
+  const setEnabled = async (provider: ProviderDto, enabled: boolean) => {
+    try {
+      await props.onSaveProvider({
+        name: provider.name,
+        label: provider.label,
+        channel: provider.channel,
+        settings: provider.settings,
+        credential_strategy: provider.credential_strategy,
+        proxy_url: provider.proxy_url,
+        tls_fingerprint: provider.tls_fingerprint,
+        enabled,
+      }, provider.id)
+      toast.success(t("providers.form.updated"))
+    } catch {
+      toast.error(t("providers.form.updateError"))
+    }
+  }
+
+  if (props.providersLoading || props.providersError) {
+    return <p className="text-sm text-muted-foreground">{props.providersError ? t("providers.loadError") : t("common.loading")}</p>
+  }
 
   return (
-    <section className="flex flex-col gap-5">
-      <PageHeader
-        title={t("providers.title")}
-        description={t("providers.subtitle")}
-        actions={(
-          <ProviderDialog
-            channels={props.channels}
-            channelsLoading={props.channelsLoading}
-            channelsError={props.channelsError}
-            presets={props.presets}
-            presetsLoading={props.presetsLoading}
-            presetsError={props.presetsError}
-            onSave={props.onSaveProvider}
-            trigger={<Button><PlusIcon data-icon="inline-start" />{t("providers.add")}</Button>}
-          />
-        )}
-      />
-      {props.providersLoading || props.providersError ? <p className="text-sm text-muted-foreground">{props.providersError ? t("providers.loadError") : t("common.loading")}</p> : (
-        <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(18rem,0.75fr)_minmax(0,1.25fr)]">
-          <aside className={cn("min-w-0", selected && "hidden md:block")}>
-            <DataTable
-              columns={columns}
-              rows={props.providers}
-              rowKey={(provider) => provider.id}
-              searchText={(provider) => `${provider.label ?? ""} ${provider.name} ${provider.channel}`}
-              renderCard={(provider) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{provider.label ?? provider.name}</p><p className="truncate font-mono text-xs text-muted-foreground">{provider.label ? `${provider.name} · ` : ""}{provider.channel}</p></div><div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}><Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge><ConnectivityTest request={{ scope: "provider", provider_id: provider.id, credential_id: null }} label={provider.label ?? provider.name} /></div></div>}
-              empty={t("providers.empty")}
-              storageKey="providers"
-              selectable
-              batchActions={(rows) => <BatchActions entity="providers" rows={rows} queryKeys={["providers"]} />}
-              activeRowKey={selected?.id}
-              onRowClick={(provider) => navigateAdminPath(`/admin/providers/${provider.id}/credentials`)}
-            />
-          </aside>
-          <section className={cn("min-w-0", !selected && "hidden md:block")}>
-            {selected ? <>
-              <Button className="mb-3 md:hidden" variant="ghost" onClick={() => navigateAdminPath(adminPath("providers"))}>{t("common.actions.back")}</Button>
-              <ProviderDetail
-                provider={selected}
-                providers={props.providers}
-                tab={tab}
-                onTab={(value) => navigateAdminPath(`/admin/providers/${selected.id}/${value}`, true)}
-                channel={props.channels.find((channel) => channel.id === selected.channel)}
-                channels={props.channels}
-                presets={props.presets}
-                credentials={credentialsByProvider.get(selected.id) ?? []}
-                cyclesByCredential={cyclesByCredential}
-                credentialsLoading={props.credentialsLoading}
-                credentialsError={props.credentialsError}
-                cyclesLoading={props.cyclesLoading}
-                cyclesError={props.cyclesError}
-                savingProviderId={props.savingProviderId}
-                savingCredentialId={props.savingCredentialId}
-                onSaveProvider={props.onSaveProvider}
-                onSaveCredential={props.onSaveCredential}
-                activeCredentialId={Number.isFinite(activeCredentialId) ? activeCredentialId : null}
-                onCredentialOpen={(credential) => navigateAdminPath(`/admin/providers/${selected.id}/credentials/${credential.id}`)}
-                onCredentialClose={() => navigateAdminPath(`/admin/providers/${selected.id}/credentials`)}
-                ruleSets={props.ruleSets}
-                rules={props.rules}
-                attachments={props.attachments}
-                routingRules={props.routingRules}
-                ruleMutations={props.ruleMutations}
-              />
-            </> : <div className="grid min-h-80 place-items-center text-sm text-muted-foreground">{t("providers.selectPrompt")}</div>}
-          </section>
-        </div>
-      )}
-    </section>
+    <WorkspaceLayout
+      storageKey="gproxy.workspace.providers.width"
+      title={t("providers.title")}
+      items={props.providers}
+      selectedId={selected?.id ?? null}
+      getSearchText={(provider) => `${provider.label ?? ""} ${provider.name} ${provider.channel}`}
+      renderTitle={(provider) => provider.label ?? provider.name}
+      renderSummary={(provider) => <ProviderSummary channel={provider.channel} credentials={credentialsByProvider.get(provider.id) ?? []} />}
+      renderAction={(provider) => <Switch size="sm" checked={provider.enabled} onCheckedChange={(value) => void setEnabled(provider, value)} disabled={props.savingProviderId === provider.id || provider.invalid_tls_fingerprint != null || provider.tls_fingerprint_error != null} aria-label={`${t("providers.fields.enabled")}: ${provider.label ?? provider.name}`} />}
+      onSelect={(provider) => navigateAdminPath(`/admin/providers/${provider.id}/credentials`)}
+      onBack={() => navigateAdminPath(adminPath("providers"))}
+      searchPlaceholder={t("providers.workspace.search")}
+      emptyLabel={t("providers.empty")}
+      resizeLabel={t("providers.workspace.resize")}
+      selectAllLabel={t("common.dataTable.selectAll")}
+      selectRowLabel={(provider) => `${t("common.dataTable.selectRow")}: ${provider.label ?? provider.name}`}
+      selectedLabel={(count) => t("common.dataTable.selected", { count })}
+      clearSelectionLabel={t("common.dataTable.clearSelection")}
+      mobileBackLabel={t("providers.title")}
+      createAction={<ProviderDialog channels={props.channels} channelsLoading={props.channelsLoading} channelsError={props.channelsError} presets={props.presets} presetsLoading={props.presetsLoading} presetsError={props.presetsError} onSave={props.onSaveProvider} trigger={<Button><PlusIcon data-icon="inline-start" />{t("providers.add")}</Button>} />}
+      batchActions={(rows) => <BatchActions entity="providers" rows={rows} queryKeys={["providers"]} />}
+      emptyState={<Empty className="min-h-[28rem]"><EmptyHeader><EmptyMedia variant="icon"><PlugIcon /></EmptyMedia><EmptyTitle>{t("providers.title")}</EmptyTitle><EmptyDescription>{t("providers.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
+    >
+      {selected ? <ProviderDetail
+        provider={selected}
+        providers={props.providers}
+        tab={tab}
+        onTab={(value) => navigateAdminPath(`/admin/providers/${selected.id}/${value}`, true)}
+        channel={props.channels.find((channel) => channel.id === selected.channel)}
+        channels={props.channels}
+        presets={props.presets}
+        credentials={credentialsByProvider.get(selected.id) ?? []}
+        cyclesByCredential={cyclesByCredential}
+        credentialsLoading={props.credentialsLoading}
+        credentialsError={props.credentialsError}
+        cyclesLoading={props.cyclesLoading}
+        cyclesError={props.cyclesError}
+        savingProviderId={props.savingProviderId}
+        savingCredentialId={props.savingCredentialId}
+        onSaveProvider={props.onSaveProvider}
+        onSaveCredential={props.onSaveCredential}
+        activeCredentialId={Number.isFinite(activeCredentialId) ? activeCredentialId : null}
+        onCredentialOpen={(credential) => navigateAdminPath(`/admin/providers/${selected.id}/credentials/${credential.id}`)}
+        onCredentialClose={() => navigateAdminPath(`/admin/providers/${selected.id}/credentials`)}
+        ruleSets={props.ruleSets}
+        rules={props.rules}
+        attachments={props.attachments}
+        routingRules={props.routingRules}
+        ruleMutations={props.ruleMutations}
+      /> : null}
+    </WorkspaceLayout>
   )
 }

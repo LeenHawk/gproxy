@@ -6,6 +6,13 @@
     "empty": "尚無供應商。請新增一個以向上游路由流量。",
     "loadError": "無法載入供應商，請重試。",
     "selectPrompt": "選擇一個供應商以檢視憑證和設定。",
+    "workspace": {
+      "search": "搜尋供應商…",
+      "resize": "調整供應商清單寬度"
+    },
+    "summary": {
+      "credentialCount": "{{count}} 個憑證"
+    },
     "tabs": {
       "settings": "設定"
     },
