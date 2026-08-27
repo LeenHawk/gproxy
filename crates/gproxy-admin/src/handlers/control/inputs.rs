@@ -113,9 +113,30 @@ pub(super) fn model_alias(
             "model alias name must not be blank".into(),
         ));
     }
+    if [request.context_window, request.max_output_tokens]
+        .into_iter()
+        .flatten()
+        .any(|value| value <= 0)
+    {
+        return Err(AdminError::BadRequest(
+            "model token limits must be positive".into(),
+        ));
+    }
+    gproxy_store::records::parse_model_variants(request.variants.as_ref())
+        .map_err(AdminError::BadRequest)?;
     Ok(ExposedModelInput {
         name: request.name,
         route_id: request.route_id,
+        display_name: request
+            .display_name
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty()),
+        variants: request.variants,
+        context_window: request.context_window,
+        max_output_tokens: request.max_output_tokens,
+        thinking_supported: request.thinking_supported,
+        thinking_adaptive_supported: request.thinking_adaptive_supported,
+        thinking_enabled_supported: request.thinking_enabled_supported,
         enabled: request.enabled,
     })
 }

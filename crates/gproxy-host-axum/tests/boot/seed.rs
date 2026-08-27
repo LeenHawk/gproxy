@@ -57,6 +57,13 @@ pub(crate) async fn operational(
         gproxy_store::records::ExposedModelInput {
             name: "public-model".into(),
             route_id: route,
+            display_name: None,
+            variants: None,
+            context_window: None,
+            max_output_tokens: None,
+            thinking_supported: None,
+            thinking_adaptive_supported: None,
+            thinking_enabled_supported: None,
             enabled: true,
         },
     ))

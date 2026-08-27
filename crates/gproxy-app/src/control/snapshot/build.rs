@@ -96,7 +96,7 @@ impl CompiledSnapshot {
             .filter(|route| routes.contains_key(&route.id))
             .map(|route| (route.name.clone(), route.id))
             .collect();
-        let (exposed, namespaces) = index::exposed(&stored, &routes);
+        let model_index = index::exposed(&stored, &routes)?;
         let (global_aliases, provider_aliases) = index::aliases(&stored.aliases);
         let pricing = pricing::compile(&stored.price_rules, &stored.price_rates)?;
         let identities = index::identities(&stored);
@@ -110,8 +110,10 @@ impl CompiledSnapshot {
             credentials,
             routes,
             route_names,
-            exposed,
-            namespaces,
+            exposed: model_index.routes,
+            namespaces: model_index.namespaces,
+            model_catalogue: model_index.catalogue,
+            model_variants: model_index.variants,
             global_aliases,
             provider_aliases,
             pricing,

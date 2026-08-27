@@ -309,10 +309,12 @@ impl Channel for MemoryHost {
 #[test]
 fn ingress_floor_strips_credentials_after_claude_classification() -> Result<(), crate::InitError> {
     let host = MemoryHost::new(false);
-    host.state.lock().expect("state lock").plan = Some(Plan {
+    let mut state = host.state.lock().expect("state lock");
+    state.plan = Some(Plan {
         targets: vec![target()],
         budget: FailoverBudget { max_attempts: 1 },
     });
+    drop(state);
     let core = core(&host)?;
     let mut request = request(false, "claude-ingress-floor");
     request.method = http::Method::POST;
@@ -361,10 +363,16 @@ fn ingress_floor_strips_credentials_after_claude_classification() -> Result<(), 
 #[test]
 fn local_model_list_avoids_upstream_and_records_zero_settlement() -> Result<(), crate::InitError> {
     let host = MemoryHost::new(false);
-    host.state.lock().expect("state lock").plan = Some(Plan {
+    let mut state = host.state.lock().expect("state lock");
+    state.plan = Some(Plan {
         targets: vec![target()],
         budget: FailoverBudget { max_attempts: 1 },
     });
+    state.exposed_models[0].display_name = Some("Alias model".into());
+    state.exposed_models[0].context_window = Some(128_000);
+    state.exposed_models[0].max_output_tokens = Some(16_384);
+    state.exposed_models[0].thinking_supported = Some(true);
+    drop(state);
     let core = core(&host)?;
     let mut request = request(false, "local-models");
     request.method = http::Method::GET;
@@ -376,6 +384,13 @@ fn local_model_list_avoids_upstream_and_records_zero_settlement() -> Result<(), 
     };
     let body: serde_json::Value = serde_json::from_slice(&body).expect("model list JSON");
     assert_eq!(body["data"][0]["id"], "alias");
+    assert_eq!(body["data"][0]["context_window"], 128_000);
+    assert_eq!(body["data"][0]["context_length"], 128_000);
+    assert_eq!(body["data"][0]["max_completion_tokens"], 16_384);
+    assert_eq!(
+        body["data"][0]["supported_parameters"],
+        serde_json::json!(["reasoning"])
+    );
     let state = host.state.lock().expect("state lock");
     assert!(state.upstream_requests.is_empty());
     assert_eq!(state.settlements.len(), 1);

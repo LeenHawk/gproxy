@@ -3,6 +3,7 @@ import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveModelAlias } from "@/api/control"
 import type { ModelAliasDto } from "@/generated/ModelAliasDto"
+import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
 import type { RouteDto } from "@/generated/RouteDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
@@ -28,13 +29,23 @@ export function ModelAliases({
   function openForm(value: ModelAliasDto | null, element: HTMLElement) {
     setForm({ alias: value, opener: element })
   }
+  const write = (alias: ModelAliasDto, enabled: boolean): ModelAliasWriteRequest => ({
+    name: alias.name, route_id: alias.route_id, display_name: alias.display_name,
+    variants: alias.variants, context_window: alias.context_window,
+    max_output_tokens: alias.max_output_tokens, thinking_supported: alias.thinking_supported,
+    thinking_adaptive_supported: alias.thinking_adaptive_supported,
+    thinking_enabled_supported: alias.thinking_enabled_supported, enabled,
+  })
   const actions = (alias: ModelAliasDto) => <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-    <EnabledSwitch checked={alias.enabled} label={`${alias.name}: ${t("routes.aliases.enabled")}`} errorMessage={t("routes.aliases.saveError")} onChange={(enabled) => saveModelAlias({ name: alias.name, route_id: alias.route_id, enabled }, alias.id)} onChanged={onChanged} />
+    <EnabledSwitch checked={alias.enabled} label={`${alias.name}: ${t("routes.aliases.enabled")}`} errorMessage={t("routes.aliases.saveError")} onChange={(enabled) => saveModelAlias(write(alias, enabled), alias.id)} onChanged={onChanged} />
     <Button size="sm" variant="outline" aria-label={`${t("common.actions.edit")}: ${alias.name}`} onClick={(event) => openForm(alias, event.currentTarget)}>{t("common.actions.edit")}</Button>
   </div>
   const columns: Array<DataTableColumn<ModelAliasDto>> = [
     { key: "name", label: t("routes.aliases.name"), header: t("routes.aliases.name"), cell: (alias) => <span className="font-mono text-xs">{alias.name}</span> },
     { key: "route", label: t("routes.aliases.route"), header: t("routes.aliases.route"), cell: (alias) => routeById.get(alias.route_id)?.name ?? alias.route_id },
+    { key: "context", label: t("routes.aliases.contextWindow"), header: t("routes.aliases.contextWindow"), cell: (alias) => alias.context_window ?? t("common.none") },
+    { key: "output", label: t("routes.aliases.maxOutputTokens"), header: t("routes.aliases.maxOutputTokens"), cell: (alias) => alias.max_output_tokens ?? t("common.none") },
+    { key: "thinking", label: t("routes.aliases.thinkingSupported"), header: t("routes.aliases.thinkingSupported"), cell: (alias) => alias.thinking_supported == null ? t("common.none") : t(alias.thinking_supported ? "common.yes" : "common.no") },
     { key: "enabled", label: t("routes.aliases.enabled"), header: t("routes.aliases.enabled"), cell: (alias) => t(`common.status.${alias.enabled ? "enabled" : "disabled"}`) },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: actions },
   ]
@@ -51,7 +62,7 @@ export function ModelAliases({
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.name} ${routeById.get(alias.route_id)?.name ?? alias.route_id}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.name}</p><p className="text-xs text-muted-foreground">{routeById.get(alias.route_id)?.name ?? alias.route_id}</p></div>{actions(alias)}</div>} empty={t("routes.aliases.empty")} storageKey="model-aliases" selectable batchActions={(rows) => <BatchActions entity="model-aliases" rows={rows} queryKeys={["model-aliases"]} />} />
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.name} ${alias.display_name ?? ""} ${routeById.get(alias.route_id)?.name ?? alias.route_id}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.name}</p><p className="text-xs text-muted-foreground">{alias.display_name ?? routeById.get(alias.route_id)?.name ?? alias.route_id}</p><p className="text-xs text-muted-foreground">{t("routes.aliases.tokenSummary", { inputTokens: alias.context_window ?? t("common.none"), outputTokens: alias.max_output_tokens ?? t("common.none") })}</p></div>{actions(alias)}</div>} empty={t("routes.aliases.empty")} storageKey="model-aliases" selectable batchActions={(rows) => <BatchActions entity="model-aliases" rows={rows} queryKeys={["model-aliases"]} />} />
       </CardContent>
       {form ? (
         <ModelAliasForm

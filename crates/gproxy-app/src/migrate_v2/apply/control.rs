@@ -90,10 +90,19 @@ pub(super) async fn base(
         .routes
         .iter()
         .map(|value| {
-            Ok(ExposedModelInput {
-                name: value.value.name.clone(),
-                route_id: id(&context.routes, value.id)?,
-                enabled: value.value.enabled,
+            super::models::for_route(data, value.id, &value.value.name).and_then(|metadata| {
+                Ok(ExposedModelInput {
+                    name: value.value.name.clone(),
+                    route_id: id(&context.routes, value.id)?,
+                    display_name: metadata.display_name,
+                    variants: metadata.variants,
+                    context_window: metadata.context_window,
+                    max_output_tokens: metadata.max_output_tokens,
+                    thinking_supported: metadata.thinking_supported,
+                    thinking_adaptive_supported: metadata.thinking_adaptive_supported,
+                    thinking_enabled_supported: metadata.thinking_enabled_supported,
+                    enabled: value.value.enabled,
+                })
             })
         })
         .collect::<Result<Vec<_>, crate::AppError>>()?;

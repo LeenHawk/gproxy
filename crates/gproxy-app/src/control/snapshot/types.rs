@@ -34,6 +34,8 @@ pub(super) struct CompiledSnapshot {
     pub route_names: BTreeMap<String, i64>,
     pub exposed: BTreeMap<String, i64>,
     pub namespaces: BTreeMap<String, BTreeMap<String, i64>>,
+    pub model_catalogue: BTreeMap<String, gproxy_core::ExposedModel>,
+    pub model_variants: BTreeMap<String, String>,
     pub global_aliases: BTreeMap<String, String>,
     pub provider_aliases: BTreeMap<i64, BTreeMap<String, String>>,
     pub pricing: Vec<CompiledPriceRule>,

@@ -174,22 +174,46 @@ fn model_preprocessing_resolves_alias_then_suffix_then_route() -> Result<(), Ini
     state
         .aliases
         .insert("client-model".into(), "route-model-thinking-high".into());
+    state
+        .variants
+        .insert("route-model-thinking-high".into(), "route-model".into());
     state.plan = Some(Plan {
         targets: vec![target()],
         budget: FailoverBudget { max_attempts: 1 },
     });
     drop(state);
     let core = core(&host)?;
-    let mut request = request(false, "suffix-order");
-    request.body =
+    let mut declared_request = request(false, "suffix-order");
+    declared_request.body =
         bytes::Bytes::from_static(br#"{"model":"client-model","input":"hi","stream":false}"#);
-    block_on(core.execute(&host, request)).expect("suffix request");
+    block_on(core.execute(&host, declared_request)).expect("suffix request");
     let state = host.state.lock().expect("state lock");
     assert_eq!(state.resolved_models, [Some("route-model".into())]);
     let body: serde_json::Value =
         serde_json::from_slice(state.upstream_bodies.last().expect("upstream body")).unwrap();
     assert_eq!(body["model"], "route-model");
     assert_eq!(body["reasoning"]["effort"], "high");
+    drop(state);
+
+    let mut state = host.state.lock().expect("state lock");
+    state.aliases.insert(
+        "undeclared-client".into(),
+        "route-model-thinking-low".into(),
+    );
+    drop(state);
+    let mut request = request(false, "undeclared-suffix");
+    request.body =
+        bytes::Bytes::from_static(br#"{"model":"undeclared-client","input":"hi","stream":false}"#);
+    block_on(core.execute(&host, request)).expect("undeclared suffix request");
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(
+        state.resolved_models.last(),
+        Some(&Some("route-model-thinking-low".into()))
+    );
+    let body: serde_json::Value =
+        serde_json::from_slice(state.upstream_bodies.last().expect("upstream body")).unwrap();
+    assert_eq!(body["model"], "route-model-thinking-low");
+    assert!(body.get("reasoning").is_none());
     Ok(())
 }
 
@@ -198,10 +222,15 @@ fn tier_suffix_reaches_request_and_settlement_pricing() -> Result<(), InitError>
     let host = MemoryHost::new(false);
     let mut tier_target = target();
     tier_target.upstream_model = "tier-model".into();
-    host.state.lock().expect("state lock").plan = Some(Plan {
+    let mut state = host.state.lock().expect("state lock");
+    state
+        .variants
+        .insert("route-model-tier-auto".into(), "route-model".into());
+    state.plan = Some(Plan {
         targets: vec![tier_target],
         budget: FailoverBudget { max_attempts: 1 },
     });
+    drop(state);
     let core = core(&host)?;
     let mut request = request(false, "suffix-tier");
     request.body = bytes::Bytes::from_static(

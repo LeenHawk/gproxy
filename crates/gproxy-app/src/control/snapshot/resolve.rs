@@ -28,6 +28,28 @@ impl CompiledSnapshot {
             .unwrap_or_else(|| global.to_owned())
     }
 
+    pub(super) fn resolve_variant(&self, model: &str, mode: &RoutingMode) -> Option<String> {
+        let (lookup, namespace) = match mode {
+            RoutingMode::Namespace { namespace } => {
+                (format!("{namespace}/{model}"), Some(namespace.as_str()))
+            }
+            RoutingMode::Named { name }
+                if self.namespaces.contains_key(&name.to_ascii_lowercase()) =>
+            {
+                (format!("{name}/{model}"), Some(name.as_str()))
+            }
+            _ => (model.to_owned(), None),
+        };
+        let base = self.model_variants.get(&lookup)?;
+        match namespace {
+            Some(namespace) => base
+                .strip_prefix(namespace)
+                .and_then(|base| base.strip_prefix('/'))
+                .map(str::to_owned),
+            None => Some(base.clone()),
+        }
+    }
+
     pub(super) fn resolve_preprocessed(
         &self,
         model: Option<&str>,

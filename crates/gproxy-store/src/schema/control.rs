@@ -125,6 +125,13 @@ pub const TABLES: &[TableSpec] = &[
             Col::id(),
             Col::required("name", Text).unique(),
             Col::required("route_id", Integer),
+            Col::optional("display_name", Text),
+            Col::optional("variants_json", Text),
+            Col::optional("context_window", Integer),
+            Col::optional("max_output_tokens", Integer),
+            Col::optional("thinking_supported", Integer),
+            Col::optional("thinking_adaptive_supported", Integer),
+            Col::optional("thinking_enabled_supported", Integer),
             Col::required("enabled", Integer),
         ],
         indexes: &[IndexSpec {

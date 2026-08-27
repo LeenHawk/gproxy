@@ -12,6 +12,7 @@ mod failover;
 pub(crate) mod ingress;
 pub(crate) mod invoke;
 mod local;
+mod model_catalogue;
 pub(crate) mod preprocess;
 pub(crate) mod request;
 pub(crate) mod resource;

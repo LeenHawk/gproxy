@@ -1,6 +1,6 @@
 use base64::Engine as _;
 use bytes::Bytes;
-use gproxy_core::CacheBackend;
+use gproxy_core::{CacheBackend, ControlPlane};
 use http::{HeaderMap, HeaderValue, Method};
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -78,6 +78,13 @@ pub(super) async fn fixture() -> Fixture {
         gproxy_store::records::ExposedModelInput {
             name: "public-model".into(),
             route_id: route,
+            display_name: None,
+            variants: None,
+            context_window: None,
+            max_output_tokens: None,
+            thinking_supported: None,
+            thinking_adaptive_supported: None,
+            thinking_enabled_supported: None,
             enabled: true,
         },
     ))
@@ -251,6 +258,18 @@ async fn v2_digest_crossing_authenticates_the_unreissued_key() {
     let identity = crate::host::authenticate_headers(&app.inner.host, &headers)
         .expect("migrated key authenticates");
     assert_eq!(identity.user_id, 1);
+    let model = app.inner.host.services.control.current().exposed_models[0].clone();
+    assert_eq!(model.context_window, Some(128_000));
+    assert_eq!(model.max_output_tokens, Some(16_384));
+    assert_eq!(model.thinking_supported, Some(true));
+    assert_eq!(model.variants, Some(json!(["public-model-thinking-high"])));
+    assert_eq!(
+        app.inner.host.services.control.resolve_variant(
+            "public-model-thinking-high",
+            &gproxy_core::RoutingMode::Aggregated,
+        ),
+        Some("public-model".into())
+    );
 }
 
 #[tokio::test]
@@ -375,6 +394,16 @@ fn v2_database(
         .unwrap();
     connection.execute("INSERT INTO providers VALUES(1,'provider','openai',NULL,'{}','round_robin',NULL,NULL,1)", []).unwrap();
     connection
+        .execute("INSERT INTO routes VALUES(1,'public-model',1)", [])
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO route_members VALUES(1,1,1,'upstream-model',0,100,1)",
+            [],
+        )
+        .unwrap();
+    connection.execute("INSERT INTO provider_models VALUES(1,1,'upstream-model','Upstream model','[\"upstream-model-thinking-high\"]',128000,16384,1,1,1,1)", []).unwrap();
+    connection
         .execute(
             "INSERT INTO credentials VALUES(1,1,NULL,'api_key',?,100,NULL,NULL,NULL,NULL,1)",
             [credential.to_string()],
@@ -440,6 +469,7 @@ CREATE TABLE orgs(id INTEGER PRIMARY KEY,name TEXT,enabled INTEGER);
 CREATE TABLE teams(id INTEGER PRIMARY KEY,org_id INTEGER,name TEXT,enabled INTEGER);
 CREATE TABLE users(id INTEGER PRIMARY KEY,name TEXT,org_id INTEGER,team_id INTEGER,password TEXT,enabled INTEGER,is_admin INTEGER);
 CREATE TABLE user_keys(id INTEGER PRIMARY KEY,user_id INTEGER,api_key_ciphertext TEXT,api_key_digest TEXT,api_key_digest_version INTEGER,label TEXT,enabled INTEGER);
+CREATE TABLE provider_models(id INTEGER PRIMARY KEY,provider_id INTEGER,model_id TEXT,display_name TEXT,variants_json TEXT,context_window INTEGER,max_output_tokens INTEGER,thinking_supported INTEGER,thinking_adaptive_supported INTEGER,thinking_enabled_supported INTEGER,enabled INTEGER);
 CREATE TABLE quotas(id INTEGER PRIMARY KEY,scope TEXT,scope_id INTEGER,quota_total TEXT,quota_daily TEXT,quota_weekly TEXT,quota_monthly TEXT,quota_5h TEXT,quota_7d TEXT);
 CREATE TABLE routing_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,operation TEXT,kind TEXT,implementation TEXT,dest_operation TEXT,dest_kind TEXT,sort_order INTEGER,enabled INTEGER);
 CREATE TABLE rule_sets(id INTEGER PRIMARY KEY,name TEXT,description TEXT,enabled INTEGER);

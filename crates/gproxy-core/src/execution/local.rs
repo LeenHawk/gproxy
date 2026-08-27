@@ -7,7 +7,7 @@ use web_time::Instant;
 
 use crate::api::Core;
 use crate::boundary::{ExecOutcome, RequestCtx};
-use crate::control::{ControlPlane, ExposedModel, Plan};
+use crate::control::{ControlPlane, Plan};
 use crate::error::CoreError;
 use crate::funnel::{self, FunnelCtx};
 use crate::host::Host;
@@ -53,7 +53,7 @@ async fn serve<H: Host>(
     let (status, body) = match classified.key.operation {
         Operation::ListModels => (
             StatusCode::OK,
-            render_list(family, control.exposed_models()),
+            super::model_catalogue::render_list(family, control.exposed_models()),
         ),
         Operation::GetModel => {
             let found = classified.model.as_ref().and_then(|id| {
@@ -63,7 +63,10 @@ async fn serve<H: Host>(
                     .find(|model| &model.id == id)
             });
             match found {
-                Some(model) => (StatusCode::OK, render_model(family, &model)),
+                Some(model) => (
+                    StatusCode::OK,
+                    super::model_catalogue::render_model(family, &model),
+                ),
                 None => (
                     StatusCode::NOT_FOUND,
                     json!({ "error": { "message": "model not found" } }),
@@ -131,26 +134,6 @@ async fn serve<H: Host>(
         disposition,
     )
     .await)
-}
-
-fn render_list(family: WireFamily, models: Vec<ExposedModel>) -> Value {
-    let entries = models
-        .iter()
-        .map(|model| render_model(family, model))
-        .collect::<Vec<_>>();
-    match family {
-        WireFamily::OpenAi => json!({ "object": "list", "data": entries }),
-        WireFamily::Claude => json!({ "data": entries }),
-        WireFamily::Gemini => json!({ "models": entries }),
-    }
-}
-
-fn render_model(family: WireFamily, model: &ExposedModel) -> Value {
-    match family {
-        WireFamily::OpenAi => json!({ "id": model.id, "object": "model" }),
-        WireFamily::Claude => json!({ "id": model.id, "type": "model" }),
-        WireFamily::Gemini => json!({ "name": format!("models/{}", model.id) }),
-    }
 }
 
 fn render_count(family: WireFamily, count: u64) -> Value {

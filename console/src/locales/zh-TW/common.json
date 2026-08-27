@@ -12,6 +12,8 @@
     "loading": "正在載入…",
     "loadError": "無法載入資料，請重試。",
     "none": "無",
+    "yes": "是",
+    "no": "否",
     "optional": "選填",
     "required": "必填",
     "search": "搜尋…",

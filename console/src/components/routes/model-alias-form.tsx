@@ -20,6 +20,8 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { FormDialogContent } from "@/components/routes/form-dialog-content"
+import { ModelMetadataFields } from "@/components/routes/model-metadata-fields"
+import { modelMetadataRequest, modelMetadataState } from "@/components/routes/model-metadata"
 
 export function ModelAliasForm({
   alias,
@@ -41,6 +43,7 @@ export function ModelAliasForm({
   const [name, setName] = useState(alias?.name ?? "")
   const [selectedRoute, setSelectedRoute] = useState(String(alias?.route_id ?? routes[0]?.id ?? 0))
   const [enabled, setEnabled] = useState(alias?.enabled ?? true)
+  const [metadata, setMetadata] = useState(() => modelMetadataState(alias))
   const mutation = useMutation({
     mutationFn: (value: ModelAliasWriteRequest) => saveModelAlias(value, alias?.id),
     onSuccess: () => {
@@ -53,7 +56,11 @@ export function ModelAliasForm({
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    mutation.mutate({ name: name.trim(), route_id: Number(selectedRoute), enabled })
+    try {
+      mutation.mutate({ name: name.trim(), route_id: Number(selectedRoute), enabled, ...modelMetadataRequest(metadata) })
+    } catch {
+      toast.error(t("routes.aliases.invalidMetadata"))
+    }
   }
 
   return (
@@ -85,6 +92,7 @@ export function ModelAliasForm({
               <FieldLabel htmlFor={enabledId}>{t("routes.aliases.enabled")}</FieldLabel>
               <Switch id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
             </Field>
+            <ModelMetadataFields value={metadata} onChange={setMetadata} />
           </FieldGroup></DialogBody>
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose>

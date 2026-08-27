@@ -157,10 +157,34 @@ pub(crate) fn update_exposed_model(
     update(
         "exposed_models",
         id,
-        &["name", "route_id", "enabled"],
+        &[
+            "name",
+            "route_id",
+            "display_name",
+            "variants_json",
+            "context_window",
+            "max_output_tokens",
+            "thinking_supported",
+            "thinking_adaptive_supported",
+            "thinking_enabled_supported",
+            "enabled",
+        ],
         vec![
             value(input.name.clone()),
             value(input.route_id),
+            value(input.display_name.clone()),
+            value(
+                input
+                    .variants
+                    .as_ref()
+                    .map(|variants| json(variants, "model variants"))
+                    .transpose()?,
+            ),
+            value(input.context_window),
+            value(input.max_output_tokens),
+            value(input.thinking_supported),
+            value(input.thinking_adaptive_supported),
+            value(input.thinking_enabled_supported),
             value(input.enabled),
         ],
     )

@@ -37,7 +37,14 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
         affinity: Option<i64>,
     ) -> Result<Plan, CoreError> {
         let model = model.map(|model| self.resolve_alias(model, mode));
+        let model = model.map(|model| self.resolve_variant(&model, mode).unwrap_or(model));
         self.resolve_preprocessed(model.as_deref(), mode, affinity)
+    }
+
+    /// Resolve a model variant declared by the catalogue to its base model.
+    fn resolve_variant(&self, model: &str, mode: &RoutingMode) -> Option<String> {
+        let _ = (model, mode);
+        None
     }
 
     /// Route an already alias- and suffix-resolved model.
@@ -63,6 +70,12 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExposedModel {
     pub id: String,
+    pub display_name: Option<String>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
 }
 
 /// The ordered candidates one request may try, plus the failover budget.

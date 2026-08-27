@@ -1,7 +1,7 @@
 use gproxy_store::records::{ProviderInput, RouteInput, RouteMemberInput};
 use tokio_rusqlite::rusqlite::{Connection, Result};
 
-use super::super::model::{Alias, Credential, Legacy, SourceData};
+use super::super::model::{Alias, Credential, Legacy, ProviderModel, SourceData};
 use super::{json, optional_json};
 
 pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()> {
@@ -10,8 +10,34 @@ pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()>
     data.routes = routes(connection)?;
     data.route_members = route_members(connection)?;
     data.aliases = aliases(connection)?;
+    data.provider_models = provider_models(connection)?;
     super::pricing::read(connection, data)?;
     Ok(())
+}
+
+fn provider_models(connection: &Connection) -> Result<Vec<Legacy<ProviderModel>>> {
+    let mut query = connection.prepare(
+        "SELECT id,provider_id,model_id,display_name,variants_json,context_window,max_output_tokens,thinking_supported,thinking_adaptive_supported,thinking_enabled_supported,enabled FROM provider_models ORDER BY id",
+    )?;
+    query
+        .query_map([], |row| {
+            Ok(Legacy {
+                id: row.get(0)?,
+                value: ProviderModel {
+                    provider_id: row.get(1)?,
+                    model_id: row.get(2)?,
+                    display_name: row.get(3)?,
+                    variants: optional_json(row, 4)?,
+                    context_window: row.get(5)?,
+                    max_output_tokens: row.get(6)?,
+                    thinking_supported: row.get(7)?,
+                    thinking_adaptive_supported: row.get(8)?,
+                    thinking_enabled_supported: row.get(9)?,
+                    enabled: row.get(10)?,
+                },
+            })
+        })?
+        .collect()
 }
 
 fn providers(connection: &Connection) -> Result<Vec<Legacy<ProviderInput>>> {

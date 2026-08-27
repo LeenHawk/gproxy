@@ -12,6 +12,8 @@
     "loading": "Loading…",
     "loadError": "Could not load this data. Retry.",
     "none": "None",
+    "yes": "Yes",
+    "no": "No",
     "optional": "Optional",
     "required": "Required",
     "search": "Search…",

@@ -12,6 +12,8 @@
     "loading": "正在加载…",
     "loadError": "无法加载数据，请重试。",
     "none": "无",
+    "yes": "是",
+    "no": "否",
     "optional": "可选",
     "required": "必填",
     "search": "搜索…",

@@ -121,6 +121,22 @@ pub(super) fn exposed_models(result: QueryResult) -> Result<Vec<ExposedModelReco
                 id: row.i64("id")?,
                 name: row.text("name")?.to_owned(),
                 route_id: row.i64("route_id")?,
+                display_name: row.optional_text("display_name")?.map(str::to_owned),
+                variants: row
+                    .optional_text("variants_json")?
+                    .map(|value| json(value, "model variants"))
+                    .transpose()?,
+                context_window: row.optional_i64("context_window")?,
+                max_output_tokens: row.optional_i64("max_output_tokens")?,
+                thinking_supported: row
+                    .optional_i64("thinking_supported")?
+                    .map(|value| value != 0),
+                thinking_adaptive_supported: row
+                    .optional_i64("thinking_adaptive_supported")?
+                    .map(|value| value != 0),
+                thinking_enabled_supported: row
+                    .optional_i64("thinking_enabled_supported")?
+                    .map(|value| value != 0),
                 enabled: row.i64("enabled")? != 0,
             })
         })

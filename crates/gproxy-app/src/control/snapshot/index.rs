@@ -5,21 +5,32 @@ use gproxy_store::records::{AliasRecord, ControlSnapshot};
 
 use super::types::{CompiledRoute, KeyIdentity};
 
+pub(super) struct ExposedIndex {
+    pub routes: BTreeMap<String, i64>,
+    pub namespaces: BTreeMap<String, BTreeMap<String, i64>>,
+    pub catalogue: BTreeMap<String, gproxy_core::ExposedModel>,
+    pub variants: BTreeMap<String, String>,
+}
+
 pub(super) fn exposed(
     stored: &ControlSnapshot,
     routes: &BTreeMap<i64, CompiledRoute>,
-) -> (
-    BTreeMap<String, i64>,
-    BTreeMap<String, BTreeMap<String, i64>>,
-) {
-    let mut exposed = BTreeMap::new();
-    let mut namespaces: BTreeMap<String, BTreeMap<String, i64>> = BTreeMap::new();
-    for model in stored
+) -> Result<ExposedIndex, gproxy_store::StoreError> {
+    let available = stored
         .exposed_models
         .iter()
         .filter(|model| model.enabled && routes.contains_key(&model.route_id))
-    {
-        exposed.insert(model.name.clone(), model.route_id);
+        .collect::<Vec<_>>();
+    let base_names = available
+        .iter()
+        .map(|model| model.name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut route_index = BTreeMap::new();
+    let mut namespaces: BTreeMap<String, BTreeMap<String, i64>> = BTreeMap::new();
+    let mut catalogue = BTreeMap::new();
+    let mut variants = BTreeMap::new();
+    for model in available {
+        route_index.insert(model.name.clone(), model.route_id);
         if let Some((namespace, local_name)) = model.name.split_once('/')
             && !namespace.is_empty()
             && !local_name.is_empty()
@@ -29,8 +40,53 @@ pub(super) fn exposed(
                 .or_default()
                 .insert(local_name.to_owned(), model.route_id);
         }
+        let parsed = gproxy_store::records::parse_model_variants(model.variants.as_ref()).map_err(
+            |message| gproxy_store::StoreError::InvalidData {
+                field: "model variants",
+                message: format!("{}: {message}", model.name),
+            },
+        )?;
+        if parsed.expose_base {
+            catalogue.insert(
+                model.name.clone(),
+                catalogue_entry(model, model.name.clone()),
+            );
+        }
+        for variant in parsed.names {
+            if variant == model.name {
+                continue;
+            }
+            if base_names.contains(variant.as_str()) || variants.contains_key(&variant) {
+                return Err(gproxy_store::StoreError::InvalidData {
+                    field: "model variants",
+                    message: format!("duplicate exposed model `{variant}`"),
+                });
+            }
+            variants.insert(variant.clone(), model.name.clone());
+            catalogue.insert(variant.clone(), catalogue_entry(model, variant));
+        }
     }
-    (exposed, namespaces)
+    Ok(ExposedIndex {
+        routes: route_index,
+        namespaces,
+        catalogue,
+        variants,
+    })
+}
+
+fn catalogue_entry(
+    model: &gproxy_store::records::ExposedModelRecord,
+    id: String,
+) -> gproxy_core::ExposedModel {
+    gproxy_core::ExposedModel {
+        id,
+        display_name: model.display_name.clone(),
+        context_window: model.context_window,
+        max_output_tokens: model.max_output_tokens,
+        thinking_supported: model.thinking_supported,
+        thinking_adaptive_supported: model.thinking_adaptive_supported,
+        thinking_enabled_supported: model.thinking_enabled_supported,
+    }
 }
 
 pub(super) fn aliases(

@@ -139,17 +139,33 @@ pub struct AliasWriteRequest {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ModelAliasDto {
     pub id: i64,
     pub name: String,
     pub route_id: i64,
+    pub display_name: Option<String>,
+    #[ts(type = "unknown | null")]
+    pub variants: Option<Value>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ModelAliasWriteRequest {
     pub name: String,
     pub route_id: i64,
+    pub display_name: Option<String>,
+    #[ts(type = "unknown | null")]
+    pub variants: Option<Value>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
 }

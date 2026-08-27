@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_protocol::{ContentGenerationKind, OperationKind};
+use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
 use serde_json::{Map, Value, json};
 
 use crate::boundary::RequestCtx;
@@ -23,7 +23,21 @@ pub(crate) fn apply(
         return Ok(());
     };
     let aliased = control.resolve_alias(&requested, &request.mode);
-    let (model, presets) = strip_presets(&aliased, classified.key.kind);
+    let declared_base = (classified.key.operation != Operation::GetModel)
+        .then(|| control.resolve_variant(&aliased, &request.mode))
+        .flatten();
+    let (model, presets) = match declared_base {
+        Some(base) => {
+            let (stripped, presets) = strip_presets(&aliased, classified.key.kind);
+            let presets = if stripped == base {
+                presets
+            } else {
+                Vec::new()
+            };
+            (base, presets)
+        }
+        None => (aliased, Vec::new()),
+    };
     if model == requested && presets.is_empty() {
         return Ok(());
     }

@@ -202,6 +202,13 @@ pub struct AliasRecord {
 pub struct ExposedModelInput {
     pub name: String,
     pub route_id: i64,
+    pub display_name: Option<String>,
+    pub variants: Option<Value>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
 }
 
@@ -210,6 +217,13 @@ pub struct ExposedModelRecord {
     pub id: i64,
     pub name: String,
     pub route_id: i64,
+    pub display_name: Option<String>,
+    pub variants: Option<Value>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
 }
 

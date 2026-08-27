@@ -91,7 +91,22 @@ pub(crate) fn select_aliases() -> Result<Statement, StoreError> {
 }
 
 pub(crate) fn select_exposed_models() -> Result<Statement, StoreError> {
-    select_all("exposed_models", &["id", "name", "route_id", "enabled"])
+    select_all(
+        "exposed_models",
+        &[
+            "id",
+            "name",
+            "route_id",
+            "display_name",
+            "variants_json",
+            "context_window",
+            "max_output_tokens",
+            "thinking_supported",
+            "thinking_adaptive_supported",
+            "thinking_enabled_supported",
+            "enabled",
+        ],
+    )
 }
 
 pub(crate) fn select_price_rules() -> Result<Statement, StoreError> {

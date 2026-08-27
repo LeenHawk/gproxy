@@ -99,6 +99,19 @@ pub(super) struct Usage {
     pub ended: String,
 }
 
+pub(super) struct ProviderModel {
+    pub provider_id: i64,
+    pub model_id: String,
+    pub display_name: Option<String>,
+    pub variants: Option<Value>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
+    pub enabled: bool,
+}
+
 pub(super) struct Settings {
     pub instance_name: String,
     pub proxy: Option<String>,
@@ -126,6 +139,7 @@ pub(super) struct SourceData {
     pub routes: Vec<Legacy<RouteInput>>,
     pub route_members: Vec<Legacy<RouteMemberInput>>,
     pub aliases: Vec<Legacy<Alias>>,
+    pub provider_models: Vec<Legacy<ProviderModel>>,
     pub quotas: Vec<Legacy<Quota>>,
     pub price_rules: Vec<Legacy<PriceRule>>,
     pub price_rates: Vec<Legacy<PriceRate>>,

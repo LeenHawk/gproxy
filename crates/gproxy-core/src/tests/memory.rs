@@ -43,6 +43,7 @@ pub(super) struct State {
     pub(super) statuses: VecDeque<StatusCode>,
     pub(super) resolved_models: Vec<Option<String>>,
     pub(super) aliases: BTreeMap<String, String>,
+    pub(super) variants: BTreeMap<String, String>,
     pub(super) exposed_models: Vec<ExposedModel>,
     pub(super) admission_finishes: Vec<bool>,
     pub(super) bindings_enabled: bool,
@@ -100,7 +101,16 @@ impl MemoryHost {
                 statuses: VecDeque::new(),
                 resolved_models: Vec::new(),
                 aliases: BTreeMap::new(),
-                exposed_models: vec![ExposedModel { id: "alias".into() }],
+                variants: BTreeMap::new(),
+                exposed_models: vec![ExposedModel {
+                    id: "alias".into(),
+                    display_name: None,
+                    context_window: None,
+                    max_output_tokens: None,
+                    thinking_supported: None,
+                    thinking_adaptive_supported: None,
+                    thinking_enabled_supported: None,
+                }],
                 admission_finishes: Vec::new(),
                 bindings_enabled: true,
                 bindings: BTreeMap::new(),
@@ -304,6 +314,15 @@ impl ControlPlane for MemoryHost {
             .plan
             .clone()
             .ok_or_else(|| CoreError::UnknownRoute("unused".into()))
+    }
+
+    fn resolve_variant(&self, model: &str, _: &RoutingMode) -> Option<String> {
+        self.state
+            .lock()
+            .expect("state lock")
+            .variants
+            .get(model)
+            .cloned()
     }
 
     fn pricing(&self, _: &ProviderRef, upstream_model: &str) -> Option<Pricing> {

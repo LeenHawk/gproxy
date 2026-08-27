@@ -110,6 +110,13 @@ pub(in crate::handlers) fn model_alias(
         id: value.id,
         name: value.name.clone(),
         route_id: value.route_id,
+        display_name: value.display_name.clone(),
+        variants: value.variants.clone(),
+        context_window: value.context_window,
+        max_output_tokens: value.max_output_tokens,
+        thinking_supported: value.thinking_supported,
+        thinking_adaptive_supported: value.thinking_adaptive_supported,
+        thinking_enabled_supported: value.thinking_enabled_supported,
         enabled: value.enabled,
     }
 }

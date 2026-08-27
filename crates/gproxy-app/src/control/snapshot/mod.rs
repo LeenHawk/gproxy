@@ -172,6 +172,10 @@ impl ControlPlane for SnapshotControl {
         self.snapshot.load().resolve_alias(model, mode)
     }
 
+    fn resolve_variant(&self, model: &str, mode: &RoutingMode) -> Option<String> {
+        self.snapshot.load().resolve_variant(model, mode)
+    }
+
     fn resolve_preprocessed(
         &self,
         model: Option<&str>,
@@ -196,9 +200,9 @@ impl ControlPlane for SnapshotControl {
     fn exposed_models(&self) -> Vec<gproxy_core::ExposedModel> {
         self.snapshot
             .load()
-            .exposed
-            .keys()
-            .map(|id| gproxy_core::ExposedModel { id: id.clone() })
+            .model_catalogue
+            .values()
+            .cloned()
             .collect()
     }
 
