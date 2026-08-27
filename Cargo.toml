@@ -27,6 +27,7 @@ argon2 = "0.5"
 arc-swap = "1"
 axum = { version = "0.8", features = ["http1", "http2", "tokio", "ws"] }
 base64 = "0.22"
+clap = { version = "4", features = ["derive", "env"] }
 gproxy-app = { path = "crates/gproxy-app", version = "=3.0.0-alpha.0" }
 gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.0-alpha.0" }
 gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.0-alpha.0" }
