@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::{CacheConfig, Config, LogFormat, MasterKeyConfig, NativeOptions, invalid};
+use super::{
+    CacheConfig, Config, LogFormat, MasterKeyConfig, NativeCommand, NativeOptions, invalid,
+};
 use crate::ConfigError;
 
 const HOST: &str = "GPROXY_HOST";
@@ -38,13 +40,15 @@ const BOOTSTRAP_CHANNELS: &str = "GPROXY_BOOTSTRAP_CHANNELS";
 ///
 /// Names match v2's wherever the meaning matches, so an operator moving a
 /// deployment across does not have to relearn the surface.
-#[derive(Debug, Default, clap::Parser)]
+#[derive(Default, clap::Parser)]
 #[command(
     name = "gproxy",
     version,
     about = "GPROXY — one gateway in front of many LLM providers"
 )]
 pub(super) struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
     /// Interface to bind [default: 127.0.0.1]
     #[arg(long, env = HOST, value_name = "ADDR")]
     host: Option<String>,
@@ -128,12 +132,35 @@ pub(super) struct Cli {
     bootstrap_channels: Option<String>,
 }
 
-pub(super) fn load() -> Result<Config, ConfigError> {
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Import a live v2 SQLite database
+    Migrate(MigrateCli),
+}
+
+#[derive(clap::Args)]
+struct MigrateCli {
+    /// Path to the v2 SQLite database
+    #[arg(long, value_name = "PATH")]
+    from_v2: PathBuf,
+    /// Base64 master key used by the v2 database, if it was sealed
+    #[arg(long, value_name = "BASE64")]
+    from_v2_master_key: Option<String>,
+    /// Write the import; omission performs a read-only dry run
+    #[arg(long)]
+    apply: bool,
+    /// Permit import into a store that already contains rows
+    #[arg(long)]
+    merge: bool,
+}
+
+pub(super) fn load() -> Result<NativeCommand, ConfigError> {
     let cwd = std::env::current_dir().map_err(environment_error)?;
     resolve(<Cli as clap::Parser>::parse(), &cwd)
 }
 
-fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
+fn resolve(mut cli: Cli, cwd: &Path) -> Result<NativeCommand, ConfigError> {
+    let command = cli.command.take();
     let mut dotenv = read_dotenv(&cwd.join(".env"))?;
     let data_dir = cli
         .data_dir
@@ -230,15 +257,13 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
     let redis_url = nonempty(layered(cli.redis_url, REDIS_URL));
     let upstash_url = nonempty(layered(cli.upstash_url, UPSTASH_URL));
     let upstash_token = nonempty(layered(cli.upstash_token, UPSTASH_TOKEN));
-    let cache = if let Some(url) = redis_url {
-        CacheConfig::Redis { url }
+    let config = if let Some(url) = redis_url {
+        config.with_cache(CacheConfig::Redis { url })
     } else {
         match (upstash_url, upstash_token) {
-            (Some(url), Some(token)) => {
-                return Ok(config.with_upstash(url, token)?.with_native_options(native));
-            }
-            (None, None) if persistence == "libsql" => CacheConfig::Libsql,
-            (None, None) => CacheConfig::InProcess,
+            (Some(url), Some(token)) => config.with_upstash(url, token)?,
+            (None, None) if persistence == "libsql" => config.with_cache(CacheConfig::Libsql),
+            (None, None) => config.with_cache(CacheConfig::InProcess),
             _ => {
                 return Err(invalid(
                     UPSTASH_URL,
@@ -247,7 +272,19 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
             }
         }
     };
-    Ok(config.with_cache(cache).with_native_options(native))
+    let config = config.with_native_options(native);
+    Ok(match command {
+        None => NativeCommand::Serve(config),
+        Some(Command::Migrate(command)) => NativeCommand::MigrateV2 {
+            config,
+            options: crate::V2ImportOptions {
+                path: command.from_v2,
+                source_master_key: command.from_v2_master_key,
+                apply: command.apply,
+                merge: command.merge,
+            },
+        },
+    })
 }
 
 fn nonempty(value: Option<String>) -> Option<String> {
@@ -379,6 +416,7 @@ mod tests {
                 .and_then(|value| value.clone().into_string().ok())
         };
         Cli {
+            command: None,
             host: get(HOST),
             port: get(PORT),
             data_dir: get(DATA_DIR),
@@ -422,7 +460,11 @@ mod tests {
         )
         .unwrap();
         let environment = HashMap::from([(PORT, OsString::from("3000"))]);
-        let config = resolve(from_environment(&environment), directory.path()).unwrap();
+        let NativeCommand::Serve(config) =
+            resolve(from_environment(&environment), directory.path()).unwrap()
+        else {
+            panic!("expected serve command");
+        };
         assert_eq!(config.listen_addr().to_string(), "127.0.0.1:3000");
         assert_eq!(config.data_dir(), directory.path().join("data-home"));
         assert!(
@@ -438,7 +480,9 @@ mod tests {
         std::fs::write(directory.path().join(".env"), "GPROXY_PORT=1000\n").unwrap();
         let mut cli = from_environment(&HashMap::from([(PORT, OsString::from("2000"))]));
         cli.port = Some("3000".into());
-        let config = resolve(cli, directory.path()).unwrap();
+        let NativeCommand::Serve(config) = resolve(cli, directory.path()).unwrap() else {
+            panic!("expected serve command");
+        };
         assert_eq!(config.listen_addr().to_string(), "127.0.0.1:3000");
     }
 }

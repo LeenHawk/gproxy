@@ -32,12 +32,15 @@ web-time.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+chacha20poly1305.workspace = true
 clap.workspace = true
 gproxy-tokenize = { workspace = true, features = ["count-local"] }
 tokio.workspace = true
+tokio-rusqlite.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers.workspace = true
 
 [dev-dependencies]
+blake3.workspace = true
 tempfile.workspace = true

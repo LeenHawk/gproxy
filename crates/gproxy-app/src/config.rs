@@ -67,6 +67,22 @@ pub enum LogFormat {
     Json,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub enum NativeCommand {
+    Serve(Config),
+    MigrateV2 {
+        config: Config,
+        options: crate::V2ImportOptions,
+    },
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl NativeCommand {
+    pub fn from_env() -> Result<Self, ConfigError> {
+        native::load()
+    }
+}
+
 #[derive(Clone)]
 enum StoreBackend {
     #[cfg(not(target_arch = "wasm32"))]
@@ -159,7 +175,13 @@ impl MasterKeyConfig {
 impl Config {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn from_env() -> Result<Self, ConfigError> {
-        native::load()
+        match native::load()? {
+            NativeCommand::Serve(config) => Ok(config),
+            NativeCommand::MigrateV2 { .. } => Err(invalid(
+                "command",
+                "migration commands must be handled by the native host",
+            )),
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

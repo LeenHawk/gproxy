@@ -27,4 +27,6 @@ pub enum AppError {
     Control(String),
     #[error("bootstrap: {0}")]
     Bootstrap(String),
+    #[error("v2 migration: {0}")]
+    Migration(String),
 }

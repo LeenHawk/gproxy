@@ -71,3 +71,11 @@ pub(crate) fn usage_by_request(request_id: &str) -> Result<Statement, StoreError
         .limit(1);
     Statement::query(&query)
 }
+
+pub(crate) fn usage_count() -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .expr_as(Expr::col(Alias::new("id")).count(), Alias::new("count"))
+        .from(Alias::new("usage_rows"));
+    Statement::query(&query)
+}

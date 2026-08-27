@@ -1,0 +1,153 @@
+use std::collections::BTreeSet;
+
+use super::cipher::V2Cipher;
+use super::model::SourceData;
+use super::report::{ImportCount, ImportIssue};
+
+pub(super) struct Plan {
+    pub data: SourceData,
+    pub counts: Vec<ImportCount>,
+    pub issues: Vec<ImportIssue>,
+}
+
+pub(super) fn prepare(mut data: SourceData, cipher: &V2Cipher) -> Plan {
+    let found = counts(&data);
+    let mut issues = Vec::new();
+    data.credentials.retain_mut(
+        |credential| match cipher.open(&credential.value.stored_secret) {
+            Ok(secret) => {
+                credential.value.stored_secret = secret;
+                true
+            }
+            Err(()) => {
+                issues.push(issue(
+                    "credentials",
+                    credential.id,
+                    "secret cannot be recovered with the supplied v2 master key",
+                ));
+                false
+            }
+        },
+    );
+    data.user_keys
+        .retain_mut(|key| match cipher.user_key(&key.value.stored_key) {
+            Ok(api_key) if !api_key.is_empty() => {
+                key.value.stored_key = api_key;
+                true
+            }
+            Ok(_) => {
+                issues.push(issue("user_keys", key.id, "recovered API key is empty"));
+                false
+            }
+            Err(()) => {
+                issues.push(issue(
+                    "user_keys",
+                    key.id,
+                    "API key cannot be recovered with the supplied v2 master key",
+                ));
+                false
+            }
+        });
+    loop {
+        super::validate::run(&data, &mut issues);
+        if !prune(&mut data, &issues) {
+            break;
+        }
+    }
+    let failed = issues
+        .iter()
+        .map(|issue| (issue.entity, issue.row.clone()))
+        .collect::<BTreeSet<_>>();
+    let counts = found
+        .into_iter()
+        .map(|(entity, found)| ImportCount {
+            entity,
+            found,
+            importable: found.saturating_sub(
+                failed
+                    .iter()
+                    .filter(|(failed_entity, _)| *failed_entity == entity)
+                    .count(),
+            ),
+            imported: 0,
+        })
+        .collect();
+    Plan {
+        data,
+        counts,
+        issues,
+    }
+}
+
+fn prune(data: &mut SourceData, issues: &[ImportIssue]) -> bool {
+    let failed = issues
+        .iter()
+        .filter_map(|issue| {
+            issue
+                .row
+                .strip_prefix("id=")?
+                .parse()
+                .ok()
+                .map(|id| (issue.entity, id))
+        })
+        .collect::<BTreeSet<_>>();
+    let mut removed = false;
+    macro_rules! retain {
+        ($field:ident, $entity:literal) => {
+            let before = data.$field.len();
+            data.$field
+                .retain(|value| !failed.contains(&($entity, value.id)));
+            removed |= before != data.$field.len();
+        };
+    }
+    retain!(organizations, "organizations");
+    retain!(teams, "teams");
+    retain!(users, "users");
+    retain!(user_keys, "user_keys");
+    retain!(providers, "providers");
+    retain!(credentials, "credentials");
+    retain!(routes, "routes");
+    retain!(route_members, "route_members");
+    retain!(aliases, "aliases");
+    retain!(quotas, "quotas");
+    retain!(price_rules, "price_rules");
+    retain!(price_rates, "price_rates");
+    retain!(routing_rules, "routing_rules");
+    retain!(rule_sets, "rule_sets");
+    retain!(rules, "rules");
+    retain!(provider_rule_sets, "provider_rule_sets");
+    retain!(settings, "instance_settings");
+    retain!(usage, "usage");
+    removed
+}
+
+fn counts(data: &SourceData) -> Vec<(&'static str, usize)> {
+    vec![
+        ("organizations", data.organizations.len()),
+        ("teams", data.teams.len()),
+        ("users", data.users.len()),
+        ("user_keys", data.user_keys.len()),
+        ("providers", data.providers.len()),
+        ("credentials", data.credentials.len()),
+        ("routes", data.routes.len()),
+        ("route_members", data.route_members.len()),
+        ("aliases", data.aliases.len()),
+        ("quotas", data.quotas.len()),
+        ("price_rules", data.price_rules.len()),
+        ("price_rates", data.price_rates.len()),
+        ("routing_rules", data.routing_rules.len()),
+        ("rule_sets", data.rule_sets.len()),
+        ("rules", data.rules.len()),
+        ("provider_rule_sets", data.provider_rule_sets.len()),
+        ("instance_settings", data.settings.len()),
+        ("usage", data.usage.len()),
+    ]
+}
+
+pub(super) fn issue(entity: &'static str, id: i64, reason: impl Into<String>) -> ImportIssue {
+    ImportIssue {
+        entity,
+        row: format!("id={id}"),
+        reason: reason.into(),
+    }
+}

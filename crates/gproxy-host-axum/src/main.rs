@@ -2,7 +2,18 @@
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::hint::black_box(gproxy_host_axum::UPDATE_SIGNING_PUBLIC_KEY);
-    let config = gproxy_app::Config::from_env()?;
+    let command = gproxy_app::NativeCommand::from_env()?;
+    let config = match command {
+        gproxy_app::NativeCommand::Serve(config) => config,
+        gproxy_app::NativeCommand::MigrateV2 { config, options } => {
+            let report = gproxy_app::migrate_from_v2(&config, options).await?;
+            println!("{report}");
+            if report.has_blockers() {
+                return Err("v2 migration was not applied; resolve the reported rows first".into());
+            }
+            return Ok(());
+        }
+    };
     let address = config.listen_addr();
     let host = gproxy_host_axum::HostConfig::from_config(&config);
     gproxy_host_axum::init_tracing(config.log_format());

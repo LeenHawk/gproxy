@@ -6,6 +6,15 @@ use crate::records::{
 use crate::{Store, StoreError};
 
 impl Store {
+    pub async fn usage_count(&self) -> Result<u64, StoreError> {
+        let mut result = self.backend().execute(usage::usage_count()?).await?;
+        let row = result
+            .rows
+            .pop()
+            .ok_or_else(|| StoreError::Database("usage count row missing".into()))?;
+        unsigned(row.i64("count")?, "usage count")
+    }
+
     pub async fn usage_aggregate(
         &self,
         query: &UsageAggregateQuery,

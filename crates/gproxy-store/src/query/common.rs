@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use sea_query::{Alias, Expr, ExprTrait, Query, SimpleExpr};
+use sea_query::{Alias, Asterisk, Expr, ExprTrait, Query, SimpleExpr};
 use serde_json::Value;
 
 use crate::StoreError;
@@ -30,6 +30,14 @@ pub(super) fn select_all(
     if columns.contains(&"id") {
         query.order_by(Alias::new("id"), sea_query::Order::Asc);
     }
+    Statement::query(&query)
+}
+
+pub(crate) fn count_all(table: &'static str) -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .expr_as(Expr::col(Asterisk).count(), Alias::new("count"))
+        .from(Alias::new(table));
     Statement::query(&query)
 }
 
