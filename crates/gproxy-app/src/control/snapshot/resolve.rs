@@ -3,7 +3,32 @@ use super::types::{CompiledSnapshot, CredentialHealthMap, TargetSeed, namespace_
 use gproxy_core::{CoreError, Plan, RoutingMode};
 
 impl CompiledSnapshot {
-    pub(super) fn resolve(
+    pub(super) fn resolve_alias(&self, model: &str, mode: &RoutingMode) -> String {
+        let global = self
+            .global_aliases
+            .get(model)
+            .map(String::as_str)
+            .unwrap_or(model);
+        let provider = match mode {
+            RoutingMode::Scoped { provider } => self.provider_names.get(provider),
+            RoutingMode::Named { name }
+                if !self.namespaces.contains_key(&name.to_ascii_lowercase())
+                    && !self.route_names.contains_key(name) =>
+            {
+                self.provider_names.get(name)
+            }
+            RoutingMode::Aggregated | RoutingMode::Namespace { .. } | RoutingMode::Named { .. } => {
+                None
+            }
+        };
+        provider
+            .and_then(|provider| self.provider_aliases.get(provider))
+            .and_then(|aliases| aliases.get(global))
+            .cloned()
+            .unwrap_or_else(|| global.to_owned())
+    }
+
+    pub(super) fn resolve_preprocessed(
         &self,
         model: Option<&str>,
         mode: &RoutingMode,
@@ -41,14 +66,9 @@ impl CompiledSnapshot {
         let Some(model) = model else {
             return self.all_providers("", affinity, health, counters);
         };
-        let exposed = self
-            .global_aliases
-            .get(model)
-            .map(String::as_str)
-            .unwrap_or(model);
         let route_id = self
             .exposed
-            .get(exposed)
+            .get(model)
             .ok_or_else(|| CoreError::UnknownRoute(model.to_owned()))?;
         self.route(*route_id, affinity, health, counters)
     }
@@ -73,13 +93,8 @@ impl CompiledSnapshot {
                 .collect();
             return self.plan(seeds, None, 0, affinity, health, counters);
         };
-        let exposed = self
-            .global_aliases
-            .get(model)
-            .map(String::as_str)
-            .unwrap_or(model);
         let route_id = routes
-            .get(exposed)
+            .get(model)
             .ok_or_else(|| CoreError::UnknownRoute(format!("{namespace}/{model}")))?;
         self.route(*route_id, affinity, health, counters)
     }
@@ -97,15 +112,7 @@ impl CompiledSnapshot {
             .get(provider)
             .copied()
             .ok_or_else(|| CoreError::UnknownProvider(provider.to_owned()))?;
-        let upstream_model = model
-            .map(|model| {
-                self.provider_aliases
-                    .get(&provider_id)
-                    .and_then(|aliases| aliases.get(model))
-                    .cloned()
-                    .unwrap_or_else(|| model.to_owned())
-            })
-            .unwrap_or_default();
+        let upstream_model = model.unwrap_or_default().to_owned();
         let seeds = self
             .credentials
             .get(&provider_id)

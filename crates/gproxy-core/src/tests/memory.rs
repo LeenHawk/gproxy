@@ -42,6 +42,7 @@ pub(super) struct State {
     pub(super) plan: Option<Plan>,
     pub(super) statuses: VecDeque<StatusCode>,
     pub(super) resolved_models: Vec<Option<String>>,
+    pub(super) aliases: BTreeMap<String, String>,
     pub(super) exposed_models: Vec<ExposedModel>,
     pub(super) admission_finishes: Vec<bool>,
     pub(super) bindings_enabled: bool,
@@ -98,6 +99,7 @@ impl MemoryHost {
                 plan: None,
                 statuses: VecDeque::new(),
                 resolved_models: Vec::new(),
+                aliases: BTreeMap::new(),
                 exposed_models: vec![ExposedModel { id: "alias".into() }],
                 admission_finishes: Vec::new(),
                 bindings_enabled: true,
@@ -280,7 +282,17 @@ impl Host for MemoryHost {
 }
 
 impl ControlPlane for MemoryHost {
-    fn resolve(
+    fn resolve_alias(&self, model: &str, _: &RoutingMode) -> String {
+        self.state
+            .lock()
+            .expect("state lock")
+            .aliases
+            .get(model)
+            .cloned()
+            .unwrap_or_else(|| model.to_owned())
+    }
+
+    fn resolve_preprocessed(
         &self,
         model: Option<&str>,
         _: &RoutingMode,
@@ -295,7 +307,7 @@ impl ControlPlane for MemoryHost {
     }
 
     fn pricing(&self, _: &ProviderRef, upstream_model: &str) -> Option<Pricing> {
-        Some(Pricing {
+        let mut pricing = Pricing {
             input_per_million: match upstream_model {
                 "transcription-model" => Decimal::from(3),
                 "transcription-model-2" => Decimal::from(5),
@@ -307,7 +319,15 @@ impl ControlPlane for MemoryHost {
             tiers: Vec::new(),
             metric_rates: BTreeMap::new(),
             conditional_metric_rates: BTreeMap::new(),
-        })
+        };
+        if upstream_model == "tier-model" {
+            pricing.tiers.push(crate::control::PricingTier {
+                service_tier: Some("auto".into()),
+                multiplier: Some(Decimal::from(3)),
+                ..Default::default()
+            });
+        }
+        Some(pricing)
     }
 
     fn exposed_models(&self) -> Vec<ExposedModel> {

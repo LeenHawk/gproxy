@@ -168,13 +168,17 @@ impl SnapshotControl {
 }
 
 impl ControlPlane for SnapshotControl {
-    fn resolve(
+    fn resolve_alias(&self, model: &str, mode: &RoutingMode) -> String {
+        self.snapshot.load().resolve_alias(model, mode)
+    }
+
+    fn resolve_preprocessed(
         &self,
         model: Option<&str>,
         mode: &RoutingMode,
         affinity: Option<i64>,
     ) -> Result<Plan, CoreError> {
-        let mut plan = self.snapshot.load().resolve(
+        let mut plan = self.snapshot.load().resolve_preprocessed(
             model,
             mode,
             affinity,

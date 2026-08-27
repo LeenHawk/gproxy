@@ -20,9 +20,28 @@ pub use service_tier::{normalize_service_tier, response_service_tier};
 /// implementations answer from an in-memory snapshot, never from I/O on
 /// the hot path (v2's §7.2 model, kept).
 pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::MaybeSync {
+    /// Apply configured aliases before suffix interpretation. Global aliases
+    /// run first; implementations may then apply a provider-scoped alias when
+    /// `mode` identifies that provider.
+    fn resolve_alias(&self, model: &str, mode: &RoutingMode) -> String {
+        let _ = mode;
+        model.to_owned()
+    }
+
     /// Resolve a requested model under a routing mode into an ordered
     /// candidate plan (route members or a scoped provider's pool).
     fn resolve(
+        &self,
+        model: Option<&str>,
+        mode: &RoutingMode,
+        affinity: Option<i64>,
+    ) -> Result<Plan, CoreError> {
+        let model = model.map(|model| self.resolve_alias(model, mode));
+        self.resolve_preprocessed(model.as_deref(), mode, affinity)
+    }
+
+    /// Route an already alias- and suffix-resolved model.
+    fn resolve_preprocessed(
         &self,
         model: Option<&str>,
         mode: &RoutingMode,

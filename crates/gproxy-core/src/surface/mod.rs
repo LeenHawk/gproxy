@@ -44,9 +44,9 @@ pub(crate) async fn dispatch<H: Host>(
 async fn run<H: Host>(
     core: &Core<H>,
     control: &impl ControlPlane,
-    ctx: RequestCtx,
+    mut ctx: RequestCtx,
     planned: Option<&Plan>,
-    classified: Result<crate::execution::request::Classified, CoreError>,
+    mut classified: Result<crate::execution::request::Classified, CoreError>,
     matches: Vec<affinity::TableMatch>,
 ) -> Dispatch {
     let started = Instant::now();
@@ -54,6 +54,17 @@ async fn run<H: Host>(
         Ok(alias) => alias,
         Err(error) => return Dispatch::Outcome(reject(&ctx, None, error)),
     };
+    if matches.is_empty()
+        && let Ok(classified) = classified.as_mut()
+        && let Err(error) = crate::execution::preprocess::apply(control, &mut ctx, classified)
+    {
+        return Dispatch::Outcome(reject(&ctx, None, error));
+    }
+    if let Some((request, classified)) = alias_request.as_mut()
+        && let Err(error) = crate::execution::preprocess::apply(control, request, classified)
+    {
+        return Dispatch::Outcome(reject(&ctx, None, error));
+    }
     let matched_label = matches
         .first()
         .and_then(|matched| action_label(&matched.entry.action));
@@ -75,7 +86,7 @@ async fn run<H: Host>(
                             .then(|| classified.as_ref().ok()?.model.as_deref())
                             .flatten()
                     });
-                control.resolve(model, &ctx.mode, affinity)
+                control.resolve_preprocessed(model, &ctx.mode, affinity)
             },
             Ok,
         )

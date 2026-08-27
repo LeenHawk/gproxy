@@ -3,8 +3,12 @@ use std::collections::BTreeMap;
 use http::{HeaderMap, HeaderValue};
 use rust_decimal::Decimal;
 
-use crate::control::{Pricing, PricingTier, response_service_tier};
+use crate::control::{FailoverBudget, Plan, Pricing, PricingTier, response_service_tier};
 use crate::usage::NormalizedUsage;
+
+use super::memory::MemoryHost;
+use super::{block_on, core, request, target};
+use crate::{InitError, ResponseBody};
 
 #[test]
 fn prompt_axis_selects_the_highest_absolute_step() {
@@ -161,4 +165,55 @@ fn a_tier_multiplier_composes_with_the_prompt_ladder_but_an_explicit_price_repla
         ..Default::default()
     });
     assert_eq!(rate(cross_declared), Decimal::ONE);
+}
+
+#[test]
+fn model_preprocessing_resolves_alias_then_suffix_then_route() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    let mut state = host.state.lock().expect("state lock");
+    state
+        .aliases
+        .insert("client-model".into(), "route-model-thinking-high".into());
+    state.plan = Some(Plan {
+        targets: vec![target()],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    drop(state);
+    let core = core(&host)?;
+    let mut request = request(false, "suffix-order");
+    request.body =
+        bytes::Bytes::from_static(br#"{"model":"client-model","input":"hi","stream":false}"#);
+    block_on(core.execute(&host, request)).expect("suffix request");
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.resolved_models, [Some("route-model".into())]);
+    let body: serde_json::Value =
+        serde_json::from_slice(state.upstream_bodies.last().expect("upstream body")).unwrap();
+    assert_eq!(body["model"], "route-model");
+    assert_eq!(body["reasoning"]["effort"], "high");
+    Ok(())
+}
+
+#[test]
+fn tier_suffix_reaches_request_and_settlement_pricing() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    let mut tier_target = target();
+    tier_target.upstream_model = "tier-model".into();
+    host.state.lock().expect("state lock").plan = Some(Plan {
+        targets: vec![tier_target],
+        budget: FailoverBudget { max_attempts: 1 },
+    });
+    let core = core(&host)?;
+    let mut request = request(false, "suffix-tier");
+    request.body = bytes::Bytes::from_static(
+        br#"{"model":"route-model-tier-auto","input":"hi","stream":false}"#,
+    );
+    let outcome = block_on(core.execute(&host, request)).expect("tier suffix request");
+    assert!(matches!(outcome.body, ResponseBody::Full(_)));
+    let state = host.state.lock().expect("state lock");
+    let body: serde_json::Value =
+        serde_json::from_slice(state.upstream_bodies.last().expect("upstream body")).unwrap();
+    assert_eq!(body["model"], "route-model");
+    assert_eq!(body["service_tier"], "auto");
+    assert_eq!(state.settlements[0].cost, Decimal::new(6, 5));
+    Ok(())
 }
