@@ -77,14 +77,23 @@ async fn delete(
     id: i64,
 ) -> Result<Response<Bytes>, AdminError> {
     match entity {
-        Entity::Permissions | Entity::RateLimits | Entity::Quotas => {
-            identity::delete(state, entity, id).await
-        }
-        Entity::PriceRates => pricing::delete(state, id).await,
+        Entity::Providers
+        | Entity::Credentials
+        | Entity::Routes
+        | Entity::RouteMembers
+        | Entity::Aliases
+        | Entity::ModelAliases => control::delete(state, entity, id).await,
+        Entity::Organizations
+        | Entity::Teams
+        | Entity::Users
+        | Entity::UserKeys
+        | Entity::Permissions
+        | Entity::RateLimits
+        | Entity::Quotas => identity::delete(state, entity, id).await,
+        Entity::PriceRules | Entity::PriceRates => pricing::delete(state, entity, id).await,
         Entity::RoutingRules | Entity::RuleSets | Entity::Rules | Entity::ProviderRuleSets => {
             rules::delete(state, entity, id).await
         }
-        _ => Err(AdminError::NotFound),
     }
 }
 

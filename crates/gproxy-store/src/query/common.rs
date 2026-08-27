@@ -41,6 +41,14 @@ pub(crate) fn count_all(table: &'static str) -> Result<Statement, StoreError> {
     Statement::query(&query)
 }
 
+pub(crate) fn delete_by_id(table: &'static str, id: i64) -> Result<Statement, StoreError> {
+    let mut query = Query::delete();
+    query
+        .from_table(Alias::new(table))
+        .and_where(Expr::col(Alias::new("id")).eq(id));
+    Statement::query(&query)
+}
+
 pub(super) fn update(
     table: &'static str,
     id: i64,

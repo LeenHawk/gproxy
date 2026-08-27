@@ -2,6 +2,7 @@ mod admin;
 mod bindings;
 mod control;
 mod credentials;
+mod delete;
 mod identity;
 mod import;
 mod process;

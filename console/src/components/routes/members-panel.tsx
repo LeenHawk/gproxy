@@ -8,6 +8,7 @@ import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
+import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
@@ -54,6 +55,7 @@ export function MembersPanel({
       onChanged={onChanged}
     />
     <Button size="sm" variant="outline" aria-label={`${t("common.actions.edit")}: ${member.upstream_model}`} onClick={(event) => openForm(member, event.currentTarget)}>{t("common.actions.edit")}</Button>
+    <EntityDeleteButton entity="route-members" id={member.id} label={member.upstream_model} queryKeys={["route-members"]} />
   </div>
   const columns: Array<DataTableColumn<RouteMemberDto>> = [
     { key: "provider", label: t("routes.members.provider"), header: t("routes.members.provider"), cell: (member) => providerById.get(member.provider_id)?.name ?? member.provider_id },

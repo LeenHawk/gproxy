@@ -141,17 +141,7 @@ fn toggled(value: impl Serialize, enabled: bool) -> Result<Bytes, AdminError> {
 
 fn supports(entity: Entity, action: BatchActionDto) -> bool {
     match action {
-        BatchActionDto::Delete => matches!(
-            entity,
-            Entity::Permissions
-                | Entity::RateLimits
-                | Entity::Quotas
-                | Entity::PriceRates
-                | Entity::RoutingRules
-                | Entity::RuleSets
-                | Entity::Rules
-                | Entity::ProviderRuleSets
-        ),
+        BatchActionDto::Delete => true,
         BatchActionDto::Enable | BatchActionDto::Disable => !matches!(
             entity,
             Entity::Permissions | Entity::RateLimits | Entity::PriceRates

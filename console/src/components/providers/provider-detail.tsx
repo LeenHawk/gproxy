@@ -14,6 +14,7 @@ import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { ConnectivityTest } from "@/components/connectivity-test"
+import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { CredentialList } from "@/components/providers/credential-list"
 import { CredentialCard } from "@/components/providers/credential-card"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
@@ -105,6 +106,7 @@ export function ProviderDetail(props: Props) {
             <Switch id={switchId} size="sm" checked={props.provider.enabled} onCheckedChange={(value) => void setEnabled(value)} disabled={props.savingProviderId === props.provider.id || invalidFingerprint} />
           </Field>
           {edit}
+          <EntityDeleteButton entity="providers" id={props.provider.id} label={props.provider.label ?? props.provider.name} queryKeys={["providers", "credentials"]} />
         </div>
       </header>
       {invalidFingerprint ? <Alert variant="destructive"><AlertTitle>{t("providers.fingerprint.title")}</AlertTitle><AlertDescription>{props.provider.tls_fingerprint_error ?? t("providers.fingerprint.invalid")}</AlertDescription></Alert> : null}

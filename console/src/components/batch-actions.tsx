@@ -13,7 +13,7 @@ export function BatchActions<T extends { id: number }>({
   rows,
   queryKeys,
   toggle = true,
-  remove = false,
+  remove = true,
 }: {
   entity: Entity
   rows: Array<T>

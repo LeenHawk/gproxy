@@ -394,6 +394,44 @@ async fn batch_requires_admin_authorization_before_each_requested_mutation() {
     assert!(!state.store.control_snapshot().await.unwrap().organizations[0].enabled);
 }
 
+#[tokio::test]
+async fn delete_provider_reaches_non_rule_entity_handler() {
+    let state = state().await;
+    let id = state
+        .store
+        .insert_provider(&ProviderInput {
+            name: "deletable-provider".into(),
+            label: None,
+            channel: "openai".into(),
+            settings: serde_json::json!({}),
+            credential_strategy: "round_robin".into(),
+            proxy_url: None,
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .expect("insert provider");
+    seed_admin_key(&state).await;
+
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(Method::DELETE, &format!("/admin/providers/{id}")),
+        Bytes::new(),
+    )
+    .await
+    .expect("delete provider");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        state
+            .store
+            .control_snapshot()
+            .await
+            .unwrap()
+            .providers
+            .is_empty()
+    );
+}
+
 async fn start_device(state: &TestState, provider_id: i64) -> String {
     let body = serde_json::to_vec(&crate::dto::DeviceStartRequest {
         provider_id,

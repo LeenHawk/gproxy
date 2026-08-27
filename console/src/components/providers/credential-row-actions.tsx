@@ -8,6 +8,7 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
 import { ConnectivityTest } from "@/components/connectivity-test"
+import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
@@ -50,6 +51,7 @@ export function CredentialRowActions({ credential, channel, presets, saving, onS
         onSave={onSave}
         trigger={<Button variant="outline" size="icon-sm" aria-label={`${t("common.actions.edit")}: ${name}`}><PencilIcon aria-hidden /></Button>}
       />
+      <EntityDeleteButton entity="credentials" id={credential.id} label={name} queryKeys={["credentials", "credential-cycles"]} />
     </div>
   )
 }

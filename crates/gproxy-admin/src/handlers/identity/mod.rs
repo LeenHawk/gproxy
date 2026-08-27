@@ -104,6 +104,10 @@ pub(super) async fn delete(
     id: i64,
 ) -> Result<Response<Bytes>, AdminError> {
     let applied = match entity {
+        Entity::Organizations => state.store().delete_organization(id).await?,
+        Entity::Teams => state.store().delete_team(id).await?,
+        Entity::Users => state.store().delete_user(id).await?,
+        Entity::UserKeys => state.store().delete_user_key(id).await?,
         Entity::Permissions => state.store().delete_permission(id).await?,
         Entity::RateLimits => state.store().delete_rate_limit(id).await?,
         Entity::Quotas => state.store().delete_quota(id).await?,

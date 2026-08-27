@@ -91,3 +91,20 @@ pub(super) async fn update(
 ) -> Result<Response<Bytes>, AdminError> {
     write::update(state, entity, id, body).await
 }
+
+pub(super) async fn delete(
+    state: &impl State,
+    entity: Entity,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    let applied = match entity {
+        Entity::Providers => state.store().delete_provider(id).await?,
+        Entity::Credentials => state.store().delete_credential(id).await?,
+        Entity::Routes => state.store().delete_route(id).await?,
+        Entity::RouteMembers => state.store().delete_route_member(id).await?,
+        Entity::Aliases => state.store().delete_alias(id).await?,
+        Entity::ModelAliases => state.store().delete_exposed_model(id).await?,
+        _ => return Err(AdminError::NotFound),
+    };
+    crate::handlers::util::updated(state, applied).await
+}

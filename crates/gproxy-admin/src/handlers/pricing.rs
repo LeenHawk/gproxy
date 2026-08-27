@@ -91,8 +91,16 @@ pub(super) async fn update(
     util::updated(state, applied).await
 }
 
-pub(super) async fn delete(state: &impl State, id: i64) -> Result<Response<Bytes>, AdminError> {
-    let applied = state.store().delete_price_rate(id).await?;
+pub(super) async fn delete(
+    state: &impl State,
+    entity: Entity,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    let applied = match entity {
+        Entity::PriceRules => state.store().delete_price_rule(id).await?,
+        Entity::PriceRates => state.store().delete_price_rate(id).await?,
+        _ => return Err(AdminError::NotFound),
+    };
     util::updated(state, applied).await
 }
 

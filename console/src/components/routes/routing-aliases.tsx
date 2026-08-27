@@ -6,6 +6,7 @@ import type { AliasDto } from "@/generated/AliasDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
+import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
@@ -35,6 +36,7 @@ export function RoutingAliases({
   const actions = (alias: AliasDto) => <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
     <EnabledSwitch checked={alias.enabled} label={`${alias.alias}: ${t("routes.routingAliases.enabled")}`} errorMessage={t("routes.routingAliases.saveError")} onChange={(enabled) => saveAlias({ alias: alias.alias, target: alias.target, provider_id: alias.provider_id, priority: alias.priority, enabled }, alias.id)} onChanged={onChanged} />
     <Button size="sm" variant="outline" aria-label={`${t("common.actions.edit")}: ${alias.alias}`} onClick={(event) => openForm(alias, event.currentTarget)}>{t("common.actions.edit")}</Button>
+    <EntityDeleteButton entity="aliases" id={alias.id} label={alias.alias} queryKeys={["aliases"]} />
   </div>
   const columns: Array<DataTableColumn<AliasDto>> = [
     { key: "alias", label: t("routes.routingAliases.alias"), header: t("routes.routingAliases.alias"), cell: (alias) => <span className="font-mono text-xs">{alias.alias}</span> },

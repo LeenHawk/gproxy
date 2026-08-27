@@ -16,6 +16,7 @@ import type { UserKeyRevealResponse } from "@/generated/UserKeyRevealResponse"
 import type { UserKeyUpdateRequest } from "@/generated/UserKeyUpdateRequest"
 import type { UserWriteRequest } from "@/generated/UserWriteRequest"
 import { api, json } from "@/api/client"
+import { deleteEntity } from "@/api/control"
 
 const save = <T>(path: string, value: T, id?: number) =>
   api(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
@@ -46,4 +47,4 @@ export const quotas = () => api<Array<QuotaDto>>("/admin/quotas")
 export const saveQuota = (value: QuotaWriteRequest, id?: number) =>
   save("/admin/quotas", value, id)
 export const removeIdentityRule = (kind: "permissions" | "rate-limits" | "quotas", id: number) =>
-  api<void>(`/admin/${kind}/${id}`, { method: "DELETE" })
+  deleteEntity(kind, id)

@@ -87,6 +87,6 @@ impl Store {
     }
 
     pub async fn delete_quota(&self, id: i64) -> Result<bool, StoreError> {
-        self.update(identity::delete_quota(id)?).await
+        self.delete(identity::delete_quota(id)?).await
     }
 }

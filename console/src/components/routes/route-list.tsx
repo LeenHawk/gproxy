@@ -5,6 +5,7 @@ import { saveRoute } from "@/api/control"
 import type { RouteDto } from "@/generated/RouteDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
+import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
@@ -36,6 +37,7 @@ export function RouteList({
       onChanged={onChanged}
     />
     <Button size="sm" variant="outline" aria-label={`${t("common.actions.edit")}: ${route.name}`} onClick={(event) => openForm(route, event.currentTarget)}>{t("common.actions.edit")}</Button>
+    <EntityDeleteButton entity="routes" id={route.id} label={route.name} queryKeys={["routes", "route-members", "model-aliases"]} />
   </div>
   const columns: Array<DataTableColumn<RouteDto>> = [
     { key: "name", label: t("routes.fields.name"), header: t("routes.fields.name"), cell: (route) => <span className="flex items-center gap-2 font-medium"><RouteIcon aria-hidden />{route.name}</span> },
