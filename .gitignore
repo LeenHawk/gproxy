@@ -27,3 +27,4 @@ probe-out/
 /deploy/deno/public/
 /deploy/netlify/pkg/
 /deploy/netlify/public/
+.codex-review-*.md
