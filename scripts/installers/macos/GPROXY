@@ -21,7 +21,7 @@ if [ ! -f "$environment" ]; then
   temporary="$environment.tmp.$$"
   {
     printf '%s\n' 'GPROXY_DATA_DIR=.'
-    printf 'GPROXY_SECRET_KEY=%s\n' "$secret"
+    printf 'GPROXY_MASTER_KEY=%s\n' "$secret"
   } > "$temporary"
   mv "$temporary" "$environment"
 fi

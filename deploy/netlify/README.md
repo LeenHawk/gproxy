@@ -10,8 +10,8 @@ pnpm run dev
 ```
 
 Configure `GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN` as sensitive
-Netlify bindings. Optional `GPROXY_SECRET_KEY`, `GPROXY_SECRET_KEY_NEXT`, and
-`GPROXY_SECRET_KEY_ROTATE` bindings control secret-at-rest encryption and
+Netlify bindings. Optional `GPROXY_MASTER_KEY`, `GPROXY_MASTER_KEY_NEXT`, and
+`GPROXY_MASTER_KEY_ROTATE` bindings control secret-at-rest encryption and
 rotation. The host builds a typed edge config from these bindings. The build
 publishes the generated `public/` directory and packages the ignored `pkg/`
 wasm output with the Edge Function.

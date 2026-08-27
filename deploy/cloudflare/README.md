@@ -12,8 +12,8 @@ pnpm run dev
 ```
 
 The Worker constructs the typed edge config from those bindings. Optional
-secret-at-rest bindings are `GPROXY_SECRET_KEY`, `GPROXY_SECRET_KEY_NEXT`, and
-`GPROXY_SECRET_KEY_ROTATE`; store key values only as Workers secrets. The build
+secret-at-rest bindings are `GPROXY_MASTER_KEY`, `GPROXY_MASTER_KEY_NEXT`, and
+`GPROXY_MASTER_KEY_ROTATE`; store key values only as Workers secrets. The build
 creates ignored `pkg/` and `public/` directories; no generated wasm or frontend
 assets are committed.
 

@@ -14,9 +14,9 @@ async function host() {
   const config = new EdgeConfig(
     required("GPROXY_LIBSQL_URL"),
     required("GPROXY_LIBSQL_AUTH_TOKEN"),
-    Netlify.env.get("GPROXY_SECRET_KEY"),
-    Netlify.env.get("GPROXY_SECRET_KEY_NEXT"),
-    rotationArmed(Netlify.env.get("GPROXY_SECRET_KEY_ROTATE")),
+    Netlify.env.get("GPROXY_MASTER_KEY"),
+    Netlify.env.get("GPROXY_MASTER_KEY_NEXT"),
+    rotationArmed(Netlify.env.get("GPROXY_MASTER_KEY_ROTATE")),
   )
   hostPromise ??= start(config)
   return hostPromise

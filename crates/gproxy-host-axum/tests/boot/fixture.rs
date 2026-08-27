@@ -27,7 +27,7 @@ impl Fixture {
         let config = gproxy_app::Config::sqlite(
             "127.0.0.1:0".parse().unwrap(),
             data_dir,
-            gproxy_app::SecretKeyConfig::new(Some(master_key)),
+            gproxy_app::MasterKeyConfig::new(Some(master_key)),
         );
         let listen_addr = config.listen_addr();
         let app = gproxy_app::App::start(config).await.expect("start app");

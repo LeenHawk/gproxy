@@ -149,7 +149,7 @@ fn body(detail: &gproxy_store::records::LogDetail) -> String {
 async fn key_rotation_reseals_every_secret_and_updates_fingerprint() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().to_path_buf();
-    let app = crate::App::start(test_config(&path, crate::SecretKeyConfig::new(None)))
+    let app = crate::App::start(test_config(&path, crate::MasterKeyConfig::new(None)))
         .await
         .unwrap();
     let provider = setup::id(
@@ -203,21 +203,21 @@ async fn key_rotation_reseals_every_secret_and_updates_fingerprint() {
     let second_key = [29; 32];
     let app = crate::App::start(test_config(
         &path,
-        crate::SecretKeyConfig::new(None).rotate_to_key(first_key),
+        crate::MasterKeyConfig::new(None).rotate_to_key(first_key),
     ))
     .await
     .unwrap();
     assert_secret_inventory(&app, Some(&first_key)).await;
     let app = crate::App::start(test_config(
         &path,
-        crate::SecretKeyConfig::new(Some(first_key)).rotate_to_key(second_key),
+        crate::MasterKeyConfig::new(Some(first_key)).rotate_to_key(second_key),
     ))
     .await
     .unwrap();
     assert_secret_inventory(&app, Some(&second_key)).await;
     let app = crate::App::start(test_config(
         &path,
-        crate::SecretKeyConfig::new(Some(second_key)).rotate_to_plaintext(),
+        crate::MasterKeyConfig::new(Some(second_key)).rotate_to_plaintext(),
     ))
     .await
     .unwrap();
@@ -230,7 +230,7 @@ async fn sealed_store_without_key_names_required_fingerprint() {
     let key = [41; 32];
     let app = crate::App::start(test_config(
         directory.path(),
-        crate::SecretKeyConfig::new(Some(key)),
+        crate::MasterKeyConfig::new(Some(key)),
     ))
     .await
     .unwrap();
@@ -258,7 +258,7 @@ async fn sealed_store_without_key_names_required_fingerprint() {
     drop(app);
     let error = match crate::App::start(test_config(
         directory.path(),
-        crate::SecretKeyConfig::new(None),
+        crate::MasterKeyConfig::new(None),
     ))
     .await
     {
@@ -269,7 +269,7 @@ async fn sealed_store_without_key_names_required_fingerprint() {
     assert!(error.to_string().contains(&required));
 }
 
-fn test_config(path: &std::path::Path, keys: crate::SecretKeyConfig) -> crate::Config {
+fn test_config(path: &std::path::Path, keys: crate::MasterKeyConfig) -> crate::Config {
     crate::Config::sqlite("127.0.0.1:0".parse().unwrap(), path.to_path_buf(), keys)
 }
 
@@ -280,11 +280,11 @@ async fn assert_secret_inventory(app: &crate::AppHandle, key: Option<&[u8; 32]>)
     assert_eq!(inventory.user_keys.len(), 2);
     let expected = crate::key_rotation::fingerprint(key);
     match inventory.fingerprint {
-        gproxy_store::records::SecretKeyFingerprint::Plaintext => assert!(expected.is_none()),
-        gproxy_store::records::SecretKeyFingerprint::Sealed(value) => {
+        gproxy_store::records::MasterKeyFingerprint::Plaintext => assert!(expected.is_none()),
+        gproxy_store::records::MasterKeyFingerprint::Sealed(value) => {
             assert_eq!(Some(value), expected)
         }
-        gproxy_store::records::SecretKeyFingerprint::Missing => panic!("fingerprint missing"),
+        gproxy_store::records::MasterKeyFingerprint::Missing => panic!("fingerprint missing"),
     }
     for secret in &inventory.credentials {
         services.cipher.open(&secret.envelope).unwrap();

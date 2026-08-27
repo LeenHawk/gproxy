@@ -9,8 +9,8 @@ deno task start
 ```
 
 `GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN` are required deployment
-bindings. `GPROXY_SECRET_KEY`, `GPROXY_SECRET_KEY_NEXT`, and
-`GPROXY_SECRET_KEY_ROTATE` are optional secret-at-rest and rotation bindings.
+bindings. `GPROXY_MASTER_KEY`, `GPROXY_MASTER_KEY_NEXT`, and
+`GPROXY_MASTER_KEY_ROTATE` are optional secret-at-rest and rotation bindings.
 The host builds a typed edge config from them. The build creates ignored `pkg/`
 and `public/` directories; no generated wasm or frontend assets are committed.
 

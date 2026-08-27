@@ -17,7 +17,7 @@ pub struct Config {
     #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
     backend: StoreBackend,
-    secret_keys: SecretKeyConfig,
+    secret_keys: MasterKeyConfig,
 }
 
 #[derive(Clone)]
@@ -31,7 +31,7 @@ enum StoreBackend {
 }
 
 #[derive(Clone)]
-pub struct SecretKeyConfig {
+pub struct MasterKeyConfig {
     pub(crate) current: Option<[u8; 32]>,
     pub(crate) next: RotationTarget,
     pub(crate) rotate: bool,
@@ -44,7 +44,7 @@ pub(crate) enum RotationTarget {
     Key([u8; 32]),
 }
 
-impl SecretKeyConfig {
+impl MasterKeyConfig {
     pub fn new(current: Option<[u8; 32]>) -> Self {
         Self {
             current,
@@ -96,7 +96,7 @@ impl Config {
     pub fn sqlite(
         listen_addr: SocketAddr,
         data_dir: PathBuf,
-        secret_keys: SecretKeyConfig,
+        secret_keys: MasterKeyConfig,
     ) -> Self {
         Self {
             listen_addr,
@@ -112,7 +112,7 @@ impl Config {
         data_dir: PathBuf,
         url: String,
         auth_token: String,
-        secret_keys: SecretKeyConfig,
+        secret_keys: MasterKeyConfig,
     ) -> Result<Self, ConfigError> {
         Ok(Self {
             listen_addr,
@@ -129,7 +129,7 @@ impl Config {
     pub fn libsql(
         url: String,
         auth_token: String,
-        secret_keys: SecretKeyConfig,
+        secret_keys: MasterKeyConfig,
     ) -> Result<Self, ConfigError> {
         Ok(Self {
             backend: StoreBackend::Libsql {
@@ -163,7 +163,7 @@ impl Config {
         }
     }
 
-    pub(crate) fn secret_keys(&self) -> &SecretKeyConfig {
+    pub(crate) fn secret_keys(&self) -> &MasterKeyConfig {
         &self.secret_keys
     }
 }

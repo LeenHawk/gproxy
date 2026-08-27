@@ -37,7 +37,7 @@ impl std::fmt::Debug for CredentialEnvelope {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SecretKeyFingerprint {
+pub enum MasterKeyFingerprint {
     Missing,
     Plaintext,
     Sealed(String),
@@ -61,7 +61,7 @@ impl std::fmt::Debug for StoredSecret {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecretInventory {
-    pub fingerprint: SecretKeyFingerprint,
+    pub fingerprint: MasterKeyFingerprint,
     pub credentials: Vec<StoredSecret>,
     pub user_keys: Vec<StoredSecret>,
 }

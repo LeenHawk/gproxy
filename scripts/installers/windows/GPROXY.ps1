@@ -13,7 +13,7 @@ if (-not (Test-Path $environment)) {
     $bytes = New-Object byte[] 32
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
     $secret = [Convert]::ToBase64String($bytes)
-    $source = "GPROXY_SECRET_KEY=$secret`n"
+    $source = "GPROXY_MASTER_KEY=$secret`n"
     [System.IO.File]::WriteAllText($environment, $source, ([System.Text.UTF8Encoding]::new($false)))
 }
 

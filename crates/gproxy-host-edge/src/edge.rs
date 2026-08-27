@@ -60,7 +60,7 @@ impl EdgeReply {
 
 #[wasm_bindgen]
 pub async fn start(config: EdgeConfig) -> Result<EdgeHost, JsValue> {
-    let secret_keys = gproxy_app::SecretKeyConfig::from_encoded(
+    let secret_keys = gproxy_app::MasterKeyConfig::from_encoded(
         config.secret_key,
         config.secret_key_next,
         config.secret_key_rotate,

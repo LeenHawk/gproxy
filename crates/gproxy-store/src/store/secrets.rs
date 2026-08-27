@@ -3,18 +3,18 @@ use serde_json::Value;
 use crate::backend::{QueryResult, Row};
 use crate::query::control;
 use crate::records::{
-    CredentialEnvelope, SecretInventory, SecretKeyFingerprint, SettingInput, StoredSecret,
+    CredentialEnvelope, MasterKeyFingerprint, SecretInventory, SettingInput, StoredSecret,
 };
 use crate::{Store, StoreError};
 
-pub const SECRET_KEY_FINGERPRINT: &str = "secret_key_fingerprint";
+pub const MASTER_KEY_FINGERPRINT: &str = "master_key_fingerprint";
 
 impl Store {
     pub async fn secret_inventory(&self) -> Result<SecretInventory, StoreError> {
         let mut results = self
             .backend()
             .batch(vec![
-                control::select_secret_fingerprint(SECRET_KEY_FINGERPRINT)?,
+                control::select_secret_fingerprint(MASTER_KEY_FINGERPRINT)?,
                 control::select_credential_secrets()?,
                 control::select_user_key_secrets()?,
             ])
@@ -43,7 +43,7 @@ impl Store {
             )
             .collect::<Result<Vec<_>, _>>()?;
         statements.push(control::insert_setting(&SettingInput {
-            key: SECRET_KEY_FINGERPRINT.into(),
+            key: MASTER_KEY_FINGERPRINT.into(),
             value: fingerprint.map_or(Value::Null, |value| Value::String(value.into())),
         })?);
         self.backend().batch(statements).await?;
@@ -51,13 +51,13 @@ impl Store {
     }
 }
 
-fn parse_fingerprint(mut result: QueryResult) -> Result<SecretKeyFingerprint, StoreError> {
+fn parse_fingerprint(mut result: QueryResult) -> Result<MasterKeyFingerprint, StoreError> {
     let Some(row) = result.rows.pop() else {
-        return Ok(SecretKeyFingerprint::Missing);
+        return Ok(MasterKeyFingerprint::Missing);
     };
     match serde_json::from_str(row.text("value_json")?).map_err(invalid_fingerprint)? {
-        Value::Null => Ok(SecretKeyFingerprint::Plaintext),
-        Value::String(value) => Ok(SecretKeyFingerprint::Sealed(value)),
+        Value::Null => Ok(MasterKeyFingerprint::Plaintext),
+        Value::String(value) => Ok(MasterKeyFingerprint::Sealed(value)),
         _ => Err(invalid_fingerprint("expected string or null")),
     }
 }

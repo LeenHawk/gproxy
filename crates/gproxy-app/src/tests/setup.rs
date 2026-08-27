@@ -26,7 +26,7 @@ pub(super) async fn fixture() -> Fixture {
     let config = Config::sqlite(
         "127.0.0.1:0".parse().unwrap(),
         directory.path().to_path_buf(),
-        crate::SecretKeyConfig::new(Some(master_key)),
+        crate::MasterKeyConfig::new(Some(master_key)),
     );
     let app = App::start(config).await.expect("start app");
     let provider = id(app

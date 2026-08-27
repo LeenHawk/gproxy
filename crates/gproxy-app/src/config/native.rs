@@ -1,23 +1,27 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::{Config, SecretKeyConfig, invalid};
+use super::{Config, MasterKeyConfig, invalid};
 use crate::ConfigError;
 
-const LISTEN_ADDR: &str = "GPROXY_LISTEN_ADDR";
+const HOST: &str = "GPROXY_HOST";
+const PORT: &str = "GPROXY_PORT";
 const DATA_DIR: &str = "GPROXY_DATA_DIR";
-const STORE_BACKEND: &str = "GPROXY_STORE_BACKEND";
+const PERSISTENCE: &str = "GPROXY_PERSISTENCE";
 const LIBSQL_URL: &str = "GPROXY_LIBSQL_URL";
 const LIBSQL_AUTH_TOKEN: &str = "GPROXY_LIBSQL_AUTH_TOKEN";
-const SECRET_KEY: &str = "GPROXY_SECRET_KEY";
-const SECRET_KEY_NEXT: &str = "GPROXY_SECRET_KEY_NEXT";
-const SECRET_KEY_ROTATE: &str = "GPROXY_SECRET_KEY_ROTATE";
+const MASTER_KEY: &str = "GPROXY_MASTER_KEY";
+const MASTER_KEY_NEXT: &str = "GPROXY_MASTER_KEY_NEXT";
+const MASTER_KEY_ROTATE: &str = "GPROXY_MASTER_KEY_ROTATE";
 
 /// The whole configuration surface, declared once. `--help` is generated
 /// from this, so the flag list and the environment list cannot drift apart.
 /// Every value is optional here because `.env` and the defaults are layered
 /// underneath: command line, then real environment, then `.env`, then the
 /// default.
+///
+/// Names match v2's wherever the meaning matches, so an operator moving a
+/// deployment across does not have to relearn the surface.
 #[derive(Debug, Default, clap::Parser)]
 #[command(
     name = "gproxy",
@@ -25,15 +29,18 @@ const SECRET_KEY_ROTATE: &str = "GPROXY_SECRET_KEY_ROTATE";
     about = "GPROXY — one gateway in front of many LLM providers"
 )]
 pub(super) struct Cli {
-    /// Address to listen on [default: 127.0.0.1:8787]
-    #[arg(long, env = LISTEN_ADDR, value_name = "ADDR")]
-    listen_addr: Option<String>,
+    /// Interface to bind [default: 127.0.0.1]
+    #[arg(long, env = HOST, value_name = "ADDR")]
+    host: Option<String>,
+    /// Port to listen on [default: 8787]
+    #[arg(long, env = PORT, value_name = "PORT")]
+    port: Option<String>,
     /// Directory for the database and other state [default: ./data]
     #[arg(long, env = DATA_DIR, value_name = "PATH")]
     data_dir: Option<String>,
     /// Persistence backend: `sqlite` or `libsql` [default: sqlite]
-    #[arg(long, env = STORE_BACKEND, value_name = "BACKEND")]
-    store_backend: Option<String>,
+    #[arg(long, env = PERSISTENCE, value_name = "BACKEND")]
+    persistence: Option<String>,
     /// libSQL endpoint; required only for the `libsql` backend
     #[arg(long, env = LIBSQL_URL, value_name = "URL")]
     libsql_url: Option<String>,
@@ -43,16 +50,16 @@ pub(super) struct Cli {
     /// Base64 key the store is sealed with. Unset means secrets are stored
     /// in plaintext, which is the right choice when the database itself is
     /// trusted
-    #[arg(long, env = SECRET_KEY, value_name = "BASE64", hide_env_values = true)]
-    secret_key: Option<String>,
+    #[arg(long, env = MASTER_KEY, value_name = "BASE64", hide_env_values = true)]
+    master_key: Option<String>,
     /// Key to rotate to; an empty value rotates the store back to plaintext.
-    /// Takes effect only together with --secret-key-rotate
-    #[arg(long, env = SECRET_KEY_NEXT, value_name = "BASE64", hide_env_values = true)]
-    secret_key_next: Option<String>,
-    /// Arm the rotation. Without it a stray empty --secret-key-next cannot
+    /// Takes effect only together with --master-key-rotate
+    #[arg(long, env = MASTER_KEY_NEXT, value_name = "BASE64", hide_env_values = true)]
+    master_key_next: Option<String>,
+    /// Arm the rotation. Without it a stray empty --master-key-next cannot
     /// silently decrypt the whole store
-    #[arg(long, env = SECRET_KEY_ROTATE, value_name = "BOOL")]
-    secret_key_rotate: Option<String>,
+    #[arg(long, env = MASTER_KEY_ROTATE, value_name = "BOOL")]
+    master_key_rotate: Option<String>,
 }
 
 pub(super) fn load() -> Result<Config, ConfigError> {
@@ -79,16 +86,17 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
     }
     let layered = |cli: Option<String>, name: &str| cli.or_else(|| dotenv.get(name).cloned());
 
-    let listen_addr = layered(cli.listen_addr, LISTEN_ADDR)
-        .unwrap_or_else(|| "127.0.0.1:8787".into())
+    let host = layered(cli.host, HOST).unwrap_or_else(|| "127.0.0.1".into());
+    let port = layered(cli.port, PORT).unwrap_or_else(|| "8787".into());
+    let listen_addr = format!("{host}:{port}")
         .parse()
-        .map_err(|error| invalid(LISTEN_ADDR, format!("expected IP socket address: {error}")))?;
-    let secret_keys = SecretKeyConfig::from_encoded(
-        layered(cli.secret_key, SECRET_KEY),
-        layered(cli.secret_key_next, SECRET_KEY_NEXT),
-        rotation_enabled(layered(cli.secret_key_rotate, SECRET_KEY_ROTATE))?,
+        .map_err(|error| invalid(HOST, format!("expected IP address and port: {error}")))?;
+    let secret_keys = MasterKeyConfig::from_encoded(
+        layered(cli.master_key, MASTER_KEY),
+        layered(cli.master_key_next, MASTER_KEY_NEXT),
+        rotation_enabled(layered(cli.master_key_rotate, MASTER_KEY_ROTATE))?,
     )?;
-    match layered(cli.store_backend, STORE_BACKEND)
+    match layered(cli.persistence, PERSISTENCE)
         .unwrap_or_else(|| "sqlite".into())
         .as_str()
     {
@@ -100,7 +108,7 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
             layered(cli.libsql_auth_token, LIBSQL_AUTH_TOKEN).unwrap_or_default(),
             secret_keys,
         ),
-        _ => Err(invalid(STORE_BACKEND, "expected `sqlite` or `libsql`")),
+        _ => Err(invalid(PERSISTENCE, "expected `sqlite` or `libsql`")),
     }
 }
 
@@ -148,7 +156,7 @@ fn rotation_enabled(value: Option<String>) -> Result<bool, ConfigError> {
         Some(value) if matches!(value.as_str(), "1" | "true" | "yes" | "on") => Ok(true),
         Some(value) if matches!(value.as_str(), "" | "0" | "false" | "no" | "off") => Ok(false),
         Some(_) => Err(invalid(
-            SECRET_KEY_ROTATE,
+            MASTER_KEY_ROTATE,
             "expected one of `1`, `true`, `yes`, `on`, `0`, `false`, `no`, or `off`",
         )),
     }
@@ -174,14 +182,15 @@ mod tests {
                 .and_then(|value| value.clone().into_string().ok())
         };
         Cli {
-            listen_addr: get(LISTEN_ADDR),
+            host: get(HOST),
+            port: get(PORT),
             data_dir: get(DATA_DIR),
-            store_backend: get(STORE_BACKEND),
+            persistence: get(PERSISTENCE),
             libsql_url: get(LIBSQL_URL),
             libsql_auth_token: get(LIBSQL_AUTH_TOKEN),
-            secret_key: get(SECRET_KEY),
-            secret_key_next: get(SECRET_KEY_NEXT),
-            secret_key_rotate: get(SECRET_KEY_ROTATE),
+            master_key: get(MASTER_KEY),
+            master_key_next: get(MASTER_KEY_NEXT),
+            master_key_rotate: get(MASTER_KEY_ROTATE),
         }
     }
 
@@ -190,16 +199,16 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         std::fs::write(
             directory.path().join(".env"),
-            "# comment\nGPROXY_LISTEN_ADDR=127.0.0.1:1000 # inline\nGPROXY_DATA_DIR=data-home\nDENO_DEPLOY_TOKEN=not-ours\n",
+            "# comment\nGPROXY_PORT=1000 # inline\nGPROXY_DATA_DIR=data-home\nDENO_DEPLOY_TOKEN=not-ours\n",
         )
         .unwrap();
         std::fs::create_dir(directory.path().join("data-home")).unwrap();
         std::fs::write(
             directory.path().join("data-home/.env"),
-            "GPROXY_LISTEN_ADDR=127.0.0.1:2000\nGPROXY_STORE_BACKEND=sqlite\n",
+            "GPROXY_PORT=2000\nGPROXY_PERSISTENCE=sqlite\n",
         )
         .unwrap();
-        let environment = HashMap::from([(LISTEN_ADDR, OsString::from("127.0.0.1:3000"))]);
+        let environment = HashMap::from([(PORT, OsString::from("3000"))]);
         let config = resolve(from_environment(&environment), directory.path()).unwrap();
         assert_eq!(config.listen_addr().to_string(), "127.0.0.1:3000");
         assert_eq!(config.data_dir(), directory.path().join("data-home"));
@@ -213,16 +222,9 @@ mod tests {
     #[test]
     fn command_line_wins_over_environment_and_dotenv() {
         let directory = tempfile::tempdir().unwrap();
-        std::fs::write(
-            directory.path().join(".env"),
-            "GPROXY_LISTEN_ADDR=127.0.0.1:1000\n",
-        )
-        .unwrap();
-        let mut cli = from_environment(&HashMap::from([(
-            LISTEN_ADDR,
-            OsString::from("127.0.0.1:2000"),
-        )]));
-        cli.listen_addr = Some("127.0.0.1:3000".into());
+        std::fs::write(directory.path().join(".env"), "GPROXY_PORT=1000\n").unwrap();
+        let mut cli = from_environment(&HashMap::from([(PORT, OsString::from("2000"))]));
+        cli.port = Some("3000".into());
         let config = resolve(cli, directory.path()).unwrap();
         assert_eq!(config.listen_addr().to_string(), "127.0.0.1:3000");
     }

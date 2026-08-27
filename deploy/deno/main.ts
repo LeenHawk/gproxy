@@ -11,9 +11,9 @@ async function host() {
   const config = new EdgeConfig(
     required("GPROXY_LIBSQL_URL"),
     required("GPROXY_LIBSQL_AUTH_TOKEN"),
-    Deno.env.get("GPROXY_SECRET_KEY"),
-    Deno.env.get("GPROXY_SECRET_KEY_NEXT"),
-    rotationArmed(Deno.env.get("GPROXY_SECRET_KEY_ROTATE")),
+    Deno.env.get("GPROXY_MASTER_KEY"),
+    Deno.env.get("GPROXY_MASTER_KEY_NEXT"),
+    rotationArmed(Deno.env.get("GPROXY_MASTER_KEY_ROTATE")),
   )
   hostPromise ??= start(config)
   return hostPromise

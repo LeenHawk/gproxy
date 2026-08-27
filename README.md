@@ -22,15 +22,15 @@ No configuration file or encryption key is required. The native host reads
 variable always wins. The defaults are `127.0.0.1:8787`, `./data`, SQLite, and
 plaintext secret storage. `GPROXY_LIBSQL_URL` and
 `GPROXY_LIBSQL_AUTH_TOKEN` are required only when
-`GPROXY_STORE_BACKEND=libsql`.
+`GPROXY_PERSISTENCE=libsql`.
 
-Set `GPROXY_SECRET_KEY` to a standard-base64 32-byte key to encrypt stored
+Set `GPROXY_MASTER_KEY` to a standard-base64 32-byte key to encrypt stored
 credential and user-key material. To rotate, keep the current key in
-`GPROXY_SECRET_KEY`, set the target in `GPROXY_SECRET_KEY_NEXT`, and explicitly
-arm one restart with `GPROXY_SECRET_KEY_ROTATE=on`. An empty `NEXT` rotates to
+`GPROXY_MASTER_KEY`, set the target in `GPROXY_MASTER_KEY_NEXT`, and explicitly
+arm one restart with `GPROXY_MASTER_KEY_ROTATE=on`. An empty `NEXT` rotates to
 plaintext. Rotation re-seals every secret and updates the key fingerprint in
 one database transaction; after success, move the target into
-`GPROXY_SECRET_KEY` (or unset it for plaintext) and clear `NEXT` and `ROTATE`.
+`GPROXY_MASTER_KEY` (or unset it for plaintext) and clear `NEXT` and `ROTATE`.
 The stored fingerprint is never a key, and startup refuses a sealed store when
 the required fingerprint is not supplied.
 

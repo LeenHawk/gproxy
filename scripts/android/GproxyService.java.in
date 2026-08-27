@@ -115,7 +115,7 @@ public final class GproxyService extends Service {
         byte[] random = new byte[32];
         new SecureRandom().nextBytes(random);
         String secret = Base64.encodeToString(random, Base64.NO_WRAP);
-        String content = "GPROXY_SECRET_KEY=" + secret + "\n";
+        String content = "GPROXY_MASTER_KEY=" + secret + "\n";
         File temporary = new File(environment.getPath() + ".tmp");
         FileOutputStream output = new FileOutputStream(temporary);
         try { output.write(content.getBytes("UTF-8")); } finally { output.close(); }

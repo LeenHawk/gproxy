@@ -44,7 +44,8 @@ COPY --from=builder /source/target/release/gproxy /usr/local/bin/gproxy
 
 USER gproxy
 EXPOSE 8787
-ENV GPROXY_LISTEN_ADDR=0.0.0.0:8787 \
+ENV GPROXY_HOST=0.0.0.0 \
+    GPROXY_PORT=8787 \
     GPROXY_DATA_DIR=/var/lib/gproxy \
-    GPROXY_STORE_BACKEND=sqlite
+    GPROXY_PERSISTENCE=sqlite
 ENTRYPOINT ["/usr/local/bin/gproxy"]
