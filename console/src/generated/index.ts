@@ -8,6 +8,8 @@ export * from "./AuthCodeCompleteRequest";
 export * from "./AuthCodeStartRequest";
 export * from "./AuthCodeStartResponse";
 export * from "./AuthResponse";
+export * from "./AutostartStatusDto";
+export * from "./AutostartUpdateRequest";
 export * from "./BatchActionDto";
 export * from "./BatchItemOutcome";
 export * from "./BatchRequest";

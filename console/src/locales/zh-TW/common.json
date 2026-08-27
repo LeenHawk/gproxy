@@ -84,7 +84,7 @@
       "invalidRange": "開始時間必須早於結束時間。"
     },
     "documentation": "文件",
-    "buildIdentity": "v{{version}} · {{hash}}"
+    "buildIdentity": "v{{version}} · {{channel}} · {{hash}} · {{kind}}"
   },
   "connectivity": {
     "action": "測試連線",

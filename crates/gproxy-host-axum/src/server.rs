@@ -13,15 +13,25 @@ pub struct HostConfig {
     instance_id: u64,
     trusted_proxies: Arc<[std::net::IpAddr]>,
     cors_origins: Arc<[String]>,
+    upstream_proxy_url: Option<String>,
+    autostart: Option<Arc<crate::autostart::Manager>>,
 }
 
 impl HostConfig {
     pub fn from_config(config: &gproxy_app::Config) -> Self {
+        let autostart = Arc::new(crate::autostart::Manager::for_current_process(
+            config.data_dir().to_owned(),
+        ));
+        if let Err(error) = autostart.initialize_default() {
+            tracing::warn!(%error, "automatic startup initialization failed");
+        }
         Self {
             max_in_flight: config.max_in_flight(),
             instance_id: config.instance_id(),
             trusted_proxies: config.trusted_proxies().into(),
             cors_origins: config.cors_origins().into(),
+            upstream_proxy_url: config.upstream_proxy_url().map(str::to_owned),
+            autostart: Some(autostart),
         }
     }
 }
@@ -33,6 +43,8 @@ impl Default for HostConfig {
             instance_id: 0,
             trusted_proxies: Arc::new([]),
             cors_origins: Arc::new([]),
+            upstream_proxy_url: None,
+            autostart: None,
         }
     }
 }
@@ -44,6 +56,8 @@ pub(crate) struct HostState {
     pub trusted_proxies: Arc<[std::net::IpAddr]>,
     pub cors_origins: Arc<[String]>,
     pub uploads: Arc<UploadState>,
+    pub announcements: crate::announce::Announcements,
+    pub autostart: Option<Arc<crate::autostart::Manager>>,
     instance_id: u64,
     request_prefix: u64,
     request_counter: Arc<AtomicU64>,
@@ -59,6 +73,11 @@ impl HostState {
             trusted_proxies: config.trusted_proxies,
             cors_origins: config.cors_origins,
             uploads: Arc::new(UploadState::default()),
+            announcements: crate::announce::Announcements::new(
+                config.upstream_proxy_url.as_deref(),
+            )
+            .map_err(|_| HostError::AnnouncementClient)?,
+            autostart: config.autostart,
             instance_id: config.instance_id,
             request_prefix: u64::from_be_bytes(prefix),
             request_counter: Arc::new(AtomicU64::new(1)),
@@ -179,4 +198,6 @@ pub enum HostError {
     Join(#[source] tokio::task::JoinError),
     #[error("secure request-id randomness unavailable")]
     Randomness,
+    #[error("announcement client initialization failed")]
+    AnnouncementClient,
 }

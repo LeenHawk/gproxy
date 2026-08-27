@@ -2,6 +2,10 @@
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::hint::black_box(gproxy_host_axum::UPDATE_SIGNING_PUBLIC_KEY);
+    if version_requested() {
+        println!("gproxy {}", gproxy_host_axum::version_line());
+        return Ok(());
+    }
     let command = gproxy_app::NativeCommand::from_env()?;
     let config = match command {
         gproxy_app::NativeCommand::Serve(config) => config,
@@ -23,6 +27,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::signal::ctrl_c().await?;
     server.shutdown().await?;
     Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn version_requested() -> bool {
+    let mut args = std::env::args_os();
+    let _program = args.next();
+    matches!(args.next().as_deref(), Some(value) if value == "--version" || value == "-V")
+        && args.next().is_none()
 }
 
 #[cfg(target_arch = "wasm32")]

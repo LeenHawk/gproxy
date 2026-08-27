@@ -8,6 +8,8 @@ mod fingerprint;
 mod identity;
 mod log;
 mod login;
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
 mod portal;
 mod pricing;
 mod rules;
@@ -25,6 +27,8 @@ pub use fingerprint::*;
 pub use identity::*;
 pub use log::*;
 pub use login::*;
+#[cfg(not(target_arch = "wasm32"))]
+pub use native::*;
 pub use portal::*;
 pub use pricing::*;
 pub use rules::*;

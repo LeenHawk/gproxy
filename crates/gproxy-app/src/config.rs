@@ -248,6 +248,11 @@ impl Config {
         &self.data_dir
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn upstream_proxy_url(&self) -> Option<&str> {
+        self.native.upstream_proxy_url.as_deref()
+    }
+
     pub fn backend_config(&self) -> gproxy_store::BackendConfig {
         match &self.backend {
             #[cfg(not(target_arch = "wasm32"))]

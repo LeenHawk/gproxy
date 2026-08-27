@@ -84,7 +84,7 @@
       "invalidRange": "Start must be before end."
     },
     "documentation": "Documentation",
-    "buildIdentity": "v{{version}} · {{hash}}"
+    "buildIdentity": "v{{version}} · {{channel}} · {{hash}} · {{kind}}"
   },
   "connectivity": {
     "action": "Test connectivity",

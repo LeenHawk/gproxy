@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { ActivityIcon, BookOpenIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { AnnouncementFeed } from "@/components/announcement-feed"
 import { LocaleControls } from "@/components/locale-controls"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
 import { useSidebarPreferences } from "@/components/use-sidebar-preferences"
@@ -59,12 +60,19 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
               <span className={cn("truncate font-mono text-xs text-muted-foreground", sidebar.collapsed && "sr-only")}>{username}</span>
               <Button size="icon-sm" variant="ghost" aria-label={t("auth.logout")} onClick={onLogout}><LogOutIcon /></Button>
             </div>
-            <p className={cn("font-mono text-[0.65rem] text-muted-foreground", sidebar.collapsed && "sr-only")}>{t("common.buildIdentity", { version: __GPROXY_VERSION__, hash: __GPROXY_BUILD_HASH__ })}</p>
+            <p className={cn("font-mono text-[0.65rem] text-muted-foreground", sidebar.collapsed && "sr-only")}>{t("common.buildIdentity", buildIdentity())}</p>
           </div>
         </div>
         {!sidebar.collapsed ? <SidebarResizeHandle label={t("nav.resize")} width={sidebar.width} minWidth={sidebar.minWidth} maxWidth={sidebar.maxWidth} onWidth={sidebar.setWidth} onReset={sidebar.resetWidth} /> : null}
       </aside>
-      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><AnnouncementFeed />{children}</main>
     </div>
   )
+}
+
+function buildIdentity() {
+  const build = window.__GPROXY_BUILD_INFO__
+  return build
+    ? { version: build.version, channel: build.channel, hash: build.buildHash.slice(0, 12), kind: build.installationKind }
+    : { version: __GPROXY_VERSION__, channel: "development", hash: __GPROXY_BUILD_HASH__, kind: "source" }
 }

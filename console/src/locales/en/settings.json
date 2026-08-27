@@ -48,6 +48,22 @@
       "inherit_system_proxy": "Inherit system proxy",
       "inherit_system_proxyHint": "Honor ambient HTTP_PROXY and HTTPS_PROXY only when no explicit proxy is selected. Off by default."
     },
+    "autostart": {
+      "title": "Login startup",
+      "description": "Start this native GPROXY installation when the current desktop user signs in.",
+      "enable": "Start GPROXY at login",
+      "platform": "Managed by {{platform}} for the current user. The saved launch command includes the active configuration and master key when one was supplied.",
+      "saved": "Login startup updated.",
+      "saveError": "Could not update login startup.",
+      "loadError": "Could not read login startup status.",
+      "detail": {
+        "container": "Login startup is skipped inside containers.",
+        "home": "The current user home directory is unavailable.",
+        "desktop": "No desktop login session was detected.",
+        "platform": "Startup is managed by this platform launcher.",
+        "unsupported": "Login startup is unavailable on this installation."
+      }
+    },
     "tokenizers": {
       "title": "Tokenizer vocabularies",
       "description": "Inspect, fetch, and remove vocabularies cached in this instance.",

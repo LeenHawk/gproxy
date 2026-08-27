@@ -55,6 +55,8 @@ jobs:
             --build-arg "GPROXY_UPDATE_PUBKEY=$GPROXY_UPDATE_PUBKEY" \
             --build-arg "GPROXY_VERSION=${{ needs.prepare.outputs.version }}" \
             --build-arg "GPROXY_REVISION=$GITHUB_SHA" \
+            --build-arg "GPROXY_BUILD_VERSION=${{ needs.prepare.outputs.version }}" \
+            --build-arg "GPROXY_BUILD_HASH=$GITHUB_SHA" \
             --tag "$image" .
           mkdir -p dist/container
           docker save "$image" | gzip -9 > dist/container/gproxy-container-linux-amd64.tar.gz
@@ -131,6 +133,10 @@ jobs:
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+          GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+          GPROXY_BUILD_CHANNEL: releases
+          GPROXY_BUILD_HASH: ${{ github.sha }}
+          GPROXY_INSTALLATION_KIND: ${{ matrix.os == 'android' && 'android-apk' || 'standalone' }}
         run: |
           case "${{ matrix.builder }}" in
             cargo) cargo build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;

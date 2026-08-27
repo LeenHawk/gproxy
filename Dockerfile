@@ -14,6 +14,10 @@ FROM public.ecr.aws/docker/library/rust:1-trixie AS builder
 
 ARG CARGO_NET_OFFLINE=false
 ARG GPROXY_UPDATE_PUBKEY
+ARG GPROXY_BUILD_VERSION
+ARG GPROXY_BUILD_CHANNEL=releases
+ARG GPROXY_BUILD_HASH
+ARG GPROXY_INSTALLATION_KIND=container
 WORKDIR /source
 RUN apt-get update \
     && apt-get install -y --no-install-recommends clang cmake libclang-dev \
@@ -23,6 +27,8 @@ COPY --from=console /source/console/dist/ crates/gproxy-host-axum/assets/web/
 RUN test -n "$GPROXY_UPDATE_PUBKEY" \
     && test "$(printf '%s' "$GPROXY_UPDATE_PUBKEY" | base64 -d | wc -c)" -eq 32 \
     && CARGO_NET_OFFLINE="$CARGO_NET_OFFLINE" GPROXY_UPDATE_PUBKEY="$GPROXY_UPDATE_PUBKEY" \
+    GPROXY_BUILD_VERSION="$GPROXY_BUILD_VERSION" GPROXY_BUILD_CHANNEL="$GPROXY_BUILD_CHANNEL" \
+    GPROXY_BUILD_HASH="$GPROXY_BUILD_HASH" GPROXY_INSTALLATION_KIND="$GPROXY_INSTALLATION_KIND" \
     cargo build --locked --release --package gproxy-host-axum --bin gproxy
 
 FROM public.ecr.aws/docker/library/debian:trixie-slim

@@ -13,6 +13,9 @@ pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
         return None;
     }
     let request_path = parts.uri.path();
+    if request_path == "/build-info.js" {
+        return Some(build_info(parts.method == Method::HEAD));
+    }
     let asset = if matches!(
         request_path,
         "/" | "/admin" | "/admin/" | "/portal" | "/portal/"
@@ -36,6 +39,13 @@ pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
     };
     let mut response = Response::new(if parts.method == Method::HEAD {
         Bytes::new()
+    } else if asset == "index.html" {
+        Bytes::from(
+            String::from_utf8_lossy(&content.data).replace(
+                "</head>",
+                "<script src=\"/build-info.js\"></script><script src=\"/announcements.js\"></script></head>",
+            ),
+        )
     } else {
         Bytes::from(content.data.into_owned())
     });
@@ -57,6 +67,30 @@ pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
         },
     );
     Some(response)
+}
+
+fn build_info(head: bool) -> Response<Bytes> {
+    let value = serde_json::json!({
+        "version": crate::BUILD_VERSION,
+        "channel": crate::BUILD_CHANNEL,
+        "buildHash": crate::BUILD_HASH,
+        "installationKind": crate::INSTALLATION_KIND,
+    });
+    let body = format!("globalThis.__GPROXY_BUILD_INFO__ = {value};\n");
+    let mut response = Response::new(if head {
+        Bytes::new()
+    } else {
+        Bytes::from(body)
+    });
+    response.headers_mut().insert(
+        http::header::CONTENT_TYPE,
+        HeaderValue::from_static("text/javascript; charset=utf-8"),
+    );
+    response.headers_mut().insert(
+        http::header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
+    );
+    response
 }
 
 fn text(status: StatusCode, body: &'static str) -> Response<Bytes> {

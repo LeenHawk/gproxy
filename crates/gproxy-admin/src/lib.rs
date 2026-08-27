@@ -68,5 +68,22 @@ pub async fn apply_admin_password(
     )))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn authorize_host_route(
+    state: &impl State,
+    parts: &http::request::Parts,
+    write: bool,
+) -> Result<(), http::Response<bytes::Bytes>> {
+    let result = async {
+        let _admin = auth::authenticate(state, parts).await?;
+        if write {
+            auth::verify_same_origin(parts)?;
+        }
+        Ok::<_, AdminError>(())
+    }
+    .await;
+    result.map_err(|error| response::render(Err(error), "admin"))
+}
+
 #[cfg(test)]
 mod tests;
