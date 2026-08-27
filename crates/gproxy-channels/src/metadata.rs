@@ -8,6 +8,7 @@ const fn field(
 ) -> ChannelField {
     ChannelField {
         key,
+        i18n_key: key,
         control,
         required,
         advanced,

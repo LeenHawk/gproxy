@@ -1,8 +1,9 @@
 import type { ChannelFieldDto } from "@/generated/ChannelFieldDto"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { useTranslation } from "react-i18next"
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { humanizeSettingKey, inputValue, settingValue, updateSetting } from "./settings-values"
+import { inputValue, settingValue, updateSetting } from "./settings-values"
 
 export function GenericSettingsFields({
   fields,
@@ -13,14 +14,21 @@ export function GenericSettingsFields({
   values: Record<string, unknown>
   onChange: (values: Record<string, unknown>) => void
 }) {
+  const { t } = useTranslation()
   return fields.map((field) => {
     const id = `provider-setting-${field.key}`
     const value = settingValue(field, values)
-    const label = humanizeSettingKey(field.key)
+    const text = {
+      label: t(`providers.channelFields.${field.i18n_key}.label`),
+      description: t(`providers.channelFields.${field.i18n_key}.description`),
+    }
     if (field.control === "boolean") {
       return (
         <Field key={field.key} orientation="horizontal">
-          <FieldLabel htmlFor={id}>{label}</FieldLabel>
+          <FieldContent>
+            <FieldLabel htmlFor={id}>{text.label}</FieldLabel>
+            <FieldDescription>{text.description}</FieldDescription>
+          </FieldContent>
           <Switch
             id={id}
             checked={value === true}
@@ -31,7 +39,7 @@ export function GenericSettingsFields({
     }
     return (
       <Field key={field.key}>
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <FieldLabel htmlFor={id}>{text.label}</FieldLabel>
         <Input
           id={id}
           type={field.control === "secret" ? "password" : field.control === "url" ? "url" : field.control === "integer" ? "number" : "text"}
@@ -41,6 +49,7 @@ export function GenericSettingsFields({
           value={inputValue(field, value)}
           onChange={(event) => onChange(updateSetting(values, field, event.target.value))}
         />
+        <FieldDescription>{text.description}</FieldDescription>
       </Field>
     )
   })

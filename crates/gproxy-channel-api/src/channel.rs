@@ -53,6 +53,7 @@ pub enum ChannelFieldControl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChannelField {
     pub key: &'static str,
+    pub i18n_key: &'static str,
     pub control: ChannelFieldControl,
     pub required: bool,
     pub advanced: bool,

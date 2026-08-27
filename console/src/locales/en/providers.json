@@ -13,6 +13,33 @@
     "summary": {
       "credentialCount": "{{count}} credentials"
     },
+    "channelFields": {
+      "base_url": { "label": "Base URL", "description": "Default upstream origin used when no exact endpoint override is configured." },
+      "enable_openai_magic_cache": { "label": "OpenAI magic-string cache", "description": "Recognizes supported trigger strings and writes explicit OpenAI cache breakpoints." },
+      "claude_fable_fallbacks": { "label": "Claude fallback models", "description": "Ordered model names offered when the primary Claude model refuses a request." },
+      "region": { "label": "AWS region", "description": "Selects the regional AWS endpoint used by this channel." },
+      "video_output_s3_uri": { "label": "Video output S3 URI", "description": "S3 destination where generated video output is written." },
+      "location": { "label": "Vertex region", "description": "Google Cloud region used to build Vertex AI endpoints." },
+      "oauth_client_id": { "label": "OAuth client ID", "description": "Client identifier used when this provider obtains an OAuth token." },
+      "oauth_client_secret": { "label": "OAuth client secret", "description": "Client secret paired with the configured OAuth client ID." },
+      "oauth_token_url": { "label": "OAuth token URL", "description": "Token endpoint used to obtain or refresh OAuth access." },
+      "profile_arn": { "label": "Kiro profile ARN", "description": "AWS profile ARN Kiro uses for account-scoped requests." },
+      "auth_base_url": { "label": "Authentication base URL", "description": "Overrides the channel's default authentication service origin." },
+      "tier": { "label": "Service tier", "description": "Upstream service tier selected for this provider." },
+      "console_base_url": { "label": "Console base URL", "description": "Origin used for channel control-plane and console requests." },
+      "access_token": { "label": "Access token", "description": "Current bearer token sent to the upstream service." },
+      "refresh_token": { "label": "Refresh token", "description": "Long-lived token used to rotate the upstream access token." },
+      "api_key": { "label": "API key", "description": "Secret API key used to authenticate upstream requests." },
+      "client_email": { "label": "Service account email", "description": "Client email from the Google service account credential." },
+      "private_key": { "label": "Service account private key", "description": "Private key used to sign Google service account assertions." },
+      "project_id": { "label": "Google Cloud project ID", "description": "Project that owns the upstream Google Cloud resources." },
+      "cookie": { "label": "Session cookie", "description": "Authenticated browser session cookie used by the channel." },
+      "account_uuid": { "label": "Account UUID", "description": "Upstream account identifier associated with the browser session." },
+      "github_token": { "label": "GitHub token", "description": "GitHub token used to authenticate Copilot requests." },
+      "access_key_id": { "label": "AWS access key ID", "description": "Public identifier for the AWS signing credential." },
+      "secret_access_key": { "label": "AWS secret access key", "description": "Secret key used to sign AWS requests." },
+      "session_token": { "label": "AWS session token", "description": "Temporary session token paired with the AWS access keys." }
+    },
     "tabs": {
       "settings": "Settings"
     },

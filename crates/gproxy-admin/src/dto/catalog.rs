@@ -38,6 +38,7 @@ pub enum ChannelFieldControlDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct ChannelFieldDto {
     pub key: String,
+    pub i18n_key: String,
     pub control: ChannelFieldControlDto,
     pub required: bool,
     pub advanced: bool,
@@ -153,6 +154,7 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
 fn channel_field(field: &gproxy_channel_api::ChannelField) -> ChannelFieldDto {
     ChannelFieldDto {
         key: field.key.into(),
+        i18n_key: field.i18n_key.into(),
         control: match field.control {
             gproxy_channel_api::ChannelFieldControl::Text => ChannelFieldControlDto::Text,
             gproxy_channel_api::ChannelFieldControl::Secret => ChannelFieldControlDto::Secret,

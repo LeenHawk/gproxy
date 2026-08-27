@@ -1,5 +1,16 @@
 import type { ChannelFieldDto } from "@/generated/ChannelFieldDto"
 
+export function channelFieldText(
+  field: ChannelFieldDto,
+  translate: (key: string) => string,
+) {
+  const prefix = `providers.channelFields.${field.i18n_key}`
+  return {
+    label: translate(`${prefix}.label`),
+    description: translate(`${prefix}.description`),
+  }
+}
+
 export function objectValue(value: unknown): Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value)
     ? { ...value as Record<string, unknown> }
