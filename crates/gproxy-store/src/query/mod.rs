@@ -1,4 +1,6 @@
 pub(crate) mod admin;
+pub(crate) mod admin_auth;
+pub(crate) mod admin_seed;
 pub(crate) mod binding;
 mod common;
 pub(crate) use common::count_all;

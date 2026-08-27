@@ -35,12 +35,13 @@ pub(crate) fn update_user(id: i64, input: &UserInput) -> Result<Statement, Store
     update(
         "users",
         id,
-        &["name", "organization_id", "team_id", "enabled"],
+        &["name", "organization_id", "team_id", "enabled", "is_admin"],
         vec![
             value(input.name.clone()),
             value(input.organization_id),
             value(input.team_id),
             value(input.enabled),
+            value(input.is_admin),
         ],
     )
 }

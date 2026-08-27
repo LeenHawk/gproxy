@@ -1,7 +1,7 @@
 use web_time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
-use gproxy_store::records::{AdminAccountRecord, AdminSessionInput};
+use gproxy_store::records::{AdminUserRecord, UserSessionInput};
 use http::request::Parts;
 use sha2::{Digest, Sha256};
 
@@ -17,7 +17,7 @@ pub(crate) struct AdminIdentity {
     pub api_key: bool,
 }
 
-pub(super) async fn create(state: &impl State, admin_id: i64) -> Result<String, AdminError> {
+pub(super) async fn create(state: &impl State, user_id: i64) -> Result<String, AdminError> {
     let mut raw = [0_u8; 32];
     getrandom::fill(&mut raw)
         .map_err(|_| AdminError::Internal("secure randomness unavailable".into()))?;
@@ -25,9 +25,9 @@ pub(super) async fn create(state: &impl State, admin_id: i64) -> Result<String, 
     let created_at = now()?;
     state
         .store()
-        .create_admin_session(&AdminSessionInput {
+        .create_user_session(&UserSessionInput {
             token_digest: digest(&token),
-            admin_id,
+            user_id,
             created_at,
             expires_at: created_at.saturating_add(SESSION_SECONDS),
         })
@@ -42,7 +42,7 @@ pub(crate) async fn authenticate(
     if let Some(token) = bearer(parts) {
         let account = state
             .store()
-            .admin_for_api_key(&digest(token))
+            .admin_for_api_key(&digest(token), now()?)
             .await?
             .ok_or(AdminError::Unauthorized)?;
         return Ok(identity(account, true));
@@ -58,7 +58,7 @@ pub(crate) async fn authenticate(
 
 pub(super) async fn revoke(state: &impl State, parts: &Parts) -> Result<(), AdminError> {
     if let Some(token) = token(parts) {
-        state.store().delete_admin_session(&digest(token)).await?;
+        state.store().delete_user_session(&digest(token)).await?;
     }
     Ok(())
 }
@@ -108,10 +108,10 @@ fn bearer(parts: &Parts) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-fn identity(account: AdminAccountRecord, api_key: bool) -> AdminIdentity {
+fn identity(account: AdminUserRecord, api_key: bool) -> AdminIdentity {
     AdminIdentity {
         id: account.id,
-        username: account.username,
+        username: account.name,
         api_key,
     }
 }

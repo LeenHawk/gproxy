@@ -36,6 +36,7 @@ pub struct UserDto {
     pub organization_id: Option<i64>,
     pub team_id: Option<i64>,
     pub enabled: bool,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -44,6 +45,7 @@ pub struct UserWriteRequest {
     pub organization_id: Option<i64>,
     pub team_id: Option<i64>,
     pub enabled: bool,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

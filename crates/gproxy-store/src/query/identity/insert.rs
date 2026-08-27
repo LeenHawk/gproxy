@@ -29,12 +29,21 @@ pub(crate) fn insert_team(input: &TeamInput) -> Result<Statement, StoreError> {
 pub(crate) fn insert_user(input: &UserInput) -> Result<Statement, StoreError> {
     insert(
         "users",
-        &["name", "organization_id", "team_id", "enabled"],
+        &[
+            "name",
+            "organization_id",
+            "team_id",
+            "password_hash",
+            "enabled",
+            "is_admin",
+        ],
         vec![
             value(input.name.clone()),
             value(input.organization_id),
             value(input.team_id),
+            value(input.password_hash.clone()),
             value(input.enabled),
+            value(input.is_admin),
         ],
     )
 }

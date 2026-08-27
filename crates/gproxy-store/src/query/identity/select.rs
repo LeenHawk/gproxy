@@ -13,7 +13,14 @@ pub(crate) fn select_teams() -> Result<Statement, StoreError> {
 pub(crate) fn select_users() -> Result<Statement, StoreError> {
     select_all(
         "users",
-        &["id", "name", "organization_id", "team_id", "enabled"],
+        &[
+            "id",
+            "name",
+            "organization_id",
+            "team_id",
+            "enabled",
+            "is_admin",
+        ],
     )
 }
 

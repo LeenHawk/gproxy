@@ -1,4 +1,4 @@
-use gproxy_store::records::{QuotaInput, RecordBatch, UserKeyInput};
+use gproxy_store::records::{PermissionInput, QuotaInput, RecordBatch, UserKeyInput};
 
 use super::{Context, id, mapped, mark, optional};
 use crate::migrate_v2::model::SourceData;
@@ -45,6 +45,18 @@ pub(super) async fn base(
         })
         .collect::<Result<Vec<_>, crate::AppError>>()?;
     context.users = mapped(context, &data.users, RecordBatch::Users(users)).await?;
+    for value in data.users.iter().filter(|value| value.value.is_admin) {
+        context
+            .store
+            .insert_permission(&PermissionInput {
+                subject_kind: "user".into(),
+                subject_id: id(&context.users, value.id)?,
+                provider_id: None,
+                operation_group: None,
+                allowed: true,
+            })
+            .await?;
+    }
     mark(counts, "users", data.users.len());
     Ok(())
 }

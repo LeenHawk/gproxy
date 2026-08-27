@@ -28,7 +28,7 @@ pub async fn seed_first_admin(
     auth::password::validate(password)?;
     let hash = auth::password::hash(password)?;
     store
-        .create_first_admin(username, &hash, auth::now()?)
+        .create_first_admin(username, &hash)
         .await
         .map_err(Into::into)
 }
@@ -50,10 +50,7 @@ pub async fn apply_admin_password(
     }
     auth::password::validate(password)?;
     let hash = auth::password::hash(password)?;
-    if let Some(id) = store
-        .create_first_admin(username, &hash, auth::now()?)
-        .await?
-    {
+    if let Some(id) = store.create_first_admin(username, &hash).await? {
         return Ok(id);
     }
     if store.set_admin_password(username, &hash).await? {

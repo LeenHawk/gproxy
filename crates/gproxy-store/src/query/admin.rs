@@ -1,163 +1,15 @@
-use sea_query::{Alias, Cond, Expr, ExprTrait, JoinType, Order, Query};
+use sea_query::{Alias, Expr, ExprTrait, Order, Query};
 
 use crate::StoreError;
 use crate::backend::Statement;
 use crate::query::common::{insert, json, value};
-use crate::records::{AdminSessionInput, AuditEventInput};
-
-pub(crate) fn has_admin_accounts() -> Result<Statement, StoreError> {
-    let mut query = Query::select();
-    query
-        .expr(Expr::val(1))
-        .from(Alias::new("admin_accounts"))
-        .limit(1);
-    Statement::query(&query)
-}
-
-pub(crate) fn create_first_admin(
-    username: &str,
-    password_hash: &str,
-    created_at: i64,
-) -> Result<Statement, StoreError> {
-    let mut exists = Query::select();
-    exists
-        .expr(Expr::val(1))
-        .from(Alias::new("admin_accounts"))
-        .limit(1);
-    let mut values = Query::select();
-    values
-        .exprs([
-            value(username.to_owned()),
-            value(password_hash.to_owned()),
-            value(true),
-            value(created_at),
-        ])
-        .cond_where(Cond::all().not().add(Expr::exists(exists.to_owned())));
-    let mut query = Query::insert();
-    query
-        .into_table(Alias::new("admin_accounts"))
-        .columns(
-            ["username", "password_hash", "enabled", "created_at"]
-                .into_iter()
-                .map(Alias::new),
-        )
-        .select_from(values.to_owned())
-        .map_err(|error| StoreError::Database(error.to_string()))?;
-    query.returning_col(Alias::new("id"));
-    Statement::query(&query)
-}
-
-pub(crate) fn set_admin_password(
-    username: &str,
-    password_hash: &str,
-) -> Result<Statement, StoreError> {
-    let mut update = Query::update();
-    update
-        .table(Alias::new("admin_accounts"))
-        .value(Alias::new("password_hash"), password_hash.to_owned())
-        .and_where(Expr::col(Alias::new("username")).eq(username));
-    Statement::query(&update)
-}
-
-pub(crate) fn admin_by_username(username: &str) -> Result<Statement, StoreError> {
-    let mut query = admin_select();
-    query
-        .and_where(Expr::col(Alias::new("username")).eq(username))
-        .limit(1);
-    Statement::query(&query)
-}
-
-pub(crate) fn insert_admin_session(input: &AdminSessionInput) -> Result<Statement, StoreError> {
-    insert(
-        "admin_sessions",
-        &["token_digest", "admin_id", "created_at", "expires_at"],
-        vec![
-            value(input.token_digest.clone()),
-            value(input.admin_id),
-            value(input.created_at),
-            value(input.expires_at),
-        ],
-    )
-}
-
-pub(crate) fn admin_for_session(token_digest: &[u8], now: i64) -> Result<Statement, StoreError> {
-    let accounts = Alias::new("admin_accounts");
-    let sessions = Alias::new("admin_sessions");
-    let mut query = Query::select();
-    query
-        .columns([
-            (accounts.clone(), Alias::new("id")),
-            (accounts.clone(), Alias::new("username")),
-            (accounts.clone(), Alias::new("password_hash")),
-            (accounts.clone(), Alias::new("enabled")),
-            (accounts.clone(), Alias::new("created_at")),
-        ])
-        .from(sessions.clone())
-        .join(
-            JoinType::InnerJoin,
-            accounts.clone(),
-            Expr::col((sessions.clone(), Alias::new("admin_id")))
-                .equals((accounts.clone(), Alias::new("id"))),
-        )
-        .and_where(
-            Expr::col((sessions.clone(), Alias::new("token_digest"))).eq(token_digest.to_vec()),
-        )
-        .and_where(Expr::col((sessions, Alias::new("expires_at"))).gt(now))
-        .and_where(Expr::col((accounts, Alias::new("enabled"))).eq(true))
-        .limit(1);
-    Statement::query(&query)
-}
-
-pub(crate) fn insert_admin_api_key(
-    digest: &[u8],
-    admin_id: i64,
-    created_at: i64,
-) -> Result<Statement, StoreError> {
-    insert(
-        "admin_api_keys",
-        &["digest", "admin_id", "created_at"],
-        vec![value(digest.to_vec()), value(admin_id), value(created_at)],
-    )
-}
-
-pub(crate) fn admin_for_api_key(digest: &[u8]) -> Result<Statement, StoreError> {
-    let accounts = Alias::new("admin_accounts");
-    let keys = Alias::new("admin_api_keys");
-    let mut query = Query::select();
-    query
-        .columns([
-            (accounts.clone(), Alias::new("id")),
-            (accounts.clone(), Alias::new("username")),
-            (accounts.clone(), Alias::new("password_hash")),
-            (accounts.clone(), Alias::new("enabled")),
-            (accounts.clone(), Alias::new("created_at")),
-        ])
-        .from(keys.clone())
-        .join(
-            JoinType::InnerJoin,
-            accounts.clone(),
-            Expr::col((keys.clone(), Alias::new("admin_id")))
-                .equals((accounts.clone(), Alias::new("id"))),
-        )
-        .and_where(Expr::col((keys, Alias::new("digest"))).eq(digest.to_vec()))
-        .and_where(Expr::col((accounts, Alias::new("enabled"))).eq(true))
-        .limit(1);
-    Statement::query(&query)
-}
-
-pub(crate) fn delete_admin_session(token_digest: &[u8]) -> Result<Statement, StoreError> {
-    let mut query = Query::delete();
-    query
-        .from_table(Alias::new("admin_sessions"))
-        .and_where(Expr::col(Alias::new("token_digest")).eq(token_digest.to_vec()));
-    Statement::query(&query)
-}
+use crate::records::AuditEventInput;
 
 pub(crate) fn insert_audit_event(input: &AuditEventInput) -> Result<Statement, StoreError> {
     insert(
         "admin_audit_events",
         &[
-            "actor_admin_id",
+            "actor_user_id",
             "action",
             "target_kind",
             "target_id",
@@ -165,7 +17,7 @@ pub(crate) fn insert_audit_event(input: &AuditEventInput) -> Result<Statement, S
             "details_json",
         ],
         vec![
-            value(input.actor_admin_id),
+            value(input.actor_user_id),
             value(input.action.clone()),
             value(input.target_kind.clone()),
             value(input.target_id),
@@ -187,7 +39,7 @@ pub(crate) fn select_audit_events(limit: u64) -> Result<Statement, StoreError> {
         .columns(
             [
                 "id",
-                "actor_admin_id",
+                "actor_user_id",
                 "action",
                 "target_kind",
                 "target_id",
@@ -221,16 +73,4 @@ pub(crate) fn select_user_key_secret(id: i64) -> Result<Statement, StoreError> {
         .and_where(Expr::col(Alias::new("id")).eq(id))
         .limit(1);
     Statement::query(&query)
-}
-
-fn admin_select() -> sea_query::SelectStatement {
-    let mut query = Query::select();
-    query
-        .columns(
-            ["id", "username", "password_hash", "enabled", "created_at"]
-                .into_iter()
-                .map(Alias::new),
-        )
-        .from(Alias::new("admin_accounts"));
-    query.to_owned()
 }

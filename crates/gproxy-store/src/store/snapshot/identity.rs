@@ -46,6 +46,7 @@ pub(super) fn users(result: QueryResult) -> Result<Vec<UserRecord>, StoreError> 
                 organization_id: row.optional_i64("organization_id")?,
                 team_id: row.optional_i64("team_id")?,
                 enabled: row.i64("enabled")? != 0,
+                is_admin: row.i64("is_admin")? != 0,
             })
         })
         .collect()

@@ -33,7 +33,7 @@ pub trait State: MaybeSend + MaybeSync {
 
     fn reveal_user_key(
         &self,
-        actor_admin_id: i64,
+        actor_user_id: i64,
         id: i64,
         at: i64,
     ) -> BoxFuture<'_, Result<String, AdminError>>;

@@ -6,8 +6,6 @@ use crate::host::{AppHost, Services};
 use crate::lifecycle::AppInner;
 use crate::{App, AppError, AppHandle, Config};
 use gproxy_channel_api::{Channel, ChannelRegistry};
-#[cfg(not(target_arch = "wasm32"))]
-use sha2::{Digest, Sha256};
 
 impl App {
     pub async fn start(config: Config) -> Result<AppHandle, AppError> {
@@ -18,7 +16,7 @@ impl App {
         let cipher = crate::key_rotation::prepare(&store, config.secret_keys()).await?;
         let channels = channels()?;
         #[cfg(not(target_arch = "wasm32"))]
-        seed_first_run(&store, &channels, config.native()).await?;
+        seed_first_run(&store, &cipher, &channels, config.native()).await?;
         let runtime = crate::control::RuntimeOverrides::from_config(&config);
         let control = SnapshotControl::new(store.clone(), runtime).await?;
         let cache = cache(&config, store.clone()).await?;
@@ -89,10 +87,11 @@ async fn cache(config: &Config, store: gproxy_store::Store) -> Result<AppCache, 
 #[cfg(not(target_arch = "wasm32"))]
 async fn seed_first_run(
     store: &gproxy_store::Store,
+    cipher: &crate::secrets::EnvelopeCipher,
     channels: &ChannelRegistry,
     options: &crate::config::NativeOptions,
 ) -> Result<(), AppError> {
-    let seeded = store.has_admin_accounts().await?;
+    let seeded = store.has_admin_users().await?;
     let Some(password) = options.admin_password.as_deref() else {
         if !seeded
             && (options.bootstrap_admin_api_key.is_some() || !options.bootstrap_channels.is_empty())
@@ -134,7 +133,20 @@ async fn seed_first_run(
     }
     if let Some(api_key) = options.bootstrap_admin_api_key.as_deref() {
         store
-            .create_admin_api_key(&Sha256::digest(api_key.as_bytes()), admin_id, unix_now())
+            .insert_user_key(&gproxy_store::records::UserKeyInput {
+                user_id: admin_id,
+                digest: crate::control::user_key_digest(
+                    crate::control::USER_KEY_DIGEST_VERSION,
+                    api_key,
+                )
+                .expect("current user-key digest version is supported"),
+                digest_version: crate::control::USER_KEY_DIGEST_VERSION,
+                prefix: api_key.chars().take(12).collect(),
+                envelope: cipher.seal_user_key(&serde_json::Value::String(api_key.into()))?,
+                label: None,
+                expires_at: None,
+                enabled: true,
+            })
             .await?;
     }
     for channel in &options.bootstrap_channels {
@@ -152,16 +164,6 @@ async fn seed_first_run(
             .await?;
     }
     Ok(())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn unix_now() -> i64 {
-    web_time::SystemTime::now()
-        .duration_since(web_time::UNIX_EPOCH)
-        .expect("system clock is after Unix epoch")
-        .as_secs()
-        .try_into()
-        .unwrap_or(i64::MAX)
 }
 
 fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::DuplicateChannel> {

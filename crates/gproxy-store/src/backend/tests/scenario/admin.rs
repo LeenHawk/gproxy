@@ -1,4 +1,4 @@
-use crate::records::{AdminSessionInput, AuditEventInput};
+use crate::records::{AuditEventInput, UserSessionInput};
 use crate::{Store, StoreError};
 
 #[derive(Debug, PartialEq)]
@@ -10,20 +10,18 @@ pub(super) struct Outcome {
 
 pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreError> {
     let admin_id = store
-        .create_first_admin("admin", "argon2-hash", 100)
+        .create_first_admin("admin", "argon2-hash")
         .await?
         .expect("first admin");
     assert_eq!(
-        store
-            .create_first_admin("second", "argon2-hash", 101)
-            .await?,
+        store.create_first_admin("second", "argon2-hash").await?,
         None
     );
     let token_digest = vec![9; 32];
     store
-        .create_admin_session(&AdminSessionInput {
+        .create_user_session(&UserSessionInput {
             token_digest: token_digest.clone(),
-            admin_id,
+            user_id: admin_id,
             created_at: 100,
             expires_at: 200,
         })
@@ -39,7 +37,7 @@ pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreEr
     assert!(store.admin_for_session(&token_digest, 200).await?.is_none());
     store
         .record_audit_event(&AuditEventInput {
-            actor_admin_id: admin_id,
+            actor_user_id: admin_id,
             action: "user_key.reveal".into(),
             target_kind: "user_key".into(),
             target_id: Some(user_key),

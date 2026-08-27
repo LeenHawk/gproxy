@@ -24,7 +24,7 @@ pub(super) async fn list(state: &impl State, parts: &Parts) -> Result<Response<B
         .into_iter()
         .map(|value| AuditEventDto {
             id: value.id,
-            actor_admin_id: value.event.actor_admin_id,
+            actor_user_id: value.event.actor_user_id,
             action: value.event.action,
             target_kind: value.event.target_kind,
             target_id: value.event.target_id,

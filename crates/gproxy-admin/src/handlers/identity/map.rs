@@ -28,6 +28,7 @@ pub(in crate::handlers) fn user(value: &gproxy_store::records::UserRecord) -> Us
         organization_id: value.organization_id,
         team_id: value.team_id,
         enabled: value.enabled,
+        is_admin: value.is_admin,
     }
 }
 

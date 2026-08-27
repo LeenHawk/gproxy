@@ -35,7 +35,9 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("name", Text).unique(),
             Col::optional("organization_id", Integer),
             Col::optional("team_id", Integer),
+            Col::optional("password_hash", Text),
             Col::required("enabled", Integer),
+            Col::required("is_admin", Integer),
         ],
         indexes: &[
             IndexSpec {
@@ -74,6 +76,23 @@ pub const TABLES: &[TableSpec] = &[
         indexes: &[IndexSpec {
             name: "ix_user_keys_user_enabled",
             columns: &["user_id", "enabled"],
+            unique: false,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Admin,
+        name: "user_sessions",
+        columns: &[
+            Col::id(),
+            Col::required("token_digest", Blob).unique(),
+            Col::required("user_id", Integer),
+            Col::required("created_at", Integer),
+            Col::required("expires_at", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_user_sessions_expiry",
+            columns: &["expires_at", "id"],
             unique: false,
             added_in: None,
         }],

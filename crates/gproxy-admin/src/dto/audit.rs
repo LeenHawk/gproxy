@@ -5,7 +5,7 @@ use ts_rs::TS;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct AuditEventDto {
     pub id: i64,
-    pub actor_admin_id: i64,
+    pub actor_user_id: i64,
     pub action: String,
     pub target_kind: String,
     pub target_id: Option<i64>,

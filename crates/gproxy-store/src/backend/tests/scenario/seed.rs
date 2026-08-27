@@ -24,7 +24,9 @@ pub(super) async fn seed_identity(store: &Store) -> Result<i64, StoreError> {
             name: "user".into(),
             organization_id: Some(organization),
             team_id: Some(team),
+            password_hash: None,
             enabled: true,
+            is_admin: false,
         })
         .await?;
     let key = store

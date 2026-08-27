@@ -1,3 +1,4 @@
+mod admin;
 mod pressure;
 mod quota;
 mod setup;
@@ -186,7 +187,9 @@ async fn key_rotation_reseals_every_secret_and_updates_fingerprint() {
                 name: "rotation-user".into(),
                 organization_id: None,
                 team_id: None,
+                password_hash: None,
                 enabled: true,
+                is_admin: false,
             },
         ))
         .await
@@ -373,48 +376,6 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
     );
 }
 
-#[tokio::test]
-async fn explicit_environment_admin_password_updates_existing_account() {
-    let directory = tempfile::tempdir().unwrap();
-    let config = |password: &str| {
-        test_config(directory.path(), crate::MasterKeyConfig::new(None)).with_native_options(
-            crate::config::NativeOptions {
-                admin_user: "operator".into(),
-                admin_password: Some(password.into()),
-                ..Default::default()
-            },
-        )
-    };
-    let login = |password: &str| {
-        let request = http::Request::post("/admin/login").body(()).unwrap();
-        let (parts, _) = request.into_parts();
-        let body = Bytes::from(
-            serde_json::json!({"username": "operator", "password": password}).to_string(),
-        );
-        (parts, body)
-    };
-
-    let app = crate::App::start(config("first-password")).await.unwrap();
-    let (parts, body) = login("first-password");
-    assert_eq!(
-        app.admin_dispatch(&parts, body).await.unwrap().status(),
-        http::StatusCode::OK
-    );
-    drop(app);
-
-    let app = crate::App::start(config("second-password")).await.unwrap();
-    let (parts, body) = login("first-password");
-    assert_eq!(
-        app.admin_dispatch(&parts, body).await.unwrap().status(),
-        http::StatusCode::UNAUTHORIZED
-    );
-    let (parts, body) = login("second-password");
-    assert_eq!(
-        app.admin_dispatch(&parts, body).await.unwrap().status(),
-        http::StatusCode::OK
-    );
-}
-
 fn test_config(path: &std::path::Path, keys: crate::MasterKeyConfig) -> crate::Config {
     crate::Config::sqlite("127.0.0.1:0".parse().unwrap(), path.to_path_buf(), keys)
 }
@@ -437,7 +398,22 @@ async fn seed_admin_key(app: &crate::AppHandle) {
         .unwrap()
         .unwrap();
     store
-        .create_admin_api_key(&Sha256::digest(b"transfer-admin-key"), id, 1)
+        .insert_user_key(&gproxy_store::records::UserKeyInput {
+            user_id: id,
+            digest: Sha256::digest(b"transfer-admin-key").to_vec(),
+            digest_version: crate::control::USER_KEY_DIGEST_VERSION,
+            prefix: "transfer-adm".into(),
+            envelope: app
+                .inner
+                .host
+                .services
+                .cipher
+                .seal_user_key(&json!("transfer-admin-key"))
+                .unwrap(),
+            label: None,
+            expires_at: None,
+            enabled: true,
+        })
         .await
         .unwrap();
 }

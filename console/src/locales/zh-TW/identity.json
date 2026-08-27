@@ -66,7 +66,12 @@
     "loadError": "無法載入使用者，請重試。",
     "fields": {
       "organization": "組織",
-      "team": "團隊"
+      "team": "團隊",
+      "role": "角色"
+    },
+    "roles": {
+      "admin": "管理員",
+      "user": "使用者"
     },
     "created": "已建立使用者。",
     "updated": "已更新使用者。",

@@ -4,41 +4,39 @@ use serde_json::Value;
 use super::CredentialEnvelope;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AdminAccountRecord {
+pub struct AdminUserRecord {
     pub id: i64,
-    pub username: String,
+    pub name: String,
     pub password_hash: String,
     pub enabled: bool,
-    pub created_at: i64,
 }
 
-impl std::fmt::Debug for AdminAccountRecord {
+impl std::fmt::Debug for AdminUserRecord {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("AdminAccountRecord")
+            .debug_struct("AdminUserRecord")
             .field("id", &self.id)
-            .field("username", &self.username)
+            .field("name", &self.name)
             .field("password_hash", &"<redacted>")
             .field("enabled", &self.enabled)
-            .field("created_at", &self.created_at)
             .finish()
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AdminSessionInput {
+pub struct UserSessionInput {
     pub token_digest: Vec<u8>,
-    pub admin_id: i64,
+    pub user_id: i64,
     pub created_at: i64,
     pub expires_at: i64,
 }
 
-impl std::fmt::Debug for AdminSessionInput {
+impl std::fmt::Debug for UserSessionInput {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("AdminSessionInput")
+            .debug_struct("UserSessionInput")
             .field("token_digest", &"<redacted>")
-            .field("admin_id", &self.admin_id)
+            .field("user_id", &self.user_id)
             .field("created_at", &self.created_at)
             .field("expires_at", &self.expires_at)
             .finish()
@@ -47,7 +45,7 @@ impl std::fmt::Debug for AdminSessionInput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuditEventInput {
-    pub actor_admin_id: i64,
+    pub actor_user_id: i64,
     pub action: String,
     pub target_kind: String,
     pub target_id: Option<i64>,

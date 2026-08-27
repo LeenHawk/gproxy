@@ -80,7 +80,17 @@ pub(super) async fn import_user_keys(
 ) -> Result<(u64, u64), AdminError> {
     let mut imported = 0;
     let mut skipped = 0;
+    let existing = state.store().control_snapshot().await?.user_keys;
     for value in values {
+        let user_id = mapped(&maps.users, value.config.user_id)?;
+        if let Some(current) = existing.iter().find(|current| {
+            current.user_id == user_id
+                && current.digest_version == value.digest_version
+                && current.digest == value.digest
+        }) {
+            maps.user_keys.insert(value.config.id, current.id);
+            continue;
+        }
         let Some(secret) = value.secret else {
             skipped += 1;
             continue;
@@ -93,7 +103,7 @@ pub(super) async fn import_user_keys(
         let id = state
             .store()
             .insert_user_key(&UserKeyInput {
-                user_id: mapped(&maps.users, config.user_id)?,
+                user_id,
                 digest: value.digest,
                 digest_version: value.digest_version,
                 prefix: config.prefix.ok_or_else(|| {

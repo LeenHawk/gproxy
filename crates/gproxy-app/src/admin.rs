@@ -84,7 +84,7 @@ impl State for AppHandle {
 
     fn reveal_user_key(
         &self,
-        actor_admin_id: i64,
+        actor_user_id: i64,
         id: i64,
         at: i64,
     ) -> BoxFuture<'_, Result<String, AdminError>> {
@@ -122,7 +122,7 @@ impl State for AppHandle {
                 .services
                 .store
                 .record_audit_event(&AuditEventInput {
-                    actor_admin_id,
+                    actor_user_id,
                     action: "user_key.reveal".into(),
                     target_kind: "user_key".into(),
                     target_id: Some(id),

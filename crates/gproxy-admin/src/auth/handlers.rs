@@ -21,7 +21,7 @@ pub(crate) async fn dispatch_public(
 }
 
 async fn status(state: &impl State, parts: &Parts) -> Result<Response<Bytes>, AdminError> {
-    let setup_required = !state.store().has_admin_accounts().await?;
+    let setup_required = !state.store().has_admin_users().await?;
     let user = if setup_required {
         None
     } else {
@@ -49,7 +49,7 @@ async fn setup(
     state
         .admit_auth_attempt("setup-source", super::source(parts))
         .await?;
-    if state.store().has_admin_accounts().await? {
+    if state.store().has_admin_users().await? {
         return Err(AdminError::Conflict(
             "admin setup is already complete".into(),
         ));
@@ -59,10 +59,9 @@ async fn setup(
     password::validate(&request.password)?;
     state.admit_auth_attempt("setup", &username).await?;
     let hash = password::hash(&request.password)?;
-    let at = session::now()?;
     let id = state
         .store()
-        .create_first_admin(&username, &hash, at)
+        .create_first_admin(&username, &hash)
         .await?
         .ok_or_else(|| AdminError::Conflict("admin setup is already complete".into()))?;
     let token = session::create(state, id).await?;
@@ -95,7 +94,7 @@ async fn login(
         .clear_auth_attempts("login-account", request.username.trim())
         .await?;
     let token = session::create(state, account.id).await?;
-    auth_response(account.id, account.username, &token)
+    auth_response(account.id, account.name, &token)
 }
 
 async fn logout(state: &impl State, parts: &Parts) -> Result<Response<Bytes>, AdminError> {

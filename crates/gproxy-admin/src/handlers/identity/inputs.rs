@@ -16,7 +16,9 @@ pub(super) fn user(request: UserWriteRequest) -> Result<UserInput, AdminError> {
         name: request.name,
         organization_id: request.organization_id,
         team_id: request.team_id,
+        password_hash: None,
         enabled: request.enabled,
+        is_admin: request.is_admin,
     })
 }
 

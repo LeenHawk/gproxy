@@ -1,16 +1,16 @@
 use crate::backend::Row;
-use crate::query::admin;
+use crate::query::{admin, admin_auth, admin_seed};
 use crate::records::{
-    AdminAccountRecord, AdminSessionInput, AuditEventInput, AuditEventRecord, CredentialEnvelope,
-    UserKeySecretRecord,
+    AdminUserRecord, AuditEventInput, AuditEventRecord, CredentialEnvelope, UserKeySecretRecord,
+    UserSessionInput,
 };
 use crate::{Store, StoreError};
 
 impl Store {
-    pub async fn has_admin_accounts(&self) -> Result<bool, StoreError> {
+    pub async fn has_admin_users(&self) -> Result<bool, StoreError> {
         Ok(!self
             .backend()
-            .execute(admin::has_admin_accounts()?)
+            .execute(admin_seed::has_admin_users()?)
             .await?
             .rows
             .is_empty())
@@ -20,19 +20,27 @@ impl Store {
         &self,
         username: &str,
         password_hash: &str,
-        created_at: i64,
     ) -> Result<Option<i64>, StoreError> {
-        let result = self
+        let mut results = self
             .backend()
-            .execute(admin::create_first_admin(
-                username,
-                password_hash,
-                created_at,
-            )?)
+            .batch(vec![
+                admin_seed::ensure_default_organization()?,
+                admin_seed::promote_first_admin(username, password_hash)?,
+                admin_seed::insert_first_admin(username, password_hash)?,
+                admin_seed::ensure_admin_permission(username)?,
+                admin_auth::admin_by_username(username)?,
+            ])
             .await?;
-        Ok((result.affected_rows == 1)
-            .then_some(result.last_insert_id)
-            .flatten())
+        let account = results
+            .pop()
+            .expect("admin creation query result")
+            .rows
+            .into_iter()
+            .next()
+            .map(parse_admin)
+            .transpose()?;
+        let changed = results[1].affected_rows > 0 || results[2].affected_rows > 0;
+        Ok(changed.then(|| account.map(|value| value.id)).flatten())
     }
 
     /// Set an existing administrator's password. Returns whether a row
@@ -45,7 +53,7 @@ impl Store {
     ) -> Result<bool, StoreError> {
         let result = self
             .backend()
-            .execute(admin::set_admin_password(username, password_hash)?)
+            .execute(admin_auth::set_admin_password(username, password_hash)?)
             .await?;
         Ok(result.affected_rows > 0)
     }
@@ -53,9 +61,9 @@ impl Store {
     pub async fn admin_by_username(
         &self,
         username: &str,
-    ) -> Result<Option<AdminAccountRecord>, StoreError> {
+    ) -> Result<Option<AdminUserRecord>, StoreError> {
         self.backend()
-            .execute(admin::admin_by_username(username)?)
+            .execute(admin_auth::admin_by_username(username)?)
             .await?
             .rows
             .into_iter()
@@ -64,26 +72,17 @@ impl Store {
             .transpose()
     }
 
-    pub async fn create_admin_session(&self, input: &AdminSessionInput) -> Result<i64, StoreError> {
-        self.insert(admin::insert_admin_session(input)?).await
-    }
-
-    pub async fn create_admin_api_key(
-        &self,
-        digest: &[u8],
-        admin_id: i64,
-        created_at: i64,
-    ) -> Result<i64, StoreError> {
-        self.insert(admin::insert_admin_api_key(digest, admin_id, created_at)?)
-            .await
+    pub async fn create_user_session(&self, input: &UserSessionInput) -> Result<i64, StoreError> {
+        self.insert(admin_auth::insert_user_session(input)?).await
     }
 
     pub async fn admin_for_api_key(
         &self,
         digest: &[u8],
-    ) -> Result<Option<AdminAccountRecord>, StoreError> {
+        now: i64,
+    ) -> Result<Option<AdminUserRecord>, StoreError> {
         self.backend()
-            .execute(admin::admin_for_api_key(digest)?)
+            .execute(admin_auth::admin_for_api_key(digest, now)?)
             .await?
             .rows
             .into_iter()
@@ -96,9 +95,9 @@ impl Store {
         &self,
         token_digest: &[u8],
         now: i64,
-    ) -> Result<Option<AdminAccountRecord>, StoreError> {
+    ) -> Result<Option<AdminUserRecord>, StoreError> {
         self.backend()
-            .execute(admin::admin_for_session(token_digest, now)?)
+            .execute(admin_auth::admin_for_session(token_digest, now)?)
             .await?
             .rows
             .into_iter()
@@ -107,9 +106,9 @@ impl Store {
             .transpose()
     }
 
-    pub async fn delete_admin_session(&self, token_digest: &[u8]) -> Result<(), StoreError> {
+    pub async fn delete_user_session(&self, token_digest: &[u8]) -> Result<(), StoreError> {
         self.backend()
-            .execute(admin::delete_admin_session(token_digest)?)
+            .execute(admin_auth::delete_user_session(token_digest)?)
             .await?;
         Ok(())
     }
@@ -143,13 +142,12 @@ impl Store {
     }
 }
 
-fn parse_admin(row: Row) -> Result<AdminAccountRecord, StoreError> {
-    Ok(AdminAccountRecord {
+fn parse_admin(row: Row) -> Result<AdminUserRecord, StoreError> {
+    Ok(AdminUserRecord {
         id: row.i64("id")?,
-        username: row.text("username")?.to_owned(),
+        name: row.text("name")?.to_owned(),
         password_hash: row.text("password_hash")?.to_owned(),
         enabled: row.i64("enabled")? != 0,
-        created_at: row.i64("created_at")?,
     })
 }
 
@@ -157,7 +155,7 @@ fn parse_audit(row: Row) -> Result<AuditEventRecord, StoreError> {
     Ok(AuditEventRecord {
         id: row.i64("id")?,
         event: AuditEventInput {
-            actor_admin_id: row.i64("actor_admin_id")?,
+            actor_user_id: row.i64("actor_user_id")?,
             action: row.text("action")?.to_owned(),
             target_kind: row.text("target_kind")?.to_owned(),
             target_id: row.optional_i64("target_id")?,

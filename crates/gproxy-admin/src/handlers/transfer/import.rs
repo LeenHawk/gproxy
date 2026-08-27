@@ -31,8 +31,17 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
     };
     let mut maps = IdMaps::default();
     let mut imported = 0_u64;
+    let existing = state.store().control_snapshot().await?;
     let data = request.export.data;
     for value in data.organizations {
+        if let Some(current) = existing
+            .organizations
+            .iter()
+            .find(|current| current.name == value.name)
+        {
+            maps.organizations.insert(value.id, current.id);
+            continue;
+        }
         map_create(
             state,
             Entity::Organizations,
@@ -51,6 +60,14 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
     for mut value in data.users {
         value.organization_id = optional(&maps.organizations, value.organization_id)?;
         value.team_id = optional(&maps.teams, value.team_id)?;
+        if let Some(current) = existing
+            .users
+            .iter()
+            .find(|current| current.name == value.name && current.is_admin == value.is_admin)
+        {
+            maps.users.insert(value.id, current.id);
+            continue;
+        }
         map_create(state, Entity::Users, value.id, &value, &mut maps.users).await?;
         imported += 1;
     }

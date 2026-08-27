@@ -92,7 +92,7 @@ export function KeyManagement(props: KeyManagementProps) {
             pending={identityPending}
             onOrganization={(name) => organizationMutation.mutateAsync({ value: { name, enabled: true } }).then(() => undefined)}
             onTeam={(organizationId, name) => teamMutation.mutateAsync({ value: { organization_id: organizationId, name, enabled: true } }).then(() => undefined)}
-            onUser={(organizationId, teamId, name) => userMutation.mutateAsync({ value: { organization_id: organizationId, team_id: teamId, name, enabled: true } }).then(() => undefined)}
+            onUser={(organizationId, teamId, name) => userMutation.mutateAsync({ value: { organization_id: organizationId, team_id: teamId, name, enabled: true, is_admin: false } }).then(() => undefined)}
           />
           <Separator />
           <IdentityTable
@@ -100,7 +100,7 @@ export function KeyManagement(props: KeyManagementProps) {
             pending={identityPending}
             onOrganizationToggle={(value) => organizationMutation.mutate({ id: value.id, value: { name: value.name, enabled: !value.enabled } })}
             onTeamToggle={(value) => teamMutation.mutate({ id: value.id, value: { organization_id: value.organization_id, name: value.name, enabled: !value.enabled } })}
-            onUserToggle={(value) => userMutation.mutate({ id: value.id, value: { organization_id: value.organization_id, team_id: value.team_id, name: value.name, enabled: !value.enabled } })}
+            onUserToggle={(value) => userMutation.mutate({ id: value.id, value: { organization_id: value.organization_id, team_id: value.team_id, name: value.name, enabled: !value.enabled, is_admin: value.is_admin } })}
             onOrganizationOpen={(value) => props.onScopeOpen?.("organization", value.id)}
             onTeamOpen={(value) => props.onScopeOpen?.("team", value.id)}
             onUserOpen={(value) => props.onScopeOpen?.("user", value.id)}

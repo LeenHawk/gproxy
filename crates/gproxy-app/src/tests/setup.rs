@@ -88,7 +88,9 @@ pub(super) async fn fixture() -> Fixture {
             name: "user".into(),
             organization_id: None,
             team_id: None,
+            password_hash: None,
             enabled: true,
+            is_admin: false,
         }))
         .await
         .expect("user"));
@@ -369,7 +371,7 @@ fn v2_database(
         .execute("INSERT INTO orgs VALUES(1,'org',1)", [])
         .unwrap();
     connection
-        .execute("INSERT INTO users VALUES(1,'user',1,NULL,1)", [])
+        .execute("INSERT INTO users VALUES(1,'user',1,NULL,NULL,1,0)", [])
         .unwrap();
     connection.execute("INSERT INTO providers VALUES(1,'provider','openai',NULL,'{}','round_robin',NULL,NULL,1)", []).unwrap();
     connection
@@ -436,7 +438,7 @@ CREATE TABLE price_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,match_type T
 CREATE TABLE price_rule_rates(id INTEGER PRIMARY KEY,price_rule_id INTEGER,metric TEXT,unit_size INTEGER,price_usd TEXT,conditions_json TEXT,sort_order INTEGER);
 CREATE TABLE orgs(id INTEGER PRIMARY KEY,name TEXT,enabled INTEGER);
 CREATE TABLE teams(id INTEGER PRIMARY KEY,org_id INTEGER,name TEXT,enabled INTEGER);
-CREATE TABLE users(id INTEGER PRIMARY KEY,name TEXT,org_id INTEGER,team_id INTEGER,enabled INTEGER);
+CREATE TABLE users(id INTEGER PRIMARY KEY,name TEXT,org_id INTEGER,team_id INTEGER,password TEXT,enabled INTEGER,is_admin INTEGER);
 CREATE TABLE user_keys(id INTEGER PRIMARY KEY,user_id INTEGER,api_key_ciphertext TEXT,api_key_digest TEXT,api_key_digest_version INTEGER,label TEXT,enabled INTEGER);
 CREATE TABLE quotas(id INTEGER PRIMARY KEY,scope TEXT,scope_id INTEGER,quota_total TEXT,quota_daily TEXT,quota_weekly TEXT,quota_monthly TEXT,quota_5h TEXT,quota_7d TEXT);
 CREATE TABLE routing_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,operation TEXT,kind TEXT,implementation TEXT,dest_operation TEXT,dest_kind TEXT,sort_order INTEGER,enabled INTEGER);

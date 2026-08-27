@@ -67,7 +67,9 @@ pub(crate) async fn operational(
             name: "e2e-user".into(),
             organization_id: None,
             team_id: None,
+            password_hash: None,
             enabled: true,
+            is_admin: false,
         }))
         .await
         .expect("create user"));

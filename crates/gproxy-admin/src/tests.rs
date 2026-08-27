@@ -472,7 +472,16 @@ async fn seed_admin_key(state: &TestState) {
         .unwrap();
     state
         .store
-        .create_admin_api_key(&Sha256::digest(b"admin-test-key"), id, 1)
+        .insert_user_key(&gproxy_store::records::UserKeyInput {
+            user_id: id,
+            digest: Sha256::digest(b"admin-test-key").to_vec(),
+            digest_version: 1,
+            prefix: "admin-test-k".into(),
+            envelope: envelope(),
+            label: None,
+            expires_at: None,
+            enabled: true,
+        })
         .await
         .unwrap();
 }

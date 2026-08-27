@@ -30,12 +30,31 @@ pub struct TeamRecord {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserInput {
     pub name: String,
     pub organization_id: Option<i64>,
     pub team_id: Option<i64>,
+    pub password_hash: Option<String>,
     pub enabled: bool,
+    pub is_admin: bool,
+}
+
+impl std::fmt::Debug for UserInput {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UserInput")
+            .field("name", &self.name)
+            .field("organization_id", &self.organization_id)
+            .field("team_id", &self.team_id)
+            .field(
+                "password_hash",
+                &self.password_hash.as_ref().map(|_| "<redacted>"),
+            )
+            .field("enabled", &self.enabled)
+            .field("is_admin", &self.is_admin)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +64,7 @@ pub struct UserRecord {
     pub organization_id: Option<i64>,
     pub team_id: Option<i64>,
     pub enabled: bool,
+    pub is_admin: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -3,49 +3,10 @@ use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpe
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
         version: SchemaVersion::Admin,
-        name: "admin_accounts",
-        columns: &[
-            Col::id(),
-            Col::required("username", Text).unique(),
-            Col::required("password_hash", Text),
-            Col::required("enabled", Integer),
-            Col::required("created_at", Integer),
-        ],
-        indexes: &[],
-    },
-    TableSpec {
-        version: SchemaVersion::Admin,
-        name: "admin_sessions",
-        columns: &[
-            Col::id(),
-            Col::required("token_digest", Blob).unique(),
-            Col::required("admin_id", Integer),
-            Col::required("created_at", Integer),
-            Col::required("expires_at", Integer),
-        ],
-        indexes: &[IndexSpec {
-            name: "ix_admin_sessions_expiry",
-            columns: &["expires_at", "id"],
-            unique: false,
-            added_in: None,
-        }],
-    },
-    TableSpec {
-        version: SchemaVersion::Configuration,
-        name: "admin_api_keys",
-        columns: &[
-            Col::required("digest", Blob).primary(),
-            Col::required("admin_id", Integer),
-            Col::required("created_at", Integer),
-        ],
-        indexes: &[],
-    },
-    TableSpec {
-        version: SchemaVersion::Admin,
         name: "admin_audit_events",
         columns: &[
             Col::id(),
-            Col::required("actor_admin_id", Integer),
+            Col::required("actor_user_id", Integer),
             Col::required("action", Text),
             Col::required("target_kind", Text),
             Col::optional("target_id", Integer),

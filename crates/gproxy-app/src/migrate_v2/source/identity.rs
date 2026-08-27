@@ -45,8 +45,9 @@ fn teams(connection: &Connection) -> Result<Vec<Legacy<TeamInput>>> {
 }
 
 fn users(connection: &Connection) -> Result<Vec<Legacy<UserInput>>> {
-    let mut query =
-        connection.prepare("SELECT id,name,org_id,team_id,enabled FROM users ORDER BY id")?;
+    let mut query = connection.prepare(
+        "SELECT id,name,org_id,team_id,password,enabled,is_admin FROM users ORDER BY id",
+    )?;
     query
         .query_map([], |row| {
             Ok(Legacy {
@@ -55,7 +56,9 @@ fn users(connection: &Connection) -> Result<Vec<Legacy<UserInput>>> {
                     name: row.get(1)?,
                     organization_id: row.get(2)?,
                     team_id: row.get(3)?,
-                    enabled: row.get(4)?,
+                    password_hash: row.get(4)?,
+                    enabled: row.get(5)?,
+                    is_admin: row.get(6)?,
                 },
             })
         })?
