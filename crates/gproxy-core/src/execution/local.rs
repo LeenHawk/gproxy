@@ -20,16 +20,31 @@ pub(super) async fn run<H: Host>(
     request: &RequestCtx,
     plan: &Plan,
     classified: &Classified,
+    owner_user_id: i64,
     started: Instant,
 ) -> Option<Result<ExecOutcome, CoreError>> {
     let operation = classified.key.operation;
-    if !matches!(
-        operation,
-        Operation::ListModels | Operation::GetModel | Operation::CountTokens
-    ) {
+    let catalogue = matches!(operation, Operation::ListModels | Operation::GetModel)
+        && matches!(
+            &request.mode,
+            crate::boundary::RoutingMode::Aggregated
+                | crate::boundary::RoutingMode::Namespace { .. }
+        );
+    if !catalogue && operation != Operation::CountTokens {
         return None;
     }
-    Some(serve(core, control, request, plan, classified, started).await)
+    Some(
+        serve(
+            core,
+            control,
+            request,
+            plan,
+            classified,
+            owner_user_id,
+            started,
+        )
+        .await,
+    )
 }
 
 async fn serve<H: Host>(
@@ -38,6 +53,7 @@ async fn serve<H: Host>(
     request: &RequestCtx,
     plan: &Plan,
     classified: &Classified,
+    owner_user_id: i64,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
     let target = plan
@@ -51,10 +67,18 @@ async fn serve<H: Host>(
         ));
     };
     let (status, body) = match classified.key.operation {
-        Operation::ListModels => (
-            StatusCode::OK,
-            super::model_catalogue::render_list(family, control.exposed_models()),
-        ),
+        Operation::ListModels => {
+            let mut models = control.exposed_models();
+            models.extend(
+                super::model_refresh::run(core, control, request, plan, owner_user_id).await,
+            );
+            models.sort_by(|left, right| left.id.cmp(&right.id));
+            models.dedup_by(|left, right| left.id == right.id);
+            (
+                StatusCode::OK,
+                super::model_catalogue::render_list(family, models),
+            )
+        }
         Operation::GetModel => {
             let found = classified.model.as_ref().and_then(|id| {
                 control

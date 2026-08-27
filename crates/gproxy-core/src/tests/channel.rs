@@ -35,11 +35,13 @@ const REALTIME: OperationKey = OperationKey::family(
 );
 const CLAUDE_MODELS: OperationKey =
     OperationKey::family(Operation::ListModels, gproxy_protocol::WireFamily::Claude);
+const OPENAI_MODELS: OperationKey =
+    OperationKey::family(Operation::ListModels, gproxy_protocol::WireFamily::OpenAi);
 const CLAUDE_MESSAGES: OperationKey = OperationKey::content(
     Operation::GenerateContent,
     ContentGenerationKind::ClaudeMessages,
 );
-static SUPPORTS: [ChannelSupport; 10] = [
+static SUPPORTS: [ChannelSupport; 11] = [
     ChannelSupport::passthrough(KEY),
     ChannelSupport::passthrough(STREAM_KEY),
     ChannelSupport::passthrough(CREATE_FILE),
@@ -49,6 +51,7 @@ static SUPPORTS: [ChannelSupport; 10] = [
     ChannelSupport::passthrough(WEB_SEARCH),
     ChannelSupport::passthrough(REALTIME),
     ChannelSupport::passthrough(CLAUDE_MODELS),
+    ChannelSupport::passthrough(OPENAI_MODELS),
     ChannelSupport::passthrough(CLAUDE_MESSAGES),
 ];
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
@@ -361,7 +364,8 @@ fn ingress_floor_strips_credentials_after_claude_classification() -> Result<(), 
 }
 
 #[test]
-fn local_model_list_avoids_upstream_and_records_zero_settlement() -> Result<(), crate::InitError> {
+fn aggregated_model_list_refreshes_upstream_and_keeps_declared_metadata()
+-> Result<(), crate::InitError> {
     let host = MemoryHost::new(false);
     let mut state = host.state.lock().expect("state lock");
     state.plan = Some(Plan {
@@ -391,11 +395,19 @@ fn local_model_list_avoids_upstream_and_records_zero_settlement() -> Result<(), 
         body["data"][0]["supported_parameters"],
         serde_json::json!(["reasoning"])
     );
+    assert_eq!(body["data"][1]["id"], "provider/fresh-model");
+    assert_eq!(body["data"][1]["context_window"], 200_000);
+    assert_eq!(body["data"][1]["max_completion_tokens"], 32_000);
     let state = host.state.lock().expect("state lock");
-    assert!(state.upstream_requests.is_empty());
+    assert_eq!(state.upstream_requests.len(), 1);
     assert_eq!(state.settlements.len(), 1);
-    assert_eq!(state.settlements[0].cost, rust_decimal::Decimal::ZERO);
-    assert_eq!(state.admission_finishes, [true]);
+    assert!(
+        state
+            .settlements
+            .iter()
+            .all(|settlement| settlement.cost == rust_decimal::Decimal::ZERO)
+    );
+    assert_eq!(state.admission_finishes, [true, true]);
     Ok(())
 }
 

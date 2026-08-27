@@ -242,6 +242,9 @@ impl UpstreamTransport for MemoryHost {
                     (http::Method::DELETE, "/v1/files/file-1") => {
                         Bytes::from_static(br#"{"id":"file-1","deleted":true}"#)
                     }
+                    (http::Method::GET, "/v1/models") => Bytes::from_static(
+                        br#"{"object":"list","data":[{"id":"fresh-model","object":"model","display_name":"Fresh model","context_window":200000,"max_output_tokens":32000,"thinking_supported":true}]}"#,
+                    ),
                     (http::Method::POST, "/v1/messages")
                         if serde_json::from_slice::<serde_json::Value>(&request_body)
                             .ok()

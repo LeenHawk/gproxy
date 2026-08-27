@@ -13,6 +13,7 @@ pub(crate) mod ingress;
 pub(crate) mod invoke;
 mod local;
 mod model_catalogue;
+mod model_refresh;
 pub(crate) mod preprocess;
 pub(crate) mod request;
 pub(crate) mod resource;
@@ -58,7 +59,17 @@ async fn execute_admitted<H: Host>(
 ) -> Result<ExecOutcome, CoreError> {
     let telemetry_ctx = ctx.clone();
     let key = classified.key;
-    let result = match local::run(core, control, &ctx, &plan, &classified, started).await {
+    let result = match local::run(
+        core,
+        control,
+        &ctx,
+        &plan,
+        &classified,
+        owner_user_id,
+        started,
+    )
+    .await
+    {
         Some(result) => result,
         None => failover::run(core, control, ctx, plan, classified, owner_user_id, started).await,
     };
