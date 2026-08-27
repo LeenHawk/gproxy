@@ -96,7 +96,7 @@ fn decode_statement(value: &serde_json::Value) -> Result<Statement, StoreError> 
         .iter()
         .map(decode_value)
         .collect::<Result<_, _>>()?;
-    Ok(Statement { sql, args })
+    Ok(Statement::with_args(sql, args))
 }
 
 fn decode_value(value: &serde_json::Value) -> Result<DbValue, StoreError> {

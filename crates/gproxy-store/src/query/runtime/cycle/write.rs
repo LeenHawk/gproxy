@@ -39,7 +39,8 @@ pub(crate) fn insert_credential_quota_cycle(
             value(input.used_percent.map(decimal)),
             value(enum_text(&coverage, "coverage")?),
             value(json(metrics, "metrics")?),
-        ]);
+        ])
+        .returning_col(Alias::new("id"));
     Statement::query(&query)
 }
 

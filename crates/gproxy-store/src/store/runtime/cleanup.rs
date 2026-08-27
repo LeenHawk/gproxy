@@ -43,24 +43,24 @@ impl Store {
 }
 
 async fn database_size_bytes(store: &Store) -> Result<u64, StoreError> {
-    let results = store
-        .backend()
-        .batch(vec![
-            Statement::plain("PRAGMA page_count"),
-            Statement::plain("PRAGMA page_size"),
-        ])
-        .await?;
-    let page_count = pragma_value(results.first(), "page_count")?;
-    let page_size = pragma_value(results.get(1), "page_size")?;
-    page_count
-        .checked_mul(page_size)
-        .ok_or_else(|| StoreError::InvalidData {
-            field: "database_size",
-            message: "database page size overflow".into(),
-        })
+    match store.dialect {
+        crate::schema::Dialect::NativeSqlite | crate::schema::Dialect::Libsql => {
+            let results = store.backend().batch(vec![Statement::plain("PRAGMA page_count"), Statement::plain("PRAGMA page_size")]).await?;
+            let page_count = result_value(results.first(), "page_count")?;
+            let page_size = result_value(results.get(1), "page_size")?;
+            page_count.checked_mul(page_size).ok_or_else(|| StoreError::InvalidData { field: "database_size", message: "database page size overflow".into() })
+        }
+        crate::schema::Dialect::Postgres => size_query(store, "SELECT pg_database_size(current_database()) AS size_bytes").await,
+        crate::schema::Dialect::Mysql => size_query(store, "SELECT COALESCE(SUM(data_length + index_length), 0) AS size_bytes FROM information_schema.tables WHERE table_schema = DATABASE()").await,
+    }
 }
 
-fn pragma_value(
+async fn size_query(store: &Store, sql: &str) -> Result<u64, StoreError> {
+    let result = store.backend().execute(Statement::plain(sql)).await?;
+    result_value(Some(&result), "size_bytes")
+}
+
+fn result_value(
     result: Option<&crate::backend::QueryResult>,
     column: &'static str,
 ) -> Result<u64, StoreError> {

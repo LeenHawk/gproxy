@@ -1564,6 +1564,7 @@ name = "gproxy-store"
 version = "3.0.0-alpha.0"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "gproxy-core",
  "js-sys",
  "mysql_async",

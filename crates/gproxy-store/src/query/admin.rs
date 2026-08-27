@@ -43,6 +43,7 @@ pub(crate) fn create_first_admin(
         )
         .select_from(values.to_owned())
         .map_err(|error| StoreError::Database(error.to_string()))?;
+    query.returning_col(Alias::new("id"));
     Statement::query(&query)
 }
 

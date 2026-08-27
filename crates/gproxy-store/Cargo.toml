@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 base64.workspace = true
+bytes.workspace = true
 gproxy-core.workspace = true
 rust_decimal.workspace = true
 sea-query.workspace = true

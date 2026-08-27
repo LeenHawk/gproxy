@@ -1,4 +1,7 @@
-use sea_query::{OptionEnum, QueryStatementWriter, SqliteQueryBuilder, Value, Values};
+use sea_query::{
+    MysqlQueryBuilder, OptionEnum, PostgresQueryBuilder, QueryStatementWriter, SqliteQueryBuilder,
+    Value, Values,
+};
 
 use super::DbValue;
 use crate::StoreError;
@@ -6,23 +9,53 @@ use crate::StoreError;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Statement {
     pub sql: String,
+    postgres_sql: String,
+    mysql_sql: String,
     pub args: Vec<DbValue>,
 }
 
 impl Statement {
     pub(crate) fn plain(sql: impl Into<String>) -> Self {
+        let sql = sql.into();
         Self {
-            sql: sql.into(),
+            postgres_sql: sql.clone(),
+            mysql_sql: sql.clone(),
+            sql,
             args: Vec::new(),
+        }
+    }
+
+    pub(crate) fn with_args(sql: impl Into<String>, args: Vec<DbValue>) -> Self {
+        let sql = sql.into();
+        Self {
+            postgres_sql: sql.clone(),
+            mysql_sql: sql.clone(),
+            sql,
+            args,
         }
     }
 
     pub(crate) fn query(statement: &impl QueryStatementWriter) -> Result<Self, StoreError> {
         let (sql, values) = statement.build(SqliteQueryBuilder);
+        let (postgres_sql, postgres_values) = statement.build(PostgresQueryBuilder);
+        let (mysql_sql, mysql_values) = statement.build(MysqlQueryBuilder);
+        debug_assert_eq!(values, postgres_values);
+        debug_assert_eq!(values, mysql_values);
         Ok(Self {
             sql,
+            postgres_sql,
+            mysql_sql,
             args: values_to_db(values)?,
         })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn sql_for(&self, dialect: crate::schema::Dialect) -> &str {
+        match dialect {
+            crate::schema::Dialect::NativeSqlite | crate::schema::Dialect::Libsql => &self.sql,
+            crate::schema::Dialect::Postgres => &self.postgres_sql,
+            crate::schema::Dialect::Mysql => &self.mysql_sql,
+        }
     }
 }
 

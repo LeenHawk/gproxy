@@ -14,7 +14,8 @@ pub(super) fn insert(
     query
         .into_table(Alias::new(table))
         .columns(columns.iter().copied().map(Alias::new))
-        .values_panic(values);
+        .values_panic(values)
+        .returning_col(Alias::new("id"));
     Statement::query(&query)
 }
 

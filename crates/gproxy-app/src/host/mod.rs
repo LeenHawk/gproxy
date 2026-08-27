@@ -15,7 +15,7 @@ use gproxy_channel_api::{BindingStore, BoxFuture, CallerIdentity, UsageView};
 use gproxy_core::{CredentialHealth, Host, Plan, ProviderRef, RequestCtx, Spawner};
 
 use crate::Shared;
-use crate::cache::InProcessCache;
+use crate::cache::AppCache;
 use crate::control::SnapshotControl;
 
 use crate::secrets::EnvelopeCipher;
@@ -23,7 +23,7 @@ pub(crate) use admission::{authenticate_headers, authorize};
 
 pub(crate) struct Services {
     pub store: gproxy_store::Store,
-    pub cache: InProcessCache,
+    pub cache: AppCache,
     pub cipher: EnvelopeCipher,
     pub control: SnapshotControl,
     pub transport: gproxy_upstream::Transport,
@@ -43,7 +43,7 @@ pub(crate) struct AppHost {
 
 impl Host for AppHost {
     type Credentials = Self;
-    type Cache = InProcessCache;
+    type Cache = AppCache;
     type Transport = gproxy_upstream::Transport;
     type Usage = Self;
     type Capture = Self;

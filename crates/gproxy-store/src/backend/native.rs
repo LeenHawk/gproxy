@@ -63,7 +63,7 @@ impl Executor for NativeSql {
 }
 
 fn run(connection: &rusqlite::Connection, statement: Statement) -> rusqlite::Result<QueryResult> {
-    let Statement { sql, args } = statement;
+    let Statement { sql, args, .. } = statement;
     let mut prepared = connection.prepare(&sql)?;
     let readonly = prepared.readonly();
     let column_names = (0..prepared.column_count())

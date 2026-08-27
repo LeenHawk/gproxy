@@ -1,3 +1,4 @@
+mod cache;
 mod parity;
 mod scenario;
 mod sender;
@@ -30,5 +31,8 @@ async fn libsql_store(path: std::path::PathBuf) -> Result<(Store, Arc<NativeSql>
 
 fn store(executor: Arc<impl Executor + 'static>) -> Store {
     let executor: SharedExecutor = executor;
-    Store { executor }
+    Store {
+        executor,
+        dialect: Dialect::NativeSqlite,
+    }
 }

@@ -17,6 +17,7 @@ pub struct Config {
     #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
     backend: StoreBackend,
+    cache: CacheConfig,
     secret_keys: MasterKeyConfig,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeOptions,
@@ -70,9 +71,32 @@ pub enum LogFormat {
 enum StoreBackend {
     #[cfg(not(target_arch = "wasm32"))]
     Sqlite,
+    #[cfg(not(target_arch = "wasm32"))]
+    Postgres {
+        dsn: String,
+    },
+    #[cfg(not(target_arch = "wasm32"))]
+    Mysql {
+        dsn: String,
+    },
     Libsql {
         url: String,
         auth_token: String,
+    },
+}
+
+#[derive(Clone)]
+pub(crate) enum CacheConfig {
+    #[cfg(not(target_arch = "wasm32"))]
+    InProcess,
+    #[cfg(not(target_arch = "wasm32"))]
+    Redis {
+        url: String,
+    },
+    Libsql,
+    Upstash {
+        url: String,
+        token: String,
     },
 }
 
@@ -148,6 +172,7 @@ impl Config {
             listen_addr,
             data_dir,
             backend: StoreBackend::Sqlite,
+            cache: CacheConfig::InProcess,
             secret_keys,
             native: NativeOptions::default(),
         }
@@ -168,6 +193,7 @@ impl Config {
                 url: libsql_url(url)?,
                 auth_token: required(auth_token, "GPROXY_LIBSQL_AUTH_TOKEN")?,
             },
+            cache: CacheConfig::Libsql,
             secret_keys,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeOptions::default(),
@@ -185,6 +211,7 @@ impl Config {
                 url: libsql_url(url)?,
                 auth_token: required(auth_token, "GPROXY_LIBSQL_AUTH_TOKEN")?,
             },
+            cache: CacheConfig::Libsql,
             secret_keys,
         })
     }
@@ -205,11 +232,50 @@ impl Config {
             StoreBackend::Sqlite => gproxy_store::BackendConfig::Sqlite {
                 path: self.data_dir.join("gproxy.db"),
             },
+            #[cfg(not(target_arch = "wasm32"))]
+            StoreBackend::Postgres { dsn } => {
+                gproxy_store::BackendConfig::Postgres { dsn: dsn.clone() }
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            StoreBackend::Mysql { dsn } => gproxy_store::BackendConfig::Mysql { dsn: dsn.clone() },
             StoreBackend::Libsql { url, auth_token } => gproxy_store::BackendConfig::Libsql {
                 url: url.clone(),
                 auth_token: auth_token.clone(),
             },
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn sql_server(
+        mut self,
+        backend: &'static str,
+        dsn: String,
+    ) -> Result<Self, ConfigError> {
+        let dsn = required(dsn, "GPROXY_DSN")?;
+        self.backend = match backend {
+            "postgres" => StoreBackend::Postgres { dsn },
+            "mysql" => StoreBackend::Mysql { dsn },
+            _ => return Err(invalid("GPROXY_PERSISTENCE", "unsupported SQL backend")),
+        };
+        Ok(self)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_cache(mut self, cache: CacheConfig) -> Self {
+        self.cache = cache;
+        self
+    }
+
+    pub fn with_upstash(mut self, url: String, token: String) -> Result<Self, ConfigError> {
+        self.cache = CacheConfig::Upstash {
+            url: absolute_http_url(url, "UPSTASH_URL")?,
+            token: required(token, "UPSTASH_TOKEN")?,
+        };
+        Ok(self)
+    }
+
+    pub(crate) fn cache(&self) -> &CacheConfig {
+        &self.cache
     }
 
     pub(crate) fn secret_keys(&self) -> &MasterKeyConfig {
@@ -258,6 +324,10 @@ impl std::fmt::Debug for Config {
         let backend = match &self.backend {
             #[cfg(not(target_arch = "wasm32"))]
             StoreBackend::Sqlite => "Sqlite".to_owned(),
+            #[cfg(not(target_arch = "wasm32"))]
+            StoreBackend::Postgres { .. } => "Postgres { dsn: <redacted> }".to_owned(),
+            #[cfg(not(target_arch = "wasm32"))]
+            StoreBackend::Mysql { .. } => "Mysql { dsn: <redacted> }".to_owned(),
             StoreBackend::Libsql { url, .. } => format!("Libsql {{ url: {url:?} }}"),
         };
         let mut debug = formatter.debug_struct("Config");
@@ -267,6 +337,17 @@ impl std::fmt::Debug for Config {
             .field("data_dir", &self.data_dir);
         debug
             .field("backend", &backend)
+            .field(
+                "cache",
+                &match self.cache {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    CacheConfig::InProcess => "InProcess",
+                    #[cfg(not(target_arch = "wasm32"))]
+                    CacheConfig::Redis { .. } => "Redis { url: <redacted> }",
+                    CacheConfig::Libsql => "Libsql",
+                    CacheConfig::Upstash { .. } => "Upstash { credentials: <redacted> }",
+                },
+            )
             .field("secret_keys", &"<redacted>")
             .finish()
     }
@@ -293,12 +374,16 @@ fn required(value: String, field: &'static str) -> Result<String, ConfigError> {
 }
 
 fn libsql_url(value: String) -> Result<String, ConfigError> {
-    let value = required(value, "GPROXY_LIBSQL_URL")?;
+    absolute_http_url(value, "GPROXY_LIBSQL_URL")
+}
+
+fn absolute_http_url(value: String, field: &'static str) -> Result<String, ConfigError> {
+    let value = required(value, field)?;
     let uri: http::Uri = value
         .parse()
-        .map_err(|_| invalid("GPROXY_LIBSQL_URL", "must be an absolute HTTP URL"))?;
+        .map_err(|_| invalid(field, "must be an absolute HTTP URL"))?;
     if !matches!(uri.scheme_str(), Some("http" | "https")) || uri.authority().is_none() {
-        return Err(invalid("GPROXY_LIBSQL_URL", "must be an absolute HTTP URL"));
+        return Err(invalid(field, "must be an absolute HTTP URL"));
     }
     Ok(value)
 }

@@ -1,4 +1,7 @@
-use sea_query::{Alias, ColumnDef, Expr, Query, SqliteQueryBuilder, Table};
+use sea_query::{
+    Alias, ColumnDef, Expr, MysqlQueryBuilder, PostgresQueryBuilder, Query, SqliteQueryBuilder,
+    Table,
+};
 
 use crate::StoreError;
 use crate::backend::{Executor, Statement};
@@ -13,7 +16,7 @@ pub(crate) async fn migrate_to(
     dialect: Dialect,
     target: SchemaVersion,
 ) -> Result<(), StoreError> {
-    executor.execute(migration_table()).await?;
+    executor.execute(migration_table(dialect)).await?;
     let applied = applied_versions(executor).await?;
     for (index, version) in applied.iter().enumerate() {
         if *version != index as i64 + 1 {
@@ -49,23 +52,27 @@ pub(crate) async fn migrate_to(
     Ok(())
 }
 
-fn migration_table() -> Statement {
-    let sql = Table::create()
+fn migration_table(dialect: Dialect) -> Statement {
+    let mut version = ColumnDef::new(Alias::new("version"));
+    let mut applied_at = ColumnDef::new(Alias::new("applied_at"));
+    if matches!(dialect, Dialect::Postgres | Dialect::Mysql) {
+        version.big_integer();
+        applied_at.big_integer();
+    } else {
+        version.integer();
+        applied_at.integer();
+    }
+    let table = Table::create()
         .table(Alias::new("schema_migrations"))
         .if_not_exists()
-        .col(
-            ColumnDef::new(Alias::new("version"))
-                .integer()
-                .not_null()
-                .primary_key(),
-        )
-        .col(
-            ColumnDef::new(Alias::new("applied_at"))
-                .integer()
-                .not_null(),
-        )
-        .to_owned()
-        .to_string(SqliteQueryBuilder);
+        .col(version.not_null().primary_key())
+        .col(applied_at.not_null())
+        .to_owned();
+    let sql = match dialect {
+        Dialect::NativeSqlite | Dialect::Libsql => table.to_string(SqliteQueryBuilder),
+        Dialect::Postgres => table.to_string(PostgresQueryBuilder),
+        Dialect::Mysql => table.to_string(MysqlQueryBuilder),
+    };
     Statement::plain(sql)
 }
 

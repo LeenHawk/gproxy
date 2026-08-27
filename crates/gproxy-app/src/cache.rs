@@ -1,32 +1,39 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-use web_time::Instant;
 
 use gproxy_core::CacheBackend;
 use gproxy_core::channel_api::BoxFuture;
 
-#[derive(Clone, Default)]
-pub(crate) struct InProcessCache {
-    entries: Arc<Mutex<HashMap<String, Entry>>>,
+type Error = gproxy_core::error::StoreError;
+
+#[cfg(not(target_arch = "wasm32"))]
+type SharedCache = std::sync::Arc<dyn CacheBackend + Send + Sync>;
+#[cfg(target_arch = "wasm32")]
+type SharedCache = std::rc::Rc<dyn CacheBackend>;
+
+#[derive(Clone)]
+pub(crate) struct AppCache {
+    inner: SharedCache,
 }
 
-struct Entry {
-    value: Vec<u8>,
-    expires_at: Option<Instant>,
+impl AppCache {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn new(cache: impl CacheBackend + Send + Sync + 'static) -> Self {
+        Self {
+            inner: std::sync::Arc::new(cache),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn new(cache: impl CacheBackend + 'static) -> Self {
+        Self {
+            inner: std::rc::Rc::new(cache),
+        }
+    }
 }
 
-impl CacheBackend for InProcessCache {
-    fn get<'a>(
-        &'a self,
-        key: &'a str,
-    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, gproxy_core::error::StoreError>> {
-        let result = self.with_entries(|entries| {
-            expire(entries, key);
-            Ok(entries.get(key).map(|entry| entry.value.clone()))
-        });
-        Box::pin(async move { result })
+impl CacheBackend for AppCache {
+    fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<Option<Vec<u8>>, Error>> {
+        self.inner.get(key)
     }
 
     fn set<'a>(
@@ -34,29 +41,12 @@ impl CacheBackend for InProcessCache {
         key: &'a str,
         value: Vec<u8>,
         ttl: Option<Duration>,
-    ) -> BoxFuture<'a, Result<(), gproxy_core::error::StoreError>> {
-        let result = self.with_entries(|entries| {
-            entries.insert(
-                key.to_owned(),
-                Entry {
-                    value,
-                    expires_at: expiry(ttl)?,
-                },
-            );
-            Ok(())
-        });
-        Box::pin(async move { result })
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        self.inner.set(key, value, ttl)
     }
 
-    fn delete<'a>(
-        &'a self,
-        key: &'a str,
-    ) -> BoxFuture<'a, Result<(), gproxy_core::error::StoreError>> {
-        let result = self.with_entries(|entries| {
-            entries.remove(key);
-            Ok(())
-        });
-        Box::pin(async move { result })
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        self.inner.delete(key)
     }
 
     fn incr<'a>(
@@ -64,26 +54,8 @@ impl CacheBackend for InProcessCache {
         key: &'a str,
         by: i64,
         ttl: Option<Duration>,
-    ) -> BoxFuture<'a, Result<i64, gproxy_core::error::StoreError>> {
-        let result = self.with_entries(|entries| {
-            expire(entries, key);
-            let (current, expires_at) = match entries.get(key) {
-                Some(entry) => (decode_counter(&entry.value)?, entry.expires_at),
-                None => (0, expiry(ttl)?),
-            };
-            let value = current
-                .checked_add(by)
-                .ok_or_else(|| gproxy_core::error::StoreError("cache counter overflow".into()))?;
-            entries.insert(
-                key.to_owned(),
-                Entry {
-                    value: value.to_be_bytes().to_vec(),
-                    expires_at,
-                },
-            );
-            Ok(value)
-        });
-        Box::pin(async move { result })
+    ) -> BoxFuture<'a, Result<i64, Error>> {
+        self.inner.incr(key, by, ttl)
     }
 
     fn compare_incr_and_set<'a>(
@@ -93,34 +65,9 @@ impl CacheBackend for InProcessCache {
         state_key: &'a str,
         expected_state: Vec<u8>,
         state: Vec<u8>,
-    ) -> BoxFuture<'a, Result<Option<i64>, gproxy_core::error::StoreError>> {
-        let result = self.with_entries(|entries| {
-            if entries.get(state_key).map(|entry| &entry.value) != Some(&expected_state) {
-                return Ok(None);
-            }
-            let current = entries
-                .get(counter_key)
-                .map_or(Ok(0), |entry| decode_counter(&entry.value))?;
-            let next = current
-                .checked_add(by)
-                .ok_or_else(|| gproxy_core::error::StoreError("cache counter overflow".into()))?;
-            entries.insert(
-                counter_key.to_owned(),
-                Entry {
-                    value: next.to_be_bytes().to_vec(),
-                    expires_at: None,
-                },
-            );
-            entries.insert(
-                state_key.to_owned(),
-                Entry {
-                    value: state,
-                    expires_at: None,
-                },
-            );
-            Ok(Some(next))
-        });
-        Box::pin(async move { result })
+    ) -> BoxFuture<'a, Result<Option<i64>, Error>> {
+        self.inner
+            .compare_incr_and_set(counter_key, by, state_key, expected_state, state)
     }
 
     fn compare_and_swap<'a>(
@@ -129,67 +76,7 @@ impl CacheBackend for InProcessCache {
         expected: Option<Vec<u8>>,
         value: Option<Vec<u8>>,
         ttl: Option<Duration>,
-    ) -> BoxFuture<'a, Result<bool, gproxy_core::error::StoreError>> {
-        let result = self.with_entries(|entries| {
-            expire(entries, key);
-            if entries.get(key).map(|entry| &entry.value) != expected.as_ref() {
-                return Ok(false);
-            }
-            match value {
-                Some(value) => {
-                    entries.insert(
-                        key.into(),
-                        Entry {
-                            value,
-                            expires_at: expiry(ttl)?,
-                        },
-                    );
-                }
-                None => {
-                    entries.remove(key);
-                }
-            }
-            Ok(true)
-        });
-        Box::pin(async move { result })
+    ) -> BoxFuture<'a, Result<bool, Error>> {
+        self.inner.compare_and_swap(key, expected, value, ttl)
     }
-}
-
-impl InProcessCache {
-    fn with_entries<T>(
-        &self,
-        operation: impl FnOnce(&mut HashMap<String, Entry>) -> Result<T, gproxy_core::error::StoreError>,
-    ) -> Result<T, gproxy_core::error::StoreError> {
-        let mut entries = self
-            .entries
-            .lock()
-            .map_err(|_| gproxy_core::error::StoreError("cache lock poisoned".into()))?;
-        operation(&mut entries)
-    }
-}
-
-fn expire(entries: &mut HashMap<String, Entry>, key: &str) {
-    if entries
-        .get(key)
-        .and_then(|entry| entry.expires_at)
-        .is_some_and(|expires_at| expires_at <= Instant::now())
-    {
-        entries.remove(key);
-    }
-}
-
-fn decode_counter(value: &[u8]) -> Result<i64, gproxy_core::error::StoreError> {
-    let bytes: [u8; 8] = value
-        .try_into()
-        .map_err(|_| gproxy_core::error::StoreError("cache value is not a counter".into()))?;
-    Ok(i64::from_be_bytes(bytes))
-}
-
-fn expiry(ttl: Option<Duration>) -> Result<Option<Instant>, gproxy_core::error::StoreError> {
-    ttl.map(|ttl| {
-        Instant::now()
-            .checked_add(ttl)
-            .ok_or_else(|| gproxy_core::error::StoreError("cache TTL exceeds clock range".into()))
-    })
-    .transpose()
 }

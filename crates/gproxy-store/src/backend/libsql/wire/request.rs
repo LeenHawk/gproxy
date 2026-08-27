@@ -33,7 +33,15 @@ struct Batch {
 
 #[derive(Serialize)]
 struct BatchStep {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    condition: Option<BatchCondition>,
     stmt: WireStatement,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum BatchCondition {
+    Ok { step: usize },
 }
 
 pub(in crate::backend::libsql) fn encode_execute(
@@ -51,8 +59,10 @@ pub(in crate::backend::libsql) fn encode_batch(
         .chain(statements)
         .chain(std::iter::once(Statement::plain("END")));
     let steps = statements
-        .map(|statement| {
+        .enumerate()
+        .map(|(index, statement)| {
             Ok(BatchStep {
+                condition: index.checked_sub(1).map(|step| BatchCondition::Ok { step }),
                 stmt: encode_statement(statement)?,
             })
         })

@@ -31,20 +31,22 @@ pub(crate) fn accumulate_hourly(input: &UsageInput) -> Result<Statement, StoreEr
     ] {
         conflict.value(
             Alias::new(column),
-            Expr::col(Alias::new(column))
+            Expr::col((Alias::new("usage_rollups"), Alias::new(column)))
                 .add(Expr::col((Alias::new("excluded"), Alias::new(column)))),
         );
     }
     conflict
         .value(
             Alias::new("cost"),
-            Expr::col(Alias::new("cost"))
-                .add(Expr::col((Alias::new("excluded"), Alias::new("cost")))),
+            Expr::col((Alias::new("usage_rollups"), Alias::new("cost")))
+                .cast_as("NUMERIC")
+                .add(Expr::col((Alias::new("excluded"), Alias::new("cost"))).cast_as("NUMERIC"))
+                .cast_as("TEXT"),
         )
         .update_column(Alias::new("metrics_json"))
         .value(
             Alias::new("version"),
-            Expr::col(Alias::new("version")).add(1),
+            Expr::col((Alias::new("usage_rollups"), Alias::new("version"))).add(1),
         );
     let mut query = Query::insert();
     query.into_table(Alias::new("usage_rollups")).columns(
@@ -101,18 +103,17 @@ pub(crate) fn aggregate_for_caller(
     since: i64,
 ) -> Result<Statement, StoreError> {
     let mut query = Query::select();
-    let sum = |column| Expr::from(Func::sum(Expr::col(Alias::new(column))));
     query
         .expr_as(
-            Expr::from(Func::if_null(sum("cost").cast_as("NUMERIC"), 0)).cast_as("TEXT"),
+            Expr::cust("CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT)"),
             Alias::new("cost"),
         )
         .expr_as(
-            Func::if_null(sum("input_tokens"), 0),
+            Expr::cust("CAST(COALESCE(SUM(input_tokens), 0) AS BIGINT)"),
             Alias::new("input_tokens"),
         )
         .expr_as(
-            Func::if_null(sum("output_tokens"), 0),
+            Expr::cust("CAST(COALESCE(SUM(output_tokens), 0) AS BIGINT)"),
             Alias::new("output_tokens"),
         )
         .from(Alias::new("usage_rows"))

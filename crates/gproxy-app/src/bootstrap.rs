@@ -1,5 +1,6 @@
 use crate::Shared;
-use crate::cache::InProcessCache;
+use crate::cache::AppCache;
+use crate::config::CacheConfig;
 use crate::control::SnapshotControl;
 use crate::host::{AppHost, Services};
 use crate::lifecycle::AppInner;
@@ -20,7 +21,7 @@ impl App {
         seed_first_run(&store, &channels, config.native()).await?;
         let runtime = crate::control::RuntimeOverrides::from_config(&config);
         let control = SnapshotControl::new(store.clone(), runtime).await?;
-        let cache = InProcessCache::default();
+        let cache = cache(&config, store.clone()).await?;
         #[cfg(not(target_arch = "wasm32"))]
         let transport =
             gproxy_upstream::Transport::with_system_proxy(control.settings().inherit_system_proxy);
@@ -61,6 +62,28 @@ impl App {
             }),
         })
     }
+}
+
+async fn cache(config: &Config, store: gproxy_store::Store) -> Result<AppCache, AppError> {
+    let cache = match config.cache() {
+        #[cfg(not(target_arch = "wasm32"))]
+        CacheConfig::InProcess => AppCache::new(gproxy_store::InProcessCache::default()),
+        #[cfg(not(target_arch = "wasm32"))]
+        CacheConfig::Redis { url } => AppCache::new(
+            gproxy_store::RedisCache::connect(url)
+                .await
+                .map_err(|error| AppError::Cache(error.to_string()))?,
+        ),
+        CacheConfig::Libsql => AppCache::new(
+            gproxy_store::LibsqlCache::connect(store)
+                .await
+                .map_err(|error| AppError::Cache(error.to_string()))?,
+        ),
+        CacheConfig::Upstash { url, token } => {
+            AppCache::new(gproxy_store::UpstashCache::new(url.clone(), token.clone()))
+        }
+    };
+    Ok(cache)
 }
 
 #[cfg(not(target_arch = "wasm32"))]

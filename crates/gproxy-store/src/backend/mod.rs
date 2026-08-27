@@ -1,6 +1,10 @@
 mod libsql;
 #[cfg(not(target_arch = "wasm32"))]
+mod mysql;
+#[cfg(not(target_arch = "wasm32"))]
 mod native;
+#[cfg(not(target_arch = "wasm32"))]
+mod postgres;
 mod row;
 mod statement;
 
@@ -40,6 +44,14 @@ pub enum BackendConfig {
     Sqlite {
         path: PathBuf,
     },
+    #[cfg(not(target_arch = "wasm32"))]
+    Postgres {
+        dsn: String,
+    },
+    #[cfg(not(target_arch = "wasm32"))]
+    Mysql {
+        dsn: String,
+    },
     Libsql {
         url: String,
         auth_token: String,
@@ -54,6 +66,10 @@ impl std::fmt::Debug for BackendConfig {
                 .debug_struct("Sqlite")
                 .field("path", path)
                 .finish(),
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::Postgres { .. } => formatter.write_str("Postgres { dsn: <redacted> }"),
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::Mysql { .. } => formatter.write_str("Mysql { dsn: <redacted> }"),
             Self::Libsql { url, .. } => formatter
                 .debug_struct("Libsql")
                 .field("url", url)
@@ -74,6 +90,12 @@ pub(crate) async fn open(config: BackendConfig) -> Result<SharedExecutor, StoreE
         BackendConfig::Sqlite { path } => {
             Ok(std::sync::Arc::new(native::NativeSql::open(path).await?))
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        BackendConfig::Postgres { dsn } => Ok(std::sync::Arc::new(
+            postgres::Postgres::connect(&dsn).await?,
+        )),
+        #[cfg(not(target_arch = "wasm32"))]
+        BackendConfig::Mysql { dsn } => Ok(std::sync::Arc::new(mysql::Mysql::connect(&dsn)?)),
         BackendConfig::Libsql { url, auth_token } => {
             let executor = libsql::LibsqlHttp::new(url, auth_token);
             #[cfg(not(target_arch = "wasm32"))]

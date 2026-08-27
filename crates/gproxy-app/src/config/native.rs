@@ -1,15 +1,19 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::{Config, LogFormat, MasterKeyConfig, NativeOptions, invalid};
+use super::{CacheConfig, Config, LogFormat, MasterKeyConfig, NativeOptions, invalid};
 use crate::ConfigError;
 
 const HOST: &str = "GPROXY_HOST";
 const PORT: &str = "GPROXY_PORT";
 const DATA_DIR: &str = "GPROXY_DATA_DIR";
 const PERSISTENCE: &str = "GPROXY_PERSISTENCE";
+const DSN: &str = "GPROXY_DSN";
 const LIBSQL_URL: &str = "GPROXY_LIBSQL_URL";
 const LIBSQL_AUTH_TOKEN: &str = "GPROXY_LIBSQL_AUTH_TOKEN";
+const REDIS_URL: &str = "GPROXY_REDIS_URL";
+const UPSTASH_URL: &str = "UPSTASH_URL";
+const UPSTASH_TOKEN: &str = "UPSTASH_TOKEN";
 const MASTER_KEY: &str = "GPROXY_MASTER_KEY";
 const MASTER_KEY_NEXT: &str = "GPROXY_MASTER_KEY_NEXT";
 const MASTER_KEY_ROTATE: &str = "GPROXY_MASTER_KEY_ROTATE";
@@ -50,15 +54,27 @@ pub(super) struct Cli {
     /// Directory for the database and other state [default: ./data]
     #[arg(long, env = DATA_DIR, value_name = "PATH")]
     data_dir: Option<String>,
-    /// Persistence backend: `sqlite` or `libsql` [default: sqlite]
+    /// Persistence backend: sqlite, libsql, postgres, or mysql [default: sqlite]
     #[arg(long, env = PERSISTENCE, value_name = "BACKEND")]
     persistence: Option<String>,
+    /// PostgreSQL or MySQL connection string
+    #[arg(long, env = DSN, value_name = "DSN", hide_env_values = true)]
+    dsn: Option<String>,
     /// libSQL endpoint; required only for the `libsql` backend
     #[arg(long, env = LIBSQL_URL, value_name = "URL")]
     libsql_url: Option<String>,
     /// libSQL auth token; required only for the `libsql` backend
     #[arg(long, env = LIBSQL_AUTH_TOKEN, value_name = "TOKEN", hide_env_values = true)]
     libsql_auth_token: Option<String>,
+    /// Redis URL for the shared cache; omit for the persistence-backed/default cache
+    #[arg(long, env = REDIS_URL, value_name = "URL", hide_env_values = true)]
+    redis_url: Option<String>,
+    /// Upstash Redis REST URL
+    #[arg(long, env = UPSTASH_URL, value_name = "URL", hide_env_values = true)]
+    upstash_url: Option<String>,
+    /// Upstash Redis REST token
+    #[arg(long, env = UPSTASH_TOKEN, value_name = "TOKEN", hide_env_values = true)]
+    upstash_token: Option<String>,
     /// Base64 key the store is sealed with. Unset means secrets are stored
     /// in plaintext, which is the right choice when the database itself is
     /// trusted
@@ -186,10 +202,10 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
         bootstrap_admin_api_key: layered(cli.bootstrap_admin_api_key, BOOTSTRAP_ADMIN_API_KEY),
         bootstrap_channels: split_list(layered(cli.bootstrap_channels, BOOTSTRAP_CHANNELS)),
     };
-    let config = match layered(cli.persistence, PERSISTENCE)
+    let persistence = layered(cli.persistence, PERSISTENCE)
         .unwrap_or_else(|| "sqlite".into())
-        .as_str()
-    {
+        .to_ascii_lowercase();
+    let config = match persistence.as_str() {
         "sqlite" => Ok(Config::sqlite(listen_addr, data_dir, secret_keys)),
         "libsql" => Config::libsql(
             listen_addr,
@@ -198,9 +214,40 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
             layered(cli.libsql_auth_token, LIBSQL_AUTH_TOKEN).unwrap_or_default(),
             secret_keys,
         ),
-        _ => Err(invalid(PERSISTENCE, "expected `sqlite` or `libsql`")),
+        "postgres" | "mysql" => Config::sqlite(listen_addr, data_dir, secret_keys).sql_server(
+            if persistence == "postgres" {
+                "postgres"
+            } else {
+                "mysql"
+            },
+            layered(cli.dsn, DSN).unwrap_or_default(),
+        ),
+        _ => Err(invalid(
+            PERSISTENCE,
+            "expected `sqlite`, `libsql`, `postgres`, or `mysql`",
+        )),
     }?;
-    Ok(config.with_native_options(native))
+    let redis_url = nonempty(layered(cli.redis_url, REDIS_URL));
+    let upstash_url = nonempty(layered(cli.upstash_url, UPSTASH_URL));
+    let upstash_token = nonempty(layered(cli.upstash_token, UPSTASH_TOKEN));
+    let cache = if let Some(url) = redis_url {
+        CacheConfig::Redis { url }
+    } else {
+        match (upstash_url, upstash_token) {
+            (Some(url), Some(token)) => {
+                return Ok(config.with_upstash(url, token)?.with_native_options(native));
+            }
+            (None, None) if persistence == "libsql" => CacheConfig::Libsql,
+            (None, None) => CacheConfig::InProcess,
+            _ => {
+                return Err(invalid(
+                    UPSTASH_URL,
+                    "UPSTASH_URL and UPSTASH_TOKEN must be set together",
+                ));
+            }
+        }
+    };
+    Ok(config.with_cache(cache).with_native_options(native))
 }
 
 fn nonempty(value: Option<String>) -> Option<String> {
@@ -262,9 +309,9 @@ where
         .collect()
 }
 
-/// Only `GPROXY_*` keys are taken from a `.env`. Deployment tokens and other
-/// unrelated secrets routinely share that file; reading them into this
-/// process would be a promise we have no reason to make.
+/// Only GPROXY bootstrap keys and v2's two `UPSTASH_*` names are taken from a
+/// `.env`. Unrelated deployment tokens routinely share that file and remain
+/// outside this process.
 fn read_dotenv(path: &Path) -> Result<HashMap<String, String>, ConfigError> {
     let source = match std::fs::read_to_string(path) {
         Ok(source) => source,
@@ -292,7 +339,7 @@ fn read_dotenv(path: &Path) -> Result<HashMap<String, String>, ConfigError> {
                 index + 1
             )));
         }
-        if !key.starts_with("GPROXY_") {
+        if !key.starts_with("GPROXY_") && !matches!(key, UPSTASH_URL | UPSTASH_TOKEN) {
             continue;
         }
         values.insert(key.to_owned(), value.trim().to_owned());
@@ -336,8 +383,12 @@ mod tests {
             port: get(PORT),
             data_dir: get(DATA_DIR),
             persistence: get(PERSISTENCE),
+            dsn: get(DSN),
             libsql_url: get(LIBSQL_URL),
             libsql_auth_token: get(LIBSQL_AUTH_TOKEN),
+            redis_url: get(REDIS_URL),
+            upstash_url: get(UPSTASH_URL),
+            upstash_token: get(UPSTASH_TOKEN),
             master_key: get(MASTER_KEY),
             master_key_next: get(MASTER_KEY_NEXT),
             master_key_rotate: get(MASTER_KEY_ROTATE),

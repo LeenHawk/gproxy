@@ -17,6 +17,8 @@ pub struct EdgeConfig {
     secret_key: Option<String>,
     secret_key_next: Option<String>,
     secret_key_rotate: bool,
+    upstash_url: Option<String>,
+    upstash_token: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -28,6 +30,8 @@ impl EdgeConfig {
         secret_key: Option<String>,
         secret_key_next: Option<String>,
         secret_key_rotate: bool,
+        upstash_url: Option<String>,
+        upstash_token: Option<String>,
     ) -> Self {
         Self {
             libsql_url,
@@ -35,6 +39,8 @@ impl EdgeConfig {
             secret_key,
             secret_key_next,
             secret_key_rotate,
+            upstash_url,
+            upstash_token,
         }
     }
 }
@@ -60,15 +66,27 @@ impl EdgeReply {
 
 #[wasm_bindgen]
 pub async fn start(config: EdgeConfig) -> Result<EdgeHost, JsValue> {
+    let upstash = (config.upstash_url, config.upstash_token);
     let secret_keys = gproxy_app::MasterKeyConfig::from_encoded(
         config.secret_key,
         config.secret_key_next,
         config.secret_key_rotate,
     )
     .map_err(js_error)?;
-    let config =
+    let mut config =
         gproxy_app::Config::libsql(config.libsql_url, config.libsql_auth_token, secret_keys)
             .map_err(js_error)?;
+    match upstash {
+        (Some(url), Some(token)) if !url.is_empty() && !token.is_empty() => {
+            config = config.with_upstash(url, token).map_err(js_error)?;
+        }
+        (None, None) => {}
+        _ => {
+            return Err(JsValue::from_str(
+                "UPSTASH_URL and UPSTASH_TOKEN must be set together",
+            ));
+        }
+    }
     let app = gproxy_app::App::start(config).await.map_err(js_error)?;
     Ok(EdgeHost { app })
 }

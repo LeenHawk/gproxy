@@ -20,6 +20,7 @@ use crate::{StoreError, migration};
 #[derive(Clone)]
 pub struct Store {
     pub(crate) executor: SharedExecutor,
+    pub(crate) dialect: Dialect,
 }
 
 impl Store {
@@ -27,11 +28,15 @@ impl Store {
         let dialect = match &config {
             #[cfg(not(target_arch = "wasm32"))]
             BackendConfig::Sqlite { .. } => Dialect::NativeSqlite,
+            #[cfg(not(target_arch = "wasm32"))]
+            BackendConfig::Postgres { .. } => Dialect::Postgres,
+            #[cfg(not(target_arch = "wasm32"))]
+            BackendConfig::Mysql { .. } => Dialect::Mysql,
             BackendConfig::Libsql { .. } => Dialect::Libsql,
         };
         let executor = backend::open(config).await?;
         migration::migrate(executor.as_ref(), dialect).await?;
-        Ok(Self { executor })
+        Ok(Self { executor, dialect })
     }
 
     pub(crate) fn backend(&self) -> &dyn Executor {
