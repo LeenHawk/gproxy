@@ -6,6 +6,7 @@ import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
+import { BatchActions } from "@/components/batch-actions"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
 import { CredentialRowActions } from "@/components/providers/credential-row-actions"
@@ -66,6 +67,7 @@ export function CredentialList(props: Props) {
           empty={t("providers.credentials.empty")}
           storageKey="credentials"
           selectable
+          batchActions={(rows) => <BatchActions entity="credentials" rows={rows} queryKeys={["credentials", "credential-cycles"]} />}
           activeRowKey={props.activeCredentialId}
           onRowClick={props.onCredentialOpen}
         />

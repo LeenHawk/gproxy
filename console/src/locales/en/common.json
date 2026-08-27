@@ -42,11 +42,22 @@
       "active": "Active",
       "inactive": "Inactive"
     },
-    "errors": {
+  "errors": {
       "load": "Could not load this data. Retry.",
       "save": "Could not save changes. Retry.",
       "invalid": "Check the highlighted fields.",
-      "required": "This field is required."
+      "required": "This field is required.",
+      "unknown": "Unknown error"
+    },
+    "batch": {
+      "enable": "Enable selected",
+      "disable": "Disable selected",
+      "delete": "Delete selected",
+      "enabled": "Enabled {{count}} items.",
+      "disabled": "Disabled {{count}} items.",
+      "deleted": "Deleted {{count}} items.",
+      "partial": "{{failed}} of {{total}} items failed.",
+      "failed": "The batch action could not be completed."
     },
     "theme": {
       "label": "Theme",

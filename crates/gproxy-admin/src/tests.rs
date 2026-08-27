@@ -306,6 +306,65 @@ async fn device_poll_keeps_pending_then_creates_ready_and_clears_denied() {
     assert!(matches!(error, AdminError::BadRequest(_)));
 }
 
+#[tokio::test]
+async fn batch_reports_partial_failure_per_id() {
+    let state = state().await;
+    let id = state
+        .store
+        .insert_organization(&gproxy_store::records::OrganizationInput {
+            name: "batch-org".into(),
+            enabled: false,
+        })
+        .await
+        .unwrap();
+    seed_admin_key(&state).await;
+    let body = serde_json::to_vec(&crate::dto::BatchRequest {
+        action: crate::dto::BatchActionDto::Enable,
+        ids: vec![id, i64::MAX],
+    })
+    .unwrap();
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(Method::POST, "/admin/batch/organizations"),
+        Bytes::from(body),
+    )
+    .await
+    .unwrap();
+    let outcome: crate::dto::BatchResponse = serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(outcome.outcomes.len(), 2);
+    assert!(outcome.outcomes[0].applied);
+    assert!(!outcome.outcomes[1].applied);
+    assert_eq!(outcome.outcomes[1].status, StatusCode::NOT_FOUND.as_u16());
+    assert!(state.store.control_snapshot().await.unwrap().organizations[0].enabled);
+}
+
+#[tokio::test]
+async fn batch_requires_admin_authorization_before_each_requested_mutation() {
+    let state = state().await;
+    let id = state
+        .store
+        .insert_organization(&gproxy_store::records::OrganizationInput {
+            name: "protected-org".into(),
+            enabled: false,
+        })
+        .await
+        .unwrap();
+    let body = serde_json::to_vec(&crate::dto::BatchRequest {
+        action: crate::dto::BatchActionDto::Enable,
+        ids: vec![id],
+    })
+    .unwrap();
+    let response = crate::dispatch(
+        &state,
+        &parts(Method::POST, "/admin/batch/organizations", None),
+        Bytes::from(body),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert!(!state.store.control_snapshot().await.unwrap().organizations[0].enabled);
+}
+
 async fn start_device(state: &TestState, provider_id: i64) -> String {
     let body = serde_json::to_vec(&crate::dto::DeviceStartRequest {
         provider_id,
@@ -364,6 +423,29 @@ fn key_parts(method: Method, uri: &str) -> http::request::Parts {
         .expect("request")
         .into_parts()
         .0
+}
+
+fn admin_parts(method: Method, uri: &str) -> http::request::Parts {
+    http::Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(http::header::AUTHORIZATION, "Bearer admin-test-key")
+        .body(())
+        .expect("request")
+        .into_parts()
+        .0
+}
+
+async fn seed_admin_key(state: &TestState) {
+    let id = crate::seed_first_admin(&state.store, "batch-admin", "batch-password")
+        .await
+        .unwrap()
+        .unwrap();
+    state
+        .store
+        .create_admin_api_key(&Sha256::digest(b"admin-test-key"), id, 1)
+        .await
+        .unwrap();
 }
 
 fn envelope() -> CredentialEnvelope {

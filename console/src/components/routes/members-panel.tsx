@@ -7,6 +7,7 @@ import type { ProviderDto } from "@/generated/ProviderDto"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
+import { BatchActions } from "@/components/batch-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
@@ -85,6 +86,7 @@ export function MembersPanel({
           empty={t("routes.members.empty")}
           storageKey="route-members"
           selectable
+          batchActions={(rows) => <BatchActions entity="route-members" rows={rows} queryKeys={["route-members"]} />}
         />
       </CardContent>
       {form ? (

@@ -13,6 +13,7 @@ import { PlusIcon } from "lucide-react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
+import { BatchActions } from "@/components/batch-actions"
 import { PageHeader } from "@/components/page-header"
 import { ProviderDetail } from "@/components/providers/provider-detail"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
@@ -110,6 +111,7 @@ export function ProvidersView(props: Props) {
               empty={t("providers.empty")}
               storageKey="providers"
               selectable
+              batchActions={(rows) => <BatchActions entity="providers" rows={rows} queryKeys={["providers"]} />}
               activeRowKey={selected?.id}
               onRowClick={(provider) => navigateAdminPath(`/admin/providers/${provider.id}/credentials`)}
             />

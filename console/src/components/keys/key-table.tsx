@@ -4,6 +4,7 @@ import type { UserDto } from "@/generated/UserDto"
 import type { UserKeyDto } from "@/generated/UserKeyDto"
 import type { UserKeyRevealResponse } from "@/generated/UserKeyRevealResponse"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
+import { BatchActions } from "@/components/batch-actions"
 import { KeySecretCell } from "@/components/keys/key-secret-cell"
 import { Switch } from "@/components/ui/switch"
 import { formatInstant } from "@/lib/format"
@@ -41,6 +42,7 @@ export function KeyTable(props: KeyTableProps) {
       empty={t("users.keys.empty")}
       storageKey="user-keys"
       selectable
+      batchActions={(rows) => <BatchActions entity="user-keys" rows={rows} queryKeys={["user-keys"]} />}
     />
   )
 }

@@ -18,6 +18,7 @@ fn export_console_types() {
         })+};
     }
     export!(
+        crate::route::Entity,
         AdminIdentityDto,
         SessionStatusDto,
         SetupRequest,
@@ -25,6 +26,10 @@ fn export_console_types() {
         AuthResponse,
         IdResponse,
         AppliedResponse,
+        BatchActionDto,
+        BatchRequest,
+        BatchItemOutcome,
+        BatchResponse,
         ErrorEnvelope,
         ChannelSupportDto,
         ChannelDto,

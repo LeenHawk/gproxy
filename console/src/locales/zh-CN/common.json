@@ -46,7 +46,18 @@
       "load": "无法加载数据，请重试。",
       "save": "无法保存更改，请重试。",
       "invalid": "请检查标记的字段。",
-      "required": "此字段为必填项。"
+      "required": "此字段为必填项。",
+      "unknown": "未知错误"
+    },
+    "batch": {
+      "enable": "启用所选项",
+      "disable": "停用所选项",
+      "delete": "删除所选项",
+      "enabled": "已启用 {{count}} 项。",
+      "disabled": "已停用 {{count}} 项。",
+      "deleted": "已删除 {{count}} 项。",
+      "partial": "{{total}} 项中有 {{failed}} 项失败。",
+      "failed": "无法完成批量操作。"
     },
     "theme": {
       "label": "主题",

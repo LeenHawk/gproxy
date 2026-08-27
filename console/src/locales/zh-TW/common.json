@@ -46,7 +46,18 @@
       "load": "無法載入資料，請重試。",
       "save": "無法儲存變更，請重試。",
       "invalid": "請檢查標記的欄位。",
-      "required": "此欄位為必填。"
+      "required": "此欄位為必填。",
+      "unknown": "未知錯誤"
+    },
+    "batch": {
+      "enable": "啟用所選項目",
+      "disable": "停用所選項目",
+      "delete": "刪除所選項目",
+      "enabled": "已啟用 {{count}} 項。",
+      "disabled": "已停用 {{count}} 項。",
+      "deleted": "已刪除 {{count}} 項。",
+      "partial": "{{total}} 項中有 {{failed}} 項失敗。",
+      "failed": "無法完成批次操作。"
     },
     "theme": {
       "label": "主題",

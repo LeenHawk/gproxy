@@ -280,7 +280,7 @@ async fn ensure_provider(state: &impl State, id: i64) -> Result<(), AdminError> 
     }
 }
 
-fn routing_dto(
+pub(super) fn routing_dto(
     value: &gproxy_store::records::RoutingRuleRecord,
 ) -> Result<RoutingRuleDto, AdminError> {
     let implementation = match value.implementation.as_str() {
@@ -307,7 +307,7 @@ fn routing_dto(
     })
 }
 
-fn rule_dto(value: &gproxy_store::records::RuleRecord) -> Result<RuleDto, AdminError> {
+pub(super) fn rule_dto(value: &gproxy_store::records::RuleRecord) -> Result<RuleDto, AdminError> {
     let mut config = value.config.clone();
     config
         .as_object_mut()

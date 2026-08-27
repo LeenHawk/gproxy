@@ -1,6 +1,10 @@
 use http::Method;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
+#[serde(rename_all = "kebab-case")]
+#[ts(rename_all = "kebab-case")]
 pub(crate) enum Entity {
     Organizations,
     Teams,
@@ -29,6 +33,7 @@ pub(crate) enum Route {
     Create(Entity),
     Update(Entity, i64),
     Delete(Entity, i64),
+    Batch(Entity),
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -88,6 +93,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
     }
     if segments.len() == 2 && segments[0] == "logs" && method == Method::GET {
         return Some(Route::LogDetail(segments[1].to_owned()));
+    }
+    if segments.len() == 2 && segments[0] == "batch" && method == Method::POST {
+        return Some(Route::Batch(entity(segments[1])?));
     }
     if segments.len() == 2 && method == Method::PATCH {
         return Some(Route::Update(

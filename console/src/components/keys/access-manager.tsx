@@ -112,15 +112,15 @@ export function AccessManager(props: AccessManagerProps) {
         <TabsContent value="permissions" className="flex flex-col gap-6 pt-5"><PermissionForm {...shared} providers={props.providers} groups={props.groups} pending={permissionMutation.isPending} onSubmit={(value) => {
           const stored = props.permissions.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.provider_id === value.provider_id && item.operation_group === value.operation_group)
           return permissionMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
-        }} /><RuleTable rows={permissionRows} empty={t("access.permissions.empty")} removeLabel={t("access.permissions.delete")} removingId={removing("permissions")} remove={(id) => removeMutation.mutate({ kind: "permissions", id })} /></TabsContent>
+        }} /><RuleTable entity="permissions" rows={permissionRows} empty={t("access.permissions.empty")} removeLabel={t("access.permissions.delete")} removingId={removing("permissions")} remove={(id) => removeMutation.mutate({ kind: "permissions", id })} /></TabsContent>
         <TabsContent value="rates" className="flex flex-col gap-6 pt-5"><RateForm {...shared} pending={rateMutation.isPending} onSubmit={(value) => {
           const stored = props.rateLimits.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.window_seconds === value.window_seconds)
           return rateMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
-        }} /><RuleTable rows={rateRows} empty={t("access.rateLimits.empty")} removeLabel={t("access.rateLimits.delete")} removingId={removing("rate-limits")} remove={(id) => removeMutation.mutate({ kind: "rate-limits", id })} /></TabsContent>
+        }} /><RuleTable entity="rate-limits" rows={rateRows} empty={t("access.rateLimits.empty")} removeLabel={t("access.rateLimits.delete")} removingId={removing("rate-limits")} remove={(id) => removeMutation.mutate({ kind: "rate-limits", id })} /></TabsContent>
         <TabsContent value="quotas" className="flex flex-col gap-6 pt-5"><QuotaForm {...shared} pending={quotaMutation.isPending} onSubmit={(value) => {
           const stored = props.quotas.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id)
           return quotaMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
-        }} /><RuleTable rows={quotaRows} empty={t("access.quotas.empty")} removeLabel={t("access.quotas.delete")} removingId={removing("quotas")} remove={(id) => removeMutation.mutate({ kind: "quotas", id })} /></TabsContent>
+        }} /><RuleTable entity="quotas" rows={quotaRows} empty={t("access.quotas.empty")} removeLabel={t("access.quotas.delete")} removingId={removing("quotas")} remove={(id) => removeMutation.mutate({ kind: "quotas", id })} /></TabsContent>
       </Tabs></CardContent>
     </Card>
   )

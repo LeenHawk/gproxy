@@ -5,6 +5,7 @@ import { saveAlias } from "@/api/control"
 import type { AliasDto } from "@/generated/AliasDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
+import { BatchActions } from "@/components/batch-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
@@ -55,7 +56,7 @@ export function RoutingAliases({
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t("routes.routingAliases.empty")} storageKey="routing-aliases" selectable />
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t("routes.routingAliases.empty")} storageKey="routing-aliases" selectable batchActions={(rows) => <BatchActions entity="aliases" rows={rows} queryKeys={["aliases"]} />} />
       </CardContent>
       {form ? (
         <RoutingAliasForm

@@ -1,4 +1,5 @@
 mod audit;
+mod batch;
 mod catalogue;
 mod control;
 mod identity;
@@ -32,6 +33,7 @@ pub(crate) async fn dispatch(
         Route::Create(entity) => create(state, entity, body).await,
         Route::Update(entity, id) => update(state, entity, id, body).await,
         Route::Delete(entity, id) => delete(state, entity, id).await,
+        Route::Batch(entity) => batch::run(state, entity, body).await,
         Route::RevealUserKey(id) => identity::reveal(state, admin, id).await,
         Route::Usage => observability::usage(state, parts).await,
         Route::QuotaWindows => observability::quota_windows(state, parts).await,

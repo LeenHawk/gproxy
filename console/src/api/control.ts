@@ -13,6 +13,9 @@ import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TokenizerFetchRequest } from "@/generated/TokenizerFetchRequest"
 import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
+import type { BatchActionDto } from "@/generated/BatchActionDto"
+import type { BatchResponse } from "@/generated/BatchResponse"
+import type { Entity } from "@/generated/Entity"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import type { RouteMemberWriteRequest } from "@/generated/RouteMemberWriteRequest"
@@ -29,6 +32,9 @@ import { api, json } from "@/api/client"
 
 const save = <T>(path: string, value: T, id?: number) =>
   api(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
+
+export const batch = (entity: Entity, action: BatchActionDto, ids: Array<number>) =>
+  api<BatchResponse>(`/admin/batch/${entity}`, json("POST", { action, ids }))
 
 export const providers = () => api<Array<ProviderDto>>("/admin/providers")
 export const saveProvider = (value: ProviderWriteRequest, id?: number) =>
