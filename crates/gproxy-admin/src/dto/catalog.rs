@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::RoutingImplementationDto;
 use super::TlsFingerprintDto;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -10,9 +11,10 @@ pub struct ChannelSupportDto {
     pub operation: String,
     pub target_operation: String,
     pub group: String,
+    pub implementation: RoutingImplementationDto,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ChannelDto {
     pub id: String,
     pub display_name: String,
@@ -21,6 +23,24 @@ pub struct ChannelDto {
     pub provider_fields: Vec<ChannelFieldDto>,
     pub credential_fields: Vec<ChannelFieldDto>,
     pub endpoint_kinds: Vec<String>,
+    pub default_rule_set: Option<ChannelDefaultRuleSetDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ChannelDefaultRuleSetDto {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub rules: Vec<ChannelDefaultRuleDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ChannelDefaultRuleDto {
+    pub kind: String,
+    #[ts(type = "unknown")]
+    pub config: serde_json::Value,
+    pub filter_operations: Option<Vec<String>>,
+    pub sort_order: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -101,6 +121,17 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                 operation: support.source.operation.id().into(),
                 target_operation: support.target.operation.id().into(),
                 group: support.source.operation.group().id().into(),
+                implementation: match support.action {
+                    gproxy_channel_api::ChannelRouteAction::Passthrough => {
+                        RoutingImplementationDto::Passthrough
+                    }
+                    gproxy_channel_api::ChannelRouteAction::TransformTo => {
+                        RoutingImplementationDto::TransformTo
+                    }
+                    gproxy_channel_api::ChannelRouteAction::Local => {
+                        RoutingImplementationDto::Local
+                    }
+                },
             })
             .collect(),
         login: channel.login().map(|login| ChannelLoginDto {
@@ -150,6 +181,23 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
         } else {
             Vec::new()
         },
+        default_rule_set: channel
+            .default_rule_set()
+            .map(|set| ChannelDefaultRuleSetDto {
+                id: set.id.into(),
+                name: set.name.into(),
+                description: set.description.into(),
+                rules: set
+                    .rules
+                    .into_iter()
+                    .map(|rule| ChannelDefaultRuleDto {
+                        kind: rule.kind.into(),
+                        config: rule.config,
+                        filter_operations: rule.filter_operations,
+                        sort_order: rule.sort_order,
+                    })
+                    .collect(),
+            }),
     }
 }
 

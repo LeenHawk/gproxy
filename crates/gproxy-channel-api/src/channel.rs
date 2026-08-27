@@ -38,6 +38,14 @@ pub enum ChannelError {
 pub struct ChannelSupport {
     pub source: OperationKey,
     pub target: OperationKey,
+    pub action: ChannelRouteAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChannelRouteAction {
+    Passthrough,
+    TransformTo,
+    Local,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,11 +75,24 @@ impl ChannelSupport {
         Self {
             source: key,
             target: key,
+            action: ChannelRouteAction::Passthrough,
         }
     }
 
     pub const fn transform(source: OperationKey, target: OperationKey) -> Self {
-        Self { source, target }
+        Self {
+            source,
+            target,
+            action: ChannelRouteAction::TransformTo,
+        }
+    }
+
+    pub const fn local(source: OperationKey) -> Self {
+        Self {
+            source,
+            target: source,
+            action: ChannelRouteAction::Local,
+        }
     }
 }
 
@@ -87,6 +108,22 @@ pub struct ChannelDescriptor {
     pub provider_fields: &'static [ChannelField],
     pub credential_fields: &'static [ChannelField],
     pub endpoint_overrides: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelDefaultRuleSet {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub description: &'static str,
+    pub rules: Vec<ChannelDefaultRule>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelDefaultRule {
+    pub kind: &'static str,
+    pub config: Value,
+    pub filter_operations: Option<Vec<String>>,
+    pub sort_order: i64,
 }
 
 /// Everything `prepare` may read. Borrowed views: preparation copies
@@ -208,6 +245,10 @@ pub trait SimpleHttp: MaybeSync {
 pub trait Channel: Send + Sync {
     fn descriptor(&self) -> &'static ChannelDescriptor;
 
+    fn default_rule_set(&self) -> Option<ChannelDefaultRuleSet> {
+        None
+    }
+
     /// First-time credential acquisition when this channel supports it.
     fn login(&self) -> Option<ChannelLoginRef<'_>> {
         None
@@ -221,7 +262,7 @@ pub trait Channel: Send + Sync {
         self.descriptor()
             .supports
             .iter()
-            .find(|support| support.source == source)
+            .find(|support| support.source == source && support.action != ChannelRouteAction::Local)
             .copied()
     }
 

@@ -18,6 +18,25 @@ impl Store {
             .await
     }
 
+    pub async fn insert_routing_default(
+        &self,
+        input: &RoutingRuleInput,
+    ) -> Result<bool, StoreError> {
+        Ok(self
+            .backend()
+            .execute(control::insert_routing_default(input)?)
+            .await?
+            .affected_rows
+            > 0)
+    }
+
+    pub async fn delete_provider_routing_rules(&self, provider_id: i64) -> Result<(), StoreError> {
+        self.backend()
+            .execute(control::delete_provider_routing_rules(provider_id)?)
+            .await?;
+        Ok(())
+    }
+
     pub async fn insert_rule_set(&self, input: &RuleSetInput) -> Result<i64, StoreError> {
         self.insert(control::insert_rule_set(input)?).await
     }
@@ -43,6 +62,13 @@ impl Store {
         input: &ProviderRuleSetInput,
     ) -> Result<i64, StoreError> {
         self.insert(control::insert_provider_rule_set(input)?).await
+    }
+    pub async fn insert_provider_rule_set_default(
+        &self,
+        input: &ProviderRuleSetInput,
+    ) -> Result<i64, StoreError> {
+        self.insert(control::insert_provider_rule_set_default(input)?)
+            .await
     }
     pub async fn update_provider_rule_set(
         &self,

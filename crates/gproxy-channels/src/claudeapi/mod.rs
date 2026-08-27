@@ -100,6 +100,23 @@ impl Channel for ClaudeApiChannel {
         &DESCRIPTOR
     }
 
+    fn default_rule_set(&self) -> Option<gproxy_channel_api::ChannelDefaultRuleSet> {
+        Some(gproxy_channel_api::ChannelDefaultRuleSet {
+            id: "system-cache",
+            name: "gproxy:channel-default:claudeapi:system-cache",
+            description: "gproxy:channel-default:claudeapi:system-cache",
+            rules: vec![gproxy_channel_api::ChannelDefaultRule {
+                kind: "cache_breakpoint",
+                config: serde_json::json!({"target":"system","index":null,"ttl":"1h"}),
+                filter_operations: Some(vec![
+                    "generate_content".into(),
+                    "stream_generate_content".into(),
+                ]),
+                sort_order: 0,
+            }],
+        })
+    }
+
     fn prepare(
         &self,
         ctx: PrepareCtx<'_>,

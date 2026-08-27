@@ -45,6 +45,7 @@ pub(crate) enum Route {
     TlsPresets,
     RulePresets,
     ApplyRulePreset { provider_id: i64, preset: String },
+    ResetRoutingDefaults(i64),
     Audit,
     Logs,
     LogDetail(String),
@@ -86,6 +87,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
                 provider_id: provider.parse().ok()?,
                 preset: (*preset).to_owned(),
             });
+        }
+        if let ["providers", provider, "routing-defaults", "reset"] = segments.as_slice() {
+            return Some(Route::ResetRoutingDefaults(provider.parse().ok()?));
         }
     }
     if segments.len() == 3

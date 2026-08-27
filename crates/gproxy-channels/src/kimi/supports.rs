@@ -21,11 +21,8 @@ pub(super) static SUPPORTS: [ChannelSupport; 17] = [
         family(Operation::ListModels, WireFamily::Claude),
         family(Operation::ListModels, WireFamily::OpenAi),
     ),
-    ChannelSupport::passthrough(family(Operation::CountTokens, WireFamily::Claude)),
-    ChannelSupport::transform(
-        family(Operation::CountTokens, WireFamily::OpenAi),
-        family(Operation::CountTokens, WireFamily::Claude),
-    ),
+    ChannelSupport::local(family(Operation::CountTokens, WireFamily::Claude)),
+    ChannelSupport::local(family(Operation::CountTokens, WireFamily::OpenAi)),
     ChannelSupport::passthrough(chat(Operation::GenerateContent)),
     ChannelSupport::passthrough(chat(Operation::StreamGenerateContent)),
     ChannelSupport::passthrough(content(

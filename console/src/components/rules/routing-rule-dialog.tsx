@@ -19,7 +19,7 @@ export function RoutingRuleDialog({ providerId, channel, rule, defaults, trigger
   providerId: number
   channel?: ChannelDto
   rule?: RoutingRuleDto
-  defaults?: { operation: string; kind: string; destOperation: string; destKind: string }
+  defaults?: { operation: string; kind: string; implementation: RoutingImplementationDto; destOperation: string; destKind: string }
   trigger: ReactElement
   saving: boolean
   onSave: (value: RoutingRuleWriteRequest, id?: number) => Promise<void>
@@ -28,7 +28,7 @@ export function RoutingRuleDialog({ providerId, channel, rule, defaults, trigger
   const [open, setOpen] = useState(false)
   const [operation, setOperation] = useState(rule?.operation ?? defaults?.operation ?? "")
   const [kind, setKind] = useState(rule?.kind ?? defaults?.kind ?? "")
-  const [implementation, setImplementation] = useState<RoutingImplementationDto>(rule?.implementation ?? (defaults && defaults.kind !== defaults.destKind ? "transform_to" : "passthrough"))
+  const [implementation, setImplementation] = useState<RoutingImplementationDto>(rule?.implementation ?? defaults?.implementation ?? "passthrough")
   const [destOperation, setDestOperation] = useState(rule?.dest_operation ?? defaults?.destOperation ?? "")
   const [destKind, setDestKind] = useState(rule?.dest_kind ?? defaults?.destKind ?? "")
   const [sortOrder, setSortOrder] = useState(String(rule?.sort_order ?? 0))
@@ -40,7 +40,7 @@ export function RoutingRuleDialog({ providerId, channel, rule, defaults, trigger
   const reset = () => {
     setOperation(rule?.operation ?? defaults?.operation ?? operations[0] ?? "")
     setKind(rule?.kind ?? defaults?.kind ?? "")
-    setImplementation(rule?.implementation ?? (defaults && defaults.kind !== defaults.destKind ? "transform_to" : "passthrough"))
+    setImplementation(rule?.implementation ?? defaults?.implementation ?? "passthrough")
     setDestOperation(rule?.dest_operation ?? defaults?.destOperation ?? "")
     setDestKind(rule?.dest_kind ?? defaults?.destKind ?? "")
     setSortOrder(String(rule?.sort_order ?? 0))

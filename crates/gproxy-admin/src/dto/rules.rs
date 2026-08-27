@@ -23,6 +23,7 @@ pub struct RoutingRuleDto {
     pub dest_kind: Option<String>,
     pub sort_order: i64,
     pub enabled: bool,
+    pub inherited: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -207,6 +208,7 @@ pub struct ProviderRuleSetDto {
     pub rule_set_id: i64,
     pub sort_order: i64,
     pub enabled: bool,
+    pub inherited: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

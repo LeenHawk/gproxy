@@ -162,5 +162,6 @@ fn provider_rule_set(value: &gproxy_store::records::ProviderRuleSetRecord) -> Pr
         rule_set_id: value.rule_set_id,
         sort_order: value.sort_order,
         enabled: value.enabled,
+        inherited: false,
     }
 }

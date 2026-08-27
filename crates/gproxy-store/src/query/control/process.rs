@@ -1,4 +1,4 @@
-use sea_query::{Alias, Expr, ExprTrait, Query};
+use sea_query::{Alias, Cond, Expr, ExprTrait, Query};
 
 use crate::StoreError;
 use crate::backend::Statement;
@@ -18,6 +18,7 @@ pub(crate) fn select_routing_rules() -> Result<Statement, StoreError> {
             "dest_kind",
             "sort_order",
             "enabled",
+            "origin",
             "created_at",
             "updated_at",
         ],
@@ -66,6 +67,7 @@ pub(crate) fn select_provider_rule_sets() -> Result<Statement, StoreError> {
             "rule_set_id",
             "sort_order",
             "enabled",
+            "origin",
             "created_at",
             "updated_at",
         ],
@@ -85,6 +87,7 @@ pub(crate) fn insert_routing_rule(input: &RoutingRuleInput) -> Result<Statement,
             "dest_kind",
             "sort_order",
             "enabled",
+            "origin",
             "created_at",
             "updated_at",
         ],
@@ -119,6 +122,7 @@ pub(crate) fn update_routing_rule(
             "dest_kind",
             "sort_order",
             "enabled",
+            "origin",
             "updated_at",
         ],
         vec![
@@ -130,9 +134,68 @@ pub(crate) fn update_routing_rule(
             value(input.dest_kind.clone()),
             value(input.sort_order),
             value(input.enabled),
+            value("operator"),
             value(now()),
         ],
     )
+}
+
+pub(crate) fn insert_routing_default(input: &RoutingRuleInput) -> Result<Statement, StoreError> {
+    let mut exists = Query::select();
+    exists
+        .expr(Expr::val(1))
+        .from(Alias::new("routing_rules"))
+        .and_where(Expr::col(Alias::new("provider_id")).eq(input.provider_id))
+        .and_where(Expr::col(Alias::new("operation")).eq(input.operation.clone()))
+        .and_where(Expr::col(Alias::new("kind")).eq(input.kind.clone()));
+    let now = now();
+    let mut values = Query::select();
+    values
+        .exprs([
+            value(input.provider_id),
+            value(input.operation.clone()),
+            value(input.kind.clone()),
+            value(input.implementation.clone()),
+            value(input.dest_operation.clone()),
+            value(input.dest_kind.clone()),
+            value(input.sort_order),
+            value(input.enabled),
+            value("channel_default"),
+            value(now),
+            value(now),
+        ])
+        .cond_where(Cond::all().not().add(Expr::exists(exists)));
+    let mut query = Query::insert();
+    query
+        .into_table(Alias::new("routing_rules"))
+        .columns(
+            [
+                "provider_id",
+                "operation",
+                "kind",
+                "implementation",
+                "dest_operation",
+                "dest_kind",
+                "sort_order",
+                "enabled",
+                "origin",
+                "created_at",
+                "updated_at",
+            ]
+            .into_iter()
+            .map(Alias::new),
+        )
+        .select_from(values)
+        .map_err(|error| StoreError::Database(error.to_string()))?;
+    Statement::query(&query)
+}
+
+pub(crate) fn delete_provider_routing_rules(provider_id: i64) -> Result<Statement, StoreError> {
+    let mut query = Query::delete();
+    query
+        .from_table(Alias::new("routing_rules"))
+        .and_where(Expr::col(Alias::new("provider_id")).eq(provider_id));
+    Statement::query(&query)
 }
 
 pub(crate) fn insert_rule_set(input: &RuleSetInput) -> Result<Statement, StoreError> {
@@ -195,6 +258,7 @@ pub(crate) fn insert_rule(input: &RuleInput) -> Result<Statement, StoreError> {
             value(input.filter_header_pattern.clone()),
             value(input.sort_order),
             value(input.enabled),
+            value("operator"),
             value(now),
             value(now),
         ],
@@ -236,6 +300,33 @@ pub(crate) fn update_rule(id: i64, input: &RuleInput) -> Result<Statement, Store
     )
 }
 
+pub(crate) fn insert_provider_rule_set_default(
+    input: &ProviderRuleSetInput,
+) -> Result<Statement, StoreError> {
+    let now = now();
+    insert(
+        "provider_rule_sets",
+        &[
+            "provider_id",
+            "rule_set_id",
+            "sort_order",
+            "enabled",
+            "origin",
+            "created_at",
+            "updated_at",
+        ],
+        vec![
+            value(input.provider_id),
+            value(input.rule_set_id),
+            value(input.sort_order),
+            value(input.enabled),
+            value("channel_default"),
+            value(now),
+            value(now),
+        ],
+    )
+}
+
 pub(crate) fn insert_provider_rule_set(
     input: &ProviderRuleSetInput,
 ) -> Result<Statement, StoreError> {
@@ -247,6 +338,7 @@ pub(crate) fn insert_provider_rule_set(
             "rule_set_id",
             "sort_order",
             "enabled",
+            "origin",
             "created_at",
             "updated_at",
         ],
@@ -255,6 +347,7 @@ pub(crate) fn insert_provider_rule_set(
             value(input.rule_set_id),
             value(input.sort_order),
             value(input.enabled),
+            value("operator"),
             value(now),
             value(now),
         ],
@@ -273,6 +366,7 @@ pub(crate) fn update_provider_rule_set(
             "rule_set_id",
             "sort_order",
             "enabled",
+            "origin",
             "updated_at",
         ],
         vec![
@@ -280,6 +374,7 @@ pub(crate) fn update_provider_rule_set(
             value(input.rule_set_id),
             value(input.sort_order),
             value(input.enabled),
+            value("operator"),
             value(now()),
         ],
     )

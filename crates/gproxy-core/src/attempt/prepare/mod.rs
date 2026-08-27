@@ -1,6 +1,6 @@
 use web_time::Instant;
 
-use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx};
+use gproxy_channel_api::{Channel, ChannelRouteAction, ChannelSupport, PrepareCtx};
 use gproxy_protocol::OperationKey;
 
 use super::{AdmissionCtx, Egress, Prepared};
@@ -40,7 +40,11 @@ pub(crate) fn native_support<H: Host>(
         .descriptor()
         .supports
         .iter()
-        .find(|support| support.source == key && support.target == key)
+        .find(|support| {
+            support.source == key
+                && support.target == key
+                && support.action != ChannelRouteAction::Local
+        })
         .copied())
 }
 
@@ -202,14 +206,17 @@ pub(crate) async fn prepare<H: Host>(
 
 fn route_support(target: &Target, support: ChannelSupport) -> Option<ChannelSupport> {
     match crate::routing::decide(&target.rules.routing, support.source) {
+        None if support.action == ChannelRouteAction::Local => None,
         None => Some(support),
         Some(crate::routing::RoutingDecision::Passthrough) => Some(ChannelSupport {
             source: support.source,
             target: support.source,
+            action: ChannelRouteAction::Passthrough,
         }),
         Some(crate::routing::RoutingDecision::TransformTo(destination)) => Some(ChannelSupport {
             source: support.source,
             target: destination,
+            action: ChannelRouteAction::TransformTo,
         }),
         Some(crate::routing::RoutingDecision::Local)
         | Some(crate::routing::RoutingDecision::Unsupported) => None,

@@ -1,6 +1,7 @@
 //! Framework-free control-plane dispatch shared by every gproxy host.
 
 mod auth;
+mod defaults;
 mod dispatch;
 pub mod dto;
 mod error;
@@ -11,6 +12,7 @@ mod route;
 mod state;
 
 pub use auth::AuthSource;
+pub use defaults::{backfill_provider_defaults, reset_provider_defaults, seed_provider_defaults};
 pub use dispatch::dispatch;
 pub use error::AdminError;
 pub use portal::{PortalIdentity, dispatch as portal_dispatch};

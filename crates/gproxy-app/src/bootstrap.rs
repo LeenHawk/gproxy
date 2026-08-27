@@ -17,6 +17,13 @@ impl App {
         let channels = channels()?;
         #[cfg(not(target_arch = "wasm32"))]
         seed_first_run(&store, &cipher, &channels, config.native()).await?;
+        let catalogue = channels
+            .iter()
+            .map(gproxy_admin::dto::channel_dto)
+            .collect::<Vec<_>>();
+        gproxy_admin::backfill_provider_defaults(&store, &catalogue)
+            .await
+            .map_err(|error| AppError::Bootstrap(error.to_string()))?;
         let runtime = crate::control::RuntimeOverrides::from_config(&config);
         let control = SnapshotControl::new(store.clone(), runtime).await?;
         let cache = cache(&config, store.clone()).await?;

@@ -51,6 +51,9 @@ pub(crate) async fn dispatch(
             provider_id,
             preset,
         } => rule_presets::apply(state, provider_id, &preset).await,
+        Route::ResetRoutingDefaults(provider_id) => {
+            rules::reset_routing_defaults(state, provider_id).await
+        }
         Route::Audit => audit::list(state, parts).await,
         Route::Logs => logs::list(state, parts).await,
         Route::LogDetail(request_id) => logs::detail(state, &request_id).await,

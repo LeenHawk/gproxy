@@ -200,6 +200,9 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("dest_kind", Text),
             Col::required("sort_order", Integer),
             Col::required("enabled", Integer),
+            Col::required("origin", Text)
+                .default("'operator'")
+                .since(SchemaVersion::Wave26),
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
@@ -263,6 +266,9 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("rule_set_id", Integer),
             Col::required("sort_order", Integer),
             Col::required("enabled", Integer),
+            Col::required("origin", Text)
+                .default("'operator'")
+                .since(SchemaVersion::Wave26),
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],

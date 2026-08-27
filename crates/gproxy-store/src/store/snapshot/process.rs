@@ -17,6 +17,7 @@ pub(super) fn routing_rules(result: QueryResult) -> Result<Vec<RoutingRuleRecord
                 dest_kind: row.optional_text("dest_kind")?.map(str::to_owned),
                 sort_order: row.i64("sort_order")?,
                 enabled: row.i64("enabled")? != 0,
+                origin: row.text("origin")?.into(),
                 created_at: row.i64("created_at")?,
                 updated_at: row.i64("updated_at")?,
             })
@@ -86,6 +87,7 @@ pub(super) fn provider_rule_sets(
                 rule_set_id: row.i64("rule_set_id")?,
                 sort_order: row.i64("sort_order")?,
                 enabled: row.i64("enabled")? != 0,
+                origin: row.text("origin")?.into(),
                 created_at: row.i64("created_at")?,
                 updated_at: row.i64("updated_at")?,
             })

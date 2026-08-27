@@ -30,7 +30,7 @@ pub(super) async fn run<H: Host>(
             crate::boundary::RoutingMode::Aggregated
                 | crate::boundary::RoutingMode::Namespace { .. }
         );
-    if !catalogue && operation != Operation::CountTokens {
+    if !catalogue && !local_route(core, plan, classified.key) {
         return None;
     }
     Some(
@@ -44,6 +44,28 @@ pub(super) async fn run<H: Host>(
             started,
         )
         .await,
+    )
+}
+
+fn local_route<H: Host>(core: &Core<H>, plan: &Plan, key: gproxy_protocol::OperationKey) -> bool {
+    plan.targets.iter().any(
+        |target| match crate::routing::decide(&target.rules.routing, key) {
+            Some(crate::routing::RoutingDecision::Local) => true,
+            Some(_) => false,
+            None => core
+                .channels
+                .get(&target.provider.channel)
+                .and_then(|channel| {
+                    channel
+                        .descriptor()
+                        .supports
+                        .iter()
+                        .find(|support| support.source == key)
+                })
+                .is_some_and(|support| {
+                    support.action == gproxy_channel_api::ChannelRouteAction::Local
+                }),
+        },
     )
 }
 

@@ -24,6 +24,7 @@ pub struct RoutingRuleRecord {
     pub dest_kind: Option<String>,
     pub sort_order: i64,
     pub enabled: bool,
+    pub origin: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -87,6 +88,7 @@ pub struct ProviderRuleSetRecord {
     pub rule_set_id: i64,
     pub sort_order: i64,
     pub enabled: bool,
+    pub origin: String,
     pub created_at: i64,
     pub updated_at: i64,
 }

@@ -80,6 +80,8 @@ export const deletePriceRate = (id: number) =>
 export const routingRules = () => api<Array<RoutingRuleDto>>("/admin/routing-rules")
 export const saveRoutingRule = (value: RoutingRuleWriteRequest, id?: number) => save("/admin/routing-rules", value, id)
 export const deleteRoutingRule = (id: number) => deleteEntity("routing-rules", id)
+export const resetRoutingDefaults = (providerId: number) =>
+  api<void>(`/admin/providers/${providerId}/routing-defaults/reset`, json("POST", {}))
 export const ruleSets = () => api<Array<RuleSetDto>>("/admin/rule-sets")
 export const saveRuleSet = (value: RuleSetWriteRequest, id?: number) => save("/admin/rule-sets", value, id)
 export const deleteRuleSet = (id: number) => deleteEntity("rule-sets", id)

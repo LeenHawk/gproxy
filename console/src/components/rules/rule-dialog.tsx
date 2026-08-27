@@ -43,6 +43,11 @@ export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
   }
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
+    const invalid = validationKey(draft, sortOrder)
+    if (invalid) {
+      setError(t(`rules.validation.${invalid}`))
+      return
+    }
     try {
       const config = configFromDraft(draft)
       await onSave({
@@ -56,7 +61,7 @@ export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
       }, rule?.id)
       setOpen(false)
     } catch {
-      setError(t("rules.validation.config"))
+      setError(t("rules.validation.configInvalid"))
     }
   }
   return (
@@ -67,7 +72,7 @@ export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
           <DialogHeader><DialogTitle>{t(rule ? "rules.entries.edit" : "rules.entries.add")}</DialogTitle></DialogHeader>
           <DialogBody><FieldGroup>
             {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-            <Field><FieldLabel htmlFor="rule-kind">{t("rules.fields.kind")}</FieldLabel><Select name="rule-kind" value={draft.kind} onValueChange={(kind) => setDraft({ ...ruleDraft(), kind: kind as RuleConfigDto["kind"] })}><SelectTrigger id="rule-kind" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{KINDS.map((kind) => <SelectItem key={kind} value={kind}>{t(`rules.kinds.${kind}`)}</SelectItem>)}</SelectContent></Select></Field>
+            <Field><FieldLabel htmlFor="rule-kind">{t("rules.fields.kind")}</FieldLabel><Select name="rule-kind" value={draft.kind} onValueChange={(kind) => setDraft({ ...ruleDraft(), kind: kind as RuleConfigDto["kind"] })}><SelectTrigger id="rule-kind" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{KINDS.map((kind) => <SelectItem key={kind} value={kind}>{t(`rules.kinds.${kind}`)}</SelectItem>)}</SelectContent></Select><FieldDescription>{t(`rules.kindDesc.${draft.kind}`)}</FieldDescription></Field>
             <RuleConfigFields draft={draft} onChange={setDraft} />
             <Field><FieldLabel htmlFor="rule-model-filter">{t("rules.filters.model")}</FieldLabel><Input id="rule-model-filter" className="font-mono" value={model} placeholder={t("rules.placeholders.allModels")} onChange={(event) => setModel(event.target.value)} /><FieldDescription>{t("rules.filters.modelHelp")}</FieldDescription></Field>
             <Field><FieldLabel htmlFor="rule-operation-filter">{t("rules.filters.operations")}</FieldLabel><Input id="rule-operation-filter" className="font-mono" value={operations} placeholder={t("rules.placeholders.allOperations")} onChange={(event) => setOperations(event.target.value)} /><FieldDescription>{t("rules.filters.operationsHelp")}</FieldDescription></Field>
@@ -84,4 +89,15 @@ export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
 function operationFilters(value: string) {
   const operations = value.split(",").map((item) => item.trim()).filter(Boolean)
   return operations.length ? operations : null
+}
+
+function validationKey(draft: RuleDraft, sortOrder: string) {
+  if (!Number.isFinite(Number(sortOrder))) return "sortOrderRequired"
+  if (draft.kind === "system_text" && !draft.text.trim()) return "configTextRequired"
+  if (draft.kind === "cache_breakpoint" && !draft.cacheTarget) return "configTargetRequired"
+  if (draft.kind === "cache_breakpoint" && Number(draft.cacheIndex) === 0) return "cacheIndexZero"
+  if (draft.kind === "rewrite" && !draft.path.trim()) return "configPathRequired"
+  if (draft.kind === "header" && !draft.headerName.trim()) return "configHeaderNameRequired"
+  if (draft.kind === "transform" && (!draft.locateValue.trim() || draft.actions.length === 0)) return "configTransformRequired"
+  return null
 }

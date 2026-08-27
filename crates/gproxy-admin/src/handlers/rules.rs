@@ -52,6 +52,7 @@ pub(super) async fn list(
                     rule_set_id: value.rule_set_id,
                     sort_order: value.sort_order,
                     enabled: value.enabled,
+                    inherited: value.origin == "channel_default",
                 })
                 .collect::<Vec<_>>(),
         ),
@@ -155,6 +156,27 @@ pub(super) async fn delete(
         _ => return Err(AdminError::NotFound),
     };
     util::updated(state, applied).await
+}
+
+pub(super) async fn reset_routing_defaults(
+    state: &impl State,
+    provider_id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    let provider = state
+        .store()
+        .control_snapshot()
+        .await?
+        .providers
+        .into_iter()
+        .find(|provider| provider.id == provider_id)
+        .ok_or(AdminError::NotFound)?;
+    let channel = state
+        .channel_catalogue()
+        .into_iter()
+        .find(|channel| channel.id == provider.channel)
+        .ok_or(AdminError::NotFound)?;
+    crate::reset_provider_defaults(state.store(), provider_id, &channel).await?;
+    util::updated(state, true).await
 }
 
 fn entity_is_rule_set(entity: Entity) -> bool {
@@ -304,6 +326,7 @@ pub(super) fn routing_dto(
         dest_kind: value.dest_kind.clone(),
         sort_order: value.sort_order,
         enabled: value.enabled,
+        inherited: value.origin == "channel_default",
     })
 }
 

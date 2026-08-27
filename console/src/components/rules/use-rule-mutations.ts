@@ -19,7 +19,7 @@ export function useRuleMutations(): RuleMutations {
   const setDelete = useMutation({ mutationFn: deleteRuleSet, onSuccess: refresh, onError: failed })
   const ruleMutation = useMutation({ mutationFn: ({ value, id }: { value: RuleWriteRequest; id?: number }) => saveRule(value, id), onSuccess: async () => { await refresh(); saved() }, onError: failed })
   const ruleDelete = useMutation({ mutationFn: deleteRule, onSuccess: refresh, onError: failed })
-  const attachmentMutation = useMutation({ mutationFn: (value: ProviderRuleSetWriteRequest) => saveProviderRuleSet(value), onSuccess: async () => { await refresh(); saved() }, onError: failed })
+  const attachmentMutation = useMutation({ mutationFn: ({ value, id }: { value: ProviderRuleSetWriteRequest; id?: number }) => saveProviderRuleSet(value, id), onSuccess: async () => { await refresh(); saved() }, onError: failed })
   const attachmentDelete = useMutation({ mutationFn: deleteProviderRuleSet, onSuccess: refresh, onError: failed })
   const pending = [setMutation, setDelete, ruleMutation, ruleDelete, attachmentMutation, attachmentDelete].some((mutation) => mutation.isPending)
   return {
@@ -28,7 +28,7 @@ export function useRuleMutations(): RuleMutations {
     deleteSet: (id) => setDelete.mutate(id),
     saveRule: async (value, id) => { await ruleMutation.mutateAsync({ value, id }) },
     deleteRule: (id) => ruleDelete.mutate(id),
-    attach: async (value) => { await attachmentMutation.mutateAsync(value) },
+    attach: async (value, id) => { await attachmentMutation.mutateAsync({ value, id }) },
     detach: (id) => attachmentDelete.mutate(id),
   }
 }

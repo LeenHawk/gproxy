@@ -15,7 +15,14 @@ pub(super) async fn create(
     let id = match entity {
         Entity::Providers => {
             let input = super::inputs::provider(state, util::parse(body)?)?;
-            state.store().insert_provider(&input).await?
+            let id = state.store().insert_provider(&input).await?;
+            let channel = state
+                .channel_catalogue()
+                .into_iter()
+                .find(|channel| channel.id == input.channel)
+                .ok_or_else(|| AdminError::BadRequest("unknown channel".into()))?;
+            crate::seed_provider_defaults(state.store(), id, &channel).await?;
+            id
         }
         Entity::Credentials => {
             let request: CredentialWriteRequest = util::parse(body)?;
