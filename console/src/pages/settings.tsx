@@ -5,6 +5,7 @@ import { PageLayout } from "@/components/page-layout"
 import { QueryState } from "@/components/query-state"
 import { InstanceSettingsForm } from "@/components/settings/instance-settings-form"
 import { TokenizerVocabsCard } from "@/components/settings/tokenizer-vocabs-card"
+import { ConfigurationTransferCard } from "@/components/settings/configuration-transfer-card"
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -15,6 +16,7 @@ export function SettingsPage() {
       <QueryState loading={query.isLoading} error={query.error ? t("settings.loadError") : ""}>
         {query.data ? <InstanceSettingsForm settings={query.data} /> : null}
       </QueryState>
+      <ConfigurationTransferCard />
       <QueryState loading={vocabs.isLoading} error={vocabs.error ? t("settings.tokenizers.loadError") : ""}>
         {query.data && vocabs.data ? <TokenizerVocabsCard values={vocabs.data} downloadEnabled={query.data.enable_tokenizer_download} /> : null}
       </QueryState>

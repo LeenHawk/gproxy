@@ -11,6 +11,7 @@ mod portal;
 mod pricing;
 mod rules;
 mod settings;
+mod transfer;
 mod usage;
 
 pub use audit::*;
@@ -26,6 +27,7 @@ pub use portal::*;
 pub use pricing::*;
 pub use rules::*;
 pub use settings::*;
+pub use transfer::*;
 pub use usage::*;
 
 #[cfg(test)]

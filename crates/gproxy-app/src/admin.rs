@@ -1,9 +1,10 @@
+mod import;
 mod portal;
 
 use std::time::Duration;
 
 use base64::Engine as _;
-use gproxy_admin::dto::{ChannelDto, PortalModelDto, channel_dto};
+use gproxy_admin::dto::{ChannelDto, ExportSourceKeyDto, PortalModelDto, channel_dto};
 use gproxy_admin::{AdminError, PortalIdentity, State};
 use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll};
 use gproxy_core::CacheBackend;
@@ -35,6 +36,39 @@ impl State for AppHandle {
             .services
             .cipher
             .seal_user_key(&serde_json::Value::String(api_key.into()))
+            .map_err(|error| AdminError::Internal(error.to_string()))
+    }
+
+    fn reseal_imported_credential(
+        &self,
+        envelope: &CredentialEnvelope,
+        source: &ExportSourceKeyDto,
+        source_master_key: Option<&str>,
+    ) -> Result<CredentialEnvelope, AdminError> {
+        let source = import::cipher(source, source_master_key)?;
+        let value = source.open(envelope).map_err(|_| {
+            AdminError::BadRequest(
+                "credential secret could not be opened with the source key".into(),
+            )
+        })?;
+        self.seal_credential(&value)
+    }
+
+    fn reseal_imported_user_key(
+        &self,
+        envelope: &CredentialEnvelope,
+        source: &ExportSourceKeyDto,
+        source_master_key: Option<&str>,
+    ) -> Result<CredentialEnvelope, AdminError> {
+        let source = import::cipher(source, source_master_key)?;
+        let value = source.open_user_key(envelope).map_err(|_| {
+            AdminError::BadRequest("user key could not be opened with the source key".into())
+        })?;
+        self.inner
+            .host
+            .services
+            .cipher
+            .seal_user_key(&value)
             .map_err(|error| AdminError::Internal(error.to_string()))
     }
 

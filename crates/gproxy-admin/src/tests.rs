@@ -31,6 +31,24 @@ impl State for TestState {
         Ok(envelope())
     }
 
+    fn reseal_imported_credential(
+        &self,
+        envelope: &CredentialEnvelope,
+        _: &crate::dto::ExportSourceKeyDto,
+        _: Option<&str>,
+    ) -> Result<CredentialEnvelope, AdminError> {
+        Ok(envelope.clone())
+    }
+
+    fn reseal_imported_user_key(
+        &self,
+        envelope: &CredentialEnvelope,
+        _: &crate::dto::ExportSourceKeyDto,
+        _: Option<&str>,
+    ) -> Result<CredentialEnvelope, AdminError> {
+        Ok(envelope.clone())
+    }
+
     fn digest_user_key(&self, api_key: &str) -> (u32, Vec<u8>) {
         (1, Sha256::digest(api_key.as_bytes()).to_vec())
     }

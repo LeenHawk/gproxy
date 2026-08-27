@@ -1,6 +1,6 @@
 mod inputs;
 mod keys;
-mod map;
+pub(super) mod map;
 mod validators;
 mod write;
 

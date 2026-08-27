@@ -11,6 +11,7 @@ mod portal_settings;
 mod pricing;
 mod rules;
 mod tokenizer_vocabs;
+mod transfer;
 mod util;
 
 use bytes::Bytes;
@@ -34,6 +35,8 @@ pub(crate) async fn dispatch(
         Route::Update(entity, id) => update(state, entity, id, body).await,
         Route::Delete(entity, id) => delete(state, entity, id).await,
         Route::Batch(entity) => batch::run(state, entity, body).await,
+        Route::ConfigurationExport => transfer::export(state, body).await,
+        Route::ConfigurationImport => transfer::import(state, body).await,
         Route::RevealUserKey(id) => identity::reveal(state, admin, id).await,
         Route::Usage => observability::usage(state, parts).await,
         Route::QuotaWindows => observability::quota_windows(state, parts).await,

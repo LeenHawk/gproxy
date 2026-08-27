@@ -2,7 +2,9 @@ use crate::dto::{
     OrganizationDto, PermissionDto, QuotaDto, RateLimitDto, TeamDto, UserDto, UserKeyDto,
 };
 
-pub(super) fn organization(value: &gproxy_store::records::OrganizationRecord) -> OrganizationDto {
+pub(in crate::handlers) fn organization(
+    value: &gproxy_store::records::OrganizationRecord,
+) -> OrganizationDto {
     OrganizationDto {
         id: value.id,
         name: value.name.clone(),
@@ -10,7 +12,7 @@ pub(super) fn organization(value: &gproxy_store::records::OrganizationRecord) ->
     }
 }
 
-pub(super) fn team(value: &gproxy_store::records::TeamRecord) -> TeamDto {
+pub(in crate::handlers) fn team(value: &gproxy_store::records::TeamRecord) -> TeamDto {
     TeamDto {
         id: value.id,
         organization_id: value.organization_id,
@@ -19,7 +21,7 @@ pub(super) fn team(value: &gproxy_store::records::TeamRecord) -> TeamDto {
     }
 }
 
-pub(super) fn user(value: &gproxy_store::records::UserRecord) -> UserDto {
+pub(in crate::handlers) fn user(value: &gproxy_store::records::UserRecord) -> UserDto {
     UserDto {
         id: value.id,
         name: value.name.clone(),
@@ -29,7 +31,7 @@ pub(super) fn user(value: &gproxy_store::records::UserRecord) -> UserDto {
     }
 }
 
-pub(super) fn user_key(value: &gproxy_store::records::UserKeyRecord) -> UserKeyDto {
+pub(in crate::handlers) fn user_key(value: &gproxy_store::records::UserKeyRecord) -> UserKeyDto {
     UserKeyDto {
         id: value.id,
         user_id: value.user_id,
@@ -62,7 +64,7 @@ pub(super) fn rate_limit(value: &gproxy_store::records::RateLimitRecord) -> Rate
     }
 }
 
-pub(super) fn quota(value: &gproxy_store::records::QuotaRecord) -> QuotaDto {
+pub(in crate::handlers) fn quota(value: &gproxy_store::records::QuotaRecord) -> QuotaDto {
     QuotaDto {
         id: value.id,
         subject_kind: value.subject_kind.clone(),

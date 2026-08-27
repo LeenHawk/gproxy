@@ -16,6 +16,10 @@ import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
 import type { BatchActionDto } from "@/generated/BatchActionDto"
 import type { BatchResponse } from "@/generated/BatchResponse"
 import type { Entity } from "@/generated/Entity"
+import type { ConfigurationExportDto } from "@/generated/ConfigurationExportDto"
+import type { ConfigurationExportRequest } from "@/generated/ConfigurationExportRequest"
+import type { ConfigurationImportRequest } from "@/generated/ConfigurationImportRequest"
+import type { ConfigurationImportResponse } from "@/generated/ConfigurationImportResponse"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import type { RouteMemberWriteRequest } from "@/generated/RouteMemberWriteRequest"
@@ -35,6 +39,10 @@ const save = <T>(path: string, value: T, id?: number) =>
 
 export const batch = (entity: Entity, action: BatchActionDto, ids: Array<number>) =>
   api<BatchResponse>(`/admin/batch/${entity}`, json("POST", { action, ids }))
+export const exportConfiguration = (value: ConfigurationExportRequest) =>
+  api<ConfigurationExportDto>("/admin/export", json("POST", value))
+export const importConfiguration = (value: ConfigurationImportRequest) =>
+  api<ConfigurationImportResponse>("/admin/import", json("POST", value))
 
 export const providers = () => api<Array<ProviderDto>>("/admin/providers")
 export const saveProvider = (value: ProviderWriteRequest, id?: number) =>

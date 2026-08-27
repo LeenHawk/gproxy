@@ -2,7 +2,7 @@ use crate::dto::{
     AliasDto, CredentialDto, CredentialHealthDto, ModelAliasDto, ProviderDto, RouteDto,
     RouteMemberDto,
 };
-pub(super) fn provider(value: &gproxy_store::records::ProviderRecord) -> ProviderDto {
+pub(in crate::handlers) fn provider(value: &gproxy_store::records::ProviderRecord) -> ProviderDto {
     let (tls_fingerprint, invalid_tls_fingerprint, tls_fingerprint_error) =
         match value.tls_fingerprint.clone() {
             Some(raw) => match serde_json::from_value(raw.clone()) {
@@ -26,7 +26,7 @@ pub(super) fn provider(value: &gproxy_store::records::ProviderRecord) -> Provide
     }
 }
 
-pub(super) fn credential(
+pub(in crate::handlers) fn credential(
     value: &gproxy_store::records::CredentialAdminRecord,
     health: Option<&gproxy_store::records::CredentialHealthRecord>,
 ) -> CredentialDto {
@@ -68,7 +68,7 @@ pub(super) fn credential(
     }
 }
 
-pub(super) fn route(value: &gproxy_store::records::RouteRecord) -> RouteDto {
+pub(in crate::handlers) fn route(value: &gproxy_store::records::RouteRecord) -> RouteDto {
     RouteDto {
         id: value.id,
         name: value.name.clone(),
@@ -77,7 +77,9 @@ pub(super) fn route(value: &gproxy_store::records::RouteRecord) -> RouteDto {
     }
 }
 
-pub(super) fn route_member(value: &gproxy_store::records::RouteMemberRecord) -> RouteMemberDto {
+pub(in crate::handlers) fn route_member(
+    value: &gproxy_store::records::RouteMemberRecord,
+) -> RouteMemberDto {
     RouteMemberDto {
         id: value.id,
         route_id: value.route_id,
@@ -90,7 +92,7 @@ pub(super) fn route_member(value: &gproxy_store::records::RouteMemberRecord) -> 
     }
 }
 
-pub(super) fn alias(value: &gproxy_store::records::AliasRecord) -> AliasDto {
+pub(in crate::handlers) fn alias(value: &gproxy_store::records::AliasRecord) -> AliasDto {
     AliasDto {
         id: value.id,
         alias: value.alias.clone(),
@@ -101,7 +103,9 @@ pub(super) fn alias(value: &gproxy_store::records::AliasRecord) -> AliasDto {
     }
 }
 
-pub(super) fn model_alias(value: &gproxy_store::records::ExposedModelRecord) -> ModelAliasDto {
+pub(in crate::handlers) fn model_alias(
+    value: &gproxy_store::records::ExposedModelRecord,
+) -> ModelAliasDto {
     ModelAliasDto {
         id: value.id,
         name: value.name.clone(),

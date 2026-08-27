@@ -3,9 +3,11 @@ mod quota;
 mod setup;
 mod tokenizer;
 
+use base64::Engine as _;
 use bytes::Bytes;
 use gproxy_core::CaptureSink;
 use serde_json::json;
+use sha2::{Digest as _, Sha256};
 
 fn generation_operation() -> gproxy_protocol::OperationKey {
     gproxy_protocol::OperationKey::content(
@@ -276,6 +278,102 @@ async fn sealed_store_without_key_names_required_fingerprint() {
 }
 
 #[tokio::test]
+async fn configuration_import_reseals_credentials_under_the_destination_key() {
+    let source_directory = tempfile::tempdir().unwrap();
+    let destination_directory = tempfile::tempdir().unwrap();
+    let source_key = [51; 32];
+    let destination_key = [73; 32];
+    let source = crate::App::start(test_config(
+        source_directory.path(),
+        crate::MasterKeyConfig::new(Some(source_key)),
+    ))
+    .await
+    .unwrap();
+    let provider = setup::id(
+        source
+            .mutate(crate::ControlMutation::Provider(
+                gproxy_store::records::ProviderInput {
+                    name: "export-provider".into(),
+                    label: None,
+                    channel: "openai".into(),
+                    settings: json!({}),
+                    credential_strategy: "round_robin".into(),
+                    proxy_url: None,
+                    tls_fingerprint: None,
+                    enabled: true,
+                },
+            ))
+            .await
+            .unwrap(),
+    );
+    source
+        .mutate(crate::ControlMutation::Credential {
+            provider_id: provider,
+            label: Some("migrated".into()),
+            secret: json!({"api_key": "source-secret"}),
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    seed_admin_key(&source).await;
+    let export = source
+        .admin_dispatch(
+            &admin_parts(http::Method::POST, "/admin/export"),
+            Bytes::from_static(br#"{"include_secrets":true}"#),
+        )
+        .await
+        .unwrap();
+    assert_eq!(export.status(), http::StatusCode::OK);
+    let export: gproxy_admin::dto::ConfigurationExportDto =
+        serde_json::from_slice(export.body()).unwrap();
+
+    let destination = crate::App::start(test_config(
+        destination_directory.path(),
+        crate::MasterKeyConfig::new(Some(destination_key)),
+    ))
+    .await
+    .unwrap();
+    seed_admin_key(&destination).await;
+    let body = serde_json::to_vec(&gproxy_admin::dto::ConfigurationImportRequest {
+        export,
+        source_master_key: Some(base64::engine::general_purpose::STANDARD.encode(source_key)),
+    })
+    .unwrap();
+    let imported = destination
+        .admin_dispatch(
+            &admin_parts(http::Method::POST, "/admin/import"),
+            Bytes::from(body),
+        )
+        .await
+        .unwrap();
+    assert_eq!(imported.status(), http::StatusCode::OK);
+    let credential = destination
+        .inner
+        .host
+        .services
+        .store
+        .credential(1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        destination
+            .inner
+            .host
+            .services
+            .cipher
+            .open(&credential.envelope)
+            .unwrap(),
+        json!({"api_key": "source-secret"})
+    );
+    assert!(
+        crate::secrets::EnvelopeCipher::new(Some(source_key))
+            .open(&credential.envelope)
+            .is_err()
+    );
+}
+
+#[tokio::test]
 async fn environment_admin_seed_is_first_run_only() {
     let directory = tempfile::tempdir().unwrap();
     let config = |password: &str| {
@@ -319,6 +417,29 @@ async fn environment_admin_seed_is_first_run_only() {
 
 fn test_config(path: &std::path::Path, keys: crate::MasterKeyConfig) -> crate::Config {
     crate::Config::sqlite("127.0.0.1:0".parse().unwrap(), path.to_path_buf(), keys)
+}
+
+fn admin_parts(method: http::Method, path: &str) -> http::request::Parts {
+    http::Request::builder()
+        .method(method)
+        .uri(path)
+        .header(http::header::AUTHORIZATION, "Bearer transfer-admin-key")
+        .body(())
+        .unwrap()
+        .into_parts()
+        .0
+}
+
+async fn seed_admin_key(app: &crate::AppHandle) {
+    let store = &app.inner.host.services.store;
+    let id = gproxy_admin::seed_first_admin(store, "transfer-admin", "transfer-password")
+        .await
+        .unwrap()
+        .unwrap();
+    store
+        .create_admin_api_key(&Sha256::digest(b"transfer-admin-key"), id, 1)
+        .await
+        .unwrap();
 }
 
 async fn assert_secret_inventory(app: &crate::AppHandle, key: Option<&[u8; 32]>) {

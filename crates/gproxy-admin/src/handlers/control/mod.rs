@@ -1,5 +1,5 @@
 mod inputs;
-mod map;
+pub(super) mod map;
 pub(super) mod validators;
 mod write;
 

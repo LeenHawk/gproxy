@@ -1,7 +1,7 @@
 use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll, MaybeSend, MaybeSync};
 use gproxy_store::records::CredentialEnvelope;
 
-use crate::dto::{ChannelDto, PortalModelDto, TokenizerVocabDto};
+use crate::dto::{ChannelDto, ExportSourceKeyDto, PortalModelDto, TokenizerVocabDto};
 use crate::{AdminError, PortalIdentity};
 
 pub trait State: MaybeSend + MaybeSync {
@@ -11,6 +11,20 @@ pub trait State: MaybeSend + MaybeSync {
     -> Result<CredentialEnvelope, AdminError>;
 
     fn seal_user_key(&self, api_key: &str) -> Result<CredentialEnvelope, AdminError>;
+
+    fn reseal_imported_credential(
+        &self,
+        envelope: &CredentialEnvelope,
+        source: &ExportSourceKeyDto,
+        source_master_key: Option<&str>,
+    ) -> Result<CredentialEnvelope, AdminError>;
+
+    fn reseal_imported_user_key(
+        &self,
+        envelope: &CredentialEnvelope,
+        source: &ExportSourceKeyDto,
+        source_master_key: Option<&str>,
+    ) -> Result<CredentialEnvelope, AdminError>;
 
     fn digest_user_key(&self, api_key: &str) -> (u32, Vec<u8>);
 

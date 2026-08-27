@@ -34,6 +34,8 @@ pub(crate) enum Route {
     Update(Entity, i64),
     Delete(Entity, i64),
     Batch(Entity),
+    ConfigurationExport,
+    ConfigurationImport,
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -130,6 +132,8 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::DELETE, "tokenizer-vocabs") => Some(Route::TokenizerVocabDelete),
         (&Method::GET, "portal-settings") => Some(Route::PortalSettingsRead),
         (&Method::PATCH, "portal-settings") => Some(Route::PortalSettingsWrite),
+        (&Method::POST, "export") => Some(Route::ConfigurationExport),
+        (&Method::POST, "import") => Some(Route::ConfigurationImport),
         _ => None,
     }
 }
