@@ -43,6 +43,8 @@ pub(crate) enum Route {
     CredentialCycles,
     Channels,
     TlsPresets,
+    RulePresets,
+    ApplyRulePreset { provider_id: i64, preset: String },
     Audit,
     Logs,
     LogDetail(String),
@@ -78,6 +80,12 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if segments.as_slice() == ["connectivity", "test"] {
             return Some(Route::ConnectivityTest);
+        }
+        if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
+            return Some(Route::ApplyRulePreset {
+                provider_id: provider.parse().ok()?,
+                preset: (*preset).to_owned(),
+            });
         }
     }
     if segments.len() == 3
@@ -125,6 +133,7 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::GET, "credential-cycles") => Some(Route::CredentialCycles),
         (&Method::GET, "channels") => Some(Route::Channels),
         (&Method::GET, "tls-presets") => Some(Route::TlsPresets),
+        (&Method::GET, "rule-presets") => Some(Route::RulePresets),
         (&Method::GET, "audit") => Some(Route::Audit),
         (&Method::GET, "logs") => Some(Route::Logs),
         (&Method::GET, "log-settings") => Some(Route::LogSettingsRead),

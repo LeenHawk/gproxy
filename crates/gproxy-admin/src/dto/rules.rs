@@ -216,3 +216,30 @@ pub struct ProviderRuleSetWriteRequest {
     pub sort_order: i64,
     pub enabled: bool,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum RulePresetCategoryDto {
+    Application,
+    Cache,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct RulePresetRuleDto {
+    pub config: RuleConfigDto,
+    pub filter_model_pattern: Option<String>,
+    pub filter_operations: Option<Vec<String>>,
+    pub filter_header_pattern: Option<String>,
+    pub sort_order: i64,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct RulePresetDto {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub category: RulePresetCategoryDto,
+    pub rules: Vec<RulePresetRuleDto>,
+}

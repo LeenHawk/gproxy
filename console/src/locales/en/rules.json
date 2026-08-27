@@ -13,6 +13,7 @@
       "summary": { "system_text": "{{position}} system text", "cache_breakpoint": "Cache breakpoint on {{target}} · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}} transform · {{count}} action(s)", "header": "{{mode}} header {{name}}" }
     },
     "attachments": { "title": "Attached providers", "add": "Attach rule set", "attach": "Attach", "attachExisting": "Attach existing set", "detach": "Detach", "empty": "No rule sets are attached to this provider." },
+    "presets": { "apply": "Apply compatibility preset", "applying": "Applying preset", "application": "Client application", "applied": "Compatibility preset applied", "applyError": "Could not apply the compatibility preset." },
     "scope": { "unused": "Unused", "private": "One provider", "shared": "Shared" },
     "routing": { "tab": "Transform routing", "title": "Transform dispatch", "description": "Each source operation and wire kind inherits its channel declaration until an explicit provider rule overrides it.", "add": "Add routing rule", "edit": "Edit routing rule", "override": "Override inherited dispatch", "transformSummary": "{{implementation}} {{destination}}" },
     "fields": {

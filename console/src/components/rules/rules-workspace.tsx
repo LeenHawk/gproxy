@@ -6,6 +6,7 @@ import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
 import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
 import { AttachmentDialog } from "./attachment-dialog"
+import { ApplicationPresetButton } from "./application-preset-button"
 import { RuleList } from "./rule-list"
 import { RuleSetDialog } from "./rule-set-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -49,7 +50,7 @@ export function RulesWorkspace({ ruleSets, rules, attachments, providers, scopeP
   const unattached = ruleSets.filter((ruleSet) => !scopedAttachments.some((attachment) => attachment.rule_set_id === ruleSet.id))
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap justify-end gap-2">
-      {scopeProviderId == null ? <RuleSetDialog saving={mutations.saving} onSave={mutations.saveSet} trigger={<Button><PlusIcon data-icon="inline-start" />{t("rules.sets.add")}</Button>} /> : <AttachmentDialog providers={providers} ruleSets={unattached} fixedProviderId={scopeProviderId} saving={mutations.saving} onSave={mutations.attach} trigger={<Button disabled={!unattached.length}><LinkIcon data-icon="inline-start" />{t("rules.attachments.attachExisting")}</Button>} />}
+      {scopeProviderId == null ? <RuleSetDialog saving={mutations.saving} onSave={mutations.saveSet} trigger={<Button><PlusIcon data-icon="inline-start" />{t("rules.sets.add")}</Button>} /> : <><ApplicationPresetButton providerId={scopeProviderId} /><AttachmentDialog providers={providers} ruleSets={unattached} fixedProviderId={scopeProviderId} saving={mutations.saving} onSave={mutations.attach} trigger={<Button disabled={!unattached.length}><LinkIcon data-icon="inline-start" />{t("rules.attachments.attachExisting")}</Button>} /></>}
     </div>
     <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(16rem,0.7fr)_minmax(0,1.3fr)]">
       <div className={cn(selected && "hidden md:block")}><DataTable columns={columns} rows={visibleSets} rowKey={(ruleSet) => ruleSet.id} searchText={(ruleSet) => `${ruleSet.name} ${ruleSet.description ?? ""}`} renderCard={(ruleSet) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{ruleSet.name}</p><p className="truncate text-xs text-muted-foreground">{ruleSet.description ?? t("rules.sets.noDescription")}</p></div><Badge variant="secondary">{scopeLabel(attachments.filter((attachment) => attachment.rule_set_id === ruleSet.id).length, t)}</Badge></div>} empty={t(scopeProviderId == null ? "rules.sets.empty" : "rules.attachments.empty")} storageKey={scopeProviderId == null ? "rule-sets" : `provider-${scopeProviderId}-rule-sets`} activeRowKey={selected?.id} selectable batchActions={(rows) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} remove={scopeProviderId == null} />} onRowClick={(ruleSet) => setSelectedId(ruleSet.id)} /></div>

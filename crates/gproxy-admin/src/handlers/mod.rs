@@ -10,6 +10,7 @@ mod logs;
 pub(crate) mod observability;
 mod portal_settings;
 mod pricing;
+mod rule_presets;
 mod rules;
 mod tokenizer_vocabs;
 mod transfer;
@@ -45,6 +46,11 @@ pub(crate) async fn dispatch(
         Route::CredentialCycles => observability::credential_cycles(state, parts).await,
         Route::Channels => catalogue::channels(state),
         Route::TlsPresets => catalogue::tls_presets(),
+        Route::RulePresets => rule_presets::list(),
+        Route::ApplyRulePreset {
+            provider_id,
+            preset,
+        } => rule_presets::apply(state, provider_id, &preset).await,
         Route::Audit => audit::list(state, parts).await,
         Route::Logs => logs::list(state, parts).await,
         Route::LogDetail(request_id) => logs::detail(state, &request_id).await,

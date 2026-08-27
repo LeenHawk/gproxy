@@ -309,10 +309,27 @@ pub(super) fn routing_dto(
 
 pub(super) fn rule_dto(value: &gproxy_store::records::RuleRecord) -> Result<RuleDto, AdminError> {
     let mut config = value.config.clone();
-    config
+    let object = config
         .as_object_mut()
-        .ok_or_else(|| AdminError::Internal("stored rule config is not an object".into()))?
-        .insert("kind".into(), value.kind.clone().into());
+        .ok_or_else(|| AdminError::Internal("stored rule config is not an object".into()))?;
+    if value.kind == "transform"
+        && let Some(locate) = object.get_mut("locate")
+        && let Some(map) = locate.as_object_mut()
+    {
+        let tagged = ["path", "paths", "match"].into_iter().find_map(|kind| {
+            map.remove(kind)
+                .map(|value| serde_json::json!({"type": kind, "value": value}))
+        });
+        if let Some(tagged) = tagged {
+            *locate = tagged;
+        }
+    }
+    if value.kind == "rewrite"
+        && let Some(value) = object.remove("value_json")
+    {
+        object.insert("value".into(), value);
+    }
+    object.insert("kind".into(), value.kind.clone().into());
     Ok(RuleDto {
         id: value.id,
         rule_set_id: value.rule_set_id,

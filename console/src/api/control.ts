@@ -34,6 +34,7 @@ import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
 import type { RuleSetWriteRequest } from "@/generated/RuleSetWriteRequest"
 import type { RuleWriteRequest } from "@/generated/RuleWriteRequest"
+import type { RulePresetDto } from "@/generated/RulePresetDto"
 import { api, json } from "@/api/client"
 
 const save = <T>(path: string, value: T, id?: number) =>
@@ -86,6 +87,9 @@ export const deleteRule = (id: number) => api<void>(`/admin/rules/${id}`, { meth
 export const providerRuleSets = () => api<Array<ProviderRuleSetDto>>("/admin/provider-rule-sets")
 export const saveProviderRuleSet = (value: ProviderRuleSetWriteRequest, id?: number) => save("/admin/provider-rule-sets", value, id)
 export const deleteProviderRuleSet = (id: number) => api<void>(`/admin/provider-rule-sets/${id}`, { method: "DELETE" })
+export const rulePresets = () => api<Array<RulePresetDto>>("/admin/rule-presets")
+export const applyRulePreset = (providerId: number, preset: string) =>
+  api<RuleSetDto>(`/admin/providers/${providerId}/rule-presets/${preset}`, json("POST", {}))
 export const instanceSettings = () => api<InstanceSettingsDto>("/admin/instance-settings")
 export const saveInstanceSettings = (value: InstanceSettingsDto) =>
   api<InstanceSettingsDto>("/admin/instance-settings", json("PATCH", value))
