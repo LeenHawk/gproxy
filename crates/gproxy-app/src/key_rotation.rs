@@ -19,7 +19,7 @@ pub(crate) async fn prepare(
     if !keys.rotate {
         if !matches!(&keys.next, RotationTarget::Unset) {
             tracing::warn!(
-                "GPROXY_SECRET_KEY_NEXT is set but GPROXY_SECRET_KEY_ROTATE is off; rotation was not attempted"
+                "GPROXY_MASTER_KEY_NEXT is set but GPROXY_MASTER_KEY_ROTATE is off; rotation was not attempted"
             );
         }
         if matches!(inventory.fingerprint, MasterKeyFingerprint::Missing) {
@@ -28,7 +28,7 @@ pub(crate) async fn prepare(
                 .await?;
         }
         if keys.current.is_none() {
-            tracing::warn!("secrets are stored in plaintext because GPROXY_SECRET_KEY is unset");
+            tracing::warn!("secrets are stored in plaintext because GPROXY_MASTER_KEY is unset");
         }
         return Ok(current);
     }
@@ -36,7 +36,7 @@ pub(crate) async fn prepare(
     let next_key = match &keys.next {
         RotationTarget::Unset => {
             return Err(AppError::Bootstrap(
-                "GPROXY_SECRET_KEY_ROTATE is on but GPROXY_SECRET_KEY_NEXT is unset".into(),
+                "GPROXY_MASTER_KEY_ROTATE is on but GPROXY_MASTER_KEY_NEXT is unset".into(),
             ));
         }
         RotationTarget::Plaintext => None,
@@ -51,11 +51,11 @@ pub(crate) async fn prepare(
         .await?;
     if next_key.is_some() {
         tracing::warn!(
-            "secret-key rotation completed; copy GPROXY_SECRET_KEY_NEXT to GPROXY_SECRET_KEY, then clear GPROXY_SECRET_KEY_NEXT and GPROXY_SECRET_KEY_ROTATE"
+            "secret-key rotation completed; copy GPROXY_MASTER_KEY_NEXT to GPROXY_MASTER_KEY, then clear GPROXY_MASTER_KEY_NEXT and GPROXY_MASTER_KEY_ROTATE"
         );
     } else {
         tracing::warn!(
-            "secret-key rotation to plaintext completed; unset GPROXY_SECRET_KEY, then clear GPROXY_SECRET_KEY_NEXT and GPROXY_SECRET_KEY_ROTATE"
+            "secret-key rotation to plaintext completed; unset GPROXY_MASTER_KEY, then clear GPROXY_MASTER_KEY_NEXT and GPROXY_MASTER_KEY_ROTATE"
         );
     }
     Ok(next)
@@ -69,7 +69,7 @@ fn require_mode(stored: &MasterKeyFingerprint, supplied: Option<&str>) -> Result
             "store requires secret key fingerprint {required}"
         ))),
         (MasterKeyFingerprint::Plaintext, Some(_)) => Err(AppError::Encryption(
-            "store requires plaintext mode, but GPROXY_SECRET_KEY is set".into(),
+            "store requires plaintext mode, but GPROXY_MASTER_KEY is set".into(),
         )),
     }
 }

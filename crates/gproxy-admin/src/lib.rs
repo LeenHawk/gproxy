@@ -33,5 +33,40 @@ pub async fn seed_first_admin(
         .map_err(Into::into)
 }
 
+/// Apply the administrator password the operator supplied on the command
+/// line or in the environment. Creates the account when the store has none,
+/// otherwise sets the password on the named one. Those inputs are
+/// authoritative: silently ignoring an explicit `--admin-password` because a
+/// row already exists is how an operator ends up locked out of their own
+/// instance with nothing in the log to explain it.
+pub async fn apply_admin_password(
+    store: &gproxy_store::Store,
+    username: &str,
+    password: &str,
+) -> Result<i64, AdminError> {
+    let username = username.trim();
+    if username.is_empty() {
+        return Err(AdminError::BadRequest("username must not be blank".into()));
+    }
+    auth::password::validate(password)?;
+    let hash = auth::password::hash(password)?;
+    if let Some(id) = store
+        .create_first_admin(username, &hash, auth::now()?)
+        .await?
+    {
+        return Ok(id);
+    }
+    if store.set_admin_password(username, &hash).await? {
+        return store
+            .admin_by_username(username)
+            .await?
+            .map(|account| account.id)
+            .ok_or_else(|| AdminError::Internal("administrator vanished".into()));
+    }
+    Err(AdminError::BadRequest(format!(
+        "no administrator named `{username}`; the store already has a different account"
+    )))
+}
+
 #[cfg(test)]
 mod tests;

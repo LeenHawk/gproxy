@@ -47,6 +47,18 @@ pub(crate) fn create_first_admin(
     Statement::query(&query)
 }
 
+pub(crate) fn set_admin_password(
+    username: &str,
+    password_hash: &str,
+) -> Result<Statement, StoreError> {
+    let mut update = Query::update();
+    update
+        .table(Alias::new("admin_accounts"))
+        .value(Alias::new("password_hash"), password_hash.to_owned())
+        .and_where(Expr::col(Alias::new("username")).eq(username));
+    Statement::query(&update)
+}
+
 pub(crate) fn admin_by_username(username: &str) -> Result<Statement, StoreError> {
     let mut query = admin_select();
     query

@@ -35,6 +35,21 @@ impl Store {
             .flatten())
     }
 
+    /// Set an existing administrator's password. Returns whether a row
+    /// matched. Command line and environment are authoritative: an operator
+    /// who passes `--admin-password` is instructing, not suggesting.
+    pub async fn set_admin_password(
+        &self,
+        username: &str,
+        password_hash: &str,
+    ) -> Result<bool, StoreError> {
+        let result = self
+            .backend()
+            .execute(admin::set_admin_password(username, password_hash)?)
+            .await?;
+        Ok(result.affected_rows > 0)
+    }
+
     pub async fn admin_by_username(
         &self,
         username: &str,

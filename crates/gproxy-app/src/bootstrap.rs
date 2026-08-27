@@ -92,11 +92,11 @@ async fn seed_first_run(
     channels: &ChannelRegistry,
     options: &crate::config::NativeOptions,
 ) -> Result<(), AppError> {
-    if store.has_admin_accounts().await? {
-        return Ok(());
-    }
+    let seeded = store.has_admin_accounts().await?;
     let Some(password) = options.admin_password.as_deref() else {
-        if options.bootstrap_admin_api_key.is_some() || !options.bootstrap_channels.is_empty() {
+        if !seeded
+            && (options.bootstrap_admin_api_key.is_some() || !options.bootstrap_channels.is_empty())
+        {
             return Err(AppError::Bootstrap(
                 "bootstrap API key and channels require GPROXY_ADMIN_PASSWORD on a fresh store"
                     .into(),
@@ -122,10 +122,16 @@ async fn seed_first_run(
             "unknown bootstrap channel: {channel}"
         )));
     }
-    let admin_id = gproxy_admin::seed_first_admin(store, &options.admin_user, password)
+    let admin_id = gproxy_admin::apply_admin_password(store, &options.admin_user, password)
         .await
-        .map_err(|error| AppError::Bootstrap(error.to_string()))?
-        .ok_or_else(|| AppError::Bootstrap("administrator was created concurrently".into()))?;
+        .map_err(|error| AppError::Bootstrap(error.to_string()))?;
+    if seeded {
+        tracing::info!(
+            user = options.admin_user.as_str(),
+            "administrator password set from the command line or environment"
+        );
+        return Ok(());
+    }
     if let Some(api_key) = options.bootstrap_admin_api_key.as_deref() {
         store
             .create_admin_api_key(&Sha256::digest(api_key.as_bytes()), admin_id, unix_now())

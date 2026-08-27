@@ -145,12 +145,12 @@ impl MasterKeyConfig {
         rotate: bool,
     ) -> Result<Self, ConfigError> {
         let current = current
-            .map(|value| decode_key(&value, "GPROXY_SECRET_KEY"))
+            .map(|value| decode_key(&value, "GPROXY_MASTER_KEY"))
             .transpose()?;
         let next = match next {
             None => RotationTarget::Unset,
             Some(value) if value.is_empty() => RotationTarget::Plaintext,
-            Some(value) => RotationTarget::Key(decode_key(&value, "GPROXY_SECRET_KEY_NEXT")?),
+            Some(value) => RotationTarget::Key(decode_key(&value, "GPROXY_MASTER_KEY_NEXT")?),
         };
         Ok(Self {
             current,
