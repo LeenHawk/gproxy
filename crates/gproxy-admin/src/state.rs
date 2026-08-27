@@ -1,7 +1,10 @@
 use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll, MaybeSend, MaybeSync};
 use gproxy_store::records::CredentialEnvelope;
 
-use crate::dto::{ChannelDto, ExportSourceKeyDto, PortalModelDto, TokenizerVocabDto};
+use crate::dto::{
+    ChannelDto, ConnectivityTestRequest, ConnectivityTestResponse, ExportSourceKeyDto,
+    PortalModelDto, TokenizerVocabDto,
+};
 use crate::{AdminError, PortalIdentity};
 
 pub trait State: MaybeSend + MaybeSync {
@@ -48,6 +51,11 @@ pub trait State: MaybeSend + MaybeSync {
     ) -> BoxFuture<'_, Result<(), AdminError>>;
 
     fn reload(&self) -> BoxFuture<'_, Result<(), AdminError>>;
+
+    fn connectivity_test<'a>(
+        &'a self,
+        request: &'a ConnectivityTestRequest,
+    ) -> BoxFuture<'a, Result<ConnectivityTestResponse, AdminError>>;
 
     fn fetch_tokenizer_vocab<'a>(
         &'a self,

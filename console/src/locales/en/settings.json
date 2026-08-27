@@ -37,6 +37,8 @@
       "uploadLimitHint": "Zero allows unlimited concurrent uploads. The environment override wins when set.",
       "proxy": "Default upstream proxy",
       "proxyHint": "Used after credential and provider proxy overrides. Leave empty for direct egress.",
+      "connectivity": "Global egress",
+      "connectivityHint": "Test the saved global and system proxy configuration.",
       "spoof_emulation": "TLS fingerprint emulation",
       "spoof_emulationHint": "Apply configured provider and credential client fingerprints.",
       "enable_usage": "Usage recording",

@@ -37,6 +37,8 @@
       "uploadLimitHint": "零表示不限制上传并发；设置环境变量时以环境变量为准。",
       "proxy": "默认上游代理",
       "proxyHint": "在凭据和 Provider 代理均未设置时使用；留空表示直连。",
+      "connectivity": "全局出口",
+      "connectivityHint": "测试已保存的全局与系统代理配置。",
       "spoof_emulation": "TLS 指纹模拟",
       "spoof_emulationHint": "应用 Provider 与凭据配置的客户端指纹。",
       "enable_usage": "用量记录",

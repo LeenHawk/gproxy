@@ -1,6 +1,6 @@
-mod fingerprint;
+pub(crate) mod fingerprint;
 mod mutation;
-mod settings;
+pub(crate) mod settings;
 mod snapshot;
 mod user_key;
 

@@ -1,6 +1,7 @@
 mod audit;
 mod batch;
 mod catalogue;
+mod connectivity;
 mod control;
 mod identity;
 mod instance_settings;
@@ -37,6 +38,7 @@ pub(crate) async fn dispatch(
         Route::Batch(entity) => batch::run(state, entity, body).await,
         Route::ConfigurationExport => transfer::export(state, body).await,
         Route::ConfigurationImport => transfer::import(state, body).await,
+        Route::ConnectivityTest => connectivity::test(state, body).await,
         Route::RevealUserKey(id) => identity::reveal(state, admin, id).await,
         Route::Usage => observability::usage(state, parts).await,
         Route::QuotaWindows => observability::quota_windows(state, parts).await,

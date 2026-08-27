@@ -6,7 +6,7 @@ use gproxy_channel_api::ClientProfile;
 use gproxy_core::{ConfiguredFingerprint, FingerprintOverride};
 use serde_json::Value;
 
-pub(super) fn parse(value: Option<&Value>) -> Option<ConfiguredFingerprint> {
+pub(crate) fn parse(value: Option<&Value>) -> Option<ConfiguredFingerprint> {
     value.map(|value| match parse_inner(value) {
         Ok(configured) => configured,
         Err(reason) => ConfiguredFingerprint::Invalid(reason),

@@ -86,6 +86,31 @@
     "documentation": "Documentation",
     "buildIdentity": "v{{version}} · {{hash}}"
   },
+  "connectivity": {
+    "action": "Test connectivity",
+    "title": "Connectivity result",
+    "success": "Upstream egress is reachable",
+    "successHint": "The addresses below are what the upstream sees.",
+    "failed": "Connectivity test failed",
+    "requestError": "Could not run the connectivity test.",
+    "route": "{{source}} · {{latency}} ms total",
+    "latency": "{{value}} ms",
+    "sources": {
+      "credential": "Credential proxy",
+      "provider": "Provider proxy",
+      "global": "Global proxy",
+      "system": "System proxy",
+      "direct": "Direct connection"
+    },
+    "errors": {
+      "invalid_fingerprint": "The configured fingerprint cannot be applied.",
+      "transport": "The upstream or configured proxy could not be reached.",
+      "http_status": "The connectivity service returned an error status.",
+      "invalid_response": "The connectivity service did not return a valid egress address.",
+      "timeout": "The connectivity test timed out after 30 seconds.",
+      "unknown": "The connectivity test failed for an unknown reason."
+    }
+  },
   "auth": {
     "username": "Username",
     "password": "Password",

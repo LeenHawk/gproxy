@@ -71,7 +71,7 @@ impl EffectiveSettings {
     }
 }
 
-pub(super) fn effective_proxy(
+pub(crate) fn effective_proxy(
     credential: Option<&str>,
     provider: Option<&str>,
     global: Option<&str>,

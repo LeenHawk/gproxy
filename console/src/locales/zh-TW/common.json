@@ -86,6 +86,31 @@
     "documentation": "文件",
     "buildIdentity": "v{{version}} · {{hash}}"
   },
+  "connectivity": {
+    "action": "測試連線",
+    "title": "連線結果",
+    "success": "上游出口可連線",
+    "successHint": "以下位址是上游實際看到的出口位址。",
+    "failed": "連線測試失敗",
+    "requestError": "無法執行連線測試。",
+    "route": "{{source}} · 總計 {{latency}} 毫秒",
+    "latency": "{{value}} 毫秒",
+    "sources": {
+      "credential": "憑證代理",
+      "provider": "供應商代理",
+      "global": "全域代理",
+      "system": "系統代理",
+      "direct": "直接連線"
+    },
+    "errors": {
+      "invalid_fingerprint": "無法套用已設定的指紋。",
+      "transport": "無法連線上游或已設定的代理。",
+      "http_status": "連線服務傳回錯誤狀態。",
+      "invalid_response": "連線服務未傳回有效的出口位址。",
+      "timeout": "連線測試在 30 秒後逾時。",
+      "unknown": "連線測試因未知原因失敗。"
+    }
+  },
   "auth": {
     "username": "使用者名稱",
     "password": "密碼",

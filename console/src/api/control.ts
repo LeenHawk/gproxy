@@ -20,6 +20,8 @@ import type { ConfigurationExportDto } from "@/generated/ConfigurationExportDto"
 import type { ConfigurationExportRequest } from "@/generated/ConfigurationExportRequest"
 import type { ConfigurationImportRequest } from "@/generated/ConfigurationImportRequest"
 import type { ConfigurationImportResponse } from "@/generated/ConfigurationImportResponse"
+import type { ConnectivityTestRequest } from "@/generated/ConnectivityTestRequest"
+import type { ConnectivityTestResponse } from "@/generated/ConnectivityTestResponse"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import type { RouteMemberWriteRequest } from "@/generated/RouteMemberWriteRequest"
@@ -43,6 +45,8 @@ export const exportConfiguration = (value: ConfigurationExportRequest) =>
   api<ConfigurationExportDto>("/admin/export", json("POST", value))
 export const importConfiguration = (value: ConfigurationImportRequest) =>
   api<ConfigurationImportResponse>("/admin/import", json("POST", value))
+export const testConnectivity = (value: ConnectivityTestRequest) =>
+  api<ConnectivityTestResponse>("/admin/connectivity/test", json("POST", value))
 
 export const providers = () => api<Array<ProviderDto>>("/admin/providers")
 export const saveProvider = (value: ProviderWriteRequest, id?: number) =>

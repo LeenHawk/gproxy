@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+mod connectivity;
 mod import;
 mod portal;
 
@@ -183,6 +185,27 @@ impl State for AppHandle {
                 .await
                 .map_err(|error| AdminError::Internal(error.to_string()))
         })
+    }
+
+    fn connectivity_test<'a>(
+        &'a self,
+        request: &'a gproxy_admin::dto::ConnectivityTestRequest,
+    ) -> BoxFuture<'a, Result<gproxy_admin::dto::ConnectivityTestResponse, AdminError>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        return Box::pin(connectivity::run(
+            self,
+            request,
+            &self.inner.host.services.transport,
+        ));
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = request;
+            Box::pin(async {
+                Err(AdminError::BadRequest(
+                    "connectivity testing is unavailable on edge".into(),
+                ))
+            })
+        }
     }
 
     fn fetch_tokenizer_vocab<'a>(

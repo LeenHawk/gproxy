@@ -36,6 +36,7 @@ pub(crate) enum Route {
     Batch(Entity),
     ConfigurationExport,
     ConfigurationImport,
+    ConnectivityTest,
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -74,6 +75,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         };
         if login.is_some() {
             return login;
+        }
+        if segments.as_slice() == ["connectivity", "test"] {
+            return Some(Route::ConnectivityTest);
         }
     }
     if segments.len() == 3

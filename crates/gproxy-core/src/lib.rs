@@ -54,6 +54,7 @@ pub use control::{
     PricingTier, ProviderRef, Target, TargetRules, UpstreamProxy, normalize_service_tier,
 };
 pub use error::CoreError;
+pub use fingerprint::apply_request as apply_provider_transport;
 pub use host::{
     CacheBackend, CaptureSink, CredentialHealth, CredentialId, CredentialRecord, CredentialStore,
     Host, Spawner, UpstreamTransport, UsageSink,

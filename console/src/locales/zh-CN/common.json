@@ -86,6 +86,31 @@
     "documentation": "文档",
     "buildIdentity": "v{{version}} · {{hash}}"
   },
+  "connectivity": {
+    "action": "测试连通性",
+    "title": "连通性结果",
+    "success": "上游出口可达",
+    "successHint": "以下地址是上游实际看到的出口地址。",
+    "failed": "连通性测试失败",
+    "requestError": "无法运行连通性测试。",
+    "route": "{{source}} · 总计 {{latency}} 毫秒",
+    "latency": "{{value}} 毫秒",
+    "sources": {
+      "credential": "凭据代理",
+      "provider": "提供商代理",
+      "global": "全局代理",
+      "system": "系统代理",
+      "direct": "直连"
+    },
+    "errors": {
+      "invalid_fingerprint": "无法应用已配置的指纹。",
+      "transport": "无法访问上游或已配置的代理。",
+      "http_status": "连通性服务返回了错误状态。",
+      "invalid_response": "连通性服务未返回有效的出口地址。",
+      "timeout": "连通性测试在 30 秒后超时。",
+      "unknown": "连通性测试因未知原因失败。"
+    }
+  },
   "auth": {
     "username": "用户名",
     "password": "密码",

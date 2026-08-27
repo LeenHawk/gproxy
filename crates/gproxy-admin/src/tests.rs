@@ -77,6 +77,17 @@ impl State for TestState {
         Box::pin(async { Ok(()) })
     }
 
+    fn connectivity_test<'a>(
+        &'a self,
+        _: &'a crate::dto::ConnectivityTestRequest,
+    ) -> BoxFuture<'a, Result<crate::dto::ConnectivityTestResponse, AdminError>> {
+        Box::pin(async {
+            Err(AdminError::BadRequest(
+                "probe unavailable in this test state".into(),
+            ))
+        })
+    }
+
     fn login_state_get<'a>(
         &'a self,
         key: &'a str,

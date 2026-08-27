@@ -16,7 +16,7 @@ pub(crate) fn apply_prepared(
     apply_request(&mut prepared.request, provider)
 }
 
-pub(crate) fn apply_request(
+pub fn apply_request(
     request: &mut http::Request<Bytes>,
     provider: &ProviderRef,
 ) -> Result<(), CoreError> {

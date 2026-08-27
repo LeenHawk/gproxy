@@ -7,6 +7,7 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
+import { ConnectivityTest } from "@/components/connectivity-test"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
@@ -40,6 +41,7 @@ export function CredentialRowActions({ credential, channel, presets, saving, onS
         <FieldLabel htmlFor={switchId} className="sr-only">{t("providers.credentials.enabled")}</FieldLabel>
         <Switch id={switchId} size="sm" checked={credential.enabled} onCheckedChange={(value) => void setEnabled(value)} disabled={saving} />
       </Field>
+      <ConnectivityTest request={{ scope: "credential", provider_id: null, credential_id: credential.id }} label={name} />
       <CredentialDialog
         providerId={credential.provider_id}
         credential={credential}

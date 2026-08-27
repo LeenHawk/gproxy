@@ -14,6 +14,7 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
+import { ConnectivityTest } from "@/components/connectivity-test"
 import { PageHeader } from "@/components/page-header"
 import { ProviderDetail } from "@/components/providers/provider-detail"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
@@ -79,6 +80,7 @@ export function ProvidersView(props: Props) {
     { key: "name", label: t("common.name"), header: t("common.name"), cell: (provider) => <div><p className="font-medium">{provider.label ?? provider.name}</p>{provider.label ? <p className="font-mono text-xs text-muted-foreground">{provider.name}</p> : null}</div> },
     { key: "channel", label: t("providers.fields.channel"), header: t("providers.fields.channel"), cell: (provider) => <span className="font-mono text-xs">{provider.channel}</span> },
     { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: (provider) => <Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge> },
+    { key: "connectivity", label: t("connectivity.action"), header: <span className="sr-only">{t("connectivity.action")}</span>, cell: (provider) => <div onClick={(event) => event.stopPropagation()}><ConnectivityTest request={{ scope: "provider", provider_id: provider.id, credential_id: null }} label={provider.label ?? provider.name} /></div>, className: "text-right" },
   ]
 
   return (

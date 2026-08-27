@@ -37,6 +37,8 @@
       "uploadLimitHint": "零表示不限制上傳並行；設定環境變數時以環境變數為準。",
       "proxy": "預設上游 Proxy",
       "proxyHint": "在憑證和 Provider Proxy 均未設定時使用；留空表示直連。",
+      "connectivity": "全域出口",
+      "connectivityHint": "測試已儲存的全域與系統代理設定。",
       "spoof_emulation": "TLS 指紋模擬",
       "spoof_emulationHint": "套用 Provider 與憑證設定的客戶端指紋。",
       "enable_usage": "用量記錄",
