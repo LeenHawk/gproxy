@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 base64.workspace = true
+gproxy-core.workspace = true
 rust_decimal.workspace = true
 sea-query.workspace = true
 serde.workspace = true
@@ -16,6 +17,10 @@ thiserror.workspace = true
 web-time.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+mysql_async.workspace = true
+redis.workspace = true
+tokio.workspace = true
+tokio-postgres.workspace = true
 tokio-rusqlite.workspace = true
 wreq.workspace = true
 

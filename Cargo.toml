@@ -51,11 +51,13 @@ http = "1"
 hmac = "0.12"
 js-sys = "0.3"
 mime_guess = "2"
+mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
+redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
 rust_decimal = { version = "1", features = ["serde"] }
 rust-embed = { version = "8", features = ["include-exclude"] }
-sea-query = { version = "1.0.2", default-features = false, features = ["backend-sqlite", "derive"] }
+sea-query = { version = "1.0.2", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_urlencoded = "0.7"
@@ -64,6 +66,7 @@ tempfile = "3"
 thiserror = "2"
 tiktoken-rs = "0.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-postgres = "0.7"
 tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 tracing = "0.1"
