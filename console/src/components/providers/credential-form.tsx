@@ -113,7 +113,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
           <FieldLabel htmlFor="credential-weight">{t("providers.credentials.weight")}</FieldLabel>
           <Input id="credential-weight" type="number" min={1} step={1} required value={weight} onChange={(event) => setWeight(event.target.value)} />
         </Field>
-        <Collapsible>
+        <Collapsible data-field-span="full">
           <CollapsibleTrigger asChild>
             <Button type="button" variant="outline" className="group w-full justify-between">
               <span className="flex items-center gap-2"><SlidersHorizontalIcon />{t("providers.form.advanced")}</span>

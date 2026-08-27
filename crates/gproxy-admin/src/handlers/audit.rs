@@ -6,6 +6,25 @@ use crate::dto::AuditEventDto;
 use crate::handlers::util;
 use crate::{AdminError, State, response};
 
+pub(crate) async fn record(
+    state: &impl State,
+    actor_user_id: i64,
+    event: crate::route::AuditDescriptor,
+) -> Result<(), AdminError> {
+    state
+        .store()
+        .record_audit_event(&gproxy_store::records::AuditEventInput {
+            actor_user_id,
+            action: event.action,
+            target_kind: event.target_kind,
+            target_id: event.target_id,
+            at: crate::auth::now()?,
+            details: None,
+        })
+        .await?;
+    Ok(())
+}
+
 pub(super) async fn list(state: &impl State, parts: &Parts) -> Result<Response<Bytes>, AdminError> {
     let query = util::query(parts);
     let limit = util::value(&query, "limit")

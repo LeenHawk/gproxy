@@ -14,6 +14,7 @@ import { ProviderSettingsFields } from "@/components/providers/provider-settings
 import { ProviderIdentityFields } from "@/components/providers/provider-identity-fields"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogBody,
@@ -163,6 +164,7 @@ export function ProviderDialog(props: Props) {
                 onChange={(value) => change("channel", value)}
               />
               <FieldDescription>{t("providers.form.channelHint")}</FieldDescription>
+              {selectedChannel ? <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{t("providers.form.channelCapabilities", { count: selectedChannel.supports.length })}</span>{[...new Set(selectedChannel.supports.map((support) => support.group))].map((group) => <Badge key={group} variant="outline">{group}</Badge>)}</div> : null}
               {props.channelsError ? <FieldError>{t("common.errors.load")}</FieldError> : null}
               {errors.channel ? <FieldError>{errors.channel}</FieldError> : null}
             </Field>

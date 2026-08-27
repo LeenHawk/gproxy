@@ -8,6 +8,7 @@ import { userKeys, users } from "@/api/identity"
 import { LogExplorer } from "@/components/logs/log-explorer"
 import { PageLayout } from "@/components/page-layout"
 import { QueryState } from "@/components/query-state"
+import { ObservabilityTabs } from "@/components/observability-tabs"
 import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
 
 function initialQuery(): LogQueryDto {
@@ -33,6 +34,7 @@ export function LogsPage() {
   const error = [logQuery, settingsQuery, providerQuery, userQuery, keyQuery].some((item) => item.error)
   return (
     <PageLayout title={t("logs.title")} description={t("logs.description")}>
+      <ObservabilityTabs value="logs" />
       <QueryState loading={loading} error={error ? t("common.loadError") : ""}>
         <LogExplorer
           draft={draft}

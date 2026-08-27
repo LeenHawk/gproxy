@@ -27,7 +27,7 @@ export function EndpointFields({
     onChange(rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))
   }
   return (
-    <Field>
+    <Field data-field-span="full">
       <div className="flex items-center justify-between gap-3">
         <FieldLabel>{t("providers.endpoints.title")}</FieldLabel>
         <Button

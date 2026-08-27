@@ -64,6 +64,7 @@
       "createTitle": "Add provider",
       "editTitle": "Edit provider",
       "channelHint": "Channels come from this running GPROXY binary.",
+      "channelCapabilities": "{{count}} declared routes across these operation groups",
       "labelHint": "Optional display text. The provider name remains the stable routing identifier.",
       "credentialStrategyHint": "Round robin rotates requests; sticky keeps each API key on a stable credential.",
       "proxyHint": "Overrides the instance proxy for this provider. Credentials can override it again.",
@@ -180,15 +181,5 @@
         "cookieDescription": "The provider rejected the cookie. Check it and retry this step."
       }
     }
-  },
-  "channels": {
-    "description": "Capabilities registered by this running GPROXY binary.",
-    "channel": "Channel",
-    "empty": "This binary has no registered channels.",
-    "source": "Source wire",
-    "target": "Target wire",
-    "operation": "Operation",
-    "group": "Group",
-    "noOperations": "No operations are declared for this channel."
   }
 }

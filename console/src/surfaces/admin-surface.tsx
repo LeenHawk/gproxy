@@ -9,12 +9,12 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAdminLocation } from "@/lib/admin-route"
 
-const ChannelsPage = lazy(() => import("@/pages/channels").then((module) => ({ default: module.ChannelsPage })))
 const KeysPage = lazy(() => import("@/pages/keys").then((module) => ({ default: module.KeysPage })))
 const OverviewPage = lazy(() => import("@/pages/overview").then((module) => ({ default: module.OverviewPage })))
 const ProvidersPage = lazy(() => import("@/pages/providers").then((module) => ({ default: module.ProvidersPage })))
 const RoutesPage = lazy(() => import("@/pages/routes").then((module) => ({ default: module.RoutesPage })))
 const UsagePage = lazy(() => import("@/pages/usage").then((module) => ({ default: module.UsagePage })))
+const AuditPage = lazy(() => import("@/pages/audit").then((module) => ({ default: module.AuditPage })))
 const LogsPage = lazy(() => import("@/pages/logs").then((module) => ({ default: module.LogsPage })))
 const PricingPage = lazy(() => import("@/pages/pricing").then((module) => ({ default: module.PricingPage })))
 const RulesPage = lazy(() => import("@/pages/rules").then((module) => ({ default: module.RulesPage })))
@@ -53,8 +53,8 @@ function ConsoleApp() {
     rules: <RulesPage />,
     keys: <KeysPage />,
     usage: <UsagePage />,
+    audit: <AuditPage />,
     logs: <LogsPage />,
-    channels: <ChannelsPage />,
     pricing: <PricingPage />,
     settings: <SettingsPage />,
   }[route]

@@ -40,7 +40,7 @@ export function ProviderSettingsFields({
         rows={endpointRows(values, kinds)}
         onChange={(rows) => commit(updateEndpoints(values, kinds, rows))}
       />
-      <Collapsible>
+      <Collapsible data-field-span="full">
         <CollapsibleTrigger asChild>
           <Button type="button" variant="outline" className="group w-full justify-between">
             <span className="flex items-center gap-2"><SlidersHorizontalIcon />{t("providers.form.advanced")}</span>

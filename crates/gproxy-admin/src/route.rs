@@ -179,3 +179,104 @@ fn entity(name: &str) -> Option<Entity> {
         _ => return None,
     })
 }
+
+pub(crate) struct AuditDescriptor {
+    pub action: String,
+    pub target_kind: String,
+    pub target_id: Option<i64>,
+}
+
+pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
+    let mutation = |entity: Entity, verb: &str, id| AuditDescriptor {
+        action: format!("{}.{}", entity.id(), verb),
+        target_kind: entity.id().into(),
+        target_id: id,
+    };
+    Some(match route {
+        Route::Create(entity) => mutation(*entity, "create", None),
+        Route::Update(entity, id) => mutation(*entity, "update", Some(*id)),
+        Route::Delete(entity, id) => mutation(*entity, "delete", Some(*id)),
+        Route::Batch(entity) => {
+            let verb = serde_json::from_slice::<serde_json::Value>(body)
+                .ok()
+                .and_then(|value| value.get("action")?.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "batch".into());
+            mutation(*entity, &verb, None)
+        }
+        Route::ConfigurationImport => action("configuration.import", "configuration", None),
+        Route::ApplyRulePreset { provider_id, .. } => {
+            action("rule_preset.apply", "providers", Some(*provider_id))
+        }
+        Route::ResetRoutingDefaults(provider_id) => {
+            action("routing_defaults.reset", "providers", Some(*provider_id))
+        }
+        Route::LogSettingsWrite => action("log_settings.update", "settings", None),
+        Route::InstanceSettingsWrite => action("instance_settings.update", "settings", None),
+        Route::TokenizerVocabFetch => action("tokenizer_vocab.fetch", "tokenizer_vocabs", None),
+        Route::TokenizerVocabDelete => action("tokenizer_vocab.delete", "tokenizer_vocabs", None),
+        Route::PortalSettingsWrite => action("portal_settings.update", "settings", None),
+        Route::LoginAuthCodeStart => provider_action("channel_login.authcode_start", body),
+        Route::LoginAuthCodeComplete => provider_action("channel_login.authcode_complete", body),
+        Route::LoginDeviceStart => provider_action("channel_login.device_start", body),
+        Route::LoginDevicePoll => action("channel_login.device_poll", "credentials", None),
+        Route::LoginCookieExchange => provider_action("channel_login.cookie", body),
+        Route::List(_)
+        | Route::ConfigurationExport
+        | Route::ConnectivityTest
+        | Route::RevealUserKey(_)
+        | Route::Usage
+        | Route::QuotaWindows
+        | Route::CredentialCycles
+        | Route::Channels
+        | Route::TlsPresets
+        | Route::RulePresets
+        | Route::Audit
+        | Route::Logs
+        | Route::LogDetail(_)
+        | Route::LogSettingsRead
+        | Route::InstanceSettingsRead
+        | Route::TokenizerVocabsRead
+        | Route::PortalSettingsRead => return None,
+    })
+}
+
+fn action(action: &str, target_kind: &str, target_id: Option<i64>) -> AuditDescriptor {
+    AuditDescriptor {
+        action: action.into(),
+        target_kind: target_kind.into(),
+        target_id,
+    }
+}
+
+fn provider_action(action_name: &str, body: &[u8]) -> AuditDescriptor {
+    let provider_id = serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|value| value.get("provider_id")?.as_i64());
+    action(action_name, "providers", provider_id)
+}
+
+impl Entity {
+    fn id(self) -> &'static str {
+        match self {
+            Self::Organizations => "organizations",
+            Self::Teams => "teams",
+            Self::Providers => "providers",
+            Self::Credentials => "credentials",
+            Self::Routes => "routes",
+            Self::RouteMembers => "route_members",
+            Self::Aliases => "aliases",
+            Self::ModelAliases => "model_aliases",
+            Self::Users => "users",
+            Self::UserKeys => "user_keys",
+            Self::Permissions => "permissions",
+            Self::RateLimits => "rate_limits",
+            Self::Quotas => "quotas",
+            Self::PriceRules => "price_rules",
+            Self::PriceRates => "price_rates",
+            Self::RoutingRules => "routing_rules",
+            Self::RuleSets => "rule_sets",
+            Self::Rules => "rules",
+            Self::ProviderRuleSets => "provider_rule_sets",
+        }
+    }
+}

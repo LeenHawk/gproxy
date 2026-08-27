@@ -64,6 +64,7 @@
       "createTitle": "添加提供商",
       "editTitle": "编辑提供商",
       "channelHint": "渠道来自当前运行的 GPROXY 二进制文件。",
+      "channelCapabilities": "当前声明 {{count}} 条路由，覆盖以下操作组",
       "labelHint": "可选的显示文本；提供商名称仍是稳定的路由标识。",
       "credentialStrategyHint": "轮询会轮换请求；粘性策略让每个 API 密钥稳定使用同一凭据。",
       "proxyHint": "覆盖此提供商的实例代理；凭据仍可再次覆盖。",
@@ -180,15 +181,5 @@
         "cookieDescription": "提供商拒绝了 Cookie。请检查后重试此步骤。"
       }
     }
-  },
-  "channels": {
-    "description": "当前 GPROXY 二进制文件注册的能力。",
-    "channel": "渠道",
-    "empty": "此二进制文件未注册任何渠道。",
-    "source": "源协议",
-    "target": "目标协议",
-    "operation": "操作",
-    "group": "分组",
-    "noOperations": "此渠道未声明任何操作。"
   }
 }

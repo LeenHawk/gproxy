@@ -430,6 +430,9 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
             .providers
             .is_empty()
     );
+    let audit = state.store.audit_events(1).await.unwrap();
+    assert_eq!(audit[0].event.action, "providers.delete");
+    assert_eq!(audit[0].event.target_id, Some(id));
 }
 
 async fn start_device(state: &TestState, provider_id: i64) -> String {

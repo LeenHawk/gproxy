@@ -1,4 +1,4 @@
-mod audit;
+pub(crate) mod audit;
 mod batch;
 mod catalogue;
 mod connectivity;

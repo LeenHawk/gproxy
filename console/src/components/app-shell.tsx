@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, BookOpenIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogsIcon, LogOutIcon, NetworkIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
+import { ActivityIcon, BookOpenIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AnnouncementFeed } from "@/components/announcement-feed"
@@ -17,8 +17,6 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "rules", icon: WorkflowIcon },
   { route: "keys", icon: KeyRoundIcon },
   { route: "usage", icon: ActivityIcon },
-  { route: "logs", icon: LogsIcon },
-  { route: "channels", icon: NetworkIcon },
   { route: "pricing", icon: CircleDollarSignIcon },
   { route: "settings", icon: SettingsIcon },
 ]

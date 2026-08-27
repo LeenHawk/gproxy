@@ -69,19 +69,19 @@ export function IdentityForms(props: IdentityFormsProps) {
         <TabsTrigger value="organization">{t("users.fields.organization")}</TabsTrigger>
       </TabsList>
       <TabsContent value="organization" className="pt-5">
-        <form className="flex max-w-md flex-col gap-4" onSubmit={submit(() => props.onOrganization(name.trim()))}>
+        <form className="flex flex-col gap-4" onSubmit={submit(() => props.onOrganization(name.trim()))}>
           <FieldGroup>{nameField("organization")}</FieldGroup>
           <Button className="self-start" disabled={props.pending || !name.trim()}>{t(props.pending ? "common.actions.saving" : "common.actions.create")}</Button>
         </form>
       </TabsContent>
       <TabsContent value="team" className="pt-5">
-        <form className="flex max-w-md flex-col gap-4" onSubmit={submit(() => props.onTeam(Number(teamOrganizationId), name.trim()))}>
+        <form className="flex flex-col gap-4" onSubmit={submit(() => props.onTeam(Number(teamOrganizationId), name.trim()))}>
           <FieldGroup>{organizationField("team", teamOrganizationId, setTeamOrganizationId)}{nameField("team")}</FieldGroup>
           <Button className="self-start" disabled={props.pending || !teamOrganizationId || !name.trim()}>{t(props.pending ? "common.actions.saving" : "common.actions.create")}</Button>
         </form>
       </TabsContent>
       <TabsContent value="user" className="pt-5">
-        <form className="flex max-w-md flex-col gap-4" onSubmit={submit(() => props.onUser(userOrganizationId ? Number(userOrganizationId) : null, userTeamId ? Number(userTeamId) : null, name.trim()))}>
+        <form className="flex flex-col gap-4" onSubmit={submit(() => props.onUser(userOrganizationId ? Number(userOrganizationId) : null, userTeamId ? Number(userTeamId) : null, name.trim()))}>
           <FieldGroup>
             {organizationField("user", userOrganizationId, (value) => { setUserOrganizationId(value); setUserTeamId("") }, true)}
             <Field>

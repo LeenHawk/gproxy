@@ -65,6 +65,7 @@ async fn setup(
         .await?
         .ok_or_else(|| AdminError::Conflict("admin setup is already complete".into()))?;
     let token = session::create(state, id).await?;
+    audit(state, id, "auth.setup").await?;
     auth_response(id, username, &token)
 }
 
@@ -94,12 +95,15 @@ async fn login(
         .clear_auth_attempts("login-account", request.username.trim())
         .await?;
     let token = session::create(state, account.id).await?;
+    audit(state, account.id, "auth.login").await?;
     auth_response(account.id, account.name, &token)
 }
 
 async fn logout(state: &impl State, parts: &Parts) -> Result<Response<Bytes>, AdminError> {
     super::csrf::verify_same_origin(parts)?;
+    let identity = session::authenticate(state, parts).await?;
     session::revoke(state, parts).await?;
+    audit(state, identity.id, "auth.logout").await?;
     let mut response = response::empty(StatusCode::NO_CONTENT);
     response.headers_mut().insert(
         http::header::SET_COOKIE,
@@ -107,6 +111,19 @@ async fn logout(state: &impl State, parts: &Parts) -> Result<Response<Bytes>, Ad
     );
     response::no_store(&mut response);
     Ok(response)
+}
+
+async fn audit(state: &impl State, actor_user_id: i64, action: &str) -> Result<(), AdminError> {
+    crate::handlers::audit::record(
+        state,
+        actor_user_id,
+        crate::route::AuditDescriptor {
+            action: action.into(),
+            target_kind: "users".into(),
+            target_id: Some(actor_user_id),
+        },
+    )
+    .await
 }
 
 fn auth_response(id: i64, username: String, token: &str) -> Result<Response<Bytes>, AdminError> {

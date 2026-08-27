@@ -1,6 +1,12 @@
 {
+  "observability": { "tabs": { "usage": "用量", "audit": "管理操作", "logs": "請求稽核" } },
+  "audit": {
+    "title": "管理操作", "description": "檢視成功的管理變更與通道登入活動。", "time": "時間", "actor": "管理員", "action": "操作", "target": "目標", "empty": "尚未記錄管理操作。",
+    "verbs": { "create": "建立", "update": "更新", "delete": "刪除", "enable": "啟用", "disable": "停用", "import": "匯入", "apply": "套用", "reset": "重設", "fetch": "取得", "authcode_start": "開始瀏覽器登入", "authcode_complete": "完成瀏覽器登入", "device_start": "開始裝置登入", "device_poll": "完成裝置登入", "cookie": "交換 Cookie", "setup": "初始化", "login": "登入", "logout": "登出" },
+    "targets": { "organizations": "組織", "teams": "團隊", "providers": "Provider", "credentials": "憑證", "routes": "路由", "route_members": "路由成員", "aliases": "路由別名", "model_aliases": "模型", "users": "使用者", "user_keys": "API Key", "permissions": "權限", "rate_limits": "速率限制", "quotas": "配額", "price_rules": "價格規則", "price_rates": "價格費率", "routing_rules": "路由規則", "rule_sets": "規則集", "rules": "變更規則", "provider_rule_sets": "Provider 規則集", "configuration": "設定", "settings": "設定", "tokenizer_vocabs": "Tokenizer 詞彙表" }
+  },
   "logs": {
-    "title": "交換日誌",
+    "title": "請求稽核",
     "description": "並排檢視呼叫方請求及其產生的每一次上游嘗試。",
     "pending": "處理中",
     "filters": {
@@ -46,7 +52,7 @@
       }
     },
     "detail": {
-      "title": "交換詳情",
+      "title": "請求詳情",
       "select": "選擇一個請求以載入完整交換。",
       "loadError": "無法載入該交換，請重試。",
       "downstream": "下游交換",

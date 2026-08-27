@@ -8,6 +8,7 @@ import { userKeys as fetchUserKeys, users as fetchUsers } from "@/api/identity"
 import { PageLayout } from "@/components/page-layout"
 import { QueryState } from "@/components/query-state"
 import { UsageExplorer } from "@/components/usage/usage-explorer"
+import { ObservabilityTabs } from "@/components/observability-tabs"
 
 function initialQuery(): UsageQueryDto {
   const to = Math.floor(Date.now() / 1000)
@@ -29,6 +30,7 @@ export function UsagePage() {
   const queries = [usageQuery, quotaQuery, cycleQuery]
   return (
     <PageLayout title={t("nav.usage")} description={t("usage.description")}>
+      <ObservabilityTabs value="usage" />
       <QueryState loading={queries.some((query) => query.isLoading)} error={queries.some((query) => query.error) ? t("common.loadError") : ""}>
         <UsageExplorer
           draft={draft}

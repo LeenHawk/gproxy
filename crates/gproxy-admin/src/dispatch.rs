@@ -23,7 +23,19 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
         if !admin.api_key && parts.method != Method::GET && parts.method != Method::HEAD {
             auth::verify_same_origin(parts)?;
         }
-        handlers::dispatch(state, &admin, route, parts, &body).await
+        let audit = route::audit(&route, &body);
+        let response = handlers::dispatch(state, &admin, route, parts, &body).await?;
+        if response.status().is_success()
+            && let Some(mut event) = audit
+        {
+            if event.target_id.is_none() && event.action.ends_with(".create") {
+                event.target_id = serde_json::from_slice::<serde_json::Value>(response.body())
+                    .ok()
+                    .and_then(|value| value.get("id")?.as_i64());
+            }
+            handlers::audit::record(state, admin.id, event).await?;
+        }
+        Ok(response)
     }
     .await;
     Some(response::render(result, "admin"))

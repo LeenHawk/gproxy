@@ -1,6 +1,12 @@
 {
+  "observability": { "tabs": { "usage": "Usage", "audit": "Admin actions", "logs": "Request audit" } },
+  "audit": {
+    "title": "Admin actions", "description": "Review successful state-changing administration and channel sign-in activity.", "time": "Time", "actor": "Administrator", "action": "Action", "target": "Target", "empty": "No admin actions have been recorded.",
+    "verbs": { "create": "Create", "update": "Update", "delete": "Delete", "enable": "Enable", "disable": "Disable", "import": "Import", "apply": "Apply", "reset": "Reset", "fetch": "Fetch", "authcode_start": "Start browser sign-in", "authcode_complete": "Complete browser sign-in", "device_start": "Start device sign-in", "device_poll": "Complete device sign-in", "cookie": "Exchange cookie", "setup": "Set up", "login": "Sign in", "logout": "Sign out" },
+    "targets": { "organizations": "Organization", "teams": "Team", "providers": "Provider", "credentials": "Credential", "routes": "Route", "route_members": "Route member", "aliases": "Routing alias", "model_aliases": "Model", "users": "User", "user_keys": "API key", "permissions": "Permission", "rate_limits": "Rate limit", "quotas": "Quota", "price_rules": "Price rule", "price_rates": "Price rate", "routing_rules": "Routing rule", "rule_sets": "Rule set", "rules": "Mutation rule", "provider_rule_sets": "Provider rule set", "configuration": "Configuration", "settings": "Settings", "tokenizer_vocabs": "Tokenizer vocabulary" }
+  },
   "logs": {
-    "title": "Exchange logs",
+    "title": "Request audit",
     "description": "Inspect each caller request beside every upstream attempt it produced.",
     "pending": "Pending",
     "filters": {
@@ -46,7 +52,7 @@
       }
     },
     "detail": {
-      "title": "Exchange detail",
+      "title": "Request detail",
       "select": "Select a request to load its exchange.",
       "loadError": "Could not load this exchange. Retry.",
       "downstream": "Downstream exchange",

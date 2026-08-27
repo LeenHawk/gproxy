@@ -64,6 +64,7 @@
       "createTitle": "新增供應商",
       "editTitle": "編輯供應商",
       "channelHint": "通道來自目前執行的 GPROXY 二進位檔。",
+      "channelCapabilities": "目前宣告 {{count}} 條路由，涵蓋以下操作群組",
       "labelHint": "可選的顯示文字；供應商名稱仍是穩定的路由識別碼。",
       "credentialStrategyHint": "輪詢會輪替請求；黏性策略讓每個 API 金鑰穩定使用同一憑證。",
       "proxyHint": "覆寫此供應商的執行個體 Proxy；憑證仍可再次覆寫。",
@@ -180,15 +181,5 @@
         "cookieDescription": "供應商拒絕了 Cookie。請檢查後重試此步驟。"
       }
     }
-  },
-  "channels": {
-    "description": "目前 GPROXY 二進位檔註冊的功能。",
-    "channel": "通道",
-    "empty": "此二進位檔未註冊任何通道。",
-    "source": "來源協定",
-    "target": "目標協定",
-    "operation": "操作",
-    "group": "群組",
-    "noOperations": "此通道未宣告任何操作。"
   }
 }
