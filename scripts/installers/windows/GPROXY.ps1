@@ -5,21 +5,16 @@ $installDir = Join-Path $env:LOCALAPPDATA "Programs\GPROXY"
 $rootDir = Join-Path $env:LOCALAPPDATA "GPROXY"
 $dataDir = Join-Path $rootDir "data"
 $logDir = Join-Path $rootDir "logs"
-$config = Join-Path $rootDir "gproxy.toml"
+$environment = Join-Path $rootDir ".env"
 $consoleUrl = "http://127.0.0.1:8787/admin"
 
 New-Item -ItemType Directory -Force -Path $rootDir, $dataDir, $logDir | Out-Null
-if (-not (Test-Path $config)) {
+if (-not (Test-Path $environment)) {
     $bytes = New-Object byte[] 32
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
     $secret = [Convert]::ToBase64String($bytes)
-    $source = @(
-        'listen_addr = "127.0.0.1:8787"',
-        'data_dir = "data"',
-        'store_backend = "sqlite"',
-        "secret_key = `"$secret`""
-    ) -join "`n"
-    [System.IO.File]::WriteAllText($config, "$source`n", ([System.Text.UTF8Encoding]::new($false)))
+    $source = "GPROXY_SECRET_KEY=$secret`n"
+    [System.IO.File]::WriteAllText($environment, $source, ([System.Text.UTF8Encoding]::new($false)))
 }
 
 function Test-GproxyHealthy {
@@ -36,7 +31,7 @@ function Test-GproxyHealthy {
 
 if (-not (Test-GproxyHealthy)) {
     $process = Start-Process -FilePath (Join-Path $installDir "gproxy.exe") `
-        -ArgumentList @('gproxy.toml') -WorkingDirectory $rootDir `
+        -WorkingDirectory $rootDir `
         -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "gproxy.log") `
         -RedirectStandardError (Join-Path $logDir "gproxy-error.log") -PassThru
     $healthy = $false

@@ -9,10 +9,12 @@ pnpm run check
 pnpm run dev
 ```
 
-Configure `GPROXY_CONFIG` as a sensitive environment variable in Netlify. It
-contains the complete wasm TOML configuration and must not be committed. The
-build publishes the generated `public/` directory and packages the ignored
-`pkg/` wasm output with the Edge Function.
+Configure `GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN` as sensitive
+Netlify bindings. Optional `GPROXY_SECRET_KEY`, `GPROXY_SECRET_KEY_NEXT`, and
+`GPROXY_SECRET_KEY_ROTATE` bindings control secret-at-rest encryption and
+rotation. The host builds a typed edge config from these bindings. The build
+publishes the generated `public/` directory and packages the ignored `pkg/`
+wasm output with the Edge Function.
 
 The Edge Function is configured for all non-static paths; the public root,
 exact admin and portal roots, `/assets/**`, and `/favicon.svg` stay on Netlify's

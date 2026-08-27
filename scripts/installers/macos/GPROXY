@@ -5,7 +5,7 @@ contents="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 binary="$contents/MacOS/gproxy-server"
 data_dir="$HOME/Library/Application Support/GPROXY"
 log_dir="$HOME/Library/Logs/GPROXY"
-config="$data_dir/gproxy.toml"
+environment="$data_dir/.env"
 launch_agent="$HOME/Library/LaunchAgents/io.github.leenhawk.gproxy.plist"
 console_url="http://127.0.0.1:8787/admin"
 background=false
@@ -15,17 +15,15 @@ if [ "${1:-}" = "--background" ]; then
 fi
 
 mkdir -p "$data_dir" "$log_dir"
-if [ ! -f "$config" ]; then
+if [ ! -f "$environment" ]; then
   umask 077
   secret="$(openssl rand -base64 32)"
-  temporary="$config.tmp.$$"
+  temporary="$environment.tmp.$$"
   {
-    printf '%s\n' 'listen_addr = "127.0.0.1:8787"'
-    printf '%s\n' 'data_dir = "."'
-    printf '%s\n' 'store_backend = "sqlite"'
-    printf 'secret_key = "%s"\n' "$secret"
+    printf '%s\n' 'GPROXY_DATA_DIR=.'
+    printf 'GPROXY_SECRET_KEY=%s\n' "$secret"
   } > "$temporary"
-  mv "$temporary" "$config"
+  mv "$temporary" "$environment"
 fi
 
 is_healthy() {
@@ -50,7 +48,7 @@ if [ ! -f "$launch_agent" ]; then
 fi
 
 if ! is_healthy; then
-  (cd "$data_dir" && exec "$binary" gproxy.toml >>"$log_dir/gproxy.log" 2>&1) &
+  (cd "$data_dir" && exec "$binary" >>"$log_dir/gproxy.log" 2>&1) &
   server_pid=$!
   healthy=false
   attempt=0

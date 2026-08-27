@@ -11,6 +11,35 @@ pub struct EdgeHost {
 }
 
 #[wasm_bindgen]
+pub struct EdgeConfig {
+    libsql_url: String,
+    libsql_auth_token: String,
+    secret_key: Option<String>,
+    secret_key_next: Option<String>,
+    secret_key_rotate: bool,
+}
+
+#[wasm_bindgen]
+impl EdgeConfig {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        libsql_url: String,
+        libsql_auth_token: String,
+        secret_key: Option<String>,
+        secret_key_next: Option<String>,
+        secret_key_rotate: bool,
+    ) -> Self {
+        Self {
+            libsql_url,
+            libsql_auth_token,
+            secret_key,
+            secret_key_next,
+            secret_key_rotate,
+        }
+    }
+}
+
+#[wasm_bindgen]
 pub struct EdgeReply {
     response: Option<Response>,
     continuation: Option<js_sys::Promise>,
@@ -30,8 +59,16 @@ impl EdgeReply {
 }
 
 #[wasm_bindgen]
-pub async fn start(config_toml: String) -> Result<EdgeHost, JsValue> {
-    let config = gproxy_app::Config::from_toml(&config_toml).map_err(js_error)?;
+pub async fn start(config: EdgeConfig) -> Result<EdgeHost, JsValue> {
+    let secret_keys = gproxy_app::SecretKeyConfig::from_encoded(
+        config.secret_key,
+        config.secret_key_next,
+        config.secret_key_rotate,
+    )
+    .map_err(js_error)?;
+    let config =
+        gproxy_app::Config::libsql(config.libsql_url, config.libsql_auth_token, secret_keys)
+            .map_err(js_error)?;
     let app = gproxy_app::App::start(config).await.map_err(js_error)?;
     Ok(EdgeHost { app })
 }

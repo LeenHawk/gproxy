@@ -1,4 +1,4 @@
-import init, { start } from "./pkg/gproxy_host_edge.js"
+import init, { EdgeConfig, start } from "./pkg/gproxy_host_edge.js"
 
 const publicRoot = new URL("./public/", import.meta.url)
 const wasmReady = Deno.readFile(new URL("./pkg/gproxy_host_edge_bg.wasm", import.meta.url))
@@ -8,10 +8,25 @@ let hostPromise: ReturnType<typeof start> | undefined
 
 async function host() {
   await wasmReady
-  const config = Deno.env.get("GPROXY_CONFIG")
-  if (!config) throw new Error("GPROXY_CONFIG is not configured")
+  const config = new EdgeConfig(
+    required("GPROXY_LIBSQL_URL"),
+    required("GPROXY_LIBSQL_AUTH_TOKEN"),
+    Deno.env.get("GPROXY_SECRET_KEY"),
+    Deno.env.get("GPROXY_SECRET_KEY_NEXT"),
+    rotationArmed(Deno.env.get("GPROXY_SECRET_KEY_ROTATE")),
+  )
   hostPromise ??= start(config)
   return hostPromise
+}
+
+function required(name: string) {
+  const value = Deno.env.get(name)
+  if (!value) throw new Error(`${name} is not configured`)
+  return value
+}
+
+function rotationArmed(value?: string) {
+  return ["1", "true", "yes", "on"].includes(value?.trim().toLowerCase() ?? "")
 }
 
 function staticFile(request: Request) {

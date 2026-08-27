@@ -1,9 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    #[error("read config: {0}")]
-    Read(String),
-    #[error("parse config: {0}")]
-    Parse(String),
+    #[error("configuration environment: {0}")]
+    Environment(String),
     #[error("invalid config field `{field}`: {message}")]
     Invalid {
         field: &'static str,

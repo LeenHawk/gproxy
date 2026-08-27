@@ -2,10 +2,7 @@
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::hint::black_box(gproxy_host_axum::UPDATE_SIGNING_PUBLIC_KEY);
-    let path = std::env::args_os()
-        .nth(1)
-        .unwrap_or_else(|| "gproxy.toml".into());
-    let config = gproxy_app::Config::load(path)?;
+    let config = gproxy_app::Config::from_env()?;
     let address = config.listen_addr();
     let app = gproxy_app::App::start(config).await?;
     let server = gproxy_host_axum::AxumServer::bind(app, address).await?;

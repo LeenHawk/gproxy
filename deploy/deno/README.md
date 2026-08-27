@@ -8,9 +8,11 @@ deno task check
 deno task start
 ```
 
-`GPROXY_CONFIG` contains the wasm TOML configuration and must be supplied by
-the deployment secret manager. The build creates ignored `pkg/` and `public/`
-directories; no generated wasm or frontend assets are committed.
+`GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN` are required deployment
+bindings. `GPROXY_SECRET_KEY`, `GPROXY_SECRET_KEY_NEXT`, and
+`GPROXY_SECRET_KEY_ROTATE` are optional secret-at-rest and rotation bindings.
+The host builds a typed edge config from them. The build creates ignored `pkg/`
+and `public/` directories; no generated wasm or frontend assets are committed.
 
 `main.ts` is the static layer for `/`, the exact admin and portal roots,
 `/assets/**`, and `/favicon.svg`. All other paths enter Rust. Deno's native

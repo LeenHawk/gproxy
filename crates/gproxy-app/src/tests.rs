@@ -144,3 +144,152 @@ async fn load_detail(app: &crate::AppHandle, request_id: &str) -> gproxy_store::
 fn body(detail: &gproxy_store::records::LogDetail) -> String {
     String::from_utf8(detail.upstream[0].input.request_body.clone().unwrap()).unwrap()
 }
+
+#[tokio::test]
+async fn key_rotation_reseals_every_secret_and_updates_fingerprint() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().to_path_buf();
+    let app = crate::App::start(test_config(&path, crate::SecretKeyConfig::new(None)))
+        .await
+        .unwrap();
+    let provider = setup::id(
+        app.mutate(crate::ControlMutation::Provider(
+            gproxy_store::records::ProviderInput {
+                name: "rotation-provider".into(),
+                channel: "openai".into(),
+                settings: json!({}),
+                tls_fingerprint: None,
+                enabled: true,
+            },
+        ))
+        .await
+        .unwrap(),
+    );
+    for value in ["first", "second"] {
+        app.mutate(crate::ControlMutation::Credential {
+            provider_id: provider,
+            label: Some(value.into()),
+            secret: json!({"api_key": value}),
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    }
+    let user = setup::id(
+        app.mutate(crate::ControlMutation::User(
+            gproxy_store::records::UserInput {
+                name: "rotation-user".into(),
+                organization_id: None,
+                team_id: None,
+                enabled: true,
+            },
+        ))
+        .await
+        .unwrap(),
+    );
+    for value in ["user-key-first", "user-key-second"] {
+        app.mutate(crate::ControlMutation::UserKey {
+            user_id: user,
+            api_key: value.into(),
+            label: None,
+            expires_at: None,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    }
+
+    let first_key = [17; 32];
+    let second_key = [29; 32];
+    let app = crate::App::start(test_config(
+        &path,
+        crate::SecretKeyConfig::new(None).rotate_to_key(first_key),
+    ))
+    .await
+    .unwrap();
+    assert_secret_inventory(&app, Some(&first_key)).await;
+    let app = crate::App::start(test_config(
+        &path,
+        crate::SecretKeyConfig::new(Some(first_key)).rotate_to_key(second_key),
+    ))
+    .await
+    .unwrap();
+    assert_secret_inventory(&app, Some(&second_key)).await;
+    let app = crate::App::start(test_config(
+        &path,
+        crate::SecretKeyConfig::new(Some(second_key)).rotate_to_plaintext(),
+    ))
+    .await
+    .unwrap();
+    assert_secret_inventory(&app, None).await;
+}
+
+#[tokio::test]
+async fn sealed_store_without_key_names_required_fingerprint() {
+    let directory = tempfile::tempdir().unwrap();
+    let key = [41; 32];
+    let app = crate::App::start(test_config(
+        directory.path(),
+        crate::SecretKeyConfig::new(Some(key)),
+    ))
+    .await
+    .unwrap();
+    let provider = setup::id(
+        app.mutate(crate::ControlMutation::Provider(
+            gproxy_store::records::ProviderInput {
+                name: "sealed-provider".into(),
+                channel: "openai".into(),
+                settings: json!({}),
+                tls_fingerprint: None,
+                enabled: true,
+            },
+        ))
+        .await
+        .unwrap(),
+    );
+    app.mutate(crate::ControlMutation::Credential {
+        provider_id: provider,
+        label: None,
+        secret: json!({"api_key": "sealed-fixture"}),
+        enabled: true,
+    })
+    .await
+    .unwrap();
+    drop(app);
+    let error = match crate::App::start(test_config(
+        directory.path(),
+        crate::SecretKeyConfig::new(None),
+    ))
+    .await
+    {
+        Ok(_) => panic!("sealed store started without its key"),
+        Err(error) => error,
+    };
+    let required = crate::key_rotation::fingerprint(Some(&key)).unwrap();
+    assert!(error.to_string().contains(&required));
+}
+
+fn test_config(path: &std::path::Path, keys: crate::SecretKeyConfig) -> crate::Config {
+    crate::Config::sqlite("127.0.0.1:0".parse().unwrap(), path.to_path_buf(), keys)
+}
+
+async fn assert_secret_inventory(app: &crate::AppHandle, key: Option<&[u8; 32]>) {
+    let services = &app.inner.host.services;
+    let inventory = services.store.secret_inventory().await.unwrap();
+    assert_eq!(inventory.credentials.len(), 2);
+    assert_eq!(inventory.user_keys.len(), 2);
+    let expected = crate::key_rotation::fingerprint(key);
+    match inventory.fingerprint {
+        gproxy_store::records::SecretKeyFingerprint::Plaintext => assert!(expected.is_none()),
+        gproxy_store::records::SecretKeyFingerprint::Sealed(value) => {
+            assert_eq!(Some(value), expected)
+        }
+        gproxy_store::records::SecretKeyFingerprint::Missing => panic!("fingerprint missing"),
+    }
+    for secret in &inventory.credentials {
+        services.cipher.open(&secret.envelope).unwrap();
+    }
+    for secret in &inventory.user_keys {
+        services.cipher.open_user_key(&secret.envelope).unwrap();
+    }
+}

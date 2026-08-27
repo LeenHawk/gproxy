@@ -36,6 +36,36 @@ impl std::fmt::Debug for CredentialEnvelope {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SecretKeyFingerprint {
+    Missing,
+    Plaintext,
+    Sealed(String),
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct StoredSecret {
+    pub id: i64,
+    pub envelope: CredentialEnvelope,
+}
+
+impl std::fmt::Debug for StoredSecret {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("StoredSecret")
+            .field("id", &self.id)
+            .field("envelope", &"<redacted>")
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecretInventory {
+    pub fingerprint: SecretKeyFingerprint,
+    pub credentials: Vec<StoredSecret>,
+    pub user_keys: Vec<StoredSecret>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CredentialInput {
     pub provider_id: i64,

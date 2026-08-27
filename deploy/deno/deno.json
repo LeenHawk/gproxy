@@ -8,6 +8,6 @@
     "build:assets": "pnpm --dir ../../console build && rm -rf public && cp -R ../../console/dist public",
     "build": "deno task build:wasm && deno task build:assets",
     "check": "deno check main.ts",
-    "start": "deno run --allow-net --allow-env=GPROXY_CONFIG --allow-read=./pkg,./public main.ts"
+    "start": "deno run --allow-net --allow-env=GPROXY_LIBSQL_URL,GPROXY_LIBSQL_AUTH_TOKEN,GPROXY_SECRET_KEY,GPROXY_SECRET_KEY_NEXT,GPROXY_SECRET_KEY_ROTATE --allow-read=./pkg,./public main.ts"
   }
 }

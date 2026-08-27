@@ -6,13 +6,16 @@ Requirements: Rust wasm target, `wasm-pack`, Node.js, and pnpm.
 pnpm install
 pnpm run build
 pnpm run check
-pnpm exec wrangler secret put GPROXY_CONFIG
+pnpm exec wrangler secret put GPROXY_LIBSQL_URL
+pnpm exec wrangler secret put GPROXY_LIBSQL_AUTH_TOKEN
 pnpm run dev
 ```
 
-`GPROXY_CONFIG` is the complete wasm TOML configuration. Store it only as a
-Workers secret. The build creates ignored `pkg/` and `public/` directories;
-no generated wasm or frontend assets are committed.
+The Worker constructs the typed edge config from those bindings. Optional
+secret-at-rest bindings are `GPROXY_SECRET_KEY`, `GPROXY_SECRET_KEY_NEXT`, and
+`GPROXY_SECRET_KEY_ROTATE`; store key values only as Workers secrets. The build
+creates ignored `pkg/` and `public/` directories; no generated wasm or frontend
+assets are committed.
 
 The Worker sends only `/`, the exact admin and portal roots, `/assets/**`, and
 `/favicon.svg` to the `ASSETS` binding. Admin APIs, portal APIs, provider

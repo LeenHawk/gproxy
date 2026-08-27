@@ -23,12 +23,11 @@ pub(super) async fn fixture() -> Fixture {
     getrandom::fill(&mut master_key).expect("master key randomness");
     let upstream_key = random_key();
     let client_key = random_key();
-    let config = Config::from_toml(&format!(
-        "listen_addr = \"127.0.0.1:0\"\ndata_dir = {:?}\nstore_backend = \"sqlite\"\nsecret_key = \"{}\"\n",
-        directory.path().display().to_string(),
-        base64::engine::general_purpose::STANDARD.encode(master_key),
-    ))
-    .expect("config");
+    let config = Config::sqlite(
+        "127.0.0.1:0".parse().unwrap(),
+        directory.path().to_path_buf(),
+        crate::SecretKeyConfig::new(Some(master_key)),
+    );
     let app = App::start(config).await.expect("start app");
     let provider = id(app
         .mutate(ControlMutation::Provider(

@@ -1,3 +1,0 @@
-listen_addr = "0.0.0.0:8787"
-data_dir = "/var/lib/gproxy"
-store_backend = "sqlite"

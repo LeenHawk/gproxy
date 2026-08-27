@@ -6,6 +6,7 @@ mod identity;
 mod process;
 mod recent_usage;
 mod runtime;
+mod secrets;
 mod snapshot;
 mod tokenizers;
 mod usage;

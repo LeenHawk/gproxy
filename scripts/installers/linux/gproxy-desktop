@@ -5,25 +5,23 @@ data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
 data_dir="$data_home/gproxy"
 log_dir="$state_home/gproxy"
-config="$data_dir/gproxy.toml"
+environment="$data_dir/.env"
 console_url="http://127.0.0.1:8787/admin"
 
 mkdir -p "$data_dir" "$log_dir"
-if [ ! -f "$config" ]; then
+if [ ! -f "$environment" ]; then
   umask 077
   secret="$(head -c 32 /dev/urandom | base64)"
-  temporary="$config.tmp.$$"
+  temporary="$environment.tmp.$$"
   {
-    printf '%s\n' 'listen_addr = "127.0.0.1:8787"'
-    printf '%s\n' 'data_dir = "."'
-    printf '%s\n' 'store_backend = "sqlite"'
-    printf 'secret_key = "%s"\n' "$secret"
+    printf '%s\n' 'GPROXY_DATA_DIR=.'
+    printf 'GPROXY_SECRET_KEY=%s\n' "$secret"
   } > "$temporary"
-  mv "$temporary" "$config"
+  mv "$temporary" "$environment"
 fi
 
 if ! curl -fsS "$console_url" >/dev/null 2>&1; then
-  (cd "$data_dir" && nohup /usr/bin/gproxy gproxy.toml >>"$log_dir/gproxy.log" 2>&1 &)
+  (cd "$data_dir" && nohup /usr/bin/gproxy >>"$log_dir/gproxy.log" 2>&1 &)
   healthy=false
   attempt=0
   while [ "$attempt" -lt 75 ]; do

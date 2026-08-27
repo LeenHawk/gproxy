@@ -84,12 +84,10 @@ public final class GproxyService extends Service {
             File executable = copyAsset("gproxy/gproxy.bin", new File(binDir, "gproxy"), true);
             File libcxx = copyAsset(
                 "gproxy/libc++_shared.so", new File(binDir, "libc++_shared.so"), false);
-            File config = new File(getFilesDir(), "gproxy.toml");
-            writeConfig(config);
+            writeEnvironment(new File(getFilesDir(), ".env"));
 
             ArrayList<String> command = new ArrayList<String>();
             command.add(executable.getAbsolutePath());
-            command.add(config.getAbsolutePath());
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(getFilesDir());
             Map<String, String> env = builder.environment();
@@ -112,20 +110,18 @@ public final class GproxyService extends Service {
         }
     }
 
-    private void writeConfig(File config) throws IOException {
-        if (config.isFile()) { return; }
+    private void writeEnvironment(File environment) throws IOException {
+        if (environment.isFile()) { return; }
         byte[] random = new byte[32];
         new SecureRandom().nextBytes(random);
         String secret = Base64.encodeToString(random, Base64.NO_WRAP);
-        String content = "listen_addr = \"127.0.0.1:8787\"\n"
-            + "data_dir = \"data\"\nstore_backend = \"sqlite\"\n"
-            + "secret_key = \"" + secret + "\"\n";
-        File temporary = new File(config.getPath() + ".tmp");
+        String content = "GPROXY_SECRET_KEY=" + secret + "\n";
+        File temporary = new File(environment.getPath() + ".tmp");
         FileOutputStream output = new FileOutputStream(temporary);
         try { output.write(content.getBytes("UTF-8")); } finally { output.close(); }
-        if (!temporary.renameTo(config)) { throw new IOException("persist config"); }
-        config.setReadable(true, true);
-        config.setWritable(true, true);
+        if (!temporary.renameTo(environment)) { throw new IOException("persist environment"); }
+        environment.setReadable(true, true);
+        environment.setWritable(true, true);
     }
 
     private boolean waitUntilHealthy(Process child) throws InterruptedException {

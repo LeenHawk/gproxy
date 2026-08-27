@@ -1,5 +1,5 @@
 import type { Context } from "@netlify/edge-functions"
-import init, { start } from "../pkg/gproxy_host_edge.js"
+import init, { EdgeConfig, start } from "../pkg/gproxy_host_edge.js"
 
 declare const Deno: {
   readFile(path: URL): Promise<Uint8Array>
@@ -11,10 +11,25 @@ let hostPromise: ReturnType<typeof start> | undefined
 
 async function host() {
   await wasmReady
-  const config = Netlify.env.get("GPROXY_CONFIG")
-  if (!config) throw new Error("GPROXY_CONFIG is not configured")
+  const config = new EdgeConfig(
+    required("GPROXY_LIBSQL_URL"),
+    required("GPROXY_LIBSQL_AUTH_TOKEN"),
+    Netlify.env.get("GPROXY_SECRET_KEY"),
+    Netlify.env.get("GPROXY_SECRET_KEY_NEXT"),
+    rotationArmed(Netlify.env.get("GPROXY_SECRET_KEY_ROTATE")),
+  )
   hostPromise ??= start(config)
   return hostPromise
+}
+
+function required(name: string) {
+  const value = Netlify.env.get(name)
+  if (!value) throw new Error(`${name} is not configured`)
+  return value
+}
+
+function rotationArmed(value?: string) {
+  return ["1", "true", "yes", "on"].includes(value?.trim().toLowerCase() ?? "")
 }
 
 function isStatic(request: Request) {

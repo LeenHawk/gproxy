@@ -38,11 +38,13 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system gproxy \
     && useradd --system --gid gproxy --home-dir /var/lib/gproxy gproxy \
-    && install -d -o gproxy -g gproxy /var/lib/gproxy /etc/gproxy
+    && install -d -o gproxy -g gproxy /var/lib/gproxy
 
 COPY --from=builder /source/target/release/gproxy /usr/local/bin/gproxy
-COPY deploy/container/gproxy.toml /etc/gproxy/gproxy.toml
 
 USER gproxy
 EXPOSE 8787
-ENTRYPOINT ["/usr/local/bin/gproxy", "/etc/gproxy/gproxy.toml"]
+ENV GPROXY_LISTEN_ADDR=0.0.0.0:8787 \
+    GPROXY_DATA_DIR=/var/lib/gproxy \
+    GPROXY_STORE_BACKEND=sqlite
+ENTRYPOINT ["/usr/local/bin/gproxy"]

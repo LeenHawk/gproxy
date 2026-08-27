@@ -3,7 +3,6 @@ use crate::cache::InProcessCache;
 use crate::control::SnapshotControl;
 use crate::host::{AppHost, Services};
 use crate::lifecycle::AppInner;
-use crate::secrets::EnvelopeCipher;
 use crate::{App, AppError, AppHandle, Config};
 use gproxy_channel_api::{Channel, ChannelRegistry};
 
@@ -13,6 +12,7 @@ impl App {
         std::fs::create_dir_all(config.data_dir())
             .map_err(|error| AppError::Bootstrap(error.to_string()))?;
         let store = gproxy_store::Store::open(config.backend_config()).await?;
+        let cipher = crate::key_rotation::prepare(&store, config.secret_keys()).await?;
         let control = SnapshotControl::new(store.clone()).await?;
         let cache = InProcessCache::default();
         let transport = gproxy_upstream::Transport::default();
@@ -25,7 +25,7 @@ impl App {
         let services = Shared::new(Services {
             store,
             cache,
-            cipher: EnvelopeCipher::new(*config.master_key()),
+            cipher,
             control,
             transport,
             health_sequence: std::sync::atomic::AtomicU64::new(0),

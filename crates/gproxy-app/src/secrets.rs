@@ -15,13 +15,13 @@ const USER_KEY_WRAPPED_KEY_AAD: &[u8] = b"gproxy:v3:user-key-envelope:v1:wrapped
 
 #[derive(Clone)]
 pub(crate) struct EnvelopeCipher {
-    master: Aes256Gcm,
+    master: Option<Aes256Gcm>,
 }
 
 impl EnvelopeCipher {
-    pub(crate) fn new(master_key: [u8; DEK_BYTES]) -> Self {
+    pub(crate) fn new(master_key: Option<[u8; DEK_BYTES]>) -> Self {
         Self {
-            master: Aes256Gcm::new(&Key::<Aes256Gcm>::from(master_key)),
+            master: master_key.map(|key| Aes256Gcm::new(&Key::<Aes256Gcm>::from(key))),
         }
     }
 
@@ -39,6 +39,14 @@ impl EnvelopeCipher {
         payload_aad: &[u8],
         wrapped_key_aad: &[u8],
     ) -> Result<CredentialEnvelope, AppError> {
+        let Some(master) = &self.master else {
+            return Ok(CredentialEnvelope {
+                ciphertext: serde_json::to_vec(value).map_err(|_| seal_error())?,
+                wrapped_key: Vec::new(),
+                payload_nonce: Vec::new(),
+                key_nonce: Vec::new(),
+            });
+        };
         let dek = SecretBytes(random_bytes::<DEK_BYTES>()?);
         let payload_nonce = random_bytes::<NONCE_BYTES>()?;
         let key_nonce = distinct_nonce(payload_nonce)?;
@@ -53,8 +61,7 @@ impl EnvelopeCipher {
                 },
             )
             .map_err(|_| seal_error())?;
-        let wrapped_key = self
-            .master
+        let wrapped_key = master
             .encrypt(
                 &Nonce::from(key_nonce),
                 Payload {
@@ -85,13 +92,22 @@ impl EnvelopeCipher {
         payload_aad: &[u8],
         wrapped_key_aad: &[u8],
     ) -> Result<Value, AppError> {
+        let Some(master) = &self.master else {
+            if !envelope.wrapped_key.is_empty()
+                || !envelope.payload_nonce.is_empty()
+                || !envelope.key_nonce.is_empty()
+            {
+                return Err(open_error());
+            }
+            return serde_json::from_slice(&envelope.ciphertext).map_err(|_| open_error());
+        };
         let payload_nonce = nonce(&envelope.payload_nonce)?;
         let key_nonce = nonce(&envelope.key_nonce)?;
         if payload_nonce == key_nonce {
             return Err(open_error());
         }
         let wrapped = SecretBytes(
-            self.master
+            master
                 .decrypt(
                     &Nonce::from(key_nonce),
                     Payload {
@@ -153,4 +169,23 @@ fn seal_error() -> AppError {
 
 fn open_error() -> AppError {
     AppError::Encryption("credential envelope is invalid".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::EnvelopeCipher;
+
+    #[test]
+    fn round_trips_with_and_without_a_master_key() {
+        let value = json!({"api_key": "fixture-secret"});
+        for cipher in [
+            EnvelopeCipher::new(None),
+            EnvelopeCipher::new(Some([7; 32])),
+        ] {
+            let envelope = cipher.seal(&value).unwrap();
+            assert_eq!(cipher.open(&envelope).unwrap(), value);
+        }
+    }
 }

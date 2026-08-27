@@ -22,19 +22,13 @@ impl Fixture {
         let (upstream, stub_shutdown, stub_task) = start_stub(&upstream_key).await;
         let directory = tempfile::tempdir().expect("test directory");
         let data_dir = directory.path().join("data");
-        let config_path = directory.path().join("gproxy.toml");
         let mut master_key = [0_u8; 32];
         getrandom::fill(&mut master_key).expect("master key randomness");
-        std::fs::write(
-            &config_path,
-            format!(
-                "listen_addr = \"127.0.0.1:0\"\ndata_dir = {:?}\nstore_backend = \"sqlite\"\nsecret_key = \"{}\"\n",
-                data_dir.display().to_string(),
-                base64::engine::general_purpose::STANDARD.encode(master_key),
-            ),
-        )
-        .expect("write config");
-        let config = gproxy_app::Config::load(&config_path).expect("load config file");
+        let config = gproxy_app::Config::sqlite(
+            "127.0.0.1:0".parse().unwrap(),
+            data_dir,
+            gproxy_app::SecretKeyConfig::new(Some(master_key)),
+        );
         let listen_addr = config.listen_addr();
         let app = gproxy_app::App::start(config).await.expect("start app");
         let quota_id = crate::seed::operational(&app, upstream, upstream_key, &client_key).await;

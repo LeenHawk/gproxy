@@ -9,11 +9,12 @@ mod control;
 mod error;
 mod host;
 pub mod ingress;
+mod key_rotation;
 mod lifecycle;
 mod logging;
 mod secrets;
 
-pub use config::Config;
+pub use config::{Config, SecretKeyConfig};
 pub use control::{ControlMutation, MutationResult};
 pub use error::{AppError, ConfigError};
 pub use lifecycle::{App, AppHandle};
