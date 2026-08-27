@@ -1,6 +1,6 @@
 mod csrf;
 mod handlers;
-mod password;
+pub(crate) mod password;
 mod session;
 
 pub(crate) use csrf::verify_same_origin;

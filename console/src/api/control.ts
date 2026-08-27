@@ -11,6 +11,8 @@ import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { PriceRuleWriteRequest } from "@/generated/PriceRuleWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
+import type { TokenizerFetchRequest } from "@/generated/TokenizerFetchRequest"
+import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
 import type { RouteMemberWriteRequest } from "@/generated/RouteMemberWriteRequest"
@@ -69,3 +71,8 @@ export const deleteProviderRuleSet = (id: number) => api<void>(`/admin/provider-
 export const instanceSettings = () => api<InstanceSettingsDto>("/admin/instance-settings")
 export const saveInstanceSettings = (value: InstanceSettingsDto) =>
   api<InstanceSettingsDto>("/admin/instance-settings", json("PATCH", value))
+export const tokenizerVocabs = () => api<Array<TokenizerVocabDto>>("/admin/tokenizer-vocabs")
+export const fetchTokenizerVocab = (value: TokenizerFetchRequest) =>
+  api<TokenizerVocabDto>("/admin/tokenizer-vocabs", json("POST", value))
+export const deleteTokenizerVocab = (value: TokenizerFetchRequest) =>
+  api<void>("/admin/tokenizer-vocabs", json("DELETE", value))

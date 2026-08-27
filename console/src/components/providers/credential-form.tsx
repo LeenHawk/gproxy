@@ -15,8 +15,9 @@ import { prettyJson } from "./json"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DialogClose, DialogFooter } from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 
 function initialFingerprint(credential: CredentialDto | undefined, presets: Array<TlsPresetDto>) {
@@ -37,6 +38,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
 }) {
   const { t } = useTranslation()
   const [label, setLabel] = useState(credential?.label ?? "")
+  const [kind, setKind] = useState(credential?.kind ?? "api_key")
   const [secret, setSecret] = useState<Record<string, unknown>>({})
   const [weight, setWeight] = useState(String(credential?.weight ?? 100))
   const [rpm, setRpm] = useState(credential?.rpm_limit?.toString() ?? "")
@@ -68,6 +70,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
       await onSave({
         provider_id: providerId,
         label: label.trim() || null,
+        kind,
         secret: Object.keys(secretValue).length ? secretValue : null,
         enabled,
         weight: Number(weight),
@@ -91,6 +94,16 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
         <Field>
           <FieldLabel htmlFor="credential-label">{t("providers.credentials.label")}</FieldLabel>
           <Input id="credential-label" value={label} onChange={(event) => setLabel(event.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="credential-kind">{t("providers.credentials.kind")}</FieldLabel>
+          <Select value={kind} onValueChange={setKind}>
+            <SelectTrigger id="credential-kind" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(["api_key", "oauth", "cookie"] as const).map((value) => <SelectItem key={value} value={value}>{t(`providers.credentials.kinds.${value}`)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <FieldDescription>{t("providers.credentials.kindHint")}</FieldDescription>
         </Field>
         <GenericSettingsFields fields={fields} values={secret} onChange={setSecret} />
         {credential ? <p className="text-xs text-muted-foreground">{t("providers.credentials.keepSecret")}</p> : null}

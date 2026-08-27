@@ -7,12 +7,16 @@ use gproxy_core::ProviderRef;
 use gproxy_store::StoreError;
 use gproxy_store::records::ControlSnapshot;
 
-use super::types::{CompiledRoute, CompiledSnapshot, TargetSeed};
+use super::types::{CompiledRoute, CompiledSnapshot, CredentialStrategy, TargetSeed};
 use super::{index, pricing, rules};
 
 impl CompiledSnapshot {
-    pub(super) fn build(stored: ControlSnapshot) -> Result<Self, StoreError> {
+    pub(super) fn build(
+        stored: ControlSnapshot,
+        runtime: &super::super::settings::RuntimeOverrides,
+    ) -> Result<Self, StoreError> {
         validate_windows(&stored)?;
+        let effective = super::super::settings::EffectiveSettings::read(&stored.settings, runtime);
         let stored = Arc::new(stored);
         let providers = stored
             .providers
@@ -27,27 +31,65 @@ impl CompiledSnapshot {
                     field: "provider settings",
                     message,
                 })?;
+                let credential_strategy = match provider.credential_strategy.as_str() {
+                    "round_robin" => CredentialStrategy::RoundRobin,
+                    "sticky" => CredentialStrategy::Sticky,
+                    value => {
+                        return Err(StoreError::InvalidData {
+                            field: "provider credential_strategy",
+                            message: format!("unsupported strategy {value}"),
+                        });
+                    }
+                };
                 Ok((
                     provider.id,
-                    ProviderRef {
-                        id: provider.id,
-                        name: provider.name.clone(),
-                        channel: gproxy_channels::canonical_channel_id(&provider.channel).into(),
-                        settings,
-                        fingerprint: super::super::fingerprint::parse(
-                            provider.tls_fingerprint.as_ref(),
-                        ),
-                        proxy_url: None,
-                    },
+                    (
+                        ProviderRef {
+                            id: provider.id,
+                            name: provider.name.clone(),
+                            channel: gproxy_channels::canonical_channel_id(&provider.channel)
+                                .into(),
+                            settings,
+                            fingerprint: effective
+                                .spoof_emulation
+                                .then(|| {
+                                    super::super::fingerprint::parse(
+                                        provider.tls_fingerprint.as_ref(),
+                                    )
+                                })
+                                .flatten(),
+                            proxy_url: super::super::settings::effective_proxy(
+                                None,
+                                provider.proxy_url.as_deref(),
+                                effective.proxy.as_deref(),
+                            ),
+                        },
+                        credential_strategy,
+                    ),
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, StoreError>>()?;
+        let strategies = providers
+            .iter()
+            .map(|(id, (_, strategy))| (*id, *strategy))
+            .collect::<BTreeMap<_, _>>();
+        let providers = providers
+            .into_iter()
+            .map(|(id, (provider, _))| (id, provider))
+            .collect::<BTreeMap<_, _>>();
         let provider_names = providers
             .values()
             .map(|provider| (provider.name.clone(), provider.id))
             .collect();
-        let (credentials, credential_providers) = credentials(&stored, &providers);
-        let routes = routes(&stored, &providers, &credentials, &credential_providers);
+        let (credentials, credential_providers) =
+            credentials(&stored, &providers, effective.spoof_emulation);
+        let routes = routes(
+            &stored,
+            &providers,
+            &strategies,
+            &credentials,
+            &credential_providers,
+        );
         let route_names = stored
             .routes
             .iter()
@@ -61,7 +103,9 @@ impl CompiledSnapshot {
         let (routing_rules, process_rules) = rules::compile(&stored)?;
         Ok(Self {
             stored,
+            settings: effective,
             providers,
+            strategies,
             provider_names,
             credentials,
             routes,
@@ -112,6 +156,7 @@ fn validate_windows(stored: &ControlSnapshot) -> Result<(), StoreError> {
 fn credentials(
     stored: &ControlSnapshot,
     providers: &BTreeMap<i64, ProviderRef>,
+    spoof_emulation: bool,
 ) -> (
     BTreeMap<i64, Vec<super::types::CredentialSeed>>,
     BTreeMap<i64, i64>,
@@ -131,7 +176,9 @@ fn credentials(
                 version: credential.version,
                 weight: credential.weight,
                 proxy_url: credential.proxy_url.clone(),
-                fingerprint: super::super::fingerprint::parse(credential.tls_fingerprint.as_ref()),
+                fingerprint: spoof_emulation
+                    .then(|| super::super::fingerprint::parse(credential.tls_fingerprint.as_ref()))
+                    .flatten(),
             });
         credential_providers.insert(credential.id, credential.provider_id);
     }
@@ -144,6 +191,7 @@ fn credentials(
 fn routes(
     stored: &ControlSnapshot,
     providers: &BTreeMap<i64, ProviderRef>,
+    strategies: &BTreeMap<i64, CredentialStrategy>,
     credentials: &BTreeMap<i64, Vec<super::types::CredentialSeed>>,
     credential_providers: &BTreeMap<i64, i64>,
 ) -> BTreeMap<i64, CompiledRoute> {
@@ -187,6 +235,7 @@ fn routes(
                     credential: credential.id,
                     credential_version: credential.version,
                     credential_weight: credential.weight,
+                    credential_strategy: strategies[&member.provider_id],
                     proxy_url: credential.proxy_url,
                     fingerprint: credential.fingerprint,
                     upstream_model: member.upstream_model.clone(),

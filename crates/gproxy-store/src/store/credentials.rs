@@ -16,6 +16,7 @@ impl Store {
             provider_id: row.i64("provider_id")?,
             channel: row.text("channel")?.to_owned(),
             label: row.optional_text("label")?.map(str::to_owned),
+            kind: row.text("kind")?.to_owned(),
             envelope: CredentialEnvelope {
                 ciphertext: row.blob("ciphertext")?.to_vec(),
                 wrapped_key: row.blob("wrapped_key")?.to_vec(),

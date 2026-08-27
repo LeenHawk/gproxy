@@ -13,15 +13,21 @@ pub(crate) fn insert_provider(input: &ProviderInput) -> Result<Statement, StoreE
         "providers",
         &[
             "name",
+            "label",
             "channel",
             "settings_json",
+            "credential_strategy",
+            "proxy_url",
             "enabled",
             "tls_fingerprint",
         ],
         vec![
             value(input.name.clone()),
+            value(input.label.clone()),
             value(input.channel.clone()),
             value(json(&input.settings, "settings")?),
+            value(input.credential_strategy.clone()),
+            value(input.proxy_url.clone()),
             value(input.enabled),
             value(
                 input
@@ -40,6 +46,7 @@ pub(crate) fn insert_credential(input: &CredentialInput) -> Result<Statement, St
         &[
             "provider_id",
             "label",
+            "kind",
             "ciphertext",
             "wrapped_key",
             "payload_nonce",
@@ -55,6 +62,7 @@ pub(crate) fn insert_credential(input: &CredentialInput) -> Result<Statement, St
         vec![
             value(input.provider_id),
             value(input.label.clone()),
+            value(input.kind.clone()),
             value(input.envelope.ciphertext.clone()),
             value(input.envelope.wrapped_key.clone()),
             value(input.envelope.payload_nonce.clone()),

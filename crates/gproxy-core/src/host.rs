@@ -36,6 +36,8 @@ pub struct CredentialRecord {
     pub id: CredentialId,
     /// Channel id, e.g. `"openai"`, `"claudecode"`, `"codex"`.
     pub channel: String,
+    /// Acquisition method such as `api_key`, `oauth`, or `cookie`.
+    pub kind: String,
     /// Decrypted secret in the channel's documented shape (API key, OAuth
     /// token set, service-account JSON, ...).
     pub secret: serde_json::Value,

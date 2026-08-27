@@ -8,9 +8,12 @@ use super::TlsFingerprintDto;
 pub struct ProviderDto {
     pub id: i64,
     pub name: String,
+    pub label: Option<String>,
     pub channel: String,
     #[ts(type = "unknown")]
     pub settings: Value,
+    pub credential_strategy: String,
+    pub proxy_url: Option<String>,
     pub tls_fingerprint: Option<TlsFingerprintDto>,
     #[ts(type = "unknown | null")]
     pub invalid_tls_fingerprint: Option<Value>,
@@ -21,9 +24,12 @@ pub struct ProviderDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ProviderWriteRequest {
     pub name: String,
+    pub label: Option<String>,
     pub channel: String,
     #[ts(type = "unknown")]
     pub settings: Value,
+    pub credential_strategy: String,
+    pub proxy_url: Option<String>,
     pub tls_fingerprint: Option<TlsFingerprintDto>,
     pub enabled: bool,
 }
@@ -44,6 +50,7 @@ pub struct CredentialDto {
     pub id: i64,
     pub provider_id: i64,
     pub label: Option<String>,
+    pub kind: String,
     pub version: u64,
     pub enabled: bool,
     pub weight: u32,
@@ -64,6 +71,7 @@ pub struct CredentialDto {
 pub struct CredentialWriteRequest {
     pub provider_id: i64,
     pub label: Option<String>,
+    pub kind: String,
     #[ts(type = "unknown | null")]
     pub secret: Option<Value>,
     pub enabled: bool,

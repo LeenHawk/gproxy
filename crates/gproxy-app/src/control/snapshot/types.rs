@@ -25,7 +25,9 @@ pub(super) type CredentialPressureMap =
 
 pub(super) struct CompiledSnapshot {
     pub stored: Arc<ControlSnapshot>,
+    pub settings: super::super::settings::EffectiveSettings,
     pub providers: BTreeMap<i64, ProviderRef>,
+    pub strategies: BTreeMap<i64, CredentialStrategy>,
     pub provider_names: BTreeMap<String, i64>,
     pub credentials: BTreeMap<i64, Vec<CredentialSeed>>,
     pub routes: BTreeMap<i64, CompiledRoute>,
@@ -54,9 +56,16 @@ pub(super) struct TargetSeed {
     pub credential: CredentialId,
     pub credential_version: u64,
     pub credential_weight: u32,
+    pub credential_strategy: CredentialStrategy,
     pub proxy_url: Option<String>,
     pub fingerprint: Option<ConfiguredFingerprint>,
     pub upstream_model: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CredentialStrategy {
+    RoundRobin,
+    Sticky,
 }
 
 #[derive(Clone)]

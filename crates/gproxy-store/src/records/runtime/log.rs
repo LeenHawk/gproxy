@@ -7,6 +7,13 @@ pub const ENABLE_UPSTREAM_LOG_BODY: &str = "enable_upstream_log_body";
 pub const DISABLE_LOG_REDACTION: &str = "disable_log_redaction";
 pub const RETENTION_DAYS: &str = "retention_days";
 pub const MAX_DATABASE_SIZE_MB: &str = "max_database_size_mb";
+pub const PROXY: &str = "proxy";
+pub const SPOOF_EMULATION: &str = "spoof_emulation";
+pub const ENABLE_USAGE: &str = "enable_usage";
+pub const ENABLE_TOKENIZER_DOWNLOAD: &str = "enable_tokenizer_download";
+pub const FILE_UPLOAD_MAX_IN_FLIGHT: &str = "file_upload_max_in_flight";
+pub const INSTANCE_NAME: &str = "instance_name";
+pub const INHERIT_SYSTEM_PROXY: &str = "inherit_system_proxy";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaptureInput {

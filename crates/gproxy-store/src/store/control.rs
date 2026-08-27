@@ -17,6 +17,7 @@ impl Store {
                     id: row.i64("id")?,
                     provider_id: row.i64("provider_id")?,
                     label: row.optional_text("label")?.map(str::to_owned),
+                    kind: row.text("kind")?.to_owned(),
                     version: u64::try_from(row.i64("version")?).map_err(|error| {
                         StoreError::InvalidData {
                             field: "credential version",

@@ -11,6 +11,7 @@ import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "@/com
 import { FingerprintField } from "@/components/providers/fingerprint-field"
 import { parseJsonObject, prettyJson } from "@/components/providers/json"
 import { ProviderSettingsFields } from "@/components/providers/provider-settings-fields"
+import { ProviderIdentityFields } from "@/components/providers/provider-identity-fields"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,7 +31,10 @@ import { Switch } from "@/components/ui/switch"
 
 type Draft = {
   name: string
+  label: string
   channel: string
+  credentialStrategy: string
+  proxyUrl: string
   settings: string
   fingerprint: string
   preset: string
@@ -44,7 +48,10 @@ function initialDraft(provider: ProviderDto | undefined, presets: Array<TlsPrese
     : presets.find((item) => JSON.stringify(item.fingerprint) === JSON.stringify(rawFingerprint))?.id ?? CUSTOM_FINGERPRINT
   return {
     name: provider?.name ?? "",
+    label: provider?.label ?? "",
     channel: provider?.channel ?? "",
+    credentialStrategy: provider?.credential_strategy ?? "round_robin",
+    proxyUrl: provider?.proxy_url ?? "",
     settings: prettyJson(provider?.settings ?? {}),
     fingerprint: prettyJson(rawFingerprint),
     preset,
@@ -103,8 +110,11 @@ export function ProviderDialog(props: Props) {
     if (Object.values(nextErrors).some(Boolean) || !settings.ok || !fingerprint.ok) return
     const value: ProviderWriteRequest = {
       name: draft.name.trim(),
+      label: draft.label.trim() || null,
       channel: draft.channel,
       settings: settings.value,
+      credential_strategy: draft.credentialStrategy,
+      proxy_url: draft.proxyUrl.trim() || null,
       tls_fingerprint: fingerprint.value,
       enabled: draft.enabled,
     }
@@ -138,6 +148,7 @@ export function ProviderDialog(props: Props) {
               <Input id={`${id}-name`} value={draft.name} onChange={(event) => change("name", event.target.value)} aria-invalid={Boolean(errors.name) || undefined} />
               {errors.name ? <FieldError>{errors.name}</FieldError> : null}
             </Field>
+            <ProviderIdentityFields id={id} label={draft.label} strategy={draft.credentialStrategy} proxyUrl={draft.proxyUrl} onLabel={(value) => change("label", value)} onStrategy={(value) => change("credentialStrategy", value)} onProxy={(value) => change("proxyUrl", value)} />
             <Field data-invalid={Boolean(errors.channel) || props.channelsError || undefined}>
               <FieldLabel htmlFor={`${id}-channel`}>{t("providers.fields.channel")}</FieldLabel>
               <SearchableSelect

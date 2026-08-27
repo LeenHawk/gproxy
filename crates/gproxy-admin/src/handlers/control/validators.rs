@@ -5,6 +5,11 @@ use crate::{AdminError, State};
 pub(crate) fn credential_settings(
     request: &crate::dto::CredentialWriteRequest,
 ) -> Result<(), AdminError> {
+    if request.kind.trim().is_empty() {
+        return Err(AdminError::BadRequest(
+            "credential kind must not be blank".into(),
+        ));
+    }
     if request.weight == 0 {
         return Err(AdminError::BadRequest(
             "credential weight must be positive".into(),

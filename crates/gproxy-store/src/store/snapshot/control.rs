@@ -14,8 +14,11 @@ pub(super) fn providers(result: QueryResult) -> Result<Vec<ProviderRecord>, Stor
             Ok(ProviderRecord {
                 id: row.i64("id")?,
                 name: row.text("name")?.to_owned(),
+                label: row.optional_text("label")?.map(str::to_owned),
                 channel: row.text("channel")?.to_owned(),
                 settings: json(row.text("settings_json")?, "settings_json")?,
+                credential_strategy: row.text("credential_strategy")?.to_owned(),
+                proxy_url: row.optional_text("proxy_url")?.map(str::to_owned),
                 tls_fingerprint: row
                     .optional_text("tls_fingerprint")?
                     .map(|value| json(value, "tls_fingerprint"))
@@ -36,6 +39,7 @@ pub(super) fn credential_meta(
             Ok(CredentialMetaRecord {
                 id: row.i64("id")?,
                 provider_id: row.i64("provider_id")?,
+                kind: row.text("kind")?.to_owned(),
                 version: unsigned(row.i64("version")?, "credential version")?,
                 enabled: row.i64("enabled")? != 0,
                 weight: unsigned32(row.i64("weight")?, "credential weight")?,

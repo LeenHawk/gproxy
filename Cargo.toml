@@ -67,6 +67,7 @@ tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal
 tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 ts-rs = { version = "12.0.1", features = ["serde-json-impl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

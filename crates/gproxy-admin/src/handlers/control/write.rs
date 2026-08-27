@@ -30,6 +30,7 @@ pub(super) async fn create(
                 .insert_credential(&CredentialInput {
                     provider_id: request.provider_id,
                     label: request.label,
+                    kind: request.kind,
                     envelope: state.seal_credential(secret)?,
                     enabled: request.enabled,
                     weight: request.weight,
@@ -97,6 +98,7 @@ pub(super) async fn update(
                     &CredentialUpdateInput {
                         provider_id: request.provider_id,
                         label: request.label,
+                        kind: request.kind,
                         envelope,
                         enabled: request.enabled,
                         weight: request.weight,

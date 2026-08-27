@@ -7,22 +7,25 @@ impl CompiledSnapshot {
         &self,
         model: Option<&str>,
         mode: &RoutingMode,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         match mode {
-            RoutingMode::Aggregated => self.aggregated(model, health, counters),
+            RoutingMode::Aggregated => self.aggregated(model, affinity, health, counters),
             RoutingMode::Namespace { namespace } => {
-                self.namespace(namespace, model, health, counters)
+                self.namespace(namespace, model, affinity, health, counters)
             }
-            RoutingMode::Scoped { provider } => self.scoped(provider, model, health, counters),
+            RoutingMode::Scoped { provider } => {
+                self.scoped(provider, model, affinity, health, counters)
+            }
             RoutingMode::Named { name } => {
                 if self.namespaces.contains_key(&name.to_ascii_lowercase()) {
-                    self.namespace(name, model, health, counters)
+                    self.namespace(name, model, affinity, health, counters)
                 } else if let Some(route_id) = self.route_names.get(name) {
-                    self.route(*route_id, health, counters)
+                    self.route(*route_id, affinity, health, counters)
                 } else {
-                    self.scoped(name, model, health, counters)
+                    self.scoped(name, model, affinity, health, counters)
                 }
             }
         }
@@ -31,11 +34,12 @@ impl CompiledSnapshot {
     fn aggregated(
         &self,
         model: Option<&str>,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let Some(model) = model else {
-            return self.all_providers("", health, counters);
+            return self.all_providers("", affinity, health, counters);
         };
         let exposed = self
             .global_aliases
@@ -46,13 +50,14 @@ impl CompiledSnapshot {
             .exposed
             .get(exposed)
             .ok_or_else(|| CoreError::UnknownRoute(model.to_owned()))?;
-        self.route(*route_id, health, counters)
+        self.route(*route_id, affinity, health, counters)
     }
 
     fn namespace(
         &self,
         namespace: &str,
         model: Option<&str>,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
@@ -66,7 +71,7 @@ impl CompiledSnapshot {
                 .filter_map(|id| self.routes.get(&id))
                 .flat_map(|route| route.targets.iter().cloned())
                 .collect();
-            return self.plan(seeds, None, 0, health, counters);
+            return self.plan(seeds, None, 0, affinity, health, counters);
         };
         let exposed = self
             .global_aliases
@@ -76,13 +81,14 @@ impl CompiledSnapshot {
         let route_id = routes
             .get(exposed)
             .ok_or_else(|| CoreError::UnknownRoute(format!("{namespace}/{model}")))?;
-        self.route(*route_id, health, counters)
+        self.route(*route_id, affinity, health, counters)
     }
 
     fn scoped(
         &self,
         provider: &str,
         model: Option<&str>,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
@@ -114,17 +120,19 @@ impl CompiledSnapshot {
                 credential: credential.id,
                 credential_version: credential.version,
                 credential_weight: credential.weight,
+                credential_strategy: self.provider_strategy(provider_id),
                 proxy_url: credential.proxy_url,
                 fingerprint: credential.fingerprint,
                 upstream_model: upstream_model.clone(),
             })
             .collect();
-        self.plan(seeds, None, -provider_id, health, counters)
+        self.plan(seeds, None, -provider_id, affinity, health, counters)
     }
 
     fn all_providers(
         &self,
         upstream_model: &str,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
@@ -140,18 +148,20 @@ impl CompiledSnapshot {
                     credential: credential.id,
                     credential_version: credential.version,
                     credential_weight: credential.weight,
+                    credential_strategy: self.provider_strategy(*provider_id),
                     proxy_url: credential.proxy_url,
                     fingerprint: credential.fingerprint,
                     upstream_model: upstream_model.to_owned(),
                 })
             })
             .collect();
-        self.plan(seeds, None, 0, health, counters)
+        self.plan(seeds, None, 0, affinity, health, counters)
     }
 
     fn route(
         &self,
         route_id: i64,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
@@ -163,8 +173,16 @@ impl CompiledSnapshot {
             route.targets.clone(),
             Some(route.max_attempts),
             route_id,
+            affinity,
             health,
             counters,
         )
+    }
+
+    fn provider_strategy(&self, provider_id: i64) -> super::types::CredentialStrategy {
+        self.strategies
+            .get(&provider_id)
+            .copied()
+            .unwrap_or(super::types::CredentialStrategy::RoundRobin)
     }
 }

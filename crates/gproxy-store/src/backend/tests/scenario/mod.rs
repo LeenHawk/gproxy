@@ -34,8 +34,11 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     let provider = store
         .insert_provider(&ProviderInput {
             name: "provider".into(),
+            label: None,
             channel: "channel".into(),
             settings: json!({"base_url": "https://upstream.invalid"}),
+            credential_strategy: "round_robin".into(),
+            proxy_url: None,
             tls_fingerprint: None,
             enabled: true,
         })
@@ -44,6 +47,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .insert_credential(&CredentialInput {
             provider_id: provider,
             label: None,
+            kind: "api_key".into(),
             envelope: envelope(1),
             enabled: true,
             weight: 100,

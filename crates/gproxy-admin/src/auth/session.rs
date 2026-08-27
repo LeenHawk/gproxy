@@ -14,6 +14,7 @@ const SESSION_SECONDS: i64 = 12 * 60 * 60;
 pub(crate) struct AdminIdentity {
     pub id: i64,
     pub username: String,
+    pub api_key: bool,
 }
 
 pub(super) async fn create(state: &impl State, admin_id: i64) -> Result<String, AdminError> {
@@ -38,13 +39,21 @@ pub(crate) async fn authenticate(
     state: &impl State,
     parts: &Parts,
 ) -> Result<AdminIdentity, AdminError> {
+    if let Some(token) = bearer(parts) {
+        let account = state
+            .store()
+            .admin_for_api_key(&digest(token))
+            .await?
+            .ok_or(AdminError::Unauthorized)?;
+        return Ok(identity(account, true));
+    }
     let token = token(parts).ok_or(AdminError::Unauthorized)?;
     let account = state
         .store()
         .admin_for_session(&digest(token), now()?)
         .await?
         .ok_or(AdminError::Unauthorized)?;
-    Ok(identity(account))
+    Ok(identity(account, false))
 }
 
 pub(super) async fn revoke(state: &impl State, parts: &Parts) -> Result<(), AdminError> {
@@ -89,9 +98,20 @@ fn digest(token: &str) -> Vec<u8> {
     Sha256::digest(token.as_bytes()).to_vec()
 }
 
-fn identity(account: AdminAccountRecord) -> AdminIdentity {
+fn bearer(parts: &Parts) -> Option<&str> {
+    parts
+        .headers
+        .get(http::header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")
+        .filter(|value| !value.is_empty())
+}
+
+fn identity(account: AdminAccountRecord, api_key: bool) -> AdminIdentity {
     AdminIdentity {
         id: account.id,
         username: account.username,
+        api_key,
     }
 }

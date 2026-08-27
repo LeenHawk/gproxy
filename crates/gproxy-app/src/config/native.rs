@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::{Config, MasterKeyConfig, invalid};
+use super::{Config, LogFormat, MasterKeyConfig, NativeOptions, invalid};
 use crate::ConfigError;
 
 const HOST: &str = "GPROXY_HOST";
@@ -13,6 +13,18 @@ const LIBSQL_AUTH_TOKEN: &str = "GPROXY_LIBSQL_AUTH_TOKEN";
 const MASTER_KEY: &str = "GPROXY_MASTER_KEY";
 const MASTER_KEY_NEXT: &str = "GPROXY_MASTER_KEY_NEXT";
 const MASTER_KEY_ROTATE: &str = "GPROXY_MASTER_KEY_ROTATE";
+const UPSTREAM_PROXY_URL: &str = "GPROXY_UPSTREAM_PROXY_URL";
+const TRUSTED_PROXIES: &str = "GPROXY_TRUSTED_PROXIES";
+const CORS_ORIGINS: &str = "GPROXY_CORS_ORIGINS";
+const MAX_ATTEMPTS: &str = "GPROXY_MAX_ATTEMPTS";
+const MAX_IN_FLIGHT: &str = "GPROXY_MAX_IN_FLIGHT";
+const FILE_UPLOAD_MAX_IN_FLIGHT: &str = "GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT";
+const INSTANCE_ID: &str = "GPROXY_INSTANCE_ID";
+const LOG_FORMAT: &str = "GPROXY_LOG_FORMAT";
+const ADMIN_USER: &str = "GPROXY_ADMIN_USER";
+const ADMIN_PASSWORD: &str = "GPROXY_ADMIN_PASSWORD";
+const BOOTSTRAP_ADMIN_API_KEY: &str = "GPROXY_BOOTSTRAP_ADMIN_API_KEY";
+const BOOTSTRAP_CHANNELS: &str = "GPROXY_BOOTSTRAP_CHANNELS";
 
 /// The whole configuration surface, declared once. `--help` is generated
 /// from this, so the flag list and the environment list cannot drift apart.
@@ -60,6 +72,44 @@ pub(super) struct Cli {
     /// silently decrypt the whole store
     #[arg(long, env = MASTER_KEY_ROTATE, value_name = "BOOL")]
     master_key_rotate: Option<String>,
+    /// Default outbound proxy. Credential and provider settings override it.
+    /// Ambient HTTP_PROXY/HTTPS_PROXY are ignored unless the persisted
+    /// `inherit_system_proxy` instance setting is enabled
+    #[arg(long, env = UPSTREAM_PROXY_URL, value_name = "URL", hide_env_values = true)]
+    upstream_proxy_url: Option<String>,
+    /// Numeric id included in native request identifiers [default: 0]
+    #[arg(long, env = INSTANCE_ID, value_name = "ID")]
+    instance_id: Option<String>,
+    /// Maximum upstream candidates attempted per request [default: 6]
+    #[arg(long, env = MAX_ATTEMPTS, value_name = "COUNT")]
+    max_attempts: Option<String>,
+    /// Maximum concurrent gateway requests [default: 1024]
+    #[arg(long, env = MAX_IN_FLIGHT, value_name = "COUNT")]
+    max_in_flight: Option<String>,
+    /// Process upload concurrency override; 0 means unlimited
+    #[arg(long, env = FILE_UPLOAD_MAX_IN_FLIGHT, value_name = "COUNT")]
+    file_upload_max_in_flight: Option<String>,
+    /// Trusted reverse-proxy IPs, comma-separated; loopback is always trusted
+    #[arg(long = "trusted-proxy", env = TRUSTED_PROXIES, value_name = "IP")]
+    trusted_proxies: Option<String>,
+    /// Exact allowed browser origins, comma-separated; empty is same-origin
+    #[arg(long = "cors-origin", env = CORS_ORIGINS, value_name = "ORIGIN")]
+    cors_origins: Option<String>,
+    /// Native log format: text or newline-delimited json [default: text]
+    #[arg(long, env = LOG_FORMAT, value_name = "FORMAT")]
+    log_format: Option<String>,
+    /// First-run administrator username [default: admin]
+    #[arg(long, env = ADMIN_USER, value_name = "USER")]
+    admin_user: Option<String>,
+    /// First-run administrator password. Existing accounts are never changed
+    #[arg(long, env = ADMIN_PASSWORD, value_name = "PASSWORD", hide_env_values = true)]
+    admin_password: Option<String>,
+    /// First-run administrator API key. Existing stores are never changed
+    #[arg(long, env = BOOTSTRAP_ADMIN_API_KEY, value_name = "KEY", hide_env_values = true)]
+    bootstrap_admin_api_key: Option<String>,
+    /// Channel ids to create on first run, comma-separated
+    #[arg(long = "bootstrap-channel", env = BOOTSTRAP_CHANNELS, value_name = "CHANNEL")]
+    bootstrap_channels: Option<String>,
 }
 
 pub(super) fn load() -> Result<Config, ConfigError> {
@@ -96,7 +146,47 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
         layered(cli.master_key_next, MASTER_KEY_NEXT),
         rotation_enabled(layered(cli.master_key_rotate, MASTER_KEY_ROTATE))?,
     )?;
-    match layered(cli.persistence, PERSISTENCE)
+    let native = NativeOptions {
+        upstream_proxy_url: nonempty(layered(cli.upstream_proxy_url, UPSTREAM_PROXY_URL)),
+        instance_id: parse_number(layered(cli.instance_id, INSTANCE_ID), INSTANCE_ID, 0, true)?,
+        max_attempts: parse_number(
+            layered(cli.max_attempts, MAX_ATTEMPTS),
+            MAX_ATTEMPTS,
+            6,
+            false,
+        )?,
+        max_in_flight: parse_number(
+            layered(cli.max_in_flight, MAX_IN_FLIGHT),
+            MAX_IN_FLIGHT,
+            1024,
+            false,
+        )?,
+        file_upload_max_in_flight: layered(
+            cli.file_upload_max_in_flight,
+            FILE_UPLOAD_MAX_IN_FLIGHT,
+        )
+        .map(|value| parse_value(&value, FILE_UPLOAD_MAX_IN_FLIGHT, true))
+        .transpose()?,
+        trusted_proxies: parse_list(
+            layered(cli.trusted_proxies, TRUSTED_PROXIES),
+            TRUSTED_PROXIES,
+        )?,
+        cors_origins: split_list(layered(cli.cors_origins, CORS_ORIGINS)),
+        log_format: match layered(cli.log_format, LOG_FORMAT)
+            .unwrap_or_else(|| "text".into())
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "text" => LogFormat::Text,
+            "json" => LogFormat::Json,
+            _ => return Err(invalid(LOG_FORMAT, "expected `text` or `json`")),
+        },
+        admin_user: layered(cli.admin_user, ADMIN_USER).unwrap_or_else(|| "admin".into()),
+        admin_password: layered(cli.admin_password, ADMIN_PASSWORD),
+        bootstrap_admin_api_key: layered(cli.bootstrap_admin_api_key, BOOTSTRAP_ADMIN_API_KEY),
+        bootstrap_channels: split_list(layered(cli.bootstrap_channels, BOOTSTRAP_CHANNELS)),
+    };
+    let config = match layered(cli.persistence, PERSISTENCE)
         .unwrap_or_else(|| "sqlite".into())
         .as_str()
     {
@@ -109,7 +199,67 @@ fn resolve(cli: Cli, cwd: &Path) -> Result<Config, ConfigError> {
             secret_keys,
         ),
         _ => Err(invalid(PERSISTENCE, "expected `sqlite` or `libsql`")),
+    }?;
+    Ok(config.with_native_options(native))
+}
+
+fn nonempty(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_number<T>(
+    value: Option<String>,
+    name: &'static str,
+    default: T,
+    zero_allowed: bool,
+) -> Result<T, ConfigError>
+where
+    T: std::str::FromStr + Default + PartialEq,
+{
+    value.map_or(Ok(default), |value| parse_value(&value, name, zero_allowed))
+}
+
+fn parse_value<T>(value: &str, name: &'static str, zero_allowed: bool) -> Result<T, ConfigError>
+where
+    T: std::str::FromStr + Default + PartialEq,
+{
+    let parsed = value
+        .parse::<T>()
+        .map_err(|_| invalid(name, "expected a non-negative integer"))?;
+    if !zero_allowed && parsed == T::default() {
+        return Err(invalid(name, "must be positive"));
     }
+    Ok(parsed)
+}
+
+fn split_list(value: Option<String>) -> Vec<String> {
+    value
+        .into_iter()
+        .flat_map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn parse_list<T>(value: Option<String>, name: &'static str) -> Result<Vec<T>, ConfigError>
+where
+    T: std::str::FromStr,
+{
+    split_list(value)
+        .into_iter()
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| invalid(name, "contains an invalid value"))
+        })
+        .collect()
 }
 
 /// Only `GPROXY_*` keys are taken from a `.env`. Deployment tokens and other
@@ -191,6 +341,18 @@ mod tests {
             master_key: get(MASTER_KEY),
             master_key_next: get(MASTER_KEY_NEXT),
             master_key_rotate: get(MASTER_KEY_ROTATE),
+            upstream_proxy_url: get(UPSTREAM_PROXY_URL),
+            instance_id: get(INSTANCE_ID),
+            max_attempts: get(MAX_ATTEMPTS),
+            max_in_flight: get(MAX_IN_FLIGHT),
+            file_upload_max_in_flight: get(FILE_UPLOAD_MAX_IN_FLIGHT),
+            trusted_proxies: get(TRUSTED_PROXIES),
+            cors_origins: get(CORS_ORIGINS),
+            log_format: get(LOG_FORMAT),
+            admin_user: get(ADMIN_USER),
+            admin_password: get(ADMIN_PASSWORD),
+            bootstrap_admin_api_key: get(BOOTSTRAP_ADMIN_API_KEY),
+            bootstrap_channels: get(BOOTSTRAP_CHANNELS),
         }
     }
 

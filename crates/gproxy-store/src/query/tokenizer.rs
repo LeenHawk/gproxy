@@ -7,7 +7,8 @@ use crate::query::common::value;
 pub(crate) fn list() -> Result<Statement, StoreError> {
     let mut query = Query::select();
     query
-        .column(Alias::new("name"))
+        .columns([Alias::new("name"), Alias::new("updated_at")])
+        .expr_as(Expr::cust("length(bytes)"), Alias::new("size_bytes"))
         .from(Alias::new("tokenizer_vocabs"))
         .order_by(Alias::new("name"), sea_query::Order::Asc);
     Statement::query(&query)

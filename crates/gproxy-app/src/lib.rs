@@ -14,6 +14,8 @@ mod lifecycle;
 mod logging;
 mod secrets;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use config::LogFormat;
 pub use config::{Config, MasterKeyConfig};
 pub use control::{ControlMutation, MutationResult};
 pub use error::{AppError, ConfigError};

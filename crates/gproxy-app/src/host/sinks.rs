@@ -26,6 +26,7 @@ impl UsageSink for AppHost {
 }
 
 async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement) {
+    let settings = host.services.control.settings();
     let state = match super::admission::load(host, &settlement.request_id).await {
         Ok(state) => state,
         Err(error) => {
@@ -34,6 +35,9 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
         }
     };
     let identity = state.as_ref().map(|state| &state.identity);
+    let mut dimensions = settlement.usage.dimensions.clone();
+    dimensions.insert("instance_name".into(), settings.instance_name.clone());
+    dimensions.insert("instance_id".into(), settings.instance_id.to_string());
     let input = gproxy_store::records::UsageInput {
         request_id: settlement.request_id.clone(),
         at: unix_now(),
@@ -50,8 +54,7 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
         cached_input_tokens: settlement.usage.cached_input_tokens,
         metrics: serde_json::to_value(&settlement.usage.metrics)
             .expect("decimal metrics serialize"),
-        dimensions: serde_json::to_value(&settlement.usage.dimensions)
-            .expect("string dimensions serialize"),
+        dimensions: serde_json::to_value(dimensions).expect("string dimensions serialize"),
         cost: settlement.cost,
         usage_source: match settlement.source {
             UsageSource::Upstream => "upstream",
@@ -66,6 +69,9 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
         latency_ms: settlement.latency_ms,
     };
     super::admission::finish(host, &settlement.request_id, Some(settlement)).await;
+    if !settings.enable_usage {
+        return;
+    }
     if let Err(error) = host.services.store.record_usage(&input).await {
         tracing::error!(request_id = %settlement.request_id, error = %error, "persist usage failed");
     }

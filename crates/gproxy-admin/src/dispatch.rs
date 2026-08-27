@@ -20,7 +20,7 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
     };
     let result = async {
         let admin = auth::authenticate(state, parts).await?;
-        if parts.method != Method::GET && parts.method != Method::HEAD {
+        if !admin.api_key && parts.method != Method::GET && parts.method != Method::HEAD {
             auth::verify_same_origin(parts)?;
         }
         handlers::dispatch(state, &admin, route, parts, &body).await

@@ -8,8 +8,11 @@ pub(crate) fn select_providers() -> Result<Statement, StoreError> {
         &[
             "id",
             "name",
+            "label",
             "channel",
             "settings_json",
+            "credential_strategy",
+            "proxy_url",
             "enabled",
             "tls_fingerprint",
         ],
@@ -22,6 +25,7 @@ pub(crate) fn select_credential_meta() -> Result<Statement, StoreError> {
         &[
             "id",
             "provider_id",
+            "kind",
             "version",
             "enabled",
             "weight",
@@ -40,6 +44,7 @@ pub(crate) fn select_admin_credentials() -> Result<Statement, StoreError> {
             "id",
             "provider_id",
             "label",
+            "kind",
             "version",
             "enabled",
             "weight",

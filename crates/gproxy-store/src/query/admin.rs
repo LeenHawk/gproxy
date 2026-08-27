@@ -95,6 +95,43 @@ pub(crate) fn admin_for_session(token_digest: &[u8], now: i64) -> Result<Stateme
     Statement::query(&query)
 }
 
+pub(crate) fn insert_admin_api_key(
+    digest: &[u8],
+    admin_id: i64,
+    created_at: i64,
+) -> Result<Statement, StoreError> {
+    insert(
+        "admin_api_keys",
+        &["digest", "admin_id", "created_at"],
+        vec![value(digest.to_vec()), value(admin_id), value(created_at)],
+    )
+}
+
+pub(crate) fn admin_for_api_key(digest: &[u8]) -> Result<Statement, StoreError> {
+    let accounts = Alias::new("admin_accounts");
+    let keys = Alias::new("admin_api_keys");
+    let mut query = Query::select();
+    query
+        .columns([
+            (accounts.clone(), Alias::new("id")),
+            (accounts.clone(), Alias::new("username")),
+            (accounts.clone(), Alias::new("password_hash")),
+            (accounts.clone(), Alias::new("enabled")),
+            (accounts.clone(), Alias::new("created_at")),
+        ])
+        .from(keys.clone())
+        .join(
+            JoinType::InnerJoin,
+            accounts.clone(),
+            Expr::col((keys.clone(), Alias::new("admin_id")))
+                .equals((accounts.clone(), Alias::new("id"))),
+        )
+        .and_where(Expr::col((keys, Alias::new("digest"))).eq(digest.to_vec()))
+        .and_where(Expr::col((accounts, Alias::new("enabled"))).eq(true))
+        .limit(1);
+    Statement::query(&query)
+}
+
 pub(crate) fn delete_admin_session(token_digest: &[u8]) -> Result<Statement, StoreError> {
     let mut query = Query::delete();
     query

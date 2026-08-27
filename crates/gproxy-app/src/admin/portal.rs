@@ -64,7 +64,11 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
         .into_iter()
         .filter_map(|name| {
             let plan = control
-                .resolve(Some(&name), &RoutingMode::Aggregated)
+                .resolve(
+                    Some(&name),
+                    &RoutingMode::Aggregated,
+                    Some(caller.user_key_id),
+                )
                 .ok()?;
             let mut capabilities = BTreeMap::new();
             for target in &plan.targets {

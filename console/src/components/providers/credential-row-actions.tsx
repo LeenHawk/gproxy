@@ -20,6 +20,7 @@ export function CredentialRowActions({ credential, channel, presets, saving, onS
       await onSave({
         provider_id: credential.provider_id,
         label: credential.label,
+        kind: credential.kind,
         secret: null,
         enabled,
         weight: credential.weight,

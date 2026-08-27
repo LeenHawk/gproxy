@@ -18,6 +18,52 @@ pub struct Config {
     data_dir: PathBuf,
     backend: StoreBackend,
     secret_keys: MasterKeyConfig,
+    #[cfg(not(target_arch = "wasm32"))]
+    native: NativeOptions,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+pub(crate) struct NativeOptions {
+    pub upstream_proxy_url: Option<String>,
+    pub instance_id: u64,
+    pub max_attempts: u32,
+    pub max_in_flight: usize,
+    pub file_upload_max_in_flight: Option<usize>,
+    pub trusted_proxies: Vec<std::net::IpAddr>,
+    pub cors_origins: Vec<String>,
+    pub log_format: LogFormat,
+    pub admin_user: String,
+    pub admin_password: Option<String>,
+    pub bootstrap_admin_api_key: Option<String>,
+    pub bootstrap_channels: Vec<String>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Default for NativeOptions {
+    fn default() -> Self {
+        Self {
+            upstream_proxy_url: None,
+            instance_id: 0,
+            max_attempts: 6,
+            max_in_flight: 1024,
+            file_upload_max_in_flight: None,
+            trusted_proxies: Vec::new(),
+            cors_origins: Vec::new(),
+            log_format: LogFormat::Text,
+            admin_user: "admin".into(),
+            admin_password: None,
+            bootstrap_admin_api_key: None,
+            bootstrap_channels: Vec::new(),
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogFormat {
+    Text,
+    Json,
 }
 
 #[derive(Clone)]
@@ -103,6 +149,7 @@ impl Config {
             data_dir,
             backend: StoreBackend::Sqlite,
             secret_keys,
+            native: NativeOptions::default(),
         }
     }
 
@@ -122,6 +169,8 @@ impl Config {
                 auth_token: required(auth_token, "GPROXY_LIBSQL_AUTH_TOKEN")?,
             },
             secret_keys,
+            #[cfg(not(target_arch = "wasm32"))]
+            native: NativeOptions::default(),
         })
     }
 
@@ -165,6 +214,42 @@ impl Config {
 
     pub(crate) fn secret_keys(&self) -> &MasterKeyConfig {
         &self.secret_keys
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_native_options(mut self, native: NativeOptions) -> Self {
+        self.native = native;
+        self
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn native(&self) -> &NativeOptions {
+        &self.native
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn max_in_flight(&self) -> usize {
+        self.native.max_in_flight
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn trusted_proxies(&self) -> &[std::net::IpAddr] {
+        &self.native.trusted_proxies
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn cors_origins(&self) -> &[String] {
+        &self.native.cors_origins
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn log_format(&self) -> LogFormat {
+        self.native.log_format
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn instance_id(&self) -> u64 {
+        self.native.instance_id
     }
 }
 

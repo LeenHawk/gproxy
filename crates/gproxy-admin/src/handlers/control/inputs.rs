@@ -17,6 +17,14 @@ pub(super) fn provider(
             "provider name must not be blank".into(),
         ));
     }
+    if !matches!(
+        request.credential_strategy.as_str(),
+        "round_robin" | "sticky"
+    ) {
+        return Err(AdminError::BadRequest(
+            "credential_strategy must be round_robin or sticky".into(),
+        ));
+    }
     if !state
         .channel_catalogue()
         .iter()
@@ -31,8 +39,11 @@ pub(super) fn provider(
     }
     Ok(ProviderInput {
         name: request.name,
+        label: request.label,
         settings: state.normalize_provider_settings(&request.channel, &request.settings)?,
         channel: request.channel,
+        credential_strategy: request.credential_strategy,
+        proxy_url: request.proxy_url,
         tls_fingerprint: request
             .tls_fingerprint
             .map(serde_json::to_value)

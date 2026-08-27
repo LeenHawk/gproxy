@@ -119,6 +119,8 @@ fn export_console_types() {
         LogSettingsDto,
         LogSettingsUpdateDto,
         InstanceSettingsDto,
+        TokenizerVocabDto,
+        TokenizerFetchRequest,
         AuditEventDto,
         PortalContextDto,
         PortalSettingsDto,

@@ -105,6 +105,15 @@ impl TokenizerRegistry {
             self.negative.clear();
         }
     }
+
+    pub fn download_enabled(&self) -> bool {
+        self.download_enabled.load(Ordering::Relaxed)
+    }
+
+    pub fn evict(&self, name: &str) {
+        self.loaded.remove(name);
+        self.negative.remove(name);
+    }
 }
 
 pub(super) fn info(name: &str, source: VocabSource, loaded: bool) -> VocabInfo {

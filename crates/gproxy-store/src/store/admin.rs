@@ -53,6 +53,30 @@ impl Store {
         self.insert(admin::insert_admin_session(input)?).await
     }
 
+    pub async fn create_admin_api_key(
+        &self,
+        digest: &[u8],
+        admin_id: i64,
+        created_at: i64,
+    ) -> Result<i64, StoreError> {
+        self.insert(admin::insert_admin_api_key(digest, admin_id, created_at)?)
+            .await
+    }
+
+    pub async fn admin_for_api_key(
+        &self,
+        digest: &[u8],
+    ) -> Result<Option<AdminAccountRecord>, StoreError> {
+        self.backend()
+            .execute(admin::admin_for_api_key(digest)?)
+            .await?
+            .rows
+            .into_iter()
+            .next()
+            .map(parse_admin)
+            .transpose()
+    }
+
     pub async fn admin_for_session(
         &self,
         token_digest: &[u8],

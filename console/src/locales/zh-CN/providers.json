@@ -14,7 +14,10 @@
     },
     "fields": {
       "name": "提供商名称",
+      "label": "显示名称",
       "channel": "渠道",
+      "credentialStrategy": "凭据策略",
+      "proxy": "提供商代理 URL",
       "settings": "渠道设置",
       "enabled": "启用提供商"
     },
@@ -22,6 +25,9 @@
       "createTitle": "添加提供商",
       "editTitle": "编辑提供商",
       "channelHint": "渠道来自当前运行的 GPROXY 二进制文件。",
+      "labelHint": "可选的显示文本；提供商名称仍是稳定的路由标识。",
+      "credentialStrategyHint": "轮询会轮换请求；粘性策略让每个 API 密钥稳定使用同一凭据。",
+      "proxyHint": "覆盖此提供商的实例代理；凭据仍可再次覆盖。",
       "settingsHint": "高级 JSON 入口。日常编辑请使用上方由渠道声明的字段。",
       "settingsInvalid": "请输入有效的 JSON 对象。",
       "advanced": "高级设置",
@@ -30,6 +36,10 @@
       "updated": "已更新提供商。",
       "createError": "无法创建提供商，请检查字段后重试。",
       "updateError": "无法更新提供商，请重试。"
+    },
+    "strategies": {
+      "round_robin": "轮询",
+      "sticky": "按 API 密钥粘性"
     },
     "fingerprint": {
       "title": "客户端指纹",
@@ -47,6 +57,13 @@
       "empty": "尚无凭据。请先添加凭据再启用流量。",
       "loadError": "无法加载凭据，请重试。",
       "label": "凭据标签",
+      "kind": "凭据类型",
+      "kindHint": "记录凭据的取得方式，用于列表展示和刷新行为。",
+      "kinds": {
+        "api_key": "API 密钥",
+        "oauth": "OAuth",
+        "cookie": "Cookie"
+      },
       "unnamed": "凭据 #{{id}}",
       "keepSecret": "留空以保留已存储的密文。",
       "secretRequired": "请至少填写一个凭据字段。",

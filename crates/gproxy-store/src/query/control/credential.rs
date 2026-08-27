@@ -13,6 +13,7 @@ pub(crate) fn load_credential(id: i64) -> Result<Statement, StoreError> {
         "id",
         "provider_id",
         "label",
+        "kind",
         "ciphertext",
         "wrapped_key",
         "payload_nonce",

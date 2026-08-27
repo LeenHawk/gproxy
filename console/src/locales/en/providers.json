@@ -14,7 +14,10 @@
     },
     "fields": {
       "name": "Provider name",
+      "label": "Display name",
       "channel": "Channel",
+      "credentialStrategy": "Credential strategy",
+      "proxy": "Provider proxy URL",
       "settings": "Channel settings",
       "enabled": "Provider enabled"
     },
@@ -22,6 +25,9 @@
       "createTitle": "Add provider",
       "editTitle": "Edit provider",
       "channelHint": "Channels come from this running GPROXY binary.",
+      "labelHint": "Optional display text. The provider name remains the stable routing identifier.",
+      "credentialStrategyHint": "Round robin rotates requests; sticky keeps each API key on a stable credential.",
+      "proxyHint": "Overrides the instance proxy for this provider. Credentials can override it again.",
       "settingsHint": "Advanced JSON escape hatch. Declared fields above remain the normal editing path.",
       "settingsInvalid": "Enter a valid JSON object.",
       "advanced": "Advanced settings",
@@ -30,6 +36,10 @@
       "updated": "Provider updated.",
       "createError": "Could not create the provider. Check the fields and retry.",
       "updateError": "Could not update the provider. Retry."
+    },
+    "strategies": {
+      "round_robin": "Round robin",
+      "sticky": "Sticky by API key"
     },
     "fingerprint": {
       "title": "Client fingerprint",
@@ -47,6 +57,13 @@
       "empty": "No credentials yet. Add one before enabling traffic.",
       "loadError": "Could not load credentials. Retry.",
       "label": "Credential label",
+      "kind": "Credential kind",
+      "kindHint": "Records how this credential was obtained for listing and refresh behavior.",
+      "kinds": {
+        "api_key": "API key",
+        "oauth": "OAuth",
+        "cookie": "Cookie"
+      },
       "unnamed": "Credential #{{id}}",
       "keepSecret": "Leave empty to keep the stored secret.",
       "secretRequired": "Enter at least one credential field.",

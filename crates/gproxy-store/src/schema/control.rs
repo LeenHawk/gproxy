@@ -11,6 +11,11 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("settings_json", Text),
             Col::required("enabled", Integer),
             Col::optional("tls_fingerprint", Text).since(SchemaVersion::Admin),
+            Col::optional("label", Text).since(SchemaVersion::Configuration),
+            Col::required("credential_strategy", Text)
+                .default("'round_robin'")
+                .since(SchemaVersion::Configuration),
+            Col::optional("proxy_url", Text).since(SchemaVersion::Configuration),
         ],
         indexes: &[],
     },
@@ -34,6 +39,9 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("tpm_limit", Integer).since(SchemaVersion::Routing),
             Col::optional("proxy_url", Text).since(SchemaVersion::Routing),
             Col::optional("tls_fingerprint", Text).since(SchemaVersion::Routing),
+            Col::required("kind", Text)
+                .default("'api_key'")
+                .since(SchemaVersion::Configuration),
         ],
         indexes: &[IndexSpec {
             name: "ix_credentials_provider_enabled",

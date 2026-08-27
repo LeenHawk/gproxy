@@ -263,8 +263,11 @@ async fn device_poll_keeps_pending_then_creates_ready_and_clears_denied() {
         .store
         .insert_provider(&ProviderInput {
             name: "device-flow".into(),
+            label: None,
             channel: "codex".into(),
             settings: serde_json::json!({}),
+            credential_strategy: "round_robin".into(),
+            proxy_url: None,
             tls_fingerprint: None,
             enabled: true,
         })

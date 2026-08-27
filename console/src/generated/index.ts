@@ -97,6 +97,8 @@ export * from "./TlsFingerprintDto";
 export * from "./TlsPresetDto";
 export * from "./TlsProfileDto";
 export * from "./TlsVersionDto";
+export * from "./TokenizerFetchRequest";
+export * from "./TokenizerVocabDto";
 export * from "./TransformActionDto";
 export * from "./TransformLocateDto";
 export * from "./TransformPhaseDto";

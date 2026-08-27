@@ -31,6 +31,16 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
+        version: SchemaVersion::Configuration,
+        name: "admin_api_keys",
+        columns: &[
+            Col::required("digest", Blob).primary(),
+            Col::required("admin_id", Integer),
+            Col::required("created_at", Integer),
+        ],
+        indexes: &[],
+    },
+    TableSpec {
         version: SchemaVersion::Admin,
         name: "admin_audit_events",
         columns: &[

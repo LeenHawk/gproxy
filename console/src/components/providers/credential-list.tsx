@@ -34,6 +34,7 @@ export function CredentialList(props: Props) {
   const columns: Array<DataTableColumn<CredentialDto>> = [
     { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => <div><p className="font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> },
     { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <StatusBadge status={credential.health} /> },
+    { key: "kind", label: t("providers.credentials.kind"), header: t("providers.credentials.kind"), cell: (credential) => <span className="text-xs">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })}</span> },
     { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },
     { key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential) => <CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
@@ -60,8 +61,8 @@ export function CredentialList(props: Props) {
           columns={columns}
           rows={props.credentials}
           rowKey={(credential) => credential.id}
-          searchText={(credential) => `${credential.label ?? ""} ${credential.id} ${credential.health}`}
-          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div><StatusBadge status={credential.health} /></div><CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
+          searchText={(credential) => `${credential.label ?? ""} ${credential.kind} ${credential.id} ${credential.health}`}
+          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><StatusBadge status={credential.health} /></div><CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
           empty={t("providers.credentials.empty")}
           storageKey="credentials"
           selectable

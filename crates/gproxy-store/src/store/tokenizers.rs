@@ -3,12 +3,34 @@ use crate::{Store, StoreError};
 
 impl Store {
     pub async fn tokenizer_vocab_names(&self) -> Result<Vec<String>, StoreError> {
+        Ok(self
+            .tokenizer_vocabs()
+            .await?
+            .into_iter()
+            .map(|vocab| vocab.name)
+            .collect())
+    }
+
+    pub async fn tokenizer_vocabs(
+        &self,
+    ) -> Result<Vec<crate::records::TokenizerVocabRecord>, StoreError> {
         self.backend()
             .execute(tokenizer::list()?)
             .await?
             .rows
             .into_iter()
-            .map(|row| row.text("name").map(str::to_owned))
+            .map(|row| {
+                Ok(crate::records::TokenizerVocabRecord {
+                    name: row.text("name")?.to_owned(),
+                    size_bytes: row.i64("size_bytes")?.try_into().map_err(
+                        |error: std::num::TryFromIntError| StoreError::InvalidData {
+                            field: "tokenizer size_bytes",
+                            message: error.to_string(),
+                        },
+                    )?,
+                    updated_at: row.i64("updated_at")?,
+                })
+            })
             .collect()
     }
 

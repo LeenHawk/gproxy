@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use super::types::{CredentialHealthMap, TargetSeed};
+use super::types::{CredentialHealthMap, CredentialStrategy, TargetSeed};
 
 #[derive(Default)]
 pub(super) struct RotationCounters(Mutex<BTreeMap<(u8, i64, i64), u64>>);
@@ -20,6 +20,7 @@ impl RotationCounters {
 pub(super) fn order(
     mut seeds: Vec<TargetSeed>,
     balance_key: i64,
+    affinity: Option<i64>,
     health: &CredentialHealthMap,
     counters: &RotationCounters,
 ) -> Vec<TargetSeed> {
@@ -56,7 +57,16 @@ pub(super) fn order(
         .filter(|seed| seed.member_id == member_id)
         .map(|seed| (seed.credential.0, seed.credential_weight))
         .collect::<Vec<_>>();
-    let credential_id = weighted_owner(&credentials, counters.next((1, balance_key, member_id)));
+    let strategy = seeds
+        .iter()
+        .find(|seed| seed.member_id == member_id)
+        .map(|seed| seed.credential_strategy)
+        .unwrap_or(CredentialStrategy::RoundRobin);
+    let rotation = match strategy {
+        CredentialStrategy::RoundRobin => counters.next((1, balance_key, member_id)),
+        CredentialStrategy::Sticky => affinity.map_or(0, |key| stable_slot(key, member_id)),
+    };
+    let credential_id = weighted_owner(&credentials, rotation);
     if let Some(index) = seeds
         .iter()
         .position(|seed| seed.member_id == member_id && seed.credential.0 == credential_id)
@@ -65,6 +75,15 @@ pub(super) fn order(
         seeds.insert(0, selected);
     }
     seeds
+}
+
+fn stable_slot(key: i64, provider_id: i64) -> u64 {
+    let mut value = u64::from_ne_bytes(key.to_ne_bytes())
+        ^ u64::from_ne_bytes(provider_id.to_ne_bytes()).rotate_left(32);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value.wrapping_mul(0x94d0_49bb_1331_11eb) ^ (value >> 31)
 }
 
 fn weighted_owner(entries: &[(i64, u32)], rotation: u64) -> i64 {
@@ -95,6 +114,7 @@ mod tests {
             credential: gproxy_channel_api::CredentialId(credential),
             credential_version: 0,
             credential_weight: 100,
+            credential_strategy: CredentialStrategy::RoundRobin,
             proxy_url: None,
             fingerprint: None,
             upstream_model: "model".into(),
@@ -102,20 +122,37 @@ mod tests {
     }
 
     #[test]
-    fn weighted_rotation_is_reproducible_and_never_leads_with_a_later_tier() {
-        let seeds = vec![seed(1, 0, 7, 11), seed(2, 0, 3, 22), seed(3, 1, 100, 33)];
+    fn round_robin_rotates_while_sticky_keeps_one_weighted_owner() {
+        let mut seeds = vec![seed(1, 0, 1, 11), seed(1, 0, 1, 22), seed(3, 1, 100, 33)];
+        for seed in &mut seeds[..2] {
+            seed.credential_weight = 1;
+        }
         let picks = |counters: &RotationCounters| {
-            (0..10)
+            (0..4)
                 .map(|_| {
-                    order(seeds.clone(), 9, &BTreeMap::new(), counters)[0]
+                    order(seeds.clone(), 9, None, &BTreeMap::new(), counters)[0]
                         .credential
                         .0
                 })
                 .collect::<Vec<_>>()
         };
-        let expected = vec![11, 11, 11, 11, 11, 11, 11, 22, 22, 22];
+        let expected = vec![11, 22, 11, 22];
         assert_eq!(picks(&RotationCounters::default()), expected);
         assert_eq!(picks(&RotationCounters::default()), expected);
+
+        let mut sticky = seeds;
+        for seed in &mut sticky {
+            seed.credential_strategy = CredentialStrategy::Sticky;
+        }
+        let counters = RotationCounters::default();
+        let sticky = (0..4)
+            .map(|_| {
+                order(sticky.clone(), 9, Some(41), &BTreeMap::new(), &counters)[0]
+                    .credential
+                    .0
+            })
+            .collect::<Vec<_>>();
+        assert!(sticky.iter().all(|credential| *credential == sticky[0]));
     }
 
     #[test]
@@ -124,7 +161,11 @@ mod tests {
         let health = BTreeMap::from([(gproxy_channel_api::CredentialId(11), (0, true))]);
         let counters = RotationCounters::default();
         let picks = (0..4)
-            .map(|_| order(seeds.clone(), 4, &health, &counters)[0].credential.0)
+            .map(|_| {
+                order(seeds.clone(), 4, None, &health, &counters)[0]
+                    .credential
+                    .0
+            })
             .collect::<Vec<_>>();
         assert_eq!(picks, vec![22, 33, 22, 33]);
     }

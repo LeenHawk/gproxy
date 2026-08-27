@@ -10,10 +10,11 @@ impl CompiledSnapshot {
         seeds: Vec<TargetSeed>,
         max_attempts: Option<u32>,
         balance_key: i64,
+        affinity: Option<i64>,
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
-        let targets = balance::order(seeds, balance_key, health, counters)
+        let targets = balance::order(seeds, balance_key, affinity, health, counters)
             .into_iter()
             .filter_map(|seed| {
                 self.providers.get(&seed.provider_id).map(|stored| {
@@ -21,9 +22,11 @@ impl CompiledSnapshot {
                     if seed.fingerprint.is_some() {
                         provider.fingerprint = seed.fingerprint;
                     }
-                    if seed.proxy_url.is_some() {
-                        provider.proxy_url = seed.proxy_url;
-                    }
+                    provider.proxy_url = super::super::settings::effective_proxy(
+                        seed.proxy_url.as_deref(),
+                        provider.proxy_url.as_deref(),
+                        None,
+                    );
                     Target {
                         provider,
                         credential: seed.credential,
@@ -50,6 +53,7 @@ impl CompiledSnapshot {
         }
         let max_attempts =
             max_attempts.unwrap_or_else(|| u32::try_from(targets.len()).unwrap_or(u32::MAX));
+        let max_attempts = max_attempts.min(self.settings.max_attempts);
         Ok(Plan {
             targets,
             budget: FailoverBudget { max_attempts },

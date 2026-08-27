@@ -14,7 +14,10 @@
     },
     "fields": {
       "name": "供應商名稱",
+      "label": "顯示名稱",
       "channel": "通道",
+      "credentialStrategy": "憑證策略",
+      "proxy": "供應商 Proxy URL",
       "settings": "通道設定",
       "enabled": "啟用供應商"
     },
@@ -22,6 +25,9 @@
       "createTitle": "新增供應商",
       "editTitle": "編輯供應商",
       "channelHint": "通道來自目前執行的 GPROXY 二進位檔。",
+      "labelHint": "可選的顯示文字；供應商名稱仍是穩定的路由識別碼。",
+      "credentialStrategyHint": "輪詢會輪替請求；黏性策略讓每個 API 金鑰穩定使用同一憑證。",
+      "proxyHint": "覆寫此供應商的執行個體 Proxy；憑證仍可再次覆寫。",
       "settingsHint": "進階 JSON 入口。日常編輯請使用上方由通道宣告的欄位。",
       "settingsInvalid": "請輸入有效的 JSON 物件。",
       "advanced": "進階設定",
@@ -30,6 +36,10 @@
       "updated": "已更新供應商。",
       "createError": "無法建立供應商，請檢查欄位後重試。",
       "updateError": "無法更新供應商，請重試。"
+    },
+    "strategies": {
+      "round_robin": "輪詢",
+      "sticky": "依 API 金鑰黏性"
     },
     "fingerprint": {
       "title": "用戶端指紋",
@@ -47,6 +57,13 @@
       "empty": "尚無憑證。請先新增憑證再啟用流量。",
       "loadError": "無法載入憑證，請重試。",
       "label": "憑證標籤",
+      "kind": "憑證類型",
+      "kindHint": "記錄憑證的取得方式，用於清單顯示和重新整理行為。",
+      "kinds": {
+        "api_key": "API 金鑰",
+        "oauth": "OAuth",
+        "cookie": "Cookie"
+      },
       "unnamed": "憑證 #{{id}}",
       "keepSecret": "留空以保留已儲存的機密資料。",
       "secretRequired": "請至少填寫一個憑證欄位。",

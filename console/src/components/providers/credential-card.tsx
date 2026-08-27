@@ -40,6 +40,7 @@ export function CredentialCard(props: Props) {
       await props.onSave({
         provider_id: credential.provider_id,
         label: credential.label,
+        kind: credential.kind,
         secret: null,
         enabled,
         weight: credential.weight,
@@ -59,7 +60,7 @@ export function CredentialCard(props: Props) {
       <CardHeader>
         <CardTitle headingLevel={3} className="machine-text">{name}</CardTitle>
         <CardDescription className="machine-text">
-          {t("providers.credentials.unnamed", { id: credential.id })}
+          {t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · {t("providers.credentials.unnamed", { id: credential.id })}
         </CardDescription>
         <CardAction className="flex flex-wrap items-center justify-end gap-2">
           <StatusBadge status={credential.health} />

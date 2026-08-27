@@ -63,7 +63,7 @@ async fn run<H: Host>(
             gproxy_channel_api::SurfaceAffinity::BearerToken { .. }
         )
     });
-    let resolve = || {
+    let resolve = |affinity| {
         planned.cloned().map_or_else(
             || {
                 let model = alias_request
@@ -75,13 +75,13 @@ async fn run<H: Host>(
                             .then(|| classified.as_ref().ok()?.model.as_deref())
                             .flatten()
                     });
-                control.resolve(model, &ctx.mode)
+                control.resolve(model, &ctx.mode, affinity)
             },
             Ok,
         )
     };
     let (identity, plan) = if bearer_auth {
-        let plan = match resolve() {
+        let plan = match resolve(None) {
             Ok(plan) => plan,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
@@ -98,7 +98,7 @@ async fn run<H: Host>(
             Ok(identity) => identity,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
-        let plan = match resolve() {
+        let plan = match resolve(Some(identity.user_key_id)) {
             Ok(plan) => plan,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };

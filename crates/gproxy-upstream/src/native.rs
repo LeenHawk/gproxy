@@ -7,21 +7,53 @@ mod profile;
 
 #[derive(Clone)]
 pub struct WreqTransport {
-    client: wreq::Client,
+    direct_client: wreq::Client,
+    system_client: wreq::Client,
+    inherit_system_proxy: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl WreqTransport {
     pub fn new() -> Self {
+        Self::with_system_proxy(false)
+    }
+
+    pub fn with_system_proxy(inherit_system_proxy: bool) -> Self {
+        let builder =
+            || wreq::Client::builder().user_agent(concat!("gproxy/", env!("CARGO_PKG_VERSION")));
         Self {
-            client: wreq::Client::builder()
-                .user_agent(concat!("gproxy/", env!("CARGO_PKG_VERSION")))
+            direct_client: builder()
+                .no_proxy()
                 .build()
-                .expect("default wreq client builds"),
+                .expect("direct wreq client builds"),
+            system_client: builder().build().expect("system-proxy wreq client builds"),
+            inherit_system_proxy: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+                inherit_system_proxy,
+            )),
         }
     }
 
     pub fn from_client(client: wreq::Client) -> Self {
-        Self { client }
+        Self {
+            direct_client: client.clone(),
+            system_client: client,
+            inherit_system_proxy: Default::default(),
+        }
+    }
+
+    pub fn set_inherit_system_proxy(&self, inherit: bool) {
+        self.inherit_system_proxy
+            .store(inherit, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn client(&self) -> wreq::Client {
+        if self
+            .inherit_system_proxy
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            self.system_client.clone()
+        } else {
+            self.direct_client.clone()
+        }
     }
 }
 
@@ -36,7 +68,7 @@ impl UpstreamTransport for WreqTransport {
         &'a self,
         request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<http::Response<ByteStream>, TransportError>> {
-        let client = self.client.clone();
+        let client = self.client();
         Box::pin(async move {
             let profile = request.extensions().get::<ClientProfile>().cloned();
             let proxy = request.extensions().get::<UpstreamProxy>().cloned();
@@ -72,7 +104,7 @@ impl UpstreamTransport for WreqTransport {
         &'a self,
         request: http::Request<Bytes>,
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
-        let client = self.client.clone();
+        let client = self.client();
         let profile = request.extensions().get::<ClientProfile>().cloned();
         let proxy = request.extensions().get::<UpstreamProxy>().cloned();
         let (parts, _) = request.into_parts();

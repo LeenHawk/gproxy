@@ -4,8 +4,11 @@ use serde_json::Value;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProviderInput {
     pub name: String,
+    pub label: Option<String>,
     pub channel: String,
     pub settings: Value,
+    pub credential_strategy: String,
+    pub proxy_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_fingerprint: Option<Value>,
     pub enabled: bool,
@@ -15,8 +18,11 @@ pub struct ProviderInput {
 pub struct ProviderRecord {
     pub id: i64,
     pub name: String,
+    pub label: Option<String>,
     pub channel: String,
     pub settings: Value,
+    pub credential_strategy: String,
+    pub proxy_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_fingerprint: Option<Value>,
     pub enabled: bool,
@@ -70,6 +76,7 @@ pub struct SecretInventory {
 pub struct CredentialInput {
     pub provider_id: i64,
     pub label: Option<String>,
+    pub kind: String,
     pub envelope: CredentialEnvelope,
     pub enabled: bool,
     pub weight: u32,
@@ -85,6 +92,7 @@ pub struct CredentialRecord {
     pub provider_id: i64,
     pub channel: String,
     pub label: Option<String>,
+    pub kind: String,
     pub envelope: CredentialEnvelope,
     pub version: u64,
     pub enabled: bool,
@@ -94,6 +102,7 @@ pub struct CredentialRecord {
 pub struct CredentialMetaRecord {
     pub id: i64,
     pub provider_id: i64,
+    pub kind: String,
     pub version: u64,
     pub enabled: bool,
     pub weight: u32,
@@ -108,6 +117,7 @@ pub struct CredentialAdminRecord {
     pub id: i64,
     pub provider_id: i64,
     pub label: Option<String>,
+    pub kind: String,
     pub version: u64,
     pub enabled: bool,
     pub weight: u32,
@@ -121,6 +131,7 @@ pub struct CredentialAdminRecord {
 pub struct CredentialUpdateInput {
     pub provider_id: i64,
     pub label: Option<String>,
+    pub kind: String,
     pub envelope: Option<CredentialEnvelope>,
     pub enabled: bool,
     pub weight: u32,

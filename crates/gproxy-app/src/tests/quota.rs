@@ -21,7 +21,11 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
     let plan = host
         .services
         .control
-        .resolve(Some("public-model"), &gproxy_core::RoutingMode::Aggregated)
+        .resolve(
+            Some("public-model"),
+            &gproxy_core::RoutingMode::Aggregated,
+            None,
+        )
         .expect("plan");
     let first = setup::request("refund", QUOTA_INPUT, &client_key);
     let identity = host.authenticate(&first).await.expect("authenticate");

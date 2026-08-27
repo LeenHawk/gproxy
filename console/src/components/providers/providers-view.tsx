@@ -75,7 +75,7 @@ export function ProvidersView(props: Props) {
     return groups
   }, [props.cycles])
   const columns: Array<DataTableColumn<ProviderDto>> = [
-    { key: "name", label: t("common.name"), header: t("common.name"), cell: (provider) => <span className="font-medium">{provider.name}</span> },
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (provider) => <div><p className="font-medium">{provider.label ?? provider.name}</p>{provider.label ? <p className="font-mono text-xs text-muted-foreground">{provider.name}</p> : null}</div> },
     { key: "channel", label: t("providers.fields.channel"), header: t("providers.fields.channel"), cell: (provider) => <span className="font-mono text-xs">{provider.channel}</span> },
     { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: (provider) => <Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge> },
   ]
@@ -105,8 +105,8 @@ export function ProvidersView(props: Props) {
               columns={columns}
               rows={props.providers}
               rowKey={(provider) => provider.id}
-              searchText={(provider) => `${provider.name} ${provider.channel}`}
-              renderCard={(provider) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{provider.name}</p><p className="truncate font-mono text-xs text-muted-foreground">{provider.channel}</p></div><Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge></div>}
+              searchText={(provider) => `${provider.label ?? ""} ${provider.name} ${provider.channel}`}
+              renderCard={(provider) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{provider.label ?? provider.name}</p><p className="truncate font-mono text-xs text-muted-foreground">{provider.label ? `${provider.name} · ` : ""}{provider.channel}</p></div><Badge variant={provider.enabled ? "outline" : "secondary"}>{t(`common.status.${provider.enabled ? "enabled" : "disabled"}`)}</Badge></div>}
               empty={t("providers.empty")}
               storageKey="providers"
               selectable

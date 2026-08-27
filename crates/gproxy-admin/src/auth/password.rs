@@ -3,7 +3,7 @@ use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, Salt
 
 use crate::AdminError;
 
-pub(super) fn validate(password: &str) -> Result<(), AdminError> {
+pub(crate) fn validate(password: &str) -> Result<(), AdminError> {
     if password.trim().is_empty() {
         Err(AdminError::BadRequest("password must not be blank".into()))
     } else {
@@ -11,7 +11,7 @@ pub(super) fn validate(password: &str) -> Result<(), AdminError> {
     }
 }
 
-pub(super) fn hash(password: &str) -> Result<String, AdminError> {
+pub(crate) fn hash(password: &str) -> Result<String, AdminError> {
     let mut salt = [0_u8; 16];
     getrandom::fill(&mut salt)
         .map_err(|_| AdminError::Internal("secure randomness unavailable".into()))?;

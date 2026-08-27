@@ -12,8 +12,11 @@ pub(crate) async fn operational(
         .mutate(ControlMutation::Provider(
             gproxy_store::records::ProviderInput {
                 name: "stub-openai".into(),
+                label: None,
                 channel: "openai".into(),
                 settings: json!({"base_url": format!("http://{upstream}")}),
+                credential_strategy: "round_robin".into(),
+                proxy_url: None,
                 tls_fingerprint: None,
                 enabled: true,
             },

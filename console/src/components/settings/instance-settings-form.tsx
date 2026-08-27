@@ -7,9 +7,10 @@ import { saveInstanceSettings } from "@/api/control"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { RuntimeSettingsCard } from "@/components/settings/runtime-settings-card"
 
 type BooleanKey = "enable_downstream_log" | "enable_downstream_log_body" | "enable_upstream_log" | "enable_upstream_log_body"
 
@@ -44,7 +45,8 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
     "enable_upstream_log_body",
   ]
   return (
-    <form onSubmit={submit}>
+    <form className="flex flex-col gap-5" onSubmit={submit}>
+      <RuntimeSettingsCard draft={draft} setDraft={setDraft} />
       <Card>
         <CardHeader><CardTitle>{t("settings.storage.title")}</CardTitle><CardDescription>{t("settings.storage.description")}</CardDescription></CardHeader>
         <CardContent><FieldGroup>
@@ -53,7 +55,7 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
             <Field><FieldLabel htmlFor="database-size">{t("settings.storage.size")}</FieldLabel><Input id="database-size" type="number" min={1} step={1} value={size} onChange={(event) => setSize(event.target.value)} /><FieldDescription>{t("settings.storage.sizeHint")}</FieldDescription></Field>
           </div>
           <div className="flex flex-col gap-3">
-            {logRows.map((key) => <Field key={key} orientation="horizontal"><div><FieldLabel htmlFor={key}>{t(`settings.logs.${key}`)}</FieldLabel><FieldDescription>{t(`settings.logs.${key}Hint`)}</FieldDescription></div><Switch id={key} checked={draft[key]} onCheckedChange={(value) => toggle(key, value)} /></Field>)}
+            {logRows.map((key) => <Field key={key} orientation="horizontal"><FieldContent><FieldLabel htmlFor={key}>{t(`settings.logs.${key}`)}</FieldLabel><FieldDescription>{t(`settings.logs.${key}Hint`)}</FieldDescription></FieldContent><Switch id={key} checked={draft[key]} onCheckedChange={(value) => toggle(key, value)} /></Field>)}
           </div>
           <Alert variant={draft.disable_log_redaction ? "destructive" : "default"}>
             <AlertTitle>{t("settings.redaction.title")}</AlertTitle>

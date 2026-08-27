@@ -14,15 +14,21 @@ pub(crate) fn update_provider(id: i64, input: &ProviderInput) -> Result<Statemen
         id,
         &[
             "name",
+            "label",
             "channel",
             "settings_json",
+            "credential_strategy",
+            "proxy_url",
             "enabled",
             "tls_fingerprint",
         ],
         vec![
             value(input.name.clone()),
+            value(input.label.clone()),
             value(input.channel.clone()),
             value(json(&input.settings, "settings")?),
+            value(input.credential_strategy.clone()),
+            value(input.proxy_url.clone()),
             value(input.enabled),
             value(
                 input
@@ -42,6 +48,7 @@ pub(crate) fn update_credential(
     let mut columns = vec![
         "provider_id",
         "label",
+        "kind",
         "enabled",
         "weight",
         "rpm_limit",
@@ -53,6 +60,7 @@ pub(crate) fn update_credential(
     let mut values = vec![
         value(input.provider_id),
         value(input.label.clone()),
+        value(input.kind.clone()),
         value(input.enabled),
         value(unsigned32(input.weight)),
         value(input.rpm_limit.map(unsigned32)),

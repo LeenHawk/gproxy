@@ -33,8 +33,11 @@ pub(super) async fn fixture() -> Fixture {
         .mutate(ControlMutation::Provider(
             gproxy_store::records::ProviderInput {
                 name: "provider".into(),
+                label: None,
                 channel: "openai".into(),
                 settings: json!({}),
+                credential_strategy: "round_robin".into(),
+                proxy_url: None,
                 tls_fingerprint: None,
                 enabled: true,
             },

@@ -25,6 +25,7 @@ use types::{CompiledSnapshot, CredentialPressure, CredentialPressureMap};
 #[derive(Clone)]
 pub(crate) struct SnapshotControl {
     store: Store,
+    runtime: super::settings::RuntimeOverrides,
     snapshot: Arc<ArcSwap<CompiledSnapshot>>,
     credential_pressure: Arc<ArcSwap<CredentialPressureMap>>,
     credential_health: Arc<ArcSwap<CredentialHealthMap>>,
@@ -32,13 +33,17 @@ pub(crate) struct SnapshotControl {
 }
 
 impl SnapshotControl {
-    pub(crate) async fn new(store: Store) -> Result<Self, StoreError> {
+    pub(crate) async fn new(
+        store: Store,
+        runtime: super::settings::RuntimeOverrides,
+    ) -> Result<Self, StoreError> {
         let stored = store.control_snapshot().await?;
-        let snapshot = CompiledSnapshot::build(stored)?;
+        let snapshot = CompiledSnapshot::build(stored, &runtime)?;
         let credential_pressure = load_pressure(&store).await?;
         let credential_health = load_health(&store).await?;
         Ok(Self {
             store,
+            runtime,
             snapshot: Arc::new(ArcSwap::from_pointee(snapshot)),
             credential_pressure: Arc::new(ArcSwap::from_pointee(credential_pressure)),
             credential_health: Arc::new(ArcSwap::from_pointee(credential_health)),
@@ -50,7 +55,7 @@ impl SnapshotControl {
         let stored = self.store.control_snapshot().await?;
         let health = load_health(&self.store).await?;
         self.snapshot
-            .store(Arc::new(CompiledSnapshot::build(stored)?));
+            .store(Arc::new(CompiledSnapshot::build(stored, &self.runtime)?));
         self.credential_health.store(Arc::new(health));
         Ok(())
     }
@@ -117,6 +122,10 @@ impl SnapshotControl {
         self.snapshot.load().stored.clone()
     }
 
+    pub(crate) fn settings(&self) -> super::settings::EffectiveSettings {
+        self.snapshot.load().settings.clone()
+    }
+
     pub(crate) fn provider(&self, id: i64) -> Option<ProviderRef> {
         self.snapshot.load().providers.get(&id).cloned()
     }
@@ -159,10 +168,16 @@ impl SnapshotControl {
 }
 
 impl ControlPlane for SnapshotControl {
-    fn resolve(&self, model: Option<&str>, mode: &RoutingMode) -> Result<Plan, CoreError> {
+    fn resolve(
+        &self,
+        model: Option<&str>,
+        mode: &RoutingMode,
+        affinity: Option<i64>,
+    ) -> Result<Plan, CoreError> {
         let mut plan = self.snapshot.load().resolve(
             model,
             mode,
+            affinity,
             &self.credential_health.load(),
             &self.rotation,
         )?;

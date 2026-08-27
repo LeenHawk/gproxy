@@ -9,6 +9,7 @@ pub(crate) mod observability;
 mod portal_settings;
 mod pricing;
 mod rules;
+mod tokenizer_vocabs;
 mod util;
 
 use bytes::Bytes;
@@ -44,6 +45,9 @@ pub(crate) async fn dispatch(
         Route::LogSettingsWrite => logs::update_settings(state, body).await,
         Route::InstanceSettingsRead => instance_settings::get(state).await,
         Route::InstanceSettingsWrite => instance_settings::update(state, body).await,
+        Route::TokenizerVocabsRead => tokenizer_vocabs::list(state).await,
+        Route::TokenizerVocabFetch => tokenizer_vocabs::fetch(state, body).await,
+        Route::TokenizerVocabDelete => tokenizer_vocabs::delete(state, body).await,
         Route::PortalSettingsRead => portal_settings::get(state).await,
         Route::PortalSettingsWrite => portal_settings::update(state, body).await,
         Route::LoginAuthCodeStart => login::authcode_start(state, body).await,

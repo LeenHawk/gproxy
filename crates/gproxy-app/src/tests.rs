@@ -156,8 +156,11 @@ async fn key_rotation_reseals_every_secret_and_updates_fingerprint() {
         app.mutate(crate::ControlMutation::Provider(
             gproxy_store::records::ProviderInput {
                 name: "rotation-provider".into(),
+                label: None,
                 channel: "openai".into(),
                 settings: json!({}),
+                credential_strategy: "round_robin".into(),
+                proxy_url: None,
                 tls_fingerprint: None,
                 enabled: true,
             },
@@ -238,8 +241,11 @@ async fn sealed_store_without_key_names_required_fingerprint() {
         app.mutate(crate::ControlMutation::Provider(
             gproxy_store::records::ProviderInput {
                 name: "sealed-provider".into(),
+                label: None,
                 channel: "openai".into(),
                 settings: json!({}),
+                credential_strategy: "round_robin".into(),
+                proxy_url: None,
                 tls_fingerprint: None,
                 enabled: true,
             },
@@ -267,6 +273,48 @@ async fn sealed_store_without_key_names_required_fingerprint() {
     };
     let required = crate::key_rotation::fingerprint(Some(&key)).unwrap();
     assert!(error.to_string().contains(&required));
+}
+
+#[tokio::test]
+async fn environment_admin_seed_is_first_run_only() {
+    let directory = tempfile::tempdir().unwrap();
+    let config = |password: &str| {
+        test_config(directory.path(), crate::MasterKeyConfig::new(None)).with_native_options(
+            crate::config::NativeOptions {
+                admin_user: "operator".into(),
+                admin_password: Some(password.into()),
+                ..Default::default()
+            },
+        )
+    };
+    let login = |password: &str| {
+        let request = http::Request::post("/admin/login").body(()).unwrap();
+        let (parts, _) = request.into_parts();
+        let body = Bytes::from(
+            serde_json::json!({"username": "operator", "password": password}).to_string(),
+        );
+        (parts, body)
+    };
+
+    let app = crate::App::start(config("first-password")).await.unwrap();
+    let (parts, body) = login("first-password");
+    assert_eq!(
+        app.admin_dispatch(&parts, body).await.unwrap().status(),
+        http::StatusCode::OK
+    );
+    drop(app);
+
+    let app = crate::App::start(config("second-password")).await.unwrap();
+    let (parts, body) = login("first-password");
+    assert_eq!(
+        app.admin_dispatch(&parts, body).await.unwrap().status(),
+        http::StatusCode::OK
+    );
+    let (parts, body) = login("second-password");
+    assert_eq!(
+        app.admin_dispatch(&parts, body).await.unwrap().status(),
+        http::StatusCode::UNAUTHORIZED
+    );
 }
 
 fn test_config(path: &std::path::Path, keys: crate::MasterKeyConfig) -> crate::Config {

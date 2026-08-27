@@ -61,6 +61,20 @@ impl AppHandle {
 
     pub async fn reload(&self) -> Result<(), AppError> {
         self.inner.host.services.control.reload().await?;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let settings = self.inner.host.services.control.settings();
+            self.inner
+                .host
+                .services
+                .transport
+                .set_inherit_system_proxy(settings.inherit_system_proxy);
+            self.inner
+                .host
+                .services
+                .tokenizers
+                .set_download_enabled(settings.enable_tokenizer_download);
+        }
         self.inner
             .host
             .services
@@ -69,6 +83,19 @@ impl AppHandle {
             .await
             .map_err(|error| AppError::Cache(error.to_string()))?;
         Ok(())
+    }
+
+    pub fn file_upload_max_in_flight(&self) -> usize {
+        self.inner
+            .host
+            .services
+            .control
+            .settings()
+            .file_upload_max_in_flight
+    }
+
+    pub fn instance_name(&self) -> String {
+        self.inner.host.services.control.settings().instance_name
     }
 
     pub fn shutdown(&self) {

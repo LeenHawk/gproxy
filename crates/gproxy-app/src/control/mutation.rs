@@ -58,6 +58,7 @@ pub(crate) async fn apply(
                     .insert_credential(&gproxy_store::records::CredentialInput {
                         provider_id,
                         label,
+                        kind: "api_key".into(),
                         envelope,
                         enabled,
                         weight: 100,

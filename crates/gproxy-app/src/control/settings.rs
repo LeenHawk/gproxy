@@ -1,0 +1,133 @@
+#[cfg(not(target_arch = "wasm32"))]
+use gproxy_store::records::{ENABLE_TOKENIZER_DOWNLOAD, INHERIT_SYSTEM_PROXY};
+use gproxy_store::records::{
+    ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SPOOF_EMULATION, SettingRecord,
+};
+
+#[derive(Clone)]
+pub(crate) struct RuntimeOverrides {
+    pub global_proxy: Option<String>,
+    pub max_attempts: u32,
+    pub file_upload_max_in_flight: Option<usize>,
+    pub instance_id: u64,
+}
+
+impl RuntimeOverrides {
+    pub(crate) fn from_config(config: &crate::Config) -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        return Self {
+            global_proxy: config.native().upstream_proxy_url.clone(),
+            max_attempts: config.native().max_attempts,
+            file_upload_max_in_flight: config.native().file_upload_max_in_flight,
+            instance_id: config.native().instance_id,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = config;
+            Self {
+                global_proxy: None,
+                max_attempts: 6,
+                file_upload_max_in_flight: None,
+                instance_id: 0,
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct EffectiveSettings {
+    pub proxy: Option<String>,
+    pub spoof_emulation: bool,
+    pub enable_usage: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub enable_tokenizer_download: bool,
+    pub file_upload_max_in_flight: usize,
+    pub instance_name: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub inherit_system_proxy: bool,
+    pub max_attempts: u32,
+    pub instance_id: u64,
+}
+
+impl EffectiveSettings {
+    pub(super) fn read(values: &[SettingRecord], runtime: &RuntimeOverrides) -> Self {
+        Self {
+            proxy: runtime.global_proxy.clone().or_else(|| text(values, PROXY)),
+            spoof_emulation: boolean(values, SPOOF_EMULATION, false),
+            enable_usage: boolean(values, ENABLE_USAGE, true),
+            #[cfg(not(target_arch = "wasm32"))]
+            enable_tokenizer_download: boolean(values, ENABLE_TOKENIZER_DOWNLOAD, false),
+            file_upload_max_in_flight: runtime.file_upload_max_in_flight.unwrap_or_else(|| {
+                unsigned(values, FILE_UPLOAD_MAX_IN_FLIGHT)
+                    .and_then(|value| value.try_into().ok())
+                    .unwrap_or(0)
+            }),
+            instance_name: text(values, INSTANCE_NAME).unwrap_or_else(|| "default".into()),
+            #[cfg(not(target_arch = "wasm32"))]
+            inherit_system_proxy: boolean(values, INHERIT_SYSTEM_PROXY, false),
+            max_attempts: runtime.max_attempts,
+            instance_id: runtime.instance_id,
+        }
+    }
+}
+
+pub(super) fn effective_proxy(
+    credential: Option<&str>,
+    provider: Option<&str>,
+    global: Option<&str>,
+) -> Option<String> {
+    credential.or(provider).or(global).map(str::to_owned)
+}
+
+fn boolean(values: &[SettingRecord], key: &str, default: bool) -> bool {
+    values
+        .iter()
+        .find(|setting| setting.key == key)
+        .and_then(|setting| setting.value.as_bool())
+        .unwrap_or(default)
+}
+
+fn text(values: &[SettingRecord], key: &str) -> Option<String> {
+    values
+        .iter()
+        .find(|setting| setting.key == key)?
+        .value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn unsigned(values: &[SettingRecord], key: &str) -> Option<u64> {
+    values
+        .iter()
+        .find(|setting| setting.key == key)?
+        .value
+        .as_u64()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::effective_proxy;
+
+    #[test]
+    fn proxy_fallback_covers_credential_provider_global_and_direct() {
+        assert_eq!(
+            effective_proxy(
+                Some("http://credential"),
+                Some("http://provider"),
+                Some("http://global")
+            ),
+            Some("http://credential".into())
+        );
+        assert_eq!(
+            effective_proxy(None, Some("http://provider"), Some("http://global")),
+            Some("http://provider".into())
+        );
+        assert_eq!(
+            effective_proxy(None, None, Some("http://global")),
+            Some("http://global".into())
+        );
+        assert_eq!(effective_proxy(None, None, None), None);
+    }
+}

@@ -79,7 +79,7 @@ pub(crate) async fn authcode_complete(
         )
         .await?;
     state::delete(app, &request.login_session_id).await?;
-    created(app, session.provider_id, request.label, &secret).await
+    created(app, session.provider_id, request.label, "oauth", &secret).await
 }
 
 pub(crate) async fn device_start(
@@ -132,7 +132,8 @@ pub(crate) async fn device_poll(
         }
         DevicePoll::Ready(secret) => {
             state::delete(app, &request.login_session_id).await?;
-            let credential = insert(app, session.provider_id, session.label, &secret).await?;
+            let credential =
+                insert(app, session.provider_id, session.label, "oauth", &secret).await?;
             response::json(StatusCode::OK, &DevicePollResponse::Ready { credential })
         }
     }
@@ -147,16 +148,17 @@ pub(crate) async fn cookie_exchange(
     let secret = app
         .login_cookie_exchange(&channel, request.provider_id, &request.cookie)
         .await?;
-    created(app, request.provider_id, request.label, &secret).await
+    created(app, request.provider_id, request.label, "cookie", &secret).await
 }
 
 async fn created(
     app: &impl State,
     provider_id: i64,
     label: Option<String>,
+    kind: &str,
     secret: &Value,
 ) -> Result<Response<Bytes>, AdminError> {
-    let credential = insert(app, provider_id, label, secret).await?;
+    let credential = insert(app, provider_id, label, kind, secret).await?;
     response::json(StatusCode::CREATED, &credential)
 }
 
@@ -164,6 +166,7 @@ async fn insert(
     app: &impl State,
     provider_id: i64,
     label: Option<String>,
+    kind: &str,
     secret: &Value,
 ) -> Result<IdResponse, AdminError> {
     let id = app
@@ -171,6 +174,7 @@ async fn insert(
         .insert_credential(&CredentialInput {
             provider_id,
             label,
+            kind: kind.into(),
             envelope: app.seal_credential(secret)?,
             enabled: true,
             weight: 100,

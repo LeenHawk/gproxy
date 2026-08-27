@@ -75,6 +75,7 @@ impl MemoryHost {
                 credential: CredentialRecord {
                     id: CredentialId(7),
                     channel: "memory".into(),
+                    kind: "oauth".into(),
                     secret: json!({"access_token": "old", "expires_at": 0}),
                     version: 4,
                 },
@@ -268,7 +269,12 @@ impl Host for MemoryHost {
 }
 
 impl ControlPlane for MemoryHost {
-    fn resolve(&self, model: Option<&str>, _: &RoutingMode) -> Result<Plan, CoreError> {
+    fn resolve(
+        &self,
+        model: Option<&str>,
+        _: &RoutingMode,
+        _: Option<i64>,
+    ) -> Result<Plan, CoreError> {
         let mut state = self.state.lock().expect("state lock");
         state.resolved_models.push(model.map(str::to_owned));
         state

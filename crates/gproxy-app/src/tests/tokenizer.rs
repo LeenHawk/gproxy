@@ -5,6 +5,18 @@ use serde_json::json;
 use super::setup;
 
 #[tokio::test]
+async fn tokenizer_download_gate_refuses_admin_fetch() {
+    use gproxy_admin::State as _;
+
+    let setup::Fixture { app, .. } = setup::fixture().await;
+    let error = app
+        .fetch_tokenizer_vocab("owner/model")
+        .await
+        .expect_err("downloads are disabled by default");
+    assert!(matches!(error, gproxy_admin::AdminError::Forbidden));
+}
+
+#[tokio::test]
 async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
     let setup::Fixture {
         app,
@@ -17,8 +29,11 @@ async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
         app.mutate(crate::ControlMutation::Provider(
             gproxy_store::records::ProviderInput {
                 name: "second-provider".into(),
+                label: None,
                 channel: "openai".into(),
                 settings: json!({}),
+                credential_strategy: "round_robin".into(),
+                proxy_url: None,
                 tls_fingerprint: None,
                 enabled: true,
             },
@@ -79,7 +94,11 @@ async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
     let plan = host
         .services
         .control
-        .resolve(Some("public-model"), &gproxy_core::RoutingMode::Aggregated)
+        .resolve(
+            Some("public-model"),
+            &gproxy_core::RoutingMode::Aggregated,
+            None,
+        )
         .expect("resolved plan");
     assert_eq!(
         plan.targets

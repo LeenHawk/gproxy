@@ -60,8 +60,11 @@ export function ProviderDetail(props: Props) {
     try {
       await props.onSaveProvider({
         name: props.provider.name,
+        label: props.provider.label,
         channel: props.provider.channel,
         settings: props.provider.settings,
+        credential_strategy: props.provider.credential_strategy,
+        proxy_url: props.provider.proxy_url,
         tls_fingerprint: props.provider.tls_fingerprint,
         enabled,
       }, props.provider.id)
@@ -87,8 +90,8 @@ export function ProviderDetail(props: Props) {
     <div className="flex min-w-0 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div className="min-w-0">
-          <h2 className="truncate text-xl font-semibold">{props.provider.name}</h2>
-          <p className="flex items-center gap-2 text-xs text-muted-foreground"><CableIcon aria-hidden />{props.channel?.display_name ?? props.provider.channel}</p>
+          <h2 className="truncate text-xl font-semibold">{props.provider.label ?? props.provider.name}</h2>
+          <p className="flex items-center gap-2 text-xs text-muted-foreground"><CableIcon aria-hidden />{props.provider.name} · {props.channel?.display_name ?? props.provider.channel}</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={props.provider.enabled ? "outline" : "secondary"}>{t(`common.status.${props.provider.enabled ? "enabled" : "disabled"}`)}</Badge>

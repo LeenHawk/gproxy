@@ -27,6 +27,7 @@ impl CredentialStore for AppHost {
             Ok(CredentialRecord {
                 id,
                 channel: gproxy_channels::canonical_channel_id(&stored.channel).into(),
+                kind: stored.kind,
                 secret,
                 version: stored.version,
             })

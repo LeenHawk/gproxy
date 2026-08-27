@@ -6,23 +6,60 @@ use axum::Router;
 use axum::extract::DefaultBodyLimit;
 
 pub(crate) const MAX_BODY_BYTES: usize = 100 * 1024 * 1024;
-const MAX_IN_FLIGHT: usize = 256;
+
+#[derive(Clone)]
+pub struct HostConfig {
+    max_in_flight: usize,
+    instance_id: u64,
+    trusted_proxies: Arc<[std::net::IpAddr]>,
+    cors_origins: Arc<[String]>,
+}
+
+impl HostConfig {
+    pub fn from_config(config: &gproxy_app::Config) -> Self {
+        Self {
+            max_in_flight: config.max_in_flight(),
+            instance_id: config.instance_id(),
+            trusted_proxies: config.trusted_proxies().into(),
+            cors_origins: config.cors_origins().into(),
+        }
+    }
+}
+
+impl Default for HostConfig {
+    fn default() -> Self {
+        Self {
+            max_in_flight: 1024,
+            instance_id: 0,
+            trusted_proxies: Arc::new([]),
+            cors_origins: Arc::new([]),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct HostState {
     pub app: gproxy_app::AppHandle,
     pub semaphore: Arc<tokio::sync::Semaphore>,
+    pub trusted_proxies: Arc<[std::net::IpAddr]>,
+    pub cors_origins: Arc<[String]>,
+    pub uploads: Arc<UploadState>,
+    instance_id: u64,
     request_prefix: u64,
     request_counter: Arc<AtomicU64>,
 }
 
 impl HostState {
-    fn new(app: gproxy_app::AppHandle) -> Result<Self, HostError> {
+    fn new(app: gproxy_app::AppHandle, config: HostConfig) -> Result<Self, HostError> {
         let mut prefix = [0_u8; 8];
         getrandom::fill(&mut prefix).map_err(|_| HostError::Randomness)?;
         Ok(Self {
             app,
-            semaphore: Arc::new(tokio::sync::Semaphore::new(MAX_IN_FLIGHT)),
+            semaphore: Arc::new(tokio::sync::Semaphore::new(config.max_in_flight)),
+            trusted_proxies: config.trusted_proxies,
+            cors_origins: config.cors_origins,
+            uploads: Arc::new(UploadState::default()),
+            instance_id: config.instance_id,
             request_prefix: u64::from_be_bytes(prefix),
             request_counter: Arc::new(AtomicU64::new(1)),
         })
@@ -30,7 +67,50 @@ impl HostState {
 
     pub(crate) fn request_id(&self) -> String {
         let sequence = self.request_counter.fetch_add(1, Ordering::Relaxed);
-        format!("{:016x}-{sequence:016x}", self.request_prefix)
+        format!(
+            "{}-{:016x}-{sequence:016x}",
+            self.instance_id, self.request_prefix
+        )
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct UploadState {
+    in_flight: std::sync::atomic::AtomicUsize,
+    changed: tokio::sync::Notify,
+}
+
+impl UploadState {
+    pub(crate) async fn acquire(self: &Arc<Self>, limit: usize) -> Option<UploadPermit> {
+        if limit == 0 {
+            return None;
+        }
+        loop {
+            let current = self.in_flight.load(Ordering::Acquire);
+            if current < limit
+                && self
+                    .in_flight
+                    .compare_exchange_weak(
+                        current,
+                        current + 1,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
+            {
+                return Some(UploadPermit(Arc::clone(self)));
+            }
+            self.changed.notified().await;
+        }
+    }
+}
+
+pub(crate) struct UploadPermit(Arc<UploadState>);
+
+impl Drop for UploadPermit {
+    fn drop(&mut self) {
+        self.0.in_flight.fetch_sub(1, Ordering::AcqRel);
+        self.0.changed.notify_one();
     }
 }
 
@@ -42,12 +122,20 @@ pub struct AxumServer {
 
 impl AxumServer {
     pub async fn bind(app: gproxy_app::AppHandle, address: SocketAddr) -> Result<Self, HostError> {
+        Self::bind_with_config(app, address, HostConfig::default()).await
+    }
+
+    pub async fn bind_with_config(
+        app: gproxy_app::AppHandle,
+        address: SocketAddr,
+        config: HostConfig,
+    ) -> Result<Self, HostError> {
         let listener = tokio::net::TcpListener::bind(address)
             .await
             .map_err(HostError::Io)?;
         let address = listener.local_addr().map_err(HostError::Io)?;
         let shutdown = app.clone();
-        let state = HostState::new(app.clone())?;
+        let state = HostState::new(app.clone(), config)?;
         let router = Router::new()
             .fallback(crate::ingress::handle)
             .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))

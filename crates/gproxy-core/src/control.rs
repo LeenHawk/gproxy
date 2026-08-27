@@ -22,7 +22,12 @@ pub use service_tier::{normalize_service_tier, response_service_tier};
 pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::MaybeSync {
     /// Resolve a requested model under a routing mode into an ordered
     /// candidate plan (route members or a scoped provider's pool).
-    fn resolve(&self, model: Option<&str>, mode: &RoutingMode) -> Result<Plan, CoreError>;
+    fn resolve(
+        &self,
+        model: Option<&str>,
+        mode: &RoutingMode,
+        affinity: Option<i64>,
+    ) -> Result<Plan, CoreError>;
 
     /// Pricing for settlement. `None` settles at zero cost with a warning
     /// rather than refusing the request.

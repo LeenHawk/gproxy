@@ -151,6 +151,76 @@ impl State for AppHandle {
         })
     }
 
+    fn fetch_tokenizer_vocab<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<gproxy_admin::dto::TokenizerVocabDto, AdminError>> {
+        Box::pin(async move {
+            #[cfg(target_arch = "wasm32")]
+            {
+                let _ = name;
+                Err(AdminError::Forbidden)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                if name.is_empty() {
+                    return Err(AdminError::BadRequest(
+                        "tokenizer vocabulary name must not be blank".into(),
+                    ));
+                }
+                let registry = &self.inner.host.services.tokenizers;
+                if !registry.download_enabled() {
+                    return Err(AdminError::Forbidden);
+                }
+                registry
+                    .resolve_or_load(name)
+                    .await
+                    .map_err(|_| {
+                        AdminError::BadRequest("tokenizer vocabulary could not be fetched".into())
+                    })?
+                    .ok_or(AdminError::NotFound)?;
+                self.inner
+                    .host
+                    .services
+                    .store
+                    .tokenizer_vocabs()
+                    .await?
+                    .into_iter()
+                    .find(|vocab| vocab.name == name)
+                    .map(tokenizer_dto)
+                    .ok_or(AdminError::NotFound)
+            }
+        })
+    }
+
+    fn delete_tokenizer_vocab<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<(), AdminError>> {
+        Box::pin(async move {
+            #[cfg(target_arch = "wasm32")]
+            {
+                let _ = name;
+                Err(AdminError::Forbidden)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let registry = &self.inner.host.services.tokenizers;
+                if !registry.download_enabled() {
+                    return Err(AdminError::Forbidden);
+                }
+                self.inner
+                    .host
+                    .services
+                    .store
+                    .delete_tokenizer_vocab(name)
+                    .await?;
+                registry.evict(name);
+                Ok(())
+            }
+        })
+    }
+
     fn login_state_get<'a>(
         &'a self,
         key: &'a str,
@@ -307,6 +377,17 @@ impl State for AppHandle {
 
     fn portal_models(&self, identity: &PortalIdentity) -> Vec<PortalModelDto> {
         portal::models(self, identity)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn tokenizer_dto(
+    vocab: gproxy_store::records::TokenizerVocabRecord,
+) -> gproxy_admin::dto::TokenizerVocabDto {
+    gproxy_admin::dto::TokenizerVocabDto {
+        name: vocab.name,
+        size_bytes: vocab.size_bytes,
+        updated_at: vocab.updated_at,
     }
 }
 

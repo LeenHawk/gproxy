@@ -48,8 +48,11 @@ export function ProviderCard(props: Props) {
   const setEnabled = async (enabled: boolean) => {
     const value: ProviderWriteRequest = {
       name: provider.name,
+      label: provider.label,
       channel: provider.channel,
       settings: provider.settings,
+      credential_strategy: provider.credential_strategy,
+      proxy_url: provider.proxy_url,
       tls_fingerprint: provider.tls_fingerprint,
       enabled,
     }
@@ -64,8 +67,9 @@ export function ProviderCard(props: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{provider.name}</CardTitle>
+        <CardTitle>{provider.label ?? provider.name}</CardTitle>
         <CardDescription className="flex flex-wrap items-center gap-2">
+          <span className="machine-text">{provider.name}</span>
           {channel ? <span>{channel.display_name}</span> : null}
           <span className="machine-text">{provider.channel}</span>
         </CardDescription>

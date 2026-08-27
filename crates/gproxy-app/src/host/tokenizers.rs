@@ -72,15 +72,13 @@ impl TokenizerClient for ClientAdapter {
 pub(crate) fn build(
     store: gproxy_store::Store,
     transport: gproxy_upstream::Transport,
-    settings: &[gproxy_store::records::SettingRecord],
+    download_enabled: bool,
 ) -> Arc<TokenizerRegistry> {
     let registry = Arc::new(TokenizerRegistry::new(
         Arc::new(StoreAdapter(store)),
         Arc::new(ClientAdapter(transport)),
     ));
-    registry.set_download_enabled(settings.iter().any(|setting| {
-        setting.key == "enable_tokenizer_download" && setting.value == serde_json::Value::Bool(true)
-    }));
+    registry.set_download_enabled(download_enabled);
     registry.preheat();
     registry
 }

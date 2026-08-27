@@ -76,7 +76,11 @@ async fn near_limit_credential_is_deprioritized() {
         .host
         .services
         .control
-        .resolve(Some("public-model"), &gproxy_core::RoutingMode::Aggregated)
+        .resolve(
+            Some("public-model"),
+            &gproxy_core::RoutingMode::Aggregated,
+            None,
+        )
         .expect("plan");
     let windows = app
         .inner
@@ -100,7 +104,11 @@ fn resolve_credentials(app: &crate::AppHandle) -> Vec<i64> {
         .host
         .services
         .control
-        .resolve(Some("public-model"), &gproxy_core::RoutingMode::Aggregated)
+        .resolve(
+            Some("public-model"),
+            &gproxy_core::RoutingMode::Aggregated,
+            None,
+        )
         .expect("plan")
         .targets
         .into_iter()

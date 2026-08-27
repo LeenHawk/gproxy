@@ -3,7 +3,7 @@ use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::{ConnectInfo, FromRequestParts, Request, State};
 use axum::http::header::{CONNECTION, UPGRADE};
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use gproxy_core::RequestCtx;
 
@@ -15,11 +15,39 @@ pub(crate) async fn handle(
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     request: Request,
 ) -> Response {
+    let origin = request
+        .headers()
+        .get(http::header::ORIGIN)
+        .cloned()
+        .filter(|origin| crate::request_policy::allowed_origin(&state, origin));
+    if request.method() == Method::OPTIONS
+        && request
+            .headers()
+            .contains_key("access-control-request-method")
+    {
+        let response = StatusCode::NO_CONTENT.into_response();
+        return crate::request_policy::apply_cors(response, origin.as_ref());
+    }
+    let response = handle_request(state, peer, request).await;
+    crate::request_policy::apply_cors(response, origin.as_ref())
+}
+
+async fn handle_request(
+    state: HostState,
+    peer: std::net::SocketAddr,
+    request: Request,
+) -> Response {
     let request_id = state.request_id();
+    tracing::debug!(
+        request_id,
+        instance_name = %state.app.instance_name(),
+        "request accepted"
+    );
     let (mut parts, body) = request.into_parts();
-    parts
-        .extensions
-        .insert(gproxy_admin::AuthSource(peer.ip().to_string()));
+    parts.extensions.insert(gproxy_admin::AuthSource(
+        crate::request_policy::client_ip(peer.ip(), &parts.headers, &state.trusted_proxies)
+            .to_string(),
+    ));
     let method = parts.method.clone();
     let path = parts.uri.path().to_owned();
     let query = parts.uri.query().map(str::to_owned);
@@ -63,6 +91,14 @@ pub(crate) async fn handle(
         body,
         upgrade: websocket.is_some(),
         mode,
+    };
+    let _upload = if crate::request_policy::is_upload(&request) {
+        state
+            .uploads
+            .acquire(state.app.file_upload_max_in_flight())
+            .await
+    } else {
+        None
     };
     let result = state.app.execute(request).await;
     HostResponse::new(result, websocket, permit, request_id).into_response()
