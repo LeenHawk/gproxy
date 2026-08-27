@@ -30,6 +30,7 @@ pub(crate) async fn response(
     };
     host.record_credential_health(
         target.credential,
+        &target.upstream_model,
         credential_version,
         health,
         Some(status),
@@ -50,6 +51,7 @@ pub(crate) async fn degraded(
     };
     host.record_credential_health(
         target.credential,
+        &target.upstream_model,
         credential_version,
         crate::CredentialHealth::Degraded,
         status,
@@ -69,6 +71,7 @@ pub(crate) async fn dead(
     };
     host.record_credential_health(
         target.credential,
+        &target.upstream_model,
         credential_version,
         crate::CredentialHealth::Dead,
         None,

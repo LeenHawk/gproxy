@@ -137,6 +137,15 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     let quota = store
         .add_quota_cost("quota-request", quota.id, Decimal::new(15, 4))
         .await?;
+    let mut second_usage = usage_input.clone();
+    second_usage.request_id = "request-2".into();
+    second_usage.upstream_model = "alternate-model".into();
+    second_usage.input_tokens = 7;
+    second_usage.output_tokens = 3;
+    second_usage.cached_input_tokens = 1;
+    second_usage.metrics = json!({"audio_seconds": 2});
+    second_usage.cost = Decimal::new(1, 5);
+    assert!(store.record_usage(&second_usage).await?);
     let cycle = cycle::run(store, credential.id).await?;
     let mut binding = seed_binding(store, provider, credential.id).await?;
     binding.items[0].created_at = 0;

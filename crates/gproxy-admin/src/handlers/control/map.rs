@@ -1,6 +1,6 @@
 use crate::dto::{
-    AliasDto, CredentialDto, CredentialHealthDto, ModelAliasDto, ProviderDto, RouteDto,
-    RouteMemberDto,
+    AliasDto, CredentialDto, CredentialHealthDto, CredentialModelHealthDto, ModelAliasDto,
+    ProviderDto, RouteDto, RouteMemberDto,
 };
 pub(in crate::handlers) fn provider(value: &gproxy_store::records::ProviderRecord) -> ProviderDto {
     let (tls_fingerprint, invalid_tls_fingerprint, tls_fingerprint_error) =
@@ -28,7 +28,7 @@ pub(in crate::handlers) fn provider(value: &gproxy_store::records::ProviderRecor
 
 pub(in crate::handlers) fn credential(
     value: &gproxy_store::records::CredentialAdminRecord,
-    health: Option<&gproxy_store::records::CredentialHealthRecord>,
+    health: &[gproxy_store::records::CredentialHealthRecord],
 ) -> CredentialDto {
     let (tls_fingerprint, invalid_tls_fingerprint, tls_fingerprint_error) =
         match value.tls_fingerprint.clone() {
@@ -38,11 +38,27 @@ pub(in crate::handlers) fn credential(
             },
             None => (None, None, None),
         };
-    let state = health.map(|health| match health.state {
-        gproxy_store::records::CredentialHealthState::Healthy => CredentialHealthDto::Healthy,
-        gproxy_store::records::CredentialHealthState::Degraded => CredentialHealthDto::Degraded,
-        gproxy_store::records::CredentialHealthState::Dead => CredentialHealthDto::Dead,
+    let current = health
+        .iter()
+        .filter(|health| health.credential_version == value.version)
+        .collect::<Vec<_>>();
+    let summary = current.iter().copied().max_by_key(|health| {
+        (
+            health_rank(health.state),
+            health.observed_at,
+            health.version,
+        )
     });
+    let model_health = current
+        .iter()
+        .map(|health| CredentialModelHealthDto {
+            model: health.model.clone(),
+            health: health_dto(health.state),
+            observed_at: health.observed_at,
+            response_status: health.response_status,
+            detail: health.detail.clone(),
+        })
+        .collect();
     CredentialDto {
         id: value.id,
         provider_id: value.provider_id,
@@ -58,13 +74,32 @@ pub(in crate::handlers) fn credential(
         invalid_tls_fingerprint,
         tls_fingerprint_error,
         health: if value.enabled {
-            state.unwrap_or(CredentialHealthDto::Unknown)
+            summary
+                .map(|health| health_dto(health.state))
+                .unwrap_or(CredentialHealthDto::Unknown)
         } else {
             CredentialHealthDto::Disabled
         },
-        health_observed_at: health.map(|health| health.observed_at),
-        health_response_status: health.and_then(|health| health.response_status),
-        health_detail: health.and_then(|health| health.detail.clone()),
+        health_observed_at: summary.map(|health| health.observed_at),
+        health_response_status: summary.and_then(|health| health.response_status),
+        health_detail: summary.and_then(|health| health.detail.clone()),
+        model_health,
+    }
+}
+
+fn health_dto(state: gproxy_store::records::CredentialHealthState) -> CredentialHealthDto {
+    match state {
+        gproxy_store::records::CredentialHealthState::Healthy => CredentialHealthDto::Healthy,
+        gproxy_store::records::CredentialHealthState::Degraded => CredentialHealthDto::Degraded,
+        gproxy_store::records::CredentialHealthState::Dead => CredentialHealthDto::Dead,
+    }
+}
+
+fn health_rank(state: gproxy_store::records::CredentialHealthState) -> u8 {
+    match state {
+        gproxy_store::records::CredentialHealthState::Healthy => 0,
+        gproxy_store::records::CredentialHealthState::Degraded => 1,
+        gproxy_store::records::CredentialHealthState::Dead => 2,
     }
 }
 

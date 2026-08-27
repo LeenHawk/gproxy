@@ -13,6 +13,7 @@ import { CredentialRowActions } from "@/components/providers/credential-row-acti
 import { QueryState } from "@/components/query-state"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 type Props = {
   providerId: number
@@ -34,7 +35,7 @@ export function CredentialList(props: Props) {
   const { t } = useTranslation()
   const columns: Array<DataTableColumn<CredentialDto>> = [
     { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => <div><p className="font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> },
-    { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <StatusBadge status={credential.health} /> },
+    { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <span className="flex items-center gap-2"><StatusBadge status={credential.health} />{credential.model_health.length ? <Badge variant="outline">{t("providers.credentials.modelHealth.count", { count: credential.model_health.length })}</Badge> : null}</span> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
     { key: "kind", label: t("providers.credentials.kind"), header: t("providers.credentials.kind"), cell: (credential) => <span className="text-xs">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })}</span> },
     { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },

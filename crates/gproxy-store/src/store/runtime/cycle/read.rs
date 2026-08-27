@@ -12,7 +12,8 @@ impl Store {
         from: i64,
         to: i64,
     ) -> Result<Vec<CredentialQuotaCycleRecord>, StoreError> {
-        self.backend()
+        let cycles = self
+            .backend()
             .execute(runtime::select_credential_quota_cycles(
                 credential_id,
                 from,
@@ -22,7 +23,8 @@ impl Store {
             .rows
             .into_iter()
             .map(row::parse)
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        self.with_models(cycles).await
     }
 
     pub async fn open_credential_quota_cycles(
@@ -39,7 +41,8 @@ impl Store {
         credential_id: i64,
         window_key: &str,
     ) -> Result<Vec<CredentialQuotaCycleRecord>, StoreError> {
-        self.backend()
+        let cycles = self
+            .backend()
             .execute(runtime::select_credential_quota_cycle_history(
                 credential_id,
                 window_key,
@@ -48,7 +51,8 @@ impl Store {
             .rows
             .into_iter()
             .map(row::parse)
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        self.with_models(cycles).await
     }
 
     pub async fn credential_quota_pressures(
@@ -91,7 +95,8 @@ impl Store {
         credential_id: Option<i64>,
         now: i64,
     ) -> Result<Vec<CredentialQuotaCycleRecord>, StoreError> {
-        self.backend()
+        let cycles = self
+            .backend()
             .execute(runtime::select_open_credential_quota_cycles(credential_id)?)
             .await?
             .rows
@@ -103,7 +108,8 @@ impl Store {
                 }
                 result => Some(result),
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        self.with_models(cycles).await
     }
 
     pub(super) async fn open_credential_quota_cycle(
@@ -118,7 +124,15 @@ impl Store {
                 window_key,
             )?)
             .await?;
-        result.rows.into_iter().next().map(row::parse).transpose()
+        let cycles = result
+            .rows
+            .into_iter()
+            .next()
+            .map(row::parse)
+            .transpose()?
+            .into_iter()
+            .collect();
+        Ok(self.with_models(cycles).await?.pop())
     }
 
     pub(super) async fn credential_quota_cycle(
@@ -129,7 +143,15 @@ impl Store {
             .backend()
             .execute(runtime::read_credential_quota_cycle(id)?)
             .await?;
-        result.rows.into_iter().next().map(row::parse).transpose()
+        let cycles = result
+            .rows
+            .into_iter()
+            .next()
+            .map(row::parse)
+            .transpose()?
+            .into_iter()
+            .collect();
+        Ok(self.with_models(cycles).await?.pop())
     }
 
     pub(super) async fn latest_credential_quota_cycle(
@@ -144,7 +166,15 @@ impl Store {
                 window_key,
             )?)
             .await?;
-        result.rows.into_iter().next().map(row::parse).transpose()
+        let cycles = result
+            .rows
+            .into_iter()
+            .next()
+            .map(row::parse)
+            .transpose()?
+            .into_iter()
+            .collect();
+        Ok(self.with_models(cycles).await?.pop())
     }
 
     pub(super) async fn require_credential_quota_cycle(

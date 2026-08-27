@@ -72,6 +72,7 @@ async fn load<H: Host>(
         Err(error) => {
             host.record_credential_health(
                 id,
+                "*",
                 current.version,
                 crate::CredentialHealth::Degraded,
                 None,

@@ -45,6 +45,15 @@ pub enum CredentialHealthDto {
     Dead,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CredentialModelHealthDto {
+    pub model: String,
+    pub health: CredentialHealthDto,
+    pub observed_at: i64,
+    pub response_status: Option<u16>,
+    pub detail: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct CredentialDto {
     pub id: i64,
@@ -65,6 +74,7 @@ pub struct CredentialDto {
     pub health_observed_at: Option<i64>,
     pub health_response_status: Option<u16>,
     pub health_detail: Option<String>,
+    pub model_health: Vec<CredentialModelHealthDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

@@ -56,6 +56,7 @@ pub(crate) fn select_credential_cycle_usage(
     let mut query = Query::select();
     query
         .columns([
+            Alias::new("upstream_model"),
             Alias::new("input_tokens"),
             Alias::new("output_tokens"),
             Alias::new("cached_input_tokens"),
@@ -67,6 +68,21 @@ pub(crate) fn select_credential_cycle_usage(
         .and_where(Expr::col(Alias::new("at")).gte(period_start))
         .and_where(Expr::col(Alias::new("at")).lt(observed_at))
         .order_by(Alias::new("id"), Order::Asc);
+    Statement::query(&query)
+}
+
+pub(crate) fn select_credential_cycle_models(cycle_ids: &[i64]) -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .columns([
+            Alias::new("cycle_id"),
+            Alias::new("model"),
+            Alias::new("metrics_json"),
+        ])
+        .from(Alias::new("credential_quota_cycle_models"))
+        .and_where(Expr::col(Alias::new("cycle_id")).is_in(cycle_ids.iter().copied()))
+        .order_by(Alias::new("cycle_id"), Order::Asc)
+        .order_by(Alias::new("model"), Order::Asc);
     Statement::query(&query)
 }
 

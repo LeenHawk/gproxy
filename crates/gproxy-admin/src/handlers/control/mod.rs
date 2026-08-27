@@ -15,19 +15,23 @@ pub(super) async fn list(
 ) -> Result<Response<Bytes>, AdminError> {
     if matches!(entity, Entity::Credentials) {
         let records = state.store().admin_credentials().await?;
-        let health = state
-            .store()
-            .credential_health()
-            .await?
-            .into_iter()
-            .map(|health| (health.credential_id, health))
-            .collect::<std::collections::BTreeMap<_, _>>();
+        let health = state.store().credential_health().await?.into_iter().fold(
+            std::collections::BTreeMap::<_, Vec<_>>::new(),
+            |mut grouped, health| {
+                grouped
+                    .entry(health.credential_id)
+                    .or_default()
+                    .push(health);
+                grouped
+            },
+        );
         let values = records
             .iter()
             .map(|credential| {
                 let current = health
                     .get(&credential.id)
-                    .filter(|health| health.credential_version == credential.version);
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
                 map::credential(credential, current)
             })
             .collect::<Vec<_>>();

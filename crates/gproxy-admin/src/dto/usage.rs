@@ -110,4 +110,12 @@ pub struct CredentialQuotaCycleDto {
     pub coverage: QuotaCoverageDto,
     #[ts(type = "unknown")]
     pub metrics: Value,
+    pub models: Vec<CredentialQuotaCycleModelDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct CredentialQuotaCycleModelDto {
+    pub model: String,
+    #[ts(type = "unknown")]
+    pub metrics: Value,
 }

@@ -141,6 +141,7 @@ pub(crate) async fn request<H: Host>(
                 core.host
                     .record_credential_health(
                         facts.target.credential,
+                        &facts.target.upstream_model,
                         facts
                             .credential_version
                             .expect("surface credential version is loaded"),

@@ -29,7 +29,7 @@ pub(super) struct State {
     pub(super) lease_calls: usize,
     pub(super) wait_calls: usize,
     pub(super) rotations: Vec<u64>,
-    pub(super) health: Vec<(CredentialId, CredentialHealth)>,
+    pub(super) health: Vec<(CredentialId, String, CredentialHealth)>,
     pub(super) authorizations: Vec<String>,
     pub(super) upstream_requests: Vec<(http::HeaderMap, String)>,
     pub(super) upstream_bodies: Vec<Bytes>,
@@ -235,6 +235,7 @@ impl Host for MemoryHost {
     fn record_credential_health<'a>(
         &'a self,
         credential: CredentialId,
+        model: &'a str,
         _: u64,
         health: CredentialHealth,
         _: Option<http::StatusCode>,
@@ -244,7 +245,7 @@ impl Host for MemoryHost {
             .lock()
             .expect("state lock")
             .health
-            .push((credential, health));
+            .push((credential, model.to_owned(), health));
         Box::pin(async {})
     }
     fn wait<'a>(&'a self, _: std::time::Duration) -> BoxFuture<'a, ()> {

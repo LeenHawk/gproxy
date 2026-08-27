@@ -76,8 +76,22 @@
       "healthObserved": "觀測於 {{time}}",
       "healthUnobserved": "尚無健康觀測",
       "healthDetail": "健康詳細資料",
+      "modelHealth": {
+        "title": "依模型查看健康狀態",
+        "credentialWide": "所有模型",
+        "count": "{{count}} 個模型"
+      },
       "quotaCycle": "配額週期",
       "noQuotaCycle": "尚未觀測到上游配額週期。",
+      "cycleModels": {
+        "title": "依模型查看用量",
+        "unknownModel": "未知模型",
+        "requests": "請求",
+        "input_tokens": "輸入",
+        "output_tokens": "輸出",
+        "cached_input_tokens": "快取讀取",
+        "cost": "費用"
+      },
       "created": "已新增憑證。",
       "updated": "已更新憑證。",
       "createError": "無法新增憑證，請檢查機密資料後重試。",

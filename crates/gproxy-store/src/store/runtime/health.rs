@@ -23,6 +23,7 @@ impl Store {
                 let state = row.text("state")?;
                 Ok(CredentialHealthRecord {
                     credential_id: row.i64("credential_id")?,
+                    model: row.text("model")?.to_owned(),
                     credential_version: u64::try_from(row.i64("credential_version")?).map_err(
                         |error| StoreError::InvalidData {
                             field: "credential health version",

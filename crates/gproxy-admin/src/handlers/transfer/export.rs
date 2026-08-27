@@ -35,7 +35,7 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
         credentials: credentials
             .iter()
             .map(|value| ExportCredentialDto {
-                config: control::map::credential(value, None),
+                config: control::map::credential(value, &[]),
                 secret: credential_secrets.get(&value.id).cloned().map(Into::into),
             })
             .collect(),

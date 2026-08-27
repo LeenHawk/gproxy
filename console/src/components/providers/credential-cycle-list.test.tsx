@@ -22,6 +22,7 @@ const cycle: CredentialQuotaCycleDto = {
   used_percent: "10",
   coverage: "full_period_lower_bound",
   metrics: {},
+  models: [],
 }
 
 describe("CredentialCycleList", () => {

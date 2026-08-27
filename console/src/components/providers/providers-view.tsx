@@ -141,6 +141,7 @@ export function ProvidersView(props: Props) {
                 onSaveCredential={props.onSaveCredential}
                 activeCredentialId={Number.isFinite(activeCredentialId) ? activeCredentialId : null}
                 onCredentialOpen={(credential) => navigateAdminPath(`/admin/providers/${selected.id}/credentials/${credential.id}`)}
+                onCredentialClose={() => navigateAdminPath(`/admin/providers/${selected.id}/credentials`)}
                 ruleSets={props.ruleSets}
                 rules={props.rules}
                 attachments={props.attachments}

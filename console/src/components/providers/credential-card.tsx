@@ -8,6 +8,7 @@ import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
+import { CredentialModelHealth } from "@/components/providers/credential-model-health"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
@@ -94,6 +95,7 @@ export function CredentialCard(props: Props) {
           {observed ? t("providers.credentials.healthObserved", { time: observed }) : t("providers.credentials.healthUnobserved")}
         </p>
         {credential.health_detail ? <p className="machine-text text-sm text-muted-foreground">{credential.health_detail}</p> : null}
+        <CredentialModelHealth values={credential.model_health} />
         <CredentialCycleList cycles={props.cycles} loading={props.cyclesLoading} error={props.cyclesError} />
       </CardContent>
     </Card>

@@ -236,6 +236,7 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
     fn record_credential_health<'a>(
         &'a self,
         credential: CredentialId,
+        model: &'a str,
         credential_version: u64,
         health: CredentialHealth,
         response_status: Option<http::StatusCode>,

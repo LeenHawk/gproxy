@@ -30,6 +30,7 @@ impl CredentialHealthState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CredentialHealthInput {
     pub credential_id: i64,
+    pub model: String,
     pub credential_version: u64,
     pub version: i64,
     pub state: CredentialHealthState,
@@ -41,6 +42,7 @@ pub struct CredentialHealthInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CredentialHealthRecord {
     pub credential_id: i64,
+    pub model: String,
     pub credential_version: u64,
     pub version: i64,
     pub state: CredentialHealthState,

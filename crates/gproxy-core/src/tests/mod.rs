@@ -85,7 +85,11 @@ fn invoke_refreshes_with_version_guard_and_finishes_the_funnel() -> Result<(), I
         assert_eq!(state.captures[0].credential_id, Some(CredentialId(7)));
         assert_eq!(
             state.health.last(),
-            Some(&(CredentialId(7), CredentialHealth::Healthy))
+            Some(&(
+                CredentialId(7),
+                "upstream-model".into(),
+                CredentialHealth::Healthy
+            ))
         );
     }
     Ok(())
@@ -409,6 +413,14 @@ fn execute_honors_failover_budget_and_settles_only_the_final_attempt() -> Result
         assert_eq!(state.captures.len(), budget as usize);
         assert_eq!(state.settlements.len(), usize::from(succeeds));
         assert_eq!(state.admission_finishes, [succeeds]);
+        assert_eq!(state.health[0].1, "upstream-model");
+        assert_eq!(state.health[0].2, CredentialHealth::Degraded);
+        assert!(
+            state
+                .health
+                .iter()
+                .all(|(_, model, _)| model == "upstream-model")
+        );
     }
 
     let host = MemoryHost::new(false);

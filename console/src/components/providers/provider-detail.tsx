@@ -14,6 +14,7 @@ import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { CredentialList } from "@/components/providers/credential-list"
+import { CredentialCard } from "@/components/providers/credential-card"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
 import { ProviderRoutingRules } from "@/components/rules/provider-routing-rules"
 import { RulesWorkspace, type RuleMutations } from "@/components/rules/rules-workspace"
@@ -45,6 +46,7 @@ type Props = {
   onSaveCredential: (value: CredentialWriteRequest, id?: number) => Promise<void>
   activeCredentialId?: number | null
   onCredentialOpen?: (credential: CredentialDto) => void
+  onCredentialClose?: () => void
   ruleSets: Array<RuleSetDto>
   rules: Array<RuleDto>
   attachments: Array<ProviderRuleSetDto>
@@ -56,6 +58,7 @@ export function ProviderDetail(props: Props) {
   const { t } = useTranslation()
   const switchId = useId()
   const invalidFingerprint = props.provider.invalid_tls_fingerprint != null || props.provider.tls_fingerprint_error != null
+  const activeCredential = props.credentials.find((credential) => credential.id === props.activeCredentialId)
   const setEnabled = async (enabled: boolean) => {
     try {
       await props.onSaveProvider({
@@ -111,7 +114,19 @@ export function ProviderDetail(props: Props) {
           <TabsTrigger value="settings">{t("providers.tabs.settings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="credentials" className="pt-4">
-          <CredentialList
+          {activeCredential ? <div className="flex flex-col gap-3">
+            <Button className="self-start" variant="ghost" onClick={props.onCredentialClose}>{t("common.actions.back")}</Button>
+            <CredentialCard
+              credential={activeCredential}
+              channel={props.channel}
+              presets={props.presets}
+              cycles={props.cyclesByCredential.get(activeCredential.id) ?? []}
+              cyclesLoading={props.cyclesLoading}
+              cyclesError={props.cyclesError}
+              saving={props.savingCredentialId === activeCredential.id}
+              onSave={props.onSaveCredential}
+            />
+          </div> : <CredentialList
             providerId={props.provider.id}
             channel={props.channel}
             presets={props.presets}
@@ -125,7 +140,7 @@ export function ProviderDetail(props: Props) {
             onSave={props.onSaveCredential}
             activeCredentialId={props.activeCredentialId}
             onCredentialOpen={props.onCredentialOpen}
-          />
+          />}
         </TabsContent>
         <TabsContent value="rules" className="pt-4"><RulesWorkspace ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} providers={props.providers} scopeProviderId={props.provider.id} mutations={props.ruleMutations} /></TabsContent>
         <TabsContent value="routing" className="pt-4"><ProviderRoutingRules provider={props.provider} channel={props.channel} rules={props.routingRules} /></TabsContent>

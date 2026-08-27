@@ -65,11 +65,15 @@ impl SnapshotControl {
         input: &gproxy_store::records::CredentialHealthInput,
     ) {
         let credential = gproxy_channel_api::CredentialId(input.credential_id);
+        let model = input.model.clone();
         let version = input.credential_version;
-        let dead = input.state == gproxy_store::records::CredentialHealthState::Dead;
+        let state = input.state;
         self.credential_health.rcu(|current| {
             let mut updated = (**current).clone();
-            updated.insert(credential, (version, dead));
+            updated
+                .entry(credential)
+                .or_default()
+                .insert(model.clone(), (version, state));
             Arc::new(updated)
         });
     }
@@ -212,20 +216,14 @@ impl ControlPlane for SnapshotControl {
 }
 
 async fn load_health(store: &Store) -> Result<CredentialHealthMap, StoreError> {
-    Ok(store
-        .credential_health()
-        .await?
-        .into_iter()
-        .map(|record| {
-            (
-                gproxy_channel_api::CredentialId(record.credential_id),
-                (
-                    record.credential_version,
-                    record.state == gproxy_store::records::CredentialHealthState::Dead,
-                ),
-            )
-        })
-        .collect())
+    let mut health = CredentialHealthMap::new();
+    for record in store.credential_health().await? {
+        health
+            .entry(gproxy_channel_api::CredentialId(record.credential_id))
+            .or_default()
+            .insert(record.model, (record.credential_version, record.state));
+    }
+    Ok(health)
 }
 
 async fn load_pressure(store: &Store) -> Result<CredentialPressureMap, StoreError> {

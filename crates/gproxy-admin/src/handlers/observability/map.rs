@@ -4,8 +4,9 @@ use gproxy_store::records::{
 };
 
 use crate::dto::{
-    BoundaryConfidenceDto, BoundarySourceDto, CredentialQuotaCycleDto, QuotaCoverageDto,
-    QuotaCycleCloseReasonDto, QuotaCycleStatusDto, QuotaWindowDto,
+    BoundaryConfidenceDto, BoundarySourceDto, CredentialQuotaCycleDto,
+    CredentialQuotaCycleModelDto, QuotaCoverageDto, QuotaCycleCloseReasonDto, QuotaCycleStatusDto,
+    QuotaWindowDto,
 };
 
 pub(crate) fn configured_windows(quota: &QuotaRecord) -> Vec<QuotaWindowKind> {
@@ -114,6 +115,14 @@ pub(super) fn credential_cycle(value: &CredentialQuotaCycleRecord) -> Credential
             QuotaCoverage::Unknown => QuotaCoverageDto::Unknown,
         },
         metrics: value.metrics.clone(),
+        models: value
+            .models
+            .iter()
+            .map(|model| CredentialQuotaCycleModelDto {
+                model: model.model.clone(),
+                metrics: model.metrics.clone(),
+            })
+            .collect(),
     }
 }
 

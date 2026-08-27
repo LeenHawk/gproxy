@@ -76,8 +76,22 @@
       "healthObserved": "Observed {{time}}",
       "healthUnobserved": "No health observation yet",
       "healthDetail": "Health detail",
+      "modelHealth": {
+        "title": "Health by model",
+        "credentialWide": "All models",
+        "count": "{{count}} models"
+      },
       "quotaCycle": "Quota cycle",
       "noQuotaCycle": "No upstream quota cycle observed.",
+      "cycleModels": {
+        "title": "Usage by model",
+        "unknownModel": "Unknown model",
+        "requests": "Requests",
+        "input_tokens": "Input",
+        "output_tokens": "Output",
+        "cached_input_tokens": "Cache read",
+        "cost": "Cost"
+      },
       "created": "Credential added.",
       "updated": "Credential updated.",
       "createError": "Could not add the credential. Check the secret and retry.",

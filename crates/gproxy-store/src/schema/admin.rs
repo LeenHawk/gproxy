@@ -24,7 +24,9 @@ pub const TABLES: &[TableSpec] = &[
         version: SchemaVersion::Admin,
         name: "credential_health",
         columns: &[
-            Col::required("credential_id", Integer).primary(),
+            Col::id(),
+            Col::required("credential_id", Integer),
+            Col::required("model", Text),
             Col::required("credential_version", Integer),
             Col::required("version", Integer),
             Col::required("state", Text),
@@ -32,11 +34,19 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("response_status", Integer),
             Col::optional("detail", Text),
         ],
-        indexes: &[IndexSpec {
-            name: "ix_credential_health_state",
-            columns: &["state", "observed_at", "credential_id"],
-            unique: false,
-            added_in: None,
-        }],
+        indexes: &[
+            IndexSpec {
+                name: "uq_credential_health_model",
+                columns: &["credential_id", "model"],
+                unique: true,
+                added_in: None,
+            },
+            IndexSpec {
+                name: "ix_credential_health_state",
+                columns: &["state", "observed_at", "credential_id", "model"],
+                unique: false,
+                added_in: None,
+            },
+        ],
     },
 ];

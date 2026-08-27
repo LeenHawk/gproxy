@@ -12,6 +12,7 @@ pub(crate) fn upsert(input: &CredentialHealthInput) -> Result<Statement, StoreEr
         .columns(
             [
                 "credential_id",
+                "model",
                 "credential_version",
                 "version",
                 "state",
@@ -24,6 +25,7 @@ pub(crate) fn upsert(input: &CredentialHealthInput) -> Result<Statement, StoreEr
         )
         .values_panic([
             value(input.credential_id),
+            value(input.model.clone()),
             value(i64::try_from(input.credential_version).map_err(|_| {
                 StoreError::InvalidData {
                     field: "credential health version",
@@ -37,7 +39,7 @@ pub(crate) fn upsert(input: &CredentialHealthInput) -> Result<Statement, StoreEr
             value(input.detail.clone()),
         ])
         .on_conflict(
-            OnConflict::column(Alias::new("credential_id"))
+            OnConflict::columns([Alias::new("credential_id"), Alias::new("model")])
                 .update_columns([
                     Alias::new("state"),
                     Alias::new("credential_version"),
@@ -88,6 +90,7 @@ pub(crate) fn select_all() -> Result<Statement, StoreError> {
         .columns(
             [
                 "credential_id",
+                "model",
                 "credential_version",
                 "version",
                 "state",
@@ -99,7 +102,8 @@ pub(crate) fn select_all() -> Result<Statement, StoreError> {
             .map(Alias::new),
         )
         .from(Alias::new("credential_health"))
-        .order_by(Alias::new("credential_id"), sea_query::Order::Asc);
+        .order_by(Alias::new("credential_id"), sea_query::Order::Asc)
+        .order_by(Alias::new("model"), sea_query::Order::Asc);
     Statement::query(&query)
 }
 

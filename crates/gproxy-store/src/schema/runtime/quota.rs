@@ -67,6 +67,30 @@ pub(super) const TABLES: &[TableSpec] = &[
     },
     TableSpec {
         version: SchemaVersion::Runtime,
+        name: "credential_quota_cycle_models",
+        columns: &[
+            Col::id(),
+            Col::required("cycle_id", Integer),
+            Col::required("model", Text),
+            Col::required("metrics_json", Text),
+        ],
+        indexes: &[
+            IndexSpec {
+                name: "uq_credential_quota_cycle_models",
+                columns: &["cycle_id", "model"],
+                unique: true,
+                added_in: None,
+            },
+            IndexSpec {
+                name: "ix_credential_quota_cycle_models_model",
+                columns: &["model", "cycle_id"],
+                unique: false,
+                added_in: None,
+            },
+        ],
+    },
+    TableSpec {
+        version: SchemaVersion::Runtime,
         name: "quota_settlements",
         columns: &[
             Col::id(),

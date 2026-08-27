@@ -156,6 +156,7 @@ impl Host for AppHost {
     fn record_credential_health<'a>(
         &'a self,
         credential: gproxy_channel_api::CredentialId,
+        model: &'a str,
         credential_version: u64,
         health: CredentialHealth,
         response_status: Option<http::StatusCode>,
@@ -171,6 +172,7 @@ impl Host for AppHost {
             };
             let input = gproxy_store::records::CredentialHealthInput {
                 credential_id: credential.0,
+                model: model.to_owned(),
                 credential_version,
                 version: match health_version(&self.services.health_sequence) {
                     Some(version) => version,

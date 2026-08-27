@@ -24,14 +24,11 @@ pub(super) fn order(
     health: &CredentialHealthMap,
     counters: &RotationCounters,
 ) -> Vec<TargetSeed> {
-    seeds.retain(|seed| {
-        !health
-            .get(&seed.credential)
-            .is_some_and(|(version, dead)| *dead && *version == seed.credential_version)
-    });
+    seeds.retain(|seed| health_rank(seed, health) < 2);
     seeds.sort_by_key(|seed| {
         (
             seed.tier,
+            health_rank(seed, health),
             Reverse(seed.member_weight),
             seed.member_id,
             Reverse(seed.credential_weight),
@@ -41,9 +38,10 @@ pub(super) fn order(
     let Some(primary_tier) = seeds.first().map(|seed| seed.tier) else {
         return seeds;
     };
+    let primary_health = health_rank(&seeds[0], health);
     let primary_end = seeds
         .iter()
-        .position(|seed| seed.tier != primary_tier)
+        .position(|seed| seed.tier != primary_tier || health_rank(seed, health) != primary_health)
         .unwrap_or(seeds.len());
     let mut members = Vec::new();
     for seed in &seeds[..primary_end] {
@@ -75,6 +73,20 @@ pub(super) fn order(
         seeds.insert(0, selected);
     }
     seeds
+}
+
+fn health_rank(seed: &TargetSeed, health: &CredentialHealthMap) -> u8 {
+    ["*", seed.upstream_model.as_str()]
+        .into_iter()
+        .filter_map(|model| health.get(&seed.credential)?.get(model))
+        .filter(|(version, _)| *version == seed.credential_version)
+        .map(|(_, state)| match state {
+            gproxy_store::records::CredentialHealthState::Healthy => 0,
+            gproxy_store::records::CredentialHealthState::Degraded => 1,
+            gproxy_store::records::CredentialHealthState::Dead => 2,
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 fn stable_slot(key: i64, provider_id: i64) -> u64 {
@@ -157,16 +169,43 @@ mod tests {
 
     #[test]
     fn unhealthy_members_are_removed_before_the_rotation_slot_is_consumed() {
-        let seeds = vec![seed(1, 0, 1, 11), seed(2, 0, 1, 22), seed(3, 0, 1, 33)];
-        let health = BTreeMap::from([(gproxy_channel_api::CredentialId(11), (0, true))]);
+        let mut blocked = seed(1, 0, 1, 11);
+        blocked.upstream_model = "model-a".into();
+        let mut isolated = seed(2, 0, 1, 11);
+        isolated.upstream_model = "model-b".into();
+        let seeds = vec![blocked, isolated, seed(3, 0, 1, 22)];
+        let health = BTreeMap::from([(
+            gproxy_channel_api::CredentialId(11),
+            BTreeMap::from([(
+                "model-a".into(),
+                (0, gproxy_store::records::CredentialHealthState::Dead),
+            )]),
+        )]);
         let counters = RotationCounters::default();
-        let picks = (0..4)
-            .map(|_| {
-                order(seeds.clone(), 4, None, &health, &counters)[0]
-                    .credential
-                    .0
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(picks, vec![22, 33, 22, 33]);
+        let ordered = order(seeds, 4, None, &health, &counters);
+        assert!(
+            !ordered
+                .iter()
+                .any(|seed| { seed.credential.0 == 11 && seed.upstream_model == "model-a" })
+        );
+        assert!(
+            ordered
+                .iter()
+                .any(|seed| { seed.credential.0 == 11 && seed.upstream_model == "model-b" })
+        );
+
+        let mut degraded = seed(1, 0, 1, 11);
+        degraded.upstream_model = "model-a".into();
+        let healthy = seed(2, 0, 1, 22);
+        let health = BTreeMap::from([(
+            gproxy_channel_api::CredentialId(11),
+            BTreeMap::from([(
+                "model-a".into(),
+                (0, gproxy_store::records::CredentialHealthState::Degraded),
+            )]),
+        )]);
+        let ordered = order(vec![degraded, healthy], 4, None, &health, &counters);
+        assert_eq!(ordered[0].credential.0, 22);
+        assert_eq!(ordered[1].credential.0, 11);
     }
 }

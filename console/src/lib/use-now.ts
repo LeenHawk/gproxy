@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react"
 const precisionSeconds = 60
 
 function snapshot() {
-  return Math.floor(Date.now() / 1000 / precisionSeconds) * precisionSeconds
+  return Math.floor(Date.now() / 1000)
 }
 
 function subscribe(listener: () => void) {

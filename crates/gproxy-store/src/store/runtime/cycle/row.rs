@@ -29,6 +29,7 @@ pub(super) fn parse(row: Row) -> Result<CredentialQuotaCycleRecord, StoreError> 
         coverage: enum_value::<QuotaCoverage>(&row, "coverage")?,
         metrics: serde_json::from_str(row.text("metrics_json")?)
             .map_err(|error| invalid("metrics_json", error))?,
+        models: Vec::new(),
     })
 }
 

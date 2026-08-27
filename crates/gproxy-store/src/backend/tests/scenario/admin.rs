@@ -49,6 +49,7 @@ pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreEr
     store
         .record_credential_health(&crate::records::CredentialHealthInput {
             credential_id: 1,
+            model: "model-a".into(),
             credential_version: 0,
             version: 2,
             state: crate::records::CredentialHealthState::Dead,
@@ -60,6 +61,7 @@ pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreEr
     store
         .record_credential_health(&crate::records::CredentialHealthInput {
             credential_id: 1,
+            model: "model-b".into(),
             credential_version: 0,
             version: 1,
             state: crate::records::CredentialHealthState::Healthy,
@@ -68,13 +70,11 @@ pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreEr
             detail: None,
         })
         .await?;
-    let health = store
-        .credential_health()
-        .await?
-        .into_iter()
-        .next()
-        .expect("credential health")
-        .state;
+    let health_records = store.credential_health().await?;
+    assert_eq!(health_records.len(), 2);
+    assert_eq!(health_records[0].model, "model-a");
+    assert_eq!(health_records[1].model, "model-b");
+    let health = health_records[0].state;
     assert!(
         store
             .user_key_secret(user_key)

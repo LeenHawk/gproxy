@@ -84,6 +84,13 @@ pub struct CredentialQuotaCycleRecord {
     pub used_percent: Option<Decimal>,
     pub coverage: QuotaCoverage,
     pub metrics: Value,
+    pub models: Vec<CredentialQuotaCycleModelRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialQuotaCycleModelRecord {
+    pub model: String,
+    pub metrics: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

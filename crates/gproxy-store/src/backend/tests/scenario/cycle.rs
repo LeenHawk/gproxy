@@ -111,11 +111,24 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
             1,
         ))
         .await?;
-    assert_eq!(local.metrics["requests"], json!("1"));
-    assert_eq!(local.metrics["input_tokens"], json!("10"));
-    assert_eq!(local.metrics["output_tokens"], json!("5"));
-    assert_eq!(local.metrics["cached_input_tokens"], json!("2"));
-    assert_eq!(local.metrics["audio_seconds"], json!("1"));
+    assert_eq!(local.metrics["requests"], json!("2"));
+    assert_eq!(local.metrics["input_tokens"], json!("17"));
+    assert_eq!(local.metrics["output_tokens"], json!("8"));
+    assert_eq!(local.metrics["cached_input_tokens"], json!("3"));
+    assert_eq!(local.metrics["audio_seconds"], json!("3"));
+    assert_eq!(local.models.len(), 2);
+    let model_requests = local
+        .models
+        .iter()
+        .map(|model| {
+            model.metrics["requests"]
+                .as_str()
+                .unwrap()
+                .parse::<i64>()
+                .unwrap()
+        })
+        .sum::<i64>();
+    assert_eq!(json!(model_requests.to_string()), local.metrics["requests"]);
 
     let trusted = store
         .observe_credential_quota_cycle(&observation(credential_id, "trusted", 0, 200, 10, 95))

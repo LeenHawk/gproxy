@@ -122,6 +122,7 @@ pub(super) async fn degraded<H: Host>(
 ) {
     host.record_credential_health(
         ctx.target.credential,
+        &ctx.target.upstream_model,
         credential_version,
         crate::CredentialHealth::Degraded,
         None,

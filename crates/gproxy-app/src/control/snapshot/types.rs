@@ -79,7 +79,8 @@ pub(super) struct CredentialSeed {
     pub fingerprint: Option<ConfiguredFingerprint>,
 }
 
-pub(super) type CredentialHealthMap = BTreeMap<CredentialId, (u64, bool)>;
+pub(super) type CredentialHealthMap =
+    BTreeMap<CredentialId, BTreeMap<String, (u64, gproxy_store::records::CredentialHealthState)>>;
 
 pub(super) struct CompiledPriceRule {
     pub id: i64,
