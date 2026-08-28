@@ -107,6 +107,7 @@
   "overview": {
     "metrics": { "label": "Instance health summary", "healthy": "Healthy credentials", "ratio": "{{value}} / {{total}}", "attention": "Needs attention", "requests": "Requests · 24h", "cost": "Settled cost · 24h" },
     "empty": { "title": "Connect the first provider", "description": "Health, spending, and quota pressure will appear here once a credential can serve traffic.", "action": "Add provider" },
+    "noCredentials": { "title": "Add a credential", "description": "{{provider}} is configured, but no credential can serve traffic yet.", "action": "Add credential to {{provider}}" },
     "attention": { "title": "Needs attention", "description": "Enabled credentials that are not currently healthy.", "empty": "All enabled credentials are healthy." },
     "spending": { "title": "Spending by provider", "description": "Settled usage over the last 24 hours." },
     "pressure": { "title": "Quota pressure", "description": "Quota and upstream cycles at or above 80%.", "empty": "No quota window is close to its limit." }

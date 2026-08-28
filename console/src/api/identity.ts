@@ -21,30 +21,30 @@ import { deleteEntity } from "@/api/control"
 const save = <T>(path: string, value: T, id?: number) =>
   api(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
 
-export const organizations = () => api<Array<OrganizationDto>>("/admin/organizations")
+export const organizations = () => api<Array<OrganizationDto>>("/admin/api/organizations")
 export const saveOrganization = (value: OrganizationWriteRequest, id?: number) =>
-  save("/admin/organizations", value, id)
-export const teams = () => api<Array<TeamDto>>("/admin/teams")
+  save("/admin/api/organizations", value, id)
+export const teams = () => api<Array<TeamDto>>("/admin/api/teams")
 export const saveTeam = (value: TeamWriteRequest, id?: number) =>
-  save("/admin/teams", value, id)
-export const users = () => api<Array<UserDto>>("/admin/users")
+  save("/admin/api/teams", value, id)
+export const users = () => api<Array<UserDto>>("/admin/api/users")
 export const saveUser = (value: UserWriteRequest, id?: number) =>
-  save("/admin/users", value, id)
-export const userKeys = () => api<Array<UserKeyDto>>("/admin/user-keys")
+  save("/admin/api/users", value, id)
+export const userKeys = () => api<Array<UserKeyDto>>("/admin/api/user-keys")
 export const createUserKey = (value: UserKeyCreateRequest) =>
-  api<UserKeyCreateResponse>("/admin/user-keys", json("POST", value))
+  api<UserKeyCreateResponse>("/admin/api/user-keys", json("POST", value))
 export const updateUserKey = (id: number, value: UserKeyUpdateRequest) =>
-  api(`/admin/user-keys/${id}`, json("PATCH", value))
+  api(`/admin/api/user-keys/${id}`, json("PATCH", value))
 export const revealUserKey = (id: number) =>
-  api<UserKeyRevealResponse>(`/admin/user-keys/${id}/reveal`, { method: "POST" })
-export const permissions = () => api<Array<PermissionDto>>("/admin/permissions")
+  api<UserKeyRevealResponse>(`/admin/api/user-keys/${id}/reveal`, { method: "POST" })
+export const permissions = () => api<Array<PermissionDto>>("/admin/api/permissions")
 export const savePermission = (value: PermissionWriteRequest, id?: number) =>
-  save("/admin/permissions", value, id)
-export const rateLimits = () => api<Array<RateLimitDto>>("/admin/rate-limits")
+  save("/admin/api/permissions", value, id)
+export const rateLimits = () => api<Array<RateLimitDto>>("/admin/api/rate-limits")
 export const saveRateLimit = (value: RateLimitWriteRequest, id?: number) =>
-  save("/admin/rate-limits", value, id)
-export const quotas = () => api<Array<QuotaDto>>("/admin/quotas")
+  save("/admin/api/rate-limits", value, id)
+export const quotas = () => api<Array<QuotaDto>>("/admin/api/quotas")
 export const saveQuota = (value: QuotaWriteRequest, id?: number) =>
-  save("/admin/quotas", value, id)
+  save("/admin/api/quotas", value, id)
 export const removeIdentityRule = (kind: "permissions" | "rate-limits" | "quotas", id: number) =>
   deleteEntity(kind, id)

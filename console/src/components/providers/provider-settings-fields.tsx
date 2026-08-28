@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import type { ChannelDto } from "@/generated/ChannelDto"
-import { ChevronDownIcon, Code2Icon, SlidersHorizontalIcon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { parseJsonObject, prettyJson } from "@/components/providers/json"
 import { Button } from "@/components/ui/button"
@@ -43,7 +43,7 @@ export function ProviderSettingsFields({
       <Collapsible data-field-span="full">
         <CollapsibleTrigger asChild>
           <Button type="button" variant="outline" className="group w-full justify-between">
-            <span className="flex items-center gap-2"><SlidersHorizontalIcon />{t("providers.form.advanced")}</span>
+            <span>{t("providers.form.advanced")}</span>
             <ChevronDownIcon data-icon="inline-end" className="transition-transform group-data-[state=open]:rotate-180" />
           </Button>
         </CollapsibleTrigger>
@@ -53,7 +53,7 @@ export function ProviderSettingsFields({
           <Collapsible>
             <CollapsibleTrigger asChild>
               <Button type="button" variant="ghost" size="sm" className="self-start">
-                <Code2Icon data-icon="inline-start" />{t("providers.form.jsonEscape")}
+                {t("providers.form.jsonEscape")}
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>

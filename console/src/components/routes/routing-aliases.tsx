@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react"
-import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveAlias } from "@/api/control"
 import type { AliasDto } from "@/generated/AliasDto"
@@ -52,7 +51,6 @@ export function RoutingAliases({
         <CardTitle>{t("routes.routingAliases.title")}</CardTitle>
         <CardAction>
           <Button size="sm" onClick={(event) => openForm(null, event.currentTarget)}>
-            <PlusIcon data-icon="inline-start" />
             {t("routes.routingAliases.add")}
           </Button>
         </CardAction>

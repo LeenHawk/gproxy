@@ -1,6 +1,7 @@
 {
   "routes": {
     "title": "Routes",
+    "listTitle": "Configured routes",
     "subtitle": "Map client-facing model names to ordered upstream members.",
     "add": "Add route",
     "empty": "No routes yet. Add one to expose a model.",

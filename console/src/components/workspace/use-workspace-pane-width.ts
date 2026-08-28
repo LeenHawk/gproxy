@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 
-const DEFAULT_WIDTH = 288
+const DEFAULT_WIDTH = 384
 const MIN_WIDTH = 220
 const MAX_WIDTH = 480
 

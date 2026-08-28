@@ -6,10 +6,7 @@ use crate::{AdminError, State, auth, handlers, response, route};
 
 pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<Response<Bytes>> {
     let path = parts.uri.path();
-    if path != "/admin" && !path.starts_with("/admin/") {
-        return None;
-    }
-    if matches!(path, "/admin" | "/admin/") {
+    if path != "/admin/api" && !path.starts_with("/admin/api/") {
         return None;
     }
     if let Some(result) = auth::dispatch_public(state, parts, &body).await {

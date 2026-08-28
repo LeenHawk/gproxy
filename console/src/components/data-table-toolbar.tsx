@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react"
-import { Columns3Icon, SearchIcon, XIcon } from "lucide-react"
+import { Columns3Icon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { DataTableColumn } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
@@ -35,13 +35,11 @@ export function DataTableToolbar<T>({
   const searchId = useId()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-48 flex-1 sm:max-w-sm">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+      <div className="min-w-48 flex-1 sm:max-w-sm">
         <Input
           id={searchId}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
-          className="pl-8"
           placeholder={t("common.dataTable.search")}
           aria-label={t("common.dataTable.search")}
         />

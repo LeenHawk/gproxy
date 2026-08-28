@@ -32,7 +32,11 @@ function rotationArmed(value?: string) {
 function staticFile(request: Request) {
   if (request.method !== "GET" && request.method !== "HEAD") return null
   const path = new URL(request.url).pathname
-  if (path === "/" || path === "/admin" || path === "/admin/" || path === "/portal" || path === "/portal/") {
+  if (path === "/"
+    || path === "/admin"
+    || (path.startsWith("/admin/") && path !== "/admin/api" && !path.startsWith("/admin/api/"))
+    || path === "/portal"
+    || path === "/portal/") {
     return "index.html"
   }
   if (path === "/favicon.svg") return "favicon.svg"

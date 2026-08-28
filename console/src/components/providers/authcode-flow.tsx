@@ -1,6 +1,5 @@
 import type { AuthCodeStartResponse } from "@/generated/AuthCodeStartResponse"
 import { useMutation } from "@tanstack/react-query"
-import { ExternalLinkIcon } from "lucide-react"
 import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { completeAuthcode, startAuthcode } from "@/api/login"
@@ -52,7 +51,6 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
   return (
     <div className="flex flex-col gap-4">
       <Button type="button" variant="outline" onClick={() => window.open(session.authorize_url, "_blank", "noopener,noreferrer")}>
-        <ExternalLinkIcon data-icon="inline-start" />
         {t("providers.login.openAuthorize")}
       </Button>
       <Field>

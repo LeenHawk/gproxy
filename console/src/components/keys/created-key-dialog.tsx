@@ -1,5 +1,4 @@
 import { useId } from "react"
-import { CopyIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import type { UserKeyCreateResponse } from "@/generated/UserKeyCreateResponse"
@@ -32,7 +31,7 @@ export function CreatedKeyDialog({ value, onClose, returnFocus }: { value: UserK
         </Field></DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>{t("common.actions.close")}</Button>
-          <Button type="button" onClick={() => void copy()}><CopyIcon data-icon="inline-start" />{t("users.keys.copy")}</Button>
+          <Button type="button" onClick={() => void copy()}>{t("users.keys.copy")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

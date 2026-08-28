@@ -41,64 +41,64 @@ const save = <T>(path: string, value: T, id?: number) =>
   api(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
 
 export const batch = (entity: Entity, action: BatchActionDto, ids: Array<number>) =>
-  api<BatchResponse>(`/admin/batch/${entity}`, json("POST", { action, ids }))
+  api<BatchResponse>(`/admin/api/batch/${entity}`, json("POST", { action, ids }))
 export const deleteEntity = (entity: Entity, id: number) =>
-  api<void>(`/admin/${entity}/${id}`, { method: "DELETE" })
+  api<void>(`/admin/api/${entity}/${id}`, { method: "DELETE" })
 export const exportConfiguration = (value: ConfigurationExportRequest) =>
-  api<ConfigurationExportDto>("/admin/export", json("POST", value))
+  api<ConfigurationExportDto>("/admin/api/export", json("POST", value))
 export const importConfiguration = (value: ConfigurationImportRequest) =>
-  api<ConfigurationImportResponse>("/admin/import", json("POST", value))
+  api<ConfigurationImportResponse>("/admin/api/import", json("POST", value))
 export const testConnectivity = (value: ConnectivityTestRequest) =>
-  api<ConnectivityTestResponse>("/admin/connectivity/test", json("POST", value))
+  api<ConnectivityTestResponse>("/admin/api/connectivity/test", json("POST", value))
 
-export const providers = () => api<Array<ProviderDto>>("/admin/providers")
+export const providers = () => api<Array<ProviderDto>>("/admin/api/providers")
 export const saveProvider = (value: ProviderWriteRequest, id?: number) =>
-  save("/admin/providers", value, id)
-export const credentials = () => api<Array<CredentialDto>>("/admin/credentials")
+  save("/admin/api/providers", value, id)
+export const credentials = () => api<Array<CredentialDto>>("/admin/api/credentials")
 export const saveCredential = (value: CredentialWriteRequest, id?: number) =>
-  save("/admin/credentials", value, id)
-export const routes = () => api<Array<RouteDto>>("/admin/routes")
+  save("/admin/api/credentials", value, id)
+export const routes = () => api<Array<RouteDto>>("/admin/api/routes")
 export const saveRoute = (value: RouteWriteRequest, id?: number) =>
-  save("/admin/routes", value, id)
-export const routeMembers = () => api<Array<RouteMemberDto>>("/admin/route-members")
+  save("/admin/api/routes", value, id)
+export const routeMembers = () => api<Array<RouteMemberDto>>("/admin/api/route-members")
 export const saveRouteMember = (value: RouteMemberWriteRequest, id?: number) =>
-  save("/admin/route-members", value, id)
-export const aliases = () => api<Array<AliasDto>>("/admin/aliases")
+  save("/admin/api/route-members", value, id)
+export const aliases = () => api<Array<AliasDto>>("/admin/api/aliases")
 export const saveAlias = (value: AliasWriteRequest, id?: number) =>
-  save("/admin/aliases", value, id)
-export const modelAliases = () => api<Array<ModelAliasDto>>("/admin/model-aliases")
+  save("/admin/api/aliases", value, id)
+export const modelAliases = () => api<Array<ModelAliasDto>>("/admin/api/model-aliases")
 export const saveModelAlias = (value: ModelAliasWriteRequest, id?: number) =>
-  save("/admin/model-aliases", value, id)
-export const priceRules = () => api<Array<PriceRuleDto>>("/admin/price-rules")
+  save("/admin/api/model-aliases", value, id)
+export const priceRules = () => api<Array<PriceRuleDto>>("/admin/api/price-rules")
 export const savePriceRule = (value: PriceRuleWriteRequest, id?: number) =>
-  save("/admin/price-rules", value, id)
-export const priceRates = () => api<Array<PriceRateDto>>("/admin/price-rates")
+  save("/admin/api/price-rules", value, id)
+export const priceRates = () => api<Array<PriceRateDto>>("/admin/api/price-rates")
 export const savePriceRate = (value: PriceRateWriteRequest, id?: number) =>
-  save("/admin/price-rates", value, id)
+  save("/admin/api/price-rates", value, id)
 export const deletePriceRate = (id: number) =>
   deleteEntity("price-rates", id)
-export const routingRules = () => api<Array<RoutingRuleDto>>("/admin/routing-rules")
-export const saveRoutingRule = (value: RoutingRuleWriteRequest, id?: number) => save("/admin/routing-rules", value, id)
+export const routingRules = () => api<Array<RoutingRuleDto>>("/admin/api/routing-rules")
+export const saveRoutingRule = (value: RoutingRuleWriteRequest, id?: number) => save("/admin/api/routing-rules", value, id)
 export const deleteRoutingRule = (id: number) => deleteEntity("routing-rules", id)
 export const resetRoutingDefaults = (providerId: number) =>
-  api<void>(`/admin/providers/${providerId}/routing-defaults/reset`, json("POST", {}))
-export const ruleSets = () => api<Array<RuleSetDto>>("/admin/rule-sets")
-export const saveRuleSet = (value: RuleSetWriteRequest, id?: number) => save("/admin/rule-sets", value, id)
+  api<void>(`/admin/api/providers/${providerId}/routing-defaults/reset`, json("POST", {}))
+export const ruleSets = () => api<Array<RuleSetDto>>("/admin/api/rule-sets")
+export const saveRuleSet = (value: RuleSetWriteRequest, id?: number) => save("/admin/api/rule-sets", value, id)
 export const deleteRuleSet = (id: number) => deleteEntity("rule-sets", id)
-export const rules = () => api<Array<RuleDto>>("/admin/rules")
-export const saveRule = (value: RuleWriteRequest, id?: number) => save("/admin/rules", value, id)
+export const rules = () => api<Array<RuleDto>>("/admin/api/rules")
+export const saveRule = (value: RuleWriteRequest, id?: number) => save("/admin/api/rules", value, id)
 export const deleteRule = (id: number) => deleteEntity("rules", id)
-export const providerRuleSets = () => api<Array<ProviderRuleSetDto>>("/admin/provider-rule-sets")
-export const saveProviderRuleSet = (value: ProviderRuleSetWriteRequest, id?: number) => save("/admin/provider-rule-sets", value, id)
+export const providerRuleSets = () => api<Array<ProviderRuleSetDto>>("/admin/api/provider-rule-sets")
+export const saveProviderRuleSet = (value: ProviderRuleSetWriteRequest, id?: number) => save("/admin/api/provider-rule-sets", value, id)
 export const deleteProviderRuleSet = (id: number) => deleteEntity("provider-rule-sets", id)
-export const rulePresets = () => api<Array<RulePresetDto>>("/admin/rule-presets")
+export const rulePresets = () => api<Array<RulePresetDto>>("/admin/api/rule-presets")
 export const applyRulePreset = (providerId: number, preset: string) =>
-  api<RuleSetDto>(`/admin/providers/${providerId}/rule-presets/${preset}`, json("POST", {}))
-export const instanceSettings = () => api<InstanceSettingsDto>("/admin/instance-settings")
+  api<RuleSetDto>(`/admin/api/providers/${providerId}/rule-presets/${preset}`, json("POST", {}))
+export const instanceSettings = () => api<InstanceSettingsDto>("/admin/api/instance-settings")
 export const saveInstanceSettings = (value: InstanceSettingsDto) =>
-  api<InstanceSettingsDto>("/admin/instance-settings", json("PATCH", value))
-export const tokenizerVocabs = () => api<Array<TokenizerVocabDto>>("/admin/tokenizer-vocabs")
+  api<InstanceSettingsDto>("/admin/api/instance-settings", json("PATCH", value))
+export const tokenizerVocabs = () => api<Array<TokenizerVocabDto>>("/admin/api/tokenizer-vocabs")
 export const fetchTokenizerVocab = (value: TokenizerFetchRequest) =>
-  api<TokenizerVocabDto>("/admin/tokenizer-vocabs", json("POST", value))
+  api<TokenizerVocabDto>("/admin/api/tokenizer-vocabs", json("POST", value))
 export const deleteTokenizerVocab = (value: TokenizerFetchRequest) =>
-  api<void>("/admin/tokenizer-vocabs", json("DELETE", value))
+  api<void>("/admin/api/tokenizer-vocabs", json("DELETE", value))

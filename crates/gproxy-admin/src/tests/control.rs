@@ -21,7 +21,7 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
 
     let response = crate::dispatch(
         &state,
-        &admin_parts(Method::DELETE, &format!("/admin/providers/{id}")),
+        &admin_parts(Method::DELETE, &format!("/admin/api/providers/{id}")),
         Bytes::new(),
     )
     .await

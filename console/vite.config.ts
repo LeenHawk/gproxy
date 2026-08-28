@@ -19,7 +19,7 @@ export default defineConfig({
   resolve: { alias: { "@": path.join(consoleDir, "src") } },
   server: {
     proxy: {
-      "/admin": {
+      "/admin/api": {
         target: backend,
         changeOrigin: true,
         headers: { origin: backend },

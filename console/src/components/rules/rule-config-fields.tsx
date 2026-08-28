@@ -1,4 +1,4 @@
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { RuleDraft } from "./rule-draft"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,7 @@ export function RuleConfigFields({ draft, onChange }: { draft: RuleDraft; onChan
         <Field><FieldLabel htmlFor={`transform-with-${index}`}>{t("rules.fields.with")}</FieldLabel><Input id={`transform-with-${index}`} required value={action.with} onChange={(event) => set("actions", draft.actions.map((item, itemIndex) => itemIndex === index ? { ...item, with: event.target.value } : item))} /></Field>
         <div className="flex items-end justify-end"><Button type="button" size="icon-sm" variant="ghost" aria-label={t("rules.actions.removeAction")} disabled={draft.actions.length === 1} onClick={() => set("actions", draft.actions.filter((_, itemIndex) => itemIndex !== index))}><Trash2Icon aria-hidden /></Button></div>
       </div>)}
-      <Button type="button" size="sm" variant="outline" onClick={() => set("actions", [...draft.actions, { op: "replace_text", from: "", pattern: "", with: "" }])}><PlusIcon data-icon="inline-start" />{t("rules.actions.addAction")}</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => set("actions", [...draft.actions, { op: "replace_text", from: "", pattern: "", with: "" }])}>{t("rules.actions.addAction")}</Button>
     </FieldSet>
     <Field><FieldLabel htmlFor="transform-limit">{t("rules.fields.limit")}</FieldLabel><Input id="transform-limit" type="number" min={1} placeholder={t("rules.placeholders.unlimited")} value={draft.limit} onChange={(event) => set("limit", event.target.value)} /></Field>
   </>

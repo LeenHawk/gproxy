@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { PlusIcon, RouteIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveRoute } from "@/api/control"
 import type { RouteDto } from "@/generated/RouteDto"
@@ -7,7 +6,7 @@ import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
 import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
 import { RouteForm } from "@/components/routes/route-form"
 
@@ -40,7 +39,7 @@ export function RouteList({
     <EntityDeleteButton entity="routes" id={route.id} label={route.name} queryKeys={["routes", "route-members", "model-aliases"]} />
   </div>
   const columns: Array<DataTableColumn<RouteDto>> = [
-    { key: "name", label: t("routes.fields.name"), header: t("routes.fields.name"), cell: (route) => <span className="flex items-center gap-2 font-medium"><RouteIcon aria-hidden />{route.name}</span> },
+    { key: "name", label: t("routes.fields.name"), header: t("routes.fields.name"), cell: (route) => <span className="font-medium">{route.name}</span> },
     { key: "attempts", label: t("routes.fields.maxAttempts"), header: t("routes.fields.maxAttempts"), cell: (route) => <span className="font-mono text-xs">{route.max_attempts}</span> },
     { key: "enabled", label: t("routes.fields.enabled"), header: t("routes.fields.enabled"), cell: (route) => t(`common.status.${route.enabled ? "enabled" : "disabled"}`) },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: actions, className: "text-right" },
@@ -49,11 +48,9 @@ export function RouteList({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("routes.title")}</CardTitle>
-        <CardDescription>{t("routes.subtitle")}</CardDescription>
+        <CardTitle>{t("routes.listTitle")}</CardTitle>
         <CardAction>
           <Button size="sm" onClick={(event) => openForm(null, event.currentTarget)}>
-            <PlusIcon data-icon="inline-start" />
             {t("routes.add")}
           </Button>
         </CardAction>
@@ -64,7 +61,7 @@ export function RouteList({
           rows={routes}
           rowKey={(route) => route.id}
           searchText={(route) => route.name}
-          renderCard={(route) => <div className="flex flex-col gap-3"><div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 font-medium"><RouteIcon aria-hidden />{route.name}</span><span className="font-mono text-xs text-muted-foreground">{t("routes.fields.maxAttempts")}: {route.max_attempts}</span></div>{actions(route)}</div>}
+          renderCard={(route) => <div className="flex flex-col gap-3"><div className="flex items-center justify-between gap-3"><span className="font-medium">{route.name}</span><span className="font-mono text-xs text-muted-foreground">{t("routes.fields.maxAttempts")}: {route.max_attempts}</span></div>{actions(route)}</div>}
           empty={t("routes.empty")}
           storageKey="routes"
           activeRowKey={selectedId}

@@ -1,8 +1,8 @@
-import { ActivityIcon, CircleDollarSignIcon, HeartPulseIcon, TriangleAlertIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
+import type { ProviderDto } from "@/generated/ProviderDto"
 import type { UsageAggregateDto } from "@/generated/UsageAggregateDto"
 import { CycleWindow } from "@/components/cycle-window"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
@@ -19,7 +19,7 @@ function percent(value: string | null) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export function OverviewDashboard({ credentials, usage, quotas, cycles }: { credentials: Array<CredentialDto>; usage: Array<UsageAggregateDto>; quotas: Array<QuotaWindowDto>; cycles: Array<CredentialQuotaCycleDto> }) {
+export function OverviewDashboard({ providers, credentials, usage, quotas, cycles }: { providers: Array<ProviderDto>; credentials: Array<CredentialDto>; usage: Array<UsageAggregateDto>; quotas: Array<QuotaWindowDto>; cycles: Array<CredentialQuotaCycleDto> }) {
   const { t, i18n } = useTranslation()
   const enabled = credentials.filter((credential) => credential.enabled)
   const healthy = enabled.filter((credential) => credential.health === "healthy")
@@ -39,18 +39,23 @@ export function OverviewDashboard({ credentials, usage, quotas, cycles }: { cred
     { key: "cost", label: t("usage.cost.label"), header: t("usage.cost.label"), cell: (row) => <span className="font-mono text-xs">{formatCost(row.cost, i18n.language)}</span>, className: "text-right" },
   ]
   const metrics = [
-    { key: "health", label: t("overview.metrics.healthy"), value: t("overview.metrics.ratio", { value: healthy.length, total: enabled.length }), icon: HeartPulseIcon },
-    { key: "attention", label: t("overview.metrics.attention"), value: String(attention.length + quotaPressure.length + cyclePressure.length), icon: TriangleAlertIcon },
-    { key: "requests", label: t("overview.metrics.requests"), value: formatCount(requests, i18n.language), icon: ActivityIcon },
-    { key: "cost", label: t("overview.metrics.cost"), value: formatCost(String(cost), i18n.language), icon: CircleDollarSignIcon },
+    { key: "health", label: t("overview.metrics.healthy"), value: t("overview.metrics.ratio", { value: healthy.length, total: enabled.length }) },
+    { key: "attention", label: t("overview.metrics.attention"), value: String(attention.length + quotaPressure.length + cyclePressure.length) },
+    { key: "requests", label: t("overview.metrics.requests"), value: formatCount(requests, i18n.language) },
+    { key: "cost", label: t("overview.metrics.cost"), value: formatCost(String(cost), i18n.language) },
   ]
-  if (credentials.length === 0) {
+  if (providers.length === 0) {
     return <Empty><EmptyHeader><EmptyTitle>{t("overview.empty.title")}</EmptyTitle><EmptyDescription>{t("overview.empty.description")}</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={() => navigateAdminPath("/admin/providers")}>{t("overview.empty.action")}</Button></EmptyContent></Empty>
+  }
+  if (credentials.length === 0) {
+    const provider = providers[0]
+    const name = provider.label ?? provider.name
+    return <Empty><EmptyHeader><EmptyTitle>{t("overview.noCredentials.title")}</EmptyTitle><EmptyDescription>{t("overview.noCredentials.description", { provider: name })}</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={() => navigateAdminPath(`/admin/providers/${provider.id}/credentials`)}>{t("overview.noCredentials.action", { provider: name })}</Button></EmptyContent></Empty>
   }
   return (
     <div className="flex flex-col gap-6">
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("overview.metrics.label")}>
-        {metrics.map(({ key, label, value, icon: Icon }) => <Card key={key} size="sm"><CardContent className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-xl font-semibold">{value}</p></div><Icon className={key === "attention" && attention.length ? "text-state-warning" : "text-muted-foreground"} aria-hidden /></CardContent></Card>)}
+        {metrics.map(({ key, label, value }) => <Card key={key} size="sm"><CardContent><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-xl font-semibold">{value}</p></CardContent></Card>)}
       </section>
       <div className="grid min-w-0 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="flex min-w-0 flex-col gap-5">

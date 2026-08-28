@@ -14,7 +14,7 @@ async fn explicit_environment_admin_password_updates_existing_account() {
         )
     };
     let login = |password: &str| {
-        let request = http::Request::post("/admin/login").body(()).unwrap();
+        let request = http::Request::post("/admin/api/login").body(()).unwrap();
         let (parts, _) = request.into_parts();
         let body = Bytes::from(
             serde_json::json!({"username": "operator", "password": password}).to_string(),
@@ -54,7 +54,7 @@ async fn explicit_environment_admin_password_updates_existing_account() {
             .user_id,
         admin.id
     );
-    let admin_request = http::Request::get("/admin/users")
+    let admin_request = http::Request::get("/admin/api/users")
         .header(http::header::AUTHORIZATION, "Bearer ordinary-admin-key")
         .body(())
         .unwrap();

@@ -3,7 +3,7 @@ import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { PriceRateWriteRequest } from "@/generated/PriceRateWriteRequest"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -74,7 +74,7 @@ export function PriceRateDialog({ rate, rules, initialRuleId, trigger }: {
               <Field><FieldLabel htmlFor="rate-priority">{t("pricing.rates.priority")}</FieldLabel><Input id="rate-priority" type="number" step={1} required value={priority} onChange={(event) => setPriority(event.target.value)} /></Field>
             </div>
             <Field>
-              <div className="flex items-center justify-between gap-2"><FieldLabel>{t("pricing.rates.conditions")}</FieldLabel><Button type="button" size="sm" variant="outline" onClick={() => setConditions((rows) => [...rows, { key: "", value: "" }])}><PlusIcon data-icon="inline-start" />{t("common.actions.add")}</Button></div>
+              <div className="flex items-center justify-between gap-2"><FieldLabel>{t("pricing.rates.conditions")}</FieldLabel><Button type="button" size="sm" variant="outline" onClick={() => setConditions((rows) => [...rows, { key: "", value: "" }])}>{t("common.actions.add")}</Button></div>
               {conditions.map((row, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><Input aria-label={t("pricing.rates.conditionKey")} value={row.key} onChange={(event) => patch(index, { key: event.target.value })} /><Input aria-label={t("pricing.rates.conditionValue")} value={row.value} onChange={(event) => patch(index, { value: event.target.value })} /><Button type="button" size="icon-sm" variant="ghost" aria-label={t("common.actions.delete")} onClick={() => setConditions((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}><Trash2Icon /></Button></div>)}
             </Field>
           </FieldGroup></DialogBody>

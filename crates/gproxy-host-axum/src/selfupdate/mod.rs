@@ -107,14 +107,14 @@ impl Manager {
 
     pub(crate) async fn dispatch(&self, method: &Method, path: &str) -> Response<Bytes> {
         let (result, restart_after) = match (method, path) {
-            (&Method::GET | &Method::HEAD, "/admin/native/update") => {
+            (&Method::GET | &Method::HEAD, "/admin/api/native/update") => {
                 (self.check().await.and_then(to_value), false)
             }
-            (&Method::POST, "/admin/native/update/apply") => match self.apply().await {
+            (&Method::POST, "/admin/api/native/update/apply") => match self.apply().await {
                 Ok((applied, changed)) => (to_value(applied), changed),
                 Err(error) => (Err(error), false),
             },
-            (&Method::POST, "/admin/native/update/rollback") => (
+            (&Method::POST, "/admin/api/native/update/rollback") => (
                 swap::rollback().map(|_| {
                     serde_json::json!({ "version": crate::BUILD_VERSION, "restart": self.restart.as_str() })
                 }),

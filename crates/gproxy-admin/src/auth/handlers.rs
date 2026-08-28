@@ -12,10 +12,10 @@ pub(crate) async fn dispatch_public(
     body: &Bytes,
 ) -> Option<Result<Response<Bytes>, AdminError>> {
     match (&parts.method, parts.uri.path()) {
-        (&Method::GET, "/admin/session") => Some(status(state, parts).await),
-        (&Method::POST, "/admin/setup") => Some(setup(state, parts, body).await),
-        (&Method::POST, "/admin/login") => Some(login(state, parts, body).await),
-        (&Method::POST, "/admin/logout") => Some(logout(state, parts).await),
+        (&Method::GET, "/admin/api/session") => Some(status(state, parts).await),
+        (&Method::POST, "/admin/api/setup") => Some(setup(state, parts, body).await),
+        (&Method::POST, "/admin/api/login") => Some(login(state, parts, body).await),
+        (&Method::POST, "/admin/api/logout") => Some(logout(state, parts).await),
         _ => None,
     }
 }

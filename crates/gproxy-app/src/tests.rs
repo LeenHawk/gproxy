@@ -321,7 +321,7 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
     seed_admin_key(&source).await;
     let export = source
         .admin_dispatch(
-            &admin_parts(http::Method::POST, "/admin/export"),
+            &admin_parts(http::Method::POST, "/admin/api/export"),
             Bytes::from_static(br#"{"include_secrets":true}"#),
         )
         .await
@@ -344,7 +344,7 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
     .unwrap();
     let imported = destination
         .admin_dispatch(
-            &admin_parts(http::Method::POST, "/admin/import"),
+            &admin_parts(http::Method::POST, "/admin/api/import"),
             Bytes::from(body),
         )
         .await

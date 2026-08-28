@@ -68,7 +68,7 @@ async fn handle_request(
         let response = state.announcements.serve(&method).await;
         return crate::response::buffered_response(response, permit, &request_id);
     }
-    if path == "/admin/native/autostart" {
+    if path == "/admin/api/native/autostart" {
         if let Err(response) = gproxy_admin::authorize_host_route(
             &state.app,
             &parts,
@@ -81,7 +81,7 @@ async fn handle_request(
         let response = crate::autostart::dispatch(state.autostart.as_deref(), &method, &body);
         return crate::response::buffered_response(response, permit, &request_id);
     }
-    if path == "/admin/native/update" || path.starts_with("/admin/native/update/") {
+    if path == "/admin/api/native/update" || path.starts_with("/admin/api/native/update/") {
         if let Err(response) = gproxy_admin::authorize_host_route(
             &state.app,
             &parts,
@@ -97,7 +97,7 @@ async fn handle_request(
         };
         return crate::response::buffered_response(response, permit, &request_id);
     }
-    if (path == "/admin" || path.starts_with("/admin/"))
+    if (path == "/admin/api" || path.starts_with("/admin/api/"))
         && let Some(response) = state.app.admin_dispatch(&parts, body.clone()).await
     {
         return crate::response::buffered_response(response, permit, &request_id);

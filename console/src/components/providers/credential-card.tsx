@@ -3,7 +3,6 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import { PencilIcon } from "lucide-react"
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -86,7 +85,7 @@ export function CredentialCard(props: Props) {
             channel={props.channel}
             presets={props.presets}
             onSave={props.onSave}
-            trigger={<Button variant="outline" size="sm" aria-label={`${t("common.actions.edit")}: ${name}`}><PencilIcon data-icon="inline-start" />{t("common.actions.edit")}</Button>}
+            trigger={<Button variant="outline" size="sm" aria-label={`${t("common.actions.edit")}: ${name}`}>{t("common.actions.edit")}</Button>}
           />
         </CardAction>
       </CardHeader>

@@ -1,4 +1,4 @@
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
@@ -37,7 +37,6 @@ export function EndpointFields({
           disabled={selected.size >= kinds.length}
           onClick={() => onChange([...rows, { kind: kinds.find((kind) => !selected.has(kind)) ?? "", url: "" }])}
         >
-          <PlusIcon data-icon="inline-start" />
           {t("providers.endpoints.add")}
         </Button>
       </div>

@@ -47,7 +47,11 @@ impl Fixture {
     }
 
     pub(crate) fn gateway_url(&self) -> String {
-        format!("http://{}/v1/chat/completions", self.server.local_addr())
+        self.url("/v1/chat/completions")
+    }
+
+    pub(crate) fn url(&self, path: &str) -> String {
+        format!("http://{}{path}", self.server.local_addr())
     }
 
     pub(crate) async fn shutdown(self) {

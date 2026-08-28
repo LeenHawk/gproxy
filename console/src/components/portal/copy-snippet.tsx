@@ -1,4 +1,3 @@
-import { CopyIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -23,7 +22,6 @@ export function CopySnippet({ title, display, copyPayload }: { title: string; di
         <CardTitle headingLevel={3}>{title}</CardTitle>
         <CardAction>
           <Button size="sm" variant="outline" onClick={() => void copy()}>
-            <CopyIcon data-icon="inline-start" />
             {t("portal.connect.copy")}
           </Button>
         </CardAction>

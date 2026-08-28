@@ -3,7 +3,6 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
@@ -51,7 +50,7 @@ export function CredentialList(props: Props) {
           channel={props.channel}
           presets={props.presets}
           onSave={props.onSave}
-          trigger={<Button variant="outline" size="sm"><PlusIcon data-icon="inline-start" />{t("providers.credentials.add")}</Button>}
+          trigger={<Button variant="outline" size="sm">{t("providers.credentials.add")}</Button>}
         />
       </div>
       <QueryState

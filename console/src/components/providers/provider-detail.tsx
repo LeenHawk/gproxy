@@ -1,4 +1,3 @@
-import { CableIcon, PencilIcon } from "lucide-react"
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -88,7 +87,7 @@ export function ProviderDetail(props: Props) {
       presetsLoading={false}
       presetsError={false}
       onSave={props.onSaveProvider}
-      trigger={<Button variant="outline" size="sm"><PencilIcon data-icon="inline-start" />{t("common.actions.edit")}</Button>}
+      trigger={<Button variant="outline" size="sm">{t("common.actions.edit")}</Button>}
     />
   )
   return (
@@ -96,7 +95,7 @@ export function ProviderDetail(props: Props) {
       <header className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div className="min-w-0">
           <h2 className="truncate text-xl font-semibold">{props.provider.label ?? props.provider.name}</h2>
-          <p className="flex items-center gap-2 text-xs text-muted-foreground"><CableIcon aria-hidden />{props.provider.name} · {props.channel?.display_name ?? props.provider.channel}</p>
+          <p className="text-xs text-muted-foreground">{props.provider.name} · {props.channel?.display_name ?? props.provider.channel}</p>
         </div>
         <div className="flex items-center gap-2">
           <ConnectivityTest request={{ scope: "provider", provider_id: props.provider.id, credential_id: null, proxy_url: null }} label={props.provider.label ?? props.provider.name} />

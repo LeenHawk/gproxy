@@ -1,6 +1,5 @@
 import type { DeviceStartResponse } from "@/generated/DeviceStartResponse"
 import { useMutation } from "@tanstack/react-query"
-import { ExternalLinkIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { pollDevice, startDevice } from "@/api/login"
@@ -75,7 +74,7 @@ export function DeviceFlow({ providerId, label, params, disabled, onDone }: Prop
     <div className="flex flex-col gap-4">
       <Button asChild variant="outline">
         <a href={session.verification_uri} target="_blank" rel="noreferrer">
-          <ExternalLinkIcon data-icon="inline-start" />{t("providers.login.openVerification")}
+          {t("providers.login.openVerification")}
         </a>
       </Button>
       <div className="flex flex-col items-center gap-2 text-center">

@@ -48,7 +48,7 @@ export function portalRecentRequests(key: string, query: PortalRecentQueryDto, s
 }
 
 export const portalSettings = () =>
-  api<PortalSettingsDto>("/admin/portal-settings")
+  api<PortalSettingsDto>("/admin/api/portal-settings")
 
 export const savePortalSettings = (value: PortalSettingsDto) =>
-  api<PortalSettingsDto>("/admin/portal-settings", json("PATCH", value))
+  api<PortalSettingsDto>("/admin/api/portal-settings", json("PATCH", value))

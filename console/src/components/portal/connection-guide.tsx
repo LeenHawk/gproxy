@@ -1,5 +1,4 @@
 import { useMemo } from "react"
-import { CopyIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import type { PortalModelDto } from "@/generated/PortalModelDto"
@@ -56,7 +55,6 @@ export function ConnectionGuide({
         <CardDescription>{t("portal.connect.description")}</CardDescription>
         <CardAction>
           <Button size="sm" variant="outline" onClick={() => void copyOrigin()}>
-            <CopyIcon data-icon="inline-start" />
             {t("portal.connect.copyBaseUrl")}
           </Button>
         </CardAction>

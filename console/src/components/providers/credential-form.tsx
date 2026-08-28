@@ -3,7 +3,7 @@ import type { ChannelDto } from "@/generated/ChannelDto"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import { ChevronDownIcon, SlidersHorizontalIcon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -92,7 +92,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void submit(event)}>
-      <FieldGroup className="min-h-0 overflow-y-auto p-4">
+      <FieldGroup className="min-h-0 overflow-x-hidden overflow-y-auto p-4">
         <Field>
           <FieldLabel htmlFor="credential-label">{t("providers.credentials.label")}</FieldLabel>
           <Input id="credential-label" value={label} onChange={(event) => setLabel(event.target.value)} />
@@ -116,7 +116,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
         <Collapsible data-field-span="full">
           <CollapsibleTrigger asChild>
             <Button type="button" variant="outline" className="group w-full justify-between">
-              <span className="flex items-center gap-2"><SlidersHorizontalIcon />{t("providers.form.advanced")}</span>
+              <span>{t("providers.form.advanced")}</span>
               <ChevronDownIcon className="transition-transform group-data-[state=open]:rotate-180" />
             </Button>
           </CollapsibleTrigger>

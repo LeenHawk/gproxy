@@ -6,7 +6,7 @@
     "loadError": "Could not load rules. Retry.",
     "saved": "Rules updated",
     "saveError": "Could not update rules. Check the configuration and retry.",
-    "sets": { "add": "New rule set", "edit": "Edit rule set", "empty": "No rule sets", "noDescription": "No description", "selectPrompt": "Select a rule set to edit it." },
+    "sets": { "title": "Rule sets", "add": "New rule set", "edit": "Edit rule set", "empty": "No rule sets", "noDescription": "No description", "selectPrompt": "Select a rule set to edit it." },
     "entries": {
       "title": "Mutation rules", "add": "Add rule", "edit": "Edit rule", "empty": "No mutation rules", "emptyDescription": "This set leaves provider-native traffic unchanged.",
       "orderDescription": "The effective order is fixed by kind rank, then declaration order within each rank.", "effectiveOrder": "Effective #{{order}}", "orderMeta": "rank {{rank}} · declared order {{declared}}",

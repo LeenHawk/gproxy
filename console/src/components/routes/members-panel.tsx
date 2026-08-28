@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react"
-import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveRouteMember } from "@/api/control"
 import type { CredentialDto } from "@/generated/CredentialDto"
@@ -73,7 +72,6 @@ export function MembersPanel({
         <CardDescription>{route.name}</CardDescription>
         <CardAction>
           <Button size="sm" disabled={providers.length === 0} onClick={(event) => openForm(null, event.currentTarget)}>
-            <PlusIcon data-icon="inline-start" />
             {t("routes.members.add")}
           </Button>
         </CardAction>

@@ -7,6 +7,43 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 #[tokio::test]
+async fn admin_pages_fall_back_to_console_while_api_remains_namespaced() {
+    let fixture = fixture::Fixture::start().await;
+    let client = wreq::Client::builder().build().expect("downstream client");
+
+    let page = client
+        .get(fixture.url("/admin/providers"))
+        .send()
+        .await
+        .expect("console page request");
+    assert_eq!(page.status(), http::StatusCode::OK);
+    assert_eq!(
+        page.headers().get(http::header::CONTENT_TYPE),
+        Some(&http::HeaderValue::from_static("text/html"))
+    );
+    let document = page.text().await.expect("console document");
+    assert!(document.contains("<div id=\"root\"></div>"));
+
+    let api = client
+        .get(fixture.url("/admin/api/session"))
+        .send()
+        .await
+        .expect("admin API request");
+    assert_eq!(api.status(), http::StatusCode::OK);
+    assert_eq!(
+        api.headers().get(http::header::CONTENT_TYPE),
+        Some(&http::HeaderValue::from_static(
+            "application/json; charset=utf-8"
+        ))
+    );
+    let session: serde_json::Value =
+        serde_json::from_slice(&api.bytes().await.expect("session response"))
+            .expect("session JSON");
+    assert_eq!(session["setup_required"], true);
+    fixture.shutdown().await;
+}
+
+#[tokio::test]
 async fn boots_relays_settles_and_reconciles_quota() {
     let fixture = fixture::Fixture::start().await;
     let response = wreq::Client::builder()

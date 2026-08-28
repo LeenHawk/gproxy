@@ -32,16 +32,22 @@ function isStatic(request: Request) {
   const path = new URL(request.url).pathname
   return path === "/"
     || path === "/admin"
-    || path === "/admin/"
+    || (path.startsWith("/admin/") && path !== "/admin/api" && !path.startsWith("/admin/api/"))
     || path === "/portal"
     || path === "/portal/"
     || path === "/favicon.svg"
     || path.startsWith("/assets/")
 }
 
+function staticRequest(request: Request) {
+  const url = new URL(request.url)
+  if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) url.pathname = "/"
+  return new Request(url, request)
+}
+
 export default {
   async fetch(request: Request, env: Env, context: ExecutionContext) {
-    if (isStatic(request)) return env.ASSETS.fetch(request)
+    if (isStatic(request)) return env.ASSETS.fetch(staticRequest(request))
 
     const runtime = await host(env)
     const trustedSource = request.headers.get("cf-connecting-ip") ?? "unknown"

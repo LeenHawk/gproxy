@@ -1,5 +1,4 @@
 import type { ReactNode } from "react"
-import { LogOutIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { PortalContextDto } from "@/generated/PortalContextDto"
 import { LocaleControls } from "@/components/locale-controls"
@@ -35,7 +34,6 @@ export function PortalShell({
                   </p>
                 </div>
                 <Button variant="outline" onClick={onLogout}>
-                  <LogOutIcon data-icon="inline-start" />
                   {t("portal.account.logout")}
                 </Button>
               </>

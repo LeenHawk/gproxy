@@ -220,7 +220,7 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
         .expect("portal context");
     assert_eq!(response.status(), StatusCode::OK);
 
-    let admin_with_key = key_parts(Method::GET, "/admin/providers");
+    let admin_with_key = key_parts(Method::GET, "/admin/api/providers");
     let response = crate::dispatch(&state, &admin_with_key, Bytes::new())
         .await
         .expect("admin namespace");
@@ -232,13 +232,13 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
         .expect("portal usage");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let providers = parts(Method::GET, "/admin/providers", None);
+    let providers = parts(Method::GET, "/admin/api/providers", None);
     let response = crate::dispatch(&state, &providers, Bytes::new())
         .await
         .expect("provider route");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let setup = parts(Method::POST, "/admin/setup", None);
+    let setup = parts(Method::POST, "/admin/api/setup", None);
     let response = crate::dispatch(
         &state,
         &setup,
@@ -258,7 +258,7 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
         .expect("cookie pair")
         .to_owned();
 
-    let providers = parts(Method::GET, "/admin/providers", Some(&cookie));
+    let providers = parts(Method::GET, "/admin/api/providers", Some(&cookie));
     let response = crate::dispatch(&state, &providers, Bytes::new())
         .await
         .expect("provider route");
@@ -270,7 +270,7 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
         .expect("portal namespace");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let unknown = parts(Method::GET, "/admin/not-an-api", Some(&cookie));
+    let unknown = parts(Method::GET, "/admin/api/not-an-api", Some(&cookie));
     let response = crate::dispatch(&state, &unknown, Bytes::new())
         .await
         .expect("admin namespace is closed");
@@ -356,7 +356,7 @@ async fn batch_reports_partial_failure_per_id() {
     .unwrap();
     let response = crate::dispatch(
         &state,
-        &admin_parts(Method::POST, "/admin/batch/organizations"),
+        &admin_parts(Method::POST, "/admin/api/batch/organizations"),
         Bytes::from(body),
     )
     .await
@@ -387,7 +387,7 @@ async fn batch_requires_admin_authorization_before_each_requested_mutation() {
     .unwrap();
     let response = crate::dispatch(
         &state,
-        &parts(Method::POST, "/admin/batch/organizations", None),
+        &parts(Method::POST, "/admin/api/batch/organizations", None),
         Bytes::from(body),
     )
     .await

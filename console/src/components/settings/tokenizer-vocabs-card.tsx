@@ -1,6 +1,6 @@
 import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { DownloadIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -51,7 +51,7 @@ export function TokenizerVocabsCard({ values, downloadEnabled }: Props) {
             <Input id="tokenizer-repo" className="font-mono" placeholder={t("settings.tokenizers.placeholder")} value={name} onChange={(event) => setName(event.target.value)} disabled={!downloadEnabled} />
             <FieldDescription>{t(downloadEnabled ? "settings.tokenizers.hint" : "settings.tokenizers.disabledHint")}</FieldDescription>
           </Field>
-          <Button type="submit" disabled={!downloadEnabled || !name.trim() || fetchVocab.isPending}><DownloadIcon data-icon="inline-start" />{t(fetchVocab.isPending ? "settings.tokenizers.fetching" : "settings.tokenizers.fetch")}</Button>
+          <Button type="submit" disabled={!downloadEnabled || !name.trim() || fetchVocab.isPending}>{t(fetchVocab.isPending ? "settings.tokenizers.fetching" : "settings.tokenizers.fetch")}</Button>
         </form>
         <DataTable columns={columns} rows={values} rowKey={(vocab) => vocab.name} searchText={(vocab) => vocab.name} renderCard={(vocab) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{vocab.name}</p><p className="text-xs text-muted-foreground">{t("settings.tokenizers.bytes", { value: formatNumber(vocab.size_bytes, i18n.language) })} · {formatInstant(vocab.updated_at, i18n.language)}</p></div>{actions(vocab)}</div>} empty={t("settings.tokenizers.empty")} storageKey="tokenizer-vocabs" />
       </CardContent>

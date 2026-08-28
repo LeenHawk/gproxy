@@ -37,7 +37,7 @@ function isStatic(request: Request) {
   const path = new URL(request.url).pathname
   return path === "/"
     || path === "/admin"
-    || path === "/admin/"
+    || (path.startsWith("/admin/") && path !== "/admin/api" && !path.startsWith("/admin/api/"))
     || path === "/portal"
     || path === "/portal/"
     || path === "/favicon.svg"
@@ -45,7 +45,12 @@ function isStatic(request: Request) {
 }
 
 export default async (request: Request, context: Context) => {
-  if (isStatic(request)) return context.next()
+  if (isStatic(request)) {
+    const path = new URL(request.url).pathname
+    return path === "/admin" || path.startsWith("/admin/")
+      ? context.rewrite(new URL("/", request.url))
+      : context.next()
+  }
   try {
     const runtime = await host()
     const reply = await runtime.fetch(request, context.ip)

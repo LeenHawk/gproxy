@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { WandSparklesIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -35,7 +34,6 @@ export function ApplicationPresetButton({ providerId }: { providerId: number }) 
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" disabled={query.isLoading || mutation.isPending || query.isError}>
-          <WandSparklesIcon data-icon="inline-start" />
           {t(mutation.isPending ? "rules.presets.applying" : "rules.presets.apply")}
         </Button>
       </DropdownMenuTrigger>

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, BookOpenIcon, CableIcon, CircleDollarSignIcon, KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
+import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AnnouncementFeed } from "@/components/announcement-feed"
@@ -16,7 +16,7 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "routes", icon: RouteIcon },
   { route: "rules", icon: WorkflowIcon },
   { route: "keys", icon: KeyRoundIcon },
-  { route: "usage", icon: ActivityIcon },
+  { route: "usage", icon: ChartNoAxesCombinedIcon },
   { route: "pricing", icon: CircleDollarSignIcon },
   { route: "settings", icon: SettingsIcon },
 ]
@@ -44,7 +44,7 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
           <nav className="flex gap-1 overflow-x-auto overflow-y-hidden p-2 lg:flex-1 lg:flex-col" aria-label={t("nav.label")}>
             {items.map(({ route: itemRoute, icon: Icon }) => (
               <Button key={itemRoute} variant={route === itemRoute ? "secondary" : "ghost"} aria-current={route === itemRoute ? "page" : undefined} aria-label={t(`nav.${itemRoute}`)} className={cn("justify-start", sidebar.collapsed && "lg:justify-center", route === itemRoute && "font-medium")} onClick={() => navigateAdminPath(adminPath(itemRoute))}>
-                <Icon data-icon="inline-start" />
+                <Icon className={cn("hidden", sidebar.collapsed && "lg:block")} />
                 <span className={cn(sidebar.collapsed && "lg:sr-only")}>{t(`nav.${itemRoute}`)}</span>
               </Button>
             ))}

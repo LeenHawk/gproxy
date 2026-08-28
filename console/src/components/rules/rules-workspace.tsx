@@ -1,4 +1,3 @@
-import { LinkIcon, PencilIcon, PlusIcon, Trash2Icon, UnlinkIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { ProviderDto } from "@/generated/ProviderDto"
@@ -12,7 +11,7 @@ import { RuleList } from "@/components/rules/rule-list"
 import { RuleSetDialog } from "@/components/rules/rule-set-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BatchActions } from "@/components/batch-actions"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { cn } from "@/lib/utils"
@@ -55,15 +54,19 @@ export function RulesWorkspace(props: Props) {
     { key: "scope", label: t("rules.fields.scope"), header: t("rules.fields.scope"), cell: (set) => <Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge> },
   ]
 
-  return <div className="flex flex-col gap-4">
-    <div className="flex flex-wrap justify-end gap-2">
-      {props.scopeProviderId == null
-        ? <RuleSetDialog saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button><PlusIcon data-icon="inline-start" />{t("rules.sets.add")}</Button>} />
-        : <><ApplicationPresetButton providerId={props.scopeProviderId} /><AttachmentDialog providers={props.providers} ruleSets={unattached} fixedProviderId={props.scopeProviderId} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button disabled={!unattached.length}><LinkIcon data-icon="inline-start" />{t("rules.attachments.attachExisting")}</Button>} /></>}
-    </div>
-    <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(16rem,0.7fr)_minmax(0,1.3fr)]">
+  return <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(16rem,0.7fr)_minmax(0,1.3fr)]">
       <div className={cn(selected && "hidden md:block")}>
-        <DataTable columns={columns} rows={visibleSets} rowKey={(set) => set.id} searchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`} renderCard={(set) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{ruleSetText(set, "name", t)}</p><p className="truncate text-xs text-muted-foreground">{ruleSetText(set, "description", t)}</p></div><Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge></div>} empty={t(props.scopeProviderId == null ? "rules.sets.empty" : "rules.attachments.empty")} storageKey={props.scopeProviderId == null ? "rule-sets" : `provider-${props.scopeProviderId}-rule-sets`} activeRowKey={selected?.id} selectable batchActions={(rows) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} remove={props.scopeProviderId == null} />} onRowClick={(set) => setSelectedId(set.id)} />
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("rules.sets.title")}</CardTitle>
+            <CardAction><div className="flex flex-wrap justify-end gap-2">
+              {props.scopeProviderId == null
+                ? <RuleSetDialog saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="sm">{t("rules.sets.add")}</Button>} />
+                : <><ApplicationPresetButton providerId={props.scopeProviderId} /><AttachmentDialog providers={props.providers} ruleSets={unattached} fixedProviderId={props.scopeProviderId} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" disabled={!unattached.length}>{t("rules.attachments.attachExisting")}</Button>} /></>}
+            </div></CardAction>
+          </CardHeader>
+          <CardContent><DataTable columns={columns} rows={visibleSets} rowKey={(set) => set.id} searchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`} renderCard={(set) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{ruleSetText(set, "name", t)}</p><p className="truncate text-xs text-muted-foreground">{ruleSetText(set, "description", t)}</p></div><Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge></div>} empty={t(props.scopeProviderId == null ? "rules.sets.empty" : "rules.attachments.empty")} storageKey={props.scopeProviderId == null ? "rule-sets" : `provider-${props.scopeProviderId}-rule-sets`} activeRowKey={selected?.id} selectable batchActions={(rows) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} remove={props.scopeProviderId == null} />} onRowClick={(set) => setSelectedId(set.id)} /></CardContent>
+        </Card>
       </div>
       <div className={cn("min-w-0", !selected && "hidden md:block")}>
         {selected ? <div className="flex flex-col gap-4">
@@ -71,17 +74,16 @@ export function RulesWorkspace(props: Props) {
           <Card><CardHeader><CardTitle>{ruleSetText(selected, "name", t)}</CardTitle><CardDescription>{ruleSetText(selected, "description", t)}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2"><Badge>{scopeLabel(selectedAttachments.length, t)}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!selected.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}</div>
             <div className="flex flex-wrap gap-2">
-              <RuleSetDialog ruleSet={selected} saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="sm" variant="outline"><PencilIcon data-icon="inline-start" />{t("common.actions.edit")}</Button>} />
-              {props.scopeProviderId == null ? <AttachmentDialog providers={props.providers} ruleSets={[selected]} fixedRuleSetId={selected.id} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" variant="outline"><LinkIcon data-icon="inline-start" />{t("rules.attachments.attach")}</Button>} /> : null}
-              {scopedAttachment ? <Button size="sm" variant="outline" onClick={() => detach(scopedAttachment)}><UnlinkIcon data-icon="inline-start" />{t("rules.attachments.detach")}</Button> : null}
-              <Button size="sm" variant="ghost" disabled={props.rules.some((rule) => rule.rule_set_id === selected.id) || selectedAttachments.length > 0} onClick={() => props.mutations.deleteSet(selected.id)}><Trash2Icon data-icon="inline-start" />{t("common.actions.delete")}</Button>
+              <RuleSetDialog ruleSet={selected} saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="sm" variant="outline">{t("common.actions.edit")}</Button>} />
+              {props.scopeProviderId == null ? <AttachmentDialog providers={props.providers} ruleSets={[selected]} fixedRuleSetId={selected.id} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" variant="outline">{t("rules.attachments.attach")}</Button>} /> : null}
+              {scopedAttachment ? <Button size="sm" variant="outline" onClick={() => detach(scopedAttachment)}>{t("rules.attachments.detach")}</Button> : null}
+              <Button size="sm" variant="ghost" disabled={props.rules.some((rule) => rule.rule_set_id === selected.id) || selectedAttachments.length > 0} onClick={() => props.mutations.deleteSet(selected.id)}>{t("common.actions.delete")}</Button>
             </div>
             {props.scopeProviderId == null && selectedAttachments.length ? <div><p className="mb-2 text-sm font-medium">{t("rules.attachments.title")}</p><div className="flex flex-wrap gap-2">{selectedAttachments.map((value) => <Badge key={value.id} variant="outline">{providerNames.get(value.provider_id) ?? value.provider_id}</Badge>)}</div></div> : null}
           </CardContent></Card>
           <RuleList ruleSetId={selected.id} rules={props.rules.filter((rule) => rule.rule_set_id === selected.id)} inherited={scopedAttachment?.inherited ?? false} saving={props.mutations.saving} onSave={props.mutations.saveRule} onDelete={props.mutations.deleteRule} />
         </div> : <div className="grid min-h-80 place-items-center text-sm text-muted-foreground">{t("rules.sets.selectPrompt")}</div>}
       </div>
-    </div>
   </div>
 
   function detach(attachment: ProviderRuleSetDto) {

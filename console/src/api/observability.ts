@@ -20,21 +20,21 @@ const queryString = (entries: object) => {
   return query.toString()
 }
 
-export const channels = () => api<Array<ChannelDto>>("/admin/channels")
-export const tlsPresets = () => api<Array<TlsPresetDto>>("/admin/tls-presets")
+export const channels = () => api<Array<ChannelDto>>("/admin/api/channels")
+export const tlsPresets = () => api<Array<TlsPresetDto>>("/admin/api/tls-presets")
 export const usage = (value: UsageQueryDto) =>
-  api<Array<UsageAggregateDto>>(`/admin/usage?${queryString(value)}`)
+  api<Array<UsageAggregateDto>>(`/admin/api/usage?${queryString(value)}`)
 export const quotaWindows = (subjectKind?: string, subjectId?: number) =>
   api<Array<QuotaWindowDto>>(
-    `/admin/quota-windows?${queryString({ subject_kind: subjectKind ?? "", subject_id: subjectId ?? null })}`,
+    `/admin/api/quota-windows?${queryString({ subject_kind: subjectKind ?? "", subject_id: subjectId ?? null })}`,
   )
 export const credentialCycles = (from: number, to: number, credentialId?: number) =>
   api<Array<CredentialQuotaCycleDto>>(
-    `/admin/credential-cycles?${queryString({ from, to, credential_id: credentialId ?? null })}`,
+    `/admin/api/credential-cycles?${queryString({ from, to, credential_id: credentialId ?? null })}`,
   )
-export const audit = (limit = 100) => api<Array<AuditEventDto>>(`/admin/audit?limit=${limit}`)
-export const logs = (value: LogQueryDto) => api<LogPageDto>(`/admin/logs?${queryString(value)}`)
-export const logDetail = (requestId: string) => api<LogDetailDto>(`/admin/logs/${encodeURIComponent(requestId)}`)
-export const logSettings = () => api<LogSettingsDto>("/admin/log-settings")
+export const audit = (limit = 100) => api<Array<AuditEventDto>>(`/admin/api/audit?limit=${limit}`)
+export const logs = (value: LogQueryDto) => api<LogPageDto>(`/admin/api/logs?${queryString(value)}`)
+export const logDetail = (requestId: string) => api<LogDetailDto>(`/admin/api/logs/${encodeURIComponent(requestId)}`)
+export const logSettings = () => api<LogSettingsDto>("/admin/api/log-settings")
 export const saveLogSettings = (value: LogSettingsUpdateDto) =>
-  api<LogSettingsDto>("/admin/log-settings", json("PATCH", value))
+  api<LogSettingsDto>("/admin/api/log-settings", json("PATCH", value))

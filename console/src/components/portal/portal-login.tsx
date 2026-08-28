@@ -1,5 +1,4 @@
 import { useId, useState } from "react"
-import { KeyRoundIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -52,7 +51,6 @@ export function PortalLogin({
               <FieldDescription>{t("portal.login.keyHint")}</FieldDescription>
             </Field>
             <Button type="submit" disabled={pending || key.trim().length === 0}>
-              <KeyRoundIcon data-icon="inline-start" />
               {t(pending ? "portal.login.submitting" : "portal.login.action")}
             </Button>
           </FieldGroup>

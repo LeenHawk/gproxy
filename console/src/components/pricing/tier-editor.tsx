@@ -1,4 +1,4 @@
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -18,7 +18,7 @@ export function TierEditor({ rows, onChange }: {
       <div className="flex items-center justify-between gap-2">
         <FieldLabel>{t("pricing.tiers.title")}</FieldLabel>
         <Button type="button" size="sm" variant="outline" onClick={() => onChange([...rows, emptyTier()])}>
-          <PlusIcon data-icon="inline-start" />{t("pricing.tiers.add")}
+          {t("pricing.tiers.add")}
         </Button>
       </div>
       <div className="flex flex-col gap-3">

@@ -1,4 +1,3 @@
-import { PlugIcon, PlusIcon } from "lucide-react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -19,7 +18,7 @@ import { ProviderDialog } from "@/components/providers/provider-dialog"
 import { ProviderSummary } from "@/components/providers/provider-summary"
 import type { RuleMutations } from "@/components/rules/rules-workspace"
 import { Button } from "@/components/ui/button"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Switch } from "@/components/ui/switch"
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
 import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
@@ -119,9 +118,9 @@ export function ProvidersView(props: Props) {
       selectedLabel={(count) => t("common.dataTable.selected", { count })}
       clearSelectionLabel={t("common.dataTable.clearSelection")}
       mobileBackLabel={t("providers.title")}
-      createAction={<ProviderDialog channels={props.channels} channelsLoading={props.channelsLoading} channelsError={props.channelsError} presets={props.presets} presetsLoading={props.presetsLoading} presetsError={props.presetsError} onSave={props.onSaveProvider} trigger={<Button><PlusIcon data-icon="inline-start" />{t("providers.add")}</Button>} />}
+      createAction={<ProviderDialog channels={props.channels} channelsLoading={props.channelsLoading} channelsError={props.channelsError} presets={props.presets} presetsLoading={props.presetsLoading} presetsError={props.presetsError} onSave={props.onSaveProvider} trigger={<Button>{t("providers.add")}</Button>} />}
       batchActions={(rows) => <BatchActions entity="providers" rows={rows} queryKeys={["providers"]} />}
-      emptyState={<Empty className="min-h-[28rem]"><EmptyHeader><EmptyMedia variant="icon"><PlugIcon /></EmptyMedia><EmptyTitle>{t("providers.title")}</EmptyTitle><EmptyDescription>{t("providers.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
+      emptyState={<Empty className="min-h-[28rem]"><EmptyHeader><EmptyTitle>{t("providers.title")}</EmptyTitle><EmptyDescription>{t("providers.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
     >
       {selected ? <ProviderDetail
         provider={selected}

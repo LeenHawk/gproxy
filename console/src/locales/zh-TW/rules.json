@@ -1,7 +1,7 @@
 {
   "rules": {
     "title": "規則", "subtitle": "無需發佈新版本，即可編譯可重用的 Provider 原生請求與回應變更。", "providerTab": "規則", "loadError": "無法載入規則，請重試。", "saved": "規則已更新", "saveError": "無法更新規則，請檢查設定後重試。",
-    "sets": { "add": "新增規則集", "edit": "編輯規則集", "empty": "暫無規則集", "noDescription": "暫無說明", "selectPrompt": "選擇一個規則集進行編輯。" },
+    "sets": { "title": "規則集", "add": "新增規則集", "edit": "編輯規則集", "empty": "暫無規則集", "noDescription": "暫無說明", "selectPrompt": "選擇一個規則集進行編輯。" },
     "entries": { "title": "變更規則", "add": "新增規則", "edit": "編輯規則", "empty": "暫無變更規則", "emptyDescription": "此規則集不會修改 Provider 原生流量。", "orderDescription": "實際順序先按類型 rank 固定排序，再按相同 rank 內的宣告順序排序。", "effectiveOrder": "實際第 {{order}} 個", "orderMeta": "rank {{rank}} · 宣告順序 {{declared}}", "summary": { "system_text": "{{position}}系統文字", "cache_breakpoint": "在{{target}}設定快取中斷點 · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}}變換 · {{count}} 個動作", "header": "{{mode}}請求標頭 {{name}}" } },
     "attachments": { "title": "已附加 Provider", "add": "附加規則集", "attach": "附加", "attachExisting": "附加現有規則集", "detach": "移除附加", "empty": "此 Provider 尚未附加規則集。" },
     "presets": { "apply": "套用相容性預設", "applying": "正在套用預設", "application": "用戶端應用程式", "applied": "相容性預設已套用", "applyError": "無法套用相容性預設。" },

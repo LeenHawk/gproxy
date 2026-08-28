@@ -66,7 +66,10 @@ pub(crate) enum Route {
 }
 
 pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
-    let segments = path.strip_prefix("/admin/")?.split('/').collect::<Vec<_>>();
+    let segments = path
+        .strip_prefix("/admin/api/")?
+        .split('/')
+        .collect::<Vec<_>>();
     if method == Method::POST {
         let login = match segments.as_slice() {
             ["login", "authcode", "start"] => Some(Route::LoginAuthCodeStart),

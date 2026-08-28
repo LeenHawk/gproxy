@@ -1,7 +1,7 @@
 {
   "rules": {
     "title": "规则", "subtitle": "无需发布新版本，即可编译复用的 Provider 原生请求与响应变更。", "providerTab": "规则", "loadError": "无法加载规则，请重试。", "saved": "规则已更新", "saveError": "无法更新规则，请检查配置后重试。",
-    "sets": { "add": "新建规则集", "edit": "编辑规则集", "empty": "暂无规则集", "noDescription": "暂无说明", "selectPrompt": "选择一个规则集进行编辑。" },
+    "sets": { "title": "规则集", "add": "新建规则集", "edit": "编辑规则集", "empty": "暂无规则集", "noDescription": "暂无说明", "selectPrompt": "选择一个规则集进行编辑。" },
     "entries": { "title": "变更规则", "add": "添加规则", "edit": "编辑规则", "empty": "暂无变更规则", "emptyDescription": "此规则集不会修改 Provider 原生流量。", "orderDescription": "实际顺序先按类型 rank 固定排序，再按相同 rank 内的声明顺序排序。", "effectiveOrder": "实际第 {{order}} 个", "orderMeta": "rank {{rank}} · 声明顺序 {{declared}}", "summary": { "system_text": "{{position}}系统文本", "cache_breakpoint": "在{{target}}设置缓存断点 · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}}变换 · {{count}} 个动作", "header": "{{mode}}请求头 {{name}}" } },
     "attachments": { "title": "已附加 Provider", "add": "附加规则集", "attach": "附加", "attachExisting": "附加已有规则集", "detach": "移除附加", "empty": "此 Provider 尚未附加规则集。" },
     "presets": { "apply": "应用兼容性预设", "applying": "正在应用预设", "application": "客户端应用", "applied": "兼容性预设已应用", "applyError": "无法应用兼容性预设。" },

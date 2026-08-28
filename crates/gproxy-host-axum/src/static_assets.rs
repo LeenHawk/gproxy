@@ -16,10 +16,11 @@ pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
     if request_path == "/build-info.js" {
         return Some(build_info(parts.method == Method::HEAD));
     }
-    let asset = if matches!(
-        request_path,
-        "/" | "/admin" | "/admin/" | "/portal" | "/portal/"
-    ) {
+    let asset = if request_path == "/"
+        || request_path == "/admin"
+        || request_path.starts_with("/admin/")
+        || matches!(request_path, "/portal" | "/portal/")
+    {
         "index.html"
     } else if let Some(path) = request_path.strip_prefix('/')
         && (path.starts_with("assets/")

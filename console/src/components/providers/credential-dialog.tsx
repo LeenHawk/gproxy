@@ -38,7 +38,7 @@ export function CredentialDialog({ providerId, channel, credential, presets, tri
           <DialogTitle>{t(credential ? "common.actions.edit" : "providers.credentials.add")}</DialogTitle>
         </DialogHeader>
         {channel == null ? null : guided && !manual ? (
-          <div className="min-h-0 overflow-y-auto p-4">
+          <div className="min-h-0 overflow-x-hidden overflow-y-auto p-4">
             <CredentialWizard providerId={providerId} channel={channel} onDone={() => setOpen(false)} />
           </div>
         ) : channel == null ? null : (

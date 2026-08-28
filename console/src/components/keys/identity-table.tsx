@@ -1,5 +1,4 @@
 import { useMemo } from "react"
-import { Building2Icon, ShieldCheckIcon, UsersIcon, UserIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { OrganizationDto } from "@/generated/OrganizationDto"
 import type { TeamDto } from "@/generated/TeamDto"
@@ -38,19 +37,19 @@ export function IdentityTable(props: IdentityTableProps) {
   const teamActions = (value: TeamDto) => <span className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}><Toggle name={value.name} enabled={value.enabled} pending={props.pending} onChange={() => props.onTeamToggle(value)} /><EntityDeleteButton entity="teams" id={value.id} label={value.name} queryKeys={["teams", "users"]} /></span>
   const userActions = (value: UserDto) => <span className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}><Toggle name={value.name} enabled={value.enabled} pending={props.pending} onChange={() => props.onUserToggle(value)} /><EntityDeleteButton entity="users" id={value.id} label={value.name} queryKeys={["users", "user-keys"]} /></span>
   const organizationColumns: Array<DataTableColumn<OrganizationDto>> = [
-    { key: "name", label: t("common.name"), header: t("common.name"), cell: (value) => <span className="flex items-center gap-2"><Building2Icon aria-hidden />{value.name}</span> },
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (value) => value.name },
     { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: organizationActions },
   ]
   const teamColumns: Array<DataTableColumn<TeamDto>> = [
-    { key: "name", label: t("common.name"), header: t("common.name"), cell: (value) => <span className="flex items-center gap-2"><UsersIcon aria-hidden />{value.name}</span> },
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (value) => value.name },
     { key: "organization", label: t("users.fields.organization"), header: t("users.fields.organization"), cell: (value) => organizationNames.get(value.organization_id) ?? value.organization_id },
     { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: teamActions },
   ]
   const userColumns: Array<DataTableColumn<UserDto>> = [
-    { key: "name", label: t("common.name"), header: t("common.name"), cell: (value) => <span className="flex items-center gap-2"><UserIcon aria-hidden />{value.name}</span> },
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (value) => value.name },
     { key: "organization", label: t("users.fields.organization"), header: t("users.fields.organization"), cell: (value) => value.organization_id == null ? t("common.none") : organizationNames.get(value.organization_id) ?? value.organization_id },
     { key: "team", label: t("users.fields.team"), header: t("users.fields.team"), cell: (value) => value.team_id == null ? t("common.none") : teamNames.get(value.team_id) ?? value.team_id },
-    { key: "role", label: t("users.fields.role"), header: t("users.fields.role"), cell: (value) => value.is_admin ? <Badge variant="secondary"><ShieldCheckIcon aria-hidden />{t("users.roles.admin")}</Badge> : t("users.roles.user") },
+    { key: "role", label: t("users.fields.role"), header: t("users.fields.role"), cell: (value) => value.is_admin ? <Badge variant="secondary">{t("users.roles.admin")}</Badge> : t("users.roles.user") },
     { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: userActions },
   ]
 
@@ -62,13 +61,13 @@ export function IdentityTable(props: IdentityTableProps) {
         <TabsTrigger value="organizations">{t("users.fields.organization")}</TabsTrigger>
       </TabsList>
       <TabsContent value="organizations" className="pt-4">
-        <DataTable columns={organizationColumns} rows={props.organizations} rowKey={(value) => value.id} searchText={(value) => value.name} renderCard={(value) => <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><Building2Icon aria-hidden />{value.name}</span>{organizationActions(value)}</div>} empty={t("common.none")} storageKey="organizations" selectable batchActions={(rows) => <BatchActions entity="organizations" rows={rows} queryKeys={["organizations", "teams", "users"]} />} onRowClick={props.onOrganizationOpen} />
+        <DataTable columns={organizationColumns} rows={props.organizations} rowKey={(value) => value.id} searchText={(value) => value.name} renderCard={(value) => <div className="flex items-center justify-between gap-3"><span>{value.name}</span>{organizationActions(value)}</div>} empty={t("common.none")} storageKey="organizations" selectable batchActions={(rows) => <BatchActions entity="organizations" rows={rows} queryKeys={["organizations", "teams", "users"]} />} onRowClick={props.onOrganizationOpen} />
       </TabsContent>
       <TabsContent value="teams" className="pt-4">
-        <DataTable columns={teamColumns} rows={props.teams} rowKey={(value) => value.id} searchText={(value) => `${value.name} ${organizationNames.get(value.organization_id) ?? value.organization_id}`} renderCard={(value) => <div className="flex items-center justify-between gap-3"><div><p className="flex items-center gap-2"><UsersIcon aria-hidden />{value.name}</p><p className="text-xs text-muted-foreground">{organizationNames.get(value.organization_id) ?? value.organization_id}</p></div>{teamActions(value)}</div>} empty={t("common.none")} storageKey="teams" selectable batchActions={(rows) => <BatchActions entity="teams" rows={rows} queryKeys={["teams", "users"]} />} onRowClick={props.onTeamOpen} />
+        <DataTable columns={teamColumns} rows={props.teams} rowKey={(value) => value.id} searchText={(value) => `${value.name} ${organizationNames.get(value.organization_id) ?? value.organization_id}`} renderCard={(value) => <div className="flex items-center justify-between gap-3"><div><p>{value.name}</p><p className="text-xs text-muted-foreground">{organizationNames.get(value.organization_id) ?? value.organization_id}</p></div>{teamActions(value)}</div>} empty={t("common.none")} storageKey="teams" selectable batchActions={(rows) => <BatchActions entity="teams" rows={rows} queryKeys={["teams", "users"]} />} onRowClick={props.onTeamOpen} />
       </TabsContent>
       <TabsContent value="users" className="pt-4">
-        <DataTable columns={userColumns} rows={props.users} rowKey={(value) => value.id} searchText={(value) => `${value.name} ${value.organization_id ?? ""} ${value.team_id ?? ""} ${value.is_admin ? t("users.roles.admin") : t("users.roles.user")}`} renderCard={(value) => <div className="flex items-center justify-between gap-3"><div><p className="flex items-center gap-2"><UserIcon aria-hidden />{value.name}{value.is_admin ? <Badge variant="secondary"><ShieldCheckIcon aria-hidden />{t("users.roles.admin")}</Badge> : null}</p><p className="text-xs text-muted-foreground">{value.organization_id == null ? t("common.none") : organizationNames.get(value.organization_id) ?? value.organization_id} · {value.team_id == null ? t("common.none") : teamNames.get(value.team_id) ?? value.team_id}</p></div>{userActions(value)}</div>} empty={t("users.empty")} storageKey="users" selectable batchActions={(rows) => <BatchActions entity="users" rows={rows} queryKeys={["users", "user-keys"]} />} onRowClick={props.onUserOpen} />
+        <DataTable columns={userColumns} rows={props.users} rowKey={(value) => value.id} searchText={(value) => `${value.name} ${value.organization_id ?? ""} ${value.team_id ?? ""} ${value.is_admin ? t("users.roles.admin") : t("users.roles.user")}`} renderCard={(value) => <div className="flex items-center justify-between gap-3"><div><p className="flex items-center gap-2">{value.name}{value.is_admin ? <Badge variant="secondary">{t("users.roles.admin")}</Badge> : null}</p><p className="text-xs text-muted-foreground">{value.organization_id == null ? t("common.none") : organizationNames.get(value.organization_id) ?? value.organization_id} · {value.team_id == null ? t("common.none") : teamNames.get(value.team_id) ?? value.team_id}</p></div>{userActions(value)}</div>} empty={t("users.empty")} storageKey="users" selectable batchActions={(rows) => <BatchActions entity="users" rows={rows} queryKeys={["users", "user-keys"]} />} onRowClick={props.onUserOpen} />
       </TabsContent>
     </Tabs>
   )

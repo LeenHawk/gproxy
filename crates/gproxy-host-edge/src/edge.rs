@@ -2,7 +2,7 @@ use gproxy_core::RequestCtx;
 use wasm_bindgen::prelude::*;
 use web_sys::{Request, Response};
 
-const ADMIN_PREFIX: &str = "/admin";
+const ADMIN_PREFIX: &str = "/admin/api";
 const PORTAL_API_PREFIX: &str = "/portal/api";
 
 #[wasm_bindgen]

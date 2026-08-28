@@ -5,7 +5,6 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import { PencilIcon } from "lucide-react"
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -96,7 +95,7 @@ export function ProviderCard(props: Props) {
             presetsLoading={props.presetsLoading}
             presetsError={props.presetsError}
             onSave={props.onSaveProvider}
-            trigger={<Button variant="outline" size="sm" aria-label={`${t("common.actions.edit")}: ${provider.name}`}><PencilIcon data-icon="inline-start" />{t("common.actions.edit")}</Button>}
+            trigger={<Button variant="outline" size="sm" aria-label={`${t("common.actions.edit")}: ${provider.name}`}>{t("common.actions.edit")}</Button>}
           />
         </CardAction>
       </CardHeader>

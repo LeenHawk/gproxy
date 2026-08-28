@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, Trash2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { deleteRoutingRule, resetRoutingDefaults, saveRoutingRule } from "@/api/control"
@@ -35,7 +35,7 @@ export function ProviderRoutingRules({ provider, channel, rules }: { provider: P
       <CardHeader>
         <CardTitle>{t("rules.routing.title")}</CardTitle>
         <CardDescription>{t("rules.routing.description")}</CardDescription>
-        <CardAction><Button size="sm" variant="outline" disabled={reset.isPending} onClick={() => reset.mutate()}><RotateCcwIcon data-icon="inline-start" />{t("rules.routing.reset")}</Button></CardAction>
+        <CardAction><Button size="sm" variant="outline" disabled={reset.isPending} onClick={() => reset.mutate()}>{t("rules.routing.reset")}</Button></CardAction>
       </CardHeader>
       <CardContent>
         <Table>

@@ -1,6 +1,5 @@
 import { useRef, useState, type MouseEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
@@ -110,7 +109,7 @@ export function KeyManagement(props: KeyManagementProps) {
       {props.mode === "keys" ? <Card>
         <CardHeader>
           <CardTitle>{t("users.keys.title")}</CardTitle>
-          <CardAction><Button type="button" size="sm" disabled={props.users.length === 0} onClick={openKeyForm}><PlusIcon data-icon="inline-start" />{t("users.keys.create")}</Button></CardAction>
+          <CardAction><Button type="button" size="sm" disabled={props.users.length === 0} onClick={openKeyForm}>{t("users.keys.create")}</Button></CardAction>
         </CardHeader>
         <CardContent>
           {props.keys.length === 0 ? (

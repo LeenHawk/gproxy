@@ -10,16 +10,16 @@ import type { IdResponse } from "@/generated/IdResponse"
 import { api, json } from "@/api/client"
 
 export const startAuthcode = (value: AuthCodeStartRequest) =>
-  api<AuthCodeStartResponse>("/admin/login/authcode/start", json("POST", value))
+  api<AuthCodeStartResponse>("/admin/api/login/authcode/start", json("POST", value))
 
 export const completeAuthcode = (value: AuthCodeCompleteRequest) =>
-  api<IdResponse>("/admin/login/authcode/complete", json("POST", value))
+  api<IdResponse>("/admin/api/login/authcode/complete", json("POST", value))
 
 export const startDevice = (value: DeviceStartRequest) =>
-  api<DeviceStartResponse>("/admin/login/device/start", json("POST", value))
+  api<DeviceStartResponse>("/admin/api/login/device/start", json("POST", value))
 
 export const pollDevice = (value: DevicePollRequest) =>
-  api<DevicePollResponse>("/admin/login/device/poll", json("POST", value))
+  api<DevicePollResponse>("/admin/api/login/device/poll", json("POST", value))
 
 export const exchangeCookie = (value: CookieExchangeRequest) =>
-  api<IdResponse>("/admin/login/cookie", json("POST", value))
+  api<IdResponse>("/admin/api/login/cookie", json("POST", value))

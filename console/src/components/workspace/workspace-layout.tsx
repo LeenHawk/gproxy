@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, SearchIcon, XIcon } from "lucide-react"
+import { XIcon } from "lucide-react"
 import { useState, type CSSProperties, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -70,10 +70,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
             <h1 className="truncate text-lg font-semibold">{props.title}</h1>
             {props.createAction}
           </div>
-          <div className="relative">
-            <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder} aria-label={props.searchPlaceholder} className="pl-8" />
-          </div>
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder} aria-label={props.searchPlaceholder} />
           {props.batchActions ? (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox checked={allSelected} onCheckedChange={(checked) => toggleAll(checked === true)} aria-label={props.selectAllLabel} />
@@ -81,7 +78,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
             </label>
           ) : null}
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto p-2">
           {filtered.length === 0 ? <p className="p-3 text-sm text-muted-foreground">{props.emptyLabel}</p> : null}
           <ul className="grid gap-1">
             {filtered.map((item) => (
@@ -108,7 +105,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
       </aside>
       <WorkspaceResizeHandle label={props.resizeLabel} width={pane.width} minWidth={pane.minWidth} maxWidth={pane.maxWidth} onWidthChange={pane.setWidth} onReset={pane.resetWidth} />
       <section className={cn("min-w-0 flex-1 p-4", hasDetail ? "block" : "hidden md:block")}>
-        {hasDetail ? <><Button className="mb-3 md:hidden" variant="ghost" onClick={props.onBack}><ArrowLeftIcon data-icon="inline-start" />{props.mobileBackLabel}</Button>{props.children}</> : props.emptyState}
+        {hasDetail ? <><Button className="mb-3 md:hidden" variant="ghost" onClick={props.onBack}>{props.mobileBackLabel}</Button>{props.children}</> : props.emptyState}
       </section>
     </div>
   )
