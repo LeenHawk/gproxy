@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-export function ConnectivityTest({ request, label, disabled = false }: { request: ConnectivityTestRequest; label: string; disabled?: boolean }) {
+export function ConnectivityTest({ request, label, disabled = false, showLabel = false }: { request: ConnectivityTestRequest; label: string; disabled?: boolean; showLabel?: boolean }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const mutation = useMutation({
@@ -19,9 +19,12 @@ export function ConnectivityTest({ request, label, disabled = false }: { request
     onSuccess: () => setOpen(true),
     onError: () => toast.error(t("connectivity.requestError")),
   })
+  const icon = mutation.isPending ? <LoaderCircleIcon className="animate-spin" aria-hidden /> : <WifiIcon aria-hidden />
   return <>
-    <Button type="button" size="icon-sm" variant="outline" disabled={disabled || mutation.isPending} aria-label={`${t("connectivity.action")}: ${label}`} onClick={(event) => { event.stopPropagation(); mutation.mutate() }}>
-      {mutation.isPending ? <LoaderCircleIcon className="animate-spin" aria-hidden /> : <WifiIcon aria-hidden />}
+    {/* The probe runs for up to 30 seconds, so a wordless spinner reads as nothing happening. */}
+    <Button type="button" size={showLabel ? "sm" : "icon-sm"} variant="outline" disabled={disabled || mutation.isPending} aria-label={showLabel ? undefined : `${t("connectivity.action")}: ${label}`} onClick={(event) => { event.stopPropagation(); mutation.mutate() }}>
+      {icon}
+      {showLabel ? <span>{t(mutation.isPending ? "connectivity.testing" : "connectivity.action")}</span> : null}
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent closeLabel={t("common.actions.close")}>

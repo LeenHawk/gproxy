@@ -51,7 +51,7 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
             <Input id="global-proxy" type="url" className="font-mono" value={draft.proxy ?? ""} onChange={(event) => set("proxy", event.target.value.trim() || null)} />
             <FieldDescription>{t("settings.runtime.proxyHint")}</FieldDescription>
           </Field>
-          <div className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">{t("settings.runtime.connectivity")}</p><p className="text-xs text-muted-foreground">{t("settings.runtime.connectivityHint")}</p></div><ConnectivityTest request={draft.proxy ? { scope: "proxy", provider_id: null, credential_id: null, proxy_url: draft.proxy } : { scope: "global", provider_id: null, credential_id: null, proxy_url: null }} label={t("settings.runtime.connectivity")} /></div>
+          <div data-field-span="full" className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">{t("settings.runtime.connectivity")}</p><p className="text-xs text-muted-foreground">{t("settings.runtime.connectivityHint")}</p></div><ConnectivityTest showLabel request={draft.proxy ? { scope: "proxy", provider_id: null, credential_id: null, proxy_url: draft.proxy } : { scope: "global", provider_id: null, credential_id: null, proxy_url: null }} label={t("settings.runtime.connectivity")} /></div>
           <div className="flex flex-col gap-3">
             {toggles.map((key) => (
               <Field key={key} orientation="horizontal">

@@ -1,23 +1,241 @@
 {
   "rules": {
-    "title": "规则", "subtitle": "无需发布新版本，即可编译复用的 Provider 原生请求与响应变更。", "providerTab": "规则", "loadError": "无法加载规则，请重试。", "saved": "规则已更新", "saveError": "无法更新规则，请检查配置后重试。",
-    "sets": { "title": "规则集", "add": "新建规则集", "edit": "编辑规则集", "empty": "暂无规则集", "noDescription": "暂无说明", "selectPrompt": "选择一个规则集进行编辑。" },
-    "entries": { "title": "变更规则", "add": "添加规则", "edit": "编辑规则", "empty": "暂无变更规则", "emptyDescription": "此规则集不会修改 Provider 原生流量。", "orderDescription": "实际顺序先按类型 rank 固定排序，再按相同 rank 内的声明顺序排序。", "effectiveOrder": "实际第 {{order}} 个", "orderMeta": "rank {{rank}} · 声明顺序 {{declared}}", "summary": { "system_text": "{{position}}系统文本", "cache_breakpoint": "在{{target}}设置缓存断点 · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}}变换 · {{count}} 个动作", "header": "{{mode}}请求头 {{name}}" } },
-    "attachments": { "title": "已附加 Provider", "add": "附加规则集", "attach": "附加", "attachExisting": "附加已有规则集", "detach": "移除附加", "empty": "此 Provider 尚未附加规则集。" },
-    "presets": { "apply": "应用兼容性预设", "applying": "正在应用预设", "application": "客户端应用", "applied": "兼容性预设已应用", "applyError": "无法应用兼容性预设。" },
-    "scope": { "unused": "未使用", "private": "一个 Provider", "shared": "共享" },
-    "routing": { "tab": "路由规则", "title": "路由", "description": "该 Provider 对每个操作 × 入站协议的路由。默认值在创建时按渠道初始化——可编辑某行、新增规则、删除覆盖或重置默认。", "add": "添加路由规则", "edit": "编辑路由规则", "reset": "重置默认", "delete": "删除", "deleteConfirm": "删除这条路由规则?", "resetConfirm": "按渠道默认重新计算所有路由规则?你对默认格的修改会被覆盖。", "empty": "尚无路由规则。", "initialize": "初始化默认", "columns": { "operation": "操作", "kind": "入站协议", "behavior": "行为" } },
-    "fields": { "name": "名称", "description": "说明", "enabled": "启用", "provider": "Provider", "ruleSet": "规则集", "scope": "作用域", "kind": "类型", "text": "文本", "position": "位置", "target": "目标", "index": "内容块索引", "ttl": "TTL", "path": "JSON 路径", "action": "动作", "value": "JSON 值", "phase": "阶段", "locate": "定位方式", "locateValue": { "path": "路径", "paths": "路径，每行一个", "match": "正文正则" }, "actions": "变换动作", "from": "精确源文本", "pattern": "正则表达式", "with": "替换内容", "limit": "匹配上限", "headerName": "请求头名称", "headerValue": "请求头值", "mergeMode": "合并模式", "declaredOrder": "声明顺序", "operation": "操作", "implementation": "实现", "destinationOperation": "目标操作", "destinationKind": "目标线格式" },
-    "filters": { "model": "模型过滤", "modelHelp": "同时对上游模型 ID 和客户端请求的路由或变体名称做 Glob 匹配。", "operations": "操作过滤", "operationsHelp": "使用逗号分隔的稳定操作 ID。", "headers": "入站请求头过滤", "headersHelp": "不区分大小写的正则，逐条匹配入站 name: value。" },
-    "help": { "jsonValue": "请输入有效的 JSON 值或对象。" },
-    "placeholders": { "lastBlock": "最后一个内容块（继承默认值）", "anyText": "任意文本", "unlimited": "不限（继承默认值）", "allModels": "全部模型（继承）", "allOperations": "全部操作（继承）", "allHeaders": "全部入站客户端（继承）" },
-    "actions": { "addAction": "添加动作", "removeAction": "移除动作" }, "validation": { "sortOrderRequired": "排序必须为有效数字。", "configTextRequired": "文本不能为空。", "configPathRequired": "路径不能为空。", "configTransformRequired": "转换规则需要定位方式和至少一个动作。", "configTargetRequired": "目标不能为空。", "configHeaderNameRequired": "请求头名称不能为空。", "configInvalid": "规则配置 JSON 无效。", "cacheIndexZero": "索引不能为 0。" },
-    "kinds": { "system_text": "系统文本", "cache_breakpoint": "缓存断点", "rewrite": "重写", "transform": "变换", "header": "请求头" },
-    "kindDesc": { "system_text": "在系统提示前置或追加文本。", "cache_breakpoint": "标记 Claude 或 OpenAI Chat/Responses 原生缓存断点。", "rewrite": "在请求体中设置、删除或合并 JSON 字段。", "transform": "按路径或正则对请求和响应正文做通用替换。", "header": "新增或合并出站 HTTP 请求头。" },
-    "transform": { "rawHint": "配置字段：阶段、路径/多路径或正则定位、动作，以及可选的匹配上限。" },
-    "transformTemplate": { "fillFrom": "从模板填充" },
-    "channelDefaults": { "claudeapi_system-cache": { "name": "Claude 系统提示缓存", "description": "将稳定的系统提示前缀缓存一小时。" } },
-    "values": { "inherited": "继承", "prepend": "前置", "append": "追加", "top_level": "顶层", "system": "系统内容", "tools": "工具", "message": "消息", "5m": "5 分钟", "30m": "30 分钟", "1h": "1 小时", "set": "设置", "delete": "删除", "merge": "合并", "override": "覆盖", "request": "请求", "response": "响应", "both": "请求与响应", "path": "路径", "paths": "多路径", "match": "正则匹配", "replace_text": "替换文本", "replace_regex": "正则替换", "passthrough": "直通", "transform_to": "变换为", "local": "本地", "unsupported": "不支持" },
-    "operations": {}, "wires": {}
+    "title": "规则",
+    "subtitle": "无需发布新版本，即可编译复用的 Provider 原生请求与响应变更。",
+    "providerTab": "规则",
+    "loadError": "无法加载规则，请重试。",
+    "saved": "规则已更新",
+    "saveError": "无法更新规则，请检查配置后重试。",
+    "sets": {
+      "title": "规则集",
+      "add": "新建规则集",
+      "edit": "编辑规则集",
+      "empty": "暂无规则集",
+      "noDescription": "暂无说明",
+      "selectPrompt": "选择一个规则集进行编辑。"
+    },
+    "entries": {
+      "title": "变更规则",
+      "add": "添加规则",
+      "edit": "编辑规则",
+      "empty": "暂无变更规则",
+      "emptyDescription": "此规则集不会修改 Provider 原生流量。",
+      "orderDescription": "实际顺序先按类型 rank 固定排序，再按相同 rank 内的声明顺序排序。",
+      "effectiveOrder": "实际第 {{order}} 个",
+      "orderMeta": "rank {{rank}} · 声明顺序 {{declared}}",
+      "summary": {
+        "system_text": "{{position}}系统文本",
+        "cache_breakpoint": "在{{target}}设置缓存断点 · TTL {{ttl}}",
+        "rewrite": "{{action}} {{path}}",
+        "transform": "{{phase}}变换 · {{count}} 个动作",
+        "header": "{{mode}}请求头 {{name}}"
+      }
+    },
+    "attachments": {
+      "title": "已附加 Provider",
+      "add": "附加规则集",
+      "attach": "附加",
+      "attachExisting": "附加已有规则集",
+      "detach": "移除附加",
+      "empty": "此 Provider 尚未附加规则集。"
+    },
+    "presets": {
+      "apply": "应用兼容性预设",
+      "applying": "正在应用预设",
+      "application": "客户端应用",
+      "applied": "兼容性预设已应用",
+      "applyError": "无法应用兼容性预设。"
+    },
+    "scope": {
+      "unused": "未使用",
+      "private": "一个 Provider",
+      "shared": "共享"
+    },
+    "routing": {
+      "tab": "路由规则",
+      "title": "路由",
+      "description": "该 Provider 对每个操作 × 入站协议的路由。默认值在创建时按渠道初始化——可编辑某行、新增规则、删除覆盖或重置默认。",
+      "add": "添加路由规则",
+      "edit": "编辑路由规则",
+      "reset": "重置默认",
+      "delete": "删除",
+      "deleteConfirm": "删除这条路由规则?",
+      "resetConfirm": "按渠道默认重新计算所有路由规则?你对默认格的修改会被覆盖。",
+      "empty": "尚无路由规则。",
+      "initialize": "初始化默认",
+      "columns": {
+        "operation": "操作",
+        "kind": "入站协议",
+        "behavior": "行为"
+      }
+    },
+    "fields": {
+      "name": "名称",
+      "description": "说明",
+      "enabled": "启用",
+      "provider": "Provider",
+      "ruleSet": "规则集",
+      "scope": "作用域",
+      "kind": "类型",
+      "text": "文本",
+      "position": "位置",
+      "target": "目标",
+      "index": "内容块索引",
+      "ttl": "TTL",
+      "path": "JSON 路径",
+      "action": "动作",
+      "value": "JSON 值",
+      "phase": "阶段",
+      "locate": "定位方式",
+      "locateValue": {
+        "path": "路径",
+        "paths": "路径，每行一个",
+        "match": "正文正则"
+      },
+      "actions": "变换动作",
+      "from": "精确源文本",
+      "pattern": "正则表达式",
+      "with": "替换内容",
+      "limit": "匹配上限",
+      "headerName": "请求头名称",
+      "headerValue": "请求头值",
+      "mergeMode": "合并模式",
+      "declaredOrder": "声明顺序",
+      "operation": "操作",
+      "implementation": "实现",
+      "destinationOperation": "目标操作",
+      "destinationKind": "目标线格式"
+    },
+    "filters": {
+      "model": "模型过滤",
+      "modelHelp": "同时对上游模型 ID 和客户端请求的路由或变体名称做 Glob 匹配。",
+      "operations": "操作过滤",
+      "operationsHelp": "使用逗号分隔的稳定操作 ID。",
+      "headers": "入站请求头过滤",
+      "headersHelp": "不区分大小写的正则，逐条匹配入站 name: value。"
+    },
+    "help": {
+      "jsonValue": "请输入有效的 JSON 值或对象。"
+    },
+    "placeholders": {
+      "lastBlock": "最后一个内容块（继承默认值）",
+      "anyText": "任意文本",
+      "unlimited": "不限（继承默认值）",
+      "allModels": "全部模型（继承）",
+      "allOperations": "全部操作（继承）",
+      "allHeaders": "全部入站客户端（继承）"
+    },
+    "actions": {
+      "addAction": "添加动作",
+      "removeAction": "移除动作"
+    },
+    "validation": {
+      "sortOrderRequired": "排序必须为有效数字。",
+      "configTextRequired": "文本不能为空。",
+      "configPathRequired": "路径不能为空。",
+      "configTransformRequired": "转换规则需要定位方式和至少一个动作。",
+      "configTargetRequired": "目标不能为空。",
+      "configHeaderNameRequired": "请求头名称不能为空。",
+      "configInvalid": "规则配置 JSON 无效。",
+      "cacheIndexZero": "索引不能为 0。"
+    },
+    "kinds": {
+      "system_text": "系统文本",
+      "cache_breakpoint": "缓存断点",
+      "rewrite": "重写",
+      "transform": "变换",
+      "header": "请求头"
+    },
+    "kindDesc": {
+      "system_text": "在系统提示前置或追加文本。",
+      "cache_breakpoint": "标记 Claude 或 OpenAI Chat/Responses 原生缓存断点。",
+      "rewrite": "在请求体中设置、删除或合并 JSON 字段。",
+      "transform": "按路径或正则对请求和响应正文做通用替换。",
+      "header": "新增或合并出站 HTTP 请求头。"
+    },
+    "transform": {
+      "rawHint": "配置字段：阶段、路径/多路径或正则定位、动作，以及可选的匹配上限。"
+    },
+    "transformTemplate": {
+      "fillFrom": "从模板填充"
+    },
+    "channelDefaults": {
+      "claudeapi_system-cache": {
+        "name": "Claude 系统提示缓存",
+        "description": "将稳定的系统提示前缀缓存一小时。"
+      }
+    },
+    "values": {
+      "inherited": "继承",
+      "prepend": "前置",
+      "append": "追加",
+      "top_level": "顶层",
+      "system": "系统内容",
+      "tools": "工具",
+      "message": "消息",
+      "5m": "5 分钟",
+      "30m": "30 分钟",
+      "1h": "1 小时",
+      "set": "设置",
+      "delete": "删除",
+      "merge": "合并",
+      "override": "覆盖",
+      "request": "请求",
+      "response": "响应",
+      "both": "请求与响应",
+      "path": "路径",
+      "paths": "多路径",
+      "match": "正则匹配",
+      "replace_text": "替换文本",
+      "replace_regex": "正则替换",
+      "passthrough": "直通",
+      "transform_to": "变换为",
+      "local": "本地",
+      "unsupported": "不支持"
+    },
+    "operations": {
+      "list_models": "列出模型",
+      "get_model": "获取模型",
+      "count_tokens": "统计 Token",
+      "generate_content": "生成内容",
+      "stream_generate_content": "流式生成内容",
+      "summarize_memory": "总结记忆",
+      "compact_content": "压缩内容",
+      "create_image": "创建图像",
+      "edit_image": "编辑图像",
+      "web_search": "独立网页搜索",
+      "rerank": "重排序",
+      "create_embedding": "创建嵌入",
+      "batch_create_embedding": "批量创建嵌入",
+      "create_speech": "语音合成",
+      "create_transcription": "语音转写",
+      "create_translation": "语音翻译",
+      "create_realtime_call": "创建实时通话",
+      "create_video": "创建视频",
+      "edit_video": "编辑视频",
+      "remix_video": "重混视频",
+      "extend_video": "延长视频",
+      "retrieve_video": "获取视频",
+      "list_videos": "列出视频",
+      "delete_video": "删除视频",
+      "download_video_content": "下载视频内容",
+      "create_video_character": "创建视频角色",
+      "get_video_character": "获取视频角色",
+      "create_file": "上传文件",
+      "list_files": "列出文件",
+      "retrieve_file": "获取文件",
+      "retrieve_file_content": "获取文件内容",
+      "delete_file": "删除文件"
+    },
+    "wires": {
+      "openai": "OpenAI",
+      "openai_chat": "OpenAI Chat Completions",
+      "openai_responses": "OpenAI Responses",
+      "openai_responses_websocket": "OpenAI Responses WebSocket",
+      "claude": "Claude",
+      "claude_messages": "Claude Messages",
+      "gemini": "Gemini",
+      "gemini_generate_content": "Gemini Generate Content"
+    }
   }
 }

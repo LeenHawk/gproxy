@@ -23,6 +23,7 @@
       "saving": "Saving…",
       "saved": "Saved",
       "cancel": "Cancel",
+      "reset": "Revert",
       "close": "Close",
       "edit": "Edit",
       "enable": "Enable",
@@ -44,7 +45,7 @@
       "active": "Active",
       "inactive": "Inactive"
     },
-  "errors": {
+    "errors": {
       "load": "Could not load this data. Retry.",
       "save": "Could not save changes. Retry.",
       "invalid": "Check the highlighted fields.",
@@ -90,6 +91,7 @@
   },
   "connectivity": {
     "action": "Test connectivity",
+    "testing": "Testing…",
     "title": "Connectivity result",
     "success": "Upstream egress is reachable",
     "successHint": "The addresses below are what the upstream sees.",
@@ -146,6 +148,7 @@
     "keys": "Users and keys",
     "usage": "Usage and cost",
     "pricing": "Pricing",
+    "tokenizers": "Tokenizers",
     "settings": "Settings",
     "open": "Open navigation",
     "close": "Close navigation",

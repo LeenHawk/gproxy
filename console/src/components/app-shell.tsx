@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, WorkflowIcon } from "lucide-react"
+import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, KeyRoundIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, TypeIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AnnouncementFeed } from "@/components/announcement-feed"
@@ -18,6 +18,7 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "keys", icon: KeyRoundIcon },
   { route: "usage", icon: ChartNoAxesCombinedIcon },
   { route: "pricing", icon: CircleDollarSignIcon },
+  { route: "tokenizers", icon: TypeIcon },
   { route: "settings", icon: SettingsIcon },
 ]
 
@@ -29,9 +30,13 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
       <aside className="relative border-b bg-card lg:sticky lg:top-0 lg:h-screen lg:border-r lg:border-b-0">
         <div className="flex h-full flex-col">
           <header className="flex items-center justify-between gap-2 px-3 py-4">
-            <div className={cn("min-w-0", sidebar.collapsed && "lg:sr-only")}>
-              <p className="font-mono text-base font-semibold">{t("common.product")}</p>
-              <p className="text-xs text-muted-foreground">{t("common.console")}</p>
+            <div className={cn("flex min-w-0 items-center gap-2", sidebar.collapsed && "lg:sr-only")}>
+              {/* Brand mark: the GPROXY globe, the same asset the favicon serves. */}
+              <img src="/favicon-96x96.png" className="size-7 shrink-0 rounded" width={28} height={28} alt="" />
+              <div className="min-w-0">
+                <p className="text-base font-bold tracking-wide">{t("common.product")}</p>
+                <p className="text-xs text-muted-foreground">{t("common.console")}</p>
+              </div>
             </div>
             <div className="flex items-center gap-2 lg:hidden">
               <span className="max-w-24 truncate font-mono text-xs text-muted-foreground">{username}</span>
@@ -43,8 +48,8 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
           <Separator />
           <nav className="flex gap-1 overflow-x-auto overflow-y-hidden p-2 lg:flex-1 lg:flex-col" aria-label={t("nav.label")}>
             {items.map(({ route: itemRoute, icon: Icon }) => (
-              <Button key={itemRoute} variant={route === itemRoute ? "secondary" : "ghost"} aria-current={route === itemRoute ? "page" : undefined} aria-label={t(`nav.${itemRoute}`)} className={cn("justify-start", sidebar.collapsed && "lg:justify-center", route === itemRoute && "font-medium")} onClick={() => navigateAdminPath(adminPath(itemRoute))}>
-                <Icon className={cn("hidden", sidebar.collapsed && "lg:block")} />
+              <Button key={itemRoute} variant={route === itemRoute ? "secondary" : "ghost"} aria-current={route === itemRoute ? "page" : undefined} aria-label={t(`nav.${itemRoute}`)} className={cn("h-9 justify-start gap-3 px-3", sidebar.collapsed && "lg:justify-center", route === itemRoute && "font-medium")} onClick={() => navigateAdminPath(adminPath(itemRoute))}>
+                <Icon className="size-4 shrink-0" aria-hidden />
                 <span className={cn(sidebar.collapsed && "lg:sr-only")}>{t(`nav.${itemRoute}`)}</span>
               </Button>
             ))}

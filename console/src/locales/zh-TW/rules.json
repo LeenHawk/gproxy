@@ -1,23 +1,241 @@
 {
   "rules": {
-    "title": "規則", "subtitle": "無需發佈新版本，即可編譯可重用的 Provider 原生請求與回應變更。", "providerTab": "規則", "loadError": "無法載入規則，請重試。", "saved": "規則已更新", "saveError": "無法更新規則，請檢查設定後重試。",
-    "sets": { "title": "規則集", "add": "新增規則集", "edit": "編輯規則集", "empty": "暫無規則集", "noDescription": "暫無說明", "selectPrompt": "選擇一個規則集進行編輯。" },
-    "entries": { "title": "變更規則", "add": "新增規則", "edit": "編輯規則", "empty": "暫無變更規則", "emptyDescription": "此規則集不會修改 Provider 原生流量。", "orderDescription": "實際順序先按類型 rank 固定排序，再按相同 rank 內的宣告順序排序。", "effectiveOrder": "實際第 {{order}} 個", "orderMeta": "rank {{rank}} · 宣告順序 {{declared}}", "summary": { "system_text": "{{position}}系統文字", "cache_breakpoint": "在{{target}}設定快取中斷點 · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}}變換 · {{count}} 個動作", "header": "{{mode}}請求標頭 {{name}}" } },
-    "attachments": { "title": "已附加 Provider", "add": "附加規則集", "attach": "附加", "attachExisting": "附加現有規則集", "detach": "移除附加", "empty": "此 Provider 尚未附加規則集。" },
-    "presets": { "apply": "套用相容性預設", "applying": "正在套用預設", "application": "用戶端應用程式", "applied": "相容性預設已套用", "applyError": "無法套用相容性預設。" },
-    "scope": { "unused": "未使用", "private": "一個 Provider", "shared": "共用" },
-    "routing": { "tab": "路由規則", "title": "路由", "description": "此 Provider 對每個操作 × 入站協定的路由。預設值在建立時依通道初始化——可編輯某列、新增規則、刪除覆寫或重設預設。", "add": "新增路由規則", "edit": "編輯路由規則", "reset": "重設預設", "delete": "刪除", "deleteConfirm": "刪除這條路由規則?", "resetConfirm": "按通道預設重新計算所有路由規則?你對預設格的修改會被覆寫。", "empty": "尚無路由規則。", "initialize": "初始化預設", "columns": { "operation": "操作", "kind": "入站協議", "behavior": "行為" } },
-    "fields": { "name": "名稱", "description": "說明", "enabled": "啟用", "provider": "Provider", "ruleSet": "規則集", "scope": "範圍", "kind": "類型", "text": "文字", "position": "位置", "target": "目標", "index": "內容區塊索引", "ttl": "TTL", "path": "JSON 路徑", "action": "動作", "value": "JSON 值", "phase": "階段", "locate": "定位方式", "locateValue": { "path": "路徑", "paths": "路徑，每行一個", "match": "本文正則" }, "actions": "變換動作", "from": "精確來源文字", "pattern": "正則表示式", "with": "替換內容", "limit": "匹配上限", "headerName": "請求標頭名稱", "headerValue": "請求標頭值", "mergeMode": "合併模式", "declaredOrder": "宣告順序", "operation": "操作", "implementation": "實作", "destinationOperation": "目標操作", "destinationKind": "目標線格式" },
-    "filters": { "model": "模型篩選", "modelHelp": "同時對上游模型 ID 與用戶端請求的路由或變體名稱做 Glob 比對。", "operations": "操作篩選", "operationsHelp": "使用逗號分隔的穩定操作 ID。", "headers": "入站請求標頭篩選", "headersHelp": "不區分大小寫的正則，逐項比對入站 name: value。" },
-    "help": { "jsonValue": "請輸入有效的 JSON 值或物件。" },
-    "placeholders": { "lastBlock": "最後一個內容區塊（繼承預設值）", "anyText": "任意文字", "unlimited": "不限（繼承預設值）", "allModels": "全部模型（繼承）", "allOperations": "全部操作（繼承）", "allHeaders": "全部入站用戶端（繼承）" },
-    "actions": { "addAction": "新增動作", "removeAction": "移除動作" }, "validation": { "sortOrderRequired": "排序必須為有效數字。", "configTextRequired": "文字不能為空。", "configPathRequired": "路徑不能為空。", "configTransformRequired": "轉換規則需要定位方式和至少一個動作。", "configTargetRequired": "目標不能為空。", "configHeaderNameRequired": "標頭名稱不能為空。", "configInvalid": "規則設定 JSON 無效。", "cacheIndexZero": "索引不能為 0。" },
-    "kinds": { "system_text": "系統文字", "cache_breakpoint": "快取中斷點", "rewrite": "重寫", "transform": "變換", "header": "請求標頭" },
-    "kindDesc": { "system_text": "在系統提示前置或附加文字。", "cache_breakpoint": "標記 Claude 或 OpenAI Chat/Responses 原生快取斷點。", "rewrite": "在請求本文中設定、刪除或合併 JSON 欄位。", "transform": "依路徑或正規表示式對請求和回應本文做通用取代。", "header": "新增或合併出站 HTTP 標頭。" },
-    "transform": { "rawHint": "設定欄位：階段、路徑/多路徑或正規表示式定位、動作，以及可選的比對上限。" },
-    "transformTemplate": { "fillFrom": "從範本填入" },
-    "channelDefaults": { "claudeapi_system-cache": { "name": "Claude 系統提示快取", "description": "將穩定的系統提示前綴快取一小時。" } },
-    "values": { "inherited": "繼承", "prepend": "前置", "append": "追加", "top_level": "頂層", "system": "系統內容", "tools": "工具", "message": "訊息", "5m": "5 分鐘", "30m": "30 分鐘", "1h": "1 小時", "set": "設定", "delete": "刪除", "merge": "合併", "override": "覆寫", "request": "請求", "response": "回應", "both": "請求與回應", "path": "路徑", "paths": "多路徑", "match": "正則比對", "replace_text": "替換文字", "replace_regex": "正則替換", "passthrough": "直通", "transform_to": "變換為", "local": "本機", "unsupported": "不支援" },
-    "operations": {}, "wires": {}
+    "title": "規則",
+    "subtitle": "無需發佈新版本，即可編譯可重用的 Provider 原生請求與回應變更。",
+    "providerTab": "規則",
+    "loadError": "無法載入規則，請重試。",
+    "saved": "規則已更新",
+    "saveError": "無法更新規則，請檢查設定後重試。",
+    "sets": {
+      "title": "規則集",
+      "add": "新增規則集",
+      "edit": "編輯規則集",
+      "empty": "暫無規則集",
+      "noDescription": "暫無說明",
+      "selectPrompt": "選擇一個規則集進行編輯。"
+    },
+    "entries": {
+      "title": "變更規則",
+      "add": "新增規則",
+      "edit": "編輯規則",
+      "empty": "暫無變更規則",
+      "emptyDescription": "此規則集不會修改 Provider 原生流量。",
+      "orderDescription": "實際順序先按類型 rank 固定排序，再按相同 rank 內的宣告順序排序。",
+      "effectiveOrder": "實際第 {{order}} 個",
+      "orderMeta": "rank {{rank}} · 宣告順序 {{declared}}",
+      "summary": {
+        "system_text": "{{position}}系統文字",
+        "cache_breakpoint": "在{{target}}設定快取中斷點 · TTL {{ttl}}",
+        "rewrite": "{{action}} {{path}}",
+        "transform": "{{phase}}變換 · {{count}} 個動作",
+        "header": "{{mode}}請求標頭 {{name}}"
+      }
+    },
+    "attachments": {
+      "title": "已附加 Provider",
+      "add": "附加規則集",
+      "attach": "附加",
+      "attachExisting": "附加現有規則集",
+      "detach": "移除附加",
+      "empty": "此 Provider 尚未附加規則集。"
+    },
+    "presets": {
+      "apply": "套用相容性預設",
+      "applying": "正在套用預設",
+      "application": "用戶端應用程式",
+      "applied": "相容性預設已套用",
+      "applyError": "無法套用相容性預設。"
+    },
+    "scope": {
+      "unused": "未使用",
+      "private": "一個 Provider",
+      "shared": "共用"
+    },
+    "routing": {
+      "tab": "路由規則",
+      "title": "路由",
+      "description": "此 Provider 對每個操作 × 入站協定的路由。預設值在建立時依通道初始化——可編輯某列、新增規則、刪除覆寫或重設預設。",
+      "add": "新增路由規則",
+      "edit": "編輯路由規則",
+      "reset": "重設預設",
+      "delete": "刪除",
+      "deleteConfirm": "刪除這條路由規則?",
+      "resetConfirm": "按通道預設重新計算所有路由規則?你對預設格的修改會被覆寫。",
+      "empty": "尚無路由規則。",
+      "initialize": "初始化預設",
+      "columns": {
+        "operation": "操作",
+        "kind": "入站協議",
+        "behavior": "行為"
+      }
+    },
+    "fields": {
+      "name": "名稱",
+      "description": "說明",
+      "enabled": "啟用",
+      "provider": "Provider",
+      "ruleSet": "規則集",
+      "scope": "範圍",
+      "kind": "類型",
+      "text": "文字",
+      "position": "位置",
+      "target": "目標",
+      "index": "內容區塊索引",
+      "ttl": "TTL",
+      "path": "JSON 路徑",
+      "action": "動作",
+      "value": "JSON 值",
+      "phase": "階段",
+      "locate": "定位方式",
+      "locateValue": {
+        "path": "路徑",
+        "paths": "路徑，每行一個",
+        "match": "本文正則"
+      },
+      "actions": "變換動作",
+      "from": "精確來源文字",
+      "pattern": "正則表示式",
+      "with": "替換內容",
+      "limit": "匹配上限",
+      "headerName": "請求標頭名稱",
+      "headerValue": "請求標頭值",
+      "mergeMode": "合併模式",
+      "declaredOrder": "宣告順序",
+      "operation": "操作",
+      "implementation": "實作",
+      "destinationOperation": "目標操作",
+      "destinationKind": "目標線格式"
+    },
+    "filters": {
+      "model": "模型篩選",
+      "modelHelp": "同時對上游模型 ID 與用戶端請求的路由或變體名稱做 Glob 比對。",
+      "operations": "操作篩選",
+      "operationsHelp": "使用逗號分隔的穩定操作 ID。",
+      "headers": "入站請求標頭篩選",
+      "headersHelp": "不區分大小寫的正則，逐項比對入站 name: value。"
+    },
+    "help": {
+      "jsonValue": "請輸入有效的 JSON 值或物件。"
+    },
+    "placeholders": {
+      "lastBlock": "最後一個內容區塊（繼承預設值）",
+      "anyText": "任意文字",
+      "unlimited": "不限（繼承預設值）",
+      "allModels": "全部模型（繼承）",
+      "allOperations": "全部操作（繼承）",
+      "allHeaders": "全部入站用戶端（繼承）"
+    },
+    "actions": {
+      "addAction": "新增動作",
+      "removeAction": "移除動作"
+    },
+    "validation": {
+      "sortOrderRequired": "排序必須為有效數字。",
+      "configTextRequired": "文字不能為空。",
+      "configPathRequired": "路徑不能為空。",
+      "configTransformRequired": "轉換規則需要定位方式和至少一個動作。",
+      "configTargetRequired": "目標不能為空。",
+      "configHeaderNameRequired": "標頭名稱不能為空。",
+      "configInvalid": "規則設定 JSON 無效。",
+      "cacheIndexZero": "索引不能為 0。"
+    },
+    "kinds": {
+      "system_text": "系統文字",
+      "cache_breakpoint": "快取中斷點",
+      "rewrite": "重寫",
+      "transform": "變換",
+      "header": "請求標頭"
+    },
+    "kindDesc": {
+      "system_text": "在系統提示前置或附加文字。",
+      "cache_breakpoint": "標記 Claude 或 OpenAI Chat/Responses 原生快取斷點。",
+      "rewrite": "在請求本文中設定、刪除或合併 JSON 欄位。",
+      "transform": "依路徑或正規表示式對請求和回應本文做通用取代。",
+      "header": "新增或合併出站 HTTP 標頭。"
+    },
+    "transform": {
+      "rawHint": "設定欄位：階段、路徑/多路徑或正規表示式定位、動作，以及可選的比對上限。"
+    },
+    "transformTemplate": {
+      "fillFrom": "從範本填入"
+    },
+    "channelDefaults": {
+      "claudeapi_system-cache": {
+        "name": "Claude 系統提示快取",
+        "description": "將穩定的系統提示前綴快取一小時。"
+      }
+    },
+    "values": {
+      "inherited": "繼承",
+      "prepend": "前置",
+      "append": "追加",
+      "top_level": "頂層",
+      "system": "系統內容",
+      "tools": "工具",
+      "message": "訊息",
+      "5m": "5 分鐘",
+      "30m": "30 分鐘",
+      "1h": "1 小時",
+      "set": "設定",
+      "delete": "刪除",
+      "merge": "合併",
+      "override": "覆寫",
+      "request": "請求",
+      "response": "回應",
+      "both": "請求與回應",
+      "path": "路徑",
+      "paths": "多路徑",
+      "match": "正則比對",
+      "replace_text": "替換文字",
+      "replace_regex": "正則替換",
+      "passthrough": "直通",
+      "transform_to": "變換為",
+      "local": "本機",
+      "unsupported": "不支援"
+    },
+    "operations": {
+      "list_models": "列出模型",
+      "get_model": "取得模型",
+      "count_tokens": "統計 Token",
+      "generate_content": "產生內容",
+      "stream_generate_content": "串流產生內容",
+      "summarize_memory": "總結記憶",
+      "compact_content": "壓縮內容",
+      "create_image": "建立圖像",
+      "edit_image": "編輯圖像",
+      "web_search": "獨立網頁搜尋",
+      "rerank": "重新排序",
+      "create_embedding": "建立嵌入",
+      "batch_create_embedding": "批次建立嵌入",
+      "create_speech": "語音合成",
+      "create_transcription": "語音轉寫",
+      "create_translation": "語音翻譯",
+      "create_realtime_call": "建立即時通話",
+      "create_video": "建立影片",
+      "edit_video": "編輯影片",
+      "remix_video": "重混影片",
+      "extend_video": "延長影片",
+      "retrieve_video": "取得影片",
+      "list_videos": "列出影片",
+      "delete_video": "刪除影片",
+      "download_video_content": "下載影片內容",
+      "create_video_character": "建立影片角色",
+      "get_video_character": "取得影片角色",
+      "create_file": "上傳檔案",
+      "list_files": "列出檔案",
+      "retrieve_file": "取得檔案",
+      "retrieve_file_content": "取得檔案內容",
+      "delete_file": "刪除檔案"
+    },
+    "wires": {
+      "openai": "OpenAI",
+      "openai_chat": "OpenAI Chat Completions",
+      "openai_responses": "OpenAI Responses",
+      "openai_responses_websocket": "OpenAI Responses WebSocket",
+      "claude": "Claude",
+      "claude_messages": "Claude Messages",
+      "gemini": "Gemini",
+      "gemini_generate_content": "Gemini Generate Content"
+    }
   }
 }

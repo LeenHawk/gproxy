@@ -6,31 +6,236 @@
     "loadError": "Could not load rules. Retry.",
     "saved": "Rules updated",
     "saveError": "Could not update rules. Check the configuration and retry.",
-    "sets": { "title": "Rule sets", "add": "New rule set", "edit": "Edit rule set", "empty": "No rule sets", "noDescription": "No description", "selectPrompt": "Select a rule set to edit it." },
+    "sets": {
+      "title": "Rule sets",
+      "add": "New rule set",
+      "edit": "Edit rule set",
+      "empty": "No rule sets",
+      "noDescription": "No description",
+      "selectPrompt": "Select a rule set to edit it."
+    },
     "entries": {
-      "title": "Mutation rules", "add": "Add rule", "edit": "Edit rule", "empty": "No mutation rules", "emptyDescription": "This set leaves provider-native traffic unchanged.",
-      "orderDescription": "The effective order is fixed by kind rank, then declaration order within each rank.", "effectiveOrder": "Effective #{{order}}", "orderMeta": "rank {{rank}} · declared order {{declared}}",
-      "summary": { "system_text": "{{position}} system text", "cache_breakpoint": "Cache breakpoint on {{target}} · TTL {{ttl}}", "rewrite": "{{action}} {{path}}", "transform": "{{phase}} transform · {{count}} action(s)", "header": "{{mode}} header {{name}}" }
+      "title": "Mutation rules",
+      "add": "Add rule",
+      "edit": "Edit rule",
+      "empty": "No mutation rules",
+      "emptyDescription": "This set leaves provider-native traffic unchanged.",
+      "orderDescription": "The effective order is fixed by kind rank, then declaration order within each rank.",
+      "effectiveOrder": "Effective #{{order}}",
+      "orderMeta": "rank {{rank}} · declared order {{declared}}",
+      "summary": {
+        "system_text": "{{position}} system text",
+        "cache_breakpoint": "Cache breakpoint on {{target}} · TTL {{ttl}}",
+        "rewrite": "{{action}} {{path}}",
+        "transform": "{{phase}} transform · {{count}} action(s)",
+        "header": "{{mode}} header {{name}}"
+      }
     },
-    "attachments": { "title": "Attached providers", "add": "Attach rule set", "attach": "Attach", "attachExisting": "Attach existing set", "detach": "Detach", "empty": "No rule sets are attached to this provider." },
-    "presets": { "apply": "Apply compatibility preset", "applying": "Applying preset", "application": "Client application", "applied": "Compatibility preset applied", "applyError": "Could not apply the compatibility preset." },
-    "scope": { "unused": "Unused", "private": "One provider", "shared": "Shared" },
-    "routing": { "tab": "Routing rules", "title": "Routing", "description": "This provider's route for each operation × inbound protocol. Channel defaults initialize at creation; edit a row, add a rule, delete an override, or reset all defaults.", "add": "Add routing rule", "edit": "Edit routing rule", "reset": "Reset defaults", "delete": "Delete", "deleteConfirm": "Delete this routing rule?", "resetConfirm": "Recompute all routing rules from the channel defaults? Your edits to the default cells will be overwritten.", "empty": "No routing rules yet.", "initialize": "Initialize defaults", "columns": { "operation": "Operation", "kind": "Inbound protocol", "behavior": "Behavior" } },
+    "attachments": {
+      "title": "Attached providers",
+      "add": "Attach rule set",
+      "attach": "Attach",
+      "attachExisting": "Attach existing set",
+      "detach": "Detach",
+      "empty": "No rule sets are attached to this provider."
+    },
+    "presets": {
+      "apply": "Apply compatibility preset",
+      "applying": "Applying preset",
+      "application": "Client application",
+      "applied": "Compatibility preset applied",
+      "applyError": "Could not apply the compatibility preset."
+    },
+    "scope": {
+      "unused": "Unused",
+      "private": "One provider",
+      "shared": "Shared"
+    },
+    "routing": {
+      "tab": "Routing rules",
+      "title": "Routing",
+      "description": "This provider's route for each operation × inbound protocol. Channel defaults initialize at creation; edit a row, add a rule, delete an override, or reset all defaults.",
+      "add": "Add routing rule",
+      "edit": "Edit routing rule",
+      "reset": "Reset defaults",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this routing rule?",
+      "resetConfirm": "Recompute all routing rules from the channel defaults? Your edits to the default cells will be overwritten.",
+      "empty": "No routing rules yet.",
+      "initialize": "Initialize defaults",
+      "columns": {
+        "operation": "Operation",
+        "kind": "Inbound protocol",
+        "behavior": "Behavior"
+      }
+    },
     "fields": {
-      "name": "Name", "description": "Description", "enabled": "Enabled", "provider": "Provider", "ruleSet": "Rule set", "scope": "Scope", "kind": "Kind", "text": "Text", "position": "Position", "target": "Target", "index": "Block index", "ttl": "TTL", "path": "JSON path", "action": "Action", "value": "JSON value", "phase": "Phase", "locate": "Locator", "locateValue": { "path": "Path", "paths": "Paths, one per line", "match": "Body regex" }, "actions": "Transform actions", "from": "Exact source text", "pattern": "Regex pattern", "with": "Replacement", "limit": "Match limit", "headerName": "Header name", "headerValue": "Header value", "mergeMode": "Merge mode", "declaredOrder": "Declared order", "operation": "Operation", "implementation": "Implementation", "destinationOperation": "Destination operation", "destinationKind": "Destination wire kind"
+      "name": "Name",
+      "description": "Description",
+      "enabled": "Enabled",
+      "provider": "Provider",
+      "ruleSet": "Rule set",
+      "scope": "Scope",
+      "kind": "Kind",
+      "text": "Text",
+      "position": "Position",
+      "target": "Target",
+      "index": "Block index",
+      "ttl": "TTL",
+      "path": "JSON path",
+      "action": "Action",
+      "value": "JSON value",
+      "phase": "Phase",
+      "locate": "Locator",
+      "locateValue": {
+        "path": "Path",
+        "paths": "Paths, one per line",
+        "match": "Body regex"
+      },
+      "actions": "Transform actions",
+      "from": "Exact source text",
+      "pattern": "Regex pattern",
+      "with": "Replacement",
+      "limit": "Match limit",
+      "headerName": "Header name",
+      "headerValue": "Header value",
+      "mergeMode": "Merge mode",
+      "declaredOrder": "Declared order",
+      "operation": "Operation",
+      "implementation": "Implementation",
+      "destinationOperation": "Destination operation",
+      "destinationKind": "Destination wire kind"
     },
-    "filters": { "model": "Model filter", "modelHelp": "Glob matched against the upstream model and the client-requested route or variant name.", "operations": "Operation filters", "operationsHelp": "Comma-separated stable operation IDs.", "headers": "Inbound header filter", "headersHelp": "Case-insensitive regex matched against one inbound name: value line at a time." },
-    "help": { "jsonValue": "Enter a valid JSON value or object." },
-    "placeholders": { "lastBlock": "Last block (inherited default)", "anyText": "Any text", "unlimited": "Unlimited (inherited default)", "allModels": "All models (inherited)", "allOperations": "All operations (inherited)", "allHeaders": "All inbound clients (inherited)" },
-    "actions": { "addAction": "Add action", "removeAction": "Remove action" },
-    "validation": { "sortOrderRequired": "Sort order must be a valid number.", "configTextRequired": "Text is required.", "configPathRequired": "Path is required.", "configTransformRequired": "Transform requires a locator and at least one action.", "configTargetRequired": "Target is required.", "configHeaderNameRequired": "Header name is required.", "configInvalid": "The rule configuration is invalid JSON.", "cacheIndexZero": "Index cannot be 0." },
-    "kinds": { "system_text": "System text", "cache_breakpoint": "Cache breakpoint", "rewrite": "Rewrite", "transform": "Transform", "header": "Header" },
-    "kindDesc": { "system_text": "Prepend or append text to the system prompt.", "cache_breakpoint": "Mark a native Claude or OpenAI Chat/Responses cache breakpoint.", "rewrite": "Set, delete, or merge a JSON field in the request body.", "transform": "Apply generic path or regex replacements to request and response bodies.", "header": "Add or merge an outgoing HTTP header." },
-    "transform": { "rawHint": "Config fields: phase, locate path/paths or regex match, actions, and an optional limit." },
-    "transformTemplate": { "fillFrom": "Fill from template" },
-    "channelDefaults": { "claudeapi_system-cache": { "name": "Claude system cache", "description": "Caches the stable system prefix for one hour." } },
-    "values": { "inherited": "Inherited", "prepend": "Prepend", "append": "Append", "top_level": "Top level", "system": "System", "tools": "Tools", "message": "Message", "5m": "5 minutes", "30m": "30 minutes", "1h": "1 hour", "set": "Set", "delete": "Delete", "merge": "Merge", "override": "Override", "request": "Request", "response": "Response", "both": "Both", "path": "Path", "paths": "Paths", "match": "Regex match", "replace_text": "Replace text", "replace_regex": "Replace regex", "passthrough": "Passthrough", "transform_to": "Transform to", "local": "Local", "unsupported": "Unsupported" },
-    "operations": {},
-    "wires": {}
+    "filters": {
+      "model": "Model filter",
+      "modelHelp": "Glob matched against the upstream model and the client-requested route or variant name.",
+      "operations": "Operation filters",
+      "operationsHelp": "Comma-separated stable operation IDs.",
+      "headers": "Inbound header filter",
+      "headersHelp": "Case-insensitive regex matched against one inbound name: value line at a time."
+    },
+    "help": {
+      "jsonValue": "Enter a valid JSON value or object."
+    },
+    "placeholders": {
+      "lastBlock": "Last block (inherited default)",
+      "anyText": "Any text",
+      "unlimited": "Unlimited (inherited default)",
+      "allModels": "All models (inherited)",
+      "allOperations": "All operations (inherited)",
+      "allHeaders": "All inbound clients (inherited)"
+    },
+    "actions": {
+      "addAction": "Add action",
+      "removeAction": "Remove action"
+    },
+    "validation": {
+      "sortOrderRequired": "Sort order must be a valid number.",
+      "configTextRequired": "Text is required.",
+      "configPathRequired": "Path is required.",
+      "configTransformRequired": "Transform requires a locator and at least one action.",
+      "configTargetRequired": "Target is required.",
+      "configHeaderNameRequired": "Header name is required.",
+      "configInvalid": "The rule configuration is invalid JSON.",
+      "cacheIndexZero": "Index cannot be 0."
+    },
+    "kinds": {
+      "system_text": "System text",
+      "cache_breakpoint": "Cache breakpoint",
+      "rewrite": "Rewrite",
+      "transform": "Transform",
+      "header": "Header"
+    },
+    "kindDesc": {
+      "system_text": "Prepend or append text to the system prompt.",
+      "cache_breakpoint": "Mark a native Claude or OpenAI Chat/Responses cache breakpoint.",
+      "rewrite": "Set, delete, or merge a JSON field in the request body.",
+      "transform": "Apply generic path or regex replacements to request and response bodies.",
+      "header": "Add or merge an outgoing HTTP header."
+    },
+    "transform": {
+      "rawHint": "Config fields: phase, locate path/paths or regex match, actions, and an optional limit."
+    },
+    "transformTemplate": {
+      "fillFrom": "Fill from template"
+    },
+    "channelDefaults": {
+      "claudeapi_system-cache": {
+        "name": "Claude system cache",
+        "description": "Caches the stable system prefix for one hour."
+      }
+    },
+    "values": {
+      "inherited": "Inherited",
+      "prepend": "Prepend",
+      "append": "Append",
+      "top_level": "Top level",
+      "system": "System",
+      "tools": "Tools",
+      "message": "Message",
+      "5m": "5 minutes",
+      "30m": "30 minutes",
+      "1h": "1 hour",
+      "set": "Set",
+      "delete": "Delete",
+      "merge": "Merge",
+      "override": "Override",
+      "request": "Request",
+      "response": "Response",
+      "both": "Both",
+      "path": "Path",
+      "paths": "Paths",
+      "match": "Regex match",
+      "replace_text": "Replace text",
+      "replace_regex": "Replace regex",
+      "passthrough": "Passthrough",
+      "transform_to": "Transform to",
+      "local": "Local",
+      "unsupported": "Unsupported"
+    },
+    "operations": {
+      "list_models": "List Models",
+      "get_model": "Get Model",
+      "count_tokens": "Count Tokens",
+      "generate_content": "Generate Content",
+      "stream_generate_content": "Stream Generate Content",
+      "summarize_memory": "Summarize Memory",
+      "compact_content": "Compact Content",
+      "create_image": "Create Image",
+      "edit_image": "Edit Image",
+      "web_search": "Standalone Web Search",
+      "rerank": "Rerank",
+      "create_embedding": "Create Embedding",
+      "batch_create_embedding": "Batch Create Embedding",
+      "create_speech": "Create Speech",
+      "create_transcription": "Create Transcription",
+      "create_translation": "Create Translation",
+      "create_realtime_call": "Create Realtime Call",
+      "create_video": "Create Video",
+      "edit_video": "Edit Video",
+      "remix_video": "Remix Video",
+      "extend_video": "Extend Video",
+      "retrieve_video": "Retrieve Video",
+      "list_videos": "List Videos",
+      "delete_video": "Delete Video",
+      "download_video_content": "Download Video Content",
+      "create_video_character": "Create Video Character",
+      "get_video_character": "Get Video Character",
+      "create_file": "Upload File",
+      "list_files": "List Files",
+      "retrieve_file": "Retrieve File",
+      "retrieve_file_content": "Retrieve File Content",
+      "delete_file": "Delete File"
+    },
+    "wires": {
+      "openai": "OpenAI",
+      "openai_chat": "OpenAI Chat Completions",
+      "openai_responses": "OpenAI Responses",
+      "openai_responses_websocket": "OpenAI Responses WebSocket",
+      "claude": "Claude",
+      "claude_messages": "Claude Messages",
+      "gemini": "Gemini",
+      "gemini_generate_content": "Gemini Generate Content"
+    }
   }
 }

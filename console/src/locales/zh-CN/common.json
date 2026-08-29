@@ -23,6 +23,7 @@
       "saving": "正在保存…",
       "saved": "已保存",
       "cancel": "取消",
+      "reset": "还原",
       "close": "关闭",
       "edit": "编辑",
       "enable": "启用",
@@ -90,6 +91,7 @@
   },
   "connectivity": {
     "action": "测试连通性",
+    "testing": "正在测试…",
     "title": "连通性结果",
     "success": "上游出口可达",
     "successHint": "以下地址是上游实际看到的出口地址。",
@@ -146,6 +148,7 @@
     "keys": "用户与密钥",
     "usage": "用量与成本",
     "pricing": "定价",
+    "tokenizers": "Tokenizer 词表",
     "settings": "设置",
     "open": "打开导航",
     "close": "关闭导航",

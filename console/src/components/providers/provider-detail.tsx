@@ -16,13 +16,12 @@ import { ConnectivityTest } from "@/components/connectivity-test"
 import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { CredentialList } from "@/components/providers/credential-list"
 import { CredentialCard } from "@/components/providers/credential-card"
-import { ProviderDialog } from "@/components/providers/provider-dialog"
+import { ProviderSettingsPanel } from "@/components/providers/provider-settings-panel"
 import { ProviderRoutingRules } from "@/components/rules/provider-routing-rules"
 import { RulesWorkspace, type RuleMutations } from "@/components/rules/rules-workspace"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -77,19 +76,6 @@ export function ProviderDetail(props: Props) {
       toast.error(t("providers.form.updateError"))
     }
   }
-  const edit = (
-    <ProviderDialog
-      provider={props.provider}
-      channels={props.channels}
-      channelsLoading={false}
-      channelsError={false}
-      presets={props.presets}
-      presetsLoading={false}
-      presetsError={false}
-      onSave={props.onSaveProvider}
-      trigger={<Button variant="outline" size="sm">{t("common.actions.edit")}</Button>}
-    />
-  )
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
@@ -104,7 +90,6 @@ export function ProviderDetail(props: Props) {
             <FieldLabel htmlFor={switchId} className="sr-only">{t("providers.fields.enabled")}</FieldLabel>
             <Switch id={switchId} size="sm" checked={props.provider.enabled} onCheckedChange={(value) => void setEnabled(value)} disabled={props.savingProviderId === props.provider.id || invalidFingerprint} />
           </Field>
-          {edit}
           <EntityDeleteButton entity="providers" id={props.provider.id} label={props.provider.label ?? props.provider.name} queryKeys={["providers", "credentials"]} />
         </div>
       </header>
@@ -148,7 +133,16 @@ export function ProviderDetail(props: Props) {
         <TabsContent value="rules" className="pt-4"><RulesWorkspace ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} providers={props.providers} scopeProviderId={props.provider.id} mutations={props.ruleMutations} /></TabsContent>
         <TabsContent value="routing" className="pt-4"><ProviderRoutingRules provider={props.provider} channel={props.channel} rules={props.routingRules} /></TabsContent>
         <TabsContent value="settings" className="pt-4">
-          <Card size="sm"><CardHeader><CardTitle>{t("providers.tabs.settings")}</CardTitle><CardDescription>{t("providers.settings.description")}</CardDescription></CardHeader><CardContent className="flex justify-end">{edit}</CardContent></Card>
+          <ProviderSettingsPanel
+            provider={props.provider}
+            channels={props.channels}
+            channelsLoading={false}
+            channelsError={false}
+            presets={props.presets}
+            presetsLoading={false}
+            presetsError={false}
+            onSave={props.onSaveProvider}
+          />
         </TabsContent>
       </Tabs>
     </div>
