@@ -6,9 +6,8 @@ use crate::transform::{TransformContext, TransformError};
 use super::super::common;
 use super::content::{
     chat_assistant_content_to_claude_blocks, chat_content_to_claude_blocks,
-    chat_text_content_to_claude_blocks, chat_text_content_to_text_and_cache,
-    mid_conversation_system_text_block, push_claude_block, push_claude_blocks, system_prompt,
-    text_block,
+    chat_text_content_to_claude_blocks, chat_text_content_to_text_and_cache, push_claude_block,
+    push_claude_blocks, system_prompt, text_block,
 };
 use super::tools::{
     chat_tool_call_to_claude, chat_tool_choice_to_claude, chat_tools_to_claude,
@@ -54,22 +53,16 @@ pub fn request(
                 if !seen_non_system {
                     system_blocks.extend(blocks);
                 } else if mid_conv_supported {
-                    for block in blocks {
-                        if let claude::ContentBlockParam::Text(block) = block {
-                            push_claude_block(
-                                &mut messages,
-                                claude::MessageRole::Known(claude::MessageRoleKnown::User),
-                                mid_conversation_system_text_block(block),
-                            );
-                        }
-                    }
+                    push_claude_blocks(
+                        &mut messages,
+                        claude::MessageRole::Known(claude::MessageRoleKnown::System),
+                        blocks,
+                    );
                 } else {
-                    // Pre-Opus-4.8 models reject mid_conv_system ("role
-                    // 'system' is not supported on this model") — downgrade to
-                    // a plain assistant turn. Trailing system messages become
-                    // user turns instead: ending on assistant would be an
-                    // accidental prefill (rejected by models without prefill
-                    // support, e.g. Opus 4.6+).
+                    // Pre-Opus-4.8 models reject system-role turns — downgrade
+                    // to a plain assistant turn. Trailing system messages become
+                    // user turns instead: ending on assistant would be an accidental
+                    // prefill (rejected by models without prefill support, e.g. Opus 4.6+).
                     let role = if last_non_system_index.is_some_and(|last| index > last) {
                         claude::MessageRoleKnown::User
                     } else {
@@ -349,18 +342,20 @@ mod tests {
         assert!(output.get("cache_control").is_none());
     }
 
-    /// Regression: pre-Opus-4.8 models reject `mid_conv_system` ("role 'system'
-    /// is not supported on this model") — mid-conversation system messages must
-    /// become assistant turns there, and stay `mid_conv_system` on 4.8+.
+    /// Regression: pre-Opus-4.8 models reject system-role turns, while wrapping
+    /// an isolated 4.8 system turn in a user `mid_conv_system` block makes that
+    /// user turn fail the non-empty-content validation.
     #[test]
-    fn mid_conversation_system_downgrades_for_pre_opus_48() {
+    fn mid_conversation_system_uses_system_role_for_opus_48() {
         let convert = |model: &str| {
             let input: openai::ChatCompletionRequest = serde_json::from_value(serde_json::json!({
                 "model": model,
                 "messages": [
                     {"role": "system", "content": "sys"},
                     {"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": "first reply"},
                     {"role": "system", "content": "mid"},
+                    {"role": "assistant", "content": "second reply"},
                     {"role": "user", "content": "more"},
                 ],
             }))
@@ -374,6 +369,26 @@ mod tests {
             old.messages[1].role,
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
         );
+
+        let new = convert("claude-opus-4-8");
+        assert_eq!(new.messages.len(), 5);
+        assert_eq!(
+            new.messages[2].role,
+            claude::MessageRole::Known(claude::MessageRoleKnown::System)
+        );
+        let output = serde_json::to_value(new).unwrap();
+        let roles: Vec<&str> = output["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|message| message["role"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            roles,
+            vec!["user", "assistant", "system", "assistant", "user"]
+        );
+        assert_eq!(output["messages"][2]["content"][0]["type"], "text");
+        assert_eq!(output["messages"][2]["content"][0]["text"], "mid");
     }
 
     #[test]
@@ -421,12 +436,10 @@ mod tests {
         assert_eq!(output["tool_choice"]["disable_parallel_tool_use"], true);
     }
 
-    /// Regression: Anthropic requires `mid_conv_system` to be the LAST content
-    /// block(s) of a turn. When user content follows a mid-conversation system
-    /// message (codex `<model_switch>` on `exec resume`), the system block must
-    /// downgrade to plain text in original order — not be reordered after the text.
+    /// Regression: a developer message before the next user message must remain
+    /// in its original position as a system turn.
     #[test]
-    fn mid_conv_system_followed_by_user_text_downgrades_in_order() {
+    fn mid_conversation_system_before_user_preserves_order() {
         let input = serde_json::from_value(json!({
             "model": "claude-opus-4-8",
             "messages": [
@@ -439,30 +452,23 @@ mod tests {
         .unwrap();
 
         let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
-        let blocks = output["messages"][2]["content"].as_array().unwrap();
-        let kinds: Vec<(&str, &str)> = blocks
+        let roles: Vec<&str> = output["messages"]
+            .as_array()
+            .unwrap()
             .iter()
-            .map(|b| {
-                (
-                    b["type"].as_str().unwrap(),
-                    b["text"].as_str().unwrap_or_default(),
-                )
-            })
+            .map(|message| message["role"].as_str().unwrap())
             .collect();
+        assert_eq!(roles, vec!["user", "assistant", "system", "user"]);
         assert_eq!(
-            kinds,
-            vec![
-                ("text", "<model_switch>switch</model_switch>"),
-                ("text", "turn two")
-            ],
-            "{blocks:?}"
+            output["messages"][2]["content"][0]["text"],
+            "<model_switch>switch</model_switch>"
         );
     }
 
-    /// Control: a mid-conversation system message that IS the last content of the
-    /// turn keeps the `mid_conv_system` form.
+    /// Control: a trailing mid-conversation system message is also a system turn,
+    /// not a user turn that Anthropic can reject as empty.
     #[test]
-    fn trailing_mid_conv_system_is_preserved() {
+    fn trailing_mid_conversation_system_uses_system_role() {
         let input = serde_json::from_value(json!({
             "model": "claude-opus-4-8",
             "messages": [
@@ -474,8 +480,7 @@ mod tests {
         .unwrap();
 
         let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
-        let blocks = output["messages"][2]["content"].as_array().unwrap();
-        assert_eq!(blocks.len(), 1, "{blocks:?}");
-        assert_eq!(blocks[0]["type"], "mid_conv_system", "{blocks:?}");
+        assert_eq!(output["messages"][2]["role"], "system");
+        assert_eq!(output["messages"][2]["content"][0]["text"], "note");
     }
 }

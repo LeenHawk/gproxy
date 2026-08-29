@@ -276,19 +276,6 @@ fn text_block_with_cache(
     }))
 }
 
-pub(super) fn mid_conversation_system_text_block(
-    mut block: claude::TextBlock,
-) -> claude::ContentBlockParam {
-    let cache_control = block.cache_control.take();
-    claude::ContentBlockParam::MidConversationSystem(crate::protocol::wire!(
-        claude::MidConversationSystemBlock {
-            content: vec![claude::MidConversationSystemContentBlock::Text(block)],
-            type_: claude::MidConversationSystemBlockType::MidConversationSystem,
-            cache_control,
-        }
-    ))
-}
-
 pub(super) fn push_claude_blocks(
     messages: &mut Vec<claude::MessageParam>,
     role: claude::MessageRole,
@@ -312,17 +299,7 @@ pub(super) fn push_claude_block(
                 let first = text_block(std::mem::take(text));
                 last.content = claude::StringOrArray::Array(vec![first, block]);
             }
-            claude::StringOrArray::Array(blocks) => {
-                // Anthropic requires `mid_conv_system` blocks to be the LAST content
-                // block(s) of a turn. Order is authoritative: when more content merges
-                // into the turn after a mid-conversation system block (e.g. the user
-                // text following codex's `<model_switch>` developer message), downgrade
-                // that block to plain text in place instead of reordering it.
-                if !matches!(block, claude::ContentBlockParam::MidConversationSystem(_)) {
-                    downgrade_mid_conv_to_text(blocks);
-                }
-                blocks.push(block);
-            }
+            claude::StringOrArray::Array(blocks) => blocks.push(block),
             _ => unreachable!(
                 "new non-exhaustive protocol variant requires a lockstep transform update"
             ),
@@ -334,36 +311,6 @@ pub(super) fn push_claude_block(
         content: claude::StringOrArray::Array(vec![block]),
         extra: Default::default(),
     }));
-}
-
-/// Downgrades `mid_conv_system` text blocks to plain text blocks in place. Called
-/// before a non-mid-conv block is appended to the same turn, because that append
-/// would leave the mid-conv block in a non-final position, which Anthropic rejects.
-/// The text keeps its original position and payload (codex wraps these in
-/// self-describing tags like `<model_switch>`), so semantics survive the downgrade.
-fn downgrade_mid_conv_to_text(blocks: &mut Vec<claude::ContentBlockParam>) {
-    let old = std::mem::take(blocks);
-    for block in old {
-        match block {
-            claude::ContentBlockParam::MidConversationSystem(mid) => {
-                let cache_control = mid.cache_control;
-                let mut texts: Vec<claude::TextBlock> = mid
-                    .content
-                    .into_iter()
-                    .filter_map(|inner| match inner {
-                        claude::MidConversationSystemContentBlock::Text(text) => Some(text),
-                        // Never produced by this transform (tool add/remove, raw).
-                        _ => None,
-                    })
-                    .collect();
-                if let (Some(last), Some(cache_control)) = (texts.last_mut(), cache_control) {
-                    last.cache_control = Some(cache_control);
-                }
-                blocks.extend(texts.into_iter().map(claude::ContentBlockParam::Text));
-            }
-            other => blocks.push(other),
-        }
-    }
 }
 
 pub(super) fn system_prompt(
