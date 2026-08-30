@@ -1,12 +1,12 @@
 {
   "routes": {
-    "title": "Routes",
-    "listTitle": "Configured routes",
-    "subtitle": "Map client-facing model names to ordered upstream members.",
-    "add": "Add route",
-    "empty": "No routes yet. Add one to expose a model.",
-    "loadError": "Could not load routes. Retry.",
-    "selectPrompt": "Select a route to inspect its members and settings.",
+    "title": "Load balancing",
+    "listTitle": "Load balancers",
+    "subtitle": "Resolve one client-facing model name to ordered upstream members.",
+    "add": "New load balancer",
+    "empty": "No load balancers yet — create one to expose a logical model name.",
+    "loadError": "Could not load load balancers. Try again.",
+    "selectPrompt": "Select a load balancer to view and edit details.",
     "tabs": {
       "settings": "Settings"
     },

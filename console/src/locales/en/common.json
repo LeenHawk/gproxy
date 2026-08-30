@@ -142,7 +142,7 @@
     "label": "Console navigation",
     "overview": "Overview",
     "providers": "Providers",
-    "routes": "Routes",
+    "routes": "Load balancing",
     "rules": "Rules",
     "users": "Users and keys",
     "keys": "Users and keys",

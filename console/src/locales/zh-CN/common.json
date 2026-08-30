@@ -142,7 +142,7 @@
     "label": "控制台导航",
     "overview": "概览",
     "providers": "提供商",
-    "routes": "路由",
+    "routes": "负载均衡",
     "rules": "规则",
     "users": "用户与密钥",
     "keys": "用户与密钥",
