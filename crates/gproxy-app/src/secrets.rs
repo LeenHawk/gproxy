@@ -143,6 +143,16 @@ impl<T: Zeroize> Drop for SecretBytes<T> {
     }
 }
 
+/// A gateway API key. The `gp-` prefix makes it recognisable in a log the operator
+/// pastes somewhere, so a leaked key can be spotted and revoked.
+pub(crate) fn random_api_key() -> Result<String, AppError> {
+    let bytes = random_bytes::<32>()?;
+    Ok(format!(
+        "gp-{}",
+        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
+    ))
+}
+
 fn random_bytes<const N: usize>() -> Result<[u8; N], AppError> {
     let mut bytes = [0; N];
     getrandom::fill(&mut bytes)

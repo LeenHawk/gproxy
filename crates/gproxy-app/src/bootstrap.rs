@@ -143,7 +143,17 @@ async fn seed_first_run(
         );
         return Ok(());
     }
-    if let Some(api_key) = options.bootstrap_admin_api_key.as_deref() {
+    // A fresh instance gets a usable key without being asked. It is sealed like any
+    // other and never logged; the operator reads it from the console when they need it.
+    let generated;
+    let api_key = match options.bootstrap_admin_api_key.as_deref() {
+        Some(key) => Some(key),
+        None => {
+            generated = crate::secrets::random_api_key()?;
+            Some(generated.as_str())
+        }
+    };
+    if let Some(api_key) = api_key {
         store
             .insert_user_key(&gproxy_store::records::UserKeyInput {
                 user_id: admin_id,
