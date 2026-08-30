@@ -50,12 +50,7 @@ impl ClaudeCollector {
                 }
                 claude::KnownEventDelta::Citations { .. } => {}
             },
-            claude::EventDelta::Unknown(object) => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    serde_json::to_string(&object)?,
-                ));
-            }
+            claude::EventDelta::Unknown(_) => {}
         }
         Ok(())
     }

@@ -711,3 +711,33 @@ fn chat_response_keeps_unparseable_tool_call_for_claude() {
     assert_eq!(value["content"][0]["name"], "lookup");
     assert_eq!(value["content"][0]["input"], json!({}));
 }
+
+#[test]
+fn collectors_ignore_unknown_events_that_v2_ignored() {
+    let mut responses = ResponseCollector::new(Kind::OpenAiResponses).unwrap();
+    responses
+        .push(Bytes::from_static(
+            b"data: {\"type\":\"response.something.new\",\"sequence_number\":0}\n\ndata: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\",\"model\":\"gpt-5.5\",\"output\":[]}}\n\n",
+        ))
+        .unwrap();
+    assert!(responses.is_complete());
+    assert!(matches!(
+        responses.finish().unwrap(),
+        BufferedResponse::OpenAiResponses(_)
+    ));
+
+    let mut claude = ResponseCollector::new(Kind::ClaudeMessages).unwrap();
+    claude
+        .push(Bytes::from_static(
+            b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-opus\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"future_delta\",\"future\":true}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":1}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        ))
+        .unwrap();
+    assert!(claude.is_complete());
+    let BufferedResponse::Claude(message) = claude.finish().unwrap() else {
+        panic!("wrong buffered family");
+    };
+    assert_eq!(
+        serde_json::to_value(message).unwrap()["content"][0]["text"],
+        "Hello"
+    );
+}

@@ -69,12 +69,7 @@ impl ResponsesCollector {
                 | openai::KnownResponseStreamEvent::ResponseMcpListToolsFailed(_)
                 | openai::KnownResponseStreamEvent::Error(_) => {}
             },
-            openai::ResponseStreamEvent::Unknown(raw) => {
-                return Err(TransformError::unsupported(
-                    "Responses stream event",
-                    serde_json::to_string(&raw)?,
-                ));
-            }
+            openai::ResponseStreamEvent::Unknown(_) => {}
         }
         Ok(())
     }
