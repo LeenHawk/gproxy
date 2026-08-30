@@ -30,9 +30,7 @@ pub(crate) fn transform(
     match input.input {
         Some(openai::ResponseInput::Text(text)) => messages.push(user_text(text)),
         Some(openai::ResponseInput::Items(items)) => {
-            for item in items {
-                messages.extend(item_messages(item)?);
-            }
+            messages.extend(items_to_messages(items)?);
         }
         Some(openai::ResponseInput::Unknown(raw)) => {
             messages.push(openai::ChatCompletionMessageParam::Unknown(raw));
@@ -96,6 +94,37 @@ pub(crate) fn transform(
         rest: input.rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+fn items_to_messages(
+    items: Vec<openai::ResponseItem>,
+) -> Result<Vec<openai::ChatCompletionMessageParam>, TransformError> {
+    let mut messages = Vec::new();
+    let mut pending_reasoning = Vec::new();
+    for item in items {
+        if let openai::ResponseItem::Typed(item) = &item
+            && let openai::TypedResponseItem::Reasoning {
+                summary, content, ..
+            } = item.as_ref()
+        {
+            pending_reasoning.extend(summary.iter().map(|part| part.text.clone()));
+            pending_reasoning.extend(content.iter().flatten().map(|part| part.text.clone()));
+            continue;
+        }
+        let mut converted = item_messages(item)?;
+        if let Some(reasoning) = joined(std::mem::take(&mut pending_reasoning))
+            && !converted
+                .first_mut()
+                .is_some_and(|message| attach_reasoning(message, &reasoning))
+        {
+            messages.push(reasoning_message(reasoning));
+        }
+        messages.extend(converted);
+    }
+    if let Some(reasoning) = joined(pending_reasoning) {
+        messages.push(reasoning_message(reasoning));
+    }
+    Ok(messages)
 }
 
 fn item_messages(
@@ -185,12 +214,12 @@ fn typed_messages(
             arguments,
             call_id,
             name,
-            id,
+            id: _,
             rest,
             ..
         } => vec![assistant_call(openai::ChatToolCall::Function(
             openai::ChatFunctionToolCall {
-                id: id.unwrap_or(call_id),
+                id: call_id,
                 type_: openai::FunctionToolChoiceType::Function,
                 function: openai::FunctionCall {
                     arguments,
@@ -204,12 +233,12 @@ fn typed_messages(
             call_id,
             input,
             name,
-            id,
+            id: _,
             rest,
             ..
         } => vec![assistant_call(openai::ChatToolCall::Custom(
             openai::ChatCustomToolCall {
-                id: id.unwrap_or(call_id),
+                id: call_id,
                 type_: openai::CustomToolChoiceType::Custom,
                 custom: openai::CustomToolCall {
                     input,
@@ -234,6 +263,36 @@ fn typed_messages(
             openai::ChatToolMessageParam {
                 role: openai::ChatToolRole::Tool,
                 content: output_to_chat(output)?,
+                tool_call_id: call_id,
+                rest,
+            },
+        )],
+        openai::TypedResponseItem::ApplyPatchCall {
+            call_id,
+            operation,
+            rest,
+            ..
+        } => vec![assistant_call(openai::ChatToolCall::Function(
+            openai::ChatFunctionToolCall {
+                id: call_id,
+                type_: openai::FunctionToolChoiceType::Function,
+                function: openai::FunctionCall {
+                    arguments: serde_json::to_string(&operation)?,
+                    name: "apply_patch".into(),
+                    rest: Default::default(),
+                },
+                rest,
+            },
+        ))],
+        openai::TypedResponseItem::ApplyPatchCallOutput {
+            call_id,
+            output,
+            rest,
+            ..
+        } => vec![openai::ChatCompletionMessageParam::Tool(
+            openai::ChatToolMessageParam {
+                role: openai::ChatToolRole::Tool,
+                content: openai::ChatTextContent::Text(output.unwrap_or_default()),
                 tool_call_id: call_id,
                 rest,
             },
@@ -273,8 +332,6 @@ fn typed_messages(
         | openai::TypedResponseItem::LocalShellCallOutput { .. }
         | openai::TypedResponseItem::ShellCall { .. }
         | openai::TypedResponseItem::ShellCallOutput { .. }
-        | openai::TypedResponseItem::ApplyPatchCall { .. }
-        | openai::TypedResponseItem::ApplyPatchCallOutput { .. }
         | openai::TypedResponseItem::McpListTools { .. }
         | openai::TypedResponseItem::McpApprovalRequest { .. }
         | openai::TypedResponseItem::McpApprovalResponse { .. }
@@ -291,6 +348,43 @@ fn typed_messages(
             )]
         }
     })
+}
+
+fn attach_reasoning(message: &mut openai::ChatCompletionMessageParam, reasoning: &str) -> bool {
+    let openai::ChatCompletionMessageParam::Assistant(message) = message else {
+        return false;
+    };
+    match &mut message.reasoning_content {
+        Some(existing) if !existing.is_empty() => {
+            existing.push('\n');
+            existing.push_str(reasoning);
+        }
+        value => *value = Some(reasoning.to_owned()),
+    }
+    true
+}
+
+fn reasoning_message(reasoning: String) -> openai::ChatCompletionMessageParam {
+    openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
+        role: openai::ChatAssistantRole::Assistant,
+        content: None,
+        audio: None,
+        function_call: None,
+        name: None,
+        reasoning_content: Some(reasoning),
+        refusal: None,
+        tool_calls: None,
+        rest: Default::default(),
+    })
+}
+
+fn joined(parts: Vec<String>) -> Option<String> {
+    let value = parts
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    (!value.is_empty()).then_some(value)
 }
 
 fn assistant_call(call: openai::ChatToolCall) -> openai::ChatCompletionMessageParam {

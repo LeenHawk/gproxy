@@ -5,9 +5,10 @@ use crate::common::usage;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseObject = serde_json::from_slice(&body)?;
-    let mut text = String::new();
-    let mut reasoning = String::new();
+    let mut text = Vec::new();
+    let mut reasoning = Vec::new();
     let mut refusal = String::new();
+    let mut annotations = Vec::new();
     let mut calls = Vec::new();
     let mut raw = Vec::new();
     let mut message_rest: openai::Rest = Default::default();
@@ -24,10 +25,13 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 for part in message.content {
                     match part {
                         openai::ResponseMessageOutputContentPart::OutputText(part) => {
-                            text.push_str(&part.text);
+                            text.push(part.text);
+                            annotations
+                                .extend(part.annotations.into_iter().filter_map(chat_annotation));
                             message_rest.extend(part.rest);
                         }
                         openai::ResponseMessageOutputContentPart::Refusal(part) => {
+                            text.push(part.refusal.clone());
                             refusal.push_str(&part.refusal);
                             message_rest.extend(part.rest);
                         }
@@ -136,19 +140,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     rest,
                     ..
                 } => {
-                    reasoning.push_str(
-                        &summary
-                            .into_iter()
-                            .map(|part| part.text)
-                            .collect::<String>(),
-                    );
-                    reasoning.push_str(
-                        &content
-                            .into_iter()
-                            .flatten()
-                            .map(|part| part.text)
-                            .collect::<String>(),
-                    );
+                    reasoning.extend(summary.into_iter().map(|part| part.text));
+                    reasoning.extend(content.into_iter().flatten().map(|part| part.text));
                     message_rest.extend(rest);
                     preserve_option(
                         &mut message_rest,
@@ -163,6 +156,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         }
     }
     let has_calls = !calls.is_empty();
+    if text.is_empty()
+        && let Some(fallback) = input.output_text.clone().filter(|value| !value.is_empty())
+    {
+        text.push(fallback);
+    }
     if !raw.is_empty() {
         message_rest.insert(
             "responses_output_items".into(),
@@ -186,12 +184,12 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             logprobs: None,
             message: openai::ChatMessage {
                 role: openai::ChatCompletionMessageRole::Assistant,
-                content: (!text.is_empty()).then_some(text),
+                content: joined(text),
                 refusal: (!refusal.is_empty()).then_some(refusal),
-                annotations: None,
+                annotations: (!annotations.is_empty()).then_some(annotations),
                 audio: None,
                 function_call: None,
-                reasoning_content: (!reasoning.is_empty()).then_some(reasoning),
+                reasoning_content: joined(reasoning),
                 tool_calls: has_calls.then_some(calls),
                 rest: message_rest,
             },
@@ -209,6 +207,38 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         rest: input.rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+fn joined(parts: Vec<String>) -> Option<String> {
+    let value = parts
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    (!value.is_empty()).then_some(value)
+}
+
+fn chat_annotation(annotation: openai::ResponseAnnotation) -> Option<openai::ChatAnnotation> {
+    match annotation {
+        openai::ResponseAnnotation::UrlCitation {
+            end_index,
+            start_index,
+            title,
+            url,
+            ..
+        } => Some(openai::ChatAnnotation {
+            type_: openai::ChatAnnotationType::UrlCitation,
+            url_citation: openai::UrlCitation {
+                end_index,
+                start_index,
+                title,
+                url,
+                rest: Default::default(),
+            },
+            rest: Default::default(),
+        }),
+        _ => None,
+    }
 }
 
 fn function_call(

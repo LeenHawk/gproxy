@@ -1,7 +1,7 @@
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation};
 use serde_json::json;
 
-use super::{content, convert_response};
+use super::{content, convert_request, convert_response};
 
 #[test]
 fn defaults_survive_empty_provider_replies() {
@@ -83,4 +83,86 @@ fn defaults_survive_empty_provider_replies() {
     assert_eq!(empty_gemini_for_claude["stop_reason"], "end_turn");
     assert_eq!(empty_gemini_for_claude["usage"]["input_tokens"], 0);
     assert_eq!(empty_gemini_for_claude["usage"]["output_tokens"], 0);
+}
+
+#[test]
+fn responses_text_annotations_and_fallback_reach_chat() {
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let rich = convert_response(
+        chat,
+        responses,
+        json!({
+            "id":"resp_rich","object":"response","model":"gpt","status":"completed",
+            "output":[
+                {"type":"message","id":"msg_1","role":"assistant","status":"completed",
+                 "content":[{"type":"output_text","text":"one","annotations":[{
+                    "type":"url_citation","start_index":0,"end_index":3,
+                    "title":"source","url":"https://example.invalid"
+                 }]}]},
+                {"type":"message","id":"msg_2","role":"assistant","status":"completed",
+                 "content":[{"type":"output_text","text":"two","annotations":[]}]}
+            ]
+        }),
+    );
+    let message = &rich["choices"][0]["message"];
+    assert_eq!(message["content"], "one\ntwo");
+    assert_eq!(message["annotations"][0]["type"], "url_citation");
+    assert_eq!(
+        message["annotations"][0]["url_citation"]["url"],
+        "https://example.invalid"
+    );
+
+    let fallback = convert_response(
+        chat,
+        responses,
+        json!({
+            "id":"resp_fallback","object":"response","model":"gpt",
+            "status":"completed","output":[],"output_text":"fallback"
+        }),
+    );
+    assert_eq!(fallback["choices"][0]["message"]["content"], "fallback");
+}
+
+#[test]
+fn responses_history_keeps_media_reasoning_and_patch_calls_in_chat() {
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let request = convert_request(
+        responses,
+        chat,
+        json!({
+            "model":"route",
+            "input":[
+                {"type":"message","role":"user","content":[
+                    {"type":"input_image","image_url":"https://example.invalid/image.png","detail":"high"},
+                    {"type":"input_file","file_url":"https://example.invalid/report.pdf"}
+                ]},
+                {"type":"reasoning","id":"rs_1",
+                 "summary":[{"type":"summary_text","text":"plan"}],
+                 "content":[{"type":"reasoning_text","text":"details"}]},
+                {"type":"message","id":"msg_1","role":"assistant","status":"completed",
+                 "content":[{"type":"output_text","text":"answer","annotations":[]}]},
+                {"type":"apply_patch_call","id":"item_patch","call_id":"call_patch",
+                 "operation":{"type":"create_file","path":"new.txt","diff":"hello"},
+                 "status":"completed"}
+            ]
+        }),
+    );
+    assert_eq!(
+        request["messages"][0]["content"][0]["image_url"]["detail"],
+        "high"
+    );
+    assert_eq!(request["messages"][0]["content"][1]["type"], "text");
+    assert_eq!(
+        request["messages"][0]["content"][1]["text"],
+        "Attachment URL: https://example.invalid/report.pdf"
+    );
+    assert_eq!(request["messages"][1]["content"][0]["text"], "answer");
+    assert_eq!(request["messages"][1]["reasoning_content"], "plan\ndetails");
+    assert_eq!(request["messages"][2]["tool_calls"][0]["id"], "call_patch");
+    assert_eq!(
+        request["messages"][2]["tool_calls"][0]["function"]["name"],
+        "apply_patch"
+    );
 }
