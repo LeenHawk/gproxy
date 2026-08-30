@@ -67,6 +67,7 @@ fn chat_delta_to_gemini_content(delta: openai::ChatDelta) -> Option<gemini::Cont
             None,
             name,
             function_call.arguments.and_then(arguments_to_json_map),
+            None,
         ));
     }
 
@@ -77,20 +78,27 @@ fn chat_delta_to_gemini_content(delta: openai::ChatDelta) -> Option<gemini::Cont
     }))
 }
 
-fn chat_tool_delta_to_gemini_part(call: openai::ChatToolCallDelta) -> Option<gemini::Part> {
+fn chat_tool_delta_to_gemini_part(mut call: openai::ChatToolCallDelta) -> Option<gemini::Part> {
+    let thought_signature = take_thought_signature(&mut call.extra);
     if let Some(function) = call.function {
         return function.name.filter(|value| !value.is_empty()).map(|name| {
             gemini_function_call_part(
                 call.id,
                 name,
                 function.arguments.and_then(arguments_to_json_map),
+                thought_signature.clone(),
             )
         });
     }
 
     if let Some(custom) = call.custom {
         return custom.name.filter(|value| !value.is_empty()).map(|name| {
-            gemini_function_call_part(call.id, name, custom.input.and_then(arguments_to_json_map))
+            gemini_function_call_part(
+                call.id,
+                name,
+                custom.input.and_then(arguments_to_json_map),
+                thought_signature,
+            )
         });
     }
 
@@ -101,8 +109,10 @@ fn gemini_function_call_part(
     id: Option<String>,
     name: String,
     args: Option<gemini::JsonMap>,
+    thought_signature: Option<String>,
 ) -> gemini::Part {
     crate::protocol::wire!(gemini::Part {
+        thought_signature,
         data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
             function_call: crate::protocol::wire!(gemini::FunctionCall {
                 id,
@@ -113,6 +123,13 @@ fn gemini_function_call_part(
         })),
         ..Default::default()
     })
+}
+
+fn take_thought_signature(extra: &mut openai::Extra) -> Option<String> {
+    extra
+        .remove("thought_signature")
+        .or_else(|| extra.remove("thoughtSignature"))
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
 }
 
 fn gemini_text_part(text: String, thought: bool) -> gemini::Part {
