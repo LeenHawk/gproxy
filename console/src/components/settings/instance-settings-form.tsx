@@ -46,6 +46,7 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
   ]
   return (
     <form className="flex flex-col gap-8" onSubmit={submit}>
+      <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending}>{t(mutation.isPending ? "common.actions.saving" : "common.actions.save")}</Button></div>
       <RuntimeSettingsCard draft={draft} setDraft={setDraft} />
       <Section title={t("settings.storage.title")} description={t("settings.storage.description")}>
         <FieldGroup>
@@ -63,7 +64,6 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
             </Field>
           </div>
         </FieldGroup>
-        <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending}>{t(mutation.isPending ? "common.actions.saving" : "common.actions.save")}</Button></div>
       </Section>
     </form>
   )

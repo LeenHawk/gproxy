@@ -96,7 +96,7 @@ export function ProviderRoutingRules({ provider, channel, rules }: { provider: P
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <Button size="icon-xs" variant="ghost" aria-label={t("common.actions.edit")} onClick={() => openEditor(rule)}><PencilIcon aria-hidden /></Button>
-                      {!rule.inherited ? <Button size="icon-xs" variant="destructive" aria-label={t("rules.routing.delete")} onClick={() => setDeleteTarget(rule)}><Trash2Icon aria-hidden /></Button> : null}
+                      <Button size="icon-xs" variant="destructive" aria-label={t("rules.routing.delete")} onClick={() => setDeleteTarget(rule)}><Trash2Icon aria-hidden /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
