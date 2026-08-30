@@ -126,13 +126,13 @@ fn resolves_tier_defaults_and_exact_override() {
 }
 
 #[test]
-fn applies_only_opted_in_claude_cache_shaping() {
+fn leaves_claude_cache_markers_to_the_central_pass() {
     let mut headers = HeaderMap::new();
     headers.insert(
         "anthropic-beta",
         HeaderValue::from_static("context-1m-2025-08-07"),
     );
-    let settings = json!({"enable_claude_magic_cache":true});
+    let settings = json!({});
     let secret = json!({"api_key":"oc-key"});
     let prepared = OpenCodeChannel
         .prepare(PrepareCtx {
@@ -154,9 +154,14 @@ fn applies_only_opted_in_claude_cache_shaping() {
     let body: Value = serde_json::from_slice(prepared.request.body()).unwrap();
     assert_eq!(body["model"], "claude-sonnet-4-6");
     assert_eq!(body["messages"][0]["role"], "assistant");
-    assert_eq!(
-        body["messages"][0]["content"][0]["cache_control"]["ttl"],
-        "5m"
+    // Claude markers are shaped once, centrally, after the process rules; the
+    // channel must not take a second pass at them.
+    assert!(body["messages"][0]["content"][0]["cache_control"].is_null());
+    assert!(
+        body["messages"][0]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("GPROXY_MAGIC_STRING")
     );
     assert_eq!(body["temperature"], 0.7);
     assert_eq!(body["top_p"], 0.9);

@@ -336,3 +336,41 @@ fn plan(target: crate::Target) -> Plan {
         budget: FailoverBudget { max_attempts: 1 },
     }
 }
+
+/// Magic markers are shaped after the process rules, in that order, because a rule
+/// can put one into the body. Running the cache pass first leaves a rule-inserted
+/// marker in the prompt as literal text and charges full price for it.
+#[test]
+fn magic_markers_a_rule_inserts_are_still_shaped() {
+    let host = MemoryHost::new(false);
+    let core = core(&host).expect("core");
+    let mut selected = target();
+    selected.rules.process = Arc::from(
+        crate::process::compile_all(&[spec(
+            7,
+            "transform",
+            json!({
+                "phase": "request",
+                "locate": {"path":"messages.0.content.0.text"},
+                "actions": [{"op":"replace_text","with":"prefix GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF"}]
+            }),
+            0,
+        )])
+        .expect("compiled transform"),
+    );
+    host.state.lock().expect("state lock").plan = Some(plan(selected));
+    let mut request = request(false, "magic");
+    request.path = "/v1/messages".into();
+    request.body = Bytes::from(
+        json!({"model":"alias","max_tokens":16,
+               "messages":[{"role":"user","content":[{"type":"text","text":"plain"}]}]})
+        .to_string(),
+    );
+    block_on(core.execute(&host, request)).expect("execute");
+    let state = host.state.lock().expect("state lock");
+    let native: Value = serde_json::from_slice(state.upstream_bodies.last().expect("request body"))
+        .expect("native request json");
+    let block = &native["messages"][0]["content"][0];
+    assert_eq!(block["text"], "prefix");
+    assert_eq!(block["cache_control"]["type"], "ephemeral");
+}

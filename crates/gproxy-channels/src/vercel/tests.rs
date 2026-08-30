@@ -123,7 +123,7 @@ fn applies_claude_policy_and_observes_stream_usage() {
         "anthropic-beta",
         HeaderValue::from_static("context-1m-2025-08-07"),
     );
-    let settings = json!({"enable_claude_magic_cache":true});
+    let settings = json!({});
     let secret = json!({"api_key":"vercel-key"});
     let key = content(Operation::StreamGenerateContent, Kind::ClaudeMessages);
     let prepared = VercelChannel
@@ -147,8 +147,8 @@ fn applies_claude_policy_and_observes_stream_usage() {
     assert_eq!(body["model"], "anthropic/claude-opus-4-8");
     assert_eq!(body["messages"][0]["role"], "user");
     assert_eq!(
-        body["messages"][0]["content"][0]["cache_control"]["ttl"],
-        "5m"
+        body["messages"][0]["content"][0]["cache_control"],
+        Value::Null
     );
     for field in ["temperature", "top_p", "top_k"] {
         assert!(body.get(field).is_none());

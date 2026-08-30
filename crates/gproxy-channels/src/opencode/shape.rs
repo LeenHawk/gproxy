@@ -11,26 +11,20 @@ pub(super) fn request(
     if !matches!(ctx.key.kind, OperationKind::ContentGeneration(_)) {
         return Ok(body);
     }
-    let claude = super::model::is_claude(ctx.key);
-    let enabled = if claude {
-        enabled(ctx.provider_settings, "enable_claude_magic_cache")
-    } else {
-        enabled(ctx.provider_settings, "enable_openai_magic_cache")
+    // Claude magic markers are shaped once for every Claude target, centrally.
+    // Only the OpenAI side is still a per-provider opt-in here.
+    let kind = match ctx.key.kind {
+        OperationKind::ContentGeneration(kind) => kind,
+        OperationKind::Family(_) => return Ok(body),
     };
-    if !enabled {
+    if super::model::is_claude(ctx.key)
+        || !enabled(ctx.provider_settings, "enable_openai_magic_cache")
+    {
         return Ok(body);
     }
     let mut value: Value = serde_json::from_slice(&body)
         .map_err(|error| ChannelError::Prepare(format!("OpenCode request JSON: {error}")))?;
-    if claude {
-        crate::shared::cache::claude(&mut value);
-    } else {
-        let kind = match ctx.key.kind {
-            OperationKind::ContentGeneration(kind) => kind,
-            OperationKind::Family(_) => return Ok(body),
-        };
-        crate::shared::openai::cache::apply(&mut value, kind);
-    }
+    crate::shared::openai::cache::apply(&mut value, kind);
     serde_json::to_vec(&value)
         .map(Bytes::from)
         .map_err(|error| ChannelError::Prepare(error.to_string()))

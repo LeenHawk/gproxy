@@ -46,7 +46,6 @@ pub(crate) const CLAUDE: &[ChannelField] = &[
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),
-    field("enable_claude_magic_cache", Boolean, false, true),
     select("claude_fallback_mode", &["off", "default", "models"], "off"),
     field("claude_fallback_models", StringList, false, true),
 ];
@@ -73,7 +72,6 @@ pub(crate) const OPENCODE: &[ChannelField] = &[
     field("tier", Text, false, false),
     field("console_base_url", Url, false, true),
     field("enable_openai_magic_cache", Boolean, false, true),
-    field("enable_claude_magic_cache", Boolean, false, true),
 ];
 pub(crate) const OPENROUTER: &[ChannelField] = CUSTOM;
 pub(crate) const VERCEL: &[ChannelField] = CUSTOM;

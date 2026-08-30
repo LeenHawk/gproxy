@@ -28,9 +28,6 @@ pub(super) fn request(
         crate::shared::openai::cache::apply(&mut value, kind);
     }
     if claude {
-        if enabled(ctx.provider_settings, "enable_claude_magic_cache") {
-            crate::shared::cache::claude(&mut value);
-        }
         if ctx.key.operation == Operation::CountTokens {
             crate::shared::claude::hygiene::count_tokens(&value, headers);
         } else {
