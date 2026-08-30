@@ -143,12 +143,12 @@ impl<T: Zeroize> Drop for SecretBytes<T> {
     }
 }
 
-/// A gateway API key. The `gp-` prefix makes it recognisable in a log the operator
-/// pastes somewhere, so a leaked key can be spotted and revoked.
+/// A gateway API key, in the one shape the console also mints (`sk-gp-…`). Two
+/// formats for the same thing is a bug even when both authenticate.
 pub(crate) fn random_api_key() -> Result<String, AppError> {
     let bytes = random_bytes::<32>()?;
     Ok(format!(
-        "gp-{}",
+        "sk-gp-{}",
         base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
     ))
 }
