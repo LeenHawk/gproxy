@@ -1,3 +1,5 @@
+mod routes;
+
 mod model;
 mod prepare;
 mod resource;
@@ -95,6 +97,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for AiStudioChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

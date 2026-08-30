@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod identity;
 mod model;
@@ -113,6 +115,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for WorkBuddyChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

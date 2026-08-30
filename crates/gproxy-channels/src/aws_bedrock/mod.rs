@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod endpoint;
 mod model;
@@ -106,6 +108,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for AwsBedrockChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

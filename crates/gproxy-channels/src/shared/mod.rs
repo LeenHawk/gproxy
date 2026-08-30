@@ -7,3 +7,4 @@ pub(crate) mod google_oauth;
 pub(crate) mod http;
 pub(crate) mod image_multipart;
 pub(crate) mod openai;
+pub(crate) mod routing;

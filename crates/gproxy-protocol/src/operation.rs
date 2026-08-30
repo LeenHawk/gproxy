@@ -69,6 +69,8 @@ pub enum Operation {
     /// The session's WS/observer operations arrive with the round-3
     /// websocket-ingress design.
     CreateRealtimeCall,
+    /// Direct websocket connection to `/v1/realtime`.
+    ConnectRealtime,
 }
 
 /// Wire family for provider-shaped (non-content-generation) operations.
@@ -256,6 +258,7 @@ impl Operation {
             EditVideo => "edit_video",
             ExtendVideo => "extend_video",
             CreateRealtimeCall => "create_realtime_call",
+            ConnectRealtime => "connect_realtime",
         }
     }
 
@@ -294,6 +297,7 @@ impl Operation {
             "edit_video" => EditVideo,
             "extend_video" => ExtendVideo,
             "create_realtime_call" => CreateRealtimeCall,
+            "connect_realtime" => ConnectRealtime,
             _ => return None,
         })
     }
@@ -320,7 +324,7 @@ impl Operation {
             | RemixVideo | CreateVideoCharacter | GetVideoCharacter | EditVideo | ExtendVideo => {
                 OperationGroup::Video
             }
-            CreateRealtimeCall => OperationGroup::Realtime,
+            CreateRealtimeCall | ConnectRealtime => OperationGroup::Realtime,
         }
     }
 }

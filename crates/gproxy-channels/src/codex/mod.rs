@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod login;
 mod model;
@@ -138,6 +140,10 @@ static LOGIN: LoginDescriptor = LoginDescriptor {
 };
 
 impl Channel for CodexChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

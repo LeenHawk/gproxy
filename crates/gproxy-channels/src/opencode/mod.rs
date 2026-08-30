@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod model;
 mod prepare;
@@ -84,6 +86,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for OpenCodeChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod models;
 mod prepare;
@@ -87,6 +89,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for AntigravityChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

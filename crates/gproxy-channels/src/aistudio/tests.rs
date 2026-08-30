@@ -90,6 +90,22 @@ fn prepares_auth_path_query_and_framing() {
         poll.request.uri().path(),
         "/v1beta/models/veo-3/operations/op-1"
     );
+
+    let video = AiStudioChannel
+        .prepare(PrepareCtx {
+            key: OperationKey::family(Operation::CreateVideo, WireFamily::OpenAi),
+            stream: false,
+            method: &Method::POST,
+            path: "/v1/videos",
+            query: None,
+            headers: &headers,
+            body: &body,
+            upstream_model: "veo-3",
+            provider_settings: &json!({}),
+            secret: &secret,
+        })
+        .unwrap();
+    assert_eq!(video.request.uri().path(), "/v1beta/openai/videos");
 }
 
 #[test]

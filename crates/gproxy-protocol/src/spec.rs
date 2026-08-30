@@ -168,7 +168,8 @@ pub const fn streaming_sibling(operation: Operation) -> Option<Operation> {
         | Operation::GetVideoCharacter
         | Operation::EditVideo
         | Operation::ExtendVideo
-        | Operation::CreateRealtimeCall => None,
+        | Operation::CreateRealtimeCall
+        | Operation::ConnectRealtime => None,
     }
 }
 

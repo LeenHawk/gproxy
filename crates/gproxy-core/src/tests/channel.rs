@@ -85,6 +85,10 @@ static CONTINUATION_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for NeedsContinuation {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        &[]
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &CONTINUATION_DESCRIPTOR
     }
@@ -121,6 +125,10 @@ static FOREIGN_SURFACES: [gproxy_channel_api::SurfaceEntry; 1] =
     }];
 
 impl Channel for ForeignSurface {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        &[]
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &FOREIGN_DESCRIPTOR
     }
@@ -143,6 +151,10 @@ impl Channel for ForeignSurface {
 }
 
 impl Channel for MemoryHost {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        &SUPPORTS
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

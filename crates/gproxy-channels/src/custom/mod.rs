@@ -1,3 +1,5 @@
+mod routes;
+
 mod model;
 mod prepare;
 mod resource;
@@ -7,8 +9,9 @@ mod supports;
 mod usage;
 
 use gproxy_channel_api::{
-    Channel, ChannelDescriptor, Disposition, NormalizedUsage, PrepareCtx, PreparedRequest,
-    ResourceCtx, ResourceMutation, ResponseView, StreamCtx, StreamDecoder, UsageCtx,
+    Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage, PrepareCtx,
+    PreparedRequest, ResourceCtx, ResourceMutation, ResponseView, StreamCtx, StreamDecoder,
+    UsageCtx,
 };
 
 pub struct CustomChannel;
@@ -23,6 +26,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for CustomChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

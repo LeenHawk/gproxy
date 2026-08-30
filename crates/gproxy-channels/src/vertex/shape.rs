@@ -1,3 +1,5 @@
+mod video;
+
 use bytes::Bytes;
 use gproxy_channel_api::{ChannelError, PrepareCtx};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind, WireFamily};
@@ -6,6 +8,9 @@ use serde_json::Value;
 const ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 
 pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
+    if ctx.key.operation == Operation::CreateVideo {
+        return video::create(ctx.body);
+    }
     if ctx.key.operation == Operation::RetrieveVideo {
         let operation = super::resource::request_operation(ctx.path)?;
         return serde_json::to_vec(&serde_json::json!({"operationName": operation}))

@@ -8,7 +8,7 @@ pub async fn seed_provider_defaults(
     provider_id: i64,
     channel: &ChannelDto,
 ) -> Result<(), AdminError> {
-    for (sort_order, support) in channel.supports.iter().enumerate() {
+    for (sort_order, support) in channel.routing_defaults.iter().enumerate() {
         let transform = support.implementation == RoutingImplementationDto::TransformTo;
         store
             .insert_routing_default(&gproxy_store::records::RoutingRuleInput {

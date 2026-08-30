@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod cch;
 mod hygiene;
@@ -107,6 +109,10 @@ static LOGIN: LoginDescriptor = LoginDescriptor {
 };
 
 impl Channel for ClaudeCodeChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

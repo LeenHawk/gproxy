@@ -19,6 +19,7 @@ pub struct ChannelDto {
     pub id: String,
     pub display_name: String,
     pub supports: Vec<ChannelSupportDto>,
+    pub routing_defaults: Vec<ChannelSupportDto>,
     pub login: Option<ChannelLoginDto>,
     pub provider_fields: Vec<ChannelFieldDto>,
     pub credential_fields: Vec<ChannelFieldDto>,
@@ -112,27 +113,11 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
     ChannelDto {
         id: descriptor.id.into(),
         display_name: descriptor.display_name.into(),
-        supports: descriptor
-            .supports
+        supports: descriptor.supports.iter().map(channel_support).collect(),
+        routing_defaults: channel
+            .routing_table()
             .iter()
-            .map(|support| ChannelSupportDto {
-                source: support.source.kind.id().into(),
-                target: support.target.kind.id().into(),
-                operation: support.source.operation.id().into(),
-                target_operation: support.target.operation.id().into(),
-                group: support.source.operation.group().id().into(),
-                implementation: match support.action {
-                    gproxy_channel_api::ChannelRouteAction::Passthrough => {
-                        RoutingImplementationDto::Passthrough
-                    }
-                    gproxy_channel_api::ChannelRouteAction::TransformTo => {
-                        RoutingImplementationDto::TransformTo
-                    }
-                    gproxy_channel_api::ChannelRouteAction::Local => {
-                        RoutingImplementationDto::Local
-                    }
-                },
-            })
+            .map(channel_support)
             .collect(),
         login: channel.login().map(|login| ChannelLoginDto {
             modes: login
@@ -198,6 +183,28 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                     })
                     .collect(),
             }),
+    }
+}
+
+fn channel_support(support: &gproxy_channel_api::ChannelSupport) -> ChannelSupportDto {
+    ChannelSupportDto {
+        source: support.source.kind.id().into(),
+        target: support.target.kind.id().into(),
+        operation: support.source.operation.id().into(),
+        target_operation: support.target.operation.id().into(),
+        group: support.source.operation.group().id().into(),
+        implementation: match support.action {
+            gproxy_channel_api::ChannelRouteAction::Passthrough => {
+                RoutingImplementationDto::Passthrough
+            }
+            gproxy_channel_api::ChannelRouteAction::TransformTo => {
+                RoutingImplementationDto::TransformTo
+            }
+            gproxy_channel_api::ChannelRouteAction::Local => RoutingImplementationDto::Local,
+            gproxy_channel_api::ChannelRouteAction::Unsupported => {
+                RoutingImplementationDto::Unsupported
+            }
+        },
     }
 }
 

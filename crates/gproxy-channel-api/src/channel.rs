@@ -46,6 +46,7 @@ pub enum ChannelRouteAction {
     Passthrough,
     TransformTo,
     Local,
+    Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,11 +95,18 @@ impl ChannelSupport {
             action: ChannelRouteAction::Local,
         }
     }
+
+    pub const fn unsupported(source: OperationKey) -> Self {
+        Self {
+            source,
+            target: source,
+            action: ChannelRouteAction::Unsupported,
+        }
+    }
 }
 
-/// Identity and capability card. `supports` is the channel's declared route
-/// table — the engine consults it before routing, and the console renders it
-/// from the runtime catalog (no hand-maintained frontend copy).
+/// Identity and capability card. `supports` lists executable channel paths;
+/// [`Channel::routing_table`] separately declares provider defaults.
 #[derive(Debug)]
 pub struct ChannelDescriptor {
     /// Stable id: `"openai"`, `"claudecode"`, `"codex"`.
@@ -245,6 +253,10 @@ pub trait SimpleHttp: MaybeSync {
 pub trait Channel: Send + Sync {
     fn descriptor(&self) -> &'static ChannelDescriptor;
 
+    /// Provider defaults are policy, not a capability inference. Hosts
+    /// materialize this table without changing operator-owned cells.
+    fn routing_table(&self) -> &'static [ChannelSupport];
+
     fn default_rule_set(&self) -> Option<ChannelDefaultRuleSet> {
         None
     }
@@ -259,10 +271,27 @@ pub trait Channel: Send + Sync {
     /// may choose among duplicate source rows by secret shape.
     fn select_support(&self, source: OperationKey, secret: &Value) -> Option<ChannelSupport> {
         let _ = secret;
+        if let Some(route) = self
+            .routing_table()
+            .iter()
+            .find(|support| support.source == source)
+        {
+            return matches!(
+                route.action,
+                ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
+            )
+            .then_some(*route);
+        }
         self.descriptor()
             .supports
             .iter()
-            .find(|support| support.source == source && support.action != ChannelRouteAction::Local)
+            .find(|support| {
+                support.source == source
+                    && matches!(
+                        support.action,
+                        ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
+                    )
+            })
             .copied()
     }
 

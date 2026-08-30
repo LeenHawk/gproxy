@@ -1,4 +1,47 @@
 use super::*;
+use crate::dto::{ChannelSupportDto, RoutingImplementationDto};
+
+fn channel(defaults: Vec<ChannelSupportDto>) -> ChannelDto {
+    ChannelDto {
+        id: "test".into(),
+        display_name: "Test".into(),
+        supports: Vec::new(),
+        routing_defaults: defaults,
+        login: None,
+        provider_fields: Vec::new(),
+        credential_fields: Vec::new(),
+        endpoint_kinds: Vec::new(),
+        default_rule_set: None,
+    }
+}
+
+fn route(implementation: RoutingImplementationDto) -> ChannelSupportDto {
+    ChannelSupportDto {
+        source: "openai".into(),
+        target: "openai".into(),
+        operation: "count_tokens".into(),
+        target_operation: "count_tokens".into(),
+        group: "count_tokens".into(),
+        implementation,
+    }
+}
+
+async fn provider(state: &TestState) -> i64 {
+    state
+        .store
+        .insert_provider(&ProviderInput {
+            name: "routing-provider".into(),
+            label: None,
+            channel: "test".into(),
+            settings: serde_json::json!({}),
+            credential_strategy: "round_robin".into(),
+            proxy_url: None,
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .expect("insert provider")
+}
 
 #[tokio::test]
 async fn delete_provider_reaches_non_rule_entity_handler() {
@@ -39,4 +82,66 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
     let audit = state.store.audit_events(1).await.unwrap();
     assert_eq!(audit[0].event.action, "providers.delete");
     assert_eq!(audit[0].event.target_id, Some(id));
+}
+
+#[tokio::test]
+async fn declared_local_route_is_seeded() {
+    let state = state().await;
+    let id = provider(&state).await;
+    crate::seed_provider_defaults(
+        &state.store,
+        id,
+        &channel(vec![route(RoutingImplementationDto::Local)]),
+    )
+    .await
+    .expect("seed defaults");
+
+    let row = state
+        .store
+        .control_snapshot()
+        .await
+        .unwrap()
+        .routing_rules
+        .remove(0);
+    assert_eq!(row.implementation, "local");
+    assert_eq!(row.origin, "channel_default");
+}
+
+#[tokio::test]
+async fn backfill_does_not_overwrite_operator_route() {
+    let state = state().await;
+    let id = provider(&state).await;
+    state
+        .store
+        .insert_routing_rule(&gproxy_store::records::RoutingRuleInput {
+            provider_id: id,
+            operation: "count_tokens".into(),
+            kind: "openai".into(),
+            implementation: "unsupported".into(),
+            dest_operation: None,
+            dest_kind: None,
+            sort_order: 7,
+            enabled: false,
+        })
+        .await
+        .expect("insert operator route");
+
+    crate::backfill_provider_defaults(
+        &state.store,
+        &[channel(vec![route(RoutingImplementationDto::Local)])],
+    )
+    .await
+    .expect("backfill defaults");
+
+    let row = state
+        .store
+        .control_snapshot()
+        .await
+        .unwrap()
+        .routing_rules
+        .remove(0);
+    assert_eq!(row.implementation, "unsupported");
+    assert_eq!(row.origin, "operator");
+    assert_eq!(row.sort_order, 7);
+    assert!(!row.enabled);
 }

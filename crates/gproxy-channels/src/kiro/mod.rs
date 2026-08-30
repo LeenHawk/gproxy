@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod decoder;
 mod endpoint;
@@ -96,6 +98,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for KiroChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

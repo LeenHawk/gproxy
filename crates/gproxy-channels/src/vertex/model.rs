@@ -63,7 +63,9 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             None,
         );
     }
-    if key == family(Operation::CreateVideo, WireFamily::Gemini) {
+    if key == family(Operation::CreateVideo, WireFamily::Gemini)
+        || key == family(Operation::CreateVideo, WireFamily::OpenAi)
+    {
         return post(
             format!(
                 "/v1/projects/{project}/locations/{location}/publishers/google/models/{}:predictLongRunning",
@@ -73,7 +75,9 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             None,
         );
     }
-    if key == family(Operation::RetrieveVideo, WireFamily::Gemini) {
+    if key == family(Operation::RetrieveVideo, WireFamily::Gemini)
+        || key == family(Operation::RetrieveVideo, WireFamily::OpenAi)
+    {
         let operation = super::resource::request_operation(ctx.path)?;
         let poll_model = if model.is_empty() {
             super::resource::operation_model(&operation)?

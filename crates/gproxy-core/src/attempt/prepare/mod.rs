@@ -14,6 +14,8 @@ use crate::host::Host;
 
 mod driver;
 mod health;
+#[cfg(test)]
+mod tests;
 
 pub(crate) fn support<H: Host>(
     core: &Core<H>,
@@ -21,12 +23,7 @@ pub(crate) fn support<H: Host>(
     key: OperationKey,
 ) -> Result<Option<ChannelSupport>, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    let selected = channel
-        .descriptor()
-        .supports
-        .iter()
-        .find(|support| support.source == key)
-        .copied();
+    let selected = declared_support(channel, key);
     Ok(selected.and_then(|support| route_support(target, support)))
 }
 
@@ -36,16 +33,7 @@ pub(crate) fn native_support<H: Host>(
     key: OperationKey,
 ) -> Result<Option<ChannelSupport>, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    Ok(channel
-        .descriptor()
-        .supports
-        .iter()
-        .find(|support| {
-            support.source == key
-                && support.target == key
-                && support.action != ChannelRouteAction::Local
-        })
-        .copied())
+    Ok(declared_support(channel, key).filter(|support| support.target == key))
 }
 
 pub(crate) async fn prepare<H: Host>(
@@ -205,8 +193,13 @@ pub(crate) async fn prepare<H: Host>(
 }
 
 fn route_support(target: &Target, support: ChannelSupport) -> Option<ChannelSupport> {
+    if matches!(
+        support.action,
+        ChannelRouteAction::Local | ChannelRouteAction::Unsupported
+    ) {
+        return None;
+    }
     match crate::routing::decide(&target.rules.routing, support.source) {
-        None if support.action == ChannelRouteAction::Local => None,
         None => Some(support),
         Some(crate::routing::RoutingDecision::Passthrough) => Some(ChannelSupport {
             source: support.source,
@@ -221,6 +214,26 @@ fn route_support(target: &Target, support: ChannelSupport) -> Option<ChannelSupp
         Some(crate::routing::RoutingDecision::Local)
         | Some(crate::routing::RoutingDecision::Unsupported) => None,
     }
+}
+
+fn declared_support(channel: &dyn Channel, source: OperationKey) -> Option<ChannelSupport> {
+    if let Some(route) = channel
+        .routing_table()
+        .iter()
+        .find(|support| support.source == source)
+    {
+        return matches!(
+            route.action,
+            ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
+        )
+        .then_some(*route);
+    }
+    channel
+        .descriptor()
+        .supports
+        .iter()
+        .find(|support| support.source == source)
+        .copied()
 }
 
 fn channel<'a, H: Host>(core: &'a Core<H>, id: &str) -> Result<&'a dyn Channel, CoreError> {

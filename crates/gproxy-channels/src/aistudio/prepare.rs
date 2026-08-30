@@ -76,6 +76,13 @@ fn endpoint(ctx: &PrepareCtx<'_>, query: Option<&str>) -> Result<Uri, ChannelErr
 }
 
 fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
+    if matches!(
+        ctx.key.operation,
+        Operation::CreateVideo | Operation::RetrieveVideo
+    ) && let Some(suffix) = ctx.path.strip_prefix("/v1/videos")
+    {
+        return format!("/v1beta/openai/videos{suffix}");
+    }
     if ctx.upstream_model.is_empty() || !has_model_path(ctx.key.operation) {
         return ctx.path.to_owned();
     }

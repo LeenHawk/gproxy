@@ -1,3 +1,5 @@
+mod routes;
+
 mod error;
 mod model;
 mod multipart;
@@ -72,6 +74,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for OpenRouterChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

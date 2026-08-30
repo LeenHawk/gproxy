@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod bootstrap;
 mod endpoint;
@@ -104,6 +106,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for ClaudeWebChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

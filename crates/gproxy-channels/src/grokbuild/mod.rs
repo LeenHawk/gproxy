@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod multipart;
 mod prepare;
@@ -116,6 +118,10 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for GrokBuildChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }

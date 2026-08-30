@@ -143,6 +143,30 @@ fn shapes_partner_claude_and_round_trips_video_operation_aliases() {
     assert_eq!(shaped["anthropic_version"], "vertex-2023-10-16");
     assert_eq!(shaped["future"], true);
 
+    let video = Bytes::from_static(
+        br#"{"model":"route","prompt":"fly","input_reference":"data:image/png;base64,abc","seconds":"8","n":2,"generate_audio":true}"#,
+    );
+    let video = VertexChannel
+        .prepare(PrepareCtx {
+            key: OperationKey::family(Operation::CreateVideo, WireFamily::OpenAi),
+            stream: false,
+            method: &Method::POST,
+            path: "/v1/videos",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &video,
+            upstream_model: "veo-3",
+            provider_settings: &settings,
+            secret: &secret,
+        })
+        .unwrap();
+    let video: Value = serde_json::from_slice(video.request.body()).unwrap();
+    assert_eq!(video["instances"][0]["prompt"], "fly");
+    assert_eq!(video["instances"][0]["image"]["mimeType"], "image/png");
+    assert_eq!(video["parameters"]["durationSeconds"], 8);
+    assert_eq!(video["parameters"]["sampleCount"], 2);
+    assert_eq!(video["parameters"]["generateAudio"], true);
+
     let operation =
         "projects/project-1/locations/us-central1/publishers/google/models/veo-3/operations/op-1";
     let raw = Bytes::from(json!({"name":operation,"done":false,"future":7}).to_string());

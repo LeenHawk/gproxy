@@ -1,3 +1,5 @@
+mod routes;
+
 mod auth;
 mod identity;
 mod model;
@@ -25,12 +27,33 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for KimiChannel {
+    fn routing_table(&self) -> &'static [ChannelSupport] {
+        routes::ROUTES
+    }
+
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
     }
 
     fn select_support(&self, source: OperationKey, secret: &Value) -> Option<ChannelSupport> {
-        supports::select(source, auth::mode(secret))
+        let selected = supports::select(source, auth::mode(secret));
+        if supports::SUPPORTS
+            .iter()
+            .any(|support| support.source == source)
+        {
+            return selected;
+        }
+        routes::ROUTES
+            .iter()
+            .find(|support| {
+                support.source == source
+                    && matches!(
+                        support.action,
+                        gproxy_channel_api::ChannelRouteAction::Passthrough
+                            | gproxy_channel_api::ChannelRouteAction::TransformTo
+                    )
+            })
+            .copied()
     }
 
     fn prepare(

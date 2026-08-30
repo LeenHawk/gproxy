@@ -130,6 +130,7 @@ fn upstream_path(operation: Operation, model: &str) -> String {
         Operation::EditImage => "/images/edits".into(),
         Operation::WebSearch => "/alpha/search".into(),
         Operation::CreateRealtimeCall => "/realtime/calls".into(),
+        Operation::ConnectRealtime => "/realtime".into(),
         _ => "/unsupported".into(),
     }
 }
@@ -178,6 +179,7 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         Operation::EditImage => "image_edits",
         Operation::WebSearch => "openai_search",
         Operation::CreateRealtimeCall => "openai_realtime_call",
+        Operation::ConnectRealtime => return None,
         Operation::SummarizeMemory => return None,
         _ => return None,
     };

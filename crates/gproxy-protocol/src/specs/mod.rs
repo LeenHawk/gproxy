@@ -90,7 +90,7 @@ pub(super) const fn video_character_op(ingress: &'static [Ingress]) -> Operation
     }
 }
 
-pub(crate) static REGISTRY: [(Operation, OperationSpec); 32] = [
+pub(crate) static REGISTRY: [(Operation, OperationSpec); 33] = [
     (Operation::ListModels, models::LIST_MODELS),
     (Operation::GetModel, models::GET_MODEL),
     (Operation::CountTokens, count_tokens::COUNT_TOKENS),
@@ -129,6 +129,7 @@ pub(crate) static REGISTRY: [(Operation, OperationSpec); 32] = [
     (Operation::EditVideo, video::EDIT_VIDEO),
     (Operation::ExtendVideo, video::EXTEND_VIDEO),
     (Operation::CreateRealtimeCall, realtime::REALTIME_CALL),
+    (Operation::ConnectRealtime, realtime::CONNECT_REALTIME),
 ];
 
 /// Exhaustive: a new operation does not compile until its group and row exist.
@@ -167,6 +168,7 @@ pub(crate) fn spec(operation: Operation) -> &'static OperationSpec {
         EditVideo => 29,
         ExtendVideo => 30,
         CreateRealtimeCall => 31,
+        ConnectRealtime => 32,
     };
     &REGISTRY[index].1
 }
