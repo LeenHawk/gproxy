@@ -83,10 +83,7 @@ impl State {
                     error.message,
                 )),
             },
-            claude::StreamEvent::Unknown(object) => Err(TransformError::unsupported(
-                "Claude stream event",
-                serde_json::to_string(&object)?,
-            )),
+            claude::StreamEvent::Unknown(_) => Ok(Vec::new()),
         }
     }
 

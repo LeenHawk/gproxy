@@ -670,3 +670,24 @@ fn chat_response_skips_audio_and_keeps_unparseable_call_for_gemini() {
     let text = String::from_utf8(drive(stream, wire, 23)).unwrap();
     assert!(text.contains("lookup"), "tool call was dropped: {text}");
 }
+
+#[test]
+fn claude_stream_survives_unknown_events_for_chat() {
+    let stream = ResponseStream::new(
+        content(Operation::StreamGenerateContent, Kind::OpenAiChat),
+        content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
+    )
+    .unwrap();
+    let wire = concat!(
+        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-opus\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n",
+        "event: future_event\ndata: {\"type\":\"future_event\",\"future\":true}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+        "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":1}}\n\n",
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+    );
+    let text = String::from_utf8(drive(stream, wire, 17)).unwrap();
+    assert!(text.contains("Hello"), "text was dropped: {text}");
+    assert!(text.contains("[DONE]"), "no terminal: {text}");
+}
