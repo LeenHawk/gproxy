@@ -30,7 +30,7 @@ export function AuthPanel({ setup, pending, failed, onSubmit }: { setup: boolean
           </CardHeader>
           <form onSubmit={submit}>
             <CardContent>
-              <FieldGroup>
+              <FieldGroup className="!grid-cols-1">
                 <Field>
                   <FieldLabel htmlFor="username">{t("auth.username")}</FieldLabel>
                   <Input id="username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required />
