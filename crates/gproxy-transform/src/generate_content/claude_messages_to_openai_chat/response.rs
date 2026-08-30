@@ -5,15 +5,11 @@ use crate::common::{stop, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionResponse = serde_json::from_slice(&body)?;
-    let choice = input
-        .choices
-        .into_iter()
-        .next()
-        .ok_or_else(|| TransformError::shape("OpenAI Chat response", "choice is missing"))?;
+    let choice = input.choices.into_iter().next();
     let mut blocks = Vec::new();
     if let Some(reasoning) = choice
-        .message
-        .reasoning_content
+        .as_ref()
+        .and_then(|choice| choice.message.reasoning_content.clone())
         .filter(|value| !value.is_empty())
     {
         blocks.push(claude::ResponseContentBlock::Thinking(
@@ -25,7 +21,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             },
         ));
     }
-    if let Some(text) = choice.message.content.filter(|value| !value.is_empty()) {
+    if let Some(text) = choice
+        .as_ref()
+        .and_then(|choice| choice.message.content.clone())
+        .filter(|value| !value.is_empty())
+    {
         blocks.push(claude::ResponseContentBlock::Text(
             claude::ResponseTextBlock {
                 citations: None,
@@ -35,7 +35,10 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             },
         ));
     }
-    if let Some(calls) = choice.message.tool_calls {
+    if let Some(calls) = choice
+        .as_ref()
+        .and_then(|choice| choice.message.tool_calls.clone())
+    {
         for call in calls {
             match call {
                 openai::ChatToolCall::Function(call) => {
@@ -69,13 +72,25 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             }
         }
     }
-    if let Some(raw) = choice.message.rest.get("claude_content_blocks") {
+    if let Some(raw) = choice
+        .as_ref()
+        .and_then(|choice| choice.message.rest.get("claude_content_blocks"))
+    {
         for value in raw.as_array().into_iter().flatten() {
             blocks.push(serde_json::from_value(value.clone())?);
         }
     }
-    let usage = usage::chat_to_claude(input.usage)
-        .ok_or_else(|| TransformError::shape("OpenAI Chat response", "usage is missing"))?;
+    if blocks.is_empty() {
+        blocks.push(claude::ResponseContentBlock::Text(
+            claude::ResponseTextBlock {
+                citations: None,
+                text: String::new(),
+                type_: claude::TextBlockType::Text,
+                rest: Default::default(),
+            },
+        ));
+    }
+    let usage = usage::chat_to_claude(input.usage).unwrap_or_else(empty_usage);
     let mut rest = input.rest;
     if let Some(created) = input.created {
         rest.insert("openai_created".into(), created.into());
@@ -86,7 +101,10 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
         content: blocks,
         model: crate::models::common::wire_string(&input.model)?.into(),
-        stop_reason: stop::chat_to_claude(choice.finish_reason),
+        stop_reason: choice.map_or_else(
+            || claude::StopReason::Known(claude::StopReasonKnown::EndTurn),
+            |choice| stop::chat_to_claude(choice.finish_reason),
+        ),
         stop_sequence: None,
         usage,
         container: None,
@@ -96,6 +114,23 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+fn empty_usage() -> claude::Usage {
+    claude::Usage {
+        input_tokens: Some(0),
+        output_tokens: Some(0),
+        cache_creation_input_tokens: None,
+        cache_read_input_tokens: None,
+        cache_creation: None,
+        output_tokens_details: None,
+        server_tool_use: None,
+        iterations: None,
+        inference_geo: None,
+        service_tier: None,
+        speed: None,
+        rest: Default::default(),
+    }
 }
 
 fn merge(

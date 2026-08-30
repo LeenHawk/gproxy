@@ -6,17 +6,13 @@ use super::{content, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: gemini::GenerateContentResponse = serde_json::from_slice(&body)?;
-    let id = input
-        .response_id
-        .ok_or_else(|| TransformError::shape("Gemini response", "responseId is missing"))?;
-    let model = input
-        .model_version
-        .ok_or_else(|| TransformError::shape("Gemini response", "modelVersion is missing"))?;
+    let id = input.response_id.unwrap_or_default();
+    let model = input.model_version.unwrap_or_default();
     let usage = input
         .usage_metadata
         .map(usage::convert)
         .transpose()?
-        .ok_or_else(|| TransformError::shape("Gemini response", "usageMetadata is missing"))?;
+        .unwrap_or_else(empty_usage);
     let mut rest = input.rest;
     preserve(&mut rest, "promptFeedback", input.prompt_feedback.as_ref())?;
     preserve(&mut rest, "modelStatus", input.model_status.as_ref())?;
@@ -55,14 +51,15 @@ fn candidate(
     let Some(candidate) = candidates.into_iter().next() else {
         if prompt_feedback.map(blocked).transpose()?.unwrap_or(false) {
             return Ok((
-                Vec::new(),
+                empty_text_response(),
                 claude::StopReason::Known(claude::StopReasonKnown::Refusal),
                 None,
             ));
         }
-        return Err(TransformError::shape(
-            "Gemini response",
-            "candidate is missing",
+        return Ok((
+            empty_text_response(),
+            claude::StopReason::Known(claude::StopReasonKnown::EndTurn),
+            None,
         ));
     };
     preserve(rest, "safetyRatings", Some(&candidate.safety_ratings))?;
@@ -90,10 +87,9 @@ fn candidate(
         .content
         .map(content::response_blocks)
         .transpose()?
-        .unwrap_or_else(Vec::new);
-    let reason = candidate
-        .finish_reason
-        .ok_or_else(|| TransformError::shape("Gemini response", "finishReason is missing"))?;
+        .filter(|blocks| !blocks.is_empty())
+        .unwrap_or_else(empty_text_response);
+    let reason = candidate.finish_reason;
     let has_tool = blocks.iter().any(|block| {
         matches!(
             block,
@@ -103,9 +99,38 @@ fn candidate(
     });
     Ok((
         blocks,
-        finish_reason(reason, has_tool)?,
+        reason.map_or_else(
+            || Ok(claude::StopReason::Known(claude::StopReasonKnown::EndTurn)),
+            |reason| finish_reason(reason, has_tool),
+        )?,
         candidate.finish_message,
     ))
+}
+
+fn empty_usage() -> claude::Usage {
+    claude::Usage {
+        input_tokens: Some(0),
+        output_tokens: Some(0),
+        cache_creation_input_tokens: None,
+        cache_read_input_tokens: None,
+        cache_creation: None,
+        output_tokens_details: None,
+        server_tool_use: None,
+        iterations: None,
+        inference_geo: None,
+        service_tier: None,
+        speed: None,
+        rest: Default::default(),
+    }
+}
+
+fn empty_text_response() -> Vec<claude::ContentBlock> {
+    vec![claude::ContentBlock::Text(claude::ResponseTextBlock {
+        citations: None,
+        text: String::new(),
+        type_: claude::TextBlockType::Text,
+        rest: Default::default(),
+    })]
 }
 
 pub(super) fn finish_reason(

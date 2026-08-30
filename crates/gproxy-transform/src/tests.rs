@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use crate::{BufferedResponse, ResponseCollector};
 use crate::{ResponseStream, can_transform, request, response};
 
+mod buffered_responses;
 mod native_tools;
 mod stream_lifecycle;
 mod support;
