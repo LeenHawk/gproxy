@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { ConnectivityTest } from "@/components/connectivity-test"
+import { proxyProbe } from "@/lib/connectivity-probe"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
@@ -10,6 +11,7 @@ type Props = {
   label: string
   strategy: string
   proxyUrl: string
+  providerId?: number
   onLabel: (value: string) => void
   onStrategy: (value: string) => void
   onProxy: (value: string) => void
@@ -40,7 +42,7 @@ export function ProviderIdentityFields(props: Props) {
           <FieldLabel htmlFor={`${props.id}-proxy`}>{t("providers.fields.proxy")}</FieldLabel>
           <InputGroup>
             <InputGroupInput id={`${props.id}-proxy`} type="url" className="font-mono" value={props.proxyUrl} onChange={(event) => props.onProxy(event.target.value)} />
-            <InputGroupAddon align="inline-end"><ConnectivityTest request={{ scope: "proxy", provider_id: null, credential_id: null, proxy_url: props.proxyUrl }} label={t("providers.fields.proxy")} disabled={!props.proxyUrl.trim()} /></InputGroupAddon>
+            <InputGroupAddon align="inline-end"><ConnectivityTest request={proxyProbe(props.proxyUrl, { provider_id: props.providerId ?? null, credential_id: null })} label={t("providers.fields.proxy")} /></InputGroupAddon>
           </InputGroup>
           <FieldDescription>{t("providers.form.proxyHint")}</FieldDescription>
         </Field>

@@ -8,6 +8,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ConnectivityTest } from "@/components/connectivity-test"
+import { proxyProbe } from "@/lib/connectivity-probe"
 import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "./fingerprint"
 import { FingerprintField } from "./fingerprint-field"
 import { buildSecret } from "@/components/providers/credential-secret"
@@ -128,7 +129,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
               <Field><FieldLabel htmlFor="credential-rpm">{t("providers.credentials.rpm")}</FieldLabel><Input id="credential-rpm" type="number" min={1} step={1} value={rpm} onChange={(event) => setRpm(event.target.value)} /></Field>
               <Field><FieldLabel htmlFor="credential-tpm">{t("providers.credentials.tpm")}</FieldLabel><Input id="credential-tpm" type="number" min={1} step={1} value={tpm} onChange={(event) => setTpm(event.target.value)} /></Field>
             </div>
-            <Field><FieldLabel htmlFor="credential-proxy">{t("providers.credentials.proxy")}</FieldLabel><InputGroup><InputGroupInput id="credential-proxy" type="url" className="font-mono" value={proxyUrl} onChange={(event) => setProxyUrl(event.target.value)} /><InputGroupAddon align="inline-end"><ConnectivityTest request={{ scope: "proxy", provider_id: null, credential_id: null, proxy_url: proxyUrl }} label={t("providers.credentials.proxy")} disabled={!proxyUrl.trim()} /></InputGroupAddon></InputGroup></Field>
+            <Field><FieldLabel htmlFor="credential-proxy">{t("providers.credentials.proxy")}</FieldLabel><InputGroup><InputGroupInput id="credential-proxy" type="url" className="font-mono" value={proxyUrl} onChange={(event) => setProxyUrl(event.target.value)} /><InputGroupAddon align="inline-end"><ConnectivityTest request={proxyProbe(proxyUrl, { provider_id: providerId, credential_id: credential?.id ?? null })} label={t("providers.credentials.proxy")} /></InputGroupAddon></InputGroup></Field>
             <FingerprintField
               text={fingerprint.text}
               preset={fingerprint.preset}

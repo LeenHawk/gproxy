@@ -29,7 +29,7 @@ export function ProviderFormFields(props: {
         <Input id={`${id}-name`} value={draft.name} onChange={(event) => props.onChange("name", event.target.value)} aria-invalid={Boolean(errors.name) || undefined} />
         {errors.name ? <FieldError>{errors.name}</FieldError> : null}
       </Field>
-      <ProviderIdentityFields id={id} label={draft.label} strategy={draft.credentialStrategy} proxyUrl={draft.proxyUrl} onLabel={(value) => props.onChange("label", value)} onStrategy={(value) => props.onChange("credentialStrategy", value)} onProxy={(value) => props.onChange("proxyUrl", value)} />
+      <ProviderIdentityFields id={id} providerId={source.provider?.id} label={draft.label} strategy={draft.credentialStrategy} proxyUrl={draft.proxyUrl} onLabel={(value) => props.onChange("label", value)} onStrategy={(value) => props.onChange("credentialStrategy", value)} onProxy={(value) => props.onChange("proxyUrl", value)} />
       <Field data-invalid={Boolean(errors.channel) || source.channelsError || undefined}>
         <FieldLabel htmlFor={`${id}-channel`}>{t("providers.fields.channel")}</FieldLabel>
         <SearchableSelect
@@ -40,10 +40,10 @@ export function ProviderFormFields(props: {
           searchPlaceholder={t("common.search")}
           emptyLabel={t("common.none")}
           ariaLabel={t("providers.fields.channel")}
-          disabled={source.channelsLoading}
+          disabled={source.channelsLoading || source.provider !== undefined}
           onChange={(value) => props.onChange("channel", value)}
         />
-        <FieldDescription>{t("providers.form.channelHint")}</FieldDescription>
+        {source.provider ? null : <FieldDescription>{t("providers.form.channelHint")}</FieldDescription>}
         {selectedChannel ? <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{t("providers.form.channelCapabilities", { count: selectedChannel.supports.length })}</span>{[...new Set(selectedChannel.supports.map((support) => support.group))].map((group) => <Badge key={group} variant="outline">{group}</Badge>)}</div> : null}
         {source.channelsError ? <FieldError>{t("common.errors.load")}</FieldError> : null}
         {errors.channel ? <FieldError>{errors.channel}</FieldError> : null}

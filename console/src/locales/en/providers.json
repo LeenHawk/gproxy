@@ -192,7 +192,6 @@
       "unnamed": "Credential #{{id}}",
       "keepSecret": "Leave empty to keep the stored secret.",
       "secretJson": "Credential JSON",
-      "secretHint": "Paste the credential the provider issued.",
       "secretInvalid": "Not valid JSON.",
       "secretRequired": "Enter at least one credential field.",
       "manual": "Enter credential fields manually",

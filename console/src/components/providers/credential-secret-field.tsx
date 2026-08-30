@@ -22,7 +22,7 @@ export function CredentialSecretField({ fields, value, onChange, editing }: {
       {single
         ? <Input id="credential-secret" className="machine-text" autoComplete="off" spellCheck={false} placeholder={editing ? "••••••••" : undefined} value={value} onChange={(event) => onChange(event.target.value)} />
         : <Textarea id="credential-secret" className="machine-text min-h-40" autoComplete="off" spellCheck={false} placeholder={secretTemplate(fields)} value={value} onChange={(event) => onChange(event.target.value)} />}
-      <FieldDescription>{editing ? t("providers.credentials.keepSecret") : t("providers.credentials.secretHint")}</FieldDescription>
+      {editing ? <FieldDescription>{t("providers.credentials.keepSecret")}</FieldDescription> : null}
     </Field>
   )
 }

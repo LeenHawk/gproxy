@@ -192,7 +192,6 @@
       "unnamed": "憑證 #{{id}}",
       "keepSecret": "留空以保留已儲存的機密資料。",
       "secretJson": "憑據 JSON",
-      "secretHint": "貼上提供商簽發的憑據。",
       "secretInvalid": "不是合法的 JSON。",
       "secretRequired": "請至少填寫一個憑證欄位。",
       "manual": "手動填寫憑證欄位",
