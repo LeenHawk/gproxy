@@ -142,45 +142,19 @@ impl State {
                             .push(index);
                         self.has_tool = true;
                     } else {
-                        return Err(TransformError::unsupported(
-                            "Responses output item",
-                            serde_json::to_string(&other)?,
-                        ));
+                        return Ok(output);
                     }
                 }
             },
             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
                 if !message.content.is_empty() {
-                    return Err(TransformError::unsupported(
-                        "Responses output item",
-                        "message content before content-part events",
-                    ));
+                    return Ok(output);
                 }
             }
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Input(_)) => {
-                return Err(TransformError::unsupported(
-                    "Responses output item",
-                    "input message in output stream",
-                ));
-            }
-            openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(_)) => {
-                return Err(TransformError::unsupported(
-                    "Responses output item",
-                    "easy input message in output stream",
-                ));
-            }
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(raw)) => {
-                return Err(TransformError::unsupported(
-                    "Responses output message",
-                    raw.to_string(),
-                ));
-            }
-            openai::ResponseItem::Unknown(raw) => {
-                return Err(TransformError::unsupported(
-                    "Responses output item",
-                    raw.to_string(),
-                ));
-            }
+            openai::ResponseItem::Message(openai::ResponseMessageItem::Input(_))
+            | openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(_))
+            | openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_))
+            | openai::ResponseItem::Unknown(_) => return Ok(output),
         }
         Ok(output)
     }

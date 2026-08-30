@@ -21,18 +21,10 @@ impl State {
         } else {
             self.response_output_indices
                 .remove(&event.output_index)
-                .ok_or_else(|| {
-                    TransformError::shape(
-                        "Responses stream",
-                        "output item done before represented content",
-                    )
-                })?
+                .unwrap_or_default()
         };
         if indices.is_empty() {
-            return Err(TransformError::shape(
-                "Responses stream",
-                "output item done before represented content",
-            ));
+            return Ok(output);
         }
         for (position, index) in indices.iter().enumerate() {
             let rest = if position + 1 == indices.len() {

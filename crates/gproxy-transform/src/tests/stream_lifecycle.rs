@@ -499,3 +499,22 @@ fn responses_stream_survives_fields_and_events_chat_cannot_express() {
         "no terminal: {text}"
     );
 }
+
+#[test]
+fn responses_stream_survives_items_and_events_claude_cannot_express() {
+    let claude = content(Operation::StreamGenerateContent, Kind::ClaudeMessages);
+    let responses = content(Operation::StreamGenerateContent, Kind::OpenAiResponses);
+    let stream = ResponseStream::new(claude, responses).unwrap();
+    let wire = concat!(
+        "data: {\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"in_progress\",\"model\":\"gpt-5.5\",\"output\":[]}}\n\n",
+        "data: {\"type\":\"response.something.new\",\"sequence_number\":1}\n\n",
+        "data: {\"type\":\"response.image_generation_call.in_progress\",\"sequence_number\":2,\"item_id\":\"image_1\",\"output_index\":0}\n\n",
+        "data: {\"type\":\"response.output_item.added\",\"sequence_number\":3,\"output_index\":0,\"item\":{\"type\":\"image_generation_call\",\"id\":\"image_1\",\"result\":null,\"status\":\"in_progress\"}}\n\n",
+        "data: {\"type\":\"response.output_item.done\",\"sequence_number\":4,\"output_index\":0,\"item\":{\"type\":\"image_generation_call\",\"id\":\"image_1\",\"result\":\"aW1hZ2U=\",\"status\":\"completed\"}}\n\n",
+        "data: {\"type\":\"response.output_text.delta\",\"sequence_number\":5,\"item_id\":\"msg_1\",\"output_index\":1,\"content_index\":0,\"delta\":\"Done\",\"logprobs\":[]}\n\n",
+        "data: {\"type\":\"response.completed\",\"sequence_number\":6,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"completed\",\"model\":\"gpt-5.5\",\"output\":[{\"type\":\"image_generation_call\",\"id\":\"image_1\",\"result\":\"aW1hZ2U=\",\"status\":\"completed\"},{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Done\",\"annotations\":[],\"logprobs\":[]}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n",
+    );
+    let text = String::from_utf8(drive(stream, wire, 23)).unwrap();
+    assert!(text.contains("Done"), "text was dropped: {text}");
+    assert!(text.contains("message_stop"), "no terminal: {text}");
+}
