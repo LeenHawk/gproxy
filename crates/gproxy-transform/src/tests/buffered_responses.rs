@@ -166,3 +166,79 @@ fn responses_history_keeps_media_reasoning_and_patch_calls_in_chat() {
         "apply_patch"
     );
 }
+
+#[test]
+fn request_fields_map_or_drop_without_blocking_convertible_turns() {
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let claude = content(Operation::GenerateContent, Kind::ClaudeMessages);
+    let gemini = content(Operation::GenerateContent, Kind::GeminiGenerateContent);
+
+    for (source, value) in [
+        (
+            chat,
+            json!({
+                "model":"route","messages":[{"role":"user","content":"hi"}],
+                "n":2,"seed":7,"prediction":{"type":"content","content":"expected"},
+                "web_search_options":{"search_context_size":"high"}
+            }),
+        ),
+        (responses, json!({"model":"route","input":"hi"})),
+        (
+            gemini,
+            json!({
+                "cachedContent":"cachedContents/stable",
+                "safetySettings":[{"category":"HARM_CATEGORY_HATE_SPEECH","threshold":"BLOCK_NONE"}],
+                "generationConfig":{"candidateCount":2,"seed":7,"responseModalities":["TEXT"]},
+                "contents":[{"role":"user","parts":[{"text":"hi"}]}]
+            }),
+        ),
+    ] {
+        let request = convert_request(source, claude, value);
+        assert_eq!(request["max_tokens"], 16_384);
+    }
+
+    let responses_request = convert_request(
+        chat,
+        responses,
+        json!({
+            "model":"route","messages":[{"role":"user","content":"hi"}],
+            "stop":["END"],"n":2,"seed":7,
+            "function_call":"auto",
+            "functions":[{"name":"legacy","parameters":{"type":"object"}}],
+            "prediction":{"type":"content","content":"expected"},
+            "web_search_options":{"search_context_size":"high"}
+        }),
+    );
+    assert_eq!(responses_request["input"][0]["role"], "user");
+    for dropped in ["stop", "n", "seed", "functions", "prediction"] {
+        assert!(responses_request.get(dropped).is_none(), "kept {dropped}");
+    }
+
+    let gemini_request = convert_request(
+        chat,
+        gemini,
+        json!({
+            "model":"route","messages":[{"role":"user","content":"hi"}],
+            "prompt_cache_key":"cachedContents/stable","metadata":{"trace":"x"},
+            "prediction":{"type":"content","content":"expected"},
+            "web_search_options":{
+                "search_context_size":"high",
+                "user_location":{"type":"approximate","approximate":{"country":"US"}}
+            }
+        }),
+    );
+    assert_eq!(gemini_request["cachedContent"], "cachedContents/stable");
+    assert!(gemini_request["tools"][0].get("googleSearch").is_some());
+
+    let cached_chat = convert_request(
+        gemini,
+        chat,
+        json!({
+            "cachedContent":"cachedContents/stable",
+            "safetySettings":[{"category":"HARM_CATEGORY_HATE_SPEECH","threshold":"BLOCK_NONE"}],
+            "contents":[{"role":"user","parts":[{"text":"hi"}]}]
+        }),
+    );
+    assert_eq!(cached_chat["prompt_cache_key"], "cachedContents/stable");
+}

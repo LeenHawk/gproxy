@@ -105,7 +105,6 @@ pub enum PartMetadata {
         #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
         rest: serde_json::Map<String, serde_json::Value>,
     },
-    Raw(serde_json::Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

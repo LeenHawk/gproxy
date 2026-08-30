@@ -13,9 +13,10 @@ pub(crate) fn transform(
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
     reject_unsupported(&input)?;
-    let max_tokens = input.max_output_tokens.map(u64::from).ok_or_else(|| {
-        TransformError::shape("OpenAI Responses request", "max_output_tokens is missing")
-    })?;
+    let max_tokens = input
+        .max_output_tokens
+        .map(u64::from)
+        .unwrap_or(crate::common::DEFAULT_CLAUDE_MAX_TOKENS);
     let messages = input_messages(input.input)?;
     let output = claude::CreateMessageRequestBody {
         model: model.to_owned().into(),

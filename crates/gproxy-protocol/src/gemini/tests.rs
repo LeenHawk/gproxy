@@ -63,6 +63,26 @@ fn generate_and_stream_shapes_roundtrip_unknown_parts_and_fields() {
 }
 
 #[test]
+fn ordinary_part_does_not_match_the_flattened_metadata_union() {
+    let part: Part = serde_json::from_value(json!({
+        "text":"hello","futurePartMetadata":{"x":1}
+    }))
+    .unwrap();
+    assert!(part.metadata.is_none());
+    assert_eq!(part.rest["futurePartMetadata"]["x"], 1);
+
+    let video: Part = serde_json::from_value(json!({
+        "fileData":{"fileUri":"gs://bucket/video.mp4"},
+        "videoMetadata":{"startOffset":"0s"}
+    }))
+    .unwrap();
+    assert!(matches!(
+        video.metadata,
+        Some(PartMetadata::VideoMetadata { .. })
+    ));
+}
+
+#[test]
 fn models_and_count_tokens_keep_unknown_resource_data() {
     roundtrip::<Model>(json!({
         "name":"models/gemini-future","baseModelId":"gemini-future",

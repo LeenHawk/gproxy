@@ -11,7 +11,7 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
-    reject_unsupported(&input)?;
+    let _ = wire_string(&input.model)?;
     let mut messages = Vec::new();
     let mut system = Vec::new();
     let mut seen_turn = false;
@@ -129,7 +129,7 @@ pub(crate) fn transform(
         .max_completion_tokens
         .or(input.max_tokens)
         .map(u64::from)
-        .ok_or_else(|| TransformError::shape("OpenAI Chat request", "max_tokens is missing"))?;
+        .unwrap_or(crate::common::DEFAULT_CLAUDE_MAX_TOKENS);
     let output = claude::CreateMessageRequestBody {
         model: model.to_owned().into(),
         messages,
@@ -326,32 +326,4 @@ fn speed(tier: Option<openai::ServiceTier>) -> Result<Option<claude::Speed>, Tra
         ) => Some(claude::Speed::Known(claude::SpeedKnown::Fast)),
         _ => None,
     })
-}
-
-fn reject_unsupported(input: &openai::ChatCompletionRequest) -> Result<(), TransformError> {
-    if input.audio.is_some()
-        || input.frequency_penalty.is_some()
-        || input.functions.is_some()
-        || input.function_call.is_some()
-        || input.logit_bias.is_some()
-        || input.logprobs.is_some()
-        || input.metadata.is_some()
-        || input.modalities.is_some()
-        || input.moderation.is_some()
-        || input.n.is_some()
-        || input.prediction.is_some()
-        || input.presence_penalty.is_some()
-        || input.seed.is_some()
-        || input.store.is_some()
-        || input.top_logprobs.is_some()
-        || input.verbosity.is_some()
-        || input.web_search_options.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "OpenAI Chat request",
-            "a Chat-only generation parameter",
-        ));
-    }
-    let _ = wire_string(&input.model)?;
-    Ok(())
 }

@@ -12,25 +12,6 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
-    if input.audio.is_some()
-        || input.frequency_penalty.is_some()
-        || input.function_call.is_some()
-        || input.functions.is_some()
-        || input.logit_bias.is_some()
-        || input.logprobs.is_some()
-        || input.modalities.is_some()
-        || input.n.is_some()
-        || input.prediction.is_some()
-        || input.presence_penalty.is_some()
-        || input.seed.is_some()
-        || input.stop.is_some()
-        || input.web_search_options.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "OpenAI Chat request",
-            "a Chat-only request parameter",
-        ));
-    }
     let mut items = Vec::new();
     for message in input.messages {
         items.extend(messages::message_items(message)?);

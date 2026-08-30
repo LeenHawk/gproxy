@@ -10,7 +10,6 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: gemini::GenerateContentRequest = serde_json::from_slice(&body)?;
-    reject_unsupported(&input)?;
     let search = has_search(input.tools.as_ref());
     let mut messages = Vec::new();
     if let Some(system) = input.system_instruction {
@@ -44,7 +43,7 @@ pub(crate) fn transform(
         parallel_tool_calls: None,
         prediction: None,
         presence_penalty: config.presence_penalty,
-        prompt_cache_key: None,
+        prompt_cache_key: input.cached_content,
         prompt_cache_options: None,
         prompt_cache_retention: None,
         reasoning_effort: config.reasoning_effort,
@@ -85,28 +84,4 @@ fn has_search(tools: Option<&Vec<gemini::Tool>>) -> bool {
                 || tool.url_context.is_some()
         })
     })
-}
-
-fn reject_unsupported(input: &gemini::GenerateContentRequest) -> Result<(), TransformError> {
-    if input.cached_content.is_some() {
-        return Err(TransformError::unsupported(
-            "Gemini request",
-            "cachedContent has no Chat prompt_cache_key equivalent",
-        ));
-    }
-    if input.safety_settings.is_some() {
-        return Err(TransformError::unsupported(
-            "Gemini request",
-            "safetySettings",
-        ));
-    }
-    if input.tool_config.as_ref().is_some_and(|config| {
-        config.retrieval_config.is_some() || config.include_server_side_tool_invocations.is_some()
-    }) {
-        return Err(TransformError::unsupported(
-            "Gemini tool config",
-            "retrieval or server-side invocation config",
-        ));
-    }
-    Ok(())
 }

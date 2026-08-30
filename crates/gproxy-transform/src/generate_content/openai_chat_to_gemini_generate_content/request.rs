@@ -10,7 +10,6 @@ pub(crate) fn transform(
     _stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
-    reject_unsupported(&input)?;
     let (contents, system_instruction) = content::messages(input.messages)?;
     let generation_config = config::to_gemini(config::Input {
         audio: input.audio,
@@ -36,46 +35,10 @@ pub(crate) fn transform(
         safety_settings: None,
         system_instruction,
         generation_config,
-        cached_content: None,
+        cached_content: input.prompt_cache_key,
         service_tier: wire::service_tier(input.service_tier),
         store: input.store,
         rest: input.rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
-}
-
-fn reject_unsupported(input: &openai::ChatCompletionRequest) -> Result<(), TransformError> {
-    if input.prompt_cache_key.is_some() {
-        return Err(TransformError::unsupported(
-            "Chat request",
-            "prompt_cache_key has no Gemini cachedContent equivalent",
-        ));
-    }
-    if input.function_call.is_some()
-        || input.functions.is_some()
-        || input.logit_bias.is_some()
-        || input.metadata.is_some()
-        || input.moderation.is_some()
-        || input.parallel_tool_calls.is_some()
-        || input.prediction.is_some()
-        || input.prompt_cache_options.is_some()
-        || input.prompt_cache_retention.is_some()
-        || input.safety_identifier.is_some()
-        || input.user.is_some()
-        || input.verbosity.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "Chat request",
-            "an option with no Gemini counterpart",
-        ));
-    }
-    if input.web_search_options.as_ref().is_some_and(|options| {
-        options.search_context_size.is_some() || options.user_location.is_some()
-    }) {
-        return Err(TransformError::unsupported(
-            "Chat web search options",
-            "search context size or user location",
-        ));
-    }
-    Ok(())
 }
