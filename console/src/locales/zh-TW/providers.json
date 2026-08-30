@@ -286,10 +286,13 @@
       "displayName": "顯示名稱",
       "thinkingAdaptiveSupported": "支援自適應思考",
       "thinkingEnabledSupported": "支援啟用思考",
-      "variants": "變體 JSON",
+      "variants": "變體",
       "variantsHint": "用陣列宣告完整模型名稱，或使用 { expose_base, variants }。",
       "maxOutputTokens": "最大輸出 Token",
-      "thinkingSupported": "支援思維"
+      "thinkingSupported": "支援思維",
+      "pricing": "定價",
+      "priced": "已定價",
+      "priceRule": "價格規則"
     }
   }
 }

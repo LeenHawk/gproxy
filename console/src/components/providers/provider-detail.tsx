@@ -8,6 +8,7 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
 import type { RuleDto } from "@/generated/RuleDto"
@@ -54,6 +55,7 @@ type Props = {
   attachments: Array<ProviderRuleSetDto>
   routingRules: Array<RoutingRuleDto>
   providerModels: Array<ProviderModelDto>
+  priceRules: Array<PriceRuleDto>
   ruleMutations: RuleMutations
 }
 
@@ -134,7 +136,7 @@ export function ProviderDetail(props: Props) {
             onCredentialOpen={props.onCredentialOpen}
           />}
         </TabsContent>
-        <TabsContent value="models" className="pt-4"><ProviderModels providerId={props.provider.id} models={props.providerModels} /></TabsContent>
+        <TabsContent value="models" className="pt-4"><ProviderModels providerId={props.provider.id} models={props.providerModels} priceRules={props.priceRules} /></TabsContent>
         <TabsContent value="rules" className="pt-4"><RulesWorkspace ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} providers={props.providers} scopeProviderId={props.provider.id} mutations={props.ruleMutations} /></TabsContent>
         <TabsContent value="routing" className="pt-4"><ProviderRoutingRules provider={props.provider} channel={props.channel} rules={props.routingRules} /></TabsContent>
         <TabsContent value="settings" className="pt-4">

@@ -286,10 +286,13 @@
       "displayName": "Display name",
       "thinkingAdaptiveSupported": "Adaptive thinking supported",
       "thinkingEnabledSupported": "Enabled thinking supported",
-      "variants": "Variants JSON",
+      "variants": "Variants",
       "variantsHint": "Declare absolute model ids as an array, or use { expose_base, variants }.",
       "maxOutputTokens": "Max output tokens",
-      "thinkingSupported": "Thinking supported"
+      "thinkingSupported": "Thinking supported",
+      "pricing": "Pricing",
+      "priced": "Priced",
+      "priceRule": "Price rule"
     }
   }
 }

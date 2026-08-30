@@ -286,10 +286,13 @@
       "displayName": "显示名称",
       "thinkingAdaptiveSupported": "支持自适应思考",
       "thinkingEnabledSupported": "支持启用思考",
-      "variants": "变体 JSON",
+      "variants": "变体",
       "variantsHint": "用数组声明完整模型名，或使用 { expose_base, variants }。",
       "maxOutputTokens": "最大输出 Token",
-      "thinkingSupported": "支持思维"
+      "thinkingSupported": "支持思维",
+      "pricing": "定价",
+      "priced": "已定价",
+      "priceRule": "价格规则"
     }
   }
 }

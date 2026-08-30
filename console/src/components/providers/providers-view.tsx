@@ -8,6 +8,7 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
 import type { RuleDto } from "@/generated/RuleDto"
@@ -49,6 +50,7 @@ type Props = {
   attachments: Array<ProviderRuleSetDto>
   routingRules: Array<RoutingRuleDto>
   providerModels: Array<ProviderModelDto>
+  priceRules: Array<PriceRuleDto>
   ruleMutations: RuleMutations
 }
 
@@ -150,6 +152,7 @@ export function ProvidersView(props: Props) {
         attachments={props.attachments}
         routingRules={props.routingRules}
         providerModels={props.providerModels}
+        priceRules={props.priceRules}
         ruleMutations={props.ruleMutations}
       /> : null}
     </WorkspaceLayout>
