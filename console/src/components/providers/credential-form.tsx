@@ -10,8 +10,8 @@ import { toast } from "sonner"
 import { ConnectivityTest } from "@/components/connectivity-test"
 import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "./fingerprint"
 import { FingerprintField } from "./fingerprint-field"
-import { GenericSettingsFields } from "./generic-settings-fields"
-import { objectValue } from "./settings-values"
+import { buildSecret } from "@/components/providers/credential-secret"
+import { CredentialSecretField } from "@/components/providers/credential-secret-field"
 import { prettyJson } from "./json"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -41,7 +41,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
   const { t } = useTranslation()
   const [label, setLabel] = useState(credential?.label ?? "")
   const [kind, setKind] = useState(credential?.kind ?? "api_key")
-  const [secret, setSecret] = useState<Record<string, unknown>>({})
+  const [secretText, setSecretText] = useState("")
   const [weight, setWeight] = useState(String(credential?.weight ?? 100))
   const [rpm, setRpm] = useState(credential?.rpm_limit?.toString() ?? "")
   const [tpm, setTpm] = useState(credential?.tpm_limit?.toString() ?? "")
@@ -57,9 +57,13 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const tls = parseFingerprint(fingerprint.text)
-    const secretValue = objectValue(secret)
-    if (!credential && Object.keys(secretValue).length === 0) {
+    const secretValue = buildSecret(fields, secretText)
+    if (!credential && secretValue === null) {
       setError(t("providers.credentials.secretRequired"))
+      return
+    }
+    if (credential && secretText.trim() !== "" && secretValue === null) {
+      setError(t("providers.credentials.secretInvalid"))
       return
     }
     if (!tls.ok) {
@@ -73,7 +77,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
         provider_id: providerId,
         label: label.trim() || null,
         kind,
-        secret: Object.keys(secretValue).length ? secretValue : null,
+        secret: secretValue,
         enabled,
         weight: Number(weight),
         rpm_limit: rpm.trim() ? Number(rpm) : null,
@@ -107,8 +111,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
           </Select>
           <FieldDescription>{t("providers.credentials.kindHint")}</FieldDescription>
         </Field>
-        <GenericSettingsFields fields={fields} values={secret} onChange={setSecret} />
-        {credential ? <p className="text-xs text-muted-foreground">{t("providers.credentials.keepSecret")}</p> : null}
+        <CredentialSecretField fields={fields} value={secretText} onChange={setSecretText} editing={credential !== undefined} />
         <Field>
           <FieldLabel htmlFor="credential-weight">{t("providers.credentials.weight")}</FieldLabel>
           <Input id="credential-weight" type="number" min={1} step={1} required value={weight} onChange={(event) => setWeight(event.target.value)} />

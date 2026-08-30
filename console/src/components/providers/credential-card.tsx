@@ -98,20 +98,19 @@ export function CredentialCard(props: Props) {
       <CardContent className="flex flex-col gap-4">
         {credential.health_detail ? <p className="machine-text text-sm text-muted-foreground">{credential.health_detail}</p> : null}
         <CredentialModelHealth values={credential.model_health} />
-        {cycleCount > 0 ? (
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="self-start">
-                <GaugeIcon aria-hidden />
-                {t("usage.credentialCycles")}
-                <Badge variant="secondary">{cycleCount}</Badge>
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-4">
-              <CredentialCycleList cycles={props.cycles} loading={props.cyclesLoading} error={props.cyclesError} />
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
+        {/* The control is always here — v2 shows a quota button whether or not a cycle has been observed. */}
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="self-start">
+              <GaugeIcon aria-hidden />
+              {t("usage.credentialCycles")}
+              {cycleCount > 0 ? <Badge variant="secondary">{cycleCount}</Badge> : null}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4">
+            <CredentialCycleList cycles={props.cycles} loading={props.cyclesLoading} error={props.cyclesError} />
+          </CollapsibleContent>
+        </Collapsible>
       </CardContent>
     </Card>
   )
