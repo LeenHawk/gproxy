@@ -11,8 +11,8 @@
       "saveError": "無法儲存定價規則，請重試。",
       "empty": "尚無定價規則。請先新增規則，流量結算才會產生非零成本。",
       "selectPrompt": "選擇一個價格規則以檢視維度費率。",
-      "provider": "提供者",
-      "allProviders": "所有提供者",
+      "provider": "供應商",
+      "allProviders": "所有供應商",
       "pattern": "模型比對模式",
       "priority": "優先順序",
       "enabled": "啟用規則"

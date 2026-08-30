@@ -11,8 +11,8 @@
       "saveError": "无法保存定价规则，请重试。",
       "empty": "尚无定价规则。请先添加规则，流量结算才会产生非零成本。",
       "selectPrompt": "选择一个价格规则以查看维度费率。",
-      "provider": "提供商",
-      "allProviders": "所有提供商",
+      "provider": "供应商",
+      "allProviders": "所有供应商",
       "pattern": "模型匹配模式",
       "priority": "优先级",
       "enabled": "启用规则"

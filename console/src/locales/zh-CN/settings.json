@@ -7,7 +7,7 @@
     "saveError": "无法保存实例设置，请重试。",
     "transfer": {
       "title": "配置导入与导出",
-      "description": "在实例之间迁移提供商、凭据、密钥、配额、定价、路由、别名和规则集。",
+      "description": "在实例之间迁移供应商、凭据、密钥、配额、定价、路由、别名和规则集。",
       "includeSecrets": "包含秘密",
       "includeSecretsHint": "关闭时生成不含凭据和用户密钥秘密的可复用配置文件。",
       "secretWarningTitle": "含秘密的导出文件",

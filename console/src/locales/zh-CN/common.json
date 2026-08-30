@@ -102,7 +102,7 @@
     "sources": {
       "proxy": "待测试代理",
       "credential": "凭据代理",
-      "provider": "提供商代理",
+      "provider": "供应商代理",
       "global": "全局代理",
       "system": "系统代理",
       "direct": "直连"
@@ -141,7 +141,7 @@
   "nav": {
     "label": "控制台导航",
     "overview": "概览",
-    "providers": "提供商",
+    "providers": "供应商",
     "routes": "负载均衡",
     "rules": "规则",
     "users": "用户与密钥",

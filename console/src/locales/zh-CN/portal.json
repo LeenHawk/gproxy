@@ -98,7 +98,7 @@
       "empty": "尚无结算请求",
       "time": "时间",
       "request": "请求",
-      "provider": "提供商",
+      "provider": "供应商",
       "operation": "操作",
       "model": "上游模型",
       "tokens": "输入 / 输出",
@@ -129,13 +129,13 @@
       "portal": "使用密钥"
     },
     "hero": {
-      "title": "一次请求。每种提供商协议。信息不丢失。",
+      "title": "一次请求。每种供应商协议。信息不丢失。",
       "description": "继续发送客户端原本使用的协议。GPROXY 直接转换，保留未知字段，并让每个响应都经过结算。",
       "labLabel": "实时请求转换",
       "labTitle": "实时协议转换",
-      "switchLabel": "提供商协议格式",
+      "switchLabel": "供应商协议格式",
       "clientLabel": "客户端请求",
-      "providerLabel": "提供商协议",
+      "providerLabel": "供应商协议",
       "dialects": {
         "openai": "OpenAI Chat",
         "claude": "Claude Messages",
@@ -167,14 +167,14 @@
       },
       "unknown": {
         "title": "未知字段也能完整往返。",
-        "body": "每个类型化模型都保留尚未建模的 JSON。提供商今天发布的字段，仍能到达你的客户端。"
+        "body": "每个类型化模型都保留尚未建模的 JSON。供应商今天发布的字段，仍能到达你的客户端。"
       },
       "cli": {
-        "title": "你的 CLI 仍像在直连提供商。",
+        "title": "你的 CLI 仍像在直连供应商。",
         "body": "Codex CLI 和 Claude Code 使用池化凭据运行，并经过同一条计量执行路径。"
       },
       "providers": {
-        "title": "28 个提供商，一个 Base URL。",
+        "title": "28 个供应商，一个 Base URL。",
         "body": "池化凭据、在路由成员间故障转移，并按密钥执行支出限制，无需重新配置客户端。"
       },
       "runtime": {

@@ -12,7 +12,7 @@
     "filters": {
       "user": "用户",
       "key": "API 密钥",
-      "provider": "提供商",
+      "provider": "供应商",
       "status": "响应状态码",
       "statusPlaceholder": "例如 500",
       "requestId": "请求 ID",
@@ -40,7 +40,7 @@
       },
       "enable_upstream_log": {
         "label": "上游元数据",
-        "description": "记录每次上游尝试的方法、URL、请求头、提供商、凭据和状态。"
+        "description": "记录每次上游尝试的方法、URL、请求头、供应商、凭据和状态。"
       },
       "enable_upstream_log_body": {
         "label": "上游正文",
@@ -59,7 +59,7 @@
       "upstream": "上游尝试",
       "noAttempts": "该请求没有产生上游尝试。",
       "attempt": "上游尝试 {{number}}",
-      "unknownProvider": "未知提供商",
+      "unknownProvider": "未知供应商",
       "requestHeaders": "请求头",
       "requestBody": "请求正文",
       "responseHeaders": "响应头",
@@ -77,11 +77,11 @@
       "user_key": "API 密钥",
       "userKey": "API 密钥",
       "user": "用户",
-      "provider": "提供商",
+      "provider": "供应商",
       "model": "模型"
     },
     "filters": {
-      "provider": "提供商",
+      "provider": "供应商",
       "user": "用户",
       "key": "API 密钥",
       "model": "模型",
@@ -106,10 +106,10 @@
   },
   "overview": {
     "metrics": { "label": "实例健康摘要", "healthy": "健康凭据", "ratio": "{{value}} / {{total}}", "attention": "需要关注", "requests": "请求数 · 24 小时", "cost": "已结算费用 · 24 小时" },
-    "empty": { "title": "连接第一个提供商", "description": "凭据开始承载流量后，此处会显示健康、费用和配额压力。", "action": "添加提供商" },
+    "empty": { "title": "连接第一个供应商", "description": "凭据开始承载流量后，此处会显示健康、费用和配额压力。", "action": "添加供应商" },
     "noCredentials": { "title": "添加凭据", "description": "已配置 {{provider}}，但还没有可承载流量的凭据。", "action": "为 {{provider}} 添加凭据" },
     "attention": { "title": "需要关注", "description": "当前不健康的已启用凭据。", "empty": "所有已启用凭据均健康。" },
-    "spending": { "title": "按提供商统计费用", "description": "过去 24 小时的已结算用量。" },
+    "spending": { "title": "按供应商统计费用", "description": "过去 24 小时的已结算用量。" },
     "pressure": { "title": "配额压力", "description": "达到或超过 80% 的配额和上游周期。", "empty": "没有接近上限的配额窗口。" }
   }
 }

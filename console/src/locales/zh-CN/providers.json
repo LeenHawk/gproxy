@@ -1,14 +1,14 @@
 {
   "providers": {
-    "title": "提供商",
+    "title": "供应商",
     "subtitle": "配置上游渠道和凭据池。",
-    "add": "添加提供商",
-    "empty": "尚无提供商。请添加一个以向上游路由流量。",
-    "loadError": "无法加载提供商，请重试。",
-    "selectPrompt": "选择一个提供商以查看凭据和设置。",
+    "add": "添加供应商",
+    "empty": "尚无供应商。请添加一个以向上游路由流量。",
+    "loadError": "无法加载供应商，请重试。",
+    "selectPrompt": "选择一个供应商以查看凭据和设置。",
     "workspace": {
-      "search": "搜索提供商…",
-      "resize": "调整提供商列表宽度"
+      "search": "搜索供应商…",
+      "resize": "调整供应商列表宽度"
     },
     "summary": {
       "credentialCount": "{{count}} 个凭据"
@@ -48,7 +48,7 @@
       },
       "oauth_client_id": {
         "label": "OAuth Client ID",
-        "description": "此提供商获取 OAuth Token 时使用的客户端标识。"
+        "description": "此供应商获取 OAuth Token 时使用的客户端标识。"
       },
       "oauth_client_secret": {
         "label": "OAuth Client Secret",
@@ -68,7 +68,7 @@
       },
       "tier": {
         "label": "服务层级",
-        "description": "为此提供商选择的上游服务层级。"
+        "description": "为此供应商选择的上游服务层级。"
       },
       "console_base_url": {
         "label": "控制台 Base URL",
@@ -134,33 +134,33 @@
       "settings": "设置"
     },
     "settings": {
-      "description": "编辑提供商的类型化端点、渠道和高级设置。"
+      "description": "编辑供应商的类型化端点、渠道和高级设置。"
     },
     "fields": {
-      "name": "提供商名称",
+      "name": "供应商名称",
       "label": "显示名称",
       "channel": "渠道",
       "credentialStrategy": "凭据策略",
-      "proxy": "提供商代理 URL",
+      "proxy": "供应商代理 URL",
       "settings": "渠道设置",
-      "enabled": "启用提供商"
+      "enabled": "启用供应商"
     },
     "form": {
-      "createTitle": "添加提供商",
-      "editTitle": "编辑提供商",
+      "createTitle": "添加供应商",
+      "editTitle": "编辑供应商",
       "channelHint": "渠道来自当前运行的 GPROXY 二进制文件。",
       "channelCapabilities": "当前声明 {{count}} 条路由，覆盖以下操作组",
-      "labelHint": "可选的显示文本；提供商名称仍是稳定的路由标识。",
+      "labelHint": "可选的显示文本；供应商名称仍是稳定的路由标识。",
       "credentialStrategyHint": "轮询会轮换请求；粘性策略让每个 API 密钥稳定使用同一凭据。",
-      "proxyHint": "覆盖此提供商的实例代理；凭据仍可再次覆盖。",
+      "proxyHint": "覆盖此供应商的实例代理；凭据仍可再次覆盖。",
       "settingsHint": "高级 JSON 入口。日常编辑请使用上方由渠道声明的字段。",
       "settingsInvalid": "请输入有效的 JSON 对象。",
       "advanced": "高级设置",
       "jsonEscape": "编辑设置 JSON",
-      "created": "已创建提供商。",
-      "updated": "已更新提供商。",
-      "createError": "无法创建提供商，请检查字段后重试。",
-      "updateError": "无法更新提供商，请重试。"
+      "created": "已创建供应商。",
+      "updated": "已更新供应商。",
+      "createError": "无法创建供应商，请检查字段后重试。",
+      "updateError": "无法更新供应商，请重试。"
     },
     "strategies": {
       "round_robin": "轮询",
@@ -257,15 +257,15 @@
       "cookieHint": "粘贴会话 Cookie。它只发送一次，API 不会将其返回。",
       "errors": {
         "startTitle": "无法开始登录",
-        "startDescription": "提供商拒绝了启动步骤。请检查提供商设置后重试。",
+        "startDescription": "供应商拒绝了启动步骤。请检查供应商设置后重试。",
         "completeTitle": "无法完成登录",
         "completeDescription": "代码交换失败。请检查回调 URL 并重试此步骤。",
         "pollTitle": "无法检查授权状态",
-        "pollDescription": "提供商状态检查失败。无需重新开始，直接重试即可。",
+        "pollDescription": "供应商状态检查失败。无需重新开始，直接重试即可。",
         "deniedTitle": "授权已拒绝",
-        "deniedDescription": "提供商拒绝了此设备请求，或请求已过期。请重新开始以获取新代码。",
+        "deniedDescription": "供应商拒绝了此设备请求，或请求已过期。请重新开始以获取新代码。",
         "cookieTitle": "无法交换 Cookie",
-        "cookieDescription": "提供商拒绝了 Cookie。请检查后重试此步骤。"
+        "cookieDescription": "供应商拒绝了 Cookie。请检查后重试此步骤。"
       }
     }
   }
