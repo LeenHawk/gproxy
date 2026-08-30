@@ -18,6 +18,7 @@ impl CompiledSnapshot {
         validate_windows(&stored)?;
         let effective = super::super::settings::EffectiveSettings::read(&stored.settings, runtime);
         let stored = Arc::new(stored);
+        let provider_catalogue = super::capability::provider_catalogue(stored.as_ref());
         let providers = stored
             .providers
             .iter()
@@ -113,6 +114,7 @@ impl CompiledSnapshot {
             exposed: model_index.routes,
             namespaces: model_index.namespaces,
             model_catalogue: model_index.catalogue,
+            provider_catalogue,
             model_variants: model_index.variants,
             global_aliases,
             provider_aliases,

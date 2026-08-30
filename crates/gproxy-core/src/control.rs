@@ -63,8 +63,24 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
     /// in-memory snapshot used by [`Self::resolve`].
     fn exposed_models(&self) -> Vec<ExposedModel>;
 
+    /// What each provider is recorded as serving, namespaced as `provider/model`.
+    /// This is the operator's list: a row disabled here never reaches a client,
+    /// and a row edited here keeps its limits when discovery runs again.
+    fn provider_catalogue(&self) -> Vec<ExposedModel> {
+        Vec::new()
+    }
+
     /// Owned view for a long-lived task that outlives the execute call.
     fn detached(&self) -> Box<dyn ControlPlane>;
+}
+
+/// One model an upstream reported for a provider, before any operator decision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveredModel {
+    pub model_id: String,
+    pub display_name: Option<String>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

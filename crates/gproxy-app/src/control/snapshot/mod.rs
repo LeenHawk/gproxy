@@ -202,6 +202,10 @@ impl ControlPlane for SnapshotControl {
         pricing::resolve(&self.snapshot.load().pricing, provider.id, upstream_model)
     }
 
+    fn provider_catalogue(&self) -> Vec<gproxy_core::ExposedModel> {
+        self.snapshot.load().provider_catalogue.clone()
+    }
+
     fn exposed_models(&self) -> Vec<gproxy_core::ExposedModel> {
         self.snapshot
             .load()

@@ -35,6 +35,8 @@ pub(super) struct CompiledSnapshot {
     pub exposed: BTreeMap<String, i64>,
     pub namespaces: BTreeMap<String, BTreeMap<String, i64>>,
     pub model_catalogue: BTreeMap<String, gproxy_core::ExposedModel>,
+    /// The operator's per-provider list, namespaced `provider/model` the way a client sees it.
+    pub provider_catalogue: Vec<gproxy_core::ExposedModel>,
     pub model_variants: BTreeMap<String, String>,
     pub global_aliases: BTreeMap<String, String>,
     pub provider_aliases: BTreeMap<i64, BTreeMap<String, String>>,

@@ -50,9 +50,9 @@ pub use api::{Core, InitError};
 pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};
 pub use continuation::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore};
 pub use control::{
-    ConditionalMetricRate, ConfiguredFingerprint, ControlPlane, ExposedModel, FingerprintOverride,
-    Plan, Pricing, PricingTier, ProviderRef, Target, TargetRules, UpstreamProxy,
-    normalize_service_tier,
+    ConditionalMetricRate, ConfiguredFingerprint, ControlPlane, DiscoveredModel, ExposedModel,
+    FingerprintOverride, Plan, Pricing, PricingTier, ProviderRef, Target, TargetRules,
+    UpstreamProxy, normalize_service_tier,
 };
 pub use error::CoreError;
 pub use fingerprint::apply_request as apply_provider_transport;
