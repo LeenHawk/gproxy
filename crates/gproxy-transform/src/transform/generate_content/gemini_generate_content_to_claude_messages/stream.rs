@@ -15,6 +15,7 @@ pub fn stream_event(
 #[derive(Default)]
 pub struct StreamTransform {
     lifecycle: common::ClaudeStreamLifecycle,
+    has_tool_call: bool,
 }
 
 impl StreamTransform {
@@ -38,7 +39,15 @@ impl StreamTransform {
                 .map(gemini_usage_to_claude)
                 .unwrap_or_else(common::empty_claude_usage),
         );
-        let events = gemini_chunk_to_claude(input);
+        self.has_tool_call |= input.candidates.iter().any(|candidate| {
+            candidate.content.as_ref().is_some_and(|content| {
+                content
+                    .parts
+                    .iter()
+                    .any(|part| matches!(part.data, Some(gemini::PartData::FunctionCall { .. })))
+            })
+        });
+        let events = gemini_chunk_to_claude(input, self.has_tool_call);
         Ok(self.lifecycle.push(events, fallback_start))
     }
 
@@ -50,7 +59,10 @@ impl StreamTransform {
     }
 }
 
-fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude::StreamEvent> {
+fn gemini_chunk_to_claude(
+    input: gemini::GenerateContentResponse,
+    has_tool_call: bool,
+) -> Vec<claude::StreamEvent> {
     let usage = input.usage_metadata.map(gemini_usage_to_claude);
     let blocked = input
         .prompt_feedback
@@ -78,12 +90,6 @@ fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude:
             .index
             .map(index_to_u64)
             .unwrap_or_else(|| u64::try_from(fallback_index).unwrap_or_default());
-        let has_tool_call = candidate.content.as_ref().is_some_and(|content| {
-            content
-                .parts
-                .iter()
-                .any(|part| matches!(part.data, Some(gemini::PartData::FunctionCall { .. })))
-        });
         if let Some(content) = candidate.content {
             out.extend(gemini_content_to_claude(content, index));
         }
@@ -236,4 +242,57 @@ fn index_to_u64(index: i32) -> u64 {
 
 fn known(event: claude::KnownStreamEvent) -> claude::StreamEvent {
     claude::StreamEvent::Known(Box::new(event))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    fn ctx() -> TransformContext {
+        TransformContext::new(
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+            OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+        )
+    }
+
+    #[test]
+    fn tool_call_in_an_earlier_chunk_finishes_as_tool_use() {
+        let tool = serde_json::from_value(json!({
+            "responseId": "r1",
+            "modelVersion": "gemini-test",
+            "candidates": [{"index": 0, "content": {"role": "model", "parts": [{
+                "functionCall": {"id": "call_1", "name": "weather", "args": {"city": "北京"}}
+            }]}}]
+        }))
+        .unwrap();
+        let terminal = serde_json::from_value(json!({
+            "responseId": "r1",
+            "modelVersion": "gemini-test",
+            "candidates": [{"index": 0, "finishReason": "STOP", "content": {"role": "model", "parts": []}}]
+        }))
+        .unwrap();
+        let mut transform = StreamTransform::default();
+        transform.push(tool, &ctx()).unwrap();
+        let output = transform
+            .push(terminal, &ctx())
+            .unwrap()
+            .into_iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect::<Vec<_>>();
+
+        let message_delta = output
+            .iter()
+            .find(|event| event["type"] == "message_delta")
+            .unwrap();
+        assert_eq!(message_delta["delta"]["stop_reason"], "tool_use");
+    }
 }

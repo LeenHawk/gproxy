@@ -63,23 +63,39 @@ pub(super) fn chat_messages_to_gemini(
                         Some("function_call".to_owned()),
                         function_call.name,
                         function_call.arguments,
+                        None,
                     ));
                 }
                 if let Some(tool_calls) = tool_calls {
                     for call in tool_calls {
-                        let (id, name, arguments) = match call {
-                            openai::ChatToolCall::Function { id, function, .. } => {
-                                (id, function.name, function.arguments)
+                        let (id, name, arguments, thought_signature) = match call {
+                            openai::ChatToolCall::Function {
+                                id,
+                                function,
+                                mut extra,
+                            } => {
+                                let thought_signature = take_thought_signature(&mut extra);
+                                (id, function.name, function.arguments, thought_signature)
                             }
-                            openai::ChatToolCall::Custom { id, custom, .. } => {
-                                (id, custom.name, custom.input)
+                            openai::ChatToolCall::Custom {
+                                id,
+                                custom,
+                                mut extra,
+                            } => {
+                                let thought_signature = take_thought_signature(&mut extra);
+                                (id, custom.name, custom.input, thought_signature)
                             }
                             _ => unreachable!(
                                 "new non-exhaustive protocol variant requires a lockstep transform update"
                             ),
                         };
                         tool_names.insert(id.clone(), name.clone());
-                        parts.push(function_call_part(Some(id), name, arguments));
+                        parts.push(function_call_part(
+                            Some(id),
+                            name,
+                            arguments,
+                            thought_signature,
+                        ));
                     }
                 }
                 if !parts.is_empty() {
@@ -106,9 +122,7 @@ pub(super) fn chat_messages_to_gemini(
                         name,
                         chat_text_content_to_text(content),
                     )],
-                    role: Some(gemini::ContentRole::Known(
-                        gemini::ContentRoleKnown::Function,
-                    )),
+                    role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
                     extra: Default::default(),
                 }));
             }
@@ -116,9 +130,7 @@ pub(super) fn chat_messages_to_gemini(
                 seen_non_system = true;
                 contents.push(crate::protocol::wire!(gemini::Content {
                     parts: vec![function_response_part(None, name, content)],
-                    role: Some(gemini::ContentRole::Known(
-                        gemini::ContentRoleKnown::Function,
-                    )),
+                    role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
                     extra: Default::default(),
                 }));
             }
@@ -128,6 +140,7 @@ pub(super) fn chat_messages_to_gemini(
         }
     }
 
+    let contents = merge_adjacent_contents(contents);
     let system_instruction =
         (!system_parts.is_empty()).then_some(crate::protocol::wire!(gemini::Content {
             parts: system_parts,
@@ -285,8 +298,14 @@ fn chat_file_to_gemini_part(file: openai::ChatFileRef) -> Option<gemini::Part> {
     })
 }
 
-fn function_call_part(id: Option<String>, name: String, arguments: String) -> gemini::Part {
+fn function_call_part(
+    id: Option<String>,
+    name: String,
+    arguments: String,
+    thought_signature: Option<String>,
+) -> gemini::Part {
     crate::protocol::wire!(gemini::Part {
+        thought_signature,
         data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
             function_call: crate::protocol::wire!(gemini::FunctionCall {
                 id,
@@ -297,6 +316,30 @@ fn function_call_part(id: Option<String>, name: String, arguments: String) -> ge
         })),
         ..Default::default()
     })
+}
+
+fn take_thought_signature(extra: &mut openai::Extra) -> Option<String> {
+    extra
+        .remove("thought_signature")
+        .or_else(|| extra.remove("thoughtSignature"))
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
+}
+
+fn merge_adjacent_contents(contents: Vec<gemini::Content>) -> Vec<gemini::Content> {
+    let mut merged: Vec<gemini::Content> = Vec::new();
+    for mut content in contents {
+        if content.parts.is_empty() {
+            continue;
+        }
+        if let Some(previous) = merged.last_mut()
+            && previous.role == content.role
+        {
+            previous.parts.append(&mut content.parts);
+        } else {
+            merged.push(content);
+        }
+    }
+    merged
 }
 
 fn function_response_part(id: Option<String>, name: String, output: String) -> gemini::Part {
@@ -333,4 +376,76 @@ fn parse_data_url(url: &str) -> Option<(String, String)> {
     let data = url.strip_prefix("data:")?;
     let (mime, payload) = data.split_once(";base64,")?;
     Some((mime.to_owned(), payload.to_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn convert(messages: serde_json::Value) -> serde_json::Value {
+        let request: openai::ChatCompletionRequest = serde_json::from_value(json!({
+            "model": "gemini-test",
+            "messages": messages
+        }))
+        .unwrap();
+        let (contents, _) = chat_messages_to_gemini(request.messages);
+        serde_json::to_value(contents).unwrap()
+    }
+
+    #[test]
+    fn groups_parallel_tool_results_with_following_user_text() {
+        let output = convert(json!([
+            {"role": "user", "content": "查两个城市"},
+            {"role": "assistant", "content": null, "tool_calls": [
+                {"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"北京\"}"}},
+                {"id": "call_2", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"上海\"}"}}
+            ]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "晴"},
+            {"role": "tool", "tool_call_id": "call_2", "content": "雨"},
+            {"role": "user", "content": "总结"}
+        ]));
+
+        assert_eq!(output.as_array().unwrap().len(), 3);
+        assert_eq!(output[0]["role"], "user");
+        assert_eq!(output[1]["role"], "model");
+        assert_eq!(output[2]["role"], "user");
+        assert_eq!(output[2]["parts"].as_array().unwrap().len(), 3);
+        assert_eq!(output[2]["parts"][0]["functionResponse"]["id"], "call_1");
+        assert_eq!(output[2]["parts"][1]["functionResponse"]["id"], "call_2");
+        assert_eq!(output[2]["parts"][2]["text"], "总结");
+    }
+
+    #[test]
+    fn invalid_arguments_keep_the_parent_function_call() {
+        let output = convert(json!([
+            {"role": "user", "content": "查天气"},
+            {"role": "assistant", "content": null, "tool_calls": [{
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "weather", "arguments": "{\"city\":\"北京\"}{\"city\":\"上海\"}"}
+            }]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "参数解析失败"}
+        ]));
+
+        assert_eq!(output[1]["parts"][0]["functionCall"]["id"], "call_1");
+        assert_eq!(output[1]["parts"][0]["functionCall"]["name"], "weather");
+        assert!(output[1]["parts"][0]["functionCall"].get("args").is_none());
+        assert_eq!(output[2]["parts"][0]["functionResponse"]["id"], "call_1");
+    }
+
+    #[test]
+    fn restores_chat_tool_call_thought_signature() {
+        let output = convert(json!([
+            {"role": "assistant", "content": null, "tool_calls": [{
+                "id": "call_1",
+                "type": "function",
+                "thought_signature": "ciphertext",
+                "function": {"name": "weather", "arguments": "{}"}
+            }]}
+        ]));
+
+        assert_eq!(output[0]["parts"][0]["thoughtSignature"], "ciphertext");
+    }
 }

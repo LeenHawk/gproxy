@@ -19,24 +19,29 @@ pub fn response(
             .candidates
             .into_iter()
             .enumerate()
-            .map(
-                |(index, candidate)| crate::protocol::wire!(openai::ChatCompletionChoice {
+            .map(|(index, candidate)| {
+                let message = candidate
+                    .content
+                    .map(gemini_content_to_chat_message)
+                    .unwrap_or_else(empty_assistant_message);
+                let has_tool_calls = message
+                    .tool_calls
+                    .as_ref()
+                    .is_some_and(|calls| !calls.is_empty());
+                crate::protocol::wire!(openai::ChatCompletionChoice {
                     finish_reason: candidate
                         .finish_reason
-                        .map(gemini_finish_reason_to_chat)
+                        .map(|reason| gemini_finish_reason_to_chat(reason, has_tool_calls))
                         .unwrap_or(openai::ChatFinishReason::Stop),
                     index: candidate
                         .index
                         .map(i32_to_u32)
                         .unwrap_or_else(|| usize_to_u32(index)),
                     logprobs: None,
-                    message: candidate
-                        .content
-                        .map(gemini_content_to_chat_message)
-                        .unwrap_or_else(empty_assistant_message),
+                    message,
                     extra: Default::default(),
                 })
-            )
+            })
             .collect(),
         created: 0,
         model: input
@@ -66,8 +71,11 @@ fn empty_assistant_message() -> openai::ChatMessage {
     })
 }
 
-fn gemini_finish_reason_to_chat(reason: gemini::FinishReason) -> openai::ChatFinishReason {
-    match reason {
+fn gemini_finish_reason_to_chat(
+    reason: gemini::FinishReason,
+    has_tool_calls: bool,
+) -> openai::ChatFinishReason {
+    let finish_reason = match reason {
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens) => {
             openai::ChatFinishReason::Length
         }
@@ -91,6 +99,11 @@ fn gemini_finish_reason_to_chat(reason: gemini::FinishReason) -> openai::ChatFin
         _ => {
             unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
+    };
+    if has_tool_calls && finish_reason == openai::ChatFinishReason::Stop {
+        openai::ChatFinishReason::ToolCalls
+    } else {
+        finish_reason
     }
 }
 
@@ -136,4 +149,68 @@ fn i32_to_u32(value: i32) -> u32 {
 
 fn usize_to_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    fn ctx() -> TransformContext {
+        TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::GeminiGenerateContent,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+        )
+    }
+
+    #[test]
+    fn function_call_with_stop_finishes_as_tool_calls_and_preserves_signature() {
+        let input = serde_json::from_value(json!({
+            "responseId": "r1",
+            "modelVersion": "gemini-test",
+            "candidates": [{
+                "index": 0,
+                "finishReason": "STOP",
+                "content": {"role": "model", "parts": [{
+                    "functionCall": {"id": "call_1", "name": "weather", "args": {"city": "北京"}},
+                    "thoughtSignature": "ciphertext"
+                }]}
+            }]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(response(input, &ctx()).unwrap()).unwrap();
+        assert_eq!(output["choices"][0]["finish_reason"], "tool_calls");
+        assert_eq!(
+            output["choices"][0]["message"]["tool_calls"][0]["thought_signature"],
+            "ciphertext"
+        );
+    }
+
+    #[test]
+    fn truncated_function_call_keeps_length_finish_reason() {
+        let input = serde_json::from_value(json!({
+            "candidates": [{
+                "finishReason": "MAX_TOKENS",
+                "content": {"role": "model", "parts": [{
+                    "functionCall": {"id": "call_1", "name": "weather", "args": {}}
+                }]}
+            }]
+        }))
+        .unwrap();
+
+        let output = response(input, &ctx()).unwrap();
+        assert_eq!(
+            output.choices[0].finish_reason,
+            openai::ChatFinishReason::Length
+        );
+    }
 }

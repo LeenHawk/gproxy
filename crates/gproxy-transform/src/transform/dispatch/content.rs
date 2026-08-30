@@ -331,6 +331,7 @@ enum ContentStreamState {
     ResponsesToChat(gc::openai_responses_to_openai_chat::StreamTransform),
     ChatToClaude(gc::openai_chat_to_claude_messages::StreamTransform),
     GeminiToClaude(gc::gemini_generate_content_to_claude_messages::StreamTransform),
+    GeminiToChat(gc::gemini_generate_content_to_openai_chat::StreamTransform),
 }
 
 impl ContentStreamConverter {
@@ -374,6 +375,9 @@ impl ContentStreamConverter {
             ),
             P::GeminiGenerateContentToClaudeMessages => ContentStreamState::GeminiToClaude(
                 gc::gemini_generate_content_to_claude_messages::StreamTransform::default(),
+            ),
+            P::GeminiGenerateContentToOpenAiChat => ContentStreamState::GeminiToChat(
+                gc::gemini_generate_content_to_openai_chat::StreamTransform::default(),
             ),
             other if is_content(other) => ContentStreamState::Stateless,
             other => return Err(not_wired(other)),
@@ -427,11 +431,14 @@ impl ContentStreamConverter {
                     terminal,
                 ))
             }
-            (ContentStreamState::Stateless, P::GeminiGenerateContentToOpenAiChat) => to_plain_one(
-                gc::gemini_generate_content_to_openai_chat::stream_event,
-                &self.ctx,
-                data,
-            ),
+            (ContentStreamState::GeminiToChat(state), P::GeminiGenerateContentToOpenAiChat) => {
+                let (input, terminal) = decode_stream(data)?;
+                let event = state.push(input, &self.ctx)?;
+                Ok(ContentStreamOutput::new(
+                    vec![encode(None, &event)?],
+                    terminal,
+                ))
+            }
             (ContentStreamState::GeminiToResponses(state), _) => {
                 let (input, terminal) = decode_stream(data)?;
                 let ctx = if self.pair == P::GeminiGenerateContentToOpenAiResponsesWebSocket {
@@ -578,6 +585,7 @@ impl ContentStreamConverter {
             }
             ContentStreamState::ChatToClaude(state) => to_claude_many(state.finish(&self.ctx)?),
             ContentStreamState::GeminiToClaude(state) => to_claude_many(state.finish(&self.ctx)?),
+            ContentStreamState::GeminiToChat(state) => to_plain_many(state.finish(&self.ctx)?),
         }
     }
 }
@@ -719,6 +727,14 @@ where
 mod tests {
     use super::*;
 
+    fn encoded_value(output: ContentStreamOutput) -> serde_json::Value {
+        let event = output.events.into_iter().next().unwrap();
+        let StreamEventOut::Encoded { data, .. } = event else {
+            panic!("expected encoded chat event");
+        };
+        serde_json::from_str(&data).unwrap()
+    }
+
     #[test]
     fn typed_source_events_report_terminal_state() {
         for raw in [
@@ -779,5 +795,46 @@ mod tests {
                 .expect("future Claude error event");
         assert!(matches!(event, claude::StreamEvent::Unknown(_)));
         assert!(terminal);
+    }
+
+    #[test]
+    fn gemini_to_chat_dispatch_retains_parallel_tool_state_across_chunks() {
+        let source = OperationKey::content_generation(
+            crate::protocol::Operation::StreamGenerateContent,
+            ContentGenerationKind::GeminiGenerateContent,
+        );
+        let target = OperationKey::content_generation(
+            crate::protocol::Operation::StreamGenerateContent,
+            ContentGenerationKind::OpenAiChatCompletions,
+        );
+        let pair = crate::transform::resolve(source, target).unwrap();
+        let mut converter =
+            ContentStreamConverter::new(pair, TransformContext::new(source, target)).unwrap();
+
+        let first = encoded_value(
+            converter
+                .push(
+                    r#"{"responseId":"r1","modelVersion":"m","candidates":[{"index":0,"content":{"role":"model","parts":[{"functionCall":{"id":"call_1","name":"weather","args":{"city":"北京"}}}]}}]}"#,
+                )
+                .unwrap(),
+        );
+        let second = encoded_value(
+            converter
+                .push(
+                    r#"{"responseId":"r1","modelVersion":"m","candidates":[{"index":0,"content":{"role":"model","parts":[{"functionCall":{"id":"call_2","name":"weather","args":{"city":"上海"}}}]}}]}"#,
+                )
+                .unwrap(),
+        );
+        let terminal = encoded_value(
+            converter
+                .push(
+                    r#"{"responseId":"r1","modelVersion":"m","candidates":[{"index":0,"finishReason":"STOP","content":{"role":"model","parts":[]}}]}"#,
+                )
+                .unwrap(),
+        );
+
+        assert_eq!(first["choices"][0]["delta"]["tool_calls"][0]["index"], 0);
+        assert_eq!(second["choices"][0]["delta"]["tool_calls"][0]["index"], 1);
+        assert_eq!(terminal["choices"][0]["finish_reason"], "tool_calls");
     }
 }

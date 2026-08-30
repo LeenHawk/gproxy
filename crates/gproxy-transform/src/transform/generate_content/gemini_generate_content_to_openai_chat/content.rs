@@ -26,6 +26,7 @@ pub(super) fn gemini_contents_to_chat_messages(
             Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User))
             | Some(gemini::ContentRole::Unknown(_))
             | None => {
+                messages.extend(gemini_content_to_tool_messages(content.clone()));
                 if let Some(message) = gemini_content_to_user_message(content) {
                     messages.push(message);
                 }
@@ -96,6 +97,7 @@ fn gemini_content_to_assistant_param(
     let mut tool_calls = Vec::new();
 
     for part in content.parts {
+        let thought_signature = part.thought_signature;
         match part.data {
             Some(gemini::PartData::Text { text }) => text_parts.push(text),
             Some(gemini::PartData::FunctionCall { function_call }) => {
@@ -113,7 +115,7 @@ fn gemini_content_to_assistant_param(
                         name: function_call.name,
                         extra: Default::default(),
                     }),
-                    extra: Default::default(),
+                    extra: thought_signature_extra(thought_signature),
                 });
             }
             Some(gemini::PartData::ExecutableCode { executable_code }) => {
@@ -141,6 +143,19 @@ fn gemini_content_to_assistant_param(
         tool_calls: (!tool_calls.is_empty()).then_some(tool_calls),
         extra: Default::default(),
     }
+}
+
+fn thought_signature_extra(signature: Option<String>) -> openai::Extra {
+    signature
+        .map(|signature| {
+            [(
+                "thought_signature".to_owned(),
+                serde_json::Value::String(signature),
+            )]
+            .into_iter()
+            .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn gemini_content_to_user_message(
@@ -366,5 +381,28 @@ mod tests {
             value["text"],
             "Attachment URL: https://files.example/report.pdf"
         );
+    }
+
+    #[test]
+    fn user_turn_with_function_responses_and_text_keeps_message_order() {
+        let contents = serde_json::from_value(serde_json::json!([{
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"id": "call_1", "name": "weather", "response": {"output": "晴"}}},
+                {"functionResponse": {"id": "call_2", "name": "weather", "response": {"output": "雨"}}},
+                {"text": "总结"}
+            ]
+        }]))
+        .unwrap();
+
+        let output = super::gemini_contents_to_chat_messages(contents);
+        let value = serde_json::to_value(output).unwrap();
+        assert_eq!(value.as_array().unwrap().len(), 3);
+        assert_eq!(value[0]["role"], "tool");
+        assert_eq!(value[0]["tool_call_id"], "call_1");
+        assert_eq!(value[1]["role"], "tool");
+        assert_eq!(value[1]["tool_call_id"], "call_2");
+        assert_eq!(value[2]["role"], "user");
+        assert_eq!(value[2]["content"], "总结");
     }
 }

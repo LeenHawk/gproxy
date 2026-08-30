@@ -104,8 +104,13 @@ mod gemini_content_to_chat_message {
         if let Some(tool_calls) = message.tool_calls {
             for call in tool_calls {
                 parts.push(match call {
-                    openai::ChatToolCall::Function { id, function, .. } => {
+                    openai::ChatToolCall::Function {
+                        id,
+                        function,
+                        mut extra,
+                    } => {
                         crate::protocol::wire!(gemini::Part {
+                            thought_signature: take_thought_signature(&mut extra),
                             data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
                                 function_call: crate::protocol::wire!(gemini::FunctionCall {
                                     id: Some(id),
@@ -117,8 +122,13 @@ mod gemini_content_to_chat_message {
                             ..Default::default()
                         })
                     }
-                    openai::ChatToolCall::Custom { id, custom, .. } => {
+                    openai::ChatToolCall::Custom {
+                        id,
+                        custom,
+                        mut extra,
+                    } => {
                         crate::protocol::wire!(gemini::Part {
+                            thought_signature: take_thought_signature(&mut extra),
                             data: Some(crate::protocol::wire!(gemini::PartData::FunctionCall {
                                 function_call: crate::protocol::wire!(gemini::FunctionCall {
                                     id: Some(id),
@@ -142,5 +152,12 @@ mod gemini_content_to_chat_message {
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
             extra: Default::default(),
         })
+    }
+
+    fn take_thought_signature(extra: &mut openai::Extra) -> Option<String> {
+        extra
+            .remove("thought_signature")
+            .or_else(|| extra.remove("thoughtSignature"))
+            .and_then(|value| value.as_str().map(ToOwned::to_owned))
     }
 }
