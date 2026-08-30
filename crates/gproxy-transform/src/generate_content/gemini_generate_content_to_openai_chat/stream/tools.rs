@@ -115,12 +115,12 @@ pub(super) fn finish_choice(
                 });
             }
         } else {
-            output.push(content::function_call(
+            output.push(content::lossy_function_call(
                 Some(id),
                 name,
                 &pending.arguments,
                 pending.rest,
-            )?);
+            ));
         }
     }
     Ok(output)

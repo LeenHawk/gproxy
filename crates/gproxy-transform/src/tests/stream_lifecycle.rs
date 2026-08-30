@@ -628,3 +628,45 @@ fn gemini_response_skips_parts_chat_cannot_render() {
     assert!(text.contains("visible"), "stream text was dropped: {text}");
     assert!(text.contains("[DONE]"), "no stream terminal: {text}");
 }
+
+#[test]
+fn chat_response_skips_audio_and_keeps_unparseable_call_for_gemini() {
+    let output = response(
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        content(Operation::GenerateContent, Kind::OpenAiChat),
+        Bytes::from_static(
+            br#"{"id":"chat_1","object":"chat.completion","created":0,"model":"gpt-5.5","choices":[{"index":0,"finish_reason":"tool_calls","message":{"role":"assistant","content":"visible","audio":{"id":"audio_1","data":"UklGRg==","expires_at":0,"transcript":"spoken"},"tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]}}]}"#,
+        ),
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(
+        value["candidates"][0]["content"]["parts"][0]["text"],
+        "visible"
+    );
+    assert_eq!(
+        value["candidates"][0]["content"]["parts"][1]["functionCall"]["name"],
+        "lookup"
+    );
+    assert!(
+        value["candidates"][0]["content"]["parts"][1]["functionCall"]
+            .get("args")
+            .is_none()
+    );
+
+    let stream = ResponseStream::new(
+        content(
+            Operation::StreamGenerateContent,
+            Kind::GeminiGenerateContent,
+        ),
+        content(Operation::StreamGenerateContent, Kind::OpenAiChat),
+    )
+    .unwrap();
+    let wire = concat!(
+        "data: {\"id\":\"chat_1\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"gpt-5.5\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\":\"}}]},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chat_1\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"gpt-5.5\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n",
+        "data: [DONE]\n\n",
+    );
+    let text = String::from_utf8(drive(stream, wire, 23)).unwrap();
+    assert!(text.contains("lookup"), "tool call was dropped: {text}");
+}

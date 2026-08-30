@@ -3,7 +3,7 @@ use gproxy_protocol::{gemini, openai};
 use crate::TransformError;
 use crate::generate_content::gemini_generate_content_to_openai_chat::tools::CODE_EXECUTION_NAME;
 
-use super::parts::{function_call, text_part};
+use super::parts::text_part;
 
 pub(crate) fn candidate(message: openai::ChatMessage) -> Result<gemini::Content, TransformError> {
     let mut parts = Vec::new();
@@ -17,16 +17,15 @@ pub(crate) fn candidate(message: openai::ChatMessage) -> Result<gemini::Content,
         parts.push(text_part(refusal, false, Default::default()));
     }
     if let Some(call) = message.function_call {
-        parts.push(function_call(None, call.name, &call.arguments, call.rest)?);
+        parts.push(lossy_function_call(
+            None,
+            call.name,
+            &call.arguments,
+            call.rest,
+        ));
     }
     for call in message.tool_calls.into_iter().flatten() {
         parts.extend(tool_call(call)?);
-    }
-    if message.audio.is_some() {
-        return Err(TransformError::unsupported(
-            "Chat response",
-            "audio output has no lossless Gemini response mapping",
-        ));
     }
     let mut rest = message.rest;
     if let Some(annotations) = message.annotations {
@@ -64,7 +63,7 @@ fn tool_call(call: openai::ChatToolCall) -> Result<Vec<gemini::Part>, TransformE
         }
     };
     if name != CODE_EXECUTION_NAME {
-        return Ok(vec![function_call(Some(id), name, &arguments, rest)?]);
+        return Ok(vec![lossy_function_call(Some(id), name, &arguments, rest)]);
     }
     let mut code: gemini::ExecutableCode = serde_json::from_str(&arguments)?;
     code.id = Some(id.clone());
@@ -90,6 +89,27 @@ fn tool_call(call: openai::ChatToolCall) -> Result<Vec<gemini::Part>, TransformE
         });
     }
     Ok(parts)
+}
+
+pub(crate) fn lossy_function_call(
+    id: Option<String>,
+    name: String,
+    arguments: &str,
+    rest: gemini::ExtraFields,
+) -> gemini::Part {
+    gemini::Part {
+        data: Some(gemini::PartData::FunctionCall {
+            function_call: gemini::FunctionCall {
+                id,
+                name,
+                args: serde_json::from_str(arguments).ok(),
+                rest: Default::default(),
+            },
+            rest: Default::default(),
+        }),
+        rest,
+        ..Default::default()
+    }
 }
 
 fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
