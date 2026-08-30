@@ -120,7 +120,6 @@
       "enable_upstream_log_bodyHint": "同时存储上游请求与响应正文。"
     },
     "redaction": {
-      "title": "敏感数据脱敏",
       "disable": "停用日志脱敏",
       "enabledMeaning": "脱敏已开启。凭据、Cookie、授权请求头和已知密钥字段会在写入日志前移除。",
       "disabledMeaning": "脱敏已关闭。凭据、Cookie、用户内容及其他敏感值可能以明文写入数据库。仅在你控制的实例上临时使用。"

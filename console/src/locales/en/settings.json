@@ -120,7 +120,6 @@
       "enable_upstream_log_bodyHint": "Also store upstream request and response bodies."
     },
     "redaction": {
-      "title": "Sensitive-data redaction",
       "disable": "Disable log redaction",
       "enabledMeaning": "Redaction is on. Credentials, cookies, authorization headers, and known secret fields are removed before logs are stored.",
       "disabledMeaning": "Redaction is off. Credentials, cookies, user content, and other sensitive values may be written to the database in clear text. Use this only temporarily on an instance you control."

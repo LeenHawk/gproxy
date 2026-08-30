@@ -120,7 +120,6 @@
       "enable_upstream_log_bodyHint": "同時儲存上游請求與回應本文。"
     },
     "redaction": {
-      "title": "敏感資料遮罩",
       "disable": "停用日誌遮罩",
       "enabledMeaning": "遮罩已開啟。憑證、Cookie、授權標頭和已知密鑰欄位會在寫入日誌前移除。",
       "disabledMeaning": "遮罩已關閉。憑證、Cookie、使用者內容及其他敏感值可能以明文寫入資料庫。僅在你控制的執行個體上暫時使用。"
