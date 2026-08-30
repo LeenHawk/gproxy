@@ -20,23 +20,9 @@ pub(crate) fn response_block(
 ) -> Result<Option<gemini::Part>, TransformError> {
     Ok(Some(match block {
         claude::ResponseContentBlock::Text(block) => {
-            if block.citations.is_some() || !block.rest.is_empty() {
-                return Err(TransformError::unsupported(
-                    "Claude response text",
-                    "citations or rest",
-                ));
-            }
             super::text_part(block.text, Default::default())
         }
-        claude::ResponseContentBlock::Thinking(block) => {
-            if !block.rest.is_empty() {
-                return Err(TransformError::unsupported(
-                    "Claude response thinking",
-                    "rest fields",
-                ));
-            }
-            thought(block)
-        }
+        claude::ResponseContentBlock::Thinking(block) => thought(block),
         claude::ResponseContentBlock::ToolUse(block) if tools::is_native_name(&block.name) => {
             if block.caller.is_some() || !block.rest.is_empty() {
                 return Err(TransformError::unsupported(
@@ -125,24 +111,15 @@ fn take_signature(caller: &mut Option<claude::Caller>) -> Result<Option<String>,
         return Ok(None);
     };
     let claude::Caller::Direct(caller) = caller else {
-        return Err(TransformError::unsupported(
-            "Claude tool caller",
-            "non-direct caller",
-        ));
+        return Ok(None);
     };
     let signature = caller
         .rest
         .remove("thought_signature")
         .or_else(|| caller.rest.remove("thoughtSignature"))
-        .ok_or_else(|| TransformError::unsupported("Claude tool caller", "missing signature"))?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| TransformError::shape("Claude tool caller", "invalid signature"))?;
-    if !caller.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Claude tool caller",
-            "unmapped caller fields",
-        ));
-    }
+        .and_then(|value| value.as_str().map(str::to_owned));
+    let Some(signature) = signature else {
+        return Ok(None);
+    };
     Ok(Some(signature))
 }

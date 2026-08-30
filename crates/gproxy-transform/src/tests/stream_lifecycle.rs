@@ -540,3 +540,31 @@ fn responses_stream_survives_items_and_events_gemini_cannot_express() {
     assert!(text.contains("Done"), "text was dropped: {text}");
     assert!(text.contains("STOP"), "no terminal: {text}");
 }
+
+#[test]
+fn claude_stream_survives_blocks_and_events_gemini_cannot_express() {
+    let gemini = content(
+        Operation::StreamGenerateContent,
+        Kind::GeminiGenerateContent,
+    );
+    let claude = content(Operation::StreamGenerateContent, Kind::ClaudeMessages);
+    let stream = ResponseStream::new(gemini, claude).unwrap();
+    let wire = concat!(
+        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-opus\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"redacted_thinking\",\"data\":\"opaque\"}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\",\"citations\":[]}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"citations_delta\",\"citation\":{\"type\":\"char_location\",\"cited_text\":\"Hello\",\"document_index\":0,\"start_char_index\":0,\"end_char_index\":5}}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"future_delta\",\"future\":true}}\n\n",
+        "event: future_event\ndata: {\"type\":\"future_event\",\"future\":true}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"lookup\",\"input\":{},\"caller\":{\"type\":\"direct\"}}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":2}\n\n",
+        "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":1}}\n\n",
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+    );
+    let text = String::from_utf8(drive(stream, wire, 31)).unwrap();
+    assert!(text.contains("Hello"), "text was dropped: {text}");
+    assert!(text.contains("STOP"), "no terminal: {text}");
+}

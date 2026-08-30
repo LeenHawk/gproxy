@@ -29,12 +29,7 @@ impl State {
     ) -> Result<Vec<Bytes>, TransformError> {
         let event = match event {
             claude::StreamEvent::Known(event) => event,
-            claude::StreamEvent::Unknown(object) => {
-                return Err(TransformError::unsupported(
-                    "Claude stream event",
-                    serde_json::to_string(&object)?,
-                ));
-            }
+            claude::StreamEvent::Unknown(_) => return Ok(Vec::new()),
         };
         if self.stopped {
             return Err(TransformError::shape(
@@ -143,12 +138,7 @@ impl State {
     ) -> Result<Option<gemini::GenerateContentResponse>, TransformError> {
         let delta = match delta {
             claude::EventDelta::Known(delta) => delta,
-            claude::EventDelta::Unknown(object) => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    serde_json::to_string(&object)?,
-                ));
-            }
+            claude::EventDelta::Unknown(_) => return Ok(None),
         };
         let part = match *delta {
             claude::KnownEventDelta::Text { text, rest: inner } => {
@@ -179,12 +169,7 @@ impl State {
                 rest: inner,
                 ..
             } => chunks::text(content, false, chunks::merge(inner, rest)),
-            unsupported @ claude::KnownEventDelta::Citations { .. } => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    serde_json::to_string(&unsupported)?,
-                ));
-            }
+            claude::KnownEventDelta::Citations { .. } => return Ok(None),
         };
         Ok(Some(chunks::candidate(
             Some(part),

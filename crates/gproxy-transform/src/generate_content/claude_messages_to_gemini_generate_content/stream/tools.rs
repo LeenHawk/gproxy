@@ -12,6 +12,9 @@ impl State {
         block: claude::ContentBlock,
         rest: gemini::JsonMap,
     ) -> Result<Option<gemini::GenerateContentResponse>, TransformError> {
+        if matches!(&block, claude::ResponseContentBlock::RedactedThinking(_)) {
+            return Ok(None);
+        }
         if let claude::ResponseContentBlock::ToolUse(mut block) = block {
             block.rest.extend(rest);
             self.tools.insert(
