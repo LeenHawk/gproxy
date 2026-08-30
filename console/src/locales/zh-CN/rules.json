@@ -225,7 +225,8 @@
       "list_files": "列出文件",
       "retrieve_file": "获取文件",
       "retrieve_file_content": "获取文件内容",
-      "delete_file": "删除文件"
+      "delete_file": "删除文件",
+      "connect_realtime": "连接实时会话"
     },
     "wires": {
       "openai": "OpenAI",
@@ -236,6 +237,21 @@
       "claude_messages": "Claude Messages",
       "gemini": "Gemini",
       "gemini_generate_content": "Gemini Generate Content"
+    },
+    "groups": {
+      "models": "模型",
+      "memories": "记忆",
+      "generate_content": "内容生成",
+      "compact": "压缩",
+      "count_tokens": "Token 统计",
+      "embeddings": "嵌入",
+      "images": "图像",
+      "audio": "音频",
+      "video": "视频",
+      "files": "文件",
+      "search": "搜索",
+      "rerank": "重排序",
+      "realtime": "实时"
     }
   }
 }

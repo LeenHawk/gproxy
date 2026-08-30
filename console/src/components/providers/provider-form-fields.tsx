@@ -44,7 +44,7 @@ export function ProviderFormFields(props: {
           onChange={(value) => props.onChange("channel", value)}
         />
         {source.provider ? null : <FieldDescription>{t("providers.form.channelHint")}</FieldDescription>}
-        {selectedChannel ? <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{t("providers.form.channelCapabilities", { count: selectedChannel.supports.length })}</span>{[...new Set(selectedChannel.supports.map((support) => support.group))].map((group) => <Badge key={group} variant="outline">{group}</Badge>)}</div> : null}
+        {selectedChannel ? <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{t("providers.form.channelCapabilities", { count: selectedChannel.supports.length })}</span>{[...new Set(selectedChannel.supports.map((support) => support.group))].map((group) => <Badge key={group} variant="outline">{t(`rules.groups.${group}`, { defaultValue: group })}</Badge>)}</div> : null}
         {source.channelsError ? <FieldError>{t("common.errors.load")}</FieldError> : null}
         {errors.channel ? <FieldError>{errors.channel}</FieldError> : null}
       </Field>

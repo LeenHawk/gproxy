@@ -225,7 +225,8 @@
       "list_files": "List Files",
       "retrieve_file": "Retrieve File",
       "retrieve_file_content": "Retrieve File Content",
-      "delete_file": "Delete File"
+      "delete_file": "Delete File",
+      "connect_realtime": "Connect Realtime"
     },
     "wires": {
       "openai": "OpenAI",
@@ -236,6 +237,21 @@
       "claude_messages": "Claude Messages",
       "gemini": "Gemini",
       "gemini_generate_content": "Gemini Generate Content"
+    },
+    "groups": {
+      "models": "Models",
+      "memories": "Memories",
+      "generate_content": "Content generation",
+      "compact": "Compaction",
+      "count_tokens": "Token counting",
+      "embeddings": "Embeddings",
+      "images": "Images",
+      "audio": "Audio",
+      "video": "Video",
+      "files": "Files",
+      "search": "Search",
+      "rerank": "Rerank",
+      "realtime": "Realtime"
     }
   }
 }

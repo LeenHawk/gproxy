@@ -225,7 +225,8 @@
       "list_files": "列出檔案",
       "retrieve_file": "取得檔案",
       "retrieve_file_content": "取得檔案內容",
-      "delete_file": "刪除檔案"
+      "delete_file": "刪除檔案",
+      "connect_realtime": "連線即時工作階段"
     },
     "wires": {
       "openai": "OpenAI",
@@ -236,6 +237,21 @@
       "claude_messages": "Claude Messages",
       "gemini": "Gemini",
       "gemini_generate_content": "Gemini Generate Content"
+    },
+    "groups": {
+      "models": "模型",
+      "memories": "記憶",
+      "generate_content": "內容生成",
+      "compact": "壓縮",
+      "count_tokens": "Token 統計",
+      "embeddings": "嵌入",
+      "images": "圖像",
+      "audio": "音訊",
+      "video": "影片",
+      "files": "檔案",
+      "search": "搜尋",
+      "rerank": "重新排序",
+      "realtime": "即時"
     }
   }
 }
