@@ -148,7 +148,7 @@
     "keys": "使用者與金鑰",
     "usage": "用量與成本",
     "pricing": "定價",
-    "tokenizers": "Tokenizer 詞表",
+    "tokenizers": "分詞器詞表",
     "settings": "設定",
     "open": "開啟導覽",
     "close": "關閉導覽",
