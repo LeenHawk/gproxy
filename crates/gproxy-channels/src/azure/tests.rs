@@ -6,6 +6,9 @@ use serde_json::{Value, json};
 
 use super::AzureChannel;
 
+const CACHE_MAGIC: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+
 fn family(operation: Operation, family: WireFamily) -> OperationKey {
     OperationKey::family(operation, family)
 }
@@ -136,6 +139,37 @@ fn resolves_documented_base_paths_and_an_exact_claude_endpoint() {
     assert!(claude.request.headers().get("authorization").is_none());
     let shaped: Value = serde_json::from_slice(claude.request.body()).unwrap();
     assert_eq!(shaped["model"], "claude-deployment");
+}
+
+#[test]
+fn prepare_applies_opt_in_openai_cache_marker() {
+    let body = Bytes::from(
+        json!({
+            "model":"route",
+            "messages":[{"role":"system","content":format!("policy {CACHE_MAGIC}")}]
+        })
+        .to_string(),
+    );
+    let prepared = prepare(
+        content(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiChat,
+        ),
+        "gpt-deployment",
+        None,
+        &HeaderMap::new(),
+        &body,
+        &json!({
+            "base_url":"https://resource.openai.azure.com",
+            "enable_openai_magic_cache":true
+        }),
+    );
+    let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+    assert_eq!(shaped["messages"][0]["content"][0]["text"], "policy ");
+    assert_eq!(
+        shaped["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
 }
 
 #[test]

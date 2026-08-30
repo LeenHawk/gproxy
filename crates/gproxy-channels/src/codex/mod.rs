@@ -129,7 +129,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "codex",
     display_name: "OpenAI Codex",
     supports: &SUPPORTS,
-    provider_fields: crate::metadata::BASE_URL,
+    provider_fields: crate::metadata::OPENAI_CACHE,
     credential_fields: crate::metadata::OAUTH,
     endpoint_overrides: true,
 };

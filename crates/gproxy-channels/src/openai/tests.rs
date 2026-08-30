@@ -18,6 +18,9 @@ const RESPONSES: OperationKey = OperationKey::content(
     ContentGenerationKind::OpenAiResponses,
 );
 
+const CACHE_MAGIC: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+
 #[test]
 fn descriptor_and_disposition_are_explicit() {
     let descriptor = OpenAiChannel.descriptor();
@@ -150,6 +153,51 @@ fn prepare_sanitizes_and_shapes_json_and_exact_endpoints() {
         file.request.uri(),
         "https://media.example/files/file%20one/content"
     );
+}
+
+#[test]
+fn prepare_applies_responses_cache_markers_after_existing_breakpoints() {
+    let secret = json!({"api_key":"sk"});
+    let settings = json!({"enable_openai_magic_cache":true});
+    let body = Bytes::from(
+        json!({
+            "model":"route",
+            "instructions":format!("stable policy {CACHE_MAGIC}"),
+            "input":[{
+                "role":"user",
+                "content":[
+                    {"type":"input_text","text":"old","prompt_cache_breakpoint":{"mode":"explicit"}},
+                    {"type":"input_text","text":format!("new {CACHE_MAGIC}")}
+                ]
+            }]
+        })
+        .to_string(),
+    );
+    let prepared = OpenAiChannel
+        .prepare(PrepareCtx {
+            key: RESPONSES,
+            stream: true,
+            method: &Method::POST,
+            path: "/v1/responses",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &body,
+            upstream_model: "gpt-5.4",
+            provider_settings: &settings,
+            secret: &secret,
+        })
+        .unwrap();
+    let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+    assert_eq!(shaped["instructions"], "stable policy ");
+    assert_eq!(
+        shaped["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    assert_eq!(
+        shaped["input"][1]["content"][1]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    assert!(!shaped.to_string().contains(CACHE_MAGIC));
 }
 
 #[test]

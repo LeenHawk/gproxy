@@ -25,7 +25,11 @@ pub(super) fn request(
     if claude {
         crate::shared::cache::claude(&mut value);
     } else {
-        crate::shared::cache::openai(&mut value);
+        let kind = match ctx.key.kind {
+            OperationKind::ContentGeneration(kind) => kind,
+            OperationKind::Family(_) => return Ok(body),
+        };
+        crate::shared::openai::cache::apply(&mut value, kind);
     }
     serde_json::to_vec(&value)
         .map(Bytes::from)

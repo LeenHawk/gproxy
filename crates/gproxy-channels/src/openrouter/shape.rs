@@ -65,7 +65,11 @@ fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, Channe
         let mut value = Value::Object(std::mem::take(object));
         if cache {
             if openai {
-                crate::shared::cache::openai(&mut value);
+                let kind = match ctx.key.kind {
+                    OperationKind::ContentGeneration(kind) => kind,
+                    OperationKind::Family(_) => return Ok(()),
+                };
+                crate::shared::openai::cache::apply(&mut value, kind);
             } else {
                 crate::shared::cache::claude(&mut value);
             }

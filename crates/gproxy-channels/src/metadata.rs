@@ -34,6 +34,10 @@ const fn select(
 }
 
 pub(crate) const BASE_URL: &[ChannelField] = &[field("base_url", Url, false, false)];
+pub(crate) const OPENAI_CACHE: &[ChannelField] = &[
+    field("base_url", Url, false, false),
+    field("enable_openai_magic_cache", Boolean, false, true),
+];
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),

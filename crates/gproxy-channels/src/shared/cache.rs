@@ -43,52 +43,10 @@ pub(crate) fn claude(body: &mut Value) {
     crate::shared::claude::cache::sanitize(body);
 }
 
-pub(crate) fn openai(body: &mut Value) {
-    let mut remaining = 4_usize.saturating_sub(count(body, "prompt_cache_breakpoint"));
-    convert_string_content(body, &mut remaining);
-    visit_maps(body, &mut |map| {
-        for name in ["text", "input_text", "content"] {
-            let Some(text) = map.get(name).and_then(Value::as_str).map(str::to_owned) else {
-                continue;
-            };
-            let (text, _, matched) = strip(text);
-            if !matched {
-                continue;
-            }
-            map.insert(name.into(), Value::String(text));
-            if remaining > 0 && !map.contains_key("prompt_cache_breakpoint") {
-                map.insert("prompt_cache_breakpoint".into(), json!({"mode":"explicit"}));
-                remaining -= 1;
-            }
-        }
-    });
-}
-
-fn convert_string_content(value: &mut Value, remaining: &mut usize) {
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                convert_string_content(value, remaining);
-            }
-        }
-        Value::Object(map) => {
-            if let Some(Value::String(text)) = map.get_mut("content") {
-                let (clean, _, matched) = strip(std::mem::take(text));
-                if matched {
-                    let mut block = json!({"type":"text","text":clean});
-                    if *remaining > 0 {
-                        block["prompt_cache_breakpoint"] = json!({"mode":"explicit"});
-                        *remaining -= 1;
-                    }
-                    map.insert("content".into(), Value::Array(vec![block]));
-                }
-            }
-            for value in map.values_mut() {
-                convert_string_content(value, remaining);
-            }
-        }
-        _ => {}
-    }
+pub(crate) fn strip_magic(text: &mut String) -> bool {
+    let (clean, _, matched) = strip(std::mem::take(text));
+    *text = clean;
+    matched
 }
 
 fn strip(mut text: String) -> (String, Option<&'static str>, bool) {

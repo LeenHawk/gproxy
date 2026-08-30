@@ -25,13 +25,8 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let query = allow_query(ctx.query);
     let uri = endpoint(&ctx, &path, query.as_deref())?;
     let headers = allow_headers(ctx.headers);
-    let body = super::model::shape(
-        ctx.key,
-        ctx.stream,
-        ctx.upstream_model,
-        ctx.headers,
-        ctx.body,
-    )?;
+    let body = openai_cache(&ctx)?;
+    let body = super::model::shape(ctx.key, ctx.stream, ctx.upstream_model, ctx.headers, &body)?;
     let mut request = http::Request::builder()
         .method(ctx.method)
         .uri(strip_userinfo(uri)?)
@@ -49,6 +44,26 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         websocket: false,
         profile: None,
     })
+}
+
+fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<bytes::Bytes, ChannelError> {
+    let OperationKind::ContentGeneration(kind) = ctx.key.kind else {
+        return Ok(ctx.body.clone());
+    };
+    if ctx
+        .provider_settings
+        .get("enable_openai_magic_cache")
+        .and_then(serde_json::Value::as_bool)
+        != Some(true)
+    {
+        return Ok(ctx.body.clone());
+    }
+    let mut value = serde_json::from_slice(ctx.body)
+        .map_err(|error| ChannelError::Prepare(format!("request body JSON: {error}")))?;
+    crate::shared::openai::cache::apply(&mut value, kind);
+    serde_json::to_vec(&value)
+        .map(bytes::Bytes::from)
+        .map_err(|error| ChannelError::Prepare(error.to_string()))
 }
 
 fn upstream_path(ctx: &PrepareCtx<'_>) -> String {

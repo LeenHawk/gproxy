@@ -26,7 +26,11 @@ pub(super) fn request(
     let mut value: Value = serde_json::from_slice(&body)
         .map_err(|error| ChannelError::Prepare(format!("request body JSON: {error}")))?;
     if openai {
-        crate::shared::cache::openai(&mut value);
+        let kind = match key.kind {
+            OperationKind::ContentGeneration(kind) => kind,
+            OperationKind::Family(_) => return Ok(body),
+        };
+        crate::shared::openai::cache::apply(&mut value, kind);
     }
     if claude_cache {
         crate::shared::cache::claude(&mut value);
