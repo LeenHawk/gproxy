@@ -11,12 +11,6 @@ impl State {
         &mut self,
         event: openai::ResponseOutputTextDeltaEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        if event.logprobs.is_some() {
-            return Err(TransformError::unsupported(
-                "Responses stream",
-                "output text delta logprobs",
-            ));
-        }
         self.text.push_str(&event.delta);
         Ok(vec![self.chunk(
             openai::ChatDelta {

@@ -24,12 +24,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 for part in message.content {
                     match part {
                         openai::ResponseMessageOutputContentPart::OutputText(part) => {
-                            if !part.annotations.is_empty() || part.logprobs.is_some() {
-                                return Err(TransformError::unsupported(
-                                    "Responses output text",
-                                    "annotations or logprobs",
-                                ));
-                            }
                             text.push_str(&part.text);
                             message_rest.extend(part.rest);
                         }

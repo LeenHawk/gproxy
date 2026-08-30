@@ -8,6 +8,9 @@ use super::suffix;
 use crate::generate_content::openai_chat_to_openai_responses::stream::wire::empty_delta;
 
 impl State {
+    /// `annotations` and `logprobs` ride along on every `output_text` OpenAI sends and
+    /// have no place in a Chat Completions delta. Chat is the lossy side of this pair,
+    /// so they are dropped: refusing them killed every Responses stream in flight.
     pub(super) fn complete_message_part(
         &mut self,
         part: openai::ResponseMessageOutputContentPart,
@@ -15,20 +18,12 @@ impl State {
     ) -> Result<Vec<Bytes>, TransformError> {
         match part {
             openai::ResponseMessageOutputContentPart::OutputText(part) => {
-                if !part.annotations.is_empty() || part.logprobs.is_some() {
-                    return Err(TransformError::unsupported(
-                        "Responses output text",
-                        "annotations or logprobs",
-                    ));
-                }
                 self.finish_text(part.text, part.rest, event_rest)
             }
             openai::ResponseMessageOutputContentPart::Refusal(part) => {
                 self.finish_refusal(part.refusal, part.rest, event_rest)
             }
-            openai::ResponseMessageOutputContentPart::Unknown(value) => Err(
-                TransformError::unsupported("Responses content part", value.to_string()),
-            ),
+            openai::ResponseMessageOutputContentPart::Unknown(_) => Ok(Vec::new()),
         }
     }
 
@@ -42,12 +37,6 @@ impl State {
     ) -> Result<Vec<Bytes>, TransformError> {
         match part {
             openai::ResponseContentPart::OutputText(part) => {
-                if !part.annotations.is_empty() || part.logprobs.is_some() {
-                    return Err(TransformError::unsupported(
-                        "Responses output text",
-                        "annotations or logprobs",
-                    ));
-                }
                 self.finish_text(part.text, part.rest, event_rest)
             }
             openai::ResponseContentPart::Refusal(part) => {
@@ -56,10 +45,7 @@ impl State {
             openai::ResponseContentPart::ReasoningText(part) => {
                 self.finish_reasoning(part.text, part.rest, event_rest)
             }
-            openai::ResponseContentPart::Unknown(value) => Err(TransformError::unsupported(
-                "Responses content part",
-                value.to_string(),
-            )),
+            openai::ResponseContentPart::Unknown(_) => Ok(Vec::new()),
         }
     }
 

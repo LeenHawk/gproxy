@@ -71,6 +71,9 @@ pub(crate) async fn attempt_interrupted<H: Host>(
         surface = ctx.surface_label.unwrap_or(""),
         status = status.as_u16(),
         error_kind = transport_error_kind(error),
+        // A kind alone cannot be acted on: an interrupted attempt is almost always a
+        // decoder refusing a frame, and the refusal names the frame.
+        error = %error,
         "attempt.completed"
     );
 }

@@ -473,3 +473,29 @@ fn gemini_pairs_register_streams_and_preserve_native_code_ids() {
         .unwrap();
     assert!(incomplete.finish().is_err());
 }
+
+/// A live Responses stream carries fields Chat Completions has no slot for —
+/// `logprobs` and `annotations` ride on every `output_text`, Codex attaches
+/// `encrypted_content` to reasoning, and vendors add event types continuously.
+/// Refusing any of them used to kill the reply mid-flight, which took the whole
+/// Codex channel down.
+#[test]
+fn responses_stream_survives_fields_and_events_chat_cannot_express() {
+    let chat = content(Operation::StreamGenerateContent, Kind::OpenAiChat);
+    let responses = content(Operation::StreamGenerateContent, Kind::OpenAiResponses);
+    let stream = ResponseStream::new(chat, responses).unwrap();
+    let wire = concat!(
+        "data: {\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"in_progress\",\"model\":\"gpt-5.5\",\"output\":[]}}\n\n",
+        "data: {\"type\":\"response.queued\",\"sequence_number\":1,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"queued\",\"model\":\"gpt-5.5\",\"output\":[]}}\n\n",
+        "data: {\"type\":\"response.something.new\",\"sequence_number\":2}\n\n",
+        "data: {\"type\":\"response.output_text.delta\",\"sequence_number\":3,\"item_id\":\"msg_1\",\"output_index\":0,\"content_index\":0,\"delta\":\"Hello\",\"logprobs\":[]}\n\n",
+        "data: {\"type\":\"response.output_item.done\",\"sequence_number\":4,\"output_index\":0,\"item\":{\"type\":\"reasoning\",\"id\":\"rs_1\",\"summary\":[],\"encrypted_content\":\"opaque\"}}\n\n",
+        "data: {\"type\":\"response.completed\",\"sequence_number\":5,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"completed\",\"model\":\"gpt-5.5\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello\",\"annotations\":[],\"logprobs\":[]}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n",
+    );
+    let text = String::from_utf8(drive(stream, wire, 17)).unwrap();
+    assert!(text.contains("Hello"), "text was dropped: {text}");
+    assert!(
+        text.contains("\"finish_reason\":\"stop\""),
+        "no terminal: {text}"
+    );
+}

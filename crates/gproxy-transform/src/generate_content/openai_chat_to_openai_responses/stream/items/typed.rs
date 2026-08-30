@@ -6,7 +6,6 @@ use crate::TransformError;
 use super::super::State;
 use super::preserve_option;
 use super::typed_tools::CallContext;
-use crate::generate_content::openai_chat_to_openai_responses::stream::wire::response_item_name;
 
 impl State {
     pub(super) fn complete_typed_item(
@@ -112,12 +111,9 @@ impl State {
                 mut rest,
                 ..
             } => {
-                if encrypted_content.is_some() {
-                    return Err(TransformError::unsupported(
-                        "Responses stream",
-                        "encrypted reasoning content",
-                    ));
-                }
+                // An opaque blob a Chat client cannot use, and one Codex sends on
+                // every turn. Dropping it costs nothing here; refusing it cost the turn.
+                let _ = encrypted_content;
                 preserve_option(&mut rest, "status", status)?;
                 let mut output = Vec::new();
                 for part in summary {
@@ -141,7 +137,7 @@ impl State {
                 }
                 Ok(output)
             }
-            unsupported @ (openai::TypedResponseItem::FileSearchCall { .. }
+            openai::TypedResponseItem::FileSearchCall { .. }
             | openai::TypedResponseItem::ComputerCall { .. }
             | openai::TypedResponseItem::ComputerCallOutput { .. }
             | openai::TypedResponseItem::WebSearchCall { .. }
@@ -167,10 +163,7 @@ impl State {
             | openai::TypedResponseItem::MultiAgentCallOutput { .. }
             | openai::TypedResponseItem::AgentMessage { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
-            | openai::TypedResponseItem::ItemReference { .. }) => Err(TransformError::unsupported(
-                "Responses output item",
-                response_item_name(&unsupported),
-            )),
+            | openai::TypedResponseItem::ItemReference { .. } => Ok(Vec::new()),
         }
     }
 }

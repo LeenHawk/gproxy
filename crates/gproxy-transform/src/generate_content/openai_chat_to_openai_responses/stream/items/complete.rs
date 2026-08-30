@@ -33,19 +33,12 @@ impl State {
             openai::ResponseItem::Typed(item) => {
                 self.complete_typed_item(*item, output_index, event_rest)
             }
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Input(_)) => Err(
-                TransformError::unsupported("Responses output item", "input message"),
-            ),
-            openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(_)) => Err(
-                TransformError::unsupported("Responses output item", "easy input message"),
-            ),
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(value)) => Err(
-                TransformError::unsupported("Responses output item", value.to_string()),
-            ),
-            openai::ResponseItem::Unknown(value) => Err(TransformError::unsupported(
-                "Responses output item",
-                value.to_string(),
-            )),
+            // Nothing a Chat client can render, so it yields nothing rather than
+            // ending a reply that is otherwise arriving intact.
+            openai::ResponseItem::Message(openai::ResponseMessageItem::Input(_))
+            | openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(_))
+            | openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_))
+            | openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
         }
     }
 }
