@@ -1,6 +1,7 @@
 //! Operator-configured mutations over provider-native requests and responses.
 
 mod apply;
+mod cache;
 mod compile;
 mod content;
 mod generic;

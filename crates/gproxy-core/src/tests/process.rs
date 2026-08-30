@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use gproxy_channel_api::{StreamDecoder, StreamEnd};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, StreamFraming};
+use http::HeaderMap;
 use serde_json::{Value, json};
 
 use super::memory::MemoryHost;
@@ -173,6 +174,117 @@ fn alternate_route_model_matches_without_changing_primary_semantics() {
         serde_json::from_slice::<Value>(&matched.body).unwrap()["matched"],
         true
     );
+}
+
+#[test]
+fn cache_rules_target_flat_wire_blocks_and_keep_provider_limits() {
+    let claude = apply_cache_rule(
+        ContentGenerationKind::ClaudeMessages,
+        json!({
+            "messages":[
+                {"role":"user","content":[{"type":"text","text":"first"}]},
+                {"role":"assistant","content":[
+                    {"type":"text","text":"second"},
+                    {"type":"text","text":"third"}
+                ]}
+            ]
+        }),
+        "message",
+        Some(1),
+        Some("5m"),
+    );
+    assert_eq!(
+        claude["messages"][0]["content"][0]["cache_control"]["ttl"],
+        "5m"
+    );
+    assert!(
+        claude["messages"][1]["content"][1]
+            .get("cache_control")
+            .is_none()
+    );
+
+    let responses = apply_cache_rule(
+        ContentGenerationKind::OpenAiResponses,
+        json!({"instructions":"stable","input":"hello"}),
+        "system",
+        None,
+        Some("30m"),
+    );
+    assert_eq!(responses["instructions"], "stable");
+    assert_eq!(responses["input"][0]["role"], "developer");
+    assert_eq!(
+        responses["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    assert_eq!(responses["input"][1]["content"][0]["text"], "hello");
+    assert_eq!(responses["prompt_cache_options"]["ttl"], "30m");
+
+    let chat = apply_cache_rule(
+        ContentGenerationKind::OpenAiChat,
+        json!({
+            "messages":[{"role":"user","content":[
+                {"type":"text","text":"first"},
+                {"type":"text","text":"second"}
+            ]}]
+        }),
+        "message",
+        Some(1),
+        None,
+    );
+    assert_eq!(
+        chat["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    assert!(
+        chat["messages"][0]["content"][1]
+            .get("prompt_cache_breakpoint")
+            .is_none()
+    );
+
+    let capped = apply_cache_rule(
+        ContentGenerationKind::ClaudeMessages,
+        json!({
+            "system":[
+                {"type":"text","text":"a","cache_control":{"type":"ephemeral"}},
+                {"type":"text","text":"b","cache_control":{"type":"ephemeral"}},
+                {"type":"text","text":"c","cache_control":{"type":"ephemeral"}},
+                {"type":"text","text":"d","cache_control":{"type":"ephemeral"}}
+            ],
+            "messages":[{"role":"user","content":[{"type":"text","text":"unmarked"}]}]
+        }),
+        "message",
+        None,
+        None,
+    );
+    assert!(
+        capped["messages"][0]["content"][0]
+            .get("cache_control")
+            .is_none()
+    );
+}
+
+fn apply_cache_rule(
+    kind: ContentGenerationKind,
+    body: Value,
+    target: &str,
+    index: Option<i64>,
+    ttl: Option<&str>,
+) -> Value {
+    let rules = crate::process::compile_all(&[spec(
+        99,
+        "cache_breakpoint",
+        json!({"target":target,"index":index,"ttl":ttl}),
+        0,
+    )])
+    .unwrap();
+    let mutation = crate::process::apply_request(
+        &rules,
+        OperationKey::content(Operation::GenerateContent, kind),
+        RuleModels::new("model", None),
+        &HeaderMap::new(),
+        Bytes::from(serde_json::to_vec(&body).unwrap()),
+    );
+    serde_json::from_slice(&mutation.body).unwrap()
 }
 
 fn spec(id: i64, kind: &str, config: Value, sort_order: i64) -> RuleSpec {

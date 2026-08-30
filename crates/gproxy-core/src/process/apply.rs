@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use http::HeaderMap;
 
-use super::{CompiledRule, RuleConfig, TransformLocate, content, generic};
+use super::{CompiledRule, RuleConfig, TransformLocate, cache, content, generic};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RuleModels<'a> {
@@ -56,7 +56,7 @@ pub fn apply_request(
             RuleConfig::SystemText { text, position } => {
                 content::system_text(current, kind, text, *position)
             }
-            RuleConfig::CacheBreakpoint(config) => content::cache_breakpoint(current, kind, config),
+            RuleConfig::CacheBreakpoint(config) => cache::apply(current, kind, config),
             RuleConfig::Rewrite {
                 path,
                 action,
