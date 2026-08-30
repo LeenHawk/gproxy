@@ -236,6 +236,15 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     assert!(ordered["output"][1].get("id").is_none());
     assert_eq!(ordered["output"][2]["id"], "msg_msg_order_1");
 
+    // Compact carries no caller budget and Claude demands one, so every compact
+    // request failed until the default came back.
+    let compact_request = convert_request(
+        family(Operation::CompactContent, WireFamily::OpenAi),
+        claude,
+        json!({"input": [{"role": "user", "content": "summarise"}]}),
+    );
+    assert_eq!(compact_request["max_tokens"], 32_768);
+
     let compact = convert_response(
         family(Operation::CompactContent, WireFamily::OpenAi),
         claude,

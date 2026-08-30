@@ -2,6 +2,10 @@ use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 
+/// Compact has no caller-supplied budget, and Claude requires one. v2 has supplied
+/// this number since compact existed; without it every compact request fails.
+const DEFAULT_COMPACT_MAX_TOKENS: u32 = 32_768;
+
 pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes, TransformError> {
     let input: openai::CompactResponseRequestBody = serde_json::from_slice(&body)?;
     let instructions = input.instructions.clone();
@@ -12,7 +16,7 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
         include: None,
         input: input.input,
         instructions: input.instructions,
-        max_output_tokens: None,
+        max_output_tokens: Some(DEFAULT_COMPACT_MAX_TOKENS),
         max_tool_calls: None,
         metadata: None,
         model: input.model.or_else(|| Some(model.into())),
