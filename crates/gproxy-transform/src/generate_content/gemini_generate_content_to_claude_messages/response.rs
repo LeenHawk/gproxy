@@ -52,12 +52,6 @@ fn candidate(
     ),
     TransformError,
 > {
-    if candidates.len() > 1 {
-        return Err(TransformError::unsupported(
-            "Gemini response",
-            "multiple candidates",
-        ));
-    }
     let Some(candidate) = candidates.into_iter().next() else {
         if prompt_feedback.map(blocked).transpose()?.unwrap_or(false) {
             return Ok((

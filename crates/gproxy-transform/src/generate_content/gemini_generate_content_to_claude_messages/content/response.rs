@@ -7,17 +7,6 @@ use super::{Correlation, merge, native};
 pub(crate) fn response_blocks(
     content: gemini::Content,
 ) -> Result<Vec<claude::ContentBlock>, TransformError> {
-    if !content.rest.is_empty()
-        || !matches!(
-            content.role,
-            None | Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model))
-        )
-    {
-        return Err(TransformError::unsupported(
-            "Gemini response content",
-            "role or rest fields",
-        ));
-    }
     let mut correlation = Correlation::default();
     content
         .parts
@@ -40,24 +29,6 @@ pub(crate) fn response_part(
         metadata,
         rest: mut part_rest,
     } = part;
-    if thought == Some(false) {
-        return Err(TransformError::unsupported(
-            "Gemini response part",
-            "explicit thought=false",
-        ));
-    }
-    let allows_signature = (thought == Some(true)
-        && matches!(&data, Some(gemini::PartData::Text { .. })))
-        || matches!(
-            &data,
-            Some(gemini::PartData::FunctionCall { .. } | gemini::PartData::ExecutableCode { .. })
-        );
-    if signature.is_some() && !allows_signature {
-        return Err(TransformError::unsupported(
-            "Gemini response part",
-            "thought signature on incompatible data",
-        ));
-    }
     if let Some(value) = part_metadata {
         part_rest.insert("partMetadata".into(), serde_json::Value::Object(value));
     }

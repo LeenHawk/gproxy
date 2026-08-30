@@ -568,3 +568,35 @@ fn claude_stream_survives_blocks_and_events_gemini_cannot_express() {
     assert!(text.contains("Hello"), "text was dropped: {text}");
     assert!(text.contains("STOP"), "no terminal: {text}");
 }
+
+#[test]
+fn gemini_response_uses_first_candidate_and_ignores_claude_unmapped_fields() {
+    let body = response(
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        Bytes::from_static(
+            br#"{"responseId":"gemini_1","modelVersion":"gemini-3-flash","candidates":[{"index":0,"finishReason":"STOP","content":{"role":"model","future_content":true,"parts":[{"text":"first","thought":false,"thoughtSignature":"opaque","partMetadata":{"state":"live"}}]}},{"index":1,"finishReason":"STOP","content":{"role":"model","parts":[{"text":"second"}]}}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}"#,
+        ),
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(value["content"][0]["text"], "first");
+    assert!(
+        !body
+            .windows("second".len())
+            .any(|window| window == b"second")
+    );
+
+    let stream = ResponseStream::new(
+        content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
+        content(
+            Operation::StreamGenerateContent,
+            Kind::GeminiGenerateContent,
+        ),
+    )
+    .unwrap();
+    let wire = "data: {\"responseId\":\"gemini_1\",\"modelVersion\":\"gemini-3-flash\",\"candidates\":[{\"index\":0,\"finishReason\":\"STOP\",\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"first\",\"thought\":false,\"thoughtSignature\":\"opaque\",\"partMetadata\":{\"state\":\"live\"}}]}}],\"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}\n\n";
+    let text = String::from_utf8(drive(stream, wire, 17)).unwrap();
+    assert!(text.contains("first"), "stream text was dropped: {text}");
+    assert!(text.contains("message_stop"), "no stream terminal: {text}");
+}

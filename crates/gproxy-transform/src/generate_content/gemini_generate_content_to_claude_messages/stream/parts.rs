@@ -8,16 +8,6 @@ use super::state::{OpenKind, State};
 
 impl State {
     pub(super) fn part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
-        if part.thought == Some(false)
-            || part.part_metadata.is_some()
-            || part.media_resolution.is_some()
-            || explicit_metadata(part.metadata.as_ref())
-        {
-            return Err(TransformError::unsupported(
-                "Gemini stream part",
-                "explicit part metadata",
-            ));
-        }
         let kind = if part.thought == Some(true) {
             OpenKind::Thinking
         } else {
@@ -82,7 +72,9 @@ impl State {
             };
             output.push(events::encode(events::block_delta(index, delta))?);
         }
-        if let Some(signature) = part.thought_signature {
+        if kind == OpenKind::Thinking
+            && let Some(signature) = part.thought_signature
+        {
             output.push(events::encode(events::block_delta(
                 index,
                 claude::KnownEventDelta::Signature {
@@ -129,13 +121,5 @@ impl State {
         output.push(events::encode(events::block_start(index, block))?);
         output.push(events::encode(events::block_stop(index))?);
         Ok(output)
-    }
-}
-
-fn explicit_metadata(metadata: Option<&gemini::PartMetadata>) -> bool {
-    match metadata {
-        None => false,
-        Some(gemini::PartMetadata::Raw(_)) => false,
-        Some(_) => true,
     }
 }
