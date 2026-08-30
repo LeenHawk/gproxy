@@ -292,7 +292,12 @@
       "thinkingSupported": "支持思维",
       "pricing": "定价",
       "priced": "已定价",
-      "priceRule": "价格规则"
+      "priceRule": "价格规则",
+      "test": "测试",
+      "testTrailer": "{{latency}} 毫秒 · 用 {{key}}",
+      "testEmpty": "有回应,但没有文本。",
+      "testFailed": "上游返回 {{status}}。",
+      "testError": "无法运行测试。"
     }
   }
 }

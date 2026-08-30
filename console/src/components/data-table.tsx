@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useDeferredValue, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useColumnVisibility } from "@/components/data-table-state"
@@ -30,6 +30,12 @@ export type DataTableProps<T> = {
   selectable?: boolean
   batchActions?: (selectedRows: Array<T>) => ReactNode
   pageSize?: number
+}
+
+const INTERACTIVE = "button, a, input, select, textarea, [role=switch], [role=checkbox], [role=menuitem]"
+
+function interactive(target: EventTarget | null) {
+  return target instanceof Element && target.closest(INTERACTIVE) != null
 }
 
 export function DataTable<T>({
@@ -80,7 +86,14 @@ export function DataTable<T>({
   })
   const activate = (row: T) => (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return
+    if (interactive(event.target)) return
     event.preventDefault()
+    onRowClick?.(row)
+  }
+  // A row that opens on click still holds switches and action buttons; a click that
+  // landed on one of those was aimed at it, not at the row.
+  const open = (row: T) => (event: MouseEvent) => {
+    if (interactive(event.target)) return
     onRowClick?.(row)
   }
 
@@ -108,7 +121,7 @@ export function DataTable<T>({
               </TableRow></TableHeader>
               <TableBody>{visibleRows.map((row) => {
                 const id = rowKey(row)
-                return <TableRow key={id} data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
+                return <TableRow key={id} data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
                   {selectable ? <TableCell><Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /></TableCell> : null}
                   {visibleColumns.map((column) => <TableCell key={column.key} className={column.className}>{column.cell(row)}</TableCell>)}
                 </TableRow>
@@ -117,7 +130,7 @@ export function DataTable<T>({
           </div>
           <div className="grid gap-2 md:hidden">{visibleRows.map((row) => {
             const id = rowKey(row)
-            return <Card key={id} role={onRowClick ? "button" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={() => onRowClick?.(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
+            return <Card key={id} role={onRowClick ? "button" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
               <CardContent className="flex items-start gap-3">
                 {selectable ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
                 <div className="min-w-0 flex-1">{renderCard(row)}</div>

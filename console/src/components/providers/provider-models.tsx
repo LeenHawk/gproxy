@@ -1,9 +1,9 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { BadgeDollarSignIcon, PencilIcon } from "lucide-react"
+import { BadgeDollarSignIcon, LoaderCircleIcon, PencilIcon, PlayIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { saveProviderModel } from "@/api/control"
+import { saveProviderModel, testModel } from "@/api/control"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
@@ -29,6 +29,16 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
     },
     onError: () => toast.error(t("providers.models.saveError")),
   })
+  const probe = useMutation({
+    mutationFn: (model_id: string) => testModel({ provider_id: providerId, model_id }),
+    onSuccess: (result) => {
+      // The key is named because the test spends from it.
+      const trailer = t("providers.models.testTrailer", { latency: result.latency_ms, key: result.key_prefix })
+      if (result.ok) toast.success(`${result.reply ?? t("providers.models.testEmpty")} · ${trailer}`)
+      else toast.error(`${result.message ?? t("providers.models.testFailed", { status: result.status })} · ${trailer}`)
+    },
+    onError: () => toast.error(t("providers.models.testError")),
+  })
   const rows = models.filter((model) => model.provider_id === providerId)
   const openEditor = (model?: ProviderModelDto) => { setEditing(model); setOpen(true) }
   const number = (value: number | null) => value == null ? "—" : value.toLocaleString(i18n.language)
@@ -50,6 +60,7 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
     { key: "enabled", label: t("providers.models.enabled"), header: t("providers.models.enabled"), cell: (model) => <Switch checked={model.enabled} disabled={mutation.isPending} aria-label={`${t("providers.models.enabled")}: ${model.model_id}`} onCheckedChange={(enabled) => mutation.mutate({ value: { ...request(model), enabled }, id: model.id })} /> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, className: "text-right", cell: (model) => (
       <div className="flex items-center justify-end gap-1">
+        <Button size="icon-xs" variant="ghost" disabled={probe.isPending} aria-label={`${t("providers.models.test")}: ${model.model_id}`} onClick={() => probe.mutate(model.model_id)}>{probe.isPending ? <LoaderCircleIcon className="animate-spin" aria-hidden /> : <PlayIcon aria-hidden />}</Button>
         <Button size="icon-xs" variant="ghost" aria-label={`${t("providers.models.priceRule")}: ${model.model_id}`} onClick={() => navigateAdminPath(`/admin/pricing/${model.model_id}`)}><BadgeDollarSignIcon aria-hidden /></Button>
         <Button size="icon-xs" variant="ghost" aria-label={`${t("common.actions.edit")}: ${model.model_id}`} onClick={() => openEditor(model)}><PencilIcon aria-hidden /></Button>
         <EntityDeleteButton entity="provider-models" id={model.id} label={model.model_id} queryKeys={["provider-models"]} />

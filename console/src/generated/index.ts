@@ -68,6 +68,8 @@ export * from "./LoginParamKindDto";
 export * from "./LoginRequest";
 export * from "./ModelAliasDto";
 export * from "./ModelAliasWriteRequest";
+export * from "./ModelTestRequest";
+export * from "./ModelTestResponse";
 export * from "./OrganizationDto";
 export * from "./OrganizationWriteRequest";
 export * from "./PermissionDto";

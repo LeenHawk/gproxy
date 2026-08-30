@@ -3,6 +3,8 @@ import type { AliasWriteRequest } from "@/generated/AliasWriteRequest"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ModelAliasDto } from "@/generated/ModelAliasDto"
+import type { ModelTestRequest } from "@/generated/ModelTestRequest"
+import type { ModelTestResponse } from "@/generated/ModelTestResponse"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
 import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
@@ -71,6 +73,8 @@ export const saveAlias = (value: AliasWriteRequest, id?: number) =>
 export const modelAliases = () => api<Array<ModelAliasDto>>("/admin/api/model-aliases")
 export const saveModelAlias = (value: ModelAliasWriteRequest, id?: number) =>
   save("/admin/api/model-aliases", value, id)
+export const testModel = (value: ModelTestRequest) =>
+  api<ModelTestResponse>("/admin/api/models/test", json("POST", value))
 export const providerModels = () => api<Array<ProviderModelDto>>("/admin/api/provider-models")
 export const saveProviderModel = (value: ProviderModelWriteRequest, id?: number) =>
   save("/admin/api/provider-models", value, id)

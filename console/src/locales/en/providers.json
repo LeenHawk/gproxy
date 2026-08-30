@@ -292,7 +292,12 @@
       "thinkingSupported": "Thinking supported",
       "pricing": "Pricing",
       "priced": "Priced",
-      "priceRule": "Price rule"
+      "priceRule": "Price rule",
+      "test": "Test",
+      "testTrailer": "{{latency}} ms · via {{key}}",
+      "testEmpty": "Answered with no text.",
+      "testFailed": "Upstream returned {{status}}.",
+      "testError": "Could not run the test."
     }
   }
 }
