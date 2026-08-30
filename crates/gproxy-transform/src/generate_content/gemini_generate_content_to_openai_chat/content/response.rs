@@ -83,14 +83,12 @@ pub(crate) fn message(
                 };
                 attach_result(&mut calls[call_index], code_execution_result)?;
             }
-            Some(gemini::PartData::InlineData { inline_data, .. })
-                if inline_data.mime_type.starts_with("audio/") =>
-            {
-                return Err(TransformError::unsupported(
-                    "Gemini response",
-                    "audio output has no lossless Chat response mapping",
-                ));
-            }
+            Some(gemini::PartData::InlineData { .. })
+            | Some(gemini::PartData::FileData { .. })
+            | Some(gemini::PartData::FunctionResponse { .. })
+            | Some(gemini::PartData::ToolCall { .. })
+            | Some(gemini::PartData::ToolResponse { .. })
+            | Some(gemini::PartData::Raw(_)) => {}
             Some(other) => {
                 return Err(TransformError::unsupported(
                     "Gemini response part",

@@ -600,3 +600,31 @@ fn gemini_response_uses_first_candidate_and_ignores_claude_unmapped_fields() {
     assert!(text.contains("first"), "stream text was dropped: {text}");
     assert!(text.contains("message_stop"), "no stream terminal: {text}");
 }
+
+#[test]
+fn gemini_response_skips_parts_chat_cannot_render() {
+    let body = Bytes::from_static(
+        br#"{"responseId":"gemini_1","modelVersion":"gemini-3-flash","candidates":[{"index":0,"finishReason":"STOP","content":{"role":"user","parts":[{"text":"visible"},{"inlineData":{"mimeType":"audio/wav","data":"UklGRg=="}},{"functionResponse":{"id":"call_1","name":"lookup","response":{"output":"done"}}}]}}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}"#,
+    );
+    let output = response(
+        content(Operation::GenerateContent, Kind::OpenAiChat),
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        body.clone(),
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["choices"][0]["message"]["content"], "visible");
+
+    let stream = ResponseStream::new(
+        content(Operation::StreamGenerateContent, Kind::OpenAiChat),
+        content(
+            Operation::StreamGenerateContent,
+            Kind::GeminiGenerateContent,
+        ),
+    )
+    .unwrap();
+    let wire = format!("data: {}\n\n", String::from_utf8(body.to_vec()).unwrap());
+    let text = String::from_utf8(drive(stream, &wire, 19)).unwrap();
+    assert!(text.contains("visible"), "stream text was dropped: {text}");
+    assert!(text.contains("[DONE]"), "no stream terminal: {text}");
+}

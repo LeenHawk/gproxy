@@ -12,17 +12,6 @@ pub(super) fn convert(
     let Some(content) = content else {
         return Ok((empty_delta(None), false));
     };
-    if let Some(role) = content.role.as_ref()
-        && !matches!(
-            role,
-            gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)
-        )
-    {
-        return Err(TransformError::unsupported(
-            "Gemini stream content role",
-            serde_json::to_string(role)?,
-        ));
-    }
     let mut text = Vec::new();
     let mut reasoning = Vec::new();
     let mut calls = Vec::new();
@@ -55,10 +44,7 @@ pub(super) fn convert(
             Some(gemini::PartData::InlineData { inline_data, .. })
                 if inline_data.mime_type.starts_with("audio/") =>
             {
-                return Err(TransformError::unsupported(
-                    "Gemini stream",
-                    "audio output has no Chat delta mapping",
-                ));
+                continue;
             }
             Some(gemini::PartData::InlineData { inline_data, .. }) => {
                 append(
@@ -77,6 +63,9 @@ pub(super) fn convert(
             Some(gemini::PartData::Raw(raw)) => {
                 append(&mut rest, "gemini_raw_parts", raw)?;
             }
+            Some(gemini::PartData::FunctionResponse { .. })
+            | Some(gemini::PartData::ToolCall { .. })
+            | Some(gemini::PartData::ToolResponse { .. }) => {}
             Some(other) => {
                 return Err(TransformError::unsupported(
                     "Gemini stream part",
