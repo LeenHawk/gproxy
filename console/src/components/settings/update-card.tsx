@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { applyUpdate, rollbackUpdate, updateStatus } from "@/api/native"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Section } from "@/components/section"
 import { QueryState } from "@/components/query-state"
 
 export function UpdateCard() {
@@ -24,24 +24,18 @@ export function UpdateCard() {
     onError: () => toast.error(t("settings.update.rollbackError")),
   })
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("settings.update.title")}</CardTitle>
-        <CardDescription>{t("settings.update.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <QueryState loading={query.isLoading} error={query.error ? t("settings.update.loadError") : ""}>
+    <Section title={t("settings.update.title")} description={t("settings.update.description")}>
+      <QueryState loading={query.isLoading} error={query.error ? t("settings.update.loadError") : ""}>
           {query.data ? <div className="grid gap-3 text-sm">
             <p>{t("settings.update.versions", { current: query.data.current, latest: query.data.latest })}</p>
             <p className="text-muted-foreground">{t("settings.update.target", { channel: query.data.channel, target: query.data.target, restart: query.data.restart })}</p>
             {query.data.notes ? <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border bg-muted/35 p-3 font-sans text-xs">{query.data.notes}</pre> : null}
           </div> : null}
-        </QueryState>
-      </CardContent>
-      {query.data ? <CardFooter className="flex-wrap justify-end gap-2">
+      </QueryState>
+      {query.data ? <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" disabled={!query.data.rollback_available || rollback.isPending} onClick={() => rollback.mutate()}>{t("settings.update.rollback")}</Button>
         <Button disabled={!query.data.available || apply.isPending} onClick={() => apply.mutate()}>{t(query.data.available ? "settings.update.apply" : "settings.update.current")}</Button>
-      </CardFooter> : null}
-    </Card>
+      </div> : null}
+    </Section>
   )
 }

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { autostartStatus, setAutostart } from "@/api/native"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Section } from "@/components/section"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import { QueryState } from "@/components/query-state"
@@ -20,12 +20,8 @@ export function AutostartCard() {
     onError: () => toast.error(t("settings.autostart.saveError")),
   })
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("settings.autostart.title")}</CardTitle>
-        <CardDescription>{t("settings.autostart.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Section title={t("settings.autostart.title")} description={t("settings.autostart.description")}>
+        <div>
         <QueryState loading={query.isLoading} error={query.error ? t("settings.autostart.loadError") : ""}>
           {query.data ? (
             <Field orientation="horizontal">
@@ -41,7 +37,7 @@ export function AutostartCard() {
             </Field>
           ) : null}
         </QueryState>
-      </CardContent>
-    </Card>
+      </div>
+    </Section>
   )
 }

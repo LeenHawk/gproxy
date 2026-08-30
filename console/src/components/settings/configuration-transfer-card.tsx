@@ -6,7 +6,7 @@ import { exportConfiguration, importConfiguration } from "@/api/control"
 import type { ConfigurationExportDto } from "@/generated/ConfigurationExportDto"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Section } from "@/components/section"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -53,9 +53,8 @@ export function ConfigurationTransferCard() {
   }
   const needsSourceKey = file?.secrets === "included" && file.source_key?.mode === "sealed"
   return (
-    <Card>
-      <CardHeader><CardTitle>{t("settings.transfer.title")}</CardTitle><CardDescription>{t("settings.transfer.description")}</CardDescription></CardHeader>
-      <CardContent className="grid gap-6 lg:grid-cols-2">
+    <Section title={t("settings.transfer.title")} description={t("settings.transfer.description")}>
+        <div className="grid gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-4">
           <Field orientation="horizontal"><div><FieldLabel htmlFor="export-secrets">{t("settings.transfer.includeSecrets")}</FieldLabel><FieldDescription>{t("settings.transfer.includeSecretsHint")}</FieldDescription></div><Switch id="export-secrets" checked={includeSecrets} onCheckedChange={setIncludeSecrets} /></Field>
           {includeSecrets ? <Alert variant="destructive"><AlertTitle>{t("settings.transfer.secretWarningTitle")}</AlertTitle><AlertDescription>{t("settings.transfer.secretWarning")}</AlertDescription></Alert> : null}
@@ -67,7 +66,7 @@ export function ConfigurationTransferCard() {
           {file?.secrets === "included" ? <Alert variant="destructive"><AlertTitle>{t("settings.transfer.secretFileTitle")}</AlertTitle><AlertDescription>{t("settings.transfer.secretFile")}</AlertDescription></Alert> : null}
           <Button type="button" disabled={!file || importing.isPending || (needsSourceKey && !sourceKey)} onClick={() => file && importing.mutate({ export: file, source_master_key: sourceKey || null })}>{t(importing.isPending ? "settings.transfer.importing" : "settings.transfer.import")}</Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Section>
   )
 }

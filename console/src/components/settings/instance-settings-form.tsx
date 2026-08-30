@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { saveInstanceSettings } from "@/api/control"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Section } from "@/components/section"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -45,11 +45,10 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
     "enable_upstream_log_body",
   ]
   return (
-    <form className="flex flex-col gap-5" onSubmit={submit}>
+    <form className="flex flex-col gap-8" onSubmit={submit}>
       <RuntimeSettingsCard draft={draft} setDraft={setDraft} />
-      <Card>
-        <CardHeader><CardTitle>{t("settings.storage.title")}</CardTitle><CardDescription>{t("settings.storage.description")}</CardDescription></CardHeader>
-        <CardContent><FieldGroup>
+      <Section title={t("settings.storage.title")} description={t("settings.storage.description")}>
+        <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field><FieldLabel htmlFor="retention-days">{t("settings.storage.retention")}</FieldLabel><Input id="retention-days" type="number" min={1} step={1} value={retention} onChange={(event) => setRetention(event.target.value)} /><FieldDescription>{t("settings.storage.retentionHint")}</FieldDescription></Field>
             <Field><FieldLabel htmlFor="database-size">{t("settings.storage.size")}</FieldLabel><Input id="database-size" type="number" min={1} step={1} value={size} onChange={(event) => setSize(event.target.value)} /><FieldDescription>{t("settings.storage.sizeHint")}</FieldDescription></Field>
@@ -64,9 +63,9 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
               <Field orientation="horizontal"><FieldLabel htmlFor="disable-redaction">{t("settings.redaction.disable")}</FieldLabel><Switch id="disable-redaction" checked={draft.disable_log_redaction} onCheckedChange={(value) => setDraft((current) => ({ ...current, disable_log_redaction: value }))} /></Field>
             </AlertDescription>
           </Alert>
-        </FieldGroup></CardContent>
-        <CardFooter className="justify-end"><Button type="submit" disabled={mutation.isPending}>{t(mutation.isPending ? "common.actions.saving" : "common.actions.save")}</Button></CardFooter>
-      </Card>
+        </FieldGroup>
+        <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending}>{t(mutation.isPending ? "common.actions.saving" : "common.actions.save")}</Button></div>
+      </Section>
     </form>
   )
 }

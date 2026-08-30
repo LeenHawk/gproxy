@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react"
 import type { InstanceSettingsDto } from "@/generated/InstanceSettingsDto"
 import { useTranslation } from "react-i18next"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Section } from "@/components/section"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -27,12 +27,8 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
   ]
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("settings.runtime.title")}</CardTitle>
-        <CardDescription>{t("settings.runtime.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Section title={t("settings.runtime.title")} description={t("settings.runtime.description")}>
+        <div>
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
@@ -61,7 +57,7 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
             ))}
           </div>
         </FieldGroup>
-      </CardContent>
-    </Card>
+      </div>
+    </Section>
   )
 }

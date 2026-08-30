@@ -13,12 +13,14 @@ export function SettingsPage() {
   const query = useQuery({ queryKey: ["instance-settings"], queryFn: instanceSettings })
   return (
     <PageLayout title={t("settings.title")} description={t("settings.subtitle")}>
+      <div className="flex max-w-4xl flex-col gap-8">
       <QueryState loading={query.isLoading} error={query.error ? t("settings.loadError") : ""}>
         {query.data ? <InstanceSettingsForm settings={query.data} /> : null}
       </QueryState>
       <ConfigurationTransferCard />
       <AutostartCard />
       <UpdateCard />
+      </div>
     </PageLayout>
   )
 }
