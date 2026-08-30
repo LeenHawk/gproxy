@@ -11,18 +11,19 @@ impl State {
         event: openai::ResponseOutputItemEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
         let item = *event.item;
-        let item_id = item_id(&item).ok_or_else(|| {
-            TransformError::shape("Responses stream", "output item id is missing")
-        })?;
         match item {
             openai::ResponseItem::Typed(item) => match *item {
                 openai::TypedResponseItem::FunctionCall {
                     arguments,
                     call_id,
                     name,
+                    id,
                     rest,
                     ..
                 } => {
+                    let item_id = id.ok_or_else(|| {
+                        TransformError::shape("Responses stream", "output item id is missing")
+                    })?;
                     self.calls.insert(
                         item_id.clone(),
                         ToolCall {
@@ -39,9 +40,13 @@ impl State {
                     call_id,
                     input,
                     name,
+                    id,
                     rest,
                     ..
                 } => {
+                    let item_id = id.ok_or_else(|| {
+                        TransformError::shape("Responses stream", "output item id is missing")
+                    })?;
                     self.calls.insert(
                         item_id.clone(),
                         ToolCall {

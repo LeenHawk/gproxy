@@ -18,15 +18,7 @@ impl State {
         }
         let event = match event {
             openai::ResponseStreamEvent::Known(event) => event,
-            openai::ResponseStreamEvent::Unknown(event) => {
-                return Err(TransformError::unsupported(
-                    "Responses stream event",
-                    event
-                        .type_
-                        .as_ref()
-                        .map_or("missing type", openai::ResponseStreamEventType::as_str),
-                ));
-            }
+            openai::ResponseStreamEvent::Unknown(_) => return Ok(Vec::new()),
         };
         use openai::KnownResponseStreamEvent as E;
         match *event {
@@ -66,7 +58,7 @@ impl State {
             | E::ResponseReasoningSummaryPartDone(_)
             | E::ResponseReasoningSummaryTextDone(_)
             | E::ResponseReasoningTextDone(_) => Ok(Vec::new()),
-            unsupported @ (E::ResponseAudioDelta(_)
+            E::ResponseAudioDelta(_)
             | E::ResponseAudioDone(_)
             | E::ResponseAudioTranscriptDelta(_)
             | E::ResponseAudioTranscriptDone(_)
@@ -92,10 +84,7 @@ impl State {
             | E::ResponseMcpCallFailed(_)
             | E::ResponseMcpListToolsInProgress(_)
             | E::ResponseMcpListToolsCompleted(_)
-            | E::ResponseMcpListToolsFailed(_)) => Err(TransformError::unsupported(
-                "Responses stream",
-                unsupported.event_name(),
-            )),
+            | E::ResponseMcpListToolsFailed(_) => Ok(Vec::new()),
         }
     }
 }
