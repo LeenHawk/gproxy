@@ -44,7 +44,7 @@
       "enable_usage": "用量记录",
       "enable_usageHint": "结算后持久化用量记录；关闭时准入和计费结算仍会完成。",
       "enable_tokenizer_download": "分词器下载",
-      "enable_tokenizer_downloadHint": "允许此实例从 Hugging Face 获取词表。",
+      "enable_tokenizer_downloadHint": "统计 token 时若词表未缓存，按需从 Hugging Face 拉取。关闭后不联网，改用回退方式统计。",
       "inherit_system_proxy": "继承系统代理",
       "inherit_system_proxyHint": "仅在没有显式代理时采用 HTTP_PROXY 和 HTTPS_PROXY；默认关闭。"
     },
@@ -84,7 +84,7 @@
       "repository": "Hugging Face 仓库",
       "placeholder": "owner/model",
       "hint": "获取仓库中的 tokenizer.json，验证后写入缓存。",
-      "disabledHint": "请先在上方启用分词器下载，才能获取或删除词表。",
+      "disabledHint": "启用自动拉取后才能添加或删除词表。",
       "fetch": "获取词表",
       "fetching": "正在获取…",
       "fetched": "分词器词表已缓存。",

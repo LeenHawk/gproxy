@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { deleteTokenizerVocab, fetchTokenizerVocab } from "@/api/control"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
-import { Section } from "@/components/section"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { formatInstant, formatNumber } from "@/lib/format"
@@ -42,8 +41,7 @@ export function TokenizerVocabsCard({ values, downloadEnabled }: Props) {
   ]
 
   return (
-    <Section title={t("settings.tokenizers.title")} description={t("settings.tokenizers.description")}>
-        <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={(event) => { event.preventDefault(); fetchVocab.mutate({ name: name.trim() }) }}>
           <Field className="flex-1">
             <FieldLabel htmlFor="tokenizer-repo">{t("settings.tokenizers.repository")}</FieldLabel>
@@ -53,7 +51,6 @@ export function TokenizerVocabsCard({ values, downloadEnabled }: Props) {
           <Button type="submit" disabled={!downloadEnabled || !name.trim() || fetchVocab.isPending}>{t(fetchVocab.isPending ? "settings.tokenizers.fetching" : "settings.tokenizers.fetch")}</Button>
         </form>
         <DataTable columns={columns} rows={values} rowKey={(vocab) => vocab.name} searchText={(vocab) => vocab.name} renderCard={(vocab) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{vocab.name}</p><p className="text-xs text-muted-foreground">{t("settings.tokenizers.bytes", { value: formatNumber(vocab.size_bytes, i18n.language) })} · {formatInstant(vocab.updated_at, i18n.language)}</p></div>{actions(vocab)}</div>} empty={t("settings.tokenizers.empty")} storageKey="tokenizer-vocabs" />
-      </div>
-    </Section>
+    </div>
   )
 }

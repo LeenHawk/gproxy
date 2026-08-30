@@ -22,7 +22,6 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
   const toggles: Array<ToggleKey> = [
     "spoof_emulation",
     "enable_usage",
-    "enable_tokenizer_download",
     "inherit_system_proxy",
   ]
 

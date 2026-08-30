@@ -44,7 +44,7 @@
       "enable_usage": "Usage recording",
       "enable_usageHint": "Persist usage rows after settlement. Admission and billing still complete when disabled.",
       "enable_tokenizer_download": "Tokenizer downloads",
-      "enable_tokenizer_downloadHint": "Allow this instance to fetch vocabularies from Hugging Face.",
+      "enable_tokenizer_downloadHint": "When a model's vocabulary is not cached, fetch it from Hugging Face on demand. Off, token counting falls back without it.",
       "inherit_system_proxy": "Inherit system proxy",
       "inherit_system_proxyHint": "Honor ambient HTTP_PROXY and HTTPS_PROXY only when no explicit proxy is selected. Off by default."
     },
@@ -84,7 +84,7 @@
       "repository": "Hugging Face repository",
       "placeholder": "owner/model",
       "hint": "Fetches the repository's tokenizer.json and validates it before caching.",
-      "disabledHint": "Enable tokenizer downloads above before fetching or deleting vocabularies.",
+      "disabledHint": "Turn on automatic fetching to add or remove a vocabulary.",
       "fetch": "Fetch vocabulary",
       "fetching": "Fetching…",
       "fetched": "Tokenizer vocabulary cached.",
