@@ -71,6 +71,14 @@ pub(super) async fn list(
                 .map(map::model_alias)
                 .collect::<Vec<_>>(),
         ),
+        Entity::ProviderModels => response::json(
+            StatusCode::OK,
+            &snapshot
+                .provider_models
+                .iter()
+                .map(map::provider_model)
+                .collect::<Vec<_>>(),
+        ),
         _ => Err(AdminError::NotFound),
     }
 }
@@ -104,6 +112,7 @@ pub(super) async fn delete(
         Entity::RouteMembers => state.store().delete_route_member(id).await?,
         Entity::Aliases => state.store().delete_alias(id).await?,
         Entity::ModelAliases => state.store().delete_exposed_model(id).await?,
+        Entity::ProviderModels => state.store().delete_provider_model(id).await?,
         _ => return Err(AdminError::NotFound),
     };
     crate::handlers::util::updated(state, applied).await

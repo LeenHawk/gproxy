@@ -5,7 +5,7 @@ use crate::backend::Statement;
 use crate::query::common::{decimal, insert, json, unsigned, unsigned32, value};
 use crate::records::{
     AliasInput, CredentialInput, ExposedModelInput, PriceRateInput, PriceRuleInput, ProviderInput,
-    RouteInput, RouteMemberInput, SettingInput,
+    ProviderModelInput, RouteInput, RouteMemberInput, SettingInput,
 };
 
 pub(crate) fn insert_provider(input: &ProviderInput) -> Result<Statement, StoreError> {
@@ -144,9 +144,21 @@ pub(crate) fn insert_alias(input: &AliasInput) -> Result<Statement, StoreError> 
 pub(crate) fn insert_exposed_model(input: &ExposedModelInput) -> Result<Statement, StoreError> {
     insert(
         "exposed_models",
+        &["name", "route_id", "enabled"],
+        vec![
+            value(input.name.clone()),
+            value(input.route_id),
+            value(input.enabled),
+        ],
+    )
+}
+
+pub(crate) fn insert_provider_model(input: &ProviderModelInput) -> Result<Statement, StoreError> {
+    insert(
+        "provider_models",
         &[
-            "name",
-            "route_id",
+            "provider_id",
+            "model_id",
             "display_name",
             "variants_json",
             "context_window",
@@ -157,8 +169,8 @@ pub(crate) fn insert_exposed_model(input: &ExposedModelInput) -> Result<Statemen
             "enabled",
         ],
         vec![
-            value(input.name.clone()),
-            value(input.route_id),
+            value(input.provider_id),
+            value(input.model_id.clone()),
             value(input.display_name.clone()),
             value(
                 input

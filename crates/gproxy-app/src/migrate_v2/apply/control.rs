@@ -90,25 +90,42 @@ pub(super) async fn base(
         .routes
         .iter()
         .map(|value| {
-            super::models::for_route(data, value.id, &value.value.name).and_then(|metadata| {
-                Ok(ExposedModelInput {
-                    name: value.value.name.clone(),
-                    route_id: id(&context.routes, value.id)?,
-                    display_name: metadata.display_name,
-                    variants: metadata.variants,
-                    context_window: metadata.context_window,
-                    max_output_tokens: metadata.max_output_tokens,
-                    thinking_supported: metadata.thinking_supported,
-                    thinking_adaptive_supported: metadata.thinking_adaptive_supported,
-                    thinking_enabled_supported: metadata.thinking_enabled_supported,
-                    enabled: value.value.enabled,
-                })
+            Ok(ExposedModelInput {
+                name: value.value.name.clone(),
+                route_id: id(&context.routes, value.id)?,
+                enabled: value.value.enabled,
             })
         })
         .collect::<Result<Vec<_>, crate::AppError>>()?;
     context
         .store
         .insert_record_batch(RecordBatch::ExposedModels(exposed))
+        .await?;
+
+    // v2 and v3 store this at the same grain, so the rows carry across unchanged.
+    let provider_models = data
+        .provider_models
+        .iter()
+        .map(|value| {
+            let legacy = &value.value;
+            Ok(gproxy_store::records::ProviderModelInput {
+                provider_id: id(&context.providers, legacy.provider_id)?,
+                model_id: legacy.model_id.clone(),
+                display_name: legacy.display_name.clone(),
+                variants: legacy.variants.clone(),
+                context_window: legacy.context_window,
+                max_output_tokens: legacy.max_output_tokens,
+                thinking_supported: legacy.thinking_supported,
+                thinking_adaptive_supported: legacy.thinking_adaptive_supported,
+                thinking_enabled_supported: legacy.thinking_enabled_supported,
+                enabled: legacy.enabled,
+            })
+        })
+        .collect::<Result<Vec<_>, crate::AppError>>()?;
+    mark(counts, "provider_models", provider_models.len());
+    context
+        .store
+        .insert_record_batch(RecordBatch::ProviderModels(provider_models))
         .await?;
 
     let provider_names = data

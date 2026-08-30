@@ -73,6 +73,10 @@ pub(super) async fn create(
             super::validators::model_alias(state, &input).await?;
             state.store().insert_exposed_model(&input).await?
         }
+        Entity::ProviderModels => {
+            let input = super::inputs::provider_model(util::parse(body)?)?;
+            state.store().insert_provider_model(&input).await?
+        }
         _ => return Err(AdminError::NotFound),
     };
     util::created(state, id).await
@@ -141,6 +145,10 @@ pub(super) async fn update(
             let input = super::inputs::model_alias(util::parse(body)?)?;
             super::validators::model_alias(state, &input).await?;
             state.store().update_exposed_model(id, &input).await?
+        }
+        Entity::ProviderModels => {
+            let input = super::inputs::provider_model(util::parse(body)?)?;
+            state.store().update_provider_model(id, &input).await?
         }
         _ => return Err(AdminError::NotFound),
     };

@@ -78,13 +78,6 @@ pub(super) async fn fixture() -> Fixture {
         gproxy_store::records::ExposedModelInput {
             name: "public-model".into(),
             route_id: route,
-            display_name: None,
-            variants: None,
-            context_window: None,
-            max_output_tokens: None,
-            thinking_supported: None,
-            thinking_adaptive_supported: None,
-            thinking_enabled_supported: None,
             enabled: true,
         },
     ))
@@ -258,11 +251,29 @@ async fn v2_digest_crossing_authenticates_the_unreissued_key() {
     let identity = crate::host::authenticate_headers(&app.inner.host, &headers)
         .expect("migrated key authenticates");
     assert_eq!(identity.user_id, 1);
-    let model = app.inner.host.services.control.current().exposed_models[0].clone();
+    // v2 and v3 store capability at the same grain, so the rows carry across unchanged —
+    // including variants, which stay named against the member's own upstream model.
+    let model = app.inner.host.services.control.current().provider_models[0].clone();
     assert_eq!(model.context_window, Some(128_000));
     assert_eq!(model.max_output_tokens, Some(16_384));
     assert_eq!(model.thinking_supported, Some(true));
-    assert_eq!(model.variants, Some(json!(["public-model-thinking-high"])));
+    assert_eq!(
+        model.variants,
+        Some(json!(["upstream-model-thinking-high"]))
+    );
+    // The catalogue is the fold: limits re-advertised, variants re-based onto the public name.
+    let exposed = gproxy_core::ControlPlane::exposed_models(&app.inner.host.services.control);
+    let public = exposed
+        .iter()
+        .find(|model| model.id == "public-model")
+        .expect("public model in catalogue");
+    assert_eq!(public.context_window, Some(128_000));
+    assert!(
+        exposed
+            .iter()
+            .any(|model| model.id == "public-model-thinking-high"),
+        "the upstream variant suffix is re-based onto the public name"
+    );
     assert_eq!(
         app.inner.host.services.control.resolve_variant(
             "public-model-thinking-high",

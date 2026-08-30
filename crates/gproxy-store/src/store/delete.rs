@@ -35,6 +35,11 @@ impl Store {
             .await
     }
 
+    pub async fn delete_provider_model(&self, id: i64) -> Result<bool, StoreError> {
+        self.delete(crate::query::delete_by_id("provider_models", id)?)
+            .await
+    }
+
     pub async fn delete_organization(&self, id: i64) -> Result<bool, StoreError> {
         self.delete(crate::query::delete_by_id("organizations", id)?)
             .await

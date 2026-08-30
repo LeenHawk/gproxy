@@ -88,9 +88,16 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .insert_exposed_model(&ExposedModelInput {
             name: "public-model".into(),
             route_id: route,
+            enabled: true,
+        })
+        .await?;
+    store
+        .insert_provider_model(&crate::records::ProviderModelInput {
+            provider_id: provider,
+            model_id: "upstream-model".into(),
             display_name: None,
             variants: None,
-            context_window: None,
+            context_window: Some(128_000),
             max_output_tokens: None,
             thinking_supported: None,
             thinking_adaptive_supported: None,

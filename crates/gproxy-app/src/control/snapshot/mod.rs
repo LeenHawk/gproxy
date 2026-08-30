@@ -1,5 +1,6 @@
 mod balance;
 mod build;
+mod capability;
 mod index;
 mod materialize;
 mod pressure;

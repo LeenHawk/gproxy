@@ -29,7 +29,12 @@ pub(super) fn exposed(
     let mut namespaces: BTreeMap<String, BTreeMap<String, i64>> = BTreeMap::new();
     let mut catalogue = BTreeMap::new();
     let mut variants = BTreeMap::new();
+    let provider_models = super::capability::by_provider_model(&stored.provider_models);
     for model in available {
+        let folded = match routes.get(&model.route_id) {
+            Some(route) => super::capability::fold(route, &model.name, &provider_models)?,
+            None => super::capability::Folded::default(),
+        };
         route_index.insert(model.name.clone(), model.route_id);
         if let Some((namespace, local_name)) = model.name.split_once('/')
             && !namespace.is_empty()
@@ -40,16 +45,15 @@ pub(super) fn exposed(
                 .or_default()
                 .insert(local_name.to_owned(), model.route_id);
         }
-        let parsed = gproxy_store::records::parse_model_variants(model.variants.as_ref()).map_err(
-            |message| gproxy_store::StoreError::InvalidData {
+        let parsed = gproxy_store::records::parse_model_variants(folded.variants.as_ref())
+            .map_err(|message| gproxy_store::StoreError::InvalidData {
                 field: "model variants",
                 message: format!("{}: {message}", model.name),
-            },
-        )?;
+            })?;
         if parsed.expose_base {
             catalogue.insert(
                 model.name.clone(),
-                catalogue_entry(model, model.name.clone()),
+                catalogue_entry(&folded, model.name.clone()),
             );
         }
         for variant in parsed.names {
@@ -63,7 +67,7 @@ pub(super) fn exposed(
                 });
             }
             variants.insert(variant.clone(), model.name.clone());
-            catalogue.insert(variant.clone(), catalogue_entry(model, variant));
+            catalogue.insert(variant.clone(), catalogue_entry(&folded, variant));
         }
     }
     Ok(ExposedIndex {
@@ -74,18 +78,15 @@ pub(super) fn exposed(
     })
 }
 
-fn catalogue_entry(
-    model: &gproxy_store::records::ExposedModelRecord,
-    id: String,
-) -> gproxy_core::ExposedModel {
+fn catalogue_entry(folded: &super::capability::Folded, id: String) -> gproxy_core::ExposedModel {
     gproxy_core::ExposedModel {
         id,
-        display_name: model.display_name.clone(),
-        context_window: model.context_window,
-        max_output_tokens: model.max_output_tokens,
-        thinking_supported: model.thinking_supported,
-        thinking_adaptive_supported: model.thinking_adaptive_supported,
-        thinking_enabled_supported: model.thinking_enabled_supported,
+        display_name: folded.display_name.clone(),
+        context_window: folded.context_window,
+        max_output_tokens: folded.max_output_tokens,
+        thinking_supported: folded.thinking_supported,
+        thinking_adaptive_supported: folded.thinking_adaptive_supported,
+        thinking_enabled_supported: folded.thinking_enabled_supported,
     }
 }
 

@@ -11,6 +11,7 @@ pub enum RecordBatch {
     RouteMembers(Vec<RouteMemberInput>),
     Aliases(Vec<AliasInput>),
     ExposedModels(Vec<ExposedModelInput>),
+    ProviderModels(Vec<ProviderModelInput>),
     Quotas(Vec<QuotaInput>),
     PriceRules(Vec<PriceRuleInput>),
     PriceRates(Vec<PriceRateInput>),

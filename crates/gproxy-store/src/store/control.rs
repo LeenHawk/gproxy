@@ -1,7 +1,7 @@
 use crate::query::control;
 use crate::records::{
     AliasInput, CredentialAdminRecord, CredentialInput, ExposedModelInput, PriceRateInput,
-    PriceRuleInput, ProviderInput, RouteInput, RouteMemberInput, SettingInput,
+    PriceRuleInput, ProviderInput, ProviderModelInput, RouteInput, RouteMemberInput, SettingInput,
 };
 use crate::{Store, StoreError};
 
@@ -126,6 +126,22 @@ impl Store {
         input: &ExposedModelInput,
     ) -> Result<bool, StoreError> {
         self.update(control::update_exposed_model(id, input)?).await
+    }
+
+    pub async fn insert_provider_model(
+        &self,
+        input: &ProviderModelInput,
+    ) -> Result<i64, StoreError> {
+        self.insert(control::insert_provider_model(input)?).await
+    }
+
+    pub async fn update_provider_model(
+        &self,
+        id: i64,
+        input: &ProviderModelInput,
+    ) -> Result<bool, StoreError> {
+        self.update(control::update_provider_model(id, input)?)
+            .await
     }
 
     pub async fn insert_price_rule(&self, input: &PriceRuleInput) -> Result<i64, StoreError> {

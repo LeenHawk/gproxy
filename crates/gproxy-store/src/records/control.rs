@@ -202,6 +202,23 @@ pub struct AliasRecord {
 pub struct ExposedModelInput {
     pub name: String,
     pub route_id: i64,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExposedModelRecord {
+    pub id: i64,
+    pub name: String,
+    pub route_id: i64,
+    pub enabled: bool,
+}
+
+/// What one provider supports for one upstream model. The exposed catalogue is the
+/// conservative fold of these across a route's members, never a value typed by hand.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderModelInput {
+    pub provider_id: i64,
+    pub model_id: String,
     pub display_name: Option<String>,
     pub variants: Option<Value>,
     pub context_window: Option<i64>,
@@ -213,10 +230,10 @@ pub struct ExposedModelInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ExposedModelRecord {
+pub struct ProviderModelRecord {
     pub id: i64,
-    pub name: String,
-    pub route_id: i64,
+    pub provider_id: i64,
+    pub model_id: String,
     pub display_name: Option<String>,
     pub variants: Option<Value>,
     pub context_window: Option<i64>,

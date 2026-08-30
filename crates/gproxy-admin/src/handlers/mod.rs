@@ -85,7 +85,8 @@ async fn delete(
         | Entity::Routes
         | Entity::RouteMembers
         | Entity::Aliases
-        | Entity::ModelAliases => control::delete(state, entity, id).await,
+        | Entity::ModelAliases
+        | Entity::ProviderModels => control::delete(state, entity, id).await,
         Entity::Organizations
         | Entity::Teams
         | Entity::Users
@@ -107,7 +108,8 @@ async fn list(state: &impl State, entity: Entity) -> Result<Response<Bytes>, Adm
         | Entity::Routes
         | Entity::RouteMembers
         | Entity::Aliases
-        | Entity::ModelAliases => control::list(state, entity).await,
+        | Entity::ModelAliases
+        | Entity::ProviderModels => control::list(state, entity).await,
         Entity::Organizations
         | Entity::Teams
         | Entity::Users
@@ -133,7 +135,8 @@ async fn create(
         | Entity::Routes
         | Entity::RouteMembers
         | Entity::Aliases
-        | Entity::ModelAliases => control::create(state, entity, body).await,
+        | Entity::ModelAliases
+        | Entity::ProviderModels => control::create(state, entity, body).await,
         Entity::Organizations
         | Entity::Teams
         | Entity::Users
@@ -160,7 +163,8 @@ async fn update(
         | Entity::Routes
         | Entity::RouteMembers
         | Entity::Aliases
-        | Entity::ModelAliases => control::update(state, entity, id, body).await,
+        | Entity::ModelAliases
+        | Entity::ProviderModels => control::update(state, entity, id, body).await,
         Entity::Organizations
         | Entity::Teams
         | Entity::Users

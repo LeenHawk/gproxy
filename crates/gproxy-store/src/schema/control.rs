@@ -120,18 +120,40 @@ pub const TABLES: &[TableSpec] = &[
     },
     TableSpec {
         version: SchemaVersion::Control,
+        // What a model can do is a property of the provider serving it. A route with
+        // several members advertises the conservative fold of these rows, never a
+        // hand-typed number that can drift from what the upstreams actually accept.
+        name: "provider_models",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::required("model_id", Text),
+            Col::optional("display_name", Text),
+            Col::optional("variants_json", Text),
+            Col::optional("context_window", Integer),
+            Col::optional("max_output_tokens", Integer),
+            Col::optional("thinking_supported", Integer),
+            Col::optional("thinking_adaptive_supported", Integer),
+            Col::optional("thinking_enabled_supported", Integer),
+            Col::required("enabled", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_provider_models_pair",
+            columns: &["provider_id", "model_id"],
+            unique: true,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Control,
+        // The exposed model is the client-facing name and nothing more. What a model
+        // can do is a property of the provider serving it, so it lives on provider_models
+        // and the catalogue folds it across a route's members.
         name: "exposed_models",
         columns: &[
             Col::id(),
             Col::required("name", Text).unique(),
             Col::required("route_id", Integer),
-            Col::optional("display_name", Text).since(SchemaVersion::Wave26),
-            Col::optional("variants_json", Text).since(SchemaVersion::Wave26),
-            Col::optional("context_window", Integer).since(SchemaVersion::Wave26),
-            Col::optional("max_output_tokens", Integer).since(SchemaVersion::Wave26),
-            Col::optional("thinking_supported", Integer).since(SchemaVersion::Wave26),
-            Col::optional("thinking_adaptive_supported", Integer).since(SchemaVersion::Wave26),
-            Col::optional("thinking_enabled_supported", Integer).since(SchemaVersion::Wave26),
             Col::required("enabled", Integer),
         ],
         indexes: &[IndexSpec {

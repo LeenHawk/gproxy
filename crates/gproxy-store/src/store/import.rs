@@ -95,6 +95,7 @@ fn statements(batch: RecordBatch) -> Result<Vec<Statement>, StoreError> {
         RecordBatch::RouteMembers(values) => build!(values, control::insert_route_member),
         RecordBatch::Aliases(values) => build!(values, control::insert_alias),
         RecordBatch::ExposedModels(values) => build!(values, control::insert_exposed_model),
+        RecordBatch::ProviderModels(values) => build!(values, control::insert_provider_model),
         RecordBatch::Quotas(values) => build!(values, identity::insert_quota),
         RecordBatch::PriceRules(values) => build!(values, control::insert_price_rule),
         RecordBatch::PriceRates(values) => build!(values, control::insert_price_rate),

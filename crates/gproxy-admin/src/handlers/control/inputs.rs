@@ -1,10 +1,10 @@
 use gproxy_store::records::{
-    AliasInput, ExposedModelInput, ProviderInput, RouteInput, RouteMemberInput,
+    AliasInput, ExposedModelInput, ProviderInput, ProviderModelInput, RouteInput, RouteMemberInput,
 };
 
 use crate::dto::{
-    AliasWriteRequest, ModelAliasWriteRequest, ProviderWriteRequest, RouteMemberWriteRequest,
-    RouteWriteRequest,
+    AliasWriteRequest, ModelAliasWriteRequest, ProviderModelWriteRequest, ProviderWriteRequest,
+    RouteMemberWriteRequest, RouteWriteRequest,
 };
 use crate::{AdminError, State};
 
@@ -113,6 +113,21 @@ pub(super) fn model_alias(
             "model alias name must not be blank".into(),
         ));
     }
+    Ok(ExposedModelInput {
+        name: request.name,
+        route_id: request.route_id,
+        enabled: request.enabled,
+    })
+}
+
+pub(super) fn provider_model(
+    request: ProviderModelWriteRequest,
+) -> Result<ProviderModelInput, AdminError> {
+    if request.model_id.trim().is_empty() {
+        return Err(AdminError::BadRequest(
+            "provider model id must not be blank".into(),
+        ));
+    }
     if [request.context_window, request.max_output_tokens]
         .into_iter()
         .flatten()
@@ -124,9 +139,9 @@ pub(super) fn model_alias(
     }
     gproxy_store::records::parse_model_variants(request.variants.as_ref())
         .map_err(AdminError::BadRequest)?;
-    Ok(ExposedModelInput {
-        name: request.name,
-        route_id: request.route_id,
+    Ok(ProviderModelInput {
+        provider_id: request.provider_id,
+        model_id: request.model_id.trim().to_owned(),
         display_name: request
             .display_name
             .map(|value| value.trim().to_owned())

@@ -5,7 +5,7 @@ use crate::backend::Statement;
 use crate::query::common::{decimal, json, unsigned, unsigned32, update, value};
 use crate::records::{
     AliasInput, CredentialUpdateInput, ExposedModelInput, PriceRateInput, PriceRuleInput,
-    ProviderInput, RouteInput, RouteMemberInput,
+    ProviderInput, ProviderModelInput, RouteInput, RouteMemberInput,
 };
 
 pub(crate) fn update_provider(id: i64, input: &ProviderInput) -> Result<Statement, StoreError> {
@@ -157,9 +157,25 @@ pub(crate) fn update_exposed_model(
     update(
         "exposed_models",
         id,
+        &["name", "route_id", "enabled"],
+        vec![
+            value(input.name.clone()),
+            value(input.route_id),
+            value(input.enabled),
+        ],
+    )
+}
+
+pub(crate) fn update_provider_model(
+    id: i64,
+    input: &ProviderModelInput,
+) -> Result<Statement, StoreError> {
+    update(
+        "provider_models",
+        id,
         &[
-            "name",
-            "route_id",
+            "provider_id",
+            "model_id",
             "display_name",
             "variants_json",
             "context_window",
@@ -170,8 +186,8 @@ pub(crate) fn update_exposed_model(
             "enabled",
         ],
         vec![
-            value(input.name.clone()),
-            value(input.route_id),
+            value(input.provider_id),
+            value(input.model_id.clone()),
             value(input.display_name.clone()),
             value(
                 input

@@ -1,6 +1,6 @@
 use crate::dto::{
     AliasDto, CredentialDto, CredentialHealthDto, CredentialModelHealthDto, ModelAliasDto,
-    ProviderDto, RouteDto, RouteMemberDto,
+    ProviderDto, ProviderModelDto, RouteDto, RouteMemberDto,
 };
 pub(in crate::handlers) fn provider(value: &gproxy_store::records::ProviderRecord) -> ProviderDto {
     let (tls_fingerprint, invalid_tls_fingerprint, tls_fingerprint_error) =
@@ -145,6 +145,17 @@ pub(in crate::handlers) fn model_alias(
         id: value.id,
         name: value.name.clone(),
         route_id: value.route_id,
+        enabled: value.enabled,
+    }
+}
+
+pub(in crate::handlers) fn provider_model(
+    value: &gproxy_store::records::ProviderModelRecord,
+) -> ProviderModelDto {
+    ProviderModelDto {
+        id: value.id,
+        provider_id: value.provider_id,
+        model_id: value.model_id.clone(),
         display_name: value.display_name.clone(),
         variants: value.variants.clone(),
         context_window: value.context_window,

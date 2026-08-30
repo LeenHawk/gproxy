@@ -154,6 +154,22 @@ pub struct ModelAliasDto {
     pub id: i64,
     pub name: String,
     pub route_id: i64,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ModelAliasWriteRequest {
+    pub name: String,
+    pub route_id: i64,
+    pub enabled: bool,
+}
+
+/// What one provider supports for one upstream model id.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ProviderModelDto {
+    pub id: i64,
+    pub provider_id: i64,
+    pub model_id: String,
     pub display_name: Option<String>,
     #[ts(type = "unknown | null")]
     pub variants: Option<Value>,
@@ -166,9 +182,9 @@ pub struct ModelAliasDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-pub struct ModelAliasWriteRequest {
-    pub name: String,
-    pub route_id: i64,
+pub struct ProviderModelWriteRequest {
+    pub provider_id: i64,
+    pub model_id: String,
     pub display_name: Option<String>,
     #[ts(type = "unknown | null")]
     pub variants: Option<Value>,

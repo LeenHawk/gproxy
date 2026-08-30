@@ -89,6 +89,7 @@ async fn toggle_body(
         Entity::RouteMembers => find(&snapshot.route_members, id)?,
         Entity::Aliases => find(&snapshot.aliases, id)?,
         Entity::ModelAliases => find(&snapshot.exposed_models, id)?,
+        Entity::ProviderModels => find(&snapshot.provider_models, id)?,
         Entity::Users => find(&snapshot.users, id)?,
         Entity::UserKeys => find(&snapshot.user_keys, id)?,
         Entity::Quotas => find(&snapshot.quotas, id)?,

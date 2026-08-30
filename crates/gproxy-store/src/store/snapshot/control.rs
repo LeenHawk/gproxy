@@ -3,7 +3,7 @@ use crate::StoreError;
 use crate::backend::QueryResult;
 use crate::records::{
     AliasRecord, CredentialMetaRecord, ExposedModelRecord, PriceRateRecord, PriceRuleRecord,
-    ProviderRecord, RouteMemberRecord, RouteRecord, SettingRecord,
+    ProviderModelRecord, ProviderRecord, RouteMemberRecord, RouteRecord, SettingRecord,
 };
 
 pub(super) fn providers(result: QueryResult) -> Result<Vec<ProviderRecord>, StoreError> {
@@ -121,6 +121,21 @@ pub(super) fn exposed_models(result: QueryResult) -> Result<Vec<ExposedModelReco
                 id: row.i64("id")?,
                 name: row.text("name")?.to_owned(),
                 route_id: row.i64("route_id")?,
+                enabled: row.i64("enabled")? != 0,
+            })
+        })
+        .collect()
+}
+
+pub(super) fn provider_models(result: QueryResult) -> Result<Vec<ProviderModelRecord>, StoreError> {
+    result
+        .rows
+        .into_iter()
+        .map(|row| {
+            Ok(ProviderModelRecord {
+                id: row.i64("id")?,
+                provider_id: row.i64("provider_id")?,
+                model_id: row.text("model_id")?.to_owned(),
                 display_name: row.optional_text("display_name")?.map(str::to_owned),
                 variants: row
                     .optional_text("variants_json")?
