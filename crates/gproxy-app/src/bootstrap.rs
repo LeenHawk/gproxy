@@ -38,6 +38,11 @@ impl App {
             transport.clone(),
             control.settings().enable_tokenizer_download,
         );
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            tokenizers.set_vocabs_enabled(control.settings().enable_tokenizer_vocabs);
+            tokenizers.set_default_vocab(control.settings().default_tokenizer_vocab.clone());
+        }
         let services = Shared::new(Services {
             store,
             cache,

@@ -26,7 +26,12 @@ pub async fn try_count(
 
     #[cfg(feature = "hf-registry")]
     {
-        let name = crate::model::select_vocab(map, model).unwrap_or_else(|| model.to_owned());
+        if !registry.vocabs_enabled() {
+            return Ok(prepared.character_result());
+        }
+        let name = crate::model::select_vocab(map, model)
+            .or_else(|| registry.default_vocab())
+            .unwrap_or_else(|| model.to_owned());
         let tokenizer = match registry.resolve(&name) {
             Some(tokenizer) => Some(tokenizer),
             None => registry

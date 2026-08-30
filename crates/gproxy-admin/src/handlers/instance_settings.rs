@@ -1,9 +1,10 @@
 use bytes::Bytes;
 use gproxy_store::records::{
-    DISABLE_LOG_REDACTION, ENABLE_DOWNSTREAM_LOG, ENABLE_DOWNSTREAM_LOG_BODY,
-    ENABLE_TOKENIZER_DOWNLOAD, ENABLE_UPSTREAM_LOG, ENABLE_UPSTREAM_LOG_BODY, ENABLE_USAGE,
-    FILE_UPLOAD_MAX_IN_FLIGHT, INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY,
-    RETENTION_DAYS, SPOOF_EMULATION, SettingInput, SettingRecord,
+    DEFAULT_TOKENIZER_VOCAB, DISABLE_LOG_REDACTION, ENABLE_DOWNSTREAM_LOG,
+    ENABLE_DOWNSTREAM_LOG_BODY, ENABLE_TOKENIZER_DOWNLOAD, ENABLE_TOKENIZER_VOCABS,
+    ENABLE_UPSTREAM_LOG, ENABLE_UPSTREAM_LOG_BODY, ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT,
+    INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY, RETENTION_DAYS,
+    SPOOF_EMULATION, SettingInput, SettingRecord,
 };
 use http::{Response, StatusCode};
 use serde_json::Value;
@@ -43,7 +44,12 @@ pub(super) async fn update(
             string(PROXY, request.proxy.as_deref().map(str::trim)),
             boolean(SPOOF_EMULATION, request.spoof_emulation),
             boolean(ENABLE_USAGE, request.enable_usage),
+            boolean(ENABLE_TOKENIZER_VOCABS, request.enable_tokenizer_vocabs),
             boolean(ENABLE_TOKENIZER_DOWNLOAD, request.enable_tokenizer_download),
+            string(
+                DEFAULT_TOKENIZER_VOCAB,
+                request.default_tokenizer_vocab.as_deref().map(str::trim),
+            ),
             number(FILE_UPLOAD_MAX_IN_FLIGHT, request.file_upload_max_in_flight),
             boolean(INHERIT_SYSTEM_PROXY, request.inherit_system_proxy),
             optional(RETENTION_DAYS, request.retention_days),
@@ -68,7 +74,9 @@ fn read(values: &[SettingRecord]) -> InstanceSettingsDto {
         proxy: text(values, PROXY),
         spoof_emulation: enabled(values, SPOOF_EMULATION),
         enable_usage: enabled_or(values, ENABLE_USAGE, true),
+        enable_tokenizer_vocabs: enabled_or(values, ENABLE_TOKENIZER_VOCABS, true),
         enable_tokenizer_download: enabled(values, ENABLE_TOKENIZER_DOWNLOAD),
+        default_tokenizer_vocab: text(values, DEFAULT_TOKENIZER_VOCAB),
         file_upload_max_in_flight: unsigned(values, FILE_UPLOAD_MAX_IN_FLIGHT).unwrap_or(0),
         inherit_system_proxy: enabled(values, INHERIT_SYSTEM_PROXY),
         retention_days: positive(values, RETENTION_DAYS),

@@ -37,8 +37,10 @@ pub fn count_detailed(
     }
 
     #[cfg(feature = "hf-registry")]
-    {
-        let name = crate::model::select_vocab(map, model).unwrap_or_else(|| model.to_owned());
+    if registry.vocabs_enabled() {
+        let name = crate::model::select_vocab(map, model)
+            .or_else(|| registry.default_vocab())
+            .unwrap_or_else(|| model.to_owned());
         if let Some(tokenizer) = registry.resolve(&name) {
             if let Some(tokens) = encode_len(&tokenizer, &prepared.joined) {
                 return result(tokens + overhead, &name, prepared.warnings);

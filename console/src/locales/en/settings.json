@@ -46,7 +46,11 @@
       "enable_tokenizer_download": "Tokenizer downloads",
       "enable_tokenizer_downloadHint": "When a model's vocabulary is not cached, fetch it from Hugging Face on demand. Off, token counting falls back without it.",
       "inherit_system_proxy": "Inherit system proxy",
-      "inherit_system_proxyHint": "Honor ambient HTTP_PROXY and HTTPS_PROXY only when no explicit proxy is selected. Off by default."
+      "inherit_system_proxyHint": "Honor ambient HTTP_PROXY and HTTPS_PROXY only when no explicit proxy is selected. Off by default.",
+      "enable_tokenizer_vocabs": "Use vocabularies",
+      "enable_tokenizer_vocabsHint": "Count tokens with a real vocabulary. Off, counting falls back to a character estimate.",
+      "default_tokenizer_vocab": "Default vocabulary",
+      "default_tokenizer_vocabHint": "Used when a model matches no pattern in the provider's tokenizer map."
     },
     "autostart": {
       "title": "Login startup",

@@ -1,5 +1,8 @@
 #[cfg(not(target_arch = "wasm32"))]
-use gproxy_store::records::{ENABLE_TOKENIZER_DOWNLOAD, INHERIT_SYSTEM_PROXY};
+use gproxy_store::records::{
+    DEFAULT_TOKENIZER_VOCAB, ENABLE_TOKENIZER_DOWNLOAD, ENABLE_TOKENIZER_VOCABS,
+    INHERIT_SYSTEM_PROXY,
+};
 use gproxy_store::records::{
     ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SPOOF_EMULATION, SettingRecord,
 };
@@ -40,7 +43,11 @@ pub(crate) struct EffectiveSettings {
     pub spoof_emulation: bool,
     pub enable_usage: bool,
     #[cfg(not(target_arch = "wasm32"))]
+    pub enable_tokenizer_vocabs: bool,
+    #[cfg(not(target_arch = "wasm32"))]
     pub enable_tokenizer_download: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub default_tokenizer_vocab: Option<String>,
     pub file_upload_max_in_flight: usize,
     pub instance_name: String,
     #[cfg(not(target_arch = "wasm32"))]
@@ -56,7 +63,11 @@ impl EffectiveSettings {
             spoof_emulation: boolean(values, SPOOF_EMULATION, false),
             enable_usage: boolean(values, ENABLE_USAGE, true),
             #[cfg(not(target_arch = "wasm32"))]
+            enable_tokenizer_vocabs: boolean(values, ENABLE_TOKENIZER_VOCABS, true),
+            #[cfg(not(target_arch = "wasm32"))]
             enable_tokenizer_download: boolean(values, ENABLE_TOKENIZER_DOWNLOAD, false),
+            #[cfg(not(target_arch = "wasm32"))]
+            default_tokenizer_vocab: text(values, DEFAULT_TOKENIZER_VOCAB),
             file_upload_max_in_flight: runtime.file_upload_max_in_flight.unwrap_or_else(|| {
                 unsigned(values, FILE_UPLOAD_MAX_IN_FLIGHT)
                     .and_then(|value| value.try_into().ok())

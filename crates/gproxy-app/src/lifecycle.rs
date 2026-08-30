@@ -69,11 +69,10 @@ impl AppHandle {
                 .services
                 .transport
                 .set_inherit_system_proxy(settings.inherit_system_proxy);
-            self.inner
-                .host
-                .services
-                .tokenizers
-                .set_download_enabled(settings.enable_tokenizer_download);
+            let tokenizers = &self.inner.host.services.tokenizers;
+            tokenizers.set_vocabs_enabled(settings.enable_tokenizer_vocabs);
+            tokenizers.set_download_enabled(settings.enable_tokenizer_download);
+            tokenizers.set_default_vocab(settings.default_tokenizer_vocab.clone());
         }
         self.inner
             .host

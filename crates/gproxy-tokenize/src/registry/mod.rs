@@ -81,7 +81,9 @@ pub enum LoadRequestStatus {
 pub struct TokenizerRegistry {
     pub(super) store: Arc<dyn TokenizerStore>,
     pub(super) upstream: Arc<dyn TokenizerClient>,
+    pub(super) vocabs_enabled: AtomicBool,
     pub(super) download_enabled: AtomicBool,
+    pub(super) default_vocab: std::sync::RwLock<Option<String>>,
     pub(super) loaded: Arc<DashMap<String, Arc<Tokenizer>>>,
     pub(super) inflight: Arc<DashMap<String, ()>>,
     pub(super) negative: Arc<DashMap<String, ()>>,
@@ -92,7 +94,9 @@ impl TokenizerRegistry {
         Self {
             store,
             upstream,
+            vocabs_enabled: AtomicBool::new(true),
             download_enabled: AtomicBool::new(false),
+            default_vocab: std::sync::RwLock::new(None),
             loaded: Arc::new(DashMap::new()),
             inflight: Arc::new(DashMap::new()),
             negative: Arc::new(DashMap::new()),
@@ -108,6 +112,30 @@ impl TokenizerRegistry {
 
     pub fn download_enabled(&self) -> bool {
         self.download_enabled.load(Ordering::Relaxed)
+    }
+
+    /// Off, counting skips the vocabulary registry entirely and settles on the
+    /// character estimate. tiktoken still applies: it is compiled in, exact for
+    /// the models it covers, and costs nothing to consult.
+    pub fn set_vocabs_enabled(&self, enabled: bool) {
+        self.vocabs_enabled.store(enabled, Ordering::Relaxed);
+    }
+
+    pub fn vocabs_enabled(&self) -> bool {
+        self.vocabs_enabled.load(Ordering::Relaxed)
+    }
+
+    /// Used when no `tokenizer_map` pattern matches. Without it the model name
+    /// itself is tried as a repository id, which almost never resolves.
+    pub fn set_default_vocab(&self, name: Option<String>) {
+        let value = name.filter(|value| !value.trim().is_empty());
+        if let Ok(mut slot) = self.default_vocab.write() {
+            *slot = value;
+        }
+    }
+
+    pub fn default_vocab(&self) -> Option<String> {
+        self.default_vocab.read().ok()?.clone()
     }
 
     pub fn evict(&self, name: &str) {

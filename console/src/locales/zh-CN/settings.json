@@ -46,7 +46,11 @@
       "enable_tokenizer_download": "分词器下载",
       "enable_tokenizer_downloadHint": "统计 token 时若词表未缓存，按需从 Hugging Face 拉取。关闭后不联网，改用回退方式统计。",
       "inherit_system_proxy": "继承系统代理",
-      "inherit_system_proxyHint": "仅在没有显式代理时采用 HTTP_PROXY 和 HTTPS_PROXY；默认关闭。"
+      "inherit_system_proxyHint": "仅在没有显式代理时采用 HTTP_PROXY 和 HTTPS_PROXY；默认关闭。",
+      "enable_tokenizer_vocabs": "使用词表",
+      "enable_tokenizer_vocabsHint": "用真实词表统计 token。关闭后按字符估算。",
+      "default_tokenizer_vocab": "默认词表",
+      "default_tokenizer_vocabHint": "当模型未匹配供应商 tokenizer_map 中任何模式时使用。"
     },
     "autostart": {
       "title": "登录时启动",
