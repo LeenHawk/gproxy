@@ -3,6 +3,8 @@ import type { AliasWriteRequest } from "@/generated/AliasWriteRequest"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ModelAliasDto } from "@/generated/ModelAliasDto"
+import type { ProviderModelDto } from "@/generated/ProviderModelDto"
+import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
 import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
 import type { InstanceSettingsDto } from "@/generated/InstanceSettingsDto"
 import type { PriceRateDto } from "@/generated/PriceRateDto"
@@ -69,6 +71,9 @@ export const saveAlias = (value: AliasWriteRequest, id?: number) =>
 export const modelAliases = () => api<Array<ModelAliasDto>>("/admin/api/model-aliases")
 export const saveModelAlias = (value: ModelAliasWriteRequest, id?: number) =>
   save("/admin/api/model-aliases", value, id)
+export const providerModels = () => api<Array<ProviderModelDto>>("/admin/api/provider-models")
+export const saveProviderModel = (value: ProviderModelWriteRequest, id?: number) =>
+  save("/admin/api/provider-models", value, id)
 export const priceRules = () => api<Array<PriceRuleDto>>("/admin/api/price-rules")
 export const savePriceRule = (value: PriceRuleWriteRequest, id?: number) =>
   save("/admin/api/price-rules", value, id)

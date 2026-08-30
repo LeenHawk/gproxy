@@ -88,6 +88,8 @@ export * from "./PriceRateWriteRequest";
 export * from "./PriceRuleDto";
 export * from "./PriceRuleWriteRequest";
 export * from "./ProviderDto";
+export * from "./ProviderModelDto";
+export * from "./ProviderModelWriteRequest";
 export * from "./ProviderRuleSetDto";
 export * from "./ProviderRuleSetWriteRequest";
 export * from "./ProviderWriteRequest";

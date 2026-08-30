@@ -7,6 +7,7 @@ import {
   saveCredential,
   saveProvider,
   providerRuleSets,
+  providerModels,
   routingRules,
   ruleSets,
   rules,
@@ -42,6 +43,7 @@ export function ProvidersPage() {
   const ruleQuery = useQuery({ queryKey: ["rules"], queryFn: rules })
   const attachmentQuery = useQuery({ queryKey: ["provider-rule-sets"], queryFn: providerRuleSets })
   const routingQuery = useQuery({ queryKey: ["routing-rules"], queryFn: routingRules })
+  const providerModelQuery = useQuery({ queryKey: ["provider-models"], queryFn: providerModels })
   const providerMutation = useMutation({
     mutationFn: ({ value, id }: ProviderMutation) => saveProvider(value, id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
@@ -81,6 +83,7 @@ export function ProvidersPage() {
       rules={ruleQuery.data ?? []}
       attachments={attachmentQuery.data ?? []}
       routingRules={routingQuery.data ?? []}
+      providerModels={providerModelQuery.data ?? []}
       ruleMutations={ruleMutations}
     />
   )

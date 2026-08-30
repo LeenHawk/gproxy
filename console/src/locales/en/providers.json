@@ -267,6 +267,29 @@
         "cookieTitle": "Could not exchange cookie",
         "cookieDescription": "The provider rejected the cookie. Check it and retry this step."
       }
+    },
+    "models": {
+      "tab": "Models",
+      "title": "Models this provider serves",
+      "description": "Capability is recorded per provider. A load balancer advertises the conservative fold of its members.",
+      "add": "Add model",
+      "edit": "Edit model",
+      "modelId": "Upstream model id",
+      "contextWindow": "Context window",
+      "maxOutput": "Max output",
+      "thinking": "Thinking",
+      "enabled": "Enabled",
+      "empty": "No models recorded for this provider.",
+      "saved": "Model saved.",
+      "saveError": "Could not save the model.",
+      "variantsInvalid": "Variants must be valid JSON.",
+      "displayName": "Display name",
+      "thinkingAdaptiveSupported": "Adaptive thinking supported",
+      "thinkingEnabledSupported": "Enabled thinking supported",
+      "variants": "Variants JSON",
+      "variantsHint": "Declare absolute model ids as an array, or use { expose_base, variants }.",
+      "maxOutputTokens": "Max output tokens",
+      "thinkingSupported": "Thinking supported"
     }
   }
 }

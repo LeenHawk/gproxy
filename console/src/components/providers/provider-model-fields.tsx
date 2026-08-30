@@ -4,32 +4,32 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import type { ModelMetadataState, TriState } from "@/components/routes/model-metadata"
+import type { ModelMetadataState, TriState } from "@/components/providers/provider-model-state"
 
-export function ModelMetadataFields({ value, onChange }: { value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
+export function ProviderModelFields({ value, onChange }: { value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
   const { t } = useTranslation()
   const id = useId()
   const set = <K extends keyof ModelMetadataState>(key: K, next: ModelMetadataState[K]) => onChange({ ...value, [key]: next })
   return <>
     <Field>
-      <FieldLabel htmlFor={`${id}-display`}>{t("routes.aliases.displayName")}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-display`}>{t("providers.models.displayName")}</FieldLabel>
       <Input id={`${id}-display`} value={value.displayName} onChange={(event) => set("displayName", event.target.value)} />
     </Field>
     <Field>
-      <FieldLabel htmlFor={`${id}-context`}>{t("routes.aliases.contextWindow")}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-context`}>{t("providers.models.contextWindow")}</FieldLabel>
       <Input id={`${id}-context`} type="number" min="1" inputMode="numeric" value={value.contextWindow} onChange={(event) => set("contextWindow", event.target.value)} />
     </Field>
     <Field>
-      <FieldLabel htmlFor={`${id}-output`}>{t("routes.aliases.maxOutputTokens")}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-output`}>{t("providers.models.maxOutputTokens")}</FieldLabel>
       <Input id={`${id}-output`} type="number" min="1" inputMode="numeric" value={value.maxOutputTokens} onChange={(event) => set("maxOutputTokens", event.target.value)} />
     </Field>
-    <ThinkingField label={t("routes.aliases.thinkingSupported")} value={value.thinkingSupported} onChange={(next) => set("thinkingSupported", next)} />
-    <ThinkingField label={t("routes.aliases.thinkingAdaptiveSupported")} value={value.thinkingAdaptiveSupported} onChange={(next) => set("thinkingAdaptiveSupported", next)} />
-    <ThinkingField label={t("routes.aliases.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
+    <ThinkingField label={t("providers.models.thinkingSupported")} value={value.thinkingSupported} onChange={(next) => set("thinkingSupported", next)} />
+    <ThinkingField label={t("providers.models.thinkingAdaptiveSupported")} value={value.thinkingAdaptiveSupported} onChange={(next) => set("thinkingAdaptiveSupported", next)} />
+    <ThinkingField label={t("providers.models.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
     <Field>
-      <FieldLabel htmlFor={`${id}-variants`}>{t("routes.aliases.variants")}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-variants`}>{t("providers.models.variants")}</FieldLabel>
       <Textarea id={`${id}-variants`} className="min-h-28 font-mono text-xs" value={value.variants} onChange={(event) => set("variants", event.target.value)} />
-      <FieldDescription>{t("routes.aliases.variantsHint")}</FieldDescription>
+      <FieldDescription>{t("providers.models.variantsHint")}</FieldDescription>
     </Field>
   </>
 }

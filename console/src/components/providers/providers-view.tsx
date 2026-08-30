@@ -8,6 +8,7 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
 import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
@@ -47,6 +48,7 @@ type Props = {
   rules: Array<RuleDto>
   attachments: Array<ProviderRuleSetDto>
   routingRules: Array<RoutingRuleDto>
+  providerModels: Array<ProviderModelDto>
   ruleMutations: RuleMutations
 }
 
@@ -55,7 +57,7 @@ export function ProvidersView(props: Props) {
   const location = useAdminLocation()
   const selectedId = Number(location.segments[0])
   const selected = props.providers.find((provider) => provider.id === selectedId) ?? null
-  const tab = ["rules", "routing", "settings"].includes(location.segments[1]) ? location.segments[1] as "rules" | "routing" | "settings" : "credentials"
+  const tab = ["models", "rules", "routing", "settings"].includes(location.segments[1]) ? location.segments[1] as "models" | "rules" | "routing" | "settings" : "credentials"
   const activeCredentialId = tab === "credentials" ? Number(location.segments[2]) : Number.NaN
   const credentialsByProvider = useMemo(() => {
     const groups = new Map<number, Array<CredentialDto>>()
@@ -147,6 +149,7 @@ export function ProvidersView(props: Props) {
         rules={props.rules}
         attachments={props.attachments}
         routingRules={props.routingRules}
+        providerModels={props.providerModels}
         ruleMutations={props.ruleMutations}
       /> : null}
     </WorkspaceLayout>

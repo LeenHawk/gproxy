@@ -267,6 +267,29 @@
         "cookieTitle": "無法交換 Cookie",
         "cookieDescription": "供應商拒絕了 Cookie。請檢查後重試此步驟。"
       }
+    },
+    "models": {
+      "tab": "模型",
+      "title": "該供應商服務的模型",
+      "description": "能力按供應商記錄。負載均衡對外公告的是其成員的保守摺疊值。",
+      "add": "新增模型",
+      "edit": "編輯模型",
+      "modelId": "上游模型 ID",
+      "contextWindow": "上下文視窗",
+      "maxOutput": "最大輸出",
+      "thinking": "思維",
+      "enabled": "啟用",
+      "empty": "該供應商尚未記錄任何模型。",
+      "saved": "模型已儲存。",
+      "saveError": "無法儲存模型。",
+      "variantsInvalid": "變體必須是合法的 JSON。",
+      "displayName": "顯示名稱",
+      "thinkingAdaptiveSupported": "支援自適應思考",
+      "thinkingEnabledSupported": "支援啟用思考",
+      "variants": "變體 JSON",
+      "variantsHint": "用陣列宣告完整模型名稱，或使用 { expose_base, variants }。",
+      "maxOutputTokens": "最大輸出 Token",
+      "thinkingSupported": "支援思維"
     }
   }
 }

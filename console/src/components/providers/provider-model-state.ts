@@ -1,5 +1,5 @@
-import type { ModelAliasDto } from "@/generated/ModelAliasDto"
-import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
+import type { ProviderModelDto } from "@/generated/ProviderModelDto"
+import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
 
 export type TriState = "unset" | "true" | "false"
 
@@ -13,7 +13,7 @@ export type ModelMetadataState = {
   thinkingEnabledSupported: TriState
 }
 
-export function modelMetadataState(value: ModelAliasDto | null): ModelMetadataState {
+export function providerModelState(value: ProviderModelDto | null): ModelMetadataState {
   const tri = (flag: boolean | null): TriState => flag == null ? "unset" : String(flag) as TriState
   return {
     displayName: value?.display_name ?? "",
@@ -26,7 +26,7 @@ export function modelMetadataState(value: ModelAliasDto | null): ModelMetadataSt
   }
 }
 
-export function modelMetadataRequest(value: ModelMetadataState): Omit<ModelAliasWriteRequest, "name" | "route_id" | "enabled"> {
+export function providerModelRequest(value: ModelMetadataState): Omit<ProviderModelWriteRequest, "provider_id" | "model_id" | "enabled"> {
   const optionalNumber = (input: string) => input ? Number(input) : null
   const tri = (input: TriState) => input === "unset" ? null : input === "true"
   return {
