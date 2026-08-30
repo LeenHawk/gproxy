@@ -38,6 +38,11 @@ pub(crate) const OPENAI_CACHE: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),
 ];
+pub(crate) const CLAUDE: &[ChannelField] = &[
+    field("base_url", Url, false, false),
+    select("claude_fallback_mode", &["off", "default", "models"], "off"),
+    field("claude_fallback_models", StringList, false, true),
+];
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),

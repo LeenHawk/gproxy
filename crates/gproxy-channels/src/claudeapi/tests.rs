@@ -167,3 +167,65 @@ fn shapes_cache_sampling_prefill_and_fast_beta_together() {
         "files-api-2025-04-14,fast-mode-2026-02-01"
     );
 }
+
+#[test]
+fn shapes_configured_and_existing_fallbacks_with_required_beta() {
+    let secret = json!({"api_key":"key"});
+    let body = Bytes::from_static(
+        br#"{"model":"route","max_tokens":32,"fallbacks":[{"model":"claude-opus-4-8"}],"messages":[{"role":"user","content":"hello"}]}"#,
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "anthropic-beta",
+        "files-api-2025-04-14,server-side-fallback-2026-07-01"
+            .parse()
+            .unwrap(),
+    );
+    let prepared = ClaudeApiChannel
+        .prepare(PrepareCtx {
+            key: MESSAGES,
+            stream: false,
+            method: &Method::POST,
+            path: "/v1/messages",
+            query: None,
+            headers: &headers,
+            body: &body,
+            upstream_model: "claude-fable-5",
+            provider_settings: &json!({"claude_fallback_mode":"default"}),
+            secret: &secret,
+        })
+        .unwrap();
+    let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+    assert_eq!(shaped["fallbacks"][0]["model"], "claude-opus-4-8");
+    assert_eq!(
+        prepared.request.headers()["anthropic-beta"],
+        "files-api-2025-04-14,server-side-fallback-2026-06-01"
+    );
+
+    let body = Bytes::from_static(
+        br#"{"model":"route","max_tokens":32,"messages":[{"role":"user","content":"hello"}]}"#,
+    );
+    let defaulted = ClaudeApiChannel
+        .prepare(PrepareCtx {
+            key: MESSAGES,
+            stream: false,
+            method: &Method::POST,
+            path: "/v1/messages",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &body,
+            upstream_model: "claude-fable-5",
+            provider_settings: &json!({
+                "claude_fallback_mode":"models",
+                "claude_fallback_models":[]
+            }),
+            secret: &secret,
+        })
+        .unwrap();
+    let shaped: Value = serde_json::from_slice(defaulted.request.body()).unwrap();
+    assert_eq!(shaped["fallbacks"], "default");
+    assert_eq!(
+        defaulted.request.headers()["anthropic-beta"],
+        "server-side-fallback-2026-07-01"
+    );
+}

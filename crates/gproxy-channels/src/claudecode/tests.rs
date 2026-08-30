@@ -180,6 +180,34 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
 }
 
 #[test]
+fn prepare_applies_configured_fallback_and_merges_oauth_beta() {
+    let secret = json!({"access_token":"token"});
+    let body = Bytes::from_static(
+        br#"{"model":"route","max_tokens":32,"messages":[{"role":"user","content":"hello"}]}"#,
+    );
+    let prepared = ClaudeCodeChannel
+        .prepare(PrepareCtx {
+            key: MESSAGES,
+            stream: false,
+            method: &Method::POST,
+            path: "/v1/messages",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &body,
+            upstream_model: "claude-fable-5",
+            provider_settings: &json!({"claude_fallback_mode":"default"}),
+            secret: &secret,
+        })
+        .unwrap();
+    let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+    assert_eq!(shaped["fallbacks"], "default");
+    assert_eq!(
+        prepared.request.headers()["anthropic-beta"],
+        "oauth-2025-04-20,server-side-fallback-2026-07-01"
+    );
+}
+
+#[test]
 fn count_tokens_and_surface_requests_preserve_their_wire_contracts() {
     let secret = json!({"access_token":"token", "device_id":"device"});
     let settings = json!({});

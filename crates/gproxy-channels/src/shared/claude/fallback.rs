@@ -1,6 +1,9 @@
 use http::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
+const FALLBACK_BETA: &str = "server-side-fallback-2026-06-01";
+const DEFAULT_FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
+
 pub(crate) fn enabled(settings: &Value) -> bool {
     configured(settings).is_some()
 }
@@ -32,37 +35,50 @@ fn configured(settings: &Value) -> Option<Value> {
 fn insert(body: &mut Value, configured: &Value, anthropic_policy: bool) -> Option<&'static str> {
     let root = body.as_object_mut()?;
     let model = root.get("model").and_then(Value::as_str)?.to_owned();
-    if root.contains_key("fallbacks") || (anthropic_policy && unsupported(&model)) {
+    if anthropic_policy && unsupported(&model) {
         return None;
+    }
+    if root.contains_key("fallbacks") {
+        return Some(beta_for(root));
     }
     let (fallbacks, beta) = if configured.as_str() == Some("default") {
         if anthropic_policy {
-            (json!("default"), "server-side-fallback-2026-07-01")
+            (json!("default"), DEFAULT_FALLBACK_BETA)
         } else {
             let fallback = namespaced(&model, "claude-opus-4-8");
             if fallback == model {
                 return None;
             }
-            (
-                json!([{"model":fallback}]),
-                "server-side-fallback-2026-06-01",
-            )
+            (json!([{"model":fallback}]), FALLBACK_BETA)
         }
     } else if let Some(models) = configured.as_array() {
-        let chain = models
+        let mut chain = models
             .iter()
             .filter_map(Value::as_str)
             .map(str::trim)
             .filter(|fallback| !fallback.is_empty())
             .map(|fallback| namespaced(&model, fallback))
             .filter(|fallback| fallback != &model)
-            .take(3)
-            .map(|model| json!({"model":model}))
-            .collect::<Vec<_>>();
+            .fold(Vec::new(), |mut chain, model| {
+                if !chain.iter().any(|entry: &Value| entry["model"] == model) {
+                    chain.push(json!({"model":model}));
+                }
+                chain
+            });
+        chain.truncate(3);
         if chain.is_empty() {
-            return None;
+            if anthropic_policy {
+                (json!("default"), DEFAULT_FALLBACK_BETA)
+            } else {
+                let fallback = namespaced(&model, "claude-opus-4-8");
+                if fallback == model {
+                    return None;
+                }
+                (json!([{"model":fallback}]), FALLBACK_BETA)
+            }
+        } else {
+            (Value::Array(chain), FALLBACK_BETA)
         }
-        (Value::Array(chain), "server-side-fallback-2026-06-01")
     } else {
         return None;
     };
@@ -81,7 +97,9 @@ fn unsupported(model: &str) -> bool {
         "claude-sonnet-4-5",
         "claude-opus-4-1",
         "claude-sonnet-4-0",
+        "claude-sonnet-4-20",
         "claude-opus-4-0",
+        "claude-opus-4-20",
         "claude-3",
     ]
     .iter()
@@ -107,12 +125,22 @@ fn append_beta(headers: &mut HeaderMap, beta: &str) {
         .unwrap_or_default()
         .split(',')
         .map(str::trim)
-        .filter(|value| !value.is_empty())
+        .filter(|value| {
+            !value.is_empty() && !matches!(*value, FALLBACK_BETA | DEFAULT_FALLBACK_BETA)
+        })
         .collect::<Vec<_>>();
     if !values.contains(&beta) {
         values.push(beta);
     }
     if let Ok(value) = HeaderValue::from_str(&values.join(",")) {
         headers.insert("anthropic-beta", value);
+    }
+}
+
+fn beta_for(root: &serde_json::Map<String, Value>) -> &'static str {
+    if root.get("fallbacks").and_then(Value::as_str) == Some("default") {
+        DEFAULT_FALLBACK_BETA
+    } else {
+        FALLBACK_BETA
     }
 }

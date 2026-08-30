@@ -18,6 +18,7 @@ pub(super) fn request(
     }
     if super::model::is_messages(ctx.key) {
         crate::shared::claude::hygiene::messages(&mut body, headers);
+        crate::shared::claude::fallback::apply(&mut body, headers, ctx.provider_settings);
     } else {
         crate::shared::claude::hygiene::count_tokens(&body, headers);
     }

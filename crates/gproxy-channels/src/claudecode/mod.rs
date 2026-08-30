@@ -98,7 +98,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "claudecode",
     display_name: "Claude Code",
     supports: &SUPPORTS,
-    provider_fields: crate::metadata::BASE_URL,
+    provider_fields: crate::metadata::CLAUDE,
     credential_fields: crate::metadata::OAUTH,
     endpoint_overrides: true,
 };
