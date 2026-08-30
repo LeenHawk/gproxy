@@ -6,7 +6,6 @@ import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { useTranslation } from "react-i18next"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
-import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
 import { CredentialRowActions } from "@/components/providers/credential-row-actions"
 import { QueryState } from "@/components/query-state"
@@ -33,12 +32,13 @@ type Props = {
 export function CredentialList(props: Props) {
   const { t } = useTranslation()
   const columns: Array<DataTableColumn<CredentialDto>> = [
-    { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => <div><p className="font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> },
+    { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => credential.label ? <div><p className="font-mono text-xs">{credential.label}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> : <p className="font-mono text-xs">{t("providers.credentials.unnamed", { id: credential.id })}</p> },
     { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <span className="flex items-center gap-2"><StatusBadge status={credential.health} />{credential.model_health.length ? <Badge variant="outline">{t("providers.credentials.modelHealth.count", { count: credential.model_health.length })}</Badge> : null}</span> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
     { key: "kind", label: t("providers.credentials.kind"), header: t("providers.credentials.kind"), cell: (credential) => <span className="text-xs">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })}</span> },
     { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },
-    { key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential) => <CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /> },
+    // The row opens the credential, where the cycles live behind their own control; the list carries the pressure only.
+    { key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential) => <QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /> },
   ]
 
   return (
@@ -63,7 +63,7 @@ export function CredentialList(props: Props) {
           rows={props.credentials}
           rowKey={(credential) => credential.id}
           searchText={(credential) => `${credential.label ?? ""} ${credential.kind} ${credential.id} ${credential.health}`}
-          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><StatusBadge status={credential.health} /></div><CredentialCycleList cycles={props.cyclesByCredential.get(credential.id) ?? []} loading={props.cyclesLoading} error={props.cyclesError} /><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
+          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><div className="flex items-center gap-2"><QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /><StatusBadge status={credential.health} /></div></div><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
           empty={t("providers.credentials.empty")}
           storageKey="credentials"
           selectable
@@ -74,4 +74,11 @@ export function CredentialList(props: Props) {
       </QueryState>
     </section>
   )
+}
+
+function QuotaPressure({ cycles }: { cycles: Array<CredentialQuotaCycleDto> }) {
+  const { t } = useTranslation()
+  if (!cycles.length) return <span className="text-xs text-muted-foreground">{t("common.none")}</span>
+  const worst = cycles.reduce((highest, cycle) => Math.max(highest, Number(cycle.used_percent) || 0), 0)
+  return <Badge variant={worst >= 80 ? "destructive" : "outline"} className="machine-text">{Math.round(worst)}%</Badge>
 }

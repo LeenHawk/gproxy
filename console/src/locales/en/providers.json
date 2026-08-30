@@ -199,7 +199,6 @@
       "proxy": "Proxy override URL",
       "enabled": "Credential enabled",
       "healthObserved": "Observed {{time}}",
-      "healthUnobserved": "No health observation yet",
       "healthDetail": "Health detail",
       "modelHealth": {
         "title": "Health by model",

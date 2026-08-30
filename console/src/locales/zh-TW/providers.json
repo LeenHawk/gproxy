@@ -199,7 +199,6 @@
       "proxy": "代理覆寫 URL",
       "enabled": "啟用憑證",
       "healthObserved": "觀測於 {{time}}",
-      "healthUnobserved": "尚無健康觀測",
       "healthDetail": "健康詳細資料",
       "modelHealth": {
         "title": "依模型查看健康狀態",

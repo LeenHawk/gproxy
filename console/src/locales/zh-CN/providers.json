@@ -199,7 +199,6 @@
       "proxy": "代理覆盖 URL",
       "enabled": "启用凭据",
       "healthObserved": "观测于 {{time}}",
-      "healthUnobserved": "尚无健康观测",
       "healthDetail": "健康详情",
       "modelHealth": {
         "title": "按模型查看健康状态",
