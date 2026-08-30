@@ -691,3 +691,19 @@ fn claude_stream_survives_unknown_events_for_chat() {
     assert!(text.contains("Hello"), "text was dropped: {text}");
     assert!(text.contains("[DONE]"), "no terminal: {text}");
 }
+
+#[test]
+fn chat_response_keeps_unparseable_tool_call_for_claude() {
+    let output = response(
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        content(Operation::GenerateContent, Kind::OpenAiChat),
+        Bytes::from_static(
+            br#"{"id":"chat_1","object":"chat.completion","created":0,"model":"gpt-5.5","choices":[{"index":0,"finish_reason":"tool_calls","message":{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"#,
+        ),
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["content"][0]["type"], "tool_use");
+    assert_eq!(value["content"][0]["name"], "lookup");
+    assert_eq!(value["content"][0]["input"], json!({}));
+}

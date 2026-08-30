@@ -42,7 +42,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     blocks.push(claude::ResponseContentBlock::ToolUse(
                         claude::ResponseToolUseBlock {
                             id: call.id,
-                            input: serde_json::from_str(&call.function.arguments)?,
+                            input: serde_json::from_str(&call.function.arguments)
+                                .unwrap_or_default(),
                             name: call.function.name,
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
@@ -54,7 +55,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     blocks.push(claude::ResponseContentBlock::ToolUse(
                         claude::ResponseToolUseBlock {
                             id: call.id,
-                            input: serde_json::from_str(&call.custom.input)?,
+                            input: serde_json::from_str(&call.custom.input).unwrap_or_default(),
                             name: call.custom.name,
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
