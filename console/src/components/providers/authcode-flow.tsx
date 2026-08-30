@@ -5,8 +5,9 @@ import { useTranslation } from "react-i18next"
 import { completeAuthcode, startAuthcode } from "@/api/login"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
+import { validateCallbackUrl } from "@/lib/oauth-callback"
 
 type Props = {
   providerId: number
@@ -21,6 +22,7 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
   const id = useId()
   const [session, setSession] = useState<AuthCodeStartResponse | null>(null)
   const [callbackUrl, setCallbackUrl] = useState("")
+  const [touched, setTouched] = useState(false)
   const start = useMutation({
     mutationFn: () => startAuthcode({ provider_id: providerId, params, redirect_uri: null }),
     onSuccess: (value) => {
@@ -36,6 +38,8 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
     }),
     onSuccess: onDone,
   })
+
+  const valid = session !== null && validateCallbackUrl(callbackUrl, session.authorize_url)
 
   if (!session) {
     return (
@@ -53,20 +57,23 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
       <Button type="button" variant="outline" onClick={() => window.open(session.authorize_url, "_blank", "noopener,noreferrer")}>
         {t("providers.login.openAuthorize")}
       </Button>
-      <Field>
+      <Field data-invalid={touched && callbackUrl.trim() !== "" && !valid ? true : undefined}>
         <FieldLabel htmlFor={`${id}-callback`}>{t("providers.login.callbackLabel")}</FieldLabel>
         <Textarea
           id={`${id}-callback`}
           className="machine-text min-h-24"
           value={callbackUrl}
           onChange={(event) => setCallbackUrl(event.target.value)}
+          onBlur={() => setTouched(true)}
           autoComplete="off"
           spellCheck={false}
         />
-        <FieldDescription>{t("providers.login.callbackHint")}</FieldDescription>
+        {touched && callbackUrl.trim() !== "" && !valid
+          ? <FieldError>{t("providers.login.callbackInvalid")}</FieldError>
+          : <FieldDescription>{t("providers.login.callbackHint")}</FieldDescription>}
       </Field>
       {complete.isError ? <StepError step="complete" /> : null}
-      <Button type="button" onClick={() => complete.mutate()} disabled={!callbackUrl.trim() || complete.isPending}>
+      <Button type="button" onClick={() => complete.mutate()} disabled={!valid || complete.isPending}>
         {t(complete.isPending ? "providers.login.completing" : "providers.login.complete")}
       </Button>
     </div>

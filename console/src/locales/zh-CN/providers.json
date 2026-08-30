@@ -14,36 +14,121 @@
       "credentialCount": "{{count}} 个凭据"
     },
     "channelFields": {
-      "base_url": { "label": "Base URL", "description": "未配置精确端点覆盖时使用的默认上游地址。" },
-      "enable_openai_magic_cache": { "label": "OpenAI 魔法字符串缓存", "description": "识别支持的触发字符串，并写入明确的 OpenAI 缓存断点。" },
-      "enable_claude_magic_cache": { "label": "Claude 魔法字符串缓存", "description": "识别支持的触发字符串，并写入 Claude cache-control 缓存断点。" },
-      "claude_fallback_mode": { "label": "Claude 回退模式", "description": "可关闭回退、使用上游默认路由，或应用明确的模型链。" },
-      "claude_fallback_models": { "label": "Claude 回退模型", "description": "回退模式为“模型”时按顺序尝试的逗号分隔模型。" },
-      "region": { "label": "AWS 区域", "description": "选择此渠道使用的 AWS 区域端点。" },
-      "video_output_s3_uri": { "label": "视频输出 S3 URI", "description": "生成的视频结果写入的 S3 目标地址。" },
-      "location": { "label": "Vertex 区域", "description": "用于构造 Vertex AI 端点的 Google Cloud 区域。" },
-      "oauth_client_id": { "label": "OAuth Client ID", "description": "此提供商获取 OAuth Token 时使用的客户端标识。" },
-      "oauth_client_secret": { "label": "OAuth Client Secret", "description": "与所配置 OAuth Client ID 配套的客户端密钥。" },
-      "oauth_token_url": { "label": "OAuth Token URL", "description": "获取或刷新 OAuth 访问权限时使用的 Token 端点。" },
-      "profile_arn": { "label": "Kiro Profile ARN", "description": "Kiro 发起账号范围请求时使用的 AWS Profile ARN。" },
-      "auth_base_url": { "label": "认证 Base URL", "description": "覆盖此渠道默认的认证服务地址。" },
-      "tier": { "label": "服务层级", "description": "为此提供商选择的上游服务层级。" },
-      "console_base_url": { "label": "控制台 Base URL", "description": "渠道控制面与控制台请求使用的地址。" },
-      "access_token": { "label": "Access Token", "description": "当前发送给上游服务的 Bearer Token。" },
-      "refresh_token": { "label": "Refresh Token", "description": "用于轮换上游 Access Token 的长期 Token。" },
-      "api_key": { "label": "API Key", "description": "用于认证上游请求的秘密 API Key。" },
-      "client_email": { "label": "服务账号邮箱", "description": "Google 服务账号凭据中的 Client Email。" },
-      "private_key": { "label": "服务账号私钥", "description": "用于签署 Google 服务账号断言的私钥。" },
-      "project_id": { "label": "Google Cloud Project ID", "description": "拥有上游 Google Cloud 资源的项目。" },
-      "cookie": { "label": "会话 Cookie", "description": "此渠道使用的已认证浏览器会话 Cookie。" },
-      "account_uuid": { "label": "账号 UUID", "description": "与浏览器会话关联的上游账号标识。" },
-      "github_token": { "label": "GitHub Token", "description": "用于认证 Copilot 请求的 GitHub Token。" },
-      "access_key_id": { "label": "AWS Access Key ID", "description": "AWS 签名凭据的公开标识。" },
-      "secret_access_key": { "label": "AWS Secret Access Key", "description": "用于签署 AWS 请求的秘密密钥。" },
-      "session_token": { "label": "AWS Session Token", "description": "与 AWS Access Key 配套的临时会话 Token。" }
+      "base_url": {
+        "label": "Base URL",
+        "description": "未配置精确端点覆盖时使用的默认上游地址。"
+      },
+      "enable_openai_magic_cache": {
+        "label": "OpenAI 魔法字符串缓存",
+        "description": "识别支持的触发字符串，并写入明确的 OpenAI 缓存断点。"
+      },
+      "enable_claude_magic_cache": {
+        "label": "Claude 魔法字符串缓存",
+        "description": "识别支持的触发字符串，并写入 Claude cache-control 缓存断点。"
+      },
+      "claude_fallback_mode": {
+        "label": "Claude 回退模式",
+        "description": "可关闭回退、使用上游默认路由，或应用明确的模型链。"
+      },
+      "claude_fallback_models": {
+        "label": "Claude 回退模型",
+        "description": "回退模式为“模型”时按顺序尝试的逗号分隔模型。"
+      },
+      "region": {
+        "label": "AWS 区域",
+        "description": "选择此渠道使用的 AWS 区域端点。"
+      },
+      "video_output_s3_uri": {
+        "label": "视频输出 S3 URI",
+        "description": "生成的视频结果写入的 S3 目标地址。"
+      },
+      "location": {
+        "label": "Vertex 区域",
+        "description": "用于构造 Vertex AI 端点的 Google Cloud 区域。"
+      },
+      "oauth_client_id": {
+        "label": "OAuth Client ID",
+        "description": "此提供商获取 OAuth Token 时使用的客户端标识。"
+      },
+      "oauth_client_secret": {
+        "label": "OAuth Client Secret",
+        "description": "与所配置 OAuth Client ID 配套的客户端密钥。"
+      },
+      "oauth_token_url": {
+        "label": "OAuth Token URL",
+        "description": "获取或刷新 OAuth 访问权限时使用的 Token 端点。"
+      },
+      "profile_arn": {
+        "label": "Kiro Profile ARN",
+        "description": "Kiro 发起账号范围请求时使用的 AWS Profile ARN。"
+      },
+      "auth_base_url": {
+        "label": "认证 Base URL",
+        "description": "覆盖此渠道默认的认证服务地址。"
+      },
+      "tier": {
+        "label": "服务层级",
+        "description": "为此提供商选择的上游服务层级。"
+      },
+      "console_base_url": {
+        "label": "控制台 Base URL",
+        "description": "渠道控制面与控制台请求使用的地址。"
+      },
+      "access_token": {
+        "label": "Access Token",
+        "description": "当前发送给上游服务的 Bearer Token。"
+      },
+      "refresh_token": {
+        "label": "Refresh Token",
+        "description": "用于轮换上游 Access Token 的长期 Token。"
+      },
+      "api_key": {
+        "label": "API Key",
+        "description": "用于认证上游请求的秘密 API Key。"
+      },
+      "client_email": {
+        "label": "服务账号邮箱",
+        "description": "Google 服务账号凭据中的 Client Email。"
+      },
+      "private_key": {
+        "label": "服务账号私钥",
+        "description": "用于签署 Google 服务账号断言的私钥。"
+      },
+      "project_id": {
+        "label": "Google Cloud Project ID",
+        "description": "拥有上游 Google Cloud 资源的项目。"
+      },
+      "cookie": {
+        "label": "会话 Cookie",
+        "description": "此渠道使用的已认证浏览器会话 Cookie。"
+      },
+      "account_uuid": {
+        "label": "账号 UUID",
+        "description": "与浏览器会话关联的上游账号标识。"
+      },
+      "github_token": {
+        "label": "GitHub Token",
+        "description": "用于认证 Copilot 请求的 GitHub Token。"
+      },
+      "access_key_id": {
+        "label": "AWS Access Key ID",
+        "description": "AWS 签名凭据的公开标识。"
+      },
+      "secret_access_key": {
+        "label": "AWS Secret Access Key",
+        "description": "用于签署 AWS 请求的秘密密钥。"
+      },
+      "session_token": {
+        "label": "AWS Session Token",
+        "description": "与 AWS Access Key 配套的临时会话 Token。"
+      }
     },
     "channelFieldOptions": {
-      "claude_fallback_mode": { "off": "关闭", "default": "上游默认", "models": "模型" }
+      "claude_fallback_mode": {
+        "off": "关闭",
+        "default": "上游默认",
+        "models": "模型"
+      }
     },
     "tabs": {
       "settings": "设置"
@@ -157,8 +242,9 @@
       "start": "开始登录",
       "starting": "正在开始…",
       "openAuthorize": "打开授权页面",
-      "callbackLabel": "跳转后的网址",
-      "callbackHint": "授权后，将浏览器地址栏中的完整网址粘贴到这里。",
+      "callbackLabel": "回调 URL",
+      "callbackHint": "在浏览器中授权后，将地址栏中的完整回调 URL 粘贴到这里。",
+      "callbackInvalid": "这不是回调 URL——必须包含本次授权的 code 与 state，且不能是授权 URL 本身。",
       "complete": "完成登录",
       "completing": "正在完成…",
       "openVerification": "打开验证页面",
@@ -172,7 +258,7 @@
         "startTitle": "无法开始登录",
         "startDescription": "提供商拒绝了启动步骤。请检查提供商设置后重试。",
         "completeTitle": "无法完成登录",
-        "completeDescription": "代码交换失败。请检查跳转后的网址并重试此步骤。",
+        "completeDescription": "代码交换失败。请检查回调 URL 并重试此步骤。",
         "pollTitle": "无法检查授权状态",
         "pollDescription": "提供商状态检查失败。无需重新开始，直接重试即可。",
         "deniedTitle": "授权已拒绝",
