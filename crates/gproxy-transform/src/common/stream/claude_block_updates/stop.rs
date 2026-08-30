@@ -15,10 +15,9 @@ impl State {
         index: u64,
         rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let block = self
-            .blocks
-            .remove(&index)
-            .ok_or_else(|| TransformError::shape("Claude stream", "stop before block start"))?;
+        let Some(block) = self.blocks.remove(&index) else {
+            return Ok(Vec::new());
+        };
         if matches!(self.output, Output::Chat) {
             return (!rest.is_empty())
                 .then(|| self.chat_chunk(empty_chat_delta(rest), None, None))

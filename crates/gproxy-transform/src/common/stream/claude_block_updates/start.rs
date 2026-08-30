@@ -150,10 +150,25 @@ impl State {
                     output,
                 )
             }
-            raw => {
+            claude::ResponseContentBlock::RedactedThinking(_)
+            | claude::ResponseContentBlock::ServerToolUse(_)
+            | claude::ResponseContentBlock::WebSearchToolResult(_)
+            | claude::ResponseContentBlock::WebFetchToolResult(_)
+            | claude::ResponseContentBlock::AdvisorToolResult(_)
+            | claude::ResponseContentBlock::CodeExecutionToolResult(_)
+            | claude::ResponseContentBlock::BashCodeExecutionToolResult(_)
+            | claude::ResponseContentBlock::TextEditorCodeExecutionToolResult(_)
+            | claude::ResponseContentBlock::ToolSearchToolResult(_)
+            | claude::ResponseContentBlock::McpToolUse(_)
+            | claude::ResponseContentBlock::McpToolResult(_)
+            | claude::ResponseContentBlock::ContainerUpload(_)
+            | claude::ResponseContentBlock::Compaction(_)
+            | claude::ResponseContentBlock::Fallback(_)
+            | claude::ResponseContentBlock::Raw(_) => return Ok(Vec::new()),
+            future => {
                 return Err(TransformError::unsupported(
                     "Claude stream block",
-                    serde_json::to_string(&raw)?,
+                    serde_json::to_string(&future)?,
                 ));
             }
         };

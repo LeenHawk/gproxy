@@ -118,10 +118,10 @@ impl State {
                         ),
                     }
                 }
+                (claude::KnownEventDelta::Citations { .. }, _, _) => Emission::None,
                 (
                     other @ (claude::KnownEventDelta::Text { .. }
                     | claude::KnownEventDelta::InputJson { .. }
-                    | claude::KnownEventDelta::Citations { .. }
                     | claude::KnownEventDelta::Thinking { .. }
                     | claude::KnownEventDelta::Signature { .. }
                     | claude::KnownEventDelta::Compaction { .. }),
@@ -134,12 +134,7 @@ impl State {
                     ));
                 }
             },
-            claude::EventDelta::Unknown(object) => {
-                return Err(TransformError::unsupported(
-                    "Claude stream delta",
-                    serde_json::to_string(&object)?,
-                ));
-            }
+            claude::EventDelta::Unknown(_) => Emission::None,
         };
         self.blocks.insert(index, block);
         Ok(match emission {
