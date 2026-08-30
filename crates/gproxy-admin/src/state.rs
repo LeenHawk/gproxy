@@ -3,7 +3,7 @@ use gproxy_store::records::CredentialEnvelope;
 
 use crate::dto::{
     ChannelDto, ConnectivityTestRequest, ConnectivityTestResponse, ExportSourceKeyDto,
-    PortalModelDto, TokenizerVocabDto,
+    ModelTestRequest, ModelTestResponse, PortalModelDto, TokenizerVocabDto,
 };
 use crate::{AdminError, PortalIdentity};
 
@@ -56,6 +56,14 @@ pub trait State: MaybeSend + MaybeSync {
         &'a self,
         request: &'a ConnectivityTestRequest,
     ) -> BoxFuture<'a, Result<ConnectivityTestResponse, AdminError>>;
+
+    /// Real inference, so it goes through the same funnel as any request: the
+    /// operator's own key pays for it and it appears in usage like everything else.
+    fn test_model<'a>(
+        &'a self,
+        actor_user_id: i64,
+        request: &'a ModelTestRequest,
+    ) -> BoxFuture<'a, Result<ModelTestResponse, AdminError>>;
 
     fn fetch_tokenizer_vocab<'a>(
         &'a self,

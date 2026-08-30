@@ -79,6 +79,18 @@ impl State for TestState {
         Box::pin(async { Ok(()) })
     }
 
+    fn test_model<'a>(
+        &'a self,
+        _: i64,
+        _: &'a crate::dto::ModelTestRequest,
+    ) -> BoxFuture<'a, Result<crate::dto::ModelTestResponse, AdminError>> {
+        Box::pin(async {
+            Err(AdminError::BadRequest(
+                "model test unavailable in this test state".into(),
+            ))
+        })
+    }
+
     fn connectivity_test<'a>(
         &'a self,
         _: &'a crate::dto::ConnectivityTestRequest,

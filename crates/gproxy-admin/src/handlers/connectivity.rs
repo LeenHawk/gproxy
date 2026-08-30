@@ -11,6 +11,21 @@ pub(super) async fn test(state: &impl State, body: &Bytes) -> Result<Response<By
     response::json(StatusCode::OK, &state.connectivity_test(&request).await?)
 }
 
+pub(super) async fn model_test(
+    state: &impl State,
+    actor_user_id: i64,
+    body: &Bytes,
+) -> Result<Response<Bytes>, AdminError> {
+    let request: crate::dto::ModelTestRequest = util::parse(body)?;
+    if request.model_id.trim().is_empty() {
+        return Err(AdminError::BadRequest("model id must not be blank".into()));
+    }
+    response::json(
+        StatusCode::OK,
+        &state.test_model(actor_user_id, &request).await?,
+    )
+}
+
 fn validate(request: &ConnectivityTestRequest) -> Result<(), AdminError> {
     let valid = match request.scope {
         crate::dto::ConnectivityScopeDto::Global => {

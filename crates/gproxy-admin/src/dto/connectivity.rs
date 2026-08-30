@@ -49,3 +49,21 @@ pub struct ConnectivityTestResponse {
     pub error_code: Option<String>,
     pub message: Option<String>,
 }
+
+/// Send one small completion through the funnel and report what came back.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ModelTestRequest {
+    pub provider_id: i64,
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ModelTestResponse {
+    pub ok: bool,
+    pub status: u16,
+    pub latency_ms: u64,
+    /// Which key paid for it. A test that costs money says whose budget it came from.
+    pub key_prefix: String,
+    pub reply: Option<String>,
+    pub message: Option<String>,
+}

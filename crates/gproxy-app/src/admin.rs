@@ -1,6 +1,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 mod connectivity;
 mod import;
+mod model_test;
 mod portal;
 
 use std::time::Duration;
@@ -206,6 +207,14 @@ impl State for AppHandle {
                 ))
             })
         }
+    }
+
+    fn test_model<'a>(
+        &'a self,
+        actor_user_id: i64,
+        request: &'a gproxy_admin::dto::ModelTestRequest,
+    ) -> BoxFuture<'a, Result<gproxy_admin::dto::ModelTestResponse, AdminError>> {
+        Box::pin(model_test::run(self, actor_user_id, request))
     }
 
     fn fetch_tokenizer_vocab<'a>(
