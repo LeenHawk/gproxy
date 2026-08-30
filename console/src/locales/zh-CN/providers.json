@@ -275,7 +275,7 @@
       "add": "添加模型",
       "edit": "编辑模型",
       "modelId": "上游模型 ID",
-      "contextWindow": "上下文窗口",
+      "contextWindow": "最大输入",
       "maxOutput": "最大输出",
       "thinking": "思维",
       "enabled": "启用",

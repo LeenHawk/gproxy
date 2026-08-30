@@ -275,7 +275,7 @@
       "add": "Add model",
       "edit": "Edit model",
       "modelId": "Upstream model id",
-      "contextWindow": "Context window",
+      "contextWindow": "Max input",
       "maxOutput": "Max output",
       "thinking": "Thinking",
       "enabled": "Enabled",

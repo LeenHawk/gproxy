@@ -275,7 +275,7 @@
       "add": "新增模型",
       "edit": "編輯模型",
       "modelId": "上游模型 ID",
-      "contextWindow": "上下文視窗",
+      "contextWindow": "最大輸入",
       "maxOutput": "最大輸出",
       "thinking": "思維",
       "enabled": "啟用",
