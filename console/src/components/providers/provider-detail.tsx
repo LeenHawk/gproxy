@@ -14,7 +14,6 @@ import type { RoutingRuleDto } from "@/generated/RoutingRuleDto"
 import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import { ConnectivityTest } from "@/components/connectivity-test"
 import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { CredentialList } from "@/components/providers/credential-list"
 import { CredentialCard } from "@/components/providers/credential-card"
@@ -89,7 +88,6 @@ export function ProviderDetail(props: Props) {
           <p className="text-xs text-muted-foreground">{props.provider.name} · {props.channel?.display_name ?? props.provider.channel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <ConnectivityTest request={{ scope: "provider", provider_id: props.provider.id, credential_id: null, proxy_url: null }} label={props.provider.label ?? props.provider.name} />
           <Badge variant={props.provider.enabled ? "outline" : "secondary"}>{t(`common.status.${props.provider.enabled ? "enabled" : "disabled"}`)}</Badge>
           <Field orientation="horizontal" className="w-auto">
             <FieldLabel htmlFor={switchId} className="sr-only">{t("providers.fields.enabled")}</FieldLabel>

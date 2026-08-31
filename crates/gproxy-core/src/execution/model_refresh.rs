@@ -17,7 +17,7 @@ pub(super) async fn run<H: Host>(
     owner_user_id: i64,
 ) -> Vec<ExposedModel> {
     let mut providers = BTreeMap::<i64, (String, Vec<Target>)>::new();
-    for target in &plan.targets {
+    for target in plan.targets.iter().filter(|target| auto_refresh(target)) {
         providers
             .entry(target.provider.id)
             .or_insert_with(|| (target.provider.name.clone(), Vec::new()))
@@ -148,4 +148,18 @@ fn integer(value: &serde_json::Value, names: &[&str]) -> Option<i64> {
 
 fn boolean(value: &serde_json::Value, name: &str) -> Option<bool> {
     value.get(name).and_then(serde_json::Value::as_bool)
+}
+
+/// Whether listing models may ask this provider what it serves.
+///
+/// On by default, as in v2: a catalogue that never refreshes goes stale silently.
+/// Off is for a provider whose list is maintained by hand, or one where a fan-out
+/// on every `/v1/models` costs more than the freshness is worth.
+fn auto_refresh(target: &Target) -> bool {
+    target
+        .provider
+        .settings
+        .get("auto_refresh_models")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true)
 }

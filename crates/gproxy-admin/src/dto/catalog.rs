@@ -144,11 +144,20 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                 })
                 .collect(),
         }),
-        provider_fields: descriptor
-            .provider_fields
-            .iter()
-            .map(channel_field)
-            .collect(),
+        // Not channel knowledge: any provider that can list models can be told to
+        // stop asking upstream on every request, so it is added once here instead
+        // of repeated in twenty-eight declarations.
+        provider_fields: std::iter::once(ChannelFieldDto {
+            key: "auto_refresh_models".into(),
+            i18n_key: "auto_refresh_models".into(),
+            control: ChannelFieldControlDto::Boolean,
+            required: false,
+            advanced: true,
+            default_value: Some("true".into()),
+            options: Vec::new(),
+        })
+        .chain(descriptor.provider_fields.iter().map(channel_field))
+        .collect(),
         credential_fields: descriptor
             .credential_fields
             .iter()

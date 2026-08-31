@@ -18,13 +18,13 @@
         "label": "Base URL",
         "description": "未設定精確端點覆寫時使用的預設上游位址。"
       },
+      "auto_refresh_models": {
+        "label": "從上游重新整理模型清單",
+        "description": "用戶端請求模型清單時向該供應商詢問它提供什麼。關閉則只用你手動維護的清單。"
+      },
       "enable_openai_magic_cache": {
         "label": "OpenAI 魔法字串快取",
         "description": "辨識支援的觸發字串，並寫入明確的 OpenAI 快取斷點。"
-      },
-      "enable_claude_magic_cache": {
-        "label": "Claude 魔法字串快取",
-        "description": "辨識支援的觸發字串，並寫入 Claude cache-control 快取斷點。"
       },
       "claude_fallback_mode": {
         "label": "Claude 回退模式",

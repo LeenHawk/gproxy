@@ -18,13 +18,13 @@
         "label": "Base URL",
         "description": "Default upstream origin used when no exact endpoint override is configured."
       },
+      "auto_refresh_models": {
+        "label": "Refresh the model list from upstream",
+        "description": "Asks this provider what it serves when a client lists models. Off keeps the list you maintain by hand."
+      },
       "enable_openai_magic_cache": {
         "label": "OpenAI magic-string cache",
         "description": "Recognizes supported trigger strings and writes explicit OpenAI cache breakpoints."
-      },
-      "enable_claude_magic_cache": {
-        "label": "Claude magic-string cache",
-        "description": "Recognizes supported trigger strings and writes Claude cache-control breakpoints."
       },
       "claude_fallback_mode": {
         "label": "Claude fallback mode",
