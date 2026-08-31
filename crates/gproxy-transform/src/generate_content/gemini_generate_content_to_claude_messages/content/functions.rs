@@ -10,10 +10,7 @@ pub(super) fn function_call_block(
     rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    reject_rest(&rest, &call.rest, "Gemini function call")?;
-    let input = call
-        .args
-        .ok_or_else(|| TransformError::shape("Gemini function call", "args is missing"))?;
+    let input = call.args.unwrap_or_default();
     let id = correlation.function_call(call.id, &call.name);
     Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
         id,
@@ -31,15 +28,8 @@ pub(super) fn function_result_block(
     rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    if response.parts.is_some() || response.will_continue.is_some() || response.scheduling.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "Gemini function response",
-            "parts, willContinue, or scheduling",
-        ));
-    }
-    reject_rest(&rest, &response.rest, "Gemini function response")?;
     let id = correlation.function_result(response.id, &response.name)?;
+    let result_rest = merge(response.rest, rest);
     let (content, is_error) = function_response_text(response.response)?;
     Ok(claude::ContentBlockParam::ToolResult(
         claude::ToolResultBlock {
@@ -48,7 +38,7 @@ pub(super) fn function_result_block(
             cache_control: None,
             content,
             is_error,
-            rest: Default::default(),
+            rest: result_rest,
         },
     ))
 }
@@ -58,11 +48,8 @@ pub(super) fn server_call_block(
     rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    reject_rest(&rest, &call.rest, "Gemini server tool call")?;
     let name = crate::models::common::wire_string(&call.tool_type)?;
-    let input = call
-        .args
-        .ok_or_else(|| TransformError::shape("Gemini server tool call", "args is missing"))?;
+    let input = call.args.unwrap_or_default();
     let id = correlation.function_call(call.id, &name);
     Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
         id,
@@ -80,7 +67,6 @@ pub(super) fn server_result_block(
     rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    reject_rest(&rest, &response.rest, "Gemini server tool response")?;
     let name = crate::models::common::wire_string(&response.tool_type)?;
     let id = correlation.function_result(response.id, &name)?;
     let content = response.response.map(response_text).transpose()?.flatten();
@@ -140,15 +126,4 @@ fn function_response_text(
         }
     }
     Ok((response_text(response)?, None))
-}
-
-fn reject_rest(
-    outer: &claude::JsonObject,
-    inner: &claude::JsonObject,
-    wire: &'static str,
-) -> Result<(), TransformError> {
-    if !outer.is_empty() || !inner.is_empty() {
-        return Err(TransformError::unsupported(wire, "rest fields"));
-    }
-    Ok(())
 }

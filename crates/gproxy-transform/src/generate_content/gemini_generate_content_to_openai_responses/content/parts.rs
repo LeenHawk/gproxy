@@ -79,8 +79,8 @@ impl ContentConverter {
                 tool_response,
                 rest: data_rest,
             } => Some(self.tool_response(tool_response, merge(rest, data_rest))?),
-            gemini::PartData::Raw(raw) => Some(openai::ResponseItem::Unknown(raw)),
-            other => Some(openai::ResponseItem::Unknown(serde_json::to_value(other)?)),
+            gemini::PartData::Raw(_) => None,
+            _future => None,
         })
     }
 

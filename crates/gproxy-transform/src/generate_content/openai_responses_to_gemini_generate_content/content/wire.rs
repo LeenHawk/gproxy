@@ -3,7 +3,8 @@ use gproxy_protocol::{gemini, openai};
 use crate::TransformError;
 
 pub(super) fn json_map(value: &str) -> Result<gemini::JsonMap, TransformError> {
-    let value: serde_json::Value = serde_json::from_str(value)?;
+    let value: serde_json::Value =
+        serde_json::from_str(value).unwrap_or_else(|_| serde_json::Value::String(value.into()));
     Ok(match value {
         serde_json::Value::Object(object) => object,
         value => [("value".into(), value)].into_iter().collect(),
@@ -34,60 +35,29 @@ fn multipart_result(
     for part in parts {
         match part {
             openai::ResponseToolOutputContentPart::InputText(part) => {
-                if part.prompt_cache_breakpoint.is_some() || !part.rest.is_empty() {
-                    return Err(TransformError::unsupported(
-                        "Responses function output text",
-                        "cache breakpoint or extension fields",
-                    ));
-                }
                 values.push(text_value(part.text));
             }
             openai::ResponseToolOutputContentPart::InputImage(part) => {
-                if part.detail.is_some()
-                    || part.file_id.is_some()
-                    || part.prompt_cache_breakpoint.is_some()
-                    || !part.rest.is_empty()
-                {
-                    return Err(TransformError::unsupported(
-                        "Responses function output image",
-                        "detail, file id, cache breakpoint, or extension fields",
-                    ));
+                if let Some(uri) = part.image_url {
+                    if let Ok((mime_type, data)) = data_uri(uri.clone()) {
+                        media.push(response_part(mime_type, data));
+                    } else {
+                        values.push(serde_json::Value::String(uri));
+                    }
+                } else if let Some(id) = part.file_id {
+                    values.push(serde_json::Value::String(id));
                 }
-                let uri = part.image_url.ok_or_else(|| {
-                    TransformError::shape("Responses function output image", "image_url missing")
-                })?;
-                let (mime_type, data) = data_uri(uri)?;
-                media.push(response_part(mime_type, data));
             }
             openai::ResponseToolOutputContentPart::InputFile(mut part) => {
-                if part.detail.is_some()
-                    || part.file_id.is_some()
-                    || part.file_url.is_some()
-                    || part.filename.is_some()
-                    || part.prompt_cache_breakpoint.is_some()
-                {
-                    return Err(TransformError::unsupported(
-                        "Responses function output file",
-                        "file reference, filename, detail, or cache breakpoint",
-                    ));
-                }
                 let mime_type = part
                     .rest
                     .remove("mime_type")
-                    .and_then(|value| value.as_str().map(str::to_owned))
-                    .ok_or_else(|| {
-                        TransformError::shape("Responses function output file", "MIME type missing")
-                    })?;
-                if !part.rest.is_empty() {
-                    return Err(TransformError::unsupported(
-                        "Responses function output file",
-                        "extension fields",
-                    ));
+                    .and_then(|value| value.as_str().map(str::to_owned));
+                if let (Some(mime_type), Some(data)) = (mime_type, part.file_data) {
+                    media.push(response_part(mime_type, data));
+                } else if let Some(reference) = part.file_url.or(part.file_id).or(part.filename) {
+                    values.push(serde_json::Value::String(reference));
                 }
-                let data = part.file_data.ok_or_else(|| {
-                    TransformError::shape("Responses function output file", "file_data missing")
-                })?;
-                media.push(response_part(mime_type, data));
             }
         }
     }

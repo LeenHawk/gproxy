@@ -70,44 +70,11 @@ pub(crate) fn transform(body: Bytes, model: &str, stream: bool) -> Result<Bytes,
 }
 
 fn system_text(content: gemini::Content) -> Result<String, TransformError> {
-    if !content.rest.is_empty()
-        || content.role.as_ref().is_some_and(|role| {
-            !matches!(
-                role,
-                gemini::ContentRole::Known(gemini::ContentRoleKnown::System)
-            )
-        })
-    {
-        return Err(TransformError::unsupported(
-            "Gemini systemInstruction",
-            "role or extension fields",
-        ));
-    }
     let mut text = String::new();
     for part in content.parts {
-        if part.thought.is_some()
-            || part.thought_signature.is_some()
-            || part.part_metadata.is_some()
-            || part.media_resolution.is_some()
-            || part.metadata.is_some()
-            || !part.rest.is_empty()
-        {
-            return Err(TransformError::unsupported(
-                "Gemini systemInstruction",
-                "part metadata or extension fields",
-            ));
-        }
         match part.data {
-            Some(gemini::PartData::Text { text: value, rest }) if rest.is_empty() => {
-                text.push_str(&value)
-            }
-            None => {}
-            Some(_) => {
-                return Err(TransformError::unsupported(
-                    "Gemini systemInstruction",
-                    "non-text content",
-                ));
-            }
+            Some(gemini::PartData::Text { text: value, .. }) => text.push_str(&value),
+            None | Some(_) => {}
         }
     }
     Ok(text)

@@ -10,16 +10,6 @@ pub(crate) fn transform(
     let mut output = Vec::new();
     let mut code_execution = false;
     for tool in tools.into_iter().flatten() {
-        if tool.computer_use.is_some()
-            || tool.file_search.is_some()
-            || tool.mcp_servers.is_some()
-            || tool.google_maps.is_some()
-        {
-            return Err(TransformError::unsupported(
-                "Gemini tool",
-                "a tool with no Chat counterpart",
-            ));
-        }
         output.extend(
             tool.function_declarations
                 .into_iter()
@@ -126,13 +116,7 @@ fn function_declaration(
     declaration: gemini::FunctionDeclaration,
 ) -> Result<openai::ChatTool, TransformError> {
     let parameters = match (declaration.parameters_json_schema, declaration.parameters) {
-        (Some(_), Some(_)) => {
-            return Err(TransformError::shape(
-                "Gemini function declaration",
-                "parameters and parametersJsonSchema are both present",
-            ));
-        }
-        (Some(value), None) => Some(json_object(value)?),
+        (Some(value), Some(_)) | (Some(value), None) => Some(json_object(value)?),
         (None, Some(schema)) => Some(json_object(serde_json::to_value(schema)?)?),
         (None, None) => None,
     };

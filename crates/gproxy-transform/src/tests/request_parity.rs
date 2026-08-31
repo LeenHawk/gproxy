@@ -234,6 +234,18 @@ fn lossy_request_items_are_filtered_without_dropping_text() {
         }),
     );
     assert!(claude_to_gemini.to_string().contains("kept"));
+
+    let gemini_to_claude = convert_request(
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        json!({
+            "contents":[{"role":"user","parts":[
+                {"text":"kept"},
+                {"inlineData":{"mimeType":"application/octet-stream","data":"eA=="}}
+            ]}]
+        }),
+    );
+    assert!(gemini_to_claude.to_string().contains("kept"));
 }
 
 #[test]

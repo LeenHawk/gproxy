@@ -332,7 +332,9 @@ fn gemini_pairs_register_streams_and_preserve_native_code_ids() {
         "upstream-model",
         false,
     );
-    assert!(matches!(bad_mcp, Err(TransformError::Unsupported { .. })));
+    let bad_mcp: serde_json::Value = serde_json::from_slice(&bad_mcp.unwrap()).unwrap();
+    assert_eq!(bad_mcp["tools"][0]["type"], "mcp");
+    assert_eq!(bad_mcp["tools"][0]["server_url"], "https://mcp.invalid");
 
     let multipart = convert_request(
         responses,

@@ -15,10 +15,7 @@ pub(super) fn part_rest(part: &mut gemini::Part) -> Result<openai::Rest, Transfo
 }
 
 pub(super) fn arguments(args: Option<gemini::JsonMap>) -> Result<String, TransformError> {
-    serde_json::to_string(
-        &args.ok_or_else(|| TransformError::shape("Gemini function call", "args is missing"))?,
-    )
-    .map_err(Into::into)
+    serde_json::to_string(&args.unwrap_or_default()).map_err(Into::into)
 }
 
 pub(super) fn output(response: gemini::JsonMap) -> Result<openai::ResponseOutput, TransformError> {

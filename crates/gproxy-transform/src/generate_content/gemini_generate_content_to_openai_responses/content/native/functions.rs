@@ -41,12 +41,6 @@ impl ContentConverter {
         result: gemini::FunctionResponse,
         mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
-        if result.will_continue.is_some() || result.scheduling.is_some() {
-            return Err(TransformError::unsupported(
-                "Gemini functionResponse",
-                "willContinue or scheduling",
-            ));
-        }
         let pending = self.calls_by_name.get_mut(&result.name);
         let call_id = correlated(result.id, pending).ok_or_else(|| {
             TransformError::shape(

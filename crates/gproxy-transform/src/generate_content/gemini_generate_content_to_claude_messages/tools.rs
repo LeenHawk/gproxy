@@ -12,14 +12,6 @@ pub(super) fn definitions(
     };
     let mut output = Vec::new();
     for tool in tools {
-        if !tool.rest.is_empty()
-            || tool
-                .code_execution
-                .as_ref()
-                .is_some_and(|code| !code.rest.is_empty())
-        {
-            return Err(TransformError::unsupported("Gemini tool", "tool rest"));
-        }
         if let Some(declarations) = tool.function_declarations {
             for declaration in declarations {
                 output.push(custom(declaration)?);
@@ -27,19 +19,6 @@ pub(super) fn definitions(
         }
         if tool.code_execution.is_some() {
             output.push(bash());
-        }
-        if tool.google_search_retrieval.is_some()
-            || tool.google_search.is_some()
-            || tool.computer_use.is_some()
-            || tool.url_context.is_some()
-            || tool.file_search.is_some()
-            || tool.mcp_servers.is_some()
-            || tool.google_maps.is_some()
-        {
-            return Err(TransformError::unsupported(
-                "Gemini tool",
-                "a tool without a Claude counterpart",
-            ));
         }
     }
     Ok((!output.is_empty()).then_some(output))
@@ -67,10 +46,11 @@ pub(super) fn choice(
             gemini::FunctionCallingModeKnown::Any | gemini::FunctionCallingModeKnown::Validated,
         ) => match config.allowed_function_names {
             Some(names) if names.len() > 1 => {
-                return Err(TransformError::unsupported(
-                    "Gemini function calling config",
-                    "multiple allowed function names",
-                ));
+                Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
+                    type_: claude::ToolChoiceAnyType::Any,
+                    disable_parallel_tool_use: None,
+                    rest: config.rest,
+                }))
             }
             Some(names) => match names.into_iter().next() {
                 Some(name) => Some(claude::ToolChoice::Tool(claude::ToolChoiceTool {
@@ -113,16 +93,6 @@ pub(super) fn choice(
 }
 
 fn custom(declaration: gemini::FunctionDeclaration) -> Result<claude::Tool, TransformError> {
-    if declaration.behavior.is_some()
-        || declaration.response.is_some()
-        || declaration.response_json_schema.is_some()
-        || !declaration.rest.is_empty()
-    {
-        return Err(TransformError::unsupported(
-            "Gemini function declaration",
-            "fields without a Claude counterpart",
-        ));
-    }
     let schema = match declaration.parameters_json_schema {
         Some(value) => schema::convert(value)?,
         None => match declaration.parameters {

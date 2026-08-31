@@ -3,12 +3,6 @@ use gproxy_protocol::{claude, gemini};
 use crate::TransformError;
 
 pub(super) fn inline(data: gemini::Blob) -> Result<claude::ContentBlockParam, TransformError> {
-    if !data.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Gemini inline data",
-            "blob rest",
-        ));
-    }
     if data.mime_type.starts_with("image/") {
         return Ok(claude::ContentBlockParam::Image(claude::ImageBlock {
             source: claude::ImageSource::Base64(claude::Base64ImageSource {
@@ -45,9 +39,6 @@ pub(super) fn inline(data: gemini::Blob) -> Result<claude::ContentBlockParam, Tr
 }
 
 pub(super) fn file(data: gemini::FileData) -> Result<claude::ContentBlockParam, TransformError> {
-    if !data.rest.is_empty() {
-        return Err(TransformError::unsupported("Gemini file data", "file rest"));
-    }
     if data
         .mime_type
         .as_deref()
