@@ -125,6 +125,25 @@ fn responses_text_annotations_and_fallback_reach_chat() {
 }
 
 #[test]
+fn nullable_chat_logprobs_reach_responses() {
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let converted = convert_response(
+        responses,
+        chat,
+        json!({
+            "id":"chat_nullable_logprobs","object":"chat.completion","created":42,
+            "model":"gpt","choices":[{
+                "index":0,"finish_reason":"stop",
+                "logprobs":{"content":null,"refusal":null},
+                "message":{"role":"assistant","content":"ok"}
+            }]
+        }),
+    );
+    assert_eq!(converted["output_text"], "ok");
+}
+
+#[test]
 fn responses_history_keeps_media_reasoning_and_patch_calls_in_chat() {
     let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
