@@ -22,7 +22,9 @@ pub(super) fn request(
 }
 
 pub(super) fn response(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
-    if ctx.status.is_success()
+    if ctx.status.is_success() && ctx.key.operation == Operation::ListModels {
+        super::model::response(ctx.body)
+    } else if ctx.status.is_success()
         && matches!(
             ctx.key.operation,
             Operation::CreateVideo

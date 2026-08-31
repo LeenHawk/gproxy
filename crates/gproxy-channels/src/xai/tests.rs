@@ -215,3 +215,27 @@ fn prepare_shapes_image_audio_and_video_without_model_enrichment() {
     assert_eq!(shaped["status"], "completed");
     assert_eq!(shaped["url"], "https://cdn/v.mp4");
 }
+
+#[test]
+fn response_restores_documented_grok_model_metadata() {
+    let body = Bytes::from_static(
+        br#"{"object":"list","data":[{"id":"grok-4.6","object":"model"},{"id":"other","object":"model"}]}"#,
+    );
+    let shaped = XaiChannel
+        .shape_response(ResponseShapeCtx {
+            key: family(Operation::ListModels, WireFamily::OpenAi),
+            status: StatusCode::OK,
+            headers: &HeaderMap::new(),
+            body: &body,
+        })
+        .unwrap();
+    let shaped: Value = serde_json::from_slice(&shaped).unwrap();
+    assert_eq!(shaped["data"][0]["display_name"], "Grok 4.6");
+    assert_eq!(shaped["data"][0]["context_length"], 500_000);
+    assert_eq!(
+        shaped["data"][0]["supported_parameters"],
+        json!(["reasoning"])
+    );
+    assert_eq!(shaped["data"][0]["thinking_supported"], true);
+    assert!(shaped["data"][1].get("display_name").is_none());
+}
