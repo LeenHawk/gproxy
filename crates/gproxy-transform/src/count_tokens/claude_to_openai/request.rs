@@ -19,17 +19,22 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
 fn messages_text(messages: Vec<claude::MessageParam>) -> String {
     messages
         .into_iter()
-        .map(|message| match message.content {
-            claude::StringOrArray::String(text) => text,
-            claude::StringOrArray::Array(blocks) => blocks
-                .into_iter()
-                .filter_map(|block| match block {
-                    claude::ContentBlockParam::Text(block) => Some(block.text),
-                    _ => None,
-                })
-                .collect(),
-            claude::StringOrArray::Raw(_) => String::new(),
-            _future => String::new(),
+        .map(|message| {
+            if let claude::StringOrArray::String(text) = &message.content {
+                return text.clone();
+            }
+            if let claude::StringOrArray::Array(blocks) = message.content {
+                return blocks
+                    .into_iter()
+                    .filter_map(|block| {
+                        let claude::ContentBlockParam::Text(block) = block else {
+                            return None;
+                        };
+                        Some(block.text)
+                    })
+                    .collect();
+            }
+            String::new()
         })
         .collect::<Vec<_>>()
         .join("\n")
