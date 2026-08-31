@@ -23,7 +23,7 @@ repository = "https://github.com/LeenHawk/gproxy"
 
 [workspace.dependencies]
 aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
-argon2 = "0.5"
+argon2 = "0.6"
 arc-swap = "1"
 axum = { version = "0.8", features = ["http1", "http2", "tokio", "ws"] }
 base64 = "0.22"

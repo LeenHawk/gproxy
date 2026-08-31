@@ -1,5 +1,6 @@
 use argon2::Argon2;
-use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::password_hash::phc::PasswordHash;
+use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 
 use crate::AdminError;
 
@@ -12,14 +13,9 @@ pub(crate) fn validate(password: &str) -> Result<(), AdminError> {
 }
 
 pub(crate) fn hash(password: &str) -> Result<String, AdminError> {
-    let mut salt = [0_u8; 16];
-    getrandom::fill(&mut salt)
-        .map_err(|_| AdminError::Internal("secure randomness unavailable".into()))?;
-    let salt =
-        SaltString::encode_b64(&salt).map_err(|error| AdminError::Internal(error.to_string()))?;
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map(|hash| hash.to_string())
+        .hash_password(password.as_bytes())
+        .map(|hash: PasswordHash| hash.to_string())
         .map_err(|error| AdminError::Internal(error.to_string()))
 }
 
