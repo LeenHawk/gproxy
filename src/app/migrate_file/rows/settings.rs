@@ -110,6 +110,7 @@ impl From<LegacyInstanceSettings> for InstanceSettingsInput {
             retention_days: x.retention_days,
             max_database_size_mb: None,
             file_upload_max_in_flight: 0,
+            request_blacklist: None,
         }
     }
 }

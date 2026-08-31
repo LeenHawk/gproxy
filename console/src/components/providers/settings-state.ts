@@ -17,6 +17,9 @@ export interface SettingsState {
   enableClaudeMagicCache: boolean;
   enableClaudeFableFallback: boolean;
   claudeFableFallbackModels: string[];
+  requestAllowlistHeaders: string;
+  requestAllowlistQuery: string;
+  requestAllowlistIncludeDefaults: boolean;
 }
 
 export type SettingsValidationError =
@@ -91,6 +94,7 @@ export function initSettingsState(
     ? defaultBreaker
     : undefined;
   const breaker = persistedBreaker ?? validDefaultBreaker ?? {};
+  const requestAllowlist = objectValue(settings.request_allowlist) ?? {};
   const endpointSource = settings.endpoints === undefined
     ? endpointsField?.default
     : settings.endpoints;
@@ -124,6 +128,9 @@ export function initSettingsState(
           .concat(["", "", ""])
           .slice(0, 3)
       : ["", "", ""],
+    requestAllowlistHeaders: stringList(requestAllowlist.headers).join("\n"),
+    requestAllowlistQuery: stringList(requestAllowlist.query).join("\n"),
+    requestAllowlistIncludeDefaults: requestAllowlist.replace_defaults !== true,
   };
 }
 
@@ -192,6 +199,20 @@ export function assembleSettings(
     result.auto_refresh_models = false;
   }
 
+  const requestAllowlistHeaders = parseNameList(state.requestAllowlistHeaders, true);
+  const requestAllowlistQuery = parseNameList(state.requestAllowlistQuery, false);
+  if (requestAllowlistHeaders.length > 0
+    || requestAllowlistQuery.length > 0
+    || !state.requestAllowlistIncludeDefaults) {
+    result.request_allowlist = {
+      headers: requestAllowlistHeaders,
+      query: requestAllowlistQuery,
+      ...(!state.requestAllowlistIncludeDefaults ? { replace_defaults: true } : {}),
+    };
+  } else {
+    delete result.request_allowlist;
+  }
+
   if (isBuiltin && channel === "vertex") setString(result, "location", state.location);
   if (isBuiltin && AWS_CHANNELS.has(channel)) setString(result, "region", state.region);
   if (isBuiltin && channel === "kiro") setString(result, "profile_arn", state.profileArn);
@@ -229,6 +250,21 @@ export function assembleSettings(
     return assembleGenericSettings(result, state.genericSettings, fields);
   }
   return result;
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+    : [];
+}
+
+function parseNameList(value: string, lowercase: boolean): string[] {
+  const names = value
+    .split(/[\s,]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => lowercase ? name.toLowerCase() : name);
+  return names.filter((name, index) => names.indexOf(name) === index);
 }
 
 function setString(result: Record<string, unknown>, key: string, value: string) {

@@ -1,23 +1,22 @@
 //! Part 1 of inbound header/query handling: the GLOBAL blacklist.
 //!
-//! Applied ONCE in the pipeline — after auth, before channel selection — so no
-//! channel can ever forward the caller's credentials/cookies upstream. The
-//! per-channel allow-list (Part 2) runs later, inside `Channel::prepare`
-//! (`channel::http_util::allow_headers` / `allow_query`). The two layers take
-//! effect at deliberately different pipeline positions.
+//! Applied ONCE in the pipeline — after auth, before channel selection. The
+//! built-in defaults remove caller credentials/cookies, while the instance
+//! owner may replace either list. Provider rules run after this stage; the
+//! per-channel allow-list (Part 2) runs later inside `Channel::prepare`.
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use bytes::Bytes;
 use http::{HeaderMap, HeaderValue, header};
 use serde_json::{Map, Value};
 
-use crate::channel::http_util::{HOP_BY_HOP, connection_nominated};
+use crate::channel::http_util::connection_nominated;
 use crate::pipeline::context::RequestCtx;
 use crate::pipeline::error::PipelineError;
 use crate::transform::TransformError;
 
-/// Inbound headers globally denied upstream regardless of channel. A hard floor
-/// the per-channel allow-list cannot override:
+/// Default inbound headers denied before provider rules. Instance settings may
+/// replace either list through `request_blacklist.headers` / `.query`.
 /// - hop-by-hop (`HOP_BY_HOP`);
 /// - the caller's own credentials + cookies;
 /// - `Host` (a fresh one is derived from the upstream URI);
@@ -26,41 +25,123 @@ use crate::transform::TransformError;
 /// - `accept-encoding` (compression is managed by the transport, which also
 ///   matches the impersonated client; a forwarded value breaks auto-decompress
 ///   and content-encoding stripping).
-fn is_denied_header(name: &str) -> bool {
-    HOP_BY_HOP.contains(&name)
-        || matches!(
-            name,
-            // caller credentials / cookies
-            "authorization" | "x-api-key" | "x-goog-api-key" | "api-key" | "cookie"
-            // host (re-derived from the upstream URI)
-            | "host"
-            // front-proxy / client-network metadata
-            | "via" | "forwarded" | "x-forwarded-for" | "x-forwarded-host"
-            | "x-forwarded-proto" | "x-real-ip"
-            // transport-managed compression
-            | "accept-encoding"
-        )
+pub const DEFAULT_DENIED_HEADERS: &[&str] = &[
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "content-length",
+    "authorization",
+    "x-api-key",
+    "x-goog-api-key",
+    "api-key",
+    "cookie",
+    "host",
+    "via",
+    "forwarded",
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+    "x-real-ip",
+    "accept-encoding",
+];
+
+pub const DEFAULT_DENIED_QUERY: &[&str] = &["key"];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequestBlacklist {
+    headers: Vec<String>,
+    query: Vec<String>,
 }
 
-/// Query parameters globally denied upstream — the inbound `?key=` used solely
-/// for downstream (client → proxy) authentication.
-const DENIED_QUERY: &[&str] = &["key"];
+impl Default for RequestBlacklist {
+    fn default() -> Self {
+        Self {
+            headers: DEFAULT_DENIED_HEADERS
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect(),
+            query: DEFAULT_DENIED_QUERY
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect(),
+        }
+    }
+}
+
+impl RequestBlacklist {
+    pub fn from_value(value: Option<&Value>) -> Self {
+        let mut blacklist = Self::default();
+        let Some(object) = value.and_then(Value::as_object) else {
+            return blacklist;
+        };
+        if let Some(headers) = string_list(object.get("headers"), true) {
+            blacklist.headers = headers;
+        }
+        if let Some(query) = string_list(object.get("query"), false) {
+            blacklist.query = query;
+        }
+        blacklist
+    }
+
+    fn denies_header(&self, name: &str) -> bool {
+        self.headers.iter().any(|denied| denied == name)
+    }
+
+    fn denies_query(&self, name: &str) -> bool {
+        self.query.iter().any(|denied| denied == name)
+    }
+}
+
+fn string_list(value: Option<&Value>, lowercase: bool) -> Option<Vec<String>> {
+    let values = value?.as_array()?;
+    let mut out = Vec::new();
+    for value in values {
+        let Some(name) = value
+            .as_str()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+        else {
+            continue;
+        };
+        let name = if lowercase {
+            name.to_ascii_lowercase()
+        } else {
+            name.to_owned()
+        };
+        if !out.contains(&name) {
+            out.push(name);
+        }
+    }
+    Some(out)
+}
 
 /// Apply the global blacklist to the request in place (Part 1). MUST run after
 /// authentication (which reads the credential headers/params) and before the
 /// channel's `prepare`. Headers the caller's `Connection:` nominates are
 /// hop-by-hop too (RFC 7230 §6.1) and dropped alongside the fixed set.
-pub fn apply_global_blacklist(ctx: &mut RequestCtx) {
-    let nominated = connection_nominated(&ctx.headers);
+pub fn apply_global_blacklist(ctx: &mut RequestCtx, blacklist: &RequestBlacklist) {
+    let nominated = if blacklist.denies_header("connection") {
+        connection_nominated(&ctx.headers)
+    } else {
+        Vec::new()
+    };
     let mut headers = HeaderMap::with_capacity(ctx.headers.len());
     for (name, value) in ctx.headers.iter() {
         let n = name.as_str();
-        if !is_denied_header(n) && !nominated.iter().any(|t| t == n) {
+        if !blacklist.denies_header(n) && !nominated.iter().any(|t| t == n) {
             headers.append(name.clone(), value.clone());
         }
     }
     ctx.headers = headers;
-    ctx.query = ctx.query.as_deref().and_then(strip_denied_query);
+    ctx.query = ctx
+        .query
+        .as_deref()
+        .and_then(|query| strip_denied_query(query, blacklist));
 }
 
 /// Canonicalize multipart/form-data bodies into a JSON object before the
@@ -83,10 +164,10 @@ pub fn normalize_multipart_form_body(ctx: &mut RequestCtx) -> Result<(), Pipelin
     Ok(())
 }
 
-fn strip_denied_query(query: &str) -> Option<String> {
+fn strip_denied_query(query: &str, blacklist: &RequestBlacklist) -> Option<String> {
     let kept: Vec<&str> = query
         .split('&')
-        .filter(|pair| !DENIED_QUERY.contains(&pair.split('=').next().unwrap_or("")))
+        .filter(|pair| !blacklist.denies_query(pair.split('=').next().unwrap_or("")))
         .collect();
     (!kept.is_empty()).then(|| kept.join("&"))
 }
@@ -431,7 +512,7 @@ mod tests {
         // channel's allow-list may forward it; the floor must not).
         h.insert("x-stainless-lang", "js".parse().unwrap());
         let mut c = ctx(h, Some("key=secret&alt=sse"));
-        apply_global_blacklist(&mut c);
+        apply_global_blacklist(&mut c, &RequestBlacklist::default());
 
         assert!(c.headers.get(http::header::AUTHORIZATION).is_none());
         assert!(c.headers.get("x-goog-api-key").is_none());
@@ -449,6 +530,27 @@ mod tests {
         assert_eq!(c.headers.get("x-stainless-lang").unwrap(), "js");
         // ?key= dropped, other params survive for the channel allow-list
         assert_eq!(c.query.as_deref(), Some("alt=sse"));
+    }
+
+    #[test]
+    fn configured_blacklist_replaces_each_present_default_list() {
+        let blacklist = RequestBlacklist::from_value(Some(&serde_json::json!({
+            "headers": ["x-private"],
+            "query": ["secret"]
+        })));
+        let mut h = HeaderMap::new();
+        h.insert(
+            http::header::AUTHORIZATION,
+            "Bearer client".parse().unwrap(),
+        );
+        h.insert("x-private", "drop-me".parse().unwrap());
+        let mut c = ctx(h, Some("key=client-key&secret=hidden&trace=1"));
+
+        apply_global_blacklist(&mut c, &blacklist);
+
+        assert_eq!(c.headers[http::header::AUTHORIZATION], "Bearer client");
+        assert!(c.headers.get("x-private").is_none());
+        assert_eq!(c.query.as_deref(), Some("key=client-key&trace=1"));
     }
 
     #[test]

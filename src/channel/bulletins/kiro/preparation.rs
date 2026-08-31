@@ -4,7 +4,7 @@ use bytes::Bytes;
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT};
 use serde_json::Value;
 
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{allow_headers_with_settings, build_request, join_url};
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest};
 
 use super::{AMZ_JSON, auth, model_list, request};
@@ -72,7 +72,7 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         Some(url) => crate::channel::http_util::exact_url(&url, None)?,
         None => join_url(&base, "/", None)?,
     };
-    let headers = allow_headers(ctx.headers, &[]);
+    let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
     let mut req = build_request(ctx.method, uri, headers, Bytes::from(body))?;
     apply_headers(&mut req, &access_token, TARGET_GENERATE)?;
     Ok(PreparedRequest::new(req))

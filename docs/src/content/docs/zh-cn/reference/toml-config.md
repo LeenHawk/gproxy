@@ -170,6 +170,34 @@ v2 bundle 使用 `schema_version: 1`，其余字段是持久化 input record 数
 | `rule_sets`, `rules`, `provider_rule_sets` | 可复用的请求/响应变更规则集，以及 provider 绑定。 |
 | `instance_settings` | 单例实例行为，例如 retention 和 tokenizer download 设置。 |
 
+## 请求 Header 与 Query 策略
+
+实例级 `request_blacklist` 在客户端鉴权完成后、选择 Provider 与执行
+Provider Rule 前过滤一次请求。每个 Provider 可在 `settings_json` 中配置
+`request_allowlist`；它在 Header Rule 之后、渠道构造上游请求之前生效：
+
+```json
+{
+  "headers": ["authorization", "cookie"],
+  "query": ["key"]
+}
+```
+
+```json
+{
+  "request_allowlist": {
+    "headers": ["user-agent"],
+    "query": ["trace"],
+    "replace_defaults": false
+  }
+}
+```
+
+`request_blacklist` 中出现的数组会替换对应的内置列表；空数组表示该维度不做过滤。
+Provider 白名单默认扩展渠道内置项；将 `replace_defaults` 设为 `true` 后，配置的
+header/query 数组就是该渠道的完整白名单。Header 名称按大小写不敏感方式归一化，
+Query 名称保持大小写敏感。Header Rule 主动注入的 Header 不会再次经过全局黑名单。
+
 ## 运行时配置来源
 
 导入后，持久化后端就是 source of truth。修改磁盘上的 JSON 文件不会改变正在运行的服务，除非你再次执行 import 命令，或在空 store 首启时通过 `GPROXY_IMPORT_FILE` 导入。日常操作应使用 console 或 admin API。

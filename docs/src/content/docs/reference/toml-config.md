@@ -175,6 +175,38 @@ pin explicit ids.
 | `rule_sets`, `rules`, `provider_rule_sets` | Reusable request/response mutation rule sets and provider attachments. |
 | `instance_settings` | Singleton instance behavior such as retention and tokenizer download settings. |
 
+## Request header and query policy
+
+The instance-level `request_blacklist` filters the authenticated client request
+once, before provider selection and provider rules. Each provider may then add a
+`request_allowlist` under `settings_json`; it applies after Header Rules and
+before the channel builds its upstream request:
+
+```json
+{
+  "headers": ["authorization", "cookie"],
+  "query": ["key"]
+}
+```
+
+```json
+{
+  "request_allowlist": {
+    "headers": ["user-agent"],
+    "query": ["trace"],
+    "replace_defaults": false
+  }
+}
+```
+
+`request_blacklist` replaces the built-in list for each array that is present;
+an empty array disables filtering for that dimension. Provider allow-list names
+extend the channel defaults. Set `replace_defaults` to `true` when the supplied
+header/query arrays should be the complete channel allow-list. Headers are
+normalized case-insensitively; query names remain case-sensitive. Headers
+intentionally injected by a Header Rule are not sent through the global
+blacklist again.
+
 ## Live configuration source of truth
 
 After import, the persistence backend is the source of truth. Editing a JSON

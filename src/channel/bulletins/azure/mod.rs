@@ -10,7 +10,9 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request};
+use crate::channel::http_util::{
+    allow_headers_with_settings, allow_query_with_settings, build_request,
+};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
@@ -49,7 +51,8 @@ fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
 }
 
 fn query(ctx: &PrepareCtx<'_>) -> Option<String> {
-    let mut query = allow_query(ctx.query, DEFAULTS.forward_query);
+    let mut query =
+        allow_query_with_settings(ctx.query, DEFAULTS.forward_query, ctx.provider_settings);
     let endpoint_query = crate::channel::settings::endpoint_url_for_request(
         ctx.provider_settings,
         ctx.op,
@@ -157,7 +160,11 @@ impl Channel for AzureChannel {
         let api_key = common::resolve_api_key(&ctx)?;
         let query = query(&ctx);
         let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, query.as_deref())?;
-        let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
+        let headers = allow_headers_with_settings(
+            ctx.headers,
+            DEFAULTS.forward_headers,
+            ctx.provider_settings,
+        );
         let anthropic = is_anthropic(ctx.op);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut req, &api_key, anthropic)?;

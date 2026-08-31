@@ -25,7 +25,9 @@ use bytes::Bytes;
 use serde_json::Value;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request};
+use crate::channel::http_util::{
+    allow_headers_with_settings, allow_query_with_settings, build_request,
+};
 use crate::channel::{
     Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx, PreparedRequest,
     RefreshCtx, UsageSnapshot,
@@ -121,9 +123,14 @@ impl Channel for ClineChannel {
         // Keyed off the routed cell, not the inbound path: a transformed
         // candidate still carries the downstream client's original path.
         let path = upstream_path(ctx.op);
-        let query = allow_query(ctx.query, DEFAULTS.forward_query);
+        let query =
+            allow_query_with_settings(ctx.query, DEFAULTS.forward_query, ctx.provider_settings);
         let uri = common::resolve_uri(&ctx, &DEFAULTS, path, query.as_deref())?;
-        let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
+        let headers = allow_headers_with_settings(
+            ctx.headers,
+            DEFAULTS.forward_headers,
+            ctx.provider_settings,
+        );
         let secret = ctx.secret;
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut req, secret)?;

@@ -101,10 +101,34 @@ describe("external settings", () => {
       { key: "endpoints", control: "text" },
       { key: "circuit_breaker", control: "text" },
       { key: "auto_refresh_models", control: "boolean" },
+      { key: "request_allowlist", control: "text" },
       { key: "region", control: "text" },
       { key: "region", control: "string_list" },
     ];
     expect(genericSettingFields(fields).map((field) => field.key)).toEqual(["region"]);
+  });
+
+  it("normalizes the shared provider request allowlist", () => {
+    const state = initSettingsState({
+      request_allowlist: {
+        headers: ["User-Agent"],
+        query: ["trace"],
+      },
+    }, externalMeta);
+    expect(state.requestAllowlistHeaders).toBe("User-Agent");
+    expect(state.requestAllowlistQuery).toBe("trace");
+
+    state.requestAllowlistHeaders = " User-Agent, Authorization, user-agent ";
+    state.requestAllowlistQuery = "trace\npageToken\ntrace";
+    state.requestAllowlistIncludeDefaults = false;
+    expect(assembleSettings({}, state, externalMeta.id, externalMeta)).toEqual({
+      base_url: "https://api.openai.com",
+      request_allowlist: {
+        headers: ["user-agent", "authorization"],
+        query: ["trace", "pageToken"],
+        replace_defaults: true,
+      },
+    });
   });
 
   it("does not apply ID-specific built-in settings to an external replacement", () => {

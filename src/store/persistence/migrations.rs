@@ -642,6 +642,13 @@ pub const MIGRATIONS: &[Migration] = &[
             ],
         },
     },
+    Migration {
+        version: 34,
+        description: "instance_settings: configurable request blacklist",
+        sql: MigrationSql::Shared(&[
+            "ALTER TABLE instance_settings ADD COLUMN request_blacklist TEXT",
+        ]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

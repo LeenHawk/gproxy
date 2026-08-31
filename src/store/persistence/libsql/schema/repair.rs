@@ -35,6 +35,15 @@ pub(super) async fn instance_settings(client: &LibsqlClient) -> anyhow::Result<(
         client.execute("ALTER TABLE instance_settings ADD COLUMN file_upload_max_in_flight INTEGER NOT NULL DEFAULT 0", &[]).await
             .map_err(|e| anyhow::anyhow!("libsql repair file upload concurrency setting: {e}"))?;
     }
+    if !cols.is_empty() && !cols.contains("request_blacklist") {
+        client
+            .execute(
+                "ALTER TABLE instance_settings ADD COLUMN request_blacklist TEXT",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair request blacklist setting: {e}"))?;
+    }
     Ok(())
 }
 

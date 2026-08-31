@@ -7,6 +7,7 @@
     "usageLogging": "用量与日志",
     "retention": "保留策略",
     "tokenizer": "分词器",
+    "requestBlacklist": "全局请求黑名单",
     "autostart": "后台运行"
   },
   "fields": {
@@ -23,6 +24,8 @@
     "retentionDays": "日志保留天数",
     "maxDatabaseSizeMb": "数据库大小上限（MiB）",
     "fileUploadMaxInFlight": "文件上传并发数",
+    "requestBlacklistHeaders": "拦截的客户端 Header",
+    "requestBlacklistQuery": "拦截的客户端 Query 参数",
     "autostart": "登录系统时自动启动 GPROXY"
   },
   "spoof": {
@@ -33,6 +36,9 @@
     "forever": "留空表示永久保留日志",
     "databaseSizeHelp": "仅适用于本地 SQLite。超过上限后会删除最旧的请求日志和审计，并压缩至上限的 90%；用量数据始终保留。留空表示不限制。",
     "fileUploadConcurrencyHelp": "填 0 或留空表示不限制 /v1/files 并发上传数。"
+  },
+  "requestBlacklist": {
+    "help": "客户端请求进入后、选择 Provider 和执行 Header Rule 前只过滤一次。删除某个名称即可让它进入规则和渠道阶段；Header Rule 主动注入的 Header 不会再次经过全局黑名单。每行一个名称，也可用逗号分隔。"
   },
   "warnings": {
     "sensitive": "警告：已启用一个或多个敏感选项。日志可能包含未脱敏内容或请求/响应体，其中可能含有密钥和个人信息。请仅在排查问题时启用这些选项。"

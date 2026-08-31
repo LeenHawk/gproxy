@@ -43,7 +43,7 @@ pub(crate) async fn open(
     }
 
     let affinity_session_id = balance::take_session_id(&mut ctx.headers);
-    ingress::apply_global_blacklist(&mut ctx);
+    ingress::apply_global_blacklist(&mut ctx, &state.cp().request_blacklist);
     let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
     let conversation_fingerprint = classified.conversation_fingerprint;
     ctx.op = Some(classified.op);

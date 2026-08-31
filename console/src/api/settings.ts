@@ -1,6 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "./http";
 
+export interface RequestNameList {
+  headers: string[];
+  query: string[];
+}
+
 export interface InstanceSettings {
   id: number;
   instance_name: string;
@@ -18,6 +23,7 @@ export interface InstanceSettings {
   retention_days: number | null;
   max_database_size_mb: number | null;
   file_upload_max_in_flight: number;
+  request_blacklist: RequestNameList | null;
   created_at: number;
   updated_at: number;
 }
@@ -39,6 +45,7 @@ export interface InstanceSettingsInput {
   retention_days?: number | null;
   max_database_size_mb?: number | null;
   file_upload_max_in_flight?: number;
+  request_blacklist?: RequestNameList | null;
 }
 
 export const instanceSettingsQuery = queryOptions({
@@ -89,5 +96,6 @@ export function settingsToInput(s: InstanceSettings): InstanceSettingsInput {
     retention_days: s.retention_days,
     max_database_size_mb: s.max_database_size_mb,
     file_upload_max_in_flight: s.file_upload_max_in_flight,
+    request_blacklist: s.request_blacklist,
   };
 }

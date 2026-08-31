@@ -14,6 +14,7 @@
  *   enable_openai_magic_cache — OpenAI magic-string prompt cache triggers
  *   enable_claude_magic_cache — Claude magic-string prompt cache triggers
  *   claude_fable_fallbacks — claudecode / claudeapi / vercel / openrouter / custom
+ *   request_allowlist — extra request header/query names allowed by this provider
  *
  * Unknown keys (e.g. tokenizer_map) are preserved via the `base` prop.
  */
@@ -22,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DEFAULT_BASE_URL, type ChannelMeta,
 } from "@/lib/channel-meta";
@@ -98,6 +100,43 @@ export function SettingsFields({ channel, meta, state, onChange }: SettingsField
         required={endpointsField?.required === true}
         onChange={(endpoints) => onChange({ endpoints })}
       />
+
+      <div className="grid gap-2">
+        <Label>{t("fields.requestAllowlist")}</Label>
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-1">
+            <Label htmlFor="sf-allow-headers" className="text-xs font-normal text-muted-foreground">
+              {t("fields.requestAllowlistHeaders")}
+            </Label>
+            <Textarea
+              id="sf-allow-headers"
+              value={state.requestAllowlistHeaders}
+              onChange={(event) => onChange({ requestAllowlistHeaders: event.target.value })}
+              placeholder="user-agent"
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="sf-allow-query" className="text-xs font-normal text-muted-foreground">
+              {t("fields.requestAllowlistQuery")}
+            </Label>
+            <Textarea
+              id="sf-allow-query"
+              value={state.requestAllowlistQuery}
+              onChange={(event) => onChange({ requestAllowlistQuery: event.target.value })}
+              placeholder="trace"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="sf-allow-defaults">{t("fields.requestAllowlistIncludeDefaults")}</Label>
+          <Switch
+            id="sf-allow-defaults"
+            checked={state.requestAllowlistIncludeDefaults}
+            onCheckedChange={(value) => onChange({ requestAllowlistIncludeDefaults: value })}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t("form.requestAllowlistHint")}</p>
+      </div>
 
       {resolvedMeta?.source === "external" && (
         <GenericSettingsFields

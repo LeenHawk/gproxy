@@ -3,6 +3,7 @@
 
 use bytes::Bytes;
 use http::{HeaderMap, Method, Request, Uri};
+use serde_json::Value;
 
 use crate::channel::ChannelError;
 
@@ -41,18 +42,28 @@ pub(crate) fn connection_nominated(src: &HeaderMap) -> Vec<String> {
 /// only Claude, rather than a blind union.
 const BASE_FORWARD_HEADERS: &[&str] = &["content-type", "accept"];
 
-/// Allow-list filter for INBOUND headers (client → upstream): keeps the base set
-/// plus the channel's `extra`; drops everything else (client auth, cookies,
-/// `Host`, hop-by-hop, user-agent, SDK headers). The channel injects the
-/// credential's auth itself; the upstream transport derives a fresh `Host` /
-/// `:authority` from the request URI (see [`build_request`]).
+/// Allow-list filter for headers entering the channel: keeps the base set plus
+/// the channel's `extra`; drops everything else. The settings-aware variant can
+/// extend these defaults or replace them exactly. The channel injects its own
+/// credential auth after this filter.
 ///
 /// `extra` entries MUST be lowercase (compared against the lowercase `HeaderName`).
 pub fn allow_headers(src: &HeaderMap, extra: &[&str]) -> HeaderMap {
+    allow_headers_with_settings(src, extra, &Value::Null)
+}
+
+/// Apply the built-in channel allow-list plus names added through the
+/// provider's `request_allowlist.headers` setting. Provider rules have already
+/// run when this function is called, so explicitly injected headers use the
+/// same channel boundary as client headers.
+pub fn allow_headers_with_settings(src: &HeaderMap, extra: &[&str], settings: &Value) -> HeaderMap {
     let mut out = HeaderMap::with_capacity(src.len());
     for (name, value) in src.iter() {
         let n = name.as_str();
-        if BASE_FORWARD_HEADERS.contains(&n) || extra.contains(&n) {
+        if (keeps_default_allowlist(settings)
+            && (BASE_FORWARD_HEADERS.contains(&n) || extra.contains(&n)))
+            || configured_name(settings, "headers", n, true)
+        {
             out.append(name.clone(), value.clone());
         }
     }
@@ -63,11 +74,23 @@ pub fn allow_headers(src: &HeaderMap, extra: &[&str]) -> HeaderMap {
 /// whose key is in the channel's `allowed` set (order preserved); drops the rest,
 /// including an inbound `?key=` used solely for downstream auth. `None` if empty.
 pub fn allow_query(query: Option<&str>, allowed: &[&str]) -> Option<String> {
+    allow_query_with_settings(query, allowed, &Value::Null)
+}
+
+/// Apply the built-in query allow-list plus names added through the provider's
+/// `request_allowlist.query` setting. Query names remain case-sensitive.
+pub fn allow_query_with_settings(
+    query: Option<&str>,
+    allowed: &[&str],
+    settings: &Value,
+) -> Option<String> {
     let kept: Vec<&str> = query?
         .split('&')
         .filter(|pair| {
             let key = pair.split('=').next().unwrap_or("");
-            !key.is_empty() && allowed.contains(&key)
+            !key.is_empty()
+                && ((keeps_default_allowlist(settings) && allowed.contains(&key))
+                    || configured_name(settings, "query", key, false))
         })
         .collect();
     if kept.is_empty() {
@@ -75,6 +98,43 @@ pub fn allow_query(query: Option<&str>, allowed: &[&str]) -> Option<String> {
     } else {
         Some(kept.join("&"))
     }
+}
+
+/// Channels that historically preserved every query pair use this helper so a
+/// provider can opt into an exact allow-list with `replace_defaults: true`.
+pub fn passthrough_query_with_settings(query: Option<&str>, settings: &Value) -> Option<String> {
+    if keeps_default_allowlist(settings) {
+        query.filter(|query| !query.is_empty()).map(str::to_owned)
+    } else {
+        allow_query_with_settings(query, &[], settings)
+    }
+}
+
+fn keeps_default_allowlist(settings: &Value) -> bool {
+    settings
+        .get("request_allowlist")
+        .and_then(|value| value.get("replace_defaults"))
+        .and_then(Value::as_bool)
+        != Some(true)
+}
+
+fn configured_name(settings: &Value, kind: &str, candidate: &str, lowercase: bool) -> bool {
+    settings
+        .get("request_allowlist")
+        .and_then(|value| value.get(kind))
+        .and_then(Value::as_array)
+        .is_some_and(|names| {
+            names.iter().any(|name| {
+                name.as_str().is_some_and(|name| {
+                    let name = name.trim();
+                    if lowercase {
+                        name.eq_ignore_ascii_case(candidate)
+                    } else {
+                        name == candidate
+                    }
+                })
+            })
+        })
 }
 
 /// Compose an ABSOLUTE upstream URI from `base_url` + provider-relative `path`
@@ -288,5 +348,35 @@ mod tests {
         );
         assert_eq!(allow_query(Some("key=secret"), &["alt"]), None);
         assert_eq!(allow_query(None, &["alt"]), None);
+    }
+
+    #[test]
+    fn provider_allowlist_accepts_rule_headers_and_exact_query() {
+        let settings = serde_json::json!({
+            "request_allowlist": {
+                "headers": ["User-Agent", "authorization"],
+                "query": ["trace"],
+                "replace_defaults": true
+            }
+        });
+        let mut headers = HeaderMap::new();
+        headers.insert(http::header::USER_AGENT, "agentrouter/1".parse().unwrap());
+        headers.insert(
+            http::header::AUTHORIZATION,
+            "Bearer injected".parse().unwrap(),
+        );
+
+        let out = allow_headers_with_settings(&headers, &[], &settings);
+        assert_eq!(out[http::header::USER_AGENT], "agentrouter/1");
+        assert_eq!(out[http::header::AUTHORIZATION], "Bearer injected");
+        assert!(out.get(http::header::ACCEPT).is_none());
+        assert_eq!(
+            allow_query_with_settings(Some("key=secret&trace=1&x=2"), &[], &settings).as_deref(),
+            Some("trace=1")
+        );
+        assert_eq!(
+            passthrough_query_with_settings(Some("trace=1&x=2"), &settings).as_deref(),
+            Some("trace=1")
+        );
     }
 }

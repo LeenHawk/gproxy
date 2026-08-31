@@ -14,7 +14,9 @@ use bytes::Bytes;
 use http::HeaderMap;
 use serde_json::Value;
 
-use crate::channel::http_util::{allow_headers, allow_query, build_request, exact_url, join_url};
+use crate::channel::http_util::{
+    allow_headers_with_settings, allow_query_with_settings, build_request, exact_url, join_url,
+};
 use crate::channel::{
     Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx, PreparedRequest,
     RefreshCtx, ShapeCtx, UsageSnapshot,
@@ -91,7 +93,7 @@ impl Channel for WorkBuddyChannel {
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         let path = upstream_path(ctx.op);
-        let query = allow_query(ctx.query, &[]);
+        let query = allow_query_with_settings(ctx.query, &[], ctx.provider_settings);
         let uri = match crate::channel::settings::endpoint_url(
             ctx.provider_settings,
             ctx.op,
@@ -105,7 +107,7 @@ impl Channel for WorkBuddyChannel {
                 query.as_deref(),
             )?,
         };
-        let headers = allow_headers(ctx.headers, &[]);
+        let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
         let mut request = build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut request, ctx.secret)?;
         Ok(PreparedRequest::new(request))

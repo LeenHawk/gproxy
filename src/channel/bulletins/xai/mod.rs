@@ -91,8 +91,11 @@ impl Channel for XaiChannel {
             _ => ctx.path,
         };
         let uri = common::resolve_uri(&ctx, &DEFAULTS, path, None)?;
-        let headers =
-            crate::channel::http_util::allow_headers(ctx.headers, DEFAULTS.forward_headers);
+        let headers = crate::channel::http_util::allow_headers_with_settings(
+            ctx.headers,
+            DEFAULTS.forward_headers,
+            ctx.provider_settings,
+        );
         let mut req = crate::channel::http_util::build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut req, &key)?;
         Ok(PreparedRequest::new(req))

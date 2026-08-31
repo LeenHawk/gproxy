@@ -12,7 +12,8 @@ pub use audio_multipart::restore_media_multipart;
 pub(crate) mod xai_media;
 
 use crate::channel::http_util::{
-    allow_headers, allow_query, build_request as build_http, exact_url, join_url,
+    allow_headers_with_settings, allow_query_with_settings, build_request as build_http, exact_url,
+    join_url,
 };
 use crate::channel::settings::endpoint_url_for_request;
 use crate::channel::{ChannelError, PrepareCtx};
@@ -75,9 +76,10 @@ pub fn build_request(
     d: &ApiKeyDefaults,
 ) -> Result<(Request<Bytes>, String), ChannelError> {
     let api_key = resolve_api_key(&ctx)?;
-    let query = allow_query(ctx.query, d.forward_query);
+    let query = allow_query_with_settings(ctx.query, d.forward_query, ctx.provider_settings);
     let uri = resolve_uri(&ctx, d, ctx.path, query.as_deref())?;
-    let headers = allow_headers(ctx.headers, d.forward_headers);
+    let headers =
+        allow_headers_with_settings(ctx.headers, d.forward_headers, ctx.provider_settings);
     let req = build_http(ctx.method, uri, headers, ctx.body)?;
     Ok((req, api_key))
 }

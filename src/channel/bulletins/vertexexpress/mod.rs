@@ -8,7 +8,9 @@ use std::borrow::Cow;
 use bytes::Bytes;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request};
+use crate::channel::http_util::{
+    allow_headers_with_settings, allow_query_with_settings, build_request,
+};
 use crate::channel::shaping::{self, gemini_genconfig, vertex_normalize};
 use crate::channel::{Channel, ChannelError, ModelCatalog, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
@@ -141,10 +143,17 @@ impl Channel for VertexExpressChannel {
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         let api_key = common::resolve_api_key(&ctx)?;
-        let query = auth::apply_query(allow_query(ctx.query, DEFAULTS.forward_query), &api_key);
+        let query = auth::apply_query(
+            allow_query_with_settings(ctx.query, DEFAULTS.forward_query, ctx.provider_settings),
+            &api_key,
+        );
         let path = default_request_path(ctx.path);
         let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, query.as_deref())?;
-        let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
+        let headers = allow_headers_with_settings(
+            ctx.headers,
+            DEFAULTS.forward_headers,
+            ctx.provider_settings,
+        );
         let req = build_request(ctx.method, uri, headers, ctx.body)?;
         Ok(PreparedRequest::new(req))
     }
