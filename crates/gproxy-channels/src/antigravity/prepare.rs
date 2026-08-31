@@ -53,12 +53,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         }
     };
     let uri = endpoint_uri(&ctx, endpoint, path, query)?;
-    let mut request = http::Request::builder()
-        .method(http::Method::POST)
-        .uri(crate::shared::http::strip_userinfo(uri)?)
-        .body(body)
-        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    let headers = request.headers_mut();
+    let mut headers = crate::shared::http::allow_headers(ctx.headers, &["accept"]);
     headers.insert(
         AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {access}"))
@@ -66,6 +61,12 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     );
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
+    let mut request = http::Request::builder()
+        .method(http::Method::POST)
+        .uri(crate::shared::http::strip_userinfo(uri)?)
+        .body(body)
+        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+    *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
         framing: (ctx.key.operation == Operation::StreamGenerateContent)

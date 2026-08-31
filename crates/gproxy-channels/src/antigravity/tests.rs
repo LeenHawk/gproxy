@@ -3,7 +3,7 @@ use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx, StreamCtx, StreamE
 use gproxy_protocol::{
     ContentGenerationKind as Kind, Operation, OperationKey, StreamFraming, WireFamily,
 };
-use http::{HeaderMap, Method};
+use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
 
 use super::AntigravityChannel;
@@ -78,6 +78,8 @@ fn resolves_daily_default_and_exact_override_urls() {
         "base_url":"https://ignored.example",
         "endpoints":{"gemini_stream_generate_content":"https://relay.example/stream"}
     });
+    let mut stream_headers = HeaderMap::new();
+    stream_headers.insert("accept", HeaderValue::from_static("text/event-stream"));
     let stream = AntigravityChannel
         .prepare(PrepareCtx {
             key: gemini(Operation::StreamGenerateContent),
@@ -85,7 +87,7 @@ fn resolves_daily_default_and_exact_override_urls() {
             method: &Method::POST,
             path: "/v1beta/models/client:streamGenerateContent",
             query: None,
-            headers: &HeaderMap::new(),
+            headers: &stream_headers,
             body: &Bytes::from_static(br#"{"contents":[]}"#),
             upstream_model: "gemini-3-pro",
             provider_settings: &settings,
@@ -98,7 +100,7 @@ fn resolves_daily_default_and_exact_override_urls() {
         stream.request.headers()["user-agent"],
         "antigravity/cli/1.0.6 linux/amd64"
     );
-    assert!(stream.request.headers().get("accept").is_none());
+    assert_eq!(stream.request.headers()["accept"], "text/event-stream");
     assert_eq!(
         stream.profile.unwrap().preserve_tls13_cipher_list,
         Some(true)
