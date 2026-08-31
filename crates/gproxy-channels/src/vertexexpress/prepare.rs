@@ -14,7 +14,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .filter(|key| !key.is_empty())
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let target = super::model::target(&ctx)?;
-    let query = query(&ctx, api_key);
+    let query = query(&ctx, api_key)?;
     let uri = endpoint(&ctx, &target, Some(&query))?;
     let body = super::shape::request(&ctx)?;
     let mut request = http::Request::builder()
@@ -69,22 +69,20 @@ fn endpoint(
     crate::shared::http::join(base, &target.path, query)
 }
 
-fn query(ctx: &PrepareCtx<'_>, api_key: &str) -> String {
-    let mut parts = Vec::new();
-    if ctx.key.operation == Operation::StreamGenerateContent
-        && ctx.query.is_some_and(|query| {
-            query
-                .split('&')
-                .any(|part| part.split_once('=') == Some(("alt", "sse")))
-        })
-    {
-        parts.push("alt=sse".into());
-    }
+fn query(ctx: &PrepareCtx<'_>, api_key: &str) -> Result<String, ChannelError> {
+    let caller_query = crate::policy::request_query(crate::policy::VERTEX_EXPRESS, ctx)?;
+    let mut parts = caller_query
+        .as_deref()
+        .unwrap_or_default()
+        .split('&')
+        .filter(|part| !part.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
     parts.push(format!(
         "key={}",
         crate::shared::http::encode_component(api_key)
     ));
-    parts.join("&")
+    Ok(parts.join("&"))
 }
 
 fn framing(ctx: &PrepareCtx<'_>) -> Option<StreamFraming> {

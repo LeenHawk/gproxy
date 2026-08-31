@@ -4,8 +4,6 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://api.groq.com/openai";
-const FORWARD_HEADERS: &[&str] = &["accept", "content-type"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let api_key = ctx
         .secret
@@ -17,7 +15,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let path = upstream_path(&ctx);
     let uri = endpoint(&ctx, &path)?;
     let body = super::model::rewrite(&ctx)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::OPENAI_COMPATIBLE, &ctx)?;
     if !body.is_empty() && !headers.contains_key(CONTENT_TYPE) {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     }

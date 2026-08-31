@@ -101,6 +101,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::CLAUDE,
     credential_fields: crate::metadata::OAUTH,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::CLAUDE_CODE,
 };
 
 static LOGIN: LoginDescriptor = LoginDescriptor {

@@ -22,7 +22,11 @@ enum Stage {
 
 impl NewTurn {
     pub(super) fn new(ctx: PrepareCtx<'_>, request: &Value) -> Result<Self, ChannelError> {
-        let requests = super::super::prepare::Requests::new(ctx.secret, ctx.provider_settings)?;
+        let headers = crate::policy::CLAUDE_WEB
+            .filter_request_headers(ctx.headers, ctx.provider_settings)
+            .map_err(ChannelError::Prepare)?;
+        let requests =
+            super::super::prepare::Requests::new(ctx.secret, ctx.provider_settings, headers)?;
         let prompt = ctx
             .provider_settings
             .get("prompt")

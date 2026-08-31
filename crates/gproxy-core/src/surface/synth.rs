@@ -122,6 +122,8 @@ async fn finish<H: Host>(
         resource: None,
         admitted: true,
         surface_label: None,
+        traffic_policy: None,
+        traffic_blacklist: None,
     };
     Ok(match reply.body {
         SurfaceBody::Full(body) => {

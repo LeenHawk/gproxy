@@ -12,7 +12,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let target = target(ctx.key)?;
     let uri = endpoint(&ctx, &target)?;
     let body = super::model::rewrite(&ctx)?;
-    let mut headers = http::HeaderMap::new();
+    let mut headers = crate::policy::request_headers(crate::policy::COPILOT, &ctx)?;
     super::identity::apply(&mut headers, ctx.secret, &body)?;
     let mut request = http::Request::builder()
         .method(target.method)

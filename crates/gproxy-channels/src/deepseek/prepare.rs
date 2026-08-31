@@ -4,8 +4,6 @@ use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
-const FORWARD_HEADERS: &[&str] = &["accept", "content-type"];
-
 struct Target {
     method: http::Method,
     path: String,
@@ -22,7 +20,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let target = target(&ctx)?;
     let uri = endpoint(&ctx, &target)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::DEEPSEEK, &ctx)?;
     apply_auth(&mut headers, ctx.key, api_key)?;
     let body = if matches!(ctx.key.kind, OperationKind::Family(_)) {
         ctx.body.clone()

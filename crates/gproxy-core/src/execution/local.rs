@@ -172,6 +172,8 @@ async fn serve<H: Host>(
         resource: None,
         admitted: true,
         surface_label: None,
+        traffic_policy: None,
+        traffic_blacklist: None,
     };
     Ok(funnel::local_buffered(
         core.host.as_ref(),

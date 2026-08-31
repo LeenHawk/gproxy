@@ -1,21 +1,9 @@
 use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest};
 use gproxy_protocol::{Operation, StreamFraming};
-use http::{HeaderMap, HeaderValue, Uri};
+use http::{HeaderValue, Uri};
 
 const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com";
 const API_KEY: http::header::HeaderName = http::header::HeaderName::from_static("x-goog-api-key");
-const FORWARD_HEADERS: &[&str] = &[
-    "accept",
-    "content-type",
-    "range",
-    "x-goog-upload-command",
-    "x-goog-upload-header-content-length",
-    "x-goog-upload-header-content-type",
-    "x-goog-upload-offset",
-    "x-goog-upload-protocol",
-];
-const FORWARD_QUERY: &[&str] = &["alt", "pageSize", "pageToken"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let api_key = ctx
         .secret
@@ -24,7 +12,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .map(str::trim)
         .filter(|key| !key.is_empty())
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
-    let query = allow_query(ctx.query);
+    let query = crate::policy::request_query(crate::policy::AISTUDIO, &ctx)?;
     let framing = framing(&ctx, query.as_deref());
     let uri = endpoint(&ctx, query.as_deref())?;
     let body = super::model::rewrite(ctx.key.operation, ctx.body, ctx.upstream_model)?;
@@ -33,7 +21,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .uri(strip_userinfo(uri)?)
         .body(body)
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    *request.headers_mut() = allow_headers(ctx.headers);
+    *request.headers_mut() = crate::policy::request_headers(crate::policy::AISTUDIO, &ctx)?;
     request.headers_mut().insert(
         API_KEY,
         HeaderValue::from_str(api_key)
@@ -132,27 +120,6 @@ fn with_query(uri: Uri, query: Option<&str>) -> Result<Uri, ChannelError> {
             .map_err(|error| ChannelError::Prepare(format!("bad endpoint query: {error}")))?,
     );
     Uri::from_parts(parts).map_err(|error| ChannelError::Prepare(format!("bad endpoint: {error}")))
-}
-
-fn allow_headers(source: &HeaderMap) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    for (name, value) in source {
-        if FORWARD_HEADERS.contains(&name.as_str()) {
-            headers.append(name.clone(), value.clone());
-        }
-    }
-    headers
-}
-
-fn allow_query(query: Option<&str>) -> Option<String> {
-    let kept = query?
-        .split('&')
-        .filter(|pair| {
-            let name = pair.split('=').next().unwrap_or_default();
-            !pair.is_empty() && FORWARD_QUERY.contains(&name)
-        })
-        .collect::<Vec<_>>();
-    (!kept.is_empty()).then(|| kept.join("&"))
 }
 
 fn strip_userinfo(uri: Uri) -> Result<Uri, ChannelError> {

@@ -23,6 +23,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::CUSTOM,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::CUSTOM,
 };
 
 impl Channel for CustomChannel {

@@ -5,6 +5,7 @@ use gproxy_store::records::{
 };
 use gproxy_store::records::{
     ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SPOOF_EMULATION, SettingRecord,
+    TRAFFIC_BLACKLIST,
 };
 
 #[derive(Clone)]
@@ -54,6 +55,7 @@ pub(crate) struct EffectiveSettings {
     pub inherit_system_proxy: bool,
     pub max_attempts: u32,
     pub instance_id: u64,
+    pub traffic_blacklist: gproxy_channel_api::TrafficBlacklistConfig,
 }
 
 impl EffectiveSettings {
@@ -78,6 +80,7 @@ impl EffectiveSettings {
             inherit_system_proxy: boolean(values, INHERIT_SYSTEM_PROXY, false),
             max_attempts: runtime.max_attempts,
             instance_id: runtime.instance_id,
+            traffic_blacklist: traffic_blacklist(values),
         }
     }
 }
@@ -115,6 +118,16 @@ fn unsigned(values: &[SettingRecord], key: &str) -> Option<u64> {
         .find(|setting| setting.key == key)?
         .value
         .as_u64()
+}
+
+fn traffic_blacklist(values: &[SettingRecord]) -> gproxy_channel_api::TrafficBlacklistConfig {
+    values
+        .iter()
+        .find(|setting| setting.key == TRAFFIC_BLACKLIST)
+        .and_then(|setting| {
+            gproxy_channel_api::TrafficBlacklistConfig::from_value(&setting.value).ok()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

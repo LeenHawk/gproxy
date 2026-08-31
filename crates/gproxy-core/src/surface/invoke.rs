@@ -169,6 +169,18 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 funnel_error::request_failed_surface(&ctx, None, Some("presigned"), &error);
                 return Ok(super::reply::error(error));
             }
+            let traffic_policy = self
+                .core
+                .channels
+                .get(&self.target.provider.channel)
+                .map(|channel| {
+                    channel
+                        .descriptor()
+                        .traffic_policy
+                        .effective_traffic_policy(&self.target.provider.settings)
+                })
+                .transpose()
+                .map_err(TransportError::Interrupted)?;
             let mut facts = FunnelCtx {
                 request_id,
                 target: self.target.clone(),
@@ -192,6 +204,8 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 resource: None,
                 admitted: true,
                 surface_label: Some("presigned"),
+                traffic_policy,
+                traffic_blacklist: Some(self.target.provider.traffic_blacklist.clone()),
             };
             let request = http::Request::from_parts(parts, body);
             let response = match self.core.host.transport().send(request).await {

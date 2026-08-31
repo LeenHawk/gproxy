@@ -1,5 +1,6 @@
 mod bindings;
 mod channel;
+mod channel_session;
 mod channels;
 mod memory;
 mod orchestration;
@@ -10,6 +11,7 @@ mod services;
 mod surface;
 mod surface_engine;
 mod surface_harness;
+mod traffic;
 
 use std::future::Future;
 use std::task::{Context, Poll, Waker};
@@ -459,6 +461,7 @@ fn target() -> Target {
             settings: json!({}),
             fingerprint: None,
             proxy_url: None,
+            traffic_blacklist: Default::default(),
         },
         credential: CredentialId(7),
         upstream_model: "upstream-model".into(),

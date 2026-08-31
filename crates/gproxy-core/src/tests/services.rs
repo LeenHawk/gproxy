@@ -310,6 +310,15 @@ impl UpstreamTransport for MemoryHost {
                         .expect("test Location"),
                 );
             }
+            response
+                .headers_mut()
+                .insert("x-test-visible", "kept".parse().unwrap());
+            response
+                .headers_mut()
+                .insert("x-test-hidden", "dropped".parse().unwrap());
+            response
+                .headers_mut()
+                .insert("set-cookie", "session=secret".parse().unwrap());
             Ok(response)
         })
     }

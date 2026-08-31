@@ -1,18 +1,21 @@
 use serde_json::Value;
 
 pub fn provider_settings(channel: &str, settings: &Value) -> Result<Value, String> {
-    let Some(tier) = legacy_tier(channel) else {
+    let output = if let Some(tier) = legacy_tier(channel) {
+        let mut object = settings
+            .as_object()
+            .cloned()
+            .ok_or_else(|| format!("legacy channel `{channel}` settings must be an object"))?;
+        object.insert("tier".into(), Value::String(tier.into()));
+        Value::Object(object)
+    } else {
         if channel == "opencode" {
             validate_opencode(settings)?;
         }
-        return Ok(settings.clone());
+        settings.clone()
     };
-    let mut object = settings
-        .as_object()
-        .cloned()
-        .ok_or_else(|| format!("legacy channel `{channel}` settings must be an object"))?;
-    object.insert("tier".into(), Value::String(tier.into()));
-    Ok(Value::Object(object))
+    gproxy_channel_api::TrafficPolicyConfig::configured(&output)?;
+    Ok(output)
 }
 
 fn validate_opencode(settings: &Value) -> Result<(), String> {

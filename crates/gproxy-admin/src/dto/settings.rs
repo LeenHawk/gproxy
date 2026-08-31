@@ -19,6 +19,8 @@ pub struct InstanceSettingsDto {
     pub enable_upstream_log: bool,
     pub enable_upstream_log_body: bool,
     pub disable_log_redaction: bool,
+    pub traffic_blacklist: super::TrafficBlacklistDto,
+    pub traffic_blacklist_defaults: super::TrafficBlacklistDto,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

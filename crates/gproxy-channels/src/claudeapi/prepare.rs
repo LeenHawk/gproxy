@@ -4,14 +4,6 @@ use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const FORWARD_HEADERS: &[&str] = &[
-    "accept",
-    "anthropic-beta",
-    "anthropic-user-profile-id",
-    "content-type",
-];
-const MODEL_QUERY: &[&str] = &["after_id", "before_id", "limit"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let api_key = ctx
         .secret
@@ -20,10 +12,10 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .map(str::trim)
         .filter(|key| !key.is_empty())
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::CLAUDE_API, &ctx)?;
     let body = super::shape::request(&ctx, &mut headers)?;
     let (method, path) = super::model::target(ctx.key, ctx.upstream_model)?;
-    let query = model_query(&ctx);
+    let query = model_query(&ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
     headers.insert(
         HeaderName::from_static("x-api-key"),
@@ -82,8 +74,10 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         })
 }
 
-fn model_query(ctx: &PrepareCtx<'_>) -> Option<String> {
-    (ctx.key.operation == gproxy_protocol::Operation::ListModels)
-        .then(|| crate::shared::http::allow_query(ctx.query, MODEL_QUERY))
-        .flatten()
+fn model_query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
+    if ctx.key.operation == gproxy_protocol::Operation::ListModels {
+        crate::policy::request_query(crate::policy::CLAUDE_API, ctx)
+    } else {
+        Ok(None)
+    }
 }

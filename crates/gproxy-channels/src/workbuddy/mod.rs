@@ -112,6 +112,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::OAUTH,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::WORKBUDDY,
 };
 
 impl Channel for WorkBuddyChannel {

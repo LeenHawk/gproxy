@@ -136,6 +136,25 @@
     "settings": {
       "description": "Edit the provider's typed endpoint, channel, and advanced settings."
     },
+    "trafficPolicy": {
+      "title": "Forwarded metadata",
+      "description": "Choose which caller metadata this provider may forward through its channel.",
+      "custom": "Override channel defaults",
+      "restore": "Restore channel defaults",
+      "blacklist": "The global credential, cookie, proxy-chain, and hop-by-hop blacklist is always enforced and cannot be overridden here.",
+      "request_headers": {
+        "label": "Request headers",
+        "description": "One lowercase header name or trailing-* prefix per line. Accept and Content-Type remain universally allowed."
+      },
+      "response_headers": {
+        "label": "Response headers",
+        "description": "One lowercase header name or trailing-* prefix per line, returned from upstream to the caller."
+      },
+      "request_query": {
+        "label": "Request query parameters",
+        "description": "One case-sensitive query parameter name per line."
+      }
+    },
     "fields": {
       "name": "Provider name",
       "label": "Display name",

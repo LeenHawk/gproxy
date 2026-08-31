@@ -105,6 +105,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::BEDROCK,
     credential_fields: crate::metadata::AWS,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::AWS_BEDROCK,
 };
 
 impl Channel for AwsBedrockChannel {

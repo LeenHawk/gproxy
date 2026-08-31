@@ -65,6 +65,7 @@ pub(super) fn target(provider_id: i64, credential: i64) -> crate::Target {
             settings: serde_json::json!({"slot": credential}),
             fingerprint: None,
             proxy_url: None,
+            traffic_blacklist: Default::default(),
         },
         credential: crate::CredentialId(credential),
         upstream_model: "upstream-model".into(),

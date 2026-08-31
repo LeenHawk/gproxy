@@ -20,14 +20,15 @@ pub mod registry;
 pub mod resource;
 pub mod session;
 pub mod surface;
+pub mod traffic;
 pub mod usage;
 pub mod wire;
 
 pub use channel::{
     Channel, ChannelDefaultRule, ChannelDefaultRuleSet, ChannelDescriptor, ChannelError,
-    ChannelField, ChannelFieldControl, ChannelRouteAction, ChannelSupport, Frame, PrepareCtx,
-    PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder,
-    StreamEnd, StreamTail, UsageCtx,
+    ChannelField, ChannelFieldControl, ChannelRouteAction, ChannelSupport, ChannelTrafficPolicy,
+    Frame, PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
+    StreamDecoder, StreamEnd, StreamTail, UsageCtx,
 };
 pub use disposition::Disposition;
 pub use endpoint::endpoint_override_key;
@@ -51,6 +52,7 @@ pub use surface::{
     SurfaceEntry, SurfaceInvoke, SurfaceReply, SurfaceRequest, SurfaceServices, SurfaceTable,
     SynthCtx, Synthesizer, UsageView, UsageWindow,
 };
+pub use traffic::{TrafficBlacklistConfig, TrafficPolicyConfig};
 pub use usage::NormalizedUsage;
 pub use wire::{
     Alpn, ByteStream, ClientProfile, ConfiguredClientProfile, CredentialId, Http2Profile,

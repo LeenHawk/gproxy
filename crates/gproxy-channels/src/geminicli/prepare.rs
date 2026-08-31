@@ -54,8 +54,10 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             ));
         }
     };
-    let uri = endpoint_uri(&ctx, endpoint, path, query)?;
-    let mut headers = HeaderMap::new();
+    let caller_query = crate::policy::request_query(crate::policy::GEMINI_CLI, &ctx)?;
+    let query = crate::shared::http::merge_query(caller_query.as_deref(), query);
+    let uri = endpoint_uri(&ctx, endpoint, path, query.as_deref())?;
+    let mut headers = crate::policy::request_headers(crate::policy::GEMINI_CLI, &ctx)?;
     apply_headers(
         &mut headers,
         access,
@@ -141,5 +143,3 @@ fn user_agent(model: &str) -> String {
     };
     format!("GeminiCLI-tui/0.55.1{suffix} (linux; x64; terminal) google-api-nodejs-client/10.9.0")
 }
-
-use http::HeaderMap;

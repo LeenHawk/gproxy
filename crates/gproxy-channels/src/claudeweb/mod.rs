@@ -103,6 +103,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::CLAUDE_WEB,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::CLAUDE_WEB,
 };
 
 impl Channel for ClaudeWebChannel {

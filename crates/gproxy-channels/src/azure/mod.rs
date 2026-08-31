@@ -90,6 +90,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::OPENAI_CACHE,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::AZURE,
 };
 
 impl Channel for AzureChannel {

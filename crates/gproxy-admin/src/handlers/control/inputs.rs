@@ -37,10 +37,16 @@ pub(super) fn provider(
             .validate()
             .map_err(|message| AdminError::BadRequest(message.into()))?;
     }
+    let mut settings = state.normalize_provider_settings(&request.channel, &request.settings)?;
+    gproxy_channel_api::TrafficPolicyConfig::store(
+        &mut settings,
+        request.traffic_policy.map(Into::into),
+    )
+    .map_err(AdminError::BadRequest)?;
     Ok(ProviderInput {
         name: request.name,
         label: request.label,
-        settings: state.normalize_provider_settings(&request.channel, &request.settings)?,
+        settings,
         channel: request.channel,
         credential_strategy: request.credential_strategy,
         proxy_url: request.proxy_url,

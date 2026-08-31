@@ -136,6 +136,25 @@
     "settings": {
       "description": "编辑供应商的类型化端点、渠道和高级设置。"
     },
+    "trafficPolicy": {
+      "title": "转发元数据",
+      "description": "选择此供应商可通过其渠道转发哪些调用方元数据。",
+      "custom": "覆盖渠道默认值",
+      "restore": "恢复渠道默认值",
+      "blacklist": "全局凭据、Cookie、代理链和逐跳黑名单始终生效，无法在此覆盖。",
+      "request_headers": {
+        "label": "请求 Header",
+        "description": "每行一个小写 Header 名称或以 * 结尾的前缀。Accept 和 Content-Type 始终允许。"
+      },
+      "response_headers": {
+        "label": "响应 Header",
+        "description": "每行一个小写 Header 名称或以 * 结尾的前缀，用于从上游返回给调用方。"
+      },
+      "request_query": {
+        "label": "请求 Query 参数",
+        "description": "每行一个区分大小写的 Query 参数名称。"
+      }
+    },
     "fields": {
       "name": "供应商名称",
       "label": "显示名称",

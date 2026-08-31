@@ -50,6 +50,7 @@ export function ProviderCard(props: Props) {
       label: provider.label,
       channel: provider.channel,
       settings: provider.settings,
+      traffic_policy: provider.traffic_policy,
       credential_strategy: provider.credential_strategy,
       proxy_url: provider.proxy_url,
       tls_fingerprint: provider.tls_fingerprint,

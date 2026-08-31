@@ -88,6 +88,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::GITHUB,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::COPILOT,
 };
 
 impl Channel for CopilotCliChannel {

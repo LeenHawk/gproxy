@@ -21,6 +21,7 @@ fn claudeweb_new_and_resume_turns_transfer_one_scoped_stream() {
             settings: json!({"base_url":"https://upstream.test"}),
             fingerprint: None,
             proxy_url: None,
+            traffic_blacklist: Default::default(),
         },
         credential: CredentialId(7),
         upstream_model: "claude-opus-4-8".into(),

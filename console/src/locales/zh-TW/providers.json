@@ -136,6 +136,25 @@
     "settings": {
       "description": "編輯供應商的型別化端點、通道和進階設定。"
     },
+    "trafficPolicy": {
+      "title": "轉送中繼資料",
+      "description": "選擇此供應商可透過其通道轉送哪些呼叫方中繼資料。",
+      "custom": "覆寫通道預設值",
+      "restore": "還原通道預設值",
+      "blacklist": "全域憑證、Cookie、Proxy 鏈和逐跳黑名單一律生效，無法在此覆寫。",
+      "request_headers": {
+        "label": "請求 Header",
+        "description": "每行一個小寫 Header 名稱或以 * 結尾的前綴。Accept 和 Content-Type 一律允許。"
+      },
+      "response_headers": {
+        "label": "回應 Header",
+        "description": "每行一個小寫 Header 名稱或以 * 結尾的前綴，用於從上游回傳給呼叫方。"
+      },
+      "request_query": {
+        "label": "請求 Query 參數",
+        "description": "每行一個區分大小寫的 Query 參數名稱。"
+      }
+    },
     "fields": {
       "name": "供應商名稱",
       "label": "顯示名稱",

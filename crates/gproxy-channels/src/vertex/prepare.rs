@@ -2,18 +2,12 @@ use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest};
 use gproxy_protocol::Operation;
 use http::header::{CONTENT_TYPE, HeaderValue};
 
-const MODEL_QUERY: &[&str] = &["pageSize", "pageToken"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access_token = super::auth::access_token(ctx.secret)?;
     let target = super::model::target(&ctx)?;
-    let query = query(&ctx, &target);
+    let query = query(&ctx, &target)?;
     let uri = endpoint(&ctx, &target, query.as_deref())?;
-    let mut headers = if super::model::is_claude(ctx.key) {
-        crate::shared::http::allow_headers(ctx.headers, &["anthropic-beta"])
-    } else {
-        http::HeaderMap::new()
-    };
+    let mut headers = crate::policy::request_headers(crate::policy::VERTEX, &ctx)?;
     super::auth::apply(&mut headers, access_token)?;
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     let body = super::shape::request(&ctx)?;
@@ -83,15 +77,19 @@ fn endpoint_override(ctx: &PrepareCtx<'_>, name: &str) -> Result<Option<String>,
     ))
 }
 
-fn query(ctx: &PrepareCtx<'_>, target: &super::model::Target) -> Option<String> {
+fn query(
+    ctx: &PrepareCtx<'_>,
+    target: &super::model::Target,
+) -> Result<Option<String>, ChannelError> {
     let mut parts = Vec::new();
-    if ctx.key.operation == Operation::ListModels
-        && let Some(query) = crate::shared::http::allow_query(ctx.query, MODEL_QUERY)
-    {
-        parts.push(query);
-    }
+    let caller_query = if ctx.key.operation == Operation::ListModels {
+        crate::policy::request_query(crate::policy::VERTEX, ctx)?
+    } else {
+        None
+    };
+    parts.extend(caller_query);
     if let Some(query) = target.query {
         parts.push(query.into());
     }
-    (!parts.is_empty()).then(|| parts.join("&"))
+    Ok((!parts.is_empty()).then(|| parts.join("&")))
 }

@@ -26,6 +26,7 @@ mod nvidia;
 mod openai;
 mod opencode;
 mod openrouter;
+mod policy;
 mod shared;
 mod vercel;
 mod vertex;

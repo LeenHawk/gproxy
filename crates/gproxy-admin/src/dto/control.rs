@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
-use super::TlsFingerprintDto;
+use super::{TlsFingerprintDto, TrafficPolicyDto};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ProviderDto {
@@ -12,6 +12,7 @@ pub struct ProviderDto {
     pub channel: String,
     #[ts(type = "unknown")]
     pub settings: Value,
+    pub traffic_policy: Option<TrafficPolicyDto>,
     pub credential_strategy: String,
     pub proxy_url: Option<String>,
     pub tls_fingerprint: Option<TlsFingerprintDto>,
@@ -28,6 +29,8 @@ pub struct ProviderWriteRequest {
     pub channel: String,
     #[ts(type = "unknown")]
     pub settings: Value,
+    #[serde(default)]
+    pub traffic_policy: Option<TrafficPolicyDto>,
     pub credential_strategy: String,
     pub proxy_url: Option<String>,
     pub tls_fingerprint: Option<TlsFingerprintDto>,

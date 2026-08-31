@@ -27,7 +27,7 @@ pub(crate) struct AttemptOptions {
 pub(crate) async fn request<H: Host>(
     core: &Core<H>,
     target: &Target,
-    request: SurfaceRequest,
+    mut request: SurfaceRequest,
     options: AttemptOptions,
 ) -> Result<ForwardAttempt, CoreError> {
     let AttemptOptions {
@@ -43,6 +43,21 @@ pub(crate) async fn request<H: Host>(
             target.provider.channel
         ))
     })?;
+    let traffic_policy = channel
+        .descriptor()
+        .traffic_policy
+        .effective_traffic_policy(&target.provider.settings)
+        .map_err(|error| CoreError::Channel(gproxy_channel_api::ChannelError::Prepare(error)))?;
+    request.headers = crate::execution::forwarding::request_headers(
+        &request.headers,
+        &traffic_policy,
+        &target.provider.traffic_blacklist,
+    );
+    request.query = crate::execution::forwarding::request_query(
+        request.query.as_deref(),
+        &traffic_policy,
+        &target.provider.traffic_blacklist,
+    );
     if let Some(key) = request.key
         && (!channel
             .descriptor()
@@ -134,6 +149,8 @@ pub(crate) async fn request<H: Host>(
         resource: None,
         admitted: true,
         surface_label: Some(request.label),
+        traffic_policy: Some(traffic_policy),
+        traffic_blacklist: Some(target.provider.traffic_blacklist.clone()),
     };
     if websocket {
         return match core.host.transport().open_websocket(prepared.request).await {

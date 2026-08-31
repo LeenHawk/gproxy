@@ -52,6 +52,25 @@
       "default_tokenizer_vocab": "Default vocabulary",
       "default_tokenizer_vocabHint": "Used when a model matches no pattern in the provider's tokenizer map."
     },
+    "trafficBlacklist": {
+      "title": "Global metadata blacklist",
+      "description": "Built-in protections always apply. Add instance-wide patterns here to block more metadata before any channel allow-list is evaluated.",
+      "restore": "Restore built-in defaults",
+      "builtIn": "Built-in defaults",
+      "additional": "Additional blacklist",
+      "request_headers": {
+        "label": "Request headers",
+        "description": "Lowercase names or trailing-* prefixes removed from caller requests."
+      },
+      "response_headers": {
+        "label": "Response headers",
+        "description": "Lowercase names or trailing-* prefixes removed from responses returned to callers."
+      },
+      "request_query": {
+        "label": "Request query parameters",
+        "description": "Case-sensitive names removed before the upstream URL is built."
+      }
+    },
     "autostart": {
       "title": "Login startup",
       "description": "Start this native GPROXY installation when the current desktop user signs in.",

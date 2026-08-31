@@ -2,16 +2,16 @@ use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest};
 use gproxy_protocol::Operation;
 use serde_json::Value;
 
-const FORWARD_HEADERS: &[&str] = &["accept", "anthropic-beta", "content-type"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let mode = super::auth::mode(ctx.secret);
     let path = super::model::path(&ctx, mode);
-    let query = (ctx.key.operation == Operation::ListModels)
-        .then(|| crate::shared::http::allow_query(ctx.query, &["after", "limit"]))
-        .flatten();
+    let query = if ctx.key.operation == Operation::ListModels {
+        crate::policy::request_query(crate::policy::KIMI, &ctx)?
+    } else {
+        None
+    };
     let uri = endpoint(&ctx, &path, query.as_deref())?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::KIMI, &ctx)?;
     let body = super::model::body(&ctx)?;
     super::auth::apply(
         &mut headers,

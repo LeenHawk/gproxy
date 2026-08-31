@@ -41,7 +41,15 @@ fn runtime(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     } else {
         crate::shared::http::join(&super::endpoint::runtime(ctx.provider_settings)?, "/", None)?
     };
-    prepared(uri, body, token, TARGET_GENERATE, UA_RUNTIME, true)
+    prepared(
+        crate::policy::request_headers(crate::policy::KIRO, &ctx)?,
+        uri,
+        body,
+        token,
+        TARGET_GENERATE,
+        UA_RUNTIME,
+        true,
+    )
 }
 
 fn model_list(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -69,10 +77,19 @@ fn model_list(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         serde_json::to_vec(&serde_json::json!({"origin":"KIRO_CLI","profileArn":profile}))
             .map_err(json_error)?,
     );
-    prepared(uri, body, token, TARGET_MODELS, UA_MANAGEMENT, false)
+    prepared(
+        crate::policy::request_headers(crate::policy::KIRO, &ctx)?,
+        uri,
+        body,
+        token,
+        TARGET_MODELS,
+        UA_MANAGEMENT,
+        false,
+    )
 }
 
 fn prepared(
+    mut headers: http::HeaderMap,
     uri: http::Uri,
     body: Bytes,
     token: &str,
@@ -80,7 +97,6 @@ fn prepared(
     user_agent: &'static str,
     streaming: bool,
 ) -> Result<PreparedRequest, ChannelError> {
-    let mut headers = http::HeaderMap::new();
     headers.insert(
         AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}"))

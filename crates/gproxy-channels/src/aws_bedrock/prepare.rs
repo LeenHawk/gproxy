@@ -4,8 +4,7 @@ use http::header::{ACCEPT, CONTENT_TYPE, HeaderValue};
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let target = super::endpoint::resolve(&ctx)?;
     let body = super::shape::request(&ctx, target.compact)?;
-    let mut headers =
-        crate::shared::http::allow_headers(ctx.headers, &["anthropic-beta", "openai-beta"]);
+    let mut headers = crate::policy::request_headers(crate::policy::AWS_BEDROCK, &ctx)?;
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
     let mut request = http::Request::builder()

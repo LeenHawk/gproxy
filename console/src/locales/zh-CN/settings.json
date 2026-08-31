@@ -52,6 +52,25 @@
       "default_tokenizer_vocab": "默认词表",
       "default_tokenizer_vocabHint": "当模型未匹配供应商 tokenizer_map 中任何模式时使用。"
     },
+    "trafficBlacklist": {
+      "title": "全局元数据黑名单",
+      "description": "内置保护始终生效。可在此追加实例级规则，在任何渠道白名单判断前拦截更多元数据。",
+      "restore": "恢复内置默认值",
+      "builtIn": "内置默认值",
+      "additional": "追加黑名单",
+      "request_headers": {
+        "label": "请求 Header",
+        "description": "从调用方请求中移除的小写名称或以 * 结尾的前缀。"
+      },
+      "response_headers": {
+        "label": "响应 Header",
+        "description": "从返回给调用方的响应中移除的小写名称或以 * 结尾的前缀。"
+      },
+      "request_query": {
+        "label": "请求 Query 参数",
+        "description": "构造上游 URL 前移除的区分大小写参数名称。"
+      }
+    },
     "autostart": {
       "title": "登录时启动",
       "description": "当前桌面用户登录时启动此原生 GPROXY 安装。",

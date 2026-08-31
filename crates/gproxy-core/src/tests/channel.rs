@@ -1,9 +1,8 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition, Frame,
-    NormalizedUsage, PrepareCtx, PreparedRequest, PreparedSession, RealtimeMeter, ResourceCtx,
-    ResourceMutation, ResponseView, SessionPrepareCtx, SessionPreparer, SimpleHttp, StreamCtx,
-    StreamDecoder, StreamEnd, StreamTail, SurfaceRequest, SurfaceTable, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition,
+    NormalizedUsage, PrepareCtx, PreparedRequest, ResourceCtx, ResourceMutation, ResponseView,
+    SessionPreparer, SimpleHttp, StreamCtx, StreamDecoder, SurfaceRequest, SurfaceTable, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
@@ -61,6 +60,11 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: &[],
     credential_fields: &[],
     endpoint_overrides: false,
+    traffic_policy: gproxy_channel_api::ChannelTrafficPolicy::new(
+        &["*"],
+        &["x-test-visible"],
+        &["*"],
+    ),
 };
 
 pub(super) struct ForeignSurface;
@@ -74,6 +78,7 @@ static FOREIGN_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: &[],
     credential_fields: &[],
     endpoint_overrides: false,
+    traffic_policy: gproxy_channel_api::ChannelTrafficPolicy::new(&[], &[], &[]),
 };
 static CONTINUATION_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "continuation-test",
@@ -82,6 +87,7 @@ static CONTINUATION_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: &[],
     credential_fields: &[],
     endpoint_overrides: false,
+    traffic_policy: gproxy_channel_api::ChannelTrafficPolicy::new(&[], &[], &[]),
 };
 
 impl Channel for NeedsContinuation {
@@ -212,7 +218,7 @@ impl Channel for MemoryHost {
     }
 
     fn session_preparer(&self) -> Option<SessionPreparer> {
-        Some(prepare_test_session)
+        Some(super::channel_session::prepare_test_session)
     }
 
     fn stream_decoder(&self, _: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
@@ -449,48 +455,4 @@ fn claude_magic_string_creates_cache_breakpoint_without_provider_settings()
     assert_eq!(block["cache_control"]["type"], "ephemeral");
     assert_eq!(block["cache_control"]["ttl"], "1h");
     Ok(())
-}
-
-fn prepare_test_session(ctx: SessionPrepareCtx<'_>) -> Result<PreparedSession, ChannelError> {
-    let id = ctx
-        .response_headers
-        .get(http::header::LOCATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.rsplit('/').next())
-        .ok_or_else(|| ChannelError::Observe("test call id missing".into()))?;
-    let request = http::Request::get(format!("wss://upstream.test/session?call_id={id}"))
-        .body(Bytes::new())
-        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    Ok(PreparedSession {
-        id: id.into(),
-        request: PreparedRequest {
-            request,
-            framing: None,
-            websocket: true,
-            profile: None,
-        },
-        meter: RealtimeMeter::new(ctx.request_body, ctx.upstream_model),
-    })
-}
-
-impl StreamDecoder for MemoryHost {
-    fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
-        Ok(vec![Frame(chunk)])
-    }
-
-    fn finish(&mut self, end: StreamEnd) -> Result<StreamTail, ChannelError> {
-        let omit_usage = self.state.lock().expect("state lock").omit_usage;
-        Ok(StreamTail {
-            frames: (end == StreamEnd::Complete)
-                .then_some(Frame(Bytes::from_static(b"tail")))
-                .into_iter()
-                .collect(),
-            usage: (!omit_usage).then(|| NormalizedUsage {
-                input_tokens: 10,
-                output_tokens: 5,
-                ..Default::default()
-            }),
-            actual_service_tier: None,
-        })
-    }
 }

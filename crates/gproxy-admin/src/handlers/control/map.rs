@@ -3,6 +3,11 @@ use crate::dto::{
     ProviderDto, ProviderModelDto, RouteDto, RouteMemberDto,
 };
 pub(in crate::handlers) fn provider(value: &gproxy_store::records::ProviderRecord) -> ProviderDto {
+    let mut settings = value.settings.clone();
+    let traffic_policy = gproxy_channel_api::TrafficPolicyConfig::remove_from(&mut settings)
+        .ok()
+        .flatten()
+        .map(Into::into);
     let (tls_fingerprint, invalid_tls_fingerprint, tls_fingerprint_error) =
         match value.tls_fingerprint.clone() {
             Some(raw) => match serde_json::from_value(raw.clone()) {
@@ -16,7 +21,8 @@ pub(in crate::handlers) fn provider(value: &gproxy_store::records::ProviderRecor
         name: value.name.clone(),
         label: value.label.clone(),
         channel: value.channel.clone(),
-        settings: value.settings.clone(),
+        settings,
+        traffic_policy,
         credential_strategy: value.credential_strategy.clone(),
         proxy_url: value.proxy_url.clone(),
         tls_fingerprint,

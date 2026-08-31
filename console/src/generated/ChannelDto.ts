@@ -3,5 +3,6 @@ import type { ChannelDefaultRuleSetDto } from "./ChannelDefaultRuleSetDto";
 import type { ChannelFieldDto } from "./ChannelFieldDto";
 import type { ChannelLoginDto } from "./ChannelLoginDto";
 import type { ChannelSupportDto } from "./ChannelSupportDto";
+import type { TrafficPolicyDto } from "./TrafficPolicyDto";
 
-export type ChannelDto = { id: string, display_name: string, supports: Array<ChannelSupportDto>, routing_defaults: Array<ChannelSupportDto>, login: ChannelLoginDto | null, provider_fields: Array<ChannelFieldDto>, credential_fields: Array<ChannelFieldDto>, endpoint_kinds: Array<string>, default_rule_set: ChannelDefaultRuleSetDto | null, };
+export type ChannelDto = { id: string, display_name: string, supports: Array<ChannelSupportDto>, routing_defaults: Array<ChannelSupportDto>, login: ChannelLoginDto | null, provider_fields: Array<ChannelFieldDto>, credential_fields: Array<ChannelFieldDto>, endpoint_kinds: Array<string>, default_rule_set: ChannelDefaultRuleSetDto | null, traffic_policy: TrafficPolicyDto, };

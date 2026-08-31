@@ -4,13 +4,6 @@ use http::Method;
 use serde_json::Value;
 
 const DEFAULT_REGION: &str = "us-east-1";
-const MODEL_QUERY: &[&str] = &[
-    "byCustomizationType",
-    "byInferenceType",
-    "byOutputModality",
-    "byProvider",
-];
-
 pub(super) struct Target {
     pub method: Method,
     pub uri: http::Uri,
@@ -90,9 +83,11 @@ pub(super) fn resolve(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             ));
         }
     };
-    let query = (ctx.key.operation == Operation::ListModels)
-        .then(|| crate::shared::http::allow_query(ctx.query, MODEL_QUERY))
-        .flatten();
+    let query = if ctx.key.operation == Operation::ListModels {
+        crate::policy::request_query(crate::policy::AWS_BEDROCK, ctx)?
+    } else {
+        None
+    };
     let uri = if let Some(url) = endpoint_override(ctx, endpoint) {
         crate::shared::http::exact(&url, query.as_deref())?
     } else {

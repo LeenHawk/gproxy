@@ -4,14 +4,12 @@ use serde_json::Value;
 
 const ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
 const GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
-const FORWARD_HEADERS: &[&str] = &["accept", "content-type"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let key = super::auth::api_key(ctx.secret)?;
     let tier = tier(ctx.provider_settings)?;
     let path = super::model::path(ctx.key);
     let uri = endpoint(&ctx, path, tier)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::OPENAI_COMPATIBLE, &ctx)?;
     let body = super::model::body(&ctx)?;
     let body = super::shape::request(&ctx, &mut headers, body)?;
     if !body.is_empty() && !headers.contains_key(CONTENT_TYPE) {

@@ -12,6 +12,11 @@ fn channel(defaults: Vec<ChannelSupportDto>) -> ChannelDto {
         credential_fields: Vec::new(),
         endpoint_kinds: Vec::new(),
         default_rule_set: None,
+        traffic_policy: crate::dto::TrafficPolicyDto {
+            request_headers: Vec::new(),
+            response_headers: Vec::new(),
+            request_query: Vec::new(),
+        },
     }
 }
 

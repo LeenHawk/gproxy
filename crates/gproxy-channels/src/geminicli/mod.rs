@@ -86,6 +86,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::VERTEX,
     credential_fields: crate::metadata::GOOGLE_OAUTH,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::GEMINI_CLI,
 };
 
 impl Channel for GeminiCliChannel {

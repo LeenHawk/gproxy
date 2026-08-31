@@ -16,6 +16,7 @@ pub const DEFAULT_TOKENIZER_VOCAB: &str = "default_tokenizer_vocab";
 pub const FILE_UPLOAD_MAX_IN_FLIGHT: &str = "file_upload_max_in_flight";
 pub const INSTANCE_NAME: &str = "instance_name";
 pub const INHERIT_SYSTEM_PROXY: &str = "inherit_system_proxy";
+pub const TRAFFIC_BLACKLIST: &str = "traffic_blacklist";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaptureInput {

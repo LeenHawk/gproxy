@@ -1,31 +1,7 @@
 use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest, SurfaceRequest};
 use gproxy_protocol::Operation;
-use http::{HeaderMap, HeaderValue, Uri};
+use http::{HeaderValue, Uri};
 use serde_json::Value;
-
-const FORWARD_HEADERS: &[&str] = &[
-    "x-codex-beta-features",
-    "x-codex-turn-metadata",
-    "x-codex-turn-state",
-    "x-codex-installation-id",
-    "x-codex-parent-thread-id",
-    "x-codex-window-id",
-    "x-openai-memgen-request",
-    "x-openai-subagent",
-    "thread-id",
-    "session-id",
-    "x-client-request-id",
-];
-const SURFACE_HEADERS: &[&str] = &[
-    "accept",
-    "content-type",
-    "cache-control",
-    "mcp-session-id",
-    "last-event-id",
-    "x-codex-turn-metadata",
-    "x-codex-installation-id",
-    "x-client-request-id",
-];
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     if ctx.stream
@@ -39,9 +15,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         ));
     }
     let path = upstream_path(ctx.key.operation, ctx.upstream_model);
-    let query = query(ctx.query, ctx.key.operation);
+    let query = query(&ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
-    let mut headers = allow_headers(ctx.headers);
+    let mut headers = crate::policy::request_headers(crate::policy::CODEX, &ctx)?;
     let content_type = ctx.headers.get(http::header::CONTENT_TYPE).cloned();
     let session_id = super::auth::session_id(ctx.secret, &headers);
     super::auth::apply_headers(&mut headers, ctx.secret, &session_id)?;
@@ -110,9 +86,20 @@ pub(super) fn surface(
         .trim_end_matches('/');
     let base = base.strip_suffix("/codex").unwrap_or(base);
     let remote_bearer = matches!(source.label, "remote_control_ws" | "remote_control_token");
-    let query = surface_query(source.query.as_deref(), remote_bearer);
+    let policy = crate::policy::CODEX
+        .effective_traffic_policy(provider_settings)
+        .map_err(ChannelError::Prepare)?;
+    let caller_query = if remote_bearer {
+        source.query.clone()
+    } else {
+        policy.filter_request_query(source.query.as_deref())
+    };
+    let query = surface_query(caller_query.as_deref(), remote_bearer);
     let uri = absolute_url(&format!("{base}{}", source.upstream_path), query.as_deref())?;
-    let mut headers = allow_surface_headers(&source.headers, remote_bearer);
+    let mut headers = policy.filter_request_headers(&source.headers);
+    if remote_bearer && let Some(value) = source.headers.get(http::header::AUTHORIZATION) {
+        headers.insert(http::header::AUTHORIZATION, value.clone());
+    }
     let content_type = headers.get(http::header::CONTENT_TYPE).cloned();
     let accept = headers.get(http::header::ACCEPT).cloned();
     if !remote_bearer {
@@ -156,24 +143,25 @@ fn upstream_path(operation: Operation, model: &str) -> String {
     }
 }
 
-fn query(query: Option<&str>, operation: Operation) -> Option<String> {
+fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
+    let query = crate::policy::request_query(crate::policy::CODEX, ctx)?;
     let mut kept = query
+        .as_deref()
         .unwrap_or_default()
         .split('&')
-        .filter(|pair| {
-            let name = pair.split('=').next().unwrap_or_default();
-            !pair.is_empty() && !matches!(name, "key" | "api_key" | "x-api-key")
-        })
+        .filter(|pair| !pair.is_empty())
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if matches!(operation, Operation::ListModels | Operation::GetModel)
-        && !kept
-            .iter()
-            .any(|pair| pair.split('=').next() == Some("client_version"))
+    if matches!(
+        ctx.key.operation,
+        Operation::ListModels | Operation::GetModel
+    ) && !kept
+        .iter()
+        .any(|pair| pair.split('=').next() == Some("client_version"))
     {
         kept.push(format!("client_version={}", super::auth::VERSION));
     }
-    (!kept.is_empty()).then(|| kept.join("&"))
+    Ok((!kept.is_empty()).then(|| kept.join("&")))
 }
 
 fn endpoint(ctx: &PrepareCtx<'_>, path: &str, query: Option<&str>) -> Result<Uri, ChannelError> {
@@ -213,16 +201,6 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         .map(|url| url.replace("{model}", &encode_component(ctx.upstream_model)))
 }
 
-fn allow_headers(source: &HeaderMap) -> HeaderMap {
-    let mut output = HeaderMap::new();
-    for (name, value) in source {
-        if FORWARD_HEADERS.contains(&name.as_str()) {
-            output.append(name.clone(), value.clone());
-        }
-    }
-    output
-}
-
 fn is_sdp(value: &HeaderValue) -> bool {
     value.to_str().ok().is_some_and(|value| {
         value
@@ -230,19 +208,6 @@ fn is_sdp(value: &HeaderValue) -> bool {
             .next()
             .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("application/sdp"))
     })
-}
-
-fn allow_surface_headers(source: &HeaderMap, remote_socket: bool) -> HeaderMap {
-    let mut output = HeaderMap::new();
-    for (name, value) in source {
-        if SURFACE_HEADERS.contains(&name.as_str())
-            || name.as_str().starts_with("x-codex-")
-            || (remote_socket && name == http::header::AUTHORIZATION)
-        {
-            output.append(name.clone(), value.clone());
-        }
-    }
-    output
 }
 
 fn surface_query(query: Option<&str>, remote_socket: bool) -> Option<String> {

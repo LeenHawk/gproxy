@@ -1557,6 +1557,7 @@ dependencies = [
  "gproxy-protocol",
  "http",
  "rust_decimal",
+ "serde",
  "serde_json",
  "thiserror",
 ]

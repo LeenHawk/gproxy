@@ -14,6 +14,7 @@ mod portal;
 mod pricing;
 mod rules;
 mod settings;
+mod traffic;
 mod transfer;
 mod usage;
 
@@ -33,6 +34,7 @@ pub use portal::*;
 pub use pricing::*;
 pub use rules::*;
 pub use settings::*;
+pub use traffic::*;
 pub use transfer::*;
 pub use usage::*;
 

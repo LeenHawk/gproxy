@@ -94,6 +94,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::AISTUDIO,
 };
 
 impl Channel for AiStudioChannel {

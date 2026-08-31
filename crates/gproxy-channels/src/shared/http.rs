@@ -1,5 +1,5 @@
 use gproxy_channel_api::ChannelError;
-use http::{HeaderMap, Uri};
+use http::Uri;
 
 pub(crate) fn join(base: &str, path: &str, query: Option<&str>) -> Result<Uri, ChannelError> {
     parse(
@@ -62,24 +62,13 @@ pub(crate) fn strip_userinfo(uri: Uri) -> Result<Uri, ChannelError> {
     Uri::from_parts(parts).map_err(|error| ChannelError::Prepare(error.to_string()))
 }
 
-pub(crate) fn allow_headers(source: &HeaderMap, allowed: &[&str]) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    for (name, value) in source {
-        if allowed.contains(&name.as_str()) {
-            headers.append(name.clone(), value.clone());
-        }
-    }
-    headers
-}
-
-pub(crate) fn allow_query(query: Option<&str>, allowed: &[&str]) -> Option<String> {
-    let kept = query?
-        .split('&')
-        .filter(|pair| {
-            !pair.is_empty() && allowed.contains(&pair.split('=').next().unwrap_or_default())
-        })
+pub(crate) fn merge_query(left: Option<&str>, right: Option<&str>) -> Option<String> {
+    let parts = [left, right]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
         .collect::<Vec<_>>();
-    (!kept.is_empty()).then(|| kept.join("&"))
+    (!parts.is_empty()).then(|| parts.join("&"))
 }
 
 pub(crate) fn encode_component(value: &str) -> String {

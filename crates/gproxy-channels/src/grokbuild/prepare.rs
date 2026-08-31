@@ -9,7 +9,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let public = is_public(ctx.key);
     let path = path(&ctx, public);
     let uri = endpoint(&ctx, &path, public)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, &["accept", "content-type"]);
+    let mut headers = crate::policy::request_headers(crate::policy::GROK_BUILD, &ctx)?;
     let body = super::shape::request(&ctx, &mut headers)?;
     let session = serde_json::from_slice::<Value>(&body)
         .ok()

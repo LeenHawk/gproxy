@@ -9,6 +9,7 @@ use crate::host::Host;
 
 pub(crate) mod credential;
 mod failover;
+pub(crate) mod forwarding;
 pub(crate) mod ingress;
 pub(crate) mod invoke;
 mod local;

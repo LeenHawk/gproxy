@@ -19,6 +19,7 @@ fn declared_unsupported_route_cannot_be_enabled() {
             settings: serde_json::Value::Null,
             fingerprint: None,
             proxy_url: None,
+            traffic_blacklist: Default::default(),
         },
         credential: CredentialId(1),
         upstream_model: "test".into(),

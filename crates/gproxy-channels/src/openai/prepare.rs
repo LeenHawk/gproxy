@@ -1,18 +1,9 @@
 use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
+use http::Uri;
 use http::header::{AUTHORIZATION, HeaderValue};
-use http::{HeaderMap, Uri};
 
 const DEFAULT_BASE_URL: &str = "https://api.openai.com";
-const FORWARD_HEADERS: &[&str] = &[
-    "content-type",
-    "accept",
-    "openai-beta",
-    "openai-organization",
-    "openai-project",
-];
-const FORWARD_QUERY: &[&str] = &["after", "limit", "order", "purpose", "variant"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let key = ctx
         .secret
@@ -22,9 +13,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .filter(|key| !key.is_empty())
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = upstream_path(&ctx);
-    let query = allow_query(ctx.query);
+    let query = crate::policy::request_query(crate::policy::OPENAI_API, &ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
-    let headers = allow_headers(ctx.headers);
+    let headers = crate::policy::request_headers(crate::policy::OPENAI_API, &ctx)?;
     let body = openai_cache(&ctx)?;
     let body = super::model::shape(ctx.key, ctx.stream, ctx.upstream_model, ctx.headers, &body)?;
     let mut request = http::Request::builder()
@@ -148,24 +139,6 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         | CreateRealtimeCall
         | ConnectRealtime => None,
     }
-}
-
-fn allow_headers(source: &HeaderMap) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    for (name, value) in source {
-        if FORWARD_HEADERS.contains(&name.as_str()) {
-            headers.append(name.clone(), value.clone());
-        }
-    }
-    headers
-}
-
-fn allow_query(query: Option<&str>) -> Option<String> {
-    let kept = query?
-        .split('&')
-        .filter(|pair| FORWARD_QUERY.contains(&pair.split('=').next().unwrap_or("")))
-        .collect::<Vec<_>>();
-    (!kept.is_empty()).then(|| kept.join("&"))
 }
 
 fn absolute_url(url: &str, query: Option<&str>) -> Result<Uri, ChannelError> {

@@ -52,6 +52,25 @@
       "default_tokenizer_vocab": "預設詞表",
       "default_tokenizer_vocabHint": "當模型未匹配供應商 tokenizer_map 中任何模式時使用。"
     },
+    "trafficBlacklist": {
+      "title": "全域中繼資料黑名單",
+      "description": "內建保護一律生效。可在此追加執行個體層級規則，在任何通道白名單判斷前攔截更多中繼資料。",
+      "restore": "還原內建預設值",
+      "builtIn": "內建預設值",
+      "additional": "追加黑名單",
+      "request_headers": {
+        "label": "請求 Header",
+        "description": "從呼叫方請求中移除的小寫名稱或以 * 結尾的前綴。"
+      },
+      "response_headers": {
+        "label": "回應 Header",
+        "description": "從回傳給呼叫方的回應中移除的小寫名稱或以 * 結尾的前綴。"
+      },
+      "request_query": {
+        "label": "請求 Query 參數",
+        "description": "建立上游 URL 前移除的區分大小寫參數名稱。"
+      }
+    },
     "autostart": {
       "title": "登入時啟動",
       "description": "目前桌面使用者登入時啟動此原生 GPROXY 安裝。",

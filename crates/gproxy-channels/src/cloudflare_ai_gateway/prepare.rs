@@ -4,26 +4,12 @@ use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://api.cloudflare.com";
 const DEFAULT_GATEWAY_ID: &str = "default";
-const FORWARD_HEADERS: &[&str] = &[
-    "accept",
-    "content-type",
-    "cf-aig-skip-cache",
-    "cf-aig-cache-ttl",
-    "cf-aig-cache-key",
-    "cf-aig-collect-log",
-    "cf-aig-request-timeout",
-    "cf-aig-max-attempts",
-    "cf-aig-retry-delay",
-    "cf-aig-backoff",
-    "cf-aig-metadata",
-];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let api_key = secret(ctx.secret, "api_key")
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let uri = endpoint(&ctx)?;
     let body = super::model::rewrite(&ctx)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::CLOUDFLARE, &ctx)?;
     if !body.is_empty() && !headers.contains_key(CONTENT_TYPE) {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     }

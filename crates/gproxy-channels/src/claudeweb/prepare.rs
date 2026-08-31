@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::{ChannelError, PreparedRequest};
+use http::HeaderMap;
 use http::header::{ACCEPT, CONTENT_TYPE};
 use serde_json::Value;
 
@@ -10,14 +11,20 @@ pub(super) struct Requests {
     auth: Auth,
     base: String,
     settings: Value,
+    headers: HeaderMap,
 }
 
 impl Requests {
-    pub(super) fn new(secret: &Value, settings: &Value) -> Result<Self, ChannelError> {
+    pub(super) fn new(
+        secret: &Value,
+        settings: &Value,
+        headers: HeaderMap,
+    ) -> Result<Self, ChannelError> {
         Ok(Self {
             auth: Auth::read(secret)?,
             base: super::auth::base(settings).into(),
             settings: settings.clone(),
+            headers,
         })
     }
 
@@ -177,7 +184,10 @@ impl Requests {
         let mut request = http::Request::post(url)
             .body(body)
             .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-        *request.headers_mut() = self.auth.headers(&self.base, &referer)?;
+        *request.headers_mut() = self.headers.clone();
+        request
+            .headers_mut()
+            .extend(self.auth.headers(&self.base, &referer)?);
         Ok(PreparedRequest {
             request,
             framing: Some(gproxy_protocol::StreamFraming::Sse),

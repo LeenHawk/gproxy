@@ -4,8 +4,6 @@ use http::header::{AUTHORIZATION, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://api.x.ai";
-const FORWARD_HEADERS: &[&str] = &["accept", "content-type", "x-grok-conv-id"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let key = ctx
         .secret
@@ -16,7 +14,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = super::model::path(&ctx);
     let uri = endpoint(&ctx, &path)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::XAI, &ctx)?;
     let body = super::shape::request(&ctx, &mut headers)?;
     headers.insert(
         AUTHORIZATION,

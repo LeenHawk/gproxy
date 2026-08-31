@@ -87,6 +87,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::VERTEX,
     credential_fields: crate::metadata::SERVICE_ACCOUNT,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::VERTEX,
 };
 
 impl Channel for VertexChannel {

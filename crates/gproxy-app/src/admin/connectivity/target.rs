@@ -26,6 +26,7 @@ pub(super) fn resolve(
                 settings: serde_json::json!({}),
                 fingerprint: None,
                 proxy_url: Some(proxy_url.trim().into()),
+                traffic_blacklist: settings.traffic_blacklist.clone(),
             },
             ConnectivityProxySourceDto::Proxy,
         ));
@@ -40,6 +41,7 @@ pub(super) fn resolve(
                 settings: serde_json::json!({}),
                 fingerprint: None,
                 proxy_url: settings.proxy,
+                traffic_blacklist: settings.traffic_blacklist.clone(),
             },
             source,
         ));
@@ -98,6 +100,7 @@ pub(super) fn resolve(
             .map_err(AdminError::BadRequest)?,
             fingerprint,
             proxy_url,
+            traffic_blacklist: settings.traffic_blacklist.clone(),
         },
         source,
     ))

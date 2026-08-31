@@ -54,6 +54,8 @@ fn export_console_types() {
         ChannelDto,
         ChannelFieldControlDto,
         ChannelFieldDto,
+        TrafficPolicyDto,
+        TrafficBlacklistDto,
         LoginModeDto,
         LoginParamKindDto,
         LoginParamDto,

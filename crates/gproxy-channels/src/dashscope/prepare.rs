@@ -4,7 +4,6 @@ use http::header::{AUTHORIZATION, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://dashscope.aliyuncs.com";
-const FORWARD_HEADERS: &[&str] = &["accept", "content-type"];
 const IMAGE_PATH: &str = "/api/v1/services/aigc/multimodal-generation/generation";
 
 struct Target {
@@ -28,7 +27,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let target = target(&ctx)?;
     let uri = endpoint(&ctx, &target)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::DASHSCOPE, &ctx)?;
     headers.insert(
         AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {api_key}"))

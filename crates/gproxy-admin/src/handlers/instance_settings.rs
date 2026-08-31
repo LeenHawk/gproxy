@@ -4,7 +4,7 @@ use gproxy_store::records::{
     ENABLE_DOWNSTREAM_LOG_BODY, ENABLE_TOKENIZER_DOWNLOAD, ENABLE_TOKENIZER_VOCABS,
     ENABLE_UPSTREAM_LOG, ENABLE_UPSTREAM_LOG_BODY, ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT,
     INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY, RETENTION_DAYS,
-    SPOOF_EMULATION, SettingInput, SettingRecord,
+    SPOOF_EMULATION, SettingInput, SettingRecord, TRAFFIC_BLACKLIST,
 };
 use http::{Response, StatusCode};
 use serde_json::Value;
@@ -22,7 +22,7 @@ pub(super) async fn update(
     state: &impl State,
     body: &Bytes,
 ) -> Result<Response<Bytes>, AdminError> {
-    let request: InstanceSettingsDto = util::parse(body)?;
+    let mut request: InstanceSettingsDto = util::parse(body)?;
     if request.instance_name.trim().is_empty() {
         return Err(AdminError::BadRequest(
             "instance name must not be blank".into(),
@@ -37,6 +37,14 @@ pub(super) async fn update(
             "body capture requires a retention or database size limit".into(),
         ));
     }
+    let traffic_blacklist: gproxy_channel_api::TrafficBlacklistConfig = request
+        .traffic_blacklist
+        .clone()
+        .try_into()
+        .map_err(AdminError::BadRequest)?;
+    request.traffic_blacklist = traffic_blacklist.clone().into();
+    request.traffic_blacklist_defaults =
+        gproxy_channel_api::TrafficBlacklistConfig::defaults().into();
     state
         .store()
         .set_settings(&[
@@ -62,6 +70,7 @@ pub(super) async fn update(
             boolean(ENABLE_UPSTREAM_LOG, request.enable_upstream_log),
             boolean(ENABLE_UPSTREAM_LOG_BODY, request.enable_upstream_log_body),
             boolean(DISABLE_LOG_REDACTION, request.disable_log_redaction),
+            json(TRAFFIC_BLACKLIST, traffic_blacklist),
         ])
         .await?;
     state.reload().await?;
@@ -86,6 +95,8 @@ fn read(values: &[SettingRecord]) -> InstanceSettingsDto {
         enable_upstream_log: enabled(values, ENABLE_UPSTREAM_LOG),
         enable_upstream_log_body: enabled(values, ENABLE_UPSTREAM_LOG_BODY),
         disable_log_redaction: enabled(values, DISABLE_LOG_REDACTION),
+        traffic_blacklist: traffic_blacklist(values).into(),
+        traffic_blacklist_defaults: gproxy_channel_api::TrafficBlacklistConfig::defaults().into(),
     }
 }
 
@@ -118,6 +129,23 @@ fn optional(key: &str, value: Option<u64>) -> SettingInput {
         key: key.into(),
         value: value.map(Value::from).unwrap_or(Value::Null),
     }
+}
+
+fn json(key: &str, value: impl serde::Serialize) -> SettingInput {
+    SettingInput {
+        key: key.into(),
+        value: serde_json::to_value(value).expect("validated settings serialize"),
+    }
+}
+
+fn traffic_blacklist(values: &[SettingRecord]) -> gproxy_channel_api::TrafficBlacklistConfig {
+    values
+        .iter()
+        .find(|setting| setting.key == TRAFFIC_BLACKLIST)
+        .and_then(|setting| {
+            gproxy_channel_api::TrafficBlacklistConfig::from_value(&setting.value).ok()
+        })
+        .unwrap_or_default()
 }
 
 fn enabled(values: &[SettingRecord], key: &str) -> bool {

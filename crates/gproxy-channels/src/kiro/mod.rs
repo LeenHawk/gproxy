@@ -95,6 +95,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::KIRO,
     credential_fields: crate::metadata::OAUTH,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::KIRO,
 };
 
 impl Channel for KiroChannel {

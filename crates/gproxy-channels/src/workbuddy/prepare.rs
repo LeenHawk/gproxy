@@ -3,12 +3,10 @@ use http::header::{CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://copilot.tencent.com";
-const FORWARD_HEADERS: &[&str] = &["accept"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let path = super::model::path(ctx.key);
     let uri = endpoint(&ctx, path)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::WORKBUDDY, &ctx)?;
     let body = super::model::body(&ctx, &mut headers)?;
     if !body.is_empty() {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));

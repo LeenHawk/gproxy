@@ -24,6 +24,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::API_KEY_OR_OAUTH,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::KIMI,
 };
 
 impl Channel for KimiChannel {

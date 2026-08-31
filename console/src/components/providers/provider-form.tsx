@@ -3,6 +3,7 @@ import type { ChannelDto } from "@/generated/ChannelDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
+import type { TrafficPolicyDto } from "@/generated/TrafficPolicyDto"
 import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -30,6 +31,7 @@ export type ProviderDraft = {
   credentialStrategy: string
   proxyUrl: string
   settings: string
+  trafficPolicy: TrafficPolicyDto | null
   fingerprint: string
   preset: string
   enabled: boolean
@@ -51,6 +53,7 @@ function initialDraft(provider: ProviderDto | undefined, presets: Array<TlsPrese
     credentialStrategy: provider?.credential_strategy ?? "round_robin",
     proxyUrl: provider?.proxy_url ?? "",
     settings: prettyJson(provider?.settings ?? {}),
+    trafficPolicy: provider?.traffic_policy ?? null,
     fingerprint: prettyJson(rawFingerprint),
     preset,
     enabled: provider?.enabled ?? true,
@@ -97,6 +100,7 @@ export function useProviderForm(source: ProviderFormSource, onSaved?: () => void
       label: draft.label.trim() || null,
       channel: draft.channel,
       settings: settings.value,
+      traffic_policy: draft.trafficPolicy,
       credential_strategy: draft.credentialStrategy,
       proxy_url: draft.proxyUrl.trim() || null,
       tls_fingerprint: fingerprint.value,
@@ -126,7 +130,9 @@ export function useProviderForm(source: ProviderFormSource, onSaved?: () => void
       serverFingerprintError={serverFingerprintError}
       onChange={change}
       onSelectPreset={selectPreset}
+      onChannel={(value) => { change("channel", value); change("trafficPolicy", null) }}
       onCustomFingerprint={(value) => { change("fingerprint", value); change("preset", CUSTOM_FINGERPRINT); setServerFingerprintError("") }}
+      onTrafficPolicy={(value) => change("trafficPolicy", value)}
     />
   )
   const submitError: ReactNode = errors.submit ? <FieldError>{errors.submit}</FieldError> : null

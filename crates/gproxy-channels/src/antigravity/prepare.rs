@@ -52,8 +52,10 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             ));
         }
     };
-    let uri = endpoint_uri(&ctx, endpoint, path, query)?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, &["accept"]);
+    let caller_query = crate::policy::request_query(crate::policy::ANTIGRAVITY, &ctx)?;
+    let query = crate::shared::http::merge_query(caller_query.as_deref(), query);
+    let uri = endpoint_uri(&ctx, endpoint, path, query.as_deref())?;
+    let mut headers = crate::policy::request_headers(crate::policy::ANTIGRAVITY, &ctx)?;
     headers.insert(
         AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {access}"))

@@ -48,6 +48,8 @@ pub(crate) struct FunnelCtx {
     pub resource: Option<(&'static str, String)>,
     pub admitted: bool,
     pub surface_label: Option<&'static str>,
+    pub traffic_policy: Option<gproxy_channel_api::TrafficPolicyConfig>,
+    pub traffic_blacklist: Option<gproxy_channel_api::TrafficBlacklistConfig>,
 }
 
 impl FunnelCtx {
@@ -172,6 +174,7 @@ pub(crate) async fn buffered<H: Host>(
         },
     )
     .await;
+    let headers = outward_headers(&ctx, headers);
     ExecOutcome {
         status,
         headers,
@@ -242,6 +245,7 @@ pub(crate) fn streaming<H: Host>(
     if ctx.source_key != ctx.key || decoder.is_some() {
         frame_headers(&mut parts.headers, ctx.source_framing);
     }
+    parts.headers = outward_headers(&ctx, parts.headers);
     let body = FunnelStream::new(body, decoder, host, ctx, parts.status);
     ExecOutcome {
         status: parts.status,
@@ -276,6 +280,7 @@ pub(crate) async fn free_buffered<H: Host>(
         },
     )
     .await;
+    let headers = outward_headers(&ctx, headers);
     ExecOutcome {
         status,
         headers,
@@ -326,6 +331,7 @@ pub(crate) fn free_streaming<H: Host>(
     body: crate::boundary::ByteStream,
     disposition: Disposition,
 ) -> ExecOutcome {
+    let headers = outward_headers(&ctx, headers);
     let body = FunnelStream::new(body, None, host, ctx, status);
     ExecOutcome {
         status,
@@ -354,6 +360,15 @@ fn frame_headers(headers: &mut http::HeaderMap, framing: StreamFraming) {
                 http::HeaderValue::from_static("no-cache"),
             );
         }
+    }
+}
+
+pub(super) fn outward_headers(ctx: &FunnelCtx, headers: http::HeaderMap) -> http::HeaderMap {
+    match (&ctx.traffic_policy, &ctx.traffic_blacklist) {
+        (Some(policy), Some(blacklist)) => {
+            crate::execution::forwarding::response_headers(headers, policy, blacklist)
+        }
+        _ => headers,
     }
 }
 

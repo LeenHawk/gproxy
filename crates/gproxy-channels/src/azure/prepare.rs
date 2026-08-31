@@ -3,15 +3,6 @@ use gproxy_protocol::Operation;
 use http::header::{HeaderName, HeaderValue};
 use serde_json::Value;
 
-const FORWARD_HEADERS: &[&str] = &["accept", "anthropic-beta", "content-type", "openai-beta"];
-const FORWARD_QUERY: &[&str] = &[
-    "after",
-    "api-version",
-    "azure-beta",
-    "limit",
-    "order",
-    "variant",
-];
 const CREATE_IMAGE_VERSION: &str = "preview";
 const EDIT_IMAGE_VERSION: &str = "2025-04-01";
 
@@ -25,9 +16,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let target = super::model::target(&ctx)?;
     let exact = endpoint_override(&ctx, target.endpoint);
-    let query = query(&ctx, exact.as_deref());
+    let query = query(&ctx, exact.as_deref())?;
     let uri = endpoint(&ctx, &target.path, exact.as_deref(), query.as_deref())?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::AZURE, &ctx)?;
     apply_auth(&mut headers, target.auth, api_key)?;
     let body = super::shape::request(&ctx)?;
     let mut request = http::Request::builder()
@@ -78,19 +69,18 @@ fn endpoint_override(ctx: &PrepareCtx<'_>, name: &str) -> Option<String> {
     })
 }
 
-fn query(ctx: &PrepareCtx<'_>, exact: Option<&str>) -> Option<String> {
+fn query(ctx: &PrepareCtx<'_>, exact: Option<&str>) -> Result<Option<String>, ChannelError> {
     let exact_has_version = exact
         .and_then(|url| url.split_once('?').map(|(_, query)| query))
         .is_some_and(|query| has_query(query, "api-version"));
-    let mut parts = ctx
-        .query
+    let caller_query = crate::policy::request_query(crate::policy::AZURE, ctx)?;
+    let mut parts = caller_query
+        .as_deref()
         .unwrap_or_default()
         .split('&')
         .filter(|part| {
             let name = part.split('=').next().unwrap_or_default();
-            !part.is_empty()
-                && FORWARD_QUERY.contains(&name)
-                && !(exact_has_version && name == "api-version")
+            !part.is_empty() && !(exact_has_version && name == "api-version")
         })
         .map(str::to_owned)
         .collect::<Vec<_>>();
@@ -111,7 +101,7 @@ fn query(ctx: &PrepareCtx<'_>, exact: Option<&str>) -> Option<String> {
             crate::shared::http::encode_component(version)
         ));
     }
-    (!parts.is_empty()).then(|| parts.join("&"))
+    Ok((!parts.is_empty()).then(|| parts.join("&")))
 }
 
 fn image_version(operation: Operation) -> Option<&'static str> {

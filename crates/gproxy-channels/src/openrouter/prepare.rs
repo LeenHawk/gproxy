@@ -4,8 +4,6 @@ use http::header::{AUTHORIZATION, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://openrouter.ai/api";
-const FORWARD_HEADERS: &[&str] = &["accept", "content-type", "http-referer", "x-title"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let key = ctx
         .secret
@@ -15,9 +13,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .filter(|key| !key.is_empty())
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = upstream_path(&ctx);
-    let query = allow_query(&ctx);
+    let query = allow_query(&ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::OPENROUTER, &ctx)?;
     let body = super::shape::request(&ctx, &mut headers)?;
     headers.insert(
         AUTHORIZATION,
@@ -110,19 +108,15 @@ fn endpoint_name(key: gproxy_protocol::OperationKey) -> Option<&'static str> {
     }
 }
 
-fn allow_query(ctx: &PrepareCtx<'_>) -> Option<String> {
-    let allowed: &[&str] = match ctx.key.operation {
-        Operation::ListModels => &[
-            "category",
-            "supported_parameters",
-            "output_modalities",
-            "use_rss",
-            "use_rss_chat_links",
-        ],
-        Operation::DownloadVideoContent => &["index"],
-        _ => &[],
-    };
-    crate::shared::http::allow_query(ctx.query, allowed)
+fn allow_query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
+    if matches!(
+        ctx.key.operation,
+        Operation::ListModels | Operation::DownloadVideoContent
+    ) {
+        crate::policy::request_query(crate::policy::OPENROUTER, ctx)
+    } else {
+        Ok(None)
+    }
 }
 
 fn video_id(path: &str) -> Option<&str> {

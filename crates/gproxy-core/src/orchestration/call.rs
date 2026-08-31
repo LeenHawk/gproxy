@@ -48,6 +48,8 @@ pub(super) async fn run<H: Host>(
         resource: None,
         admitted: false,
         surface_label: Some(label),
+        traffic_policy: None,
+        traffic_blacklist: None,
     };
     let response = match host.transport().send(prepared.request).await {
         Ok(response) => response,

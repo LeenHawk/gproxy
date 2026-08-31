@@ -51,7 +51,7 @@ pub(super) async fn buffered<H: Host>(
         .await;
         host.finish_admission(&ctx.request_id, None).await;
         completed(&ctx, Some(outcome.0), "session setup failed");
-        return outcome_response(outcome);
+        return outcome_response(&ctx, outcome);
     }
     let installed = match install::open(
         host.as_ref(),
@@ -73,7 +73,7 @@ pub(super) async fn buffered<H: Host>(
             .await;
             host.finish_admission(&ctx.request_id, None).await;
             completed(&ctx, None, "session observer failed");
-            return error_response(error);
+            return error_response(&ctx, error);
         }
     };
     ctx.request_headers = None;
@@ -96,10 +96,11 @@ pub(super) async fn buffered<H: Host>(
         disposition,
     );
     capture::call(host.as_ref(), &ctx, upstream_status, captured).await;
+    let response = outcome_response(&ctx, outcome);
     host.spawner()
         .expect("session capability was checked before egress")
         .spawn(runner::run(host.clone(), ctx, installed));
-    outcome_response(outcome)
+    response
 }
 
 type Outward = (http::StatusCode, http::HeaderMap, Bytes, Disposition);
@@ -130,18 +131,18 @@ fn outward(
     }
 }
 
-fn outcome_response((status, headers, body, disposition): Outward) -> ExecOutcome {
+fn outcome_response(ctx: &FunnelCtx, (status, headers, body, disposition): Outward) -> ExecOutcome {
     ExecOutcome {
         status,
-        headers,
+        headers: super::outward_headers(ctx, headers),
         body: ResponseBody::Full(body),
         disposition,
         _settled: Settled(()),
     }
 }
 
-fn error_response(error: crate::CoreError) -> ExecOutcome {
-    outcome_response(super::transform_error(error))
+fn error_response(ctx: &FunnelCtx, error: crate::CoreError) -> ExecOutcome {
+    outcome_response(ctx, super::transform_error(error))
 }
 
 fn completed(ctx: &FunnelCtx, status: Option<http::StatusCode>, reason: &'static str) {

@@ -92,6 +92,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     provider_fields: crate::metadata::VERCEL,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
+    traffic_policy: crate::policy::VERCEL,
 };
 
 impl Channel for VercelChannel {

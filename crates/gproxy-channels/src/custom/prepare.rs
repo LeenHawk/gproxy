@@ -3,14 +3,6 @@ use gproxy_protocol::{Operation, StreamFraming};
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use serde_json::Value;
 
-const FORWARD_HEADERS: &[&str] = &[
-    "accept",
-    "anthropic-beta",
-    "content-type",
-    "openai-beta",
-    "range",
-];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let api_key = ctx
         .secret
@@ -20,9 +12,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .filter(|key| !key.is_empty())
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = super::model::path(&ctx);
-    let query = query(&ctx);
+    let query = query(&ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, FORWARD_HEADERS);
+    let mut headers = crate::policy::request_headers(crate::policy::CUSTOM, &ctx)?;
     auth(&mut headers, super::model::auth(ctx.key), api_key)?;
     let body = super::model::body(&ctx)?;
     let body = super::shape::request(ctx.key, ctx.provider_settings, &mut headers, body)?;
@@ -74,13 +66,8 @@ fn endpoint(
     crate::shared::http::join(base, path, query)
 }
 
-fn query(ctx: &PrepareCtx<'_>) -> Option<String> {
-    let allowed: &[&str] = match super::model::auth(ctx.key) {
-        super::model::AuthKind::OpenAi => &["after", "limit", "order", "purpose", "variant"],
-        super::model::AuthKind::Claude => &["after_id", "before_id", "limit"],
-        super::model::AuthKind::Gemini => &["alt", "pageSize", "pageToken"],
-    };
-    crate::shared::http::allow_query(ctx.query, allowed)
+fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
+    crate::policy::request_query(crate::policy::CUSTOM, ctx)
 }
 
 fn framing(ctx: &PrepareCtx<'_>) -> Option<StreamFraming> {

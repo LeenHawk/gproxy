@@ -1,6 +1,6 @@
 use web_time::Instant;
 
-use gproxy_channel_api::{Channel, ChannelRouteAction, ChannelSupport, PrepareCtx};
+use gproxy_channel_api::{Channel, ChannelError, ChannelRouteAction, ChannelSupport, PrepareCtx};
 use gproxy_protocol::OperationKey;
 
 use super::{AdmissionCtx, Egress, Prepared};
@@ -109,14 +109,29 @@ pub(crate) async fn prepare<H: Host>(
     {
         body = gproxy_channels::apply_claude_magic_cache(body)?;
     }
-    let request_headers = mutation.headers;
+    let traffic_policy = channel
+        .descriptor()
+        .traffic_policy
+        .effective_traffic_policy(&target.provider.settings)
+        .map_err(|error| CoreError::Channel(ChannelError::Prepare(error)))?;
+    let source_headers = mutation.headers.as_ref().unwrap_or(&ctx.headers);
+    let request_headers = crate::execution::forwarding::request_headers(
+        source_headers,
+        &traffic_policy,
+        &target.provider.traffic_blacklist,
+    );
+    let request_query = crate::execution::forwarding::request_query(
+        ctx.query.as_deref(),
+        &traffic_policy,
+        &target.provider.traffic_blacklist,
+    );
     let context = || PrepareCtx {
         key: support.target,
         stream,
         method: &method,
         path: &path,
-        query: ctx.query.as_deref(),
-        headers: request_headers.as_ref().unwrap_or(&ctx.headers),
+        query: request_query.as_deref(),
+        headers: &request_headers,
         body: &body,
         upstream_model: &target.upstream_model,
         provider_settings: &target.provider.settings,
@@ -148,7 +163,7 @@ pub(crate) async fn prepare<H: Host>(
         request_body: body.clone(),
         request_headers: (support.target.operation.spec().settle
             == gproxy_protocol::SettleMode::OnSessionEnd)
-            .then(|| request_headers.as_ref().unwrap_or(&ctx.headers).clone()),
+            .then(|| request_headers.clone()),
         client_headers: ctx.headers.clone(),
         requested_model: classified.model.clone(),
         response_headers: None,
@@ -159,6 +174,8 @@ pub(crate) async fn prepare<H: Host>(
             .map(|(kind, id)| (kind, id.to_owned())),
         admitted: admission.admitted,
         surface_label: None,
+        traffic_policy: Some(traffic_policy),
+        traffic_blacklist: Some(target.provider.traffic_blacklist.clone()),
     };
     if let Some(driver) = driver {
         driver::validate(core, channel, target, admission, driver.as_ref())?;

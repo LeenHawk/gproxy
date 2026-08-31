@@ -7,10 +7,10 @@ use serde_json::Value;
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let token = super::auth::access_token(ctx.secret)?;
     let session_id = super::auth::session_id(ctx.secret, ctx.headers);
-    let mut headers = allow_headers(ctx.headers);
+    let mut headers = crate::policy::request_headers(crate::policy::CLAUDE_CODE, &ctx)?;
     let body = shape_body(&ctx, &mut headers, &session_id)?;
     let (method, path) = upstream_target(ctx.key, ctx.upstream_model)?;
-    let query = query(ctx.key, ctx.query);
+    let query = query(&ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
     super::auth::apply_headers(&mut headers, token, &session_id)?;
     let mut request = http::Request::builder()
@@ -35,10 +35,17 @@ pub(super) fn surface(
 ) -> Result<PreparedRequest, ChannelError> {
     let token = super::auth::access_token(secret)?;
     let session_id = super::auth::session_id(secret, &source.headers);
-    let mut headers = resource_headers(&source.headers, &source.upstream_path);
+    let policy = crate::policy::CLAUDE_CODE
+        .effective_traffic_policy(provider_settings)
+        .map_err(ChannelError::Prepare)?;
+    let mut headers = resource_headers(
+        policy.filter_request_headers(&source.headers),
+        &source.upstream_path,
+    );
     let content_type = headers.get(http::header::CONTENT_TYPE).cloned();
     let accept = headers.get(http::header::ACCEPT).cloned();
-    let query = surface_query(&source.upstream_path, source.query.as_deref());
+    let caller_query = policy.filter_request_query(source.query.as_deref());
+    let query = surface_query(&source.upstream_path, caller_query.as_deref());
     let base = provider_settings
         .get("base_url")
         .and_then(Value::as_str)
@@ -162,45 +169,26 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         })
 }
 
-fn query(key: OperationKey, query: Option<&str>) -> Option<String> {
+fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
+    let query = crate::policy::request_query(crate::policy::CLAUDE_CODE, ctx)?;
     let mut kept = query
+        .as_deref()
         .unwrap_or_default()
         .split('&')
-        .filter(|pair| {
-            let name = pair.split('=').next().unwrap_or_default();
-            !matches!(name, "key" | "api_key" | "x-api-key") && !pair.is_empty()
-        })
+        .filter(|pair| !pair.is_empty())
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if is_messages(key)
+    if is_messages(ctx.key)
         && !kept
             .iter()
             .any(|pair| pair.split('=').next() == Some("beta"))
     {
         kept.insert(0, "beta=true".into());
     }
-    (!kept.is_empty()).then(|| kept.join("&"))
+    Ok((!kept.is_empty()).then(|| kept.join("&")))
 }
 
-fn allow_headers(source: &HeaderMap) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    for value in source.get_all("anthropic-beta") {
-        headers.append("anthropic-beta", value.clone());
-    }
-    headers
-}
-
-fn resource_headers(source: &HeaderMap, path: &str) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    for name in [
-        http::header::CONTENT_TYPE,
-        http::header::ACCEPT,
-        http::header::HeaderName::from_static("anthropic-beta"),
-    ] {
-        if let Some(value) = source.get(&name) {
-            headers.insert(name, value.clone());
-        }
-    }
+fn resource_headers(mut headers: HeaderMap, path: &str) -> HeaderMap {
     let beta = if path.starts_with("/v1/skills") {
         "skills-2025-10-02"
     } else {

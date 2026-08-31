@@ -25,6 +25,7 @@ pub struct ChannelDto {
     pub credential_fields: Vec<ChannelFieldDto>,
     pub endpoint_kinds: Vec<String>,
     pub default_rule_set: Option<ChannelDefaultRuleSetDto>,
+    pub traffic_policy: super::TrafficPolicyDto,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -192,6 +193,7 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                     })
                     .collect(),
             }),
+        traffic_policy: descriptor.traffic_policy.into(),
     }
 }
 

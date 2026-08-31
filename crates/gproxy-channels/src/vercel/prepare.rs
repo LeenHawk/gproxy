@@ -3,9 +3,6 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://ai-gateway.vercel.sh";
-const OPENAI_HEADERS: &[&str] = &["accept", "content-type"];
-const CLAUDE_HEADERS: &[&str] = &["accept", "anthropic-beta", "content-type"];
-
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let api_key = ctx
         .secret
@@ -16,12 +13,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = super::model::path(&ctx);
     let uri = endpoint(&ctx, &path)?;
-    let allowed = if super::model::is_claude(ctx.key) {
-        CLAUDE_HEADERS
-    } else {
-        OPENAI_HEADERS
-    };
-    let mut headers = crate::shared::http::allow_headers(ctx.headers, allowed);
+    let mut headers = crate::policy::request_headers(crate::policy::VERCEL, &ctx)?;
     let body = super::model::rewrite(&ctx)?;
     let body = super::shape::request(&ctx, &mut headers, body)?;
     if !body.is_empty() && !headers.contains_key(CONTENT_TYPE) {

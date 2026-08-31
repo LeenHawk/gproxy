@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next"
 import { FingerprintField } from "@/components/providers/fingerprint-field"
 import type { ProviderDraft, ProviderFormErrors, ProviderFormSource } from "@/components/providers/provider-form"
+import type { TrafficPolicyDto } from "@/generated/TrafficPolicyDto"
 import { ProviderIdentityFields } from "@/components/providers/provider-identity-fields"
 import { ProviderSettingsFields } from "@/components/providers/provider-settings-fields"
+import { TrafficPolicyFields } from "@/components/providers/traffic-policy-fields"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -17,7 +19,9 @@ export function ProviderFormFields(props: {
   serverFingerprintError: string
   onChange: <K extends keyof ProviderDraft>(key: K, value: ProviderDraft[K]) => void
   onSelectPreset: (value: string) => void
+  onChannel: (value: string) => void
   onCustomFingerprint: (value: string) => void
+  onTrafficPolicy: (value: TrafficPolicyDto | null) => void
 }) {
   const { t } = useTranslation()
   const { id, source, draft, errors } = props
@@ -41,13 +45,19 @@ export function ProviderFormFields(props: {
           emptyLabel={t("common.none")}
           ariaLabel={t("providers.fields.channel")}
           disabled={source.channelsLoading || source.provider !== undefined}
-          onChange={(value) => props.onChange("channel", value)}
+          onChange={props.onChannel}
         />
         {source.provider ? null : <FieldDescription>{t("providers.form.channelHint")}</FieldDescription>}
         {selectedChannel ? <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{t("providers.form.channelCapabilities", { count: selectedChannel.supports.length })}</span>{[...new Set(selectedChannel.supports.map((support) => support.group))].map((group) => <Badge key={group} variant="outline">{t(`rules.groups.${group}`, { defaultValue: group })}</Badge>)}</div> : null}
         {source.channelsError ? <FieldError>{t("common.errors.load")}</FieldError> : null}
         {errors.channel ? <FieldError>{errors.channel}</FieldError> : null}
       </Field>
+      <TrafficPolicyFields
+        id={id}
+        defaults={selectedChannel?.traffic_policy}
+        value={draft.trafficPolicy}
+        onChange={props.onTrafficPolicy}
+      />
       <ProviderSettingsFields
         channel={selectedChannel}
         text={draft.settings}

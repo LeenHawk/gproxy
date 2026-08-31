@@ -28,8 +28,15 @@ impl ResumeTurn {
                 "tool results refer to different continuations".into(),
             ));
         }
+        let headers = crate::policy::CLAUDE_WEB
+            .filter_request_headers(ctx.headers, ctx.provider_settings)
+            .map_err(ChannelError::Prepare)?;
         Ok(Self {
-            requests: super::super::prepare::Requests::new(ctx.secret, ctx.provider_settings)?,
+            requests: super::super::prepare::Requests::new(
+                ctx.secret,
+                ctx.provider_settings,
+                headers,
+            )?,
             results,
             claim,
             state: None,

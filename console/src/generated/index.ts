@@ -135,6 +135,8 @@ export * from "./TlsProfileDto";
 export * from "./TlsVersionDto";
 export * from "./TokenizerFetchRequest";
 export * from "./TokenizerVocabDto";
+export * from "./TrafficBlacklistDto";
+export * from "./TrafficPolicyDto";
 export * from "./TransformActionDto";
 export * from "./TransformLocateDto";
 export * from "./TransformPhaseDto";

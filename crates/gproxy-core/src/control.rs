@@ -130,6 +130,7 @@ pub struct ProviderRef {
     pub settings: serde_json::Value,
     pub fingerprint: Option<ConfiguredFingerprint>,
     pub proxy_url: Option<String>,
+    pub traffic_blacklist: gproxy_channel_api::TrafficBlacklistConfig,
 }
 
 #[derive(Debug, Clone)]

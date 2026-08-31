@@ -70,6 +70,7 @@ export function ProviderDetail(props: Props) {
         label: props.provider.label,
         channel: props.provider.channel,
         settings: props.provider.settings,
+        traffic_policy: props.provider.traffic_policy,
         credential_strategy: props.provider.credential_strategy,
         proxy_url: props.provider.proxy_url,
         tls_fingerprint: props.provider.tls_fingerprint,

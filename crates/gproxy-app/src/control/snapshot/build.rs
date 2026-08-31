@@ -64,6 +64,7 @@ impl CompiledSnapshot {
                                 provider.proxy_url.as_deref(),
                                 effective.proxy.as_deref(),
                             ),
+                            traffic_blacklist: effective.traffic_blacklist.clone(),
                         },
                         credential_strategy,
                     ),

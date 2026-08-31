@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { RuntimeSettingsCard } from "@/components/settings/runtime-settings-card"
+import { TrafficBlacklistSection } from "@/components/settings/traffic-blacklist-section"
 
 type BooleanKey = "enable_downstream_log" | "enable_downstream_log_body" | "enable_upstream_log" | "enable_upstream_log_body"
 
@@ -48,6 +49,11 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
     <form className="flex flex-col gap-8" onSubmit={submit}>
       <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending}>{t(mutation.isPending ? "common.actions.saving" : "common.actions.save")}</Button></div>
       <RuntimeSettingsCard draft={draft} setDraft={setDraft} />
+      <TrafficBlacklistSection
+        defaults={draft.traffic_blacklist_defaults}
+        value={draft.traffic_blacklist}
+        onChange={(value) => setDraft((current) => ({ ...current, traffic_blacklist: value }))}
+      />
       <Section title={t("settings.storage.title")} description={t("settings.storage.description")}>
         <FieldGroup>
           <Field><FieldLabel htmlFor="retention-days">{t("settings.storage.retention")}</FieldLabel><Input id="retention-days" type="number" min={1} step={1} value={retention} onChange={(event) => setRetention(event.target.value)} /><FieldDescription>{t("settings.storage.retentionHint")}</FieldDescription></Field>
