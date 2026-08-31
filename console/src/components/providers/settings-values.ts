@@ -18,7 +18,10 @@ export function objectValue(value: unknown): Record<string, unknown> {
 }
 
 export function settingValue(field: ChannelFieldDto, values: Record<string, unknown>) {
-  return values[field.key] ?? field.default_value ?? (field.control === "boolean" ? false : "")
+  // default_value is a string for every control, so a boolean's default has to be
+  // read as one — otherwise the switch renders off while the backend behaves on.
+  if (field.control === "boolean") return values[field.key] ?? field.default_value === "true"
+  return values[field.key] ?? field.default_value ?? ""
 }
 
 export function updateSetting(
