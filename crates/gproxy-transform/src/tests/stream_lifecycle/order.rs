@@ -192,3 +192,40 @@ fn gemini_to_responses_closes_candidates_in_source_order_without_eof_delay() {
         ]
     );
 }
+
+/// A network chunk can end in the middle of a multi-byte character. Decoding each
+/// chunk on its own turns that character into U+FFFD, which is what shipped in v2
+/// until it buffered the incomplete tail — the symptom was mojibake in streamed
+/// CJK output. v3 accumulates bytes and only decodes a delimited frame, so the
+/// split is invisible; this pins that, because the shape is easy to lose in a
+/// refactor and nothing else would notice.
+#[test]
+fn a_character_split_across_chunks_survives() {
+    let mut stream = ResponseStream::new(
+        content(Operation::StreamGenerateContent, Kind::OpenAiChat),
+        content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
+    )
+    .unwrap();
+    let wire = concat!(
+        "data: {\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"in_progress\",\"model\":\"gpt\",\"output\":[]}}\n\n",
+        "data: {\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"item_id\":\"msg_1\",\"output_index\":0,\"content_index\":0,\"delta\":\"汉字\"}\n\n",
+        "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":0,\"status\":\"completed\",\"model\":\"gpt\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"汉字\",\"annotations\":[],\"logprobs\":[]}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n",
+    );
+    // Cut one byte into the three-byte 汉, so the first chunk ends mid-character.
+    let split = wire.find('汉').expect("payload carries the character") + 1;
+    let mut output = Vec::new();
+    for part in [&wire.as_bytes()[..split], &wire.as_bytes()[split..]] {
+        for frame in stream.push(Bytes::copy_from_slice(part)).unwrap() {
+            output.extend_from_slice(&frame);
+        }
+    }
+    for frame in stream.finish().unwrap() {
+        output.extend_from_slice(&frame);
+    }
+    let text = String::from_utf8(output).expect("output stays valid UTF-8");
+    assert!(text.contains("汉字"), "character was mangled: {text}");
+    assert!(
+        !text.contains('\u{fffd}'),
+        "replacement character emitted: {text}"
+    );
+}
