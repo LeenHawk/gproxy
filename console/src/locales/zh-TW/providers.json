@@ -156,7 +156,7 @@
       }
     },
     "fields": {
-      "name": "供應商名稱",
+      "name": "路由名稱",
       "label": "顯示名稱",
       "channel": "通道",
       "credentialStrategy": "憑證策略",
@@ -169,7 +169,7 @@
       "editTitle": "編輯供應商",
       "channelHint": "通道來自目前執行的 GPROXY 二進位檔。",
       "channelCapabilities": "目前宣告 {{count}} 條路由，涵蓋以下操作群組",
-      "labelHint": "可選的顯示文字；供應商名稱仍是穩定的路由識別碼。",
+      "labelHint": "可選的顯示文字；路由名稱仍是穩定的路由識別碼。",
       "credentialStrategyHint": "輪詢會輪替請求；黏性策略讓每個 API 金鑰穩定使用同一憑證。",
       "proxyHint": "覆寫此供應商的執行個體 Proxy；憑證仍可再次覆寫。",
       "settingsHint": "進階 JSON 入口。日常編輯請使用上方由通道宣告的欄位。",

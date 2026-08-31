@@ -156,7 +156,7 @@
       }
     },
     "fields": {
-      "name": "Provider name",
+      "name": "Route name",
       "label": "Display name",
       "channel": "Channel",
       "credentialStrategy": "Credential strategy",
@@ -169,7 +169,7 @@
       "editTitle": "Edit provider",
       "channelHint": "Channels come from this running GPROXY binary.",
       "channelCapabilities": "{{count}} declared routes across these operation groups",
-      "labelHint": "Optional display text. The provider name remains the stable routing identifier.",
+      "labelHint": "Optional display text. The route name remains the stable routing identifier.",
       "credentialStrategyHint": "Round robin rotates requests; sticky keeps each API key on a stable credential.",
       "proxyHint": "Overrides the instance proxy for this provider. Credentials can override it again.",
       "settingsHint": "Advanced JSON escape hatch. Declared fields above remain the normal editing path.",
