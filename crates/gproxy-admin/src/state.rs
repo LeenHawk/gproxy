@@ -4,7 +4,7 @@ use gproxy_store::records::CredentialEnvelope;
 use crate::dto::{
     ChannelDto, ConnectivityTestRequest, ConnectivityTestResponse, ExportSourceKeyDto,
     ModelDiscoverRequest, ModelDiscoverResponse, ModelTestRequest, ModelTestResponse,
-    PortalModelDto, TokenizerVocabDto,
+    PortalModelDto, QuotaProbeResponse, TokenizerVocabDto,
 };
 use crate::{AdminError, PortalIdentity};
 
@@ -65,6 +65,14 @@ pub trait State: MaybeSend + MaybeSync {
         actor_user_id: i64,
         request: &'a ModelTestRequest,
     ) -> BoxFuture<'a, Result<ModelTestResponse, AdminError>>;
+
+    /// Query the channel's dedicated usage endpoint for one credential and
+    /// fold the windows into its quota cycles. On demand only — some
+    /// upstreams rate-limit their usage endpoints aggressively.
+    fn quota_probe<'a>(
+        &'a self,
+        credential_id: i64,
+    ) -> BoxFuture<'a, Result<QuotaProbeResponse, AdminError>>;
 
     /// Ask the provider for its catalogue through the funnel. Discovery is additive:
     /// unseen ids are inserted, blank fields are filled, and the operator's edits stay.

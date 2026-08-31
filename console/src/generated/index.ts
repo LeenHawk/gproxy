@@ -103,6 +103,8 @@ export * from "./QuotaCoverageDto";
 export * from "./QuotaCycleCloseReasonDto";
 export * from "./QuotaCycleStatusDto";
 export * from "./QuotaDto";
+export * from "./QuotaProbeResponse";
+export * from "./QuotaProbeWindowDto";
 export * from "./QuotaWindowDto";
 export * from "./QuotaWriteRequest";
 export * from "./RateLimitDto";

@@ -91,6 +91,8 @@ fn export_console_types() {
         ModelDiscoverResponse,
         ModelTestRequest,
         ModelTestResponse,
+        QuotaProbeResponse,
+        QuotaProbeWindowDto,
         ProviderModelDto,
         ProviderModelWriteRequest,
         ModelAliasWriteRequest,

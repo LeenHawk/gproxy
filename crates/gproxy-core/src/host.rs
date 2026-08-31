@@ -243,6 +243,16 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         response_status: Option<http::StatusCode>,
         detail: &'a str,
     ) -> BoxFuture<'a, ()>;
+    /// Sink for upstream quota-window readings observed on responses.
+    /// Optional: an embedder without cycle accounting drops them.
+    fn observe_credential_quota<'a>(
+        &'a self,
+        credential: CredentialId,
+        observations: Vec<gproxy_channel_api::QuotaObservation>,
+    ) -> BoxFuture<'a, ()> {
+        let _ = (credential, observations);
+        Box::pin(async {})
+    }
     /// Runtime timer used by bounded service-surface polling. Hosts implement
     /// this with their native timer; the core never selects an executor.
     fn wait<'a>(&'a self, duration: Duration) -> BoxFuture<'a, ()>;

@@ -94,3 +94,17 @@ pub struct DiscoveredModelDto {
     /// The operator already has a row for this id.
     pub known: bool,
 }
+
+/// One window returned by a credential quota probe, echoing what was folded
+/// into the credential's quota cycles.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct QuotaProbeWindowDto {
+    pub window_key: String,
+    pub used_percent: Option<String>,
+    pub period_end: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct QuotaProbeResponse {
+    pub windows: Vec<QuotaProbeWindowDto>,
+}

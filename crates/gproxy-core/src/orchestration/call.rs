@@ -1,6 +1,6 @@
 use web_time::Instant;
 
-use gproxy_channel_api::{Disposition, PreparedRequest, StepResponse};
+use gproxy_channel_api::{Channel, Disposition, PreparedRequest, StepResponse};
 use gproxy_protocol::{SettleMode, StreamFraming};
 
 use crate::Shared;
@@ -12,6 +12,7 @@ use crate::host::{Host, UpstreamTransport};
 
 pub(super) async fn run<H: Host>(
     host: Shared<H>,
+    channel: Option<&dyn Channel>,
     target: Target,
     credential_version: Option<u64>,
     request_id: String,
@@ -97,14 +98,20 @@ pub(super) async fn run<H: Host>(
     } else {
         Disposition::Terminal
     };
-    crate::funnel::health::response(
-        host.as_ref(),
-        &facts.target,
-        facts.credential_version,
-        disposition,
-        parts.status,
-    )
-    .await;
+    // Cleanup calls run detached without a channel handle; they also carry
+    // no credential version, so health recording is a no-op for them anyway.
+    if let Some(channel) = channel {
+        crate::funnel::health::response(
+            host.as_ref(),
+            channel,
+            &facts.target,
+            facts.credential_version,
+            disposition,
+            parts.status,
+            &parts.headers,
+        )
+        .await;
+    }
     let outcome = funnel::free_buffered(
         host.as_ref(),
         facts,

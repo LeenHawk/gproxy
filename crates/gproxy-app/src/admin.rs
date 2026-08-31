@@ -4,6 +4,7 @@ mod import;
 mod model_discover;
 mod model_test;
 mod portal;
+mod quota_probe;
 
 use std::time::Duration;
 
@@ -216,6 +217,13 @@ impl State for AppHandle {
         request: &'a gproxy_admin::dto::ModelTestRequest,
     ) -> BoxFuture<'a, Result<gproxy_admin::dto::ModelTestResponse, AdminError>> {
         Box::pin(model_test::run(self, actor_user_id, request))
+    }
+
+    fn quota_probe<'a>(
+        &'a self,
+        credential_id: i64,
+    ) -> BoxFuture<'a, Result<gproxy_admin::dto::QuotaProbeResponse, AdminError>> {
+        Box::pin(quota_probe::run(self, credential_id))
     }
 
     fn discover_models<'a>(

@@ -210,7 +210,7 @@ pub(crate) async fn request<H: Host>(
         body: &[],
     });
     if retryable && disposition.should_failover() {
-        super::response::discard_retryable(core, &facts, response, disposition).await;
+        super::response::discard_retryable(core, channel, &facts, response, disposition).await;
         return Ok(ForwardAttempt::Retry(disposition));
     }
     super::response::relay(core, channel, request.stream, request.key, facts, response)

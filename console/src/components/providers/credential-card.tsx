@@ -3,10 +3,13 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import { GaugeIcon } from "lucide-react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { GaugeIcon, RefreshCwIcon } from "lucide-react"
 import { useId, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { ApiError } from "@/api/client"
+import { probeCredentialQuota } from "@/api/control"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
 import { CredentialModelHealth } from "@/components/providers/credential-model-health"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
@@ -38,6 +41,15 @@ export function CredentialCard(props: Props) {
   const name = credential.label ?? t("providers.credentials.unnamed", { id: credential.id })
   const observed = formatInstant(credential.health_observed_at, i18n.language)
   const cycleCount = useMemo(() => new Set(props.cycles.map((cycle) => cycle.window_key)).size, [props.cycles])
+  const client = useQueryClient()
+  const probe = useMutation({
+    mutationFn: () => probeCredentialQuota(credential.id),
+    onSuccess: async (result) => {
+      await client.invalidateQueries({ queryKey: ["credential-cycles"] })
+      toast.success(t("providers.credentials.quotaProbe.success", { count: result.windows.length }))
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : t("providers.credentials.quotaProbe.error")),
+  })
 
   const setEnabled = async (enabled: boolean) => {
     try {
@@ -69,6 +81,7 @@ export function CredentialCard(props: Props) {
         <CardAction className="flex flex-wrap items-center justify-end gap-2">
           {/* Health is a badge; the observation time rides on it rather than costing a line of prose. */}
           <StatusBadge status={credential.health} title={observed ? t("providers.credentials.healthObserved", { time: observed }) : undefined} />
+          <CredentialModelHealth values={credential.model_health} />
           {credential.health_response_status != null ? (
             <Badge variant="outline" className="machine-text" aria-label={t("providers.credentials.healthDetail")}>
               {credential.health_response_status}
@@ -96,17 +109,22 @@ export function CredentialCard(props: Props) {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {credential.health_detail ? <p className="machine-text text-sm text-muted-foreground">{credential.health_detail}</p> : null}
-        <CredentialModelHealth values={credential.model_health} />
         {/* The control is always here — v2 shows a quota button whether or not a cycle has been observed. */}
         <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="self-start">
-              <GaugeIcon aria-hidden />
-              {t("usage.credentialCycles")}
-              {cycleCount > 0 ? <Badge variant="secondary">{cycleCount}</Badge> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm">
+                <GaugeIcon aria-hidden />
+                {t("usage.credentialCycles")}
+                {cycleCount > 0 ? <Badge variant="secondary">{cycleCount}</Badge> : null}
+              </Button>
+            </CollapsibleTrigger>
+            {/* Live upstream call; some upstreams rate-limit it, so it only fires on demand. */}
+            <Button variant="ghost" size="sm" disabled={probe.isPending} onClick={() => probe.mutate()}>
+              <RefreshCwIcon aria-hidden className={probe.isPending ? "animate-spin" : undefined} />
+              {t("providers.credentials.quotaProbe.action")}
             </Button>
-          </CollapsibleTrigger>
+          </div>
           <CollapsibleContent className="pt-4">
             <CredentialCycleList cycles={props.cycles} loading={props.cyclesLoading} error={props.cyclesError} />
           </CollapsibleContent>

@@ -6,7 +6,7 @@ use gproxy_admin::AdminError;
 use crate::AppHandle;
 
 mod probe;
-mod target;
+pub(super) mod target;
 
 pub(super) async fn run(
     app: &AppHandle,

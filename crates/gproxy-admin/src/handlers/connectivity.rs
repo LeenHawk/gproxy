@@ -26,6 +26,13 @@ pub(super) async fn model_test(
     )
 }
 
+pub(super) async fn quota_probe(
+    state: &impl State,
+    credential_id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    response::json(StatusCode::OK, &state.quota_probe(credential_id).await?)
+}
+
 pub(super) async fn model_discover(
     state: &impl State,
     actor_user_id: i64,

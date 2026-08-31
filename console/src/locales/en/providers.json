@@ -222,9 +222,13 @@
       "healthObserved": "Observed {{time}}",
       "healthDetail": "Health detail",
       "modelHealth": {
-        "title": "Health by model",
-        "credentialWide": "All models",
-        "count": "{{count}} models"
+        "issues": "Abnormal models: {{count}}",
+        "more": "+{{count}} more…"
+      },
+      "quotaProbe": {
+        "action": "Fetch upstream usage",
+        "success": "Observed {{count}} quota windows.",
+        "error": "Quota probe failed."
       },
       "quotaCycle": "Quota cycle",
       "noQuotaCycle": "No upstream quota cycle observed.",

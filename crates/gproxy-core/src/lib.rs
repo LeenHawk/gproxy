@@ -28,6 +28,7 @@ mod fingerprint;
 mod funnel;
 mod login;
 mod orchestration;
+mod quota;
 mod surface;
 
 #[cfg(test)]

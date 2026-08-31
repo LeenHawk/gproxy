@@ -18,3 +18,16 @@ pub struct NormalizedUsage {
     /// Qualifiers that select pricing variants: `"resolution"`, `"tier"`...
     pub dimensions: BTreeMap<String, String>,
 }
+
+/// One upstream quota-window reading riding a response. A channel reports
+/// only what the wire declared — boundaries are unix seconds from the
+/// upstream, never inferred locally.
+#[derive(Debug, Clone, PartialEq)]
+pub struct QuotaObservation {
+    pub window_key: String,
+    pub period_start: Option<i64>,
+    pub period_end: Option<i64>,
+    pub used_percent: Option<Decimal>,
+    pub upstream_used: Option<Decimal>,
+    pub upstream_limit: Option<Decimal>,
+}

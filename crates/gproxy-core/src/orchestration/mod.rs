@@ -53,6 +53,11 @@ async fn drive<H: Host>(
                 sequence = sequence.saturating_add(1);
                 let response = call::run(
                     core.host.clone(),
+                    Some(
+                        core.channels
+                            .get(channel)
+                            .expect("orchestrating channel remains registered"),
+                    ),
                     facts.target.clone(),
                     facts.credential_version,
                     request_id,

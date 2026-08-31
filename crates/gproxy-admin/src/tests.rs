@@ -79,6 +79,17 @@ impl State for TestState {
         Box::pin(async { Ok(()) })
     }
 
+    fn quota_probe<'a>(
+        &'a self,
+        _: i64,
+    ) -> BoxFuture<'a, Result<crate::dto::QuotaProbeResponse, AdminError>> {
+        Box::pin(async {
+            Err(AdminError::BadRequest(
+                "quota probe unavailable in this test state".into(),
+            ))
+        })
+    }
+
     fn test_model<'a>(
         &'a self,
         _: i64,

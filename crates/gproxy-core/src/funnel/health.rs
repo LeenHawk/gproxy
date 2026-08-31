@@ -1,15 +1,22 @@
-use gproxy_channel_api::Disposition;
+use gproxy_channel_api::{Channel, Disposition};
 
 use crate::control::Target;
 use crate::host::Host;
 
 pub(crate) async fn response(
     host: &impl Host,
+    channel: &dyn Channel,
     target: &Target,
     credential_version: Option<u64>,
     disposition: Disposition,
     status: http::StatusCode,
+    headers: &http::HeaderMap,
 ) {
+    let observations = channel.observe_quota(headers);
+    if !observations.is_empty() {
+        host.observe_credential_quota(target.credential, observations)
+            .await;
+    }
     let Some(credential_version) = credential_version else {
         return;
     };

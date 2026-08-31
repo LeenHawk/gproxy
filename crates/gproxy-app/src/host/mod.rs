@@ -191,6 +191,55 @@ impl Host for AppHost {
         })
     }
 
+    fn observe_credential_quota<'a>(
+        &'a self,
+        credential: gproxy_channel_api::CredentialId,
+        observations: Vec<gproxy_channel_api::QuotaObservation>,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let observed_at = admission::unix_now();
+            for value in observations {
+                // The channel reported only wire facts: an upstream-declared
+                // period end is an upstream boundary; a start computed from
+                // end minus window length is derived, not exact.
+                let (source, confidence) = match (value.period_start, value.period_end) {
+                    (Some(_), Some(_)) => (
+                        gproxy_store::records::QuotaBoundarySource::Upstream,
+                        gproxy_store::records::QuotaBoundaryConfidence::Derived,
+                    ),
+                    (None, Some(_)) => (
+                        gproxy_store::records::QuotaBoundarySource::Upstream,
+                        gproxy_store::records::QuotaBoundaryConfidence::Partial,
+                    ),
+                    _ => (
+                        gproxy_store::records::QuotaBoundarySource::Unknown,
+                        gproxy_store::records::QuotaBoundaryConfidence::Unknown,
+                    ),
+                };
+                let observation = gproxy_store::records::CredentialQuotaObservation {
+                    credential_id: credential.0,
+                    window_key: value.window_key,
+                    period_start: value.period_start,
+                    period_end: value.period_end,
+                    boundary_source: source,
+                    boundary_confidence: confidence,
+                    observed_at,
+                    upstream_used: value.upstream_used,
+                    upstream_limit: value.upstream_limit,
+                    used_percent: value.used_percent,
+                };
+                if let Err(error) = self
+                    .services
+                    .control
+                    .observe_credential_quota_cycle(&observation)
+                    .await
+                {
+                    tracing::warn!(error = %error, "credential quota observation failed");
+                }
+            }
+        })
+    }
+
     fn wait<'a>(&'a self, duration: Duration) -> BoxFuture<'a, ()> {
         #[cfg(not(target_arch = "wasm32"))]
         return Box::pin(tokio::time::sleep(duration));

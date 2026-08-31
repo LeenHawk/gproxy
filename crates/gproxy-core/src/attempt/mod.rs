@@ -107,10 +107,12 @@ pub(crate) async fn send<H: Host>(
         let disposition = committed_disposition(classify(channel, &response, &[]), committed);
         crate::funnel::health::response(
             core.host.as_ref(),
+            channel,
             &facts.target,
             facts.credential_version,
             disposition,
             response.status(),
+            response.headers(),
         )
         .await;
         let key = facts.key.expect("operation attempt has an upstream key");
@@ -239,10 +241,12 @@ pub(crate) async fn send<H: Host>(
         committed_disposition(classify(channel, &response, response.body()), committed);
     crate::funnel::health::response(
         core.host.as_ref(),
+        channel,
         &facts.target,
         facts.credential_version,
         disposition,
         response.status(),
+        response.headers(),
     )
     .await;
     Ok(Completed {

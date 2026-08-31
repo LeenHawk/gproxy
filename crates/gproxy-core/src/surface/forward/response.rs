@@ -20,10 +20,12 @@ pub(super) async fn relay<H: Host>(
         let disposition = classify(channel, &response, &[]);
         crate::funnel::health::response(
             core.host.as_ref(),
+            channel,
             &facts.target,
             facts.credential_version,
             disposition,
             response.status(),
+            response.headers(),
         )
         .await;
         return if let Some(key) = key {
@@ -78,10 +80,12 @@ pub(super) async fn relay<H: Host>(
     let disposition = classify(channel, &response, response.body());
     crate::funnel::health::response(
         core.host.as_ref(),
+        channel,
         &facts.target,
         facts.credential_version,
         disposition,
         response.status(),
+        response.headers(),
     )
     .await;
     if key.is_some() {
@@ -111,6 +115,7 @@ pub(super) async fn relay<H: Host>(
 
 pub(super) async fn discard_retryable<H: Host>(
     core: &Core<H>,
+    channel: &dyn Channel,
     facts: &FunnelCtx,
     response: http::Response<ByteStream>,
     disposition: Disposition,
@@ -118,10 +123,12 @@ pub(super) async fn discard_retryable<H: Host>(
     let status = response.status();
     crate::funnel::health::response(
         core.host.as_ref(),
+        channel,
         &facts.target,
         facts.credential_version,
         disposition,
         status,
+        response.headers(),
     )
     .await;
     match crate::attempt::body::collect(response).await {

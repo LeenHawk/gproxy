@@ -375,6 +375,36 @@ pub trait Channel: Send + Sync {
     /// Pull usage out of a buffered response body.
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage>;
 
+    /// Upstream quota-window readings riding this response's headers. Fires
+    /// on every upstream response, billable or not — headers are all a
+    /// streaming response has at observation time.
+    fn observe_quota(&self, headers: &http::HeaderMap) -> Vec<crate::usage::QuotaObservation> {
+        let _ = headers;
+        Vec::new()
+    }
+
+    /// Build the request for this channel's dedicated usage endpoint, when it
+    /// has one. Some upstreams rate-limit these aggressively — callers probe
+    /// on demand, never per exchange. `None` = no probe for this channel.
+    fn prepare_quota_probe(
+        &self,
+        secret: &Value,
+        provider_settings: &Value,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        let _ = (secret, provider_settings);
+        Ok(None)
+    }
+
+    /// Parse the probe response into quota-window readings.
+    fn parse_quota_probe(
+        &self,
+        status: http::StatusCode,
+        body: &[u8],
+    ) -> Vec<crate::usage::QuotaObservation> {
+        let _ = (status, body);
+        Vec::new()
+    }
+
     /// Prepare the trusted observer for a successful long-lived session.
     /// The channel owns Location parsing, authentication, and event-meter
     /// construction; core owns the socket and final settlement.

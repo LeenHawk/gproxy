@@ -222,9 +222,13 @@
       "healthObserved": "观测于 {{time}}",
       "healthDetail": "健康详情",
       "modelHealth": {
-        "title": "按模型查看健康状态",
-        "credentialWide": "所有模型",
-        "count": "{{count}} 个模型"
+        "issues": "异常模型 {{count}} 个",
+        "more": "还有 {{count}} 个…"
+      },
+      "quotaProbe": {
+        "action": "拉取上游用量",
+        "success": "已观测 {{count}} 个配额窗口。",
+        "error": "配额探测失败。"
       },
       "quotaCycle": "配额周期",
       "noQuotaCycle": "尚未观测到上游配额周期。",

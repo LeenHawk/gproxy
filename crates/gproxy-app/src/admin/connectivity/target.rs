@@ -6,7 +6,7 @@ use gproxy_core::ProviderRef;
 
 use crate::AppHandle;
 
-pub(super) fn resolve(
+pub(in crate::admin) fn resolve(
     app: &AppHandle,
     request: &ConnectivityTestRequest,
 ) -> Result<(ProviderRef, ConnectivityProxySourceDto), AdminError> {
