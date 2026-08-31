@@ -6,7 +6,7 @@ use web_time::Instant;
 
 use crate::api::Core;
 use crate::boundary::{RequestCtx, ResponseBody, RoutingMode};
-use crate::control::{ControlPlane, DiscoveredModel, ExposedModel, FailoverBudget, Plan, Target};
+use crate::control::{ControlPlane, ExposedModel, FailoverBudget, Plan, Target};
 use crate::host::Host;
 
 pub(super) async fn run<H: Host>(
@@ -66,21 +66,12 @@ pub(super) async fn run<H: Host>(
                 })
             }
         });
-    let discovered = join_all(requests).await.into_iter().flatten();
+    // Read-only: what a provider reports is shown, never written. Which models a
+    // provider serves is the operator's decision, taken in the pull dialog.
     let mut persisted = Vec::new();
-    for (provider_id, provider, models) in discovered {
-        let rows = models
-            .iter()
-            .map(|model| DiscoveredModel {
-                model_id: model.upstream_id.clone(),
-                display_name: model.entry.display_name.clone(),
-                context_window: model.entry.context_window,
-                max_output_tokens: model.entry.max_output_tokens,
-            })
-            .collect::<Vec<_>>();
-        core.host.record_discovered_models(provider_id, &rows).await;
-        let _ = provider;
-        persisted.extend(models.into_iter().map(|model| model.entry));
+    for (provider_id, provider, models) in join_all(requests).await.into_iter().flatten() {
+        let _ = (provider_id, provider);
+        persisted.extend(models);
     }
     // The operator's rows win: anything disabled there never reaches a client, and
     // anything already recorded keeps the limits they set rather than the wire's.
@@ -100,12 +91,7 @@ pub(super) async fn run<H: Host>(
         .collect()
 }
 
-struct Discovered {
-    upstream_id: String,
-    entry: ExposedModel,
-}
-
-fn parse(family: WireFamily, provider: &str, body: &[u8]) -> Vec<Discovered> {
+fn parse(family: WireFamily, provider: &str, body: &[u8]) -> Vec<ExposedModel> {
     let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
         return Vec::new();
     };
@@ -119,7 +105,7 @@ fn parse(family: WireFamily, provider: &str, body: &[u8]) -> Vec<Discovered> {
     models.filter_map(|model| entry(provider, model)).collect()
 }
 
-fn entry(provider: &str, value: &serde_json::Value) -> Option<Discovered> {
+fn entry(provider: &str, value: &serde_json::Value) -> Option<ExposedModel> {
     let raw_id = value.get("id").or_else(|| value.get("name"))?.as_str()?;
     let id = raw_id.strip_prefix("models/").unwrap_or(raw_id);
     let entry = ExposedModel {
@@ -146,10 +132,8 @@ fn entry(provider: &str, value: &serde_json::Value) -> Option<Discovered> {
         thinking_adaptive_supported: boolean(value, "thinking_adaptive_supported"),
         thinking_enabled_supported: boolean(value, "thinking_enabled_supported"),
     };
-    Some(Discovered {
-        upstream_id: id.to_owned(),
-        entry,
-    })
+    let _ = id;
+    Some(entry)
 }
 
 fn text(value: &serde_json::Value, names: &[&str]) -> Option<String> {

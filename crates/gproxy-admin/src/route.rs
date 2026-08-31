@@ -39,6 +39,7 @@ pub(crate) enum Route {
     ConfigurationImport,
     ConnectivityTest,
     ModelTest,
+    ModelDiscover,
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -89,6 +90,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if segments.as_slice() == ["models", "test"] {
             return Some(Route::ModelTest);
+        }
+        if segments.as_slice() == ["models", "discover"] {
+            return Some(Route::ModelDiscover);
         }
         if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
             return Some(Route::ApplyRulePreset {
@@ -230,6 +234,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::LoginDevicePoll => action("channel_login.device_poll", "credentials", None),
         Route::LoginCookieExchange => provider_action("channel_login.cookie", body),
         Route::ModelTest => action("model.test", "providers", None),
+        Route::ModelDiscover => action("model.discover", "providers", None),
         Route::List(_)
         | Route::ConfigurationExport
         | Route::ConnectivityTest

@@ -85,6 +85,8 @@ fn export_console_types() {
         AliasDto,
         AliasWriteRequest,
         ModelAliasDto,
+        ModelDiscoverRequest,
+        ModelDiscoverResponse,
         ModelTestRequest,
         ModelTestResponse,
         ProviderModelDto,

@@ -25,35 +25,7 @@ pub(super) async fn run(
         .find(|provider| provider.id == request.provider_id)
         .ok_or_else(|| AdminError::BadRequest("unknown provider".into()))?;
 
-    // The oldest enabled key the operator owns: stable, and on a fresh instance it
-    // is the one bootstrap minted, so the button works before anything is configured.
-    let key = snapshot
-        .user_keys
-        .iter()
-        .filter(|key| key.user_id == actor_user_id && key.enabled)
-        .min_by_key(|key| key.id)
-        .ok_or_else(|| {
-            AdminError::BadRequest("this administrator has no enabled API key to test with".into())
-        })?;
-    let stored = app
-        .inner
-        .host
-        .services
-        .store
-        .user_key_secret(key.id)
-        .await?
-        .and_then(|secret| secret.envelope)
-        .ok_or_else(|| AdminError::Conflict("the test key predates revealable storage".into()))?;
-    let secret = app
-        .inner
-        .host
-        .services
-        .cipher
-        .open_user_key(&stored)
-        .map_err(|error| AdminError::Internal(error.to_string()))?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| AdminError::Internal("stored key is not a string".into()))?;
+    let (key_prefix, secret) = super::operator_key(app, actor_user_id, &snapshot).await?;
 
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -88,7 +60,6 @@ pub(super) async fn run(
     let started = Instant::now();
     let outcome = app.execute(ctx).await;
     let latency_ms = started.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
-    let key_prefix = key.prefix.clone().unwrap_or_else(|| format!("#{}", key.id));
 
     match outcome {
         Ok(outcome) => {

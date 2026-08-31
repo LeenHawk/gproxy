@@ -91,6 +91,18 @@ impl State for TestState {
         })
     }
 
+    fn discover_models<'a>(
+        &'a self,
+        _: i64,
+        _: &'a crate::dto::ModelDiscoverRequest,
+    ) -> BoxFuture<'a, Result<crate::dto::ModelDiscoverResponse, AdminError>> {
+        Box::pin(async {
+            Err(AdminError::BadRequest(
+                "model discovery unavailable in this test state".into(),
+            ))
+        })
+    }
+
     fn connectivity_test<'a>(
         &'a self,
         _: &'a crate::dto::ConnectivityTestRequest,

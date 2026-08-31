@@ -297,7 +297,18 @@
       "testTrailer": "{{latency}} ms · via {{key}}",
       "testEmpty": "Answered with no text.",
       "testFailed": "Upstream returned {{status}}.",
-      "testError": "Could not run the test."
+      "testError": "Could not run the test.",
+      "pull": "Pull from upstream",
+      "pullAdded": "Saved {{added}}.",
+      "pullFailed": "Upstream returned {{status}}.",
+      "pullError": "Could not reach the provider.",
+      "pulling": "Pulling…",
+      "pullTitle": "Models this provider reports",
+      "pullCount": "{{shown}} shown · {{selected}} selected",
+      "pullKnown": "Already added",
+      "pullAdd": "Add {{count}}",
+      "pullEmpty": "The provider reported no models.",
+      "pullGaps": "Fills {{count}}"
     }
   }
 }

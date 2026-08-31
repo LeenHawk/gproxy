@@ -20,7 +20,7 @@ use gproxy_protocol::OperationKey;
 
 use crate::boundary::RequestCtx;
 use crate::continuation::ContinuationStore;
-use crate::control::{DiscoveredModel, Plan, ProviderRef};
+use crate::control::{Plan, ProviderRef};
 use crate::error::CoreError;
 use crate::error::{StoreError, TransportError};
 use crate::usage::Settlement;
@@ -233,15 +233,6 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         body: &'a bytes::Bytes,
         tokenizer_map: Option<&'a serde_json::Value>,
     ) -> BoxFuture<'a, Result<u64, CoreError>>;
-    /// Persist ids discovered upstream. Additive by contract: a new id is inserted,
-    /// a missing field on an existing row is filled, and an operator's limits,
-    /// variants or enabled state are never overwritten. A model that stops being
-    /// reported is never deleted — absence upstream is not a decision.
-    fn record_discovered_models<'a>(
-        &'a self,
-        provider_id: i64,
-        models: &'a [DiscoveredModel],
-    ) -> BoxFuture<'a, ()>;
 
     fn record_credential_health<'a>(
         &'a self,

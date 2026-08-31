@@ -67,3 +67,30 @@ pub struct ModelTestResponse {
     pub reply: Option<String>,
     pub message: Option<String>,
 }
+
+/// Ask one provider what it serves. Nothing is written: which models a provider
+/// offers is the operator's decision, taken on the answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ModelDiscoverRequest {
+    pub provider_id: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ModelDiscoverResponse {
+    pub ok: bool,
+    pub status: u16,
+    pub latency_ms: u64,
+    pub key_prefix: String,
+    pub models: Vec<DiscoveredModelDto>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct DiscoveredModelDto {
+    pub model_id: String,
+    pub display_name: Option<String>,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    /// The operator already has a row for this id.
+    pub known: bool,
+}

@@ -30,7 +30,6 @@ pub(super) struct State {
     pub(super) wait_calls: usize,
     pub(super) rotations: Vec<u64>,
     pub(super) health: Vec<(CredentialId, String, CredentialHealth)>,
-    pub(super) discovered: Vec<(i64, String)>,
     pub(super) authorizations: Vec<String>,
     pub(super) upstream_requests: Vec<(http::HeaderMap, String)>,
     pub(super) upstream_bodies: Vec<Bytes>,
@@ -89,7 +88,6 @@ impl MemoryHost {
                 wait_calls: 0,
                 rotations: Vec::new(),
                 health: Vec::new(),
-                discovered: Vec::new(),
                 authorizations: Vec::new(),
                 upstream_requests: Vec::new(),
                 upstream_bodies: Vec::new(),
@@ -233,22 +231,6 @@ impl Host for MemoryHost {
     ) -> BoxFuture<'a, Result<u64, CoreError>> {
         let tokens = crate::usage::estimate_input_tokens(body);
         Box::pin(async move { Ok(tokens) })
-    }
-    fn record_discovered_models<'a>(
-        &'a self,
-        provider_id: i64,
-        models: &'a [crate::control::DiscoveredModel],
-    ) -> BoxFuture<'a, ()> {
-        let discovered = models
-            .iter()
-            .map(|model| (provider_id, model.model_id.clone()))
-            .collect::<Vec<_>>();
-        self.state
-            .lock()
-            .expect("state lock")
-            .discovered
-            .extend(discovered);
-        Box::pin(async {})
     }
 
     fn record_credential_health<'a>(

@@ -2,7 +2,6 @@ mod admission;
 mod bindings;
 mod continuations;
 mod credentials;
-mod models;
 mod sinks;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod tokenizers;
@@ -152,18 +151,6 @@ impl Host for AppHost {
                 ))
             })
         }
-    }
-
-    fn record_discovered_models<'a>(
-        &'a self,
-        provider_id: i64,
-        models: &'a [gproxy_core::DiscoveredModel],
-    ) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            if let Err(error) = crate::host::models::persist(self, provider_id, models).await {
-                tracing::warn!(provider_id, %error, "persisting discovered models failed");
-            }
-        })
     }
 
     fn record_credential_health<'a>(

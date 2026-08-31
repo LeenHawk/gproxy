@@ -297,7 +297,18 @@
       "testTrailer": "{{latency}} 毫秒 · 用 {{key}}",
       "testEmpty": "有回应,但没有文本。",
       "testFailed": "上游返回 {{status}}。",
-      "testError": "无法运行测试。"
+      "testError": "无法运行测试。",
+      "pull": "拉取上游模型",
+      "pullAdded": "已保存 {{added}} 个。",
+      "pullFailed": "上游返回 {{status}}。",
+      "pullError": "连不上这个供应商。",
+      "pulling": "拉取中…",
+      "pullTitle": "这个供应商报告的模型",
+      "pullCount": "显示 {{shown}} 个 · 已选 {{selected}} 个",
+      "pullKnown": "已添加",
+      "pullAdd": "添加 {{count}} 个",
+      "pullEmpty": "供应商没有报告任何模型。",
+      "pullGaps": "可补 {{count}} 项"
     }
   }
 }

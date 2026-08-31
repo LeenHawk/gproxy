@@ -3,7 +3,8 @@ use gproxy_store::records::CredentialEnvelope;
 
 use crate::dto::{
     ChannelDto, ConnectivityTestRequest, ConnectivityTestResponse, ExportSourceKeyDto,
-    ModelTestRequest, ModelTestResponse, PortalModelDto, TokenizerVocabDto,
+    ModelDiscoverRequest, ModelDiscoverResponse, ModelTestRequest, ModelTestResponse,
+    PortalModelDto, TokenizerVocabDto,
 };
 use crate::{AdminError, PortalIdentity};
 
@@ -64,6 +65,14 @@ pub trait State: MaybeSend + MaybeSync {
         actor_user_id: i64,
         request: &'a ModelTestRequest,
     ) -> BoxFuture<'a, Result<ModelTestResponse, AdminError>>;
+
+    /// Ask the provider for its catalogue through the funnel. Discovery is additive:
+    /// unseen ids are inserted, blank fields are filled, and the operator's edits stay.
+    fn discover_models<'a>(
+        &'a self,
+        actor_user_id: i64,
+        request: &'a ModelDiscoverRequest,
+    ) -> BoxFuture<'a, Result<ModelDiscoverResponse, AdminError>>;
 
     fn fetch_tokenizer_vocab<'a>(
         &'a self,

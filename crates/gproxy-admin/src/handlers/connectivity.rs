@@ -26,6 +26,18 @@ pub(super) async fn model_test(
     )
 }
 
+pub(super) async fn model_discover(
+    state: &impl State,
+    actor_user_id: i64,
+    body: &Bytes,
+) -> Result<Response<Bytes>, AdminError> {
+    let request: crate::dto::ModelDiscoverRequest = util::parse(body)?;
+    response::json(
+        StatusCode::OK,
+        &state.discover_models(actor_user_id, &request).await?,
+    )
+}
+
 fn validate(request: &ConnectivityTestRequest) -> Result<(), AdminError> {
     let valid = match request.scope {
         crate::dto::ConnectivityScopeDto::Global => {
