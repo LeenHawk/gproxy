@@ -56,7 +56,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     };
     let caller_query = crate::policy::request_query(crate::policy::GEMINI_CLI, &ctx)?;
     let query = crate::shared::http::merge_query(caller_query.as_deref(), query);
-    let uri = endpoint_uri(&ctx, endpoint, path, query.as_deref())?;
+    let uri = endpoint_uri(ctx.provider_settings, endpoint, path, query.as_deref())?;
     let mut headers = crate::policy::request_headers(crate::policy::GEMINI_CLI, &ctx)?;
     apply_headers(
         &mut headers,
@@ -79,14 +79,13 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     })
 }
 
-fn endpoint_uri(
-    ctx: &PrepareCtx<'_>,
+pub(super) fn endpoint_uri(
+    settings: &Value,
     name: &str,
     path: &str,
     query: Option<&str>,
 ) -> Result<http::Uri, ChannelError> {
-    if let Some(url) = ctx
-        .provider_settings
+    if let Some(url) = settings
         .get("endpoints")
         .and_then(|endpoints| endpoints.get(name))
         .and_then(Value::as_str)
@@ -95,8 +94,7 @@ fn endpoint_uri(
     {
         return crate::shared::http::exact(url, query);
     }
-    let base = ctx
-        .provider_settings
+    let base = settings
         .get("base_url")
         .and_then(Value::as_str)
         .map(str::trim)
@@ -105,7 +103,7 @@ fn endpoint_uri(
     crate::shared::http::join(base, path, query)
 }
 
-fn apply_headers(
+pub(super) fn apply_headers(
     headers: &mut http::HeaderMap,
     token: &str,
     model: &str,

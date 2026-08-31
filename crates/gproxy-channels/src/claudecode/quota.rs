@@ -73,10 +73,18 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             },
             _ => continue,
         };
-        if observations.iter().any(|existing| existing.window_key == key) {
+        if observations
+            .iter()
+            .any(|existing| existing.window_key == key)
+        {
             continue;
         }
-        observations.push(observation(key, duration, limit.percent, limit.resets_at.as_deref()));
+        observations.push(observation(
+            key,
+            duration,
+            limit.percent,
+            limit.resets_at.as_deref(),
+        ));
     }
     observations
 }
@@ -190,8 +198,14 @@ mod tests {
             ]
         });
         let observed = parse_probe(http::StatusCode::OK, &serde_json::to_vec(&body).unwrap());
-        let keys: Vec<&str> = observed.iter().map(|value| value.window_key.as_str()).collect();
-        assert_eq!(keys, ["five_hour", "seven_day", "weekly_model:claude_opus_5"]);
+        let keys: Vec<&str> = observed
+            .iter()
+            .map(|value| value.window_key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            ["five_hour", "seven_day", "weekly_model:claude_opus_5"]
+        );
         assert_eq!(observed[0].used_percent, Some("34.5".parse().unwrap()));
         let end = observed[0].period_end.unwrap();
         assert_eq!(observed[0].period_start, Some(end - 5 * 60 * 60));

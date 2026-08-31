@@ -27,8 +27,7 @@ impl<H: Host> Core<H> {
             .get(channel)
             .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
         let record = self.host.credentials().load(credential).await?;
-        let Some(mut request) =
-            channel.prepare_quota_probe(&record.secret, &provider.settings)?
+        let Some(mut request) = channel.prepare_quota_probe(&record.secret, &provider.settings)?
         else {
             return Err(CoreError::Unsupported);
         };

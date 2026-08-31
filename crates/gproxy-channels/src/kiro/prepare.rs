@@ -9,7 +9,7 @@ const AMZ_JSON: &str = "application/x-amz-json-1.0";
 const TARGET_GENERATE: &str = "AmazonCodeWhispererStreamingService.GenerateAssistantResponse";
 const TARGET_MODELS: &str = "AmazonCodeWhispererService.ListAvailableModels";
 const UA_RUNTIME: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererstreaming/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
-const UA_MANAGEMENT: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererruntime/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
+pub(super) const UA_MANAGEMENT: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererruntime/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     if ctx.key.operation == Operation::ListModels {
@@ -88,7 +88,7 @@ fn model_list(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     )
 }
 
-fn prepared(
+pub(super) fn prepared(
     mut headers: http::HeaderMap,
     uri: http::Uri,
     body: Bytes,

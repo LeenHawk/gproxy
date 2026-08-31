@@ -75,7 +75,9 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             window_key: window_key.to_owned(),
             period_start,
             period_end,
-            used_percent: window.used_percent.and_then(|value| Decimal::try_from(value).ok()),
+            used_percent: window
+                .used_percent
+                .and_then(|value| Decimal::try_from(value).ok()),
             upstream_used: None,
             upstream_limit: None,
         })

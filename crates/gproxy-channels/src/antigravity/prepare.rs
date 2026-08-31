@@ -5,7 +5,7 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue, USER_AGENT};
 use serde_json::Value;
 
 const BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
-const USER_AGENT_VALUE: &str = "antigravity/cli/1.0.6 linux/amd64";
+pub(super) const USER_AGENT_VALUE: &str = "antigravity/cli/1.0.6 linux/amd64";
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access = super::auth::access_token(ctx.secret)?;
@@ -54,7 +54,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     };
     let caller_query = crate::policy::request_query(crate::policy::ANTIGRAVITY, &ctx)?;
     let query = crate::shared::http::merge_query(caller_query.as_deref(), query);
-    let uri = endpoint_uri(&ctx, endpoint, path, query.as_deref())?;
+    let uri = endpoint_uri(ctx.provider_settings, endpoint, path, query.as_deref())?;
     let mut headers = crate::policy::request_headers(crate::policy::ANTIGRAVITY, &ctx)?;
     headers.insert(
         AUTHORIZATION,
@@ -78,14 +78,13 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     })
 }
 
-fn endpoint_uri(
-    ctx: &PrepareCtx<'_>,
+pub(super) fn endpoint_uri(
+    settings: &Value,
     name: &str,
     path: &str,
     query: Option<&str>,
 ) -> Result<http::Uri, ChannelError> {
-    if let Some(url) = ctx
-        .provider_settings
+    if let Some(url) = settings
         .get("endpoints")
         .and_then(|endpoints| endpoints.get(name))
         .and_then(Value::as_str)
@@ -94,8 +93,7 @@ fn endpoint_uri(
     {
         return crate::shared::http::exact(url, query);
     }
-    let base = ctx
-        .provider_settings
+    let base = settings
         .get("base_url")
         .and_then(Value::as_str)
         .map(str::trim)

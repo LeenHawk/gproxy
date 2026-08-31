@@ -3,6 +3,7 @@ mod routes;
 mod auth;
 mod multipart;
 mod prepare;
+mod quota;
 mod resource;
 mod shape;
 mod sse;
@@ -145,6 +146,20 @@ impl Channel for GrokBuildChannel {
     }
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
         usage::from_body(ctx)
+    }
+    fn prepare_quota_probe(
+        &self,
+        secret: &Value,
+        provider_settings: &Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        quota::probe_request(secret, provider_settings)
+    }
+    fn parse_quota_probe(
+        &self,
+        status: http::StatusCode,
+        body: &[u8],
+    ) -> Vec<gproxy_channel_api::QuotaObservation> {
+        quota::parse_probe(status, body)
     }
     fn settlement_ready(
         &self,

@@ -4,8 +4,6 @@ use http::header::{ACCEPT, CONTENT_TYPE, HeaderName};
 use serde::Deserialize;
 use serde_json::Value;
 
-const DEFAULT_BASE_URL: &str = "https://copilot.tencent.com";
-
 pub(super) fn due(secret: &Value) -> Option<i64> {
     super::auth::field(secret, "refresh_token")?;
     if super::auth::field(secret, "access_token").is_none() {
@@ -67,8 +65,11 @@ pub(super) fn refresh<'a>(
 }
 
 fn request(secret: &Value, settings: &Value) -> Result<http::Request<Bytes>, ChannelError> {
-    let base = super::auth::field(settings, "base_url").unwrap_or(DEFAULT_BASE_URL);
-    let uri = crate::shared::http::join(base, "/v2/plugin/auth/token/refresh", None)?;
+    let uri = crate::shared::http::join(
+        super::auth::base_url(settings),
+        "/v2/plugin/auth/token/refresh",
+        None,
+    )?;
     let mut request = http::Request::post(uri)
         .header(ACCEPT, "application/json")
         .header(CONTENT_TYPE, "application/json")

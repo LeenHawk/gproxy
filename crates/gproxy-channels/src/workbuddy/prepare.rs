@@ -2,7 +2,6 @@ use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest};
 use http::header::{CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
-const DEFAULT_BASE_URL: &str = "https://copilot.tencent.com";
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let path = super::model::path(ctx.key);
     let uri = endpoint(&ctx, path)?;
@@ -45,12 +44,5 @@ fn endpoint(ctx: &PrepareCtx<'_>, path: &str) -> Result<http::Uri, ChannelError>
             None,
         );
     }
-    let base = ctx
-        .provider_settings
-        .get("base_url")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|base| !base.is_empty())
-        .unwrap_or(DEFAULT_BASE_URL);
-    crate::shared::http::join(base, path, None)
+    crate::shared::http::join(super::auth::base_url(ctx.provider_settings), path, None)
 }

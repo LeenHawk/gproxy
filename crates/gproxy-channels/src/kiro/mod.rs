@@ -6,6 +6,7 @@ mod endpoint;
 mod model_list;
 mod prepare;
 mod profile;
+mod quota;
 mod request;
 mod sse;
 mod tool_stream;
@@ -130,6 +131,22 @@ impl Channel for KiroChannel {
 
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
         usage::from_body(ctx.response_body)
+    }
+
+    fn prepare_quota_probe(
+        &self,
+        secret: &Value,
+        provider_settings: &Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        quota::probe_request(secret, provider_settings)
+    }
+
+    fn parse_quota_probe(
+        &self,
+        status: http::StatusCode,
+        body: &[u8],
+    ) -> Vec<gproxy_channel_api::QuotaObservation> {
+        quota::parse_probe(status, body)
     }
 
     fn shape_response(

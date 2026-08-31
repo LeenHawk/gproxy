@@ -58,9 +58,18 @@ pub(super) fn refresh<'a>(
 }
 
 fn refresh_request(secret: &Value) -> Result<http::Request<Bytes>, ChannelError> {
+    github_request(secret, TOKEN_URL)
+}
+
+/// GitHub-token request with the Copilot editor fingerprint — the long-lived
+/// `token <github_token>` scheme, not the short-lived Copilot bearer.
+pub(super) fn github_request(
+    secret: &Value,
+    url: &str,
+) -> Result<http::Request<Bytes>, ChannelError> {
     let github = required(secret, "github_token")?;
     let vscode = field(secret, "vscode_version").unwrap_or(DEFAULT_VSCODE_VERSION);
-    let mut request = http::Request::get(TOKEN_URL)
+    let mut request = http::Request::get(url)
         .header(AUTHORIZATION, format!("token {github}"))
         .header("editor-version", format!("vscode/{vscode}"))
         .header("editor-plugin-version", EDITOR_PLUGIN_VERSION)
@@ -68,7 +77,7 @@ fn refresh_request(secret: &Value) -> Result<http::Request<Bytes>, ChannelError>
         .header("x-github-api-version", API_VERSION)
         .header(ACCEPT, "application/json")
         .body(Bytes::new())
-        .map_err(|error| ChannelError::Refresh(error.to_string()))?;
+        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
     request
         .extensions_mut()
         .insert(super::profile::CLIENT_PROFILE.clone());

@@ -2,6 +2,12 @@ use gproxy_channel_api::ChannelError;
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use serde_json::Value;
 
+const DEFAULT_BASE_URL: &str = "https://copilot.tencent.com";
+
+pub(super) fn base_url(settings: &Value) -> &str {
+    field(settings, "base_url").unwrap_or(DEFAULT_BASE_URL)
+}
+
 pub(super) fn apply(headers: &mut http::HeaderMap, secret: &Value) -> Result<(), ChannelError> {
     insert(
         headers,
