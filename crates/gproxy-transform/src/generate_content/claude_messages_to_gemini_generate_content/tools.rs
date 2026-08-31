@@ -14,23 +14,7 @@ pub(super) fn definitions(
     for tool in tools {
         match tool {
             claude::Tool::Custom(tool) => {
-                if tool.eager_input_streaming.is_some()
-                    || !tool.rest.is_empty()
-                    || tool.common.allowed_callers.is_some()
-                    || tool.common.cache_control.is_some()
-                    || tool.common.defer_loading.is_some()
-                    || !tool.common.input_examples.is_empty()
-                    || tool.common.strict.is_some()
-                    || !tool.common.rest.is_empty()
-                {
-                    return Err(TransformError::unsupported(
-                        "Claude custom tool",
-                        "fields without a Gemini counterpart",
-                    ));
-                }
-                let description = tool.description.ok_or_else(|| {
-                    TransformError::shape("Claude tool", "description is missing")
-                })?;
+                let description = tool.description.unwrap_or_default();
                 output
                     .function_declarations
                     .get_or_insert_with(Vec::new)
@@ -51,21 +35,8 @@ pub(super) fn definitions(
             claude::Tool::TextEditor(editor) if native::editor(&editor) => {
                 output.code_execution = Some(gemini::CodeExecution::default());
             }
-            claude::Tool::WebSearch(_) => {
-                return Err(TransformError::unsupported(
-                    "Claude web-search tool",
-                    "native definition mapping is not lossless",
-                ));
-            }
-            claude::Tool::Unknown(raw) => {
-                return Err(TransformError::unsupported("Claude tool", raw.to_string()));
-            }
-            other => {
-                return Err(TransformError::unsupported(
-                    "Claude tool",
-                    serde_json::to_string(&other)?,
-                ));
-            }
+            claude::Tool::WebSearch(_) | claude::Tool::Unknown(_) => {}
+            _future => {}
         }
     }
     Ok((!is_empty(&output)).then_some(output).into_iter().collect())

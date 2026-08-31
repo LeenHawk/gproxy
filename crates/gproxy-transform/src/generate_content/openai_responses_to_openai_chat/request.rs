@@ -11,21 +11,6 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
-    if input.background.is_some()
-        || input.context_management.is_some()
-        || input.conversation.is_some()
-        || input.include.is_some()
-        || input.max_tool_calls.is_some()
-        || input.multi_agent.is_some()
-        || input.previous_response_id.is_some()
-        || input.prompt.is_some()
-        || input.truncation.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "OpenAI Responses request",
-            "a Responses-only request parameter",
-        ));
-    }
     let mut messages = Vec::new();
     match input.input {
         Some(openai::ResponseInput::Text(text)) => messages.push(user_text(text)),
@@ -131,10 +116,12 @@ fn item_messages(
     item: openai::ResponseItem,
 ) -> Result<Vec<openai::ChatCompletionMessageParam>, TransformError> {
     match item {
+        openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_)) => Ok(Vec::new()),
         openai::ResponseItem::Message(message) => Ok(vec![message_to_chat(message)?]),
         openai::ResponseItem::Typed(item) => typed_messages(*item),
         openai::ResponseItem::Unknown(raw) => {
-            Ok(vec![openai::ChatCompletionMessageParam::Unknown(raw)])
+            let _ = raw;
+            Ok(Vec::new())
         }
     }
 }
@@ -201,7 +188,15 @@ fn message_to_chat(
             }),
         ),
         openai::ResponseMessageItem::Unknown(raw) => {
-            Ok(openai::ChatCompletionMessageParam::Unknown(raw))
+            let _ = raw;
+            Ok(openai::ChatCompletionMessageParam::User(
+                openai::ChatUserMessageParam {
+                    role: openai::ChatUserRole::User,
+                    content: openai::ChatContent::Text(String::new()),
+                    name: None,
+                    rest: Default::default(),
+                },
+            ))
         }
     }
 }

@@ -26,7 +26,6 @@ pub(crate) fn to_chat(
     let Some(config) = config else {
         return Ok(empty());
     };
-    reject_unsupported(&config)?;
     let audio_requested = config.response_modalities.as_ref().is_some_and(|values| {
         values.iter().any(|value| {
             matches!(
@@ -150,20 +149,6 @@ fn reasoning(
             ));
         }
     }))
-}
-
-fn reject_unsupported(config: &gemini::GenerationConfig) -> Result<(), TransformError> {
-    if config.top_k.is_some()
-        || config.enable_enhanced_civic_answers.is_some()
-        || config.image_config.is_some()
-        || config.media_resolution.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "Gemini generation config",
-            "a Gemini-only option",
-        ));
-    }
-    Ok(())
 }
 
 fn unsigned(value: i32, field: &'static str) -> Result<u32, TransformError> {

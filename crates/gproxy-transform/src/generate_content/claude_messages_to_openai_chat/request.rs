@@ -9,22 +9,6 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
-    if input.cache_control.is_some()
-        || input.container.is_some()
-        || input.context_management.is_some()
-        || input.diagnostics.is_some()
-        || input.fallback_credit_token.is_some()
-        || input.fallbacks.is_some()
-        || input.inference_geo.is_some()
-        || input.mcp_servers.is_some()
-        || input.top_k.is_some()
-        || input.user_profile_id.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "Claude request",
-            "a Claude-only request parameter",
-        ));
-    }
     let mut messages = Vec::new();
     if let Some(system) = input.system {
         messages.push(openai::ChatCompletionMessageParam::System(

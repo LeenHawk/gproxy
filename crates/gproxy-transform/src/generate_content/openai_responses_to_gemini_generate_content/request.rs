@@ -9,7 +9,6 @@ use crate::generate_content::gemini_generate_content_to_openai_responses::config
 
 pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
-    reject_unsupported(&input)?;
     let effort = input
         .reasoning
         .as_ref()
@@ -112,30 +111,6 @@ fn response_format(
             ));
         }
     })
-}
-
-fn reject_unsupported(input: &openai::ResponseCreateRequest) -> Result<(), TransformError> {
-    let unsupported = input.background.is_some()
-        || input.context_management.is_some()
-        || input.conversation.is_some()
-        || input.include.is_some()
-        || input.max_tool_calls.is_some()
-        || input.metadata.is_some()
-        || input.moderation.is_some()
-        || input.multi_agent.is_some()
-        || input.parallel_tool_calls.is_some()
-        || input.previous_response_id.is_some()
-        || input.prompt.is_some()
-        || input.safety_identifier.is_some()
-        || input.truncation.is_some()
-        || input.user.is_some();
-    if unsupported {
-        return Err(TransformError::unsupported(
-            "Responses request",
-            "a Responses-only request parameter",
-        ));
-    }
-    Ok(())
 }
 
 fn to_i32(value: u32) -> Result<i32, TransformError> {

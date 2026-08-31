@@ -4,7 +4,7 @@ use gproxy_protocol::{claude, gemini};
 
 use crate::TransformError;
 
-use super::{functions, media, native, validate};
+use super::{functions, media, native};
 use crate::generate_content::claude_messages_to_gemini_generate_content::tools;
 
 pub(crate) fn system(
@@ -46,12 +46,6 @@ pub(crate) fn request_messages(
     let mut native_ids = BTreeSet::new();
     let mut output = Vec::new();
     for message in messages {
-        if !message.rest.is_empty() {
-            return Err(TransformError::unsupported(
-                "Claude message",
-                "message rest",
-            ));
-        }
         let role = role(message.role)?;
         let blocks = match message.content {
             claude::StringOrArray::String(text) => {
@@ -79,10 +73,12 @@ pub(crate) fn request_messages(
         };
         let mut parts = Vec::new();
         for block in blocks {
-            parts.push(block_to_part(block, &mut names, &mut native_ids)?);
+            if let Some(part) = block_to_part(block, &mut names, &mut native_ids)? {
+                parts.push(part);
+            }
         }
         if !parts.is_empty() {
-            output.push(content(parts, role, Default::default()));
+            output.push(content(parts, role, message.rest));
         }
     }
     Ok(output)
@@ -92,34 +88,28 @@ fn block_to_part(
     block: claude::ContentBlockParam,
     names: &mut BTreeMap<String, String>,
     native_ids: &mut BTreeSet<String>,
-) -> Result<gemini::Part, TransformError> {
-    Ok(match block {
-        claude::ContentBlockParam::Text(block) => {
-            validate::text(&block)?;
-            super::text_part(block.text, Default::default())
-        }
-        claude::ContentBlockParam::Thinking(block) => {
-            validate::thinking(&block)?;
-            functions::thought(block)
-        }
+) -> Result<Option<gemini::Part>, TransformError> {
+    Ok(Some(match block {
+        claude::ContentBlockParam::Text(block) => super::text_part(block.text, block.rest),
+        claude::ContentBlockParam::Thinking(block) => functions::thought(block),
         claude::ContentBlockParam::Image(block) => {
-            validate::image(&block)?;
-            media::image(block.source)?
+            let mut part = media::image(block.source)?;
+            part.rest.extend(block.rest);
+            part
         }
         claude::ContentBlockParam::Document(block) => {
-            validate::document(&block)?;
-            media::document(block.source)?
+            let mut part = media::document(block.source)?;
+            part.rest.extend(block.rest);
+            part
         }
         claude::ContentBlockParam::ToolUse(mut block) if tools::is_native_name(&block.name) => {
-            validate::tool_use(&block)?;
             native_ids.insert(block.id.clone());
             let signature = functions::take_signature(&mut block.caller)?;
-            let mut part = native::call(block.id, block.input, Default::default())?;
+            let mut part = native::call(block.id, block.input, block.rest)?;
             part.thought_signature = signature;
             part
         }
         claude::ContentBlockParam::ToolUse(mut block) => {
-            validate::tool_use(&block)?;
             names.insert(block.id.clone(), block.name.clone());
             let signature = functions::take_signature(&mut block.caller)?;
             functions::function_call(block, signature)
@@ -127,35 +117,31 @@ fn block_to_part(
         claude::ContentBlockParam::ServerToolUse(block)
             if tools::is_server_native_name(&block.name) =>
         {
-            validate::server_tool(&block)?;
             native_ids.insert(block.id.clone());
-            native::call(block.id, block.input, Default::default())?
+            native::call(block.id, block.input, block.rest)?
         }
         claude::ContentBlockParam::ToolResult(block) if native_ids.contains(&block.tool_use_id) => {
-            validate::tool_result(&block)?;
             native::result(block)?
         }
-        claude::ContentBlockParam::ToolResult(block) => {
-            validate::tool_result(&block)?;
-            functions::function_result(block, names)?
-        }
+        claude::ContentBlockParam::ToolResult(block) => functions::function_result(block, names)?,
         claude::ContentBlockParam::BashCodeExecutionToolResult(block) => {
-            validate::bash_result(&block)?;
             native::request_bash_result(block)?
         }
-        claude::ContentBlockParam::Raw(raw) => {
-            return Err(TransformError::unsupported(
-                "Claude raw block",
-                raw.to_string(),
-            ));
-        }
-        other => {
-            return Err(TransformError::unsupported(
-                "Claude content block",
-                serde_json::to_string(&other)?,
-            ));
-        }
-    })
+        claude::ContentBlockParam::Raw(_)
+        | claude::ContentBlockParam::RedactedThinking(_)
+        | claude::ContentBlockParam::ServerToolUse(_)
+        | claude::ContentBlockParam::McpToolUse(_)
+        | claude::ContentBlockParam::McpToolResult(_)
+        | claude::ContentBlockParam::WebSearchToolResult(_)
+        | claude::ContentBlockParam::WebFetchToolResult(_)
+        | claude::ContentBlockParam::CodeExecutionToolResult(_)
+        | claude::ContentBlockParam::TextEditorCodeExecutionToolResult(_)
+        | claude::ContentBlockParam::ToolSearchToolResult(_)
+        | claude::ContentBlockParam::ContainerUpload(_)
+        | claude::ContentBlockParam::Compaction(_)
+        | claude::ContentBlockParam::Fallback(_) => return Ok(None),
+        _future => return Ok(None),
+    }))
 }
 
 fn content(
@@ -187,11 +173,5 @@ fn role(role: claude::MessageRole) -> Result<gemini::ContentRole, TransformError
 }
 
 fn system_part(block: claude::TextBlock) -> Result<gemini::Part, TransformError> {
-    if block.cache_control.is_some() || block.citations.is_some() || !block.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Claude system block",
-            "cache, citations, or rest",
-        ));
-    }
-    Ok(super::text_part(block.text, Default::default()))
+    Ok(super::text_part(block.text, block.rest))
 }

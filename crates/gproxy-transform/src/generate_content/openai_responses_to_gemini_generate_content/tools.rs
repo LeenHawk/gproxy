@@ -140,27 +140,11 @@ pub(super) fn to_gemini(
                 }]),
                 ..Default::default()
             }),
-            openai::ResponseTool::WebFetch { .. } => {
-                return Err(TransformError::unsupported("Responses tool", "web_fetch"));
-            }
-            openai::ResponseTool::Memory { .. } => {
-                return Err(TransformError::unsupported("Responses tool", "memory"));
-            }
-            openai::ResponseTool::ImageGeneration { .. } => {
-                return Err(TransformError::unsupported(
-                    "Responses tool",
-                    "image_generation",
-                ));
-            }
-            openai::ResponseTool::ToolSearch { .. } => {
-                return Err(TransformError::unsupported("Responses tool", "tool_search"));
-            }
-            openai::ResponseTool::ProgrammaticToolCalling { .. } => {
-                return Err(TransformError::unsupported(
-                    "Responses tool",
-                    "programmatic_tool_calling",
-                ));
-            }
+            openai::ResponseTool::WebFetch { .. }
+            | openai::ResponseTool::Memory { .. }
+            | openai::ResponseTool::ImageGeneration { .. }
+            | openai::ResponseTool::ToolSearch { .. }
+            | openai::ResponseTool::ProgrammaticToolCalling { .. } => {}
         }
     }
     if !declarations.is_empty() {

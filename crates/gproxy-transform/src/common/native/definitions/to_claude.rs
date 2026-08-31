@@ -373,11 +373,9 @@ fn fallback(
 fn schema(
     parameters: openai::ResponseFunctionParameters,
 ) -> Result<claude::JsonSchema, TransformError> {
-    let openai::ResponseFunctionParameters::Schema(schema) = parameters else {
-        return Err(TransformError::shape(
-            "OpenAI function tool",
-            "parameters are null",
-        ));
+    let schema = match parameters {
+        openai::ResponseFunctionParameters::Schema(schema) => schema,
+        openai::ResponseFunctionParameters::Null => Default::default(),
     };
     Ok(serde_json::from_value(serde_json::Value::Object(schema))?)
 }

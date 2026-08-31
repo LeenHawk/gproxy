@@ -8,7 +8,6 @@ use super::{config, content::ContentConverter, tools};
 pub(crate) fn transform(body: Bytes, model: &str, stream: bool) -> Result<Bytes, TransformError> {
     let input: gemini::GenerateContentRequest = serde_json::from_slice(&body)?;
     let generation = input.generation_config;
-    reject_unsupported(generation.as_ref(), input.safety_settings.as_ref())?;
     let mut converter = ContentConverter::new();
     let output = openai::ResponseCreateRequest {
         background: None,
@@ -163,26 +162,6 @@ fn text_config(
         verbosity: None,
         rest: Default::default(),
     }))
-}
-
-fn reject_unsupported(
-    config: Option<&gemini::GenerationConfig>,
-    safety: Option<&Vec<gemini::SafetySetting>>,
-) -> Result<(), TransformError> {
-    let unsupported = safety.is_some()
-        || config.is_some_and(|value| {
-            value.stop_sequences.is_some()
-                || value.response_modalities.is_some()
-                || value.speech_config.is_some()
-                || value.image_config.is_some()
-        });
-    if unsupported {
-        return Err(TransformError::unsupported(
-            "Gemini request",
-            "safety, stop, image, or audio-only generation settings",
-        ));
-    }
-    Ok(())
 }
 
 fn nonnegative(value: i32) -> Result<u32, TransformError> {

@@ -93,11 +93,8 @@ pub(super) fn easy_text(
                 .collect::<Result<_, _>>()?,
         )),
         openai::ResponseEasyInputContent::Unknown(raw) => Ok(openai::ChatTextContent::Unknown(raw)),
-        unsupported @ openai::ResponseEasyInputContent::OutputParts(_) => {
-            Err(TransformError::unsupported(
-                "Responses text content",
-                serde_json::to_string(&unsupported)?,
-            ))
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            Ok(openai::ChatTextContent::Parts(output_text_parts(parts)))
         }
     }
 }
@@ -114,13 +111,45 @@ pub(super) fn easy_user(
                 .collect::<Result<_, _>>()?,
         )),
         openai::ResponseEasyInputContent::Unknown(raw) => Ok(openai::ChatContent::Unknown(raw)),
-        unsupported @ openai::ResponseEasyInputContent::OutputParts(_) => {
-            Err(TransformError::unsupported(
-                "Responses user content",
-                serde_json::to_string(&unsupported)?,
-            ))
-        }
+        openai::ResponseEasyInputContent::OutputParts(parts) => Ok(openai::ChatContent::Parts(
+            output_text_parts(parts)
+                .into_iter()
+                .filter_map(|part| match part {
+                    openai::ChatTextContentPart::Text(part) => {
+                        Some(openai::ChatContentPart::Text(part))
+                    }
+                    openai::ChatTextContentPart::Unknown(_) => None,
+                })
+                .collect(),
+        )),
     }
+}
+
+fn output_text_parts(
+    parts: Vec<openai::ResponseMessageOutputContentPart>,
+) -> Vec<openai::ChatTextContentPart> {
+    parts
+        .into_iter()
+        .filter_map(|part| match part {
+            openai::ResponseMessageOutputContentPart::OutputText(part) => {
+                Some(openai::ChatTextContentPart::Text(openai::ChatTextPart {
+                    type_: openai::ChatTextPartType::Text,
+                    text: part.text,
+                    prompt_cache_breakpoint: None,
+                    rest: part.rest,
+                }))
+            }
+            openai::ResponseMessageOutputContentPart::Refusal(part) => {
+                Some(openai::ChatTextContentPart::Text(openai::ChatTextPart {
+                    type_: openai::ChatTextPartType::Text,
+                    text: part.refusal,
+                    prompt_cache_breakpoint: None,
+                    rest: part.rest,
+                }))
+            }
+            openai::ResponseMessageOutputContentPart::Unknown(_) => None,
+        })
+        .collect()
 }
 
 pub(super) fn easy_assistant(

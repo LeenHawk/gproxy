@@ -3,7 +3,6 @@ mod media;
 mod native;
 mod request;
 mod response;
-mod validate;
 
 pub(crate) use request::{request_messages, system};
 pub(crate) use response::{response_block, response_content};

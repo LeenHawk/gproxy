@@ -22,17 +22,35 @@ pub(crate) fn claude_to_chat(
 pub(crate) fn responses_to_claude(
     tools: Option<Vec<openai::ResponseTool>>,
 ) -> Result<Option<Vec<claude::Tool>>, TransformError> {
-    tools
-        .map(|tools| tools.into_iter().map(response_tool_to_claude).collect())
-        .transpose()
+    let Some(tools) = tools else {
+        return Ok(None);
+    };
+    let mut output = Vec::new();
+    for tool in tools {
+        match native::definitions::response_to_claude(tool) {
+            Ok(tool) => output.push(tool),
+            Err(TransformError::Unsupported { .. }) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok((!output.is_empty()).then_some(output))
 }
 
 pub(crate) fn claude_to_responses(
     tools: Option<Vec<claude::Tool>>,
 ) -> Result<Option<Vec<openai::ResponseTool>>, TransformError> {
-    tools
-        .map(|tools| tools.into_iter().map(claude_tool_to_response).collect())
-        .transpose()
+    let Some(tools) = tools else {
+        return Ok(None);
+    };
+    let mut output = Vec::new();
+    for tool in tools {
+        match native::definitions::claude_to_response(tool) {
+            Ok(tool) => output.push(tool),
+            Err(TransformError::Unsupported { .. }) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok((!output.is_empty()).then_some(output))
 }
 
 pub(crate) fn chat_to_responses(
@@ -295,32 +313,6 @@ fn claude_tool_to_chat(tool: claude::Tool) -> Result<openai::ChatTool, Transform
             "Claude tool",
             serde_json::to_string(&other)?,
         )),
-    }
-}
-
-fn response_tool_to_claude(tool: openai::ResponseTool) -> Result<claude::Tool, TransformError> {
-    native::definitions::response_to_claude(tool)
-}
-
-fn claude_tool_to_response(tool: claude::Tool) -> Result<openai::ResponseTool, TransformError> {
-    match tool {
-        claude::Tool::Custom(tool) => Ok(openai::ResponseTool::Function {
-            name: tool.name,
-            parameters: openai::ResponseFunctionParameters::Schema(schema_to_openai(
-                tool.input_schema,
-            )?),
-            strict: tool
-                .common
-                .strict
-                .map(openai::ResponseFunctionStrict::Value)
-                .unwrap_or(openai::ResponseFunctionStrict::Absent),
-            defer_loading: tool.common.defer_loading,
-            description: tool.description,
-            output_schema: None,
-            allowed_callers: callers_to_openai(tool.common.allowed_callers),
-            rest: merge(tool.rest, tool.common.rest),
-        }),
-        other => native::definitions::claude_to_response(other),
     }
 }
 

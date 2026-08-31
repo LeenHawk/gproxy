@@ -18,9 +18,7 @@ pub(crate) fn transform(
             openai::ChatTool::Function(tool) => {
                 declarations.push(gemini::FunctionDeclaration {
                     name: tool.function.name,
-                    description: tool.function.description.ok_or_else(|| {
-                        TransformError::shape("Chat function tool", "description is missing")
-                    })?,
+                    description: tool.function.description.unwrap_or_default(),
                     behavior: None,
                     parameters: None,
                     parameters_json_schema: tool.function.parameters.map(serde_json::Value::Object),
@@ -32,9 +30,7 @@ pub(crate) fn transform(
             openai::ChatTool::Custom(tool) => {
                 declarations.push(gemini::FunctionDeclaration {
                     name: tool.custom.name,
-                    description: tool.custom.description.ok_or_else(|| {
-                        TransformError::shape("Chat custom tool", "description is missing")
-                    })?,
+                    description: tool.custom.description.unwrap_or_default(),
                     behavior: None,
                     parameters: None,
                     parameters_json_schema: None,

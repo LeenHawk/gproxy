@@ -12,7 +12,6 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
-    reject_unsupported(&input)?;
     let max_tokens = input
         .max_output_tokens
         .map(u64::from)
@@ -102,17 +101,17 @@ fn input_messages(
             vec![text_block(text)],
             Default::default(),
         )]),
-        Some(openai::ResponseInput::Items(items)) => items.into_iter().map(input_item).collect(),
-        Some(openai::ResponseInput::Unknown(raw)) => Err(TransformError::unsupported(
-            "OpenAI Responses input",
-            raw.to_string(),
-        )),
+        Some(openai::ResponseInput::Items(items)) => items
+            .into_iter()
+            .filter_map(|item| input_item(item).transpose())
+            .collect(),
+        Some(openai::ResponseInput::Unknown(_)) => Ok(Vec::new()),
     }
 }
 
-fn input_item(item: openai::ResponseItem) -> Result<claude::MessageParam, TransformError> {
+fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>, TransformError> {
     match item {
-        openai::ResponseItem::Message(message_item) => match message_item {
+        openai::ResponseItem::Message(message_item) => Ok(Some(match message_item {
             openai::ResponseMessageItem::EasyInput(message_item) => {
                 let role = match message_item.role {
                     openai::ResponseEasyInputMessageRole::Assistant => {
@@ -136,7 +135,7 @@ fn input_item(item: openai::ResponseItem) -> Result<claude::MessageParam, Transf
                         vec![claude::ContentBlockParam::Raw(raw)]
                     }
                 };
-                Ok(message(role, blocks, message_item.rest))
+                message(role, blocks, message_item.rest)
             }
             openai::ResponseMessageItem::Input(message_item) => {
                 let role = match message_item.role {
@@ -146,27 +145,25 @@ fn input_item(item: openai::ResponseItem) -> Result<claude::MessageParam, Transf
                         claude::MessageRoleKnown::System
                     }
                 };
-                Ok(message(
+                message(
                     role,
                     responses::input_to_claude(message_item.content)?,
                     with_item_id(message_item.rest, message_item.id),
-                ))
+                )
             }
-            openai::ResponseMessageItem::Output(message_item) => Ok(message(
+            openai::ResponseMessageItem::Output(message_item) => message(
                 claude::MessageRoleKnown::Assistant,
                 responses::output_to_claude(message_item.content)?,
                 with_item_id(message_item.rest, Some(message_item.id)),
-            )),
-            openai::ResponseMessageItem::Unknown(raw) => Err(TransformError::unsupported(
-                "OpenAI Responses message",
-                raw.to_string(),
-            )),
+            ),
+            openai::ResponseMessageItem::Unknown(_) => return Ok(None),
+        })),
+        openai::ResponseItem::Typed(item) => match items::typed_item(*item) {
+            Ok(message) => Ok(Some(message)),
+            Err(TransformError::Unsupported { .. }) => Ok(None),
+            Err(error) => Err(error),
         },
-        openai::ResponseItem::Typed(item) => items::typed_item(*item),
-        openai::ResponseItem::Unknown(raw) => Err(TransformError::unsupported(
-            "OpenAI Responses item",
-            raw.to_string(),
-        )),
+        openai::ResponseItem::Unknown(_) => Ok(None),
     }
 }
 
@@ -305,28 +302,4 @@ fn service_tier(
         }
         _ => None,
     })
-}
-
-fn reject_unsupported(input: &openai::ResponseCreateRequest) -> Result<(), TransformError> {
-    if input.background.is_some()
-        || input.conversation.is_some()
-        || input.prompt.is_some()
-        || input.context_management.is_some()
-        || input.include.is_some()
-        || input.max_tool_calls.is_some()
-        || input.moderation.is_some()
-        || input.multi_agent.is_some()
-        || input.prompt_cache_key.is_some()
-        || input.safety_identifier.is_some()
-        || input.store.is_some()
-        || input.stream_options.is_some()
-        || input.truncation.is_some()
-        || input.user.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "OpenAI Responses request",
-            "a Responses-only request parameter",
-        ));
-    }
-    Ok(())
 }

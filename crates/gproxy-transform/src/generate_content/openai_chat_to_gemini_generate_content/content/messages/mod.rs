@@ -104,6 +104,13 @@ impl State {
         rest: gemini::ExtraFields,
     ) {
         if !parts.is_empty() {
+            if let Some(previous) = self.contents.last_mut()
+                && previous.role == Some(gemini::ContentRole::Known(role.clone()))
+            {
+                previous.parts.extend(parts);
+                previous.rest.extend(rest);
+                return;
+            }
             self.contents.push(gemini::Content {
                 parts,
                 role: Some(gemini::ContentRole::Known(role)),

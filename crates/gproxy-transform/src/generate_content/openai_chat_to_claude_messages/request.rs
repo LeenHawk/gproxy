@@ -12,16 +12,26 @@ pub(crate) fn transform(
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
     let _ = wire_string(&input.model)?;
+    let mid_conv_supported = supports_mid_conv_system(model);
+    let last_non_system = input.messages.iter().rposition(|message| {
+        !matches!(
+            message,
+            openai::ChatCompletionMessageParam::Developer(_)
+                | openai::ChatCompletionMessageParam::System(_)
+        )
+    });
     let mut messages = Vec::new();
     let mut system = Vec::new();
     let mut seen_turn = false;
-    for message in input.messages {
+    for (index, message) in input.messages.into_iter().enumerate() {
         match message {
             openai::ChatCompletionMessageParam::Developer(message) => {
                 push_system(
                     content::chat_text_blocks(message.content)?,
                     message.rest,
                     seen_turn,
+                    mid_conv_supported,
+                    last_non_system.is_some_and(|last| index > last),
                     &mut system,
                     &mut messages,
                 );
@@ -31,6 +41,8 @@ pub(crate) fn transform(
                     content::chat_text_blocks(message.content)?,
                     message.rest,
                     seen_turn,
+                    mid_conv_supported,
+                    last_non_system.is_some_and(|last| index > last),
                     &mut system,
                     &mut messages,
                 );
@@ -169,17 +181,50 @@ fn push_system(
     blocks: Vec<claude::ContentBlockParam>,
     rest: openai::Rest,
     seen_turn: bool,
+    mid_conv_supported: bool,
+    trailing: bool,
     system: &mut Vec<claude::TextBlock>,
     messages: &mut Vec<claude::MessageParam>,
 ) {
     if seen_turn {
-        push_message(messages, claude::MessageRoleKnown::System, blocks, rest);
+        let role = if mid_conv_supported {
+            claude::MessageRoleKnown::System
+        } else if trailing {
+            claude::MessageRoleKnown::User
+        } else {
+            claude::MessageRoleKnown::Assistant
+        };
+        push_message(messages, role, blocks, rest);
     } else {
         system.extend(blocks.into_iter().filter_map(|block| match block {
             claude::ContentBlockParam::Text(block) => Some(block),
             _ => None,
         }));
     }
+}
+
+fn supports_mid_conv_system(model: &str) -> bool {
+    const PRE_OPUS_48: &[&str] = &[
+        "claude-instant",
+        "claude-1",
+        "claude-2",
+        "claude-3",
+        "claude-sonnet-4",
+        "claude-haiku-4",
+        "claude-4-",
+        "claude-opus-4-0",
+        "claude-opus-4-1",
+        "claude-opus-4-2",
+        "claude-opus-4-3",
+        "claude-opus-4-4",
+        "claude-opus-4-5",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
+        "claude-opus-4@",
+        "claude-sonnet-5",
+    ];
+    let model = model.to_ascii_lowercase();
+    !PRE_OPUS_48.iter().any(|pattern| model.contains(pattern))
 }
 
 fn push_message(
@@ -201,7 +246,7 @@ fn function_call(
     id: String,
     call: openai::FunctionCall,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    let input = serde_json::from_str(&call.arguments)?;
+    let input = serde_json::from_str(&call.arguments).unwrap_or_default();
     Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
         id,
         input,
@@ -217,7 +262,7 @@ fn tool_call(call: openai::ChatToolCall) -> Result<claude::ContentBlockParam, Tr
     match call {
         openai::ChatToolCall::Function(call) => function_call(call.id, call.function),
         openai::ChatToolCall::Custom(call) => {
-            let input = serde_json::from_str(&call.custom.input)?;
+            let input = serde_json::from_str(&call.custom.input).unwrap_or_default();
             Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
                 id: call.id,
                 input,

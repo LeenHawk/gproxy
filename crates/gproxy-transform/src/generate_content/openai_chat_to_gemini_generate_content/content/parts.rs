@@ -23,13 +23,13 @@ pub(crate) fn function_call(
     arguments: &str,
     rest: gemini::ExtraFields,
 ) -> Result<gemini::Part, TransformError> {
-    let args = serde_json::from_str(arguments)?;
+    let args = serde_json::from_str(arguments).ok();
     Ok(gemini::Part {
         data: Some(gemini::PartData::FunctionCall {
             function_call: gemini::FunctionCall {
                 id,
                 name,
-                args: Some(args),
+                args,
                 rest: Default::default(),
             },
             rest: Default::default(),
