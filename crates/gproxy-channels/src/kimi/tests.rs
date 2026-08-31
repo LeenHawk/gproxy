@@ -28,13 +28,13 @@ fn catalog_and_credential_modes_select_only_declared_targets() {
         .select_support(claude, &json!({"auth_kind":"oauth","access_token":"token"}))
         .unwrap();
     assert_eq!(oauth.target, claude);
-    assert!(
+    let embedding = OperationKey::family(Operation::CreateEmbedding, WireFamily::OpenAi);
+    assert_eq!(
         KimiChannel
-            .select_support(
-                OperationKey::family(Operation::CreateEmbedding, WireFamily::OpenAi),
-                &json!({"api_key":"key"}),
-            )
-            .is_none()
+            .select_support(embedding, &json!({"api_key":"key"}))
+            .unwrap()
+            .target,
+        embedding
     );
     assert_eq!(crate::canonical_channel_id("kimiapi"), "kimi");
     assert_eq!(crate::canonical_channel_id("kimicode"), "kimi");

@@ -87,12 +87,7 @@ pub(super) static SUPPORTS: [ChannelSupport; 17] = [
 ];
 
 pub(super) fn select(source: OperationKey, mode: Mode) -> Option<ChannelSupport> {
-    if mode == Mode::ApiKey
-        && matches!(
-            source.operation,
-            Operation::CountTokens | Operation::CreateEmbedding
-        )
-    {
+    if mode == Mode::ApiKey && source.operation == Operation::CountTokens {
         return None;
     }
     let mut rows = SUPPORTS.iter().filter(|row| row.source == source);
