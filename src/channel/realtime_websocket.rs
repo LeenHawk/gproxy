@@ -4,7 +4,9 @@ use bytes::Bytes;
 use http::{Method, Request};
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, build_request};
+use crate::channel::http_util::{
+    allow_headers_with_settings, build_request, passthrough_query_with_settings,
+};
 use crate::channel::{ChannelError, PrepareCtx};
 
 pub fn is_target(method: &Method, path: &str) -> bool {
@@ -30,9 +32,10 @@ pub fn build_api_key_request(
     forward_headers: &[&str],
 ) -> Result<(Request<Bytes>, String), ChannelError> {
     let key = common::resolve_api_key(&ctx)?;
-    let query = sanitize_query(ctx.query);
+    let sanitized_query = sanitize_query(ctx.query);
+    let query = passthrough_query_with_settings(sanitized_query.as_deref(), ctx.provider_settings);
     let uri = common::resolve_uri(&ctx, defaults, ctx.path, query.as_deref())?;
-    let headers = allow_headers(ctx.headers, forward_headers);
+    let headers = allow_headers_with_settings(ctx.headers, forward_headers, ctx.provider_settings);
     let request = build_request(ctx.method, uri, headers, ctx.body)?;
     Ok((request, key))
 }

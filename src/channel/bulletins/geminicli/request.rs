@@ -4,7 +4,7 @@ use bytes::Bytes;
 
 use super::{auth, models};
 use crate::channel::envelope;
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{allow_headers_with_settings, build_request, join_url};
 use crate::channel::shaping::{self, gemini_genconfig};
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 
@@ -41,7 +41,7 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     };
     let path = format!("/v1internal{verb}");
     let uri = join_url(auth::BASE_URL, &path, query)?;
-    let headers = allow_headers(ctx.headers, &[]);
+    let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
     let mut request = build_request(ctx.method, uri, headers, Bytes::from(wrapped))?;
     auth::apply(&mut request, &access_token, ctx.upstream_model_id)?;
     Ok(PreparedRequest::new(request))

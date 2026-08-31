@@ -20,7 +20,7 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
 use crate::channel::bulletins::common;
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{allow_headers_with_settings, build_request, join_url};
 use crate::channel::shaping::vertex_normalize;
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::http::client::UpstreamClient;
@@ -182,7 +182,7 @@ impl Channel for VertexChannel {
             } else {
                 join_url(&host, &path, None)?
             };
-            let headers = allow_headers(ctx.headers, &[]);
+            let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
             let (method, body) = if creating {
                 (ctx.method, ctx.body)
             } else {
@@ -262,7 +262,7 @@ impl Channel for VertexChannel {
         } else {
             &[][..]
         };
-        let headers = allow_headers(ctx.headers, forwarded);
+        let headers = allow_headers_with_settings(ctx.headers, forwarded, ctx.provider_settings);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
             .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;

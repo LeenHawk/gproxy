@@ -1,6 +1,6 @@
 //! Upstream URL, forwarded-header allow-list, and request preparation.
 
-use crate::channel::http_util::{allow_headers, build_request, exact_url, join_url};
+use crate::channel::http_util::{allow_headers_with_settings, build_request, exact_url, join_url};
 use crate::channel::settings::endpoint_url;
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest};
 use crate::protocol::Operation;
@@ -40,21 +40,26 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     } else {
         ctx.path.strip_prefix("/v1").unwrap_or(ctx.path)
     };
-    let models_query =
-        (path == "/models" || path.starts_with("/models/")).then(|| match ctx.query {
+    let filtered_query = crate::channel::http_util::passthrough_query_with_settings(
+        ctx.query,
+        ctx.provider_settings,
+    );
+    let models_query = (path == "/models" || path.starts_with("/models/")).then(|| {
+        match filtered_query.as_deref() {
             Some(query) if !query.is_empty() => format!(
                 "{query}&client_version={}",
                 super::model_metadata::CODEX_VERSION
             ),
             _ => format!("client_version={}", super::model_metadata::CODEX_VERSION),
-        });
+        }
+    });
     let realtime_query = realtime_ws
-        .then(|| crate::channel::realtime_websocket::sanitize_query(ctx.query))
+        .then(|| crate::channel::realtime_websocket::sanitize_query(filtered_query.as_deref()))
         .flatten();
     let query = if realtime_ws {
         realtime_query.as_deref()
     } else {
-        models_query.as_deref().or(ctx.query)
+        models_query.as_deref().or(filtered_query.as_deref())
     };
     let uri = match endpoint_url(
         ctx.provider_settings,
@@ -80,7 +85,7 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     } else {
         FORWARD_HEADERS
     };
-    let headers = allow_headers(ctx.headers, forward_headers);
+    let headers = allow_headers_with_settings(ctx.headers, forward_headers, ctx.provider_settings);
     let mut request = build_request(ctx.method, uri, headers, ctx.body)?;
     super::headers::apply(&mut request, &access_token, account_id.as_deref())?;
     let accept = match ctx.op.operation() {

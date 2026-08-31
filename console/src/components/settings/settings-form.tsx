@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 // ---- helpers ----------------------------------------------------------------
@@ -51,10 +52,22 @@ interface FormState {
   disableLogRedaction: boolean; enableTokenizerDownload: boolean;
   updateChannel: string; retentionDays: string; maxDatabaseSizeMb: string;
   fileUploadMaxInFlight: string;
+  requestBlacklistHeaders: string;
+  requestBlacklistQuery: string;
 }
+
+const DEFAULT_REQUEST_BLACKLIST_HEADERS = [
+  "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te",
+  "trailer", "transfer-encoding", "upgrade", "content-length", "authorization",
+  "x-api-key", "x-goog-api-key", "api-key", "cookie", "host", "via", "forwarded",
+  "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip",
+  "accept-encoding",
+];
+const DEFAULT_REQUEST_BLACKLIST_QUERY = ["key"];
 
 function initState(s?: InstanceSettings): FormState {
   const spoof = s?.spoof_emulation === true ? "on" : "off";
+  const requestBlacklist = s?.request_blacklist;
   return {
     instanceName: s?.instance_name ?? "", proxy: s?.proxy ?? "", spoofEmulation: spoof,
     enableUsage: s?.enable_usage ?? true, enableUpstreamLog: s?.enable_upstream_log ?? false,
@@ -67,6 +80,8 @@ function initState(s?: InstanceSettings): FormState {
     retentionDays: s?.retention_days != null ? String(s.retention_days) : "",
     maxDatabaseSizeMb: s?.max_database_size_mb != null ? String(s.max_database_size_mb) : "",
     fileUploadMaxInFlight: s?.file_upload_max_in_flight ? String(s.file_upload_max_in_flight) : "",
+    requestBlacklistHeaders: (requestBlacklist?.headers ?? DEFAULT_REQUEST_BLACKLIST_HEADERS).join("\n"),
+    requestBlacklistQuery: (requestBlacklist?.query ?? DEFAULT_REQUEST_BLACKLIST_QUERY).join("\n"),
   };
 }
 
@@ -108,6 +123,10 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
         retention_days: retDays,
         max_database_size_mb: maxDbMb,
         file_upload_max_in_flight: fileUploadMaxInFlight,
+        request_blacklist: {
+          headers: parseNameList(f.requestBlacklistHeaders, true),
+          query: parseNameList(f.requestBlacklistQuery, false),
+        },
       };
       return upsertInstanceSettings(input);
     },
@@ -183,6 +202,28 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
         <Section title={t("sections.tokenizer")}>
           <SwitchField id="s-tokenizer" label={t("fields.enableTokenizerDownload")} checked={f.enableTokenizerDownload} onCheckedChange={set("enableTokenizerDownload")} />
         </Section>
+
+        <Section title={t("sections.requestBlacklist")} span2>
+          <p className="text-xs text-muted-foreground">{t("requestBlacklist.help")}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-1">
+              <Label htmlFor="settings-blacklist-headers">{t("fields.requestBlacklistHeaders")}</Label>
+              <Textarea
+                id="settings-blacklist-headers"
+                value={f.requestBlacklistHeaders}
+                onChange={(event) => set("requestBlacklistHeaders")(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="settings-blacklist-query">{t("fields.requestBlacklistQuery")}</Label>
+              <Textarea
+                id="settings-blacklist-query"
+                value={f.requestBlacklistQuery}
+                onChange={(event) => set("requestBlacklistQuery")(event.target.value)}
+              />
+            </div>
+          </div>
+        </Section>
       </div>
 
       <div>
@@ -192,4 +233,13 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
       </div>
     </form>
   );
+}
+
+function parseNameList(value: string, lowercase: boolean): string[] {
+  const names = value
+    .split(/[\s,]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => lowercase ? name.toLowerCase() : name);
+  return names.filter((name, index) => names.indexOf(name) === index);
 }

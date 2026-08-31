@@ -35,7 +35,7 @@ pub async fn execute(state: &AppState, ctx: RequestCtx) -> Result<ExecOutcome, P
         duration_ms = tracing::field::Empty,
     );
     // §8-D downstream capture: snapshot the inbound wire facts BEFORE run()
-    // (the ingress blacklist strips client creds in place); the row is written
+    // (the configured ingress blacklist applies in place); the row is written
     // below once the final status is known. None when the toggle is off.
     let downstream = capture::downstream_precapture(state, &ctx);
     async move {
@@ -97,7 +97,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         }
     }
     let affinity_session_id = balance::take_session_id(&mut ctx.headers);
-    ingress::apply_global_blacklist(&mut ctx);
+    ingress::apply_global_blacklist(&mut ctx, &state.cp().request_blacklist);
     ingress::normalize_multipart_form_body(&mut ctx)?;
     let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
     let conversation_fingerprint = classified.conversation_fingerprint;

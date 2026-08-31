@@ -7,6 +7,7 @@
     "usageLogging": "Usage & Logging",
     "retention": "Retention",
     "tokenizer": "Tokenizer",
+    "requestBlacklist": "Global Request Blacklist",
     "autostart": "Background Service"
   },
   "fields": {
@@ -23,6 +24,8 @@
     "retentionDays": "Retention Period (days)",
     "maxDatabaseSizeMb": "Maximum Database Size (MiB)",
     "fileUploadMaxInFlight": "File Upload Concurrency",
+    "requestBlacklistHeaders": "Blocked client headers",
+    "requestBlacklistQuery": "Blocked client query parameters",
     "autostart": "Start GPROXY automatically at login"
   },
   "spoof": {
@@ -33,6 +36,9 @@
     "forever": "Leave blank to retain logs forever",
     "databaseSizeHelp": "Native SQLite only. When exceeded, the oldest request and audit logs are removed until the compacted database reaches 90% of this size. Usage data is always preserved. Leave blank for no limit.",
     "fileUploadConcurrencyHelp": "0 or blank allows unlimited concurrent /v1/files uploads."
+  },
+  "requestBlacklist": {
+    "help": "Applied once to the client request before provider selection and Header Rules. Clearing a name allows it into the rule/channel stage; headers intentionally injected by a Header Rule are not blocked again. Use one name per line or comma-separated."
   },
   "warnings": {
     "sensitive": "Warning: one or more sensitive options are enabled. Logs may contain unredacted content or request/response bodies, which can include secrets and PII. Enable these options for troubleshooting only."

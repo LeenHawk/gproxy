@@ -24,7 +24,7 @@ use bytes::Bytes;
 use serde_json::Value;
 
 use crate::channel::envelope::{self, CodeAssistStreamDecoder};
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{allow_headers_with_settings, build_request, join_url};
 use crate::channel::shaping::{self, gemini_genconfig, vertex_normalize};
 use crate::channel::{
     AuthCodeStart, Channel, ChannelError, ChannelLogin, ChannelStreamDecoder, PrepareCtx,
@@ -133,7 +133,7 @@ impl Channel for AntigravityChannel {
                 model_list::FETCH_AVAILABLE_MODELS_PATH,
                 None,
             )?;
-            let headers = allow_headers(ctx.headers, &[]);
+            let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
             let mut req =
                 build_request(http::Method::POST, uri, headers, Bytes::from_static(b"{}"))?;
             auth::apply(&mut req, &access_token)?;
@@ -171,7 +171,7 @@ impl Channel for AntigravityChannel {
         let uri = join_url(auth::BASE_URL, &path, query)?;
         // Envelope channel: it injects its own auth + fingerprint; forward no
         // inbound headers beyond the base content-type/accept allow-list.
-        let headers = allow_headers(ctx.headers, &[]);
+        let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
         let mut req = build_request(ctx.method, uri, headers, Bytes::from(wrapped))?;
         auth::apply(&mut req, &access_token)?;
         Ok(PreparedRequest::new(req))

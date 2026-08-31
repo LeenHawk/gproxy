@@ -18,7 +18,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use serde_json::Value;
 
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{allow_headers_with_settings, build_request, join_url};
 use crate::channel::{
     Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx, PreparedRequest,
 };
@@ -125,7 +125,7 @@ impl Channel for CopilotCliChannel {
 
         let uri = join_url(&base, upstream_path, None)?;
         // Copilot injects its own auth + editor headers; no inbound forwards.
-        let headers = allow_headers(ctx.headers, &[]);
+        let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply_chat_headers(&mut req, copilot_token, &machine_id)?;
         Ok(PreparedRequest::new(req))

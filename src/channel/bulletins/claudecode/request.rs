@@ -4,7 +4,9 @@ use bytes::Bytes;
 use serde_json::Value;
 
 use super::{auth, cch};
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{
+    allow_headers_with_settings, build_request, join_url, passthrough_query_with_settings,
+};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
     self, claude_cache_control, claude_fallback, claude_magic_cache, claude_prefill,
@@ -101,8 +103,9 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         ctx.body
     };
 
-    let model_query = is_messages.then(|| model_query(ctx.query));
-    let query = model_query.as_deref().or(ctx.query);
+    let filtered_query = passthrough_query_with_settings(ctx.query, ctx.provider_settings);
+    let model_query = is_messages.then(|| model_query(filtered_query.as_deref()));
+    let query = model_query.as_deref().or(filtered_query.as_deref());
     let uri = match crate::channel::settings::endpoint_url(
         ctx.provider_settings,
         ctx.op,
@@ -121,7 +124,8 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             join_url(base, ctx.path, query)?
         }
     };
-    let headers = allow_headers(ctx.headers, &["anthropic-beta"]);
+    let headers =
+        allow_headers_with_settings(ctx.headers, &["anthropic-beta"], ctx.provider_settings);
     let mut request = build_request(ctx.method, uri, headers, body)?;
     auth::apply(&mut request, &access_token, &session_id)?;
     Ok(PreparedRequest::new(request))

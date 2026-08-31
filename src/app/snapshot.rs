@@ -65,6 +65,9 @@ pub struct ControlPlaneSnapshot {
     /// Instance usage/log toggles (§8-E), snapshot-resident so the hot path
     /// reads them without a DB hit; hot-reloaded via §7.2 invalidation.
     pub log_settings: LogSettings,
+    /// Global client-ingress header/query blacklist, hot-reloaded from the
+    /// instance settings row.
+    pub request_blacklist: crate::pipeline::ingress::RequestBlacklist,
     /// Instance-level default upstream proxy (`instance_settings.proxy`,
     /// Console-editable). The global fallback for
     /// [`effective_proxy`](crate::channel::resolve::effective_proxy)
@@ -145,6 +148,7 @@ impl ControlPlaneSnapshot {
             rate_limits_by_scope: HashMap::new(),
             quotas_by_scope: HashMap::new(),
             log_settings: LogSettings::default(),
+            request_blacklist: crate::pipeline::ingress::RequestBlacklist::default(),
             proxy: None,
             spoof_emulation: false,
             file_upload_max_in_flight: 0,
@@ -402,6 +406,9 @@ impl ControlPlaneSnapshot {
             snap.spoof_emulation = s.spoof_emulation.unwrap_or(false);
             snap.file_upload_max_in_flight = s.file_upload_max_in_flight.max(0) as u64;
             snap.update_channel = s.update_channel.clone().filter(|c| !c.trim().is_empty());
+            snap.request_blacklist = crate::pipeline::ingress::RequestBlacklist::from_value(
+                s.request_blacklist.as_ref(),
+            );
         }
 
         Ok(snap)

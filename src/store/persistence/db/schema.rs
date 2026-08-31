@@ -343,6 +343,10 @@ async fn repair_instance_settings_schema(
         ))
         .await?;
     }
+    if !cols.is_empty() && !cols.contains("request_blacklist") {
+        conn.execute_unprepared("ALTER TABLE instance_settings ADD COLUMN request_blacklist TEXT")
+            .await?;
+    }
     Ok(())
 }
 

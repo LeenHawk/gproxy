@@ -225,5 +225,6 @@ pub(super) fn settings_to_input(r: InstanceSettings) -> InstanceSettingsInput {
         retention_days: r.retention_days,
         max_database_size_mb: r.max_database_size_mb,
         file_upload_max_in_flight: r.file_upload_max_in_flight,
+        request_blacklist: r.request_blacklist,
     }
 }

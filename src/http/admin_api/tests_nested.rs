@@ -89,6 +89,7 @@ async fn instance_settings_get_post_roundtrip() {
         "enable_downstream_log": false, "enable_downstream_log_body": false,
         "disable_log_redaction": false, "enable_tokenizer_download": false,
         "update_channel": null, "enable_auto_update_check": true, "retention_days": null,
+        "request_blacklist": {"headers": ["authorization"], "query": ["key"]},
     })
     .to_string()
     .into_bytes();
@@ -97,6 +98,7 @@ async fn instance_settings_get_post_roundtrip() {
     assert_eq!(resp.status, http::StatusCode::OK);
     assert_eq!(parse_json(&resp)["instance_name"], "primary");
     assert_eq!(parse_json(&resp)["enable_auto_update_check"], true);
+    assert_eq!(parse_json(&resp)["request_blacklist"]["headers"][0], "authorization");
 
     // Now GET shows the record.
     let p = parts("GET", "/admin/instance-settings", Some(&cookie), None);
@@ -105,4 +107,5 @@ async fn instance_settings_get_post_roundtrip() {
     assert_eq!(list.as_array().unwrap().len(), 1);
     assert_eq!(list[0]["instance_name"], "primary");
     assert_eq!(list[0]["enable_auto_update_check"], true);
+    assert_eq!(list[0]["request_blacklist"]["query"][0], "key");
 }

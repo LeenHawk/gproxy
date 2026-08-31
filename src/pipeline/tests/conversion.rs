@@ -220,3 +220,39 @@ async fn process_rules_apply_on_claude_passthrough() {
         "header rule forwarded (claudeapi whitelists it)"
     );
 }
+
+#[tokio::test]
+async fn provider_allowlist_forwards_header_rule_user_agent() {
+    let msg_response = json!({
+        "id": "msg-1", "type": "message", "role": "assistant", "model": "claude-test",
+        "content": [{ "type": "text", "text": "ok" }],
+        "stop_reason": "end_turn", "stop_sequence": null,
+        "usage": { "input_tokens": 1, "output_tokens": 1 }
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&msg_response).unwrap()),
+        vec![],
+    ));
+    let mut bundle: Value = serde_json::from_str(BUNDLE).unwrap();
+    bundle["providers"][1]["settings_json"]["request_allowlist"] = json!({
+        "headers": ["user-agent"],
+        "query": []
+    });
+    bundle["rules"][1]["config_json"] = json!({
+        "name": "user-agent",
+        "value": "agentrouter-compatible/1.0",
+        "mode": "override"
+    });
+    let (state, _dir) =
+        state_with_bundle(Arc::clone(&fake), &serde_json::to_string(&bundle).unwrap()).await;
+
+    crate::pipeline::execute(&state, claude_ctx("claude-direct", false))
+        .await
+        .expect("pipeline ok");
+
+    let seen = fake.seen.lock().unwrap();
+    assert_eq!(
+        seen[0].headers[http::header::USER_AGENT],
+        "agentrouter-compatible/1.0"
+    );
+}

@@ -14,6 +14,7 @@ const RESERVED_SETTING_KEYS = new Set([
   "endpoints",
   "circuit_breaker",
   "auto_refresh_models",
+  "request_allowlist",
 ]);
 
 /** Shared controls own reserved keys; the first declaration owns every other key. */

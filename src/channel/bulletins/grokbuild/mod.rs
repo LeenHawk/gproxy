@@ -14,7 +14,9 @@ use http::HeaderMap;
 use serde_json::Value;
 
 use crate::channel::bulletins::common::xai_media;
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{
+    allow_headers_with_settings, build_request, join_url, passthrough_query_with_settings,
+};
 use crate::channel::{
     Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx, PreparedRequest,
     ShapeCtx,
@@ -143,6 +145,7 @@ impl Channel for GrokBuildChannel {
         } else {
             auth::upstream_path(base, ctx.path)
         };
+        let query = passthrough_query_with_settings(ctx.query, ctx.provider_settings);
         let uri = match crate::channel::settings::endpoint_url_for_request(
             ctx.provider_settings,
             ctx.op,
@@ -150,10 +153,10 @@ impl Channel for GrokBuildChannel {
             ctx.upstream_model_id,
             ctx.path,
         ) {
-            Some(url) => crate::channel::http_util::exact_url(&url, ctx.query)?,
-            None => join_url(base, &path, ctx.query)?,
+            Some(url) => crate::channel::http_util::exact_url(&url, query.as_deref())?,
+            None => join_url(base, &path, query.as_deref())?,
         };
-        let headers = allow_headers(ctx.headers, &[]);
+        let headers = allow_headers_with_settings(ctx.headers, &[], ctx.provider_settings);
         let session_id = auth::session_id_from_body(&ctx.body);
         let accept_event_stream =
             ctx.method == http::Method::POST && path == "/responses" && body_streams(&ctx.body);

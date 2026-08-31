@@ -28,7 +28,9 @@ use http::HeaderMap;
 use serde_json::Value;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request};
+use crate::channel::http_util::{
+    allow_headers_with_settings, allow_query_with_settings, build_request,
+};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{self, claude_cache_control, claude_magic_cache, openai_cache};
 use crate::channel::{
@@ -72,10 +74,11 @@ fn prepare(ctx: PrepareCtx<'_>, d: &ApiKeyDefaults) -> Result<PreparedRequest, C
     let op = ctx.op;
     let path = auth::upstream_path(op, ctx.stream, ctx.upstream_model_id)?;
     let api_key = common::resolve_api_key(&ctx)?;
-    let query = allow_query(ctx.query, d.forward_query);
+    let query = allow_query_with_settings(ctx.query, d.forward_query, ctx.provider_settings);
     let uri = common::resolve_uri(&ctx, d, &path, query.as_deref())?;
     // The gateway supplies its own credential header; nothing inbound forwards.
-    let headers = allow_headers(ctx.headers, d.forward_headers);
+    let headers =
+        allow_headers_with_settings(ctx.headers, d.forward_headers, ctx.provider_settings);
     let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
     auth::apply(&mut req, op, &api_key)?;
     Ok(PreparedRequest::new(req))

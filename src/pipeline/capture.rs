@@ -21,7 +21,7 @@ use crate::http::redaction::{body_string, headers_json, redact_query, warn_unles
 pub use client::CapturingClient;
 
 /// The downstream wire facts, captured BEFORE the pipeline mutates the request
-/// (the ingress blacklist strips client creds in place); written after the
+/// (the configured ingress blacklist applies in place); written after the
 /// response status is known. `None` = downstream capture disabled.
 pub struct DownstreamCapture {
     at: i64,

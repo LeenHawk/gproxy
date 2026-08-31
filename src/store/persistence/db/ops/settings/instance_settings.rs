@@ -7,8 +7,8 @@ use crate::store::persistence::records::{InstanceSettings, InstanceSettingsInput
 
 use crate::store::persistence::db::entities::settings::instance_setting;
 
-fn to_record(m: instance_setting::Model) -> InstanceSettings {
-    InstanceSettings {
+fn to_record(m: instance_setting::Model) -> anyhow::Result<InstanceSettings> {
+    Ok(InstanceSettings {
         id: m.id,
         instance_name: m.instance_name,
         proxy: m.proxy,
@@ -25,29 +25,34 @@ fn to_record(m: instance_setting::Model) -> InstanceSettings {
         retention_days: m.retention_days,
         max_database_size_mb: m.max_database_size_mb,
         file_upload_max_in_flight: m.file_upload_max_in_flight,
+        request_blacklist: m
+            .request_blacklist
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?,
         created_at: m.created_at,
         updated_at: m.updated_at,
-    }
+    })
 }
 
 pub async fn list(conn: &DatabaseConnection) -> anyhow::Result<Vec<InstanceSettings>> {
-    Ok(instance_setting::Entity::find()
+    instance_setting::Entity::find()
         .all(conn)
         .await?
         .into_iter()
         .map(to_record)
-        .collect())
+        .collect()
 }
 
 pub async fn get(
     conn: &DatabaseConnection,
     instance_name: &str,
 ) -> anyhow::Result<Option<InstanceSettings>> {
-    Ok(instance_setting::Entity::find()
+    instance_setting::Entity::find()
         .filter(instance_setting::Column::InstanceName.eq(instance_name))
         .one(conn)
         .await?
-        .map(to_record))
+        .map(to_record)
+        .transpose()
 }
 
 pub async fn upsert(
@@ -55,6 +60,11 @@ pub async fn upsert(
     input: InstanceSettingsInput,
 ) -> anyhow::Result<InstanceSettings> {
     let now = crate::store::persistence::db::ops::now_secs();
+    let request_blacklist = input
+        .request_blacklist
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
     let instance_name = input.instance_name.clone();
     let conflict = |e| {
         crate::store::persistence::db::ops::conflict_if_unique(e, || {
@@ -81,6 +91,7 @@ pub async fn upsert(
                 am.retention_days = Set(input.retention_days);
                 am.max_database_size_mb = Set(input.max_database_size_mb);
                 am.file_upload_max_in_flight = Set(input.file_upload_max_in_flight.max(0));
+                am.request_blacklist = Set(request_blacklist);
                 am.updated_at = Set(now);
                 am.update(conn).await.map_err(conflict)?
             }
@@ -104,6 +115,7 @@ pub async fn upsert(
                     retention_days: Set(input.retention_days),
                     max_database_size_mb: Set(input.max_database_size_mb),
                     file_upload_max_in_flight: Set(input.file_upload_max_in_flight.max(0)),
+                    request_blacklist: Set(request_blacklist),
                     created_at: Set(now),
                     updated_at: Set(now),
                 }
@@ -129,6 +141,7 @@ pub async fn upsert(
             retention_days: Set(input.retention_days),
             max_database_size_mb: Set(input.max_database_size_mb),
             file_upload_max_in_flight: Set(input.file_upload_max_in_flight.max(0)),
+            request_blacklist: Set(request_blacklist),
             created_at: Set(now),
             updated_at: Set(now),
         }
@@ -137,5 +150,5 @@ pub async fn upsert(
         .map_err(conflict)?,
     };
 
-    Ok(to_record(model))
+    to_record(model)
 }

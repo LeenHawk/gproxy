@@ -4,7 +4,9 @@
 mod auth;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request};
+use crate::channel::http_util::{
+    allow_headers_with_settings, allow_query_with_settings, build_request,
+};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
@@ -109,16 +111,27 @@ impl Channel for AiStudioChannel {
                 .ok_or_else(|| ChannelError::Build("invalid AI Studio video path".into()))?;
             let path = format!("/v1beta/openai/videos{suffix}");
             let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, None)?;
-            let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
+            let headers = allow_headers_with_settings(
+                ctx.headers,
+                DEFAULTS.forward_headers,
+                ctx.provider_settings,
+            );
             let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
             // The OpenAI-compatible surface documents bearer API-key auth,
             // unlike native Gemini endpoints which use the `key` query.
             common::inject_bearer(&mut req, &api_key)?;
             return Ok(PreparedRequest::new(req));
         }
-        let query = auth::apply_query(allow_query(ctx.query, DEFAULTS.forward_query), &api_key);
+        let query = auth::apply_query(
+            allow_query_with_settings(ctx.query, DEFAULTS.forward_query, ctx.provider_settings),
+            &api_key,
+        );
         let uri = common::resolve_uri(&ctx, &DEFAULTS, ctx.path, query.as_deref())?;
-        let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
+        let headers = allow_headers_with_settings(
+            ctx.headers,
+            DEFAULTS.forward_headers,
+            ctx.provider_settings,
+        );
         let req = build_request(ctx.method, uri, headers, ctx.body)?;
         Ok(PreparedRequest::new(req))
     }

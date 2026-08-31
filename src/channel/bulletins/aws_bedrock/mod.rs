@@ -12,7 +12,7 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common;
-use crate::channel::http_util::{allow_headers, build_request};
+use crate::channel::http_util::{allow_headers_with_settings, build_request};
 use crate::channel::{
     Channel, ChannelError, ChannelStreamDecoder, Disposition, PrepareCtx, PreparedRequest, ShapeCtx,
 };
@@ -129,7 +129,8 @@ impl Channel for AwsBedrockChannel {
             }
         }
         let uri = endpoint::resolve(&ctx, compact)?;
-        let headers = allow_headers(ctx.headers, FORWARD_HEADERS);
+        let headers =
+            allow_headers_with_settings(ctx.headers, FORWARD_HEADERS, ctx.provider_settings);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut req, &api_key)?;
         Ok(PreparedRequest::new(req))

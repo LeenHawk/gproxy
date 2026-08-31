@@ -2,6 +2,7 @@
 //! identity, outbound proxy, TLS-emulation toggle, logging and usage flags.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Per-instance settings, keyed by a unique `instance_name`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,6 +46,9 @@ pub struct InstanceSettings {
     pub max_database_size_mb: Option<i64>,
     #[serde(default)]
     pub file_upload_max_in_flight: i64,
+    /// Global client-ingress blacklist. `None` keeps the built-in defaults.
+    #[serde(default)]
+    pub request_blacklist: Option<Value>,
     /// Unix seconds.
     pub created_at: i64,
     /// Unix seconds.
@@ -77,4 +81,7 @@ pub struct InstanceSettingsInput {
     pub max_database_size_mb: Option<i64>,
     #[serde(default)]
     pub file_upload_max_in_flight: i64,
+    /// Global client-ingress blacklist. `None` keeps the built-in defaults.
+    #[serde(default)]
+    pub request_blacklist: Option<Value>,
 }
