@@ -245,7 +245,6 @@
           "already_redeemed": "本次重置请求已经兑换过。"
         }
       },
-      "quotaCycle": "配额周期",
       "noQuotaCycle": "尚未观测到上游配额周期。",
       "cycleModels": {
         "title": "按模型查看用量",

@@ -245,7 +245,6 @@
           "already_redeemed": "This reset request was already redeemed."
         }
       },
-      "quotaCycle": "Quota cycle",
       "noQuotaCycle": "No upstream quota cycle observed.",
       "cycleModels": {
         "title": "Usage by model",

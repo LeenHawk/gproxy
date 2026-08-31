@@ -245,7 +245,6 @@
           "already_redeemed": "本次重置請求已經兌換過。"
         }
       },
-      "quotaCycle": "配額週期",
       "noQuotaCycle": "尚未觀測到上游配額週期。",
       "cycleModels": {
         "title": "依模型查看用量",

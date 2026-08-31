@@ -44,20 +44,25 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         return Vec::new();
     };
     let mut observations = Vec::new();
-    for (key, duration, window) in [
-        ("five_hour", FIVE_HOURS, &usage.five_hour),
-        ("seven_day", SEVEN_DAYS, &usage.seven_day),
-        ("seven_day_opus", SEVEN_DAYS, &usage.seven_day_opus),
-        ("seven_day_sonnet", SEVEN_DAYS, &usage.seven_day_sonnet),
-    ] {
-        if let Some(window) = window {
-            observations.push(observation(
-                key.to_owned(),
-                duration,
-                window.utilization,
-                window.resets_at.as_deref(),
-            ));
-        }
+    // Top-level windows follow a naming scheme, not a fixed set: five_hour,
+    // seven_day, and one seven_day_<model> per model family the account
+    // meters (opus, sonnet, fable, ...). Match the scheme so new model
+    // windows surface without a code change.
+    for (key, value) in &usage.windows {
+        let duration = match key.as_str() {
+            "five_hour" => FIVE_HOURS,
+            key if key == "seven_day" || key.starts_with("seven_day_") => SEVEN_DAYS,
+            _ => continue,
+        };
+        let Ok(window) = serde_json::from_value::<ClaudeWindow>(value.clone()) else {
+            continue;
+        };
+        observations.push(observation(
+            key.clone(),
+            duration,
+            window.utilization,
+            window.resets_at.as_deref(),
+        ));
     }
     for limit in usage.limits.iter().flatten() {
         let Some(kind) = limit.kind.as_deref() else {
@@ -65,8 +70,12 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         };
         let (key, duration) = match kind {
             // The windows block wins when both report the same limit.
-            "session" if usage.five_hour.is_none() => ("five_hour".to_owned(), FIVE_HOURS),
-            "weekly_all" if usage.seven_day.is_none() => ("seven_day".to_owned(), SEVEN_DAYS),
+            "session" if !usage.windows.contains_key("five_hour") => {
+                ("five_hour".to_owned(), FIVE_HOURS)
+            }
+            "weekly_all" if !usage.windows.contains_key("seven_day") => {
+                ("seven_day".to_owned(), SEVEN_DAYS)
+            }
             "weekly_scoped" => match limit.scope_key() {
                 Some(key) => (key, SEVEN_DAYS),
                 None => continue,
@@ -122,11 +131,10 @@ struct ClaudeWindow {
 
 #[derive(Deserialize)]
 struct ClaudeUsage {
-    five_hour: Option<ClaudeWindow>,
-    seven_day: Option<ClaudeWindow>,
-    seven_day_opus: Option<ClaudeWindow>,
-    seven_day_sonnet: Option<ClaudeWindow>,
+    #[serde(default)]
     limits: Option<Vec<ClaudeLimit>>,
+    #[serde(flatten)]
+    windows: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -191,6 +199,7 @@ mod tests {
         let body = json!({
             "five_hour": { "utilization": 34.5, "resets_at": "2026-08-31T15:00:00Z" },
             "seven_day": { "utilization": 61.0, "resets_at": "2026-09-03T00:00:00+00:00" },
+            "seven_day_fable": { "utilization": 22.0, "resets_at": "2026-09-03T00:00:00Z" },
             "limits": [
                 { "kind": "weekly_all", "percent": 99.0, "resets_at": "2026-09-03T00:00:00Z" },
                 { "kind": "weekly_scoped", "percent": 12.0, "resets_at": "2026-09-03T00:00:00Z",
@@ -204,7 +213,12 @@ mod tests {
             .collect();
         assert_eq!(
             keys,
-            ["five_hour", "seven_day", "weekly_model:claude_opus_5"]
+            [
+                "five_hour",
+                "seven_day",
+                "seven_day_fable",
+                "weekly_model:claude_opus_5"
+            ]
         );
         assert_eq!(observed[0].used_percent, Some("34.5".parse().unwrap()));
         let end = observed[0].period_end.unwrap();

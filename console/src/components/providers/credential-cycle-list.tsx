@@ -3,6 +3,7 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { CycleWindow } from "@/components/cycle-window"
 import { CredentialCycleModels } from "@/components/providers/credential-cycle-models"
+import { windowName } from "@/lib/quota-window"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 function latestCycles(cycles: Array<CredentialQuotaCycleDto>) {
@@ -27,5 +28,5 @@ export function CredentialCycleList({ cycles, loading, error }: Props) {
   if (loading) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
   if (error) return <p className="text-sm text-destructive">{t("common.errors.load")}</p>
   if (!latest.length) return <p className="text-sm text-muted-foreground">{t("providers.credentials.noQuotaCycle")}</p>
-  return <div className="grid gap-3 lg:grid-cols-2">{latest.map((cycle) => <Card key={cycle.id} size="sm"><CardHeader><CardTitle headingLevel={4}>{t("providers.credentials.quotaCycle")}</CardTitle><CardDescription className="machine-text">{cycle.window_key}</CardDescription></CardHeader><CardContent><CycleWindow cycle={cycle} label={cycle.window_key} /><CredentialCycleModels values={cycle.models} /></CardContent></Card>)}</div>
+  return <div className="grid gap-3 lg:grid-cols-2">{latest.map((cycle) => <Card key={cycle.id} size="sm"><CardHeader><CardTitle headingLevel={4}>{windowName(cycle.window_key, t)}</CardTitle><CardDescription className="machine-text">{cycle.window_key}</CardDescription></CardHeader><CardContent><CycleWindow cycle={cycle} label={windowName(cycle.window_key, t)} /><CredentialCycleModels values={cycle.models} /></CardContent></Card>)}</div>
 }

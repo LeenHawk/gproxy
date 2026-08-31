@@ -1,9 +1,62 @@
 {
-  "observability": { "tabs": { "usage": "Usage", "audit": "Admin actions", "logs": "Request audit" } },
+  "observability": {
+    "tabs": {
+      "usage": "Usage",
+      "audit": "Admin actions",
+      "logs": "Request audit"
+    }
+  },
   "audit": {
-    "title": "Admin actions", "description": "Review successful state-changing administration and channel sign-in activity.", "time": "Time", "actor": "Administrator", "action": "Action", "target": "Target", "empty": "No admin actions have been recorded.",
-    "verbs": { "create": "Create", "update": "Update", "delete": "Delete", "enable": "Enable", "disable": "Disable", "import": "Import", "apply": "Apply", "reset": "Reset", "fetch": "Fetch", "authcode_start": "Start browser sign-in", "authcode_complete": "Complete browser sign-in", "device_start": "Start device sign-in", "device_poll": "Complete device sign-in", "cookie": "Exchange cookie", "setup": "Set up", "login": "Sign in", "logout": "Sign out" },
-    "targets": { "organizations": "Organization", "teams": "Team", "providers": "Provider", "credentials": "Credential", "routes": "Route", "route_members": "Route member", "aliases": "Routing alias", "model_aliases": "Model", "users": "User", "user_keys": "API key", "permissions": "Permission", "rate_limits": "Rate limit", "quotas": "Quota", "price_rules": "Price rule", "price_rates": "Price rate", "routing_rules": "Routing rule", "rule_sets": "Rule set", "rules": "Mutation rule", "provider_rule_sets": "Provider rule set", "configuration": "Configuration", "settings": "Settings", "tokenizer_vocabs": "Tokenizer vocabulary" }
+    "title": "Admin actions",
+    "description": "Review successful state-changing administration and channel sign-in activity.",
+    "time": "Time",
+    "actor": "Administrator",
+    "action": "Action",
+    "target": "Target",
+    "empty": "No admin actions have been recorded.",
+    "verbs": {
+      "create": "Create",
+      "update": "Update",
+      "delete": "Delete",
+      "enable": "Enable",
+      "disable": "Disable",
+      "import": "Import",
+      "apply": "Apply",
+      "reset": "Reset",
+      "fetch": "Fetch",
+      "authcode_start": "Start browser sign-in",
+      "authcode_complete": "Complete browser sign-in",
+      "device_start": "Start device sign-in",
+      "device_poll": "Complete device sign-in",
+      "cookie": "Exchange cookie",
+      "setup": "Set up",
+      "login": "Sign in",
+      "logout": "Sign out"
+    },
+    "targets": {
+      "organizations": "Organization",
+      "teams": "Team",
+      "providers": "Provider",
+      "credentials": "Credential",
+      "routes": "Route",
+      "route_members": "Route member",
+      "aliases": "Routing alias",
+      "model_aliases": "Model",
+      "users": "User",
+      "user_keys": "API key",
+      "permissions": "Permission",
+      "rate_limits": "Rate limit",
+      "quotas": "Quota",
+      "price_rules": "Price rule",
+      "price_rates": "Price rate",
+      "routing_rules": "Routing rule",
+      "rule_sets": "Rule set",
+      "rules": "Mutation rule",
+      "provider_rule_sets": "Provider rule set",
+      "configuration": "Configuration",
+      "settings": "Settings",
+      "tokenizer_vocabs": "Tokenizer vocabulary"
+    }
   },
   "logs": {
     "title": "Request audit",
@@ -102,14 +155,60 @@
     "windowStates": {
       "empty": "No active quota windows for this selection."
     },
-    "cycleStates": { "empty": "No credential quota cycles were observed in this period." }
+    "cycleStates": {
+      "empty": "No credential quota cycles were observed in this period."
+    },
+    "windowNames": {
+      "five_hour": "5-hour window",
+      "seven_day": "7-day window",
+      "primary": "Primary window",
+      "secondary": "Secondary window",
+      "weekly_limit": "Weekly limit",
+      "monthly_limit": "Monthly limit",
+      "usage": "Usage",
+      "enterprise": "Enterprise quota",
+      "chat": "Copilot chat",
+      "completions": "Completions",
+      "premium_interactions": "Premium interactions",
+      "agentic_request": "Agentic requests",
+      "seven_day_scoped": "{{scope}} weekly limit",
+      "weekly_model": "{{scope}} weekly limit",
+      "weekly_surface": "{{scope}} weekly limit",
+      "product": "{{scope}}"
+    }
   },
   "overview": {
-    "metrics": { "label": "Instance health summary", "healthy": "Healthy credentials", "ratio": "{{value}} / {{total}}", "attention": "Needs attention", "requests": "Requests · 24h", "cost": "Settled cost · 24h" },
-    "empty": { "title": "Connect the first provider", "description": "Health, spending, and quota pressure will appear here once a credential can serve traffic.", "action": "Add provider" },
-    "noCredentials": { "title": "Add a credential", "description": "{{provider}} is configured, but no credential can serve traffic yet.", "action": "Add credential to {{provider}}" },
-    "attention": { "title": "Needs attention", "description": "Enabled credentials that are not currently healthy.", "empty": "All enabled credentials are healthy." },
-    "spending": { "title": "Spending by provider", "description": "Settled usage over the last 24 hours." },
-    "pressure": { "title": "Quota pressure", "description": "Quota and upstream cycles at or above 80%.", "empty": "No quota window is close to its limit." }
+    "metrics": {
+      "label": "Instance health summary",
+      "healthy": "Healthy credentials",
+      "ratio": "{{value}} / {{total}}",
+      "attention": "Needs attention",
+      "requests": "Requests · 24h",
+      "cost": "Settled cost · 24h"
+    },
+    "empty": {
+      "title": "Connect the first provider",
+      "description": "Health, spending, and quota pressure will appear here once a credential can serve traffic.",
+      "action": "Add provider"
+    },
+    "noCredentials": {
+      "title": "Add a credential",
+      "description": "{{provider}} is configured, but no credential can serve traffic yet.",
+      "action": "Add credential to {{provider}}"
+    },
+    "attention": {
+      "title": "Needs attention",
+      "description": "Enabled credentials that are not currently healthy.",
+      "empty": "All enabled credentials are healthy."
+    },
+    "spending": {
+      "title": "Spending by provider",
+      "description": "Settled usage over the last 24 hours."
+    },
+    "pressure": {
+      "title": "Quota pressure",
+      "description": "Quota and upstream cycles at or above 80%.",
+      "empty": "No quota window is close to its limit."
+    }
   }
 }

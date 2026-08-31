@@ -55,13 +55,17 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         observation("seven_day".into(), SEVEN_DAYS, &usage.seven_day),
     ];
     let mut scoped_seen = HashSet::new();
-    if let Some(window) = &usage.seven_day_opus {
-        scoped_seen.insert("model:opus".to_owned());
-        observations.push(observation("seven_day_opus".into(), SEVEN_DAYS, window));
-    }
-    if let Some(window) = &usage.seven_day_sonnet {
-        scoped_seen.insert("model:sonnet".to_owned());
-        observations.push(observation("seven_day_sonnet".into(), SEVEN_DAYS, window));
+    // One seven_day_<model> window per metered model family (opus, sonnet,
+    // fable, ...) — match the scheme, not a fixed model list.
+    for (key, value) in &usage.extra {
+        let Some(model) = key.strip_prefix("seven_day_") else {
+            continue;
+        };
+        let Ok(window) = serde_json::from_value::<WebWindow>(value.clone()) else {
+            continue;
+        };
+        scoped_seen.insert(format!("model:{model}"));
+        observations.push(observation(key.clone(), SEVEN_DAYS, &window));
     }
     for limit in usage
         .limits
@@ -111,9 +115,10 @@ fn observation(window_key: String, duration: i64, window: &WebWindow) -> QuotaOb
 struct WebUsage {
     five_hour: WebWindow,
     seven_day: WebWindow,
-    seven_day_opus: Option<WebWindow>,
-    seven_day_sonnet: Option<WebWindow>,
+    #[serde(default)]
     limits: Option<Vec<WebLimit>>,
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]

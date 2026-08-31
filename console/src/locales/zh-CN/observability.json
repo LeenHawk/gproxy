@@ -1,9 +1,62 @@
 {
-  "observability": { "tabs": { "usage": "用量", "audit": "管理操作", "logs": "请求审计" } },
+  "observability": {
+    "tabs": {
+      "usage": "用量",
+      "audit": "管理操作",
+      "logs": "请求审计"
+    }
+  },
   "audit": {
-    "title": "管理操作", "description": "查看成功的管理变更与渠道登录活动。", "time": "时间", "actor": "管理员", "action": "操作", "target": "目标", "empty": "尚未记录管理操作。",
-    "verbs": { "create": "创建", "update": "更新", "delete": "删除", "enable": "启用", "disable": "停用", "import": "导入", "apply": "应用", "reset": "重置", "fetch": "获取", "authcode_start": "开始浏览器登录", "authcode_complete": "完成浏览器登录", "device_start": "开始设备登录", "device_poll": "完成设备登录", "cookie": "交换 Cookie", "setup": "初始化", "login": "登录", "logout": "退出" },
-    "targets": { "organizations": "组织", "teams": "团队", "providers": "Provider", "credentials": "凭据", "routes": "路由", "route_members": "路由成员", "aliases": "路由别名", "model_aliases": "模型", "users": "用户", "user_keys": "API Key", "permissions": "权限", "rate_limits": "速率限制", "quotas": "配额", "price_rules": "价格规则", "price_rates": "价格费率", "routing_rules": "路由规则", "rule_sets": "规则集", "rules": "变更规则", "provider_rule_sets": "Provider 规则集", "configuration": "配置", "settings": "设置", "tokenizer_vocabs": "分词器词表" }
+    "title": "管理操作",
+    "description": "查看成功的管理变更与渠道登录活动。",
+    "time": "时间",
+    "actor": "管理员",
+    "action": "操作",
+    "target": "目标",
+    "empty": "尚未记录管理操作。",
+    "verbs": {
+      "create": "创建",
+      "update": "更新",
+      "delete": "删除",
+      "enable": "启用",
+      "disable": "停用",
+      "import": "导入",
+      "apply": "应用",
+      "reset": "重置",
+      "fetch": "获取",
+      "authcode_start": "开始浏览器登录",
+      "authcode_complete": "完成浏览器登录",
+      "device_start": "开始设备登录",
+      "device_poll": "完成设备登录",
+      "cookie": "交换 Cookie",
+      "setup": "初始化",
+      "login": "登录",
+      "logout": "退出"
+    },
+    "targets": {
+      "organizations": "组织",
+      "teams": "团队",
+      "providers": "Provider",
+      "credentials": "凭据",
+      "routes": "路由",
+      "route_members": "路由成员",
+      "aliases": "路由别名",
+      "model_aliases": "模型",
+      "users": "用户",
+      "user_keys": "API Key",
+      "permissions": "权限",
+      "rate_limits": "速率限制",
+      "quotas": "配额",
+      "price_rules": "价格规则",
+      "price_rates": "价格费率",
+      "routing_rules": "路由规则",
+      "rule_sets": "规则集",
+      "rules": "变更规则",
+      "provider_rule_sets": "Provider 规则集",
+      "configuration": "配置",
+      "settings": "设置",
+      "tokenizer_vocabs": "分词器词表"
+    }
   },
   "logs": {
     "title": "请求审计",
@@ -102,14 +155,60 @@
     "windowStates": {
       "empty": "当前选择没有活动配额窗口。"
     },
-    "cycleStates": { "empty": "该时段未观测到凭据配额周期。" }
+    "cycleStates": {
+      "empty": "该时段未观测到凭据配额周期。"
+    },
+    "windowNames": {
+      "five_hour": "5 小时窗口",
+      "seven_day": "7 天窗口",
+      "primary": "主窗口",
+      "secondary": "次窗口",
+      "weekly_limit": "周限额",
+      "monthly_limit": "月限额",
+      "usage": "用量",
+      "enterprise": "企业额度",
+      "chat": "Copilot 对话",
+      "completions": "代码补全",
+      "premium_interactions": "高级交互",
+      "agentic_request": "Agent 请求",
+      "seven_day_scoped": "{{scope}} 周限额",
+      "weekly_model": "{{scope}} 周限额",
+      "weekly_surface": "{{scope}} 周限额",
+      "product": "{{scope}}"
+    }
   },
   "overview": {
-    "metrics": { "label": "实例健康摘要", "healthy": "健康凭据", "ratio": "{{value}} / {{total}}", "attention": "需要关注", "requests": "请求数 · 24 小时", "cost": "已结算费用 · 24 小时" },
-    "empty": { "title": "连接第一个供应商", "description": "凭据开始承载流量后，此处会显示健康、费用和配额压力。", "action": "添加供应商" },
-    "noCredentials": { "title": "添加凭据", "description": "已配置 {{provider}}，但还没有可承载流量的凭据。", "action": "为 {{provider}} 添加凭据" },
-    "attention": { "title": "需要关注", "description": "当前不健康的已启用凭据。", "empty": "所有已启用凭据均健康。" },
-    "spending": { "title": "按供应商统计费用", "description": "过去 24 小时的已结算用量。" },
-    "pressure": { "title": "配额压力", "description": "达到或超过 80% 的配额和上游周期。", "empty": "没有接近上限的配额窗口。" }
+    "metrics": {
+      "label": "实例健康摘要",
+      "healthy": "健康凭据",
+      "ratio": "{{value}} / {{total}}",
+      "attention": "需要关注",
+      "requests": "请求数 · 24 小时",
+      "cost": "已结算费用 · 24 小时"
+    },
+    "empty": {
+      "title": "连接第一个供应商",
+      "description": "凭据开始承载流量后，此处会显示健康、费用和配额压力。",
+      "action": "添加供应商"
+    },
+    "noCredentials": {
+      "title": "添加凭据",
+      "description": "已配置 {{provider}}，但还没有可承载流量的凭据。",
+      "action": "为 {{provider}} 添加凭据"
+    },
+    "attention": {
+      "title": "需要关注",
+      "description": "当前不健康的已启用凭据。",
+      "empty": "所有已启用凭据均健康。"
+    },
+    "spending": {
+      "title": "按供应商统计费用",
+      "description": "过去 24 小时的已结算用量。"
+    },
+    "pressure": {
+      "title": "配额压力",
+      "description": "达到或超过 80% 的配额和上游周期。",
+      "empty": "没有接近上限的配额窗口。"
+    }
   }
 }
