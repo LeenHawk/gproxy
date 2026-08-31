@@ -15,7 +15,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let target = target(ctx.key)?;
     let uri = endpoint(&ctx, &target)?;
     let body = super::model::rewrite(&ctx)?;
-    let mut headers = http::HeaderMap::new();
+    let mut headers = crate::shared::http::allow_headers(ctx.headers, &["accept"]);
     super::auth::apply(&mut headers, ctx.secret)?;
     if !body.is_empty() {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));

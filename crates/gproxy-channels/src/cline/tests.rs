@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx, ResponseShapeCtx, UsageCtx};
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey, WireFamily};
-use http::{HeaderMap, Method, StatusCode};
+use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
 
 use super::ClineChannel;
@@ -73,6 +73,7 @@ fn resolves_default_base_and_exact_override_urls() {
     );
     assert_eq!(manual.request.method(), Method::POST);
     assert_eq!(manual.request.headers()["authorization"], "Bearer manual");
+    assert_eq!(manual.request.headers()["accept"], "text/event-stream");
 
     let settings = json!({"base_url":"https://staging.cline.test/api/v1"});
     let account = prepare(
@@ -160,6 +161,8 @@ fn prepare(
     secret: &Value,
     settings: &Value,
 ) -> gproxy_channel_api::PreparedRequest {
+    let mut headers = HeaderMap::new();
+    headers.insert("accept", HeaderValue::from_static("text/event-stream"));
     ClineChannel
         .prepare(PrepareCtx {
             key,
@@ -167,7 +170,7 @@ fn prepare(
             method: &Method::PATCH,
             path: "/client/path",
             query: Some("ignored=yes"),
-            headers: &HeaderMap::new(),
+            headers: &headers,
             body,
             upstream_model: model,
             provider_settings: settings,
