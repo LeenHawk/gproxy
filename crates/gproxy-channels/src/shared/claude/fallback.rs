@@ -42,16 +42,9 @@ fn insert(body: &mut Value, configured: &Value, anthropic_policy: bool) -> Optio
         return Some(beta_for(root));
     }
     let (fallbacks, beta) = if configured.as_str() == Some("default") {
-        if anthropic_policy {
-            (json!("default"), DEFAULT_FALLBACK_BETA)
-        } else {
-            let fallback = namespaced(&model, "claude-opus-4-8");
-            if fallback == model {
-                return None;
-            }
-            (json!([{"model":fallback}]), FALLBACK_BETA)
-        }
-    } else if let Some(models) = configured.as_array() {
+        default_chain(&model, anthropic_policy)?
+    } else {
+        let models = configured.as_array()?;
         let mut chain = models
             .iter()
             .filter_map(Value::as_str)
@@ -67,23 +60,23 @@ fn insert(body: &mut Value, configured: &Value, anthropic_policy: bool) -> Optio
             });
         chain.truncate(3);
         if chain.is_empty() {
-            if anthropic_policy {
-                (json!("default"), DEFAULT_FALLBACK_BETA)
-            } else {
-                let fallback = namespaced(&model, "claude-opus-4-8");
-                if fallback == model {
-                    return None;
-                }
-                (json!([{"model":fallback}]), FALLBACK_BETA)
-            }
+            default_chain(&model, anthropic_policy)?
         } else {
             (Value::Array(chain), FALLBACK_BETA)
         }
-    } else {
-        return None;
     };
     root.insert("fallbacks".into(), fallbacks);
     Some(beta)
+}
+
+/// What "default" means, and where an explicit chain lands when nothing in it is
+/// usable: Anthropic's own policy on their surfaces, one hop to Opus elsewhere.
+fn default_chain(model: &str, anthropic_policy: bool) -> Option<(Value, &'static str)> {
+    if anthropic_policy {
+        return Some((json!("default"), DEFAULT_FALLBACK_BETA));
+    }
+    let fallback = namespaced(model, "claude-opus-4-8");
+    (fallback != model).then(|| (json!([{"model":fallback}]), FALLBACK_BETA))
 }
 
 fn unsupported(model: &str) -> bool {

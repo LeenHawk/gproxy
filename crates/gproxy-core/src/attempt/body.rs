@@ -21,19 +21,19 @@ pub(crate) struct CollectedStream {
 
 pub(crate) async fn collect(
     response: http::Response<ByteStream>,
-) -> Result<http::Response<Bytes>, BodyFailure> {
+) -> Result<http::Response<Bytes>, Box<BodyFailure>> {
     let (parts, mut stream) = response.into_parts();
     let mut body = BytesMut::new();
     while let Some(chunk) = stream.next().await {
         match chunk {
             Ok(chunk) => body.extend_from_slice(&chunk),
             Err(error) => {
-                return Err(BodyFailure {
+                return Err(Box::new(BodyFailure {
                     status: parts.status,
                     headers: parts.headers,
                     body: body.freeze(),
                     error,
-                });
+                }));
             }
         }
     }
@@ -44,30 +44,30 @@ pub(crate) async fn collect_stream(
     response: http::Response<ByteStream>,
     mut decoder: Option<Box<dyn StreamDecoder>>,
     kind: ContentGenerationKind,
-) -> Result<CollectedStream, BodyFailure> {
+) -> Result<CollectedStream, Box<BodyFailure>> {
     let (mut parts, mut stream) = response.into_parts();
     let mut capture = BytesMut::new();
     let mut collector = match gproxy_transform::ResponseCollector::new(kind) {
         Ok(collector) => collector,
         Err(error) => {
-            return Err(BodyFailure {
+            return Err(Box::new(BodyFailure {
                 status: parts.status,
                 headers: parts.headers,
                 body: Bytes::new(),
                 error: TransportError::Interrupted(error.to_string()),
-            });
+            }));
         }
     };
     while let Some(chunk) = stream.next().await {
         let chunk = match chunk {
             Ok(chunk) => chunk,
             Err(error) => {
-                return Err(BodyFailure {
+                return Err(Box::new(BodyFailure {
                     status: parts.status,
                     headers: parts.headers,
                     body: capture.freeze(),
                     error,
-                });
+                }));
             }
         };
         capture.extend_from_slice(&chunk);
@@ -78,22 +78,22 @@ pub(crate) async fn collect_stream(
         let frames = match frames {
             Ok(frames) => frames,
             Err(error) => {
-                return Err(BodyFailure {
+                return Err(Box::new(BodyFailure {
                     status: parts.status,
                     headers: parts.headers,
                     body: capture.freeze(),
                     error: TransportError::Interrupted(error.to_string()),
-                });
+                }));
             }
         };
         for frame in frames {
             if let Err(error) = collector.push(frame.0) {
-                return Err(BodyFailure {
+                return Err(Box::new(BodyFailure {
                     status: parts.status,
                     headers: parts.headers,
                     body: capture.freeze(),
                     error: TransportError::Interrupted(error.to_string()),
-                });
+                }));
             }
         }
     }
@@ -106,22 +106,22 @@ pub(crate) async fn collect_stream(
     let tail = match tail {
         Ok(tail) => tail,
         Err(error) => {
-            return Err(BodyFailure {
+            return Err(Box::new(BodyFailure {
                 status: parts.status,
                 headers: parts.headers,
                 body: capture.freeze(),
                 error: TransportError::Interrupted(error),
-            });
+            }));
         }
     };
     for frame in tail.frames {
         if let Err(error) = collector.push(frame.0) {
-            return Err(BodyFailure {
+            return Err(Box::new(BodyFailure {
                 status: parts.status,
                 headers: parts.headers,
                 body: capture.freeze(),
                 error: TransportError::Interrupted(error.to_string()),
-            });
+            }));
         }
     }
     let body = match collector
@@ -130,12 +130,12 @@ pub(crate) async fn collect_stream(
     {
         Ok(body) => body,
         Err(error) => {
-            return Err(BodyFailure {
+            return Err(Box::new(BodyFailure {
                 status: parts.status,
                 headers: parts.headers,
                 body: capture.freeze(),
                 error: TransportError::Interrupted(error.to_string()),
-            });
+            }));
         }
     };
     parts.headers.remove(http::header::CONTENT_LENGTH);

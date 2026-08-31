@@ -129,23 +129,31 @@ pub(crate) async fn run<H: Host>(
                 )
                 .await;
             }
-            Err(Failure::Transport { facts, error }) => {
-                let reason = funnel_error::transport_error_kind(&error);
-                last_reason = Some(reason);
-                funnel_error::attempt_transport(core.host.as_ref(), &facts, &error).await;
-            }
-            Err(Failure::Interrupted {
-                facts,
-                status,
-                body,
-                error,
-                ..
-            }) => {
-                last_reason = Some("upstream response interrupted");
-                funnel_error::attempt_interrupted(core.host.as_ref(), &facts, status, body, &error)
+            Err(failure) => match *failure {
+                Failure::Transport { facts, error } => {
+                    let reason = funnel_error::transport_error_kind(&error);
+                    last_reason = Some(reason);
+                    funnel_error::attempt_transport(core.host.as_ref(), &facts, &error).await;
+                }
+                Failure::Interrupted {
+                    facts,
+                    status,
+                    body,
+                    error,
+                    ..
+                } => {
+                    last_reason = Some("upstream response interrupted");
+                    funnel_error::attempt_interrupted(
+                        core.host.as_ref(),
+                        &facts,
+                        status,
+                        body,
+                        &error,
+                    )
                     .await;
-            }
-            Err(Failure::Committed { error, .. }) => return Err(error),
+                }
+                Failure::Committed { error, .. } => return Err(error),
+            },
         }
     }
 

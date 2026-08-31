@@ -72,7 +72,7 @@ pub async fn authorize_host_route(
     state: &impl State,
     parts: &http::request::Parts,
     write: bool,
-) -> Result<(), http::Response<bytes::Bytes>> {
+) -> Result<(), Box<http::Response<bytes::Bytes>>> {
     let result = async {
         let _admin = auth::authenticate(state, parts).await?;
         if write {
@@ -81,7 +81,7 @@ pub async fn authorize_host_route(
         Ok::<_, AdminError>(())
     }
     .await;
-    result.map_err(|error| response::render(Err(error), "admin"))
+    result.map_err(|error| Box::new(response::render(Err(error), "admin")))
 }
 
 #[cfg(test)]

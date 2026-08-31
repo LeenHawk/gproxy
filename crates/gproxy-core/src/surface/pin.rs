@@ -182,15 +182,13 @@ pub(crate) fn token_key(provider_id: i64, namespace: &str, value: &str) -> Strin
 }
 
 pub(crate) fn decode_token(value: Vec<u8>) -> Option<TokenBinding> {
-    let mut chunks = value.chunks_exact(8);
-    let values = {
-        let mut next = || Some(i64::from_be_bytes(chunks.next()?.try_into().ok()?));
-        [next()?, next()?, next()?, next()?, next()?]
-    };
-    if !chunks.remainder().is_empty() || chunks.next().is_some() {
+    let (blocks, rest) = value.as_chunks::<8>();
+    if !rest.is_empty() {
         return None;
     }
-    let [credential, user_id, user_key_id, org_id, team_id] = values;
+    let [credential, user_id, user_key_id, org_id, team_id] = <&[[u8; 8]; 5]>::try_from(blocks)
+        .ok()?
+        .map(i64::from_be_bytes);
     Some(TokenBinding {
         credential: CredentialId(credential),
         identity: CallerIdentity {

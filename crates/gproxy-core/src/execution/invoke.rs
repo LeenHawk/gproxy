@@ -33,25 +33,28 @@ pub(crate) async fn run<H: Host>(
     .await?;
     match attempt::send(core, prepared).await {
         Ok(completed) => Ok(attempt::finish(core, control, completed).await),
-        Err(Failure::Transport { facts, error }) => {
-            funnel_error::terminal_transport(core.host.as_ref(), &facts, &error).await;
-            Err(error.into())
-        }
-        Err(Failure::Interrupted {
-            channel,
-            facts,
-            status,
-            headers,
-            body,
-            error,
-        }) => {
-            let channel = core
-                .channels
-                .get(channel)
-                .expect("attempt channel remains registered");
-            funnel::interrupted(core.host.as_ref(), channel, facts, status, headers, body).await;
-            Err(error.into())
-        }
-        Err(Failure::Committed { error, .. }) => Err(error),
+        Err(failure) => match *failure {
+            Failure::Transport { facts, error } => {
+                funnel_error::terminal_transport(core.host.as_ref(), &facts, &error).await;
+                Err(error.into())
+            }
+            Failure::Interrupted {
+                channel,
+                facts,
+                status,
+                headers,
+                body,
+                error,
+            } => {
+                let channel = core
+                    .channels
+                    .get(channel)
+                    .expect("attempt channel remains registered");
+                funnel::interrupted(core.host.as_ref(), channel, facts, status, headers, body)
+                    .await;
+                Err(error.into())
+            }
+            Failure::Committed { error, .. } => Err(error),
+        },
     }
 }

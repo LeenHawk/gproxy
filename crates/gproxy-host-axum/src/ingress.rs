@@ -76,7 +76,7 @@ async fn handle_request(
         )
         .await
         {
-            return crate::response::buffered_response(response, permit, &request_id);
+            return crate::response::buffered_response(*response, permit, &request_id);
         }
         let response = crate::autostart::dispatch(state.autostart.as_deref(), &method, &body);
         return crate::response::buffered_response(response, permit, &request_id);
@@ -89,7 +89,7 @@ async fn handle_request(
         )
         .await
         {
-            return crate::response::buffered_response(response, permit, &request_id);
+            return crate::response::buffered_response(*response, permit, &request_id);
         }
         let response = match state.selfupdate.as_deref() {
             Some(manager) => manager.dispatch(&method, &path).await,
@@ -112,7 +112,7 @@ async fn handle_request(
     }
     let websocket = match websocket_upgrade(&mut parts, &state).await {
         Ok(upgrade) => upgrade,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let (mode, path) = gproxy_app::ingress::normalize_path(&path);
     let request = RequestCtx {
@@ -140,14 +140,14 @@ async fn handle_request(
 async fn websocket_upgrade(
     parts: &mut Parts,
     state: &HostState,
-) -> Result<Option<WebSocketUpgrade>, Response> {
+) -> Result<Option<WebSocketUpgrade>, Box<Response>> {
     if !has_websocket_intent(&parts.headers) {
         return Ok(None);
     }
     WebSocketUpgrade::from_request_parts(parts, state)
         .await
         .map(Some)
-        .map_err(IntoResponse::into_response)
+        .map_err(|rejection| Box::new(rejection.into_response()))
 }
 
 fn has_websocket_intent(headers: &HeaderMap) -> bool {

@@ -67,7 +67,7 @@ pub(crate) enum Failure {
 pub(crate) async fn send<H: Host>(
     core: &Core<H>,
     prepared: Prepared,
-) -> Result<Completed, Failure> {
+) -> Result<Completed, Box<Failure>> {
     let Prepared {
         channel,
         egress,
@@ -88,13 +88,13 @@ pub(crate) async fn send<H: Host>(
                     "upstream transport failed",
                 )
                 .await;
-                return Err(Failure::Transport { facts, error });
+                return Err(Box::new(Failure::Transport { facts, error }));
             }
         },
         Egress::Orchestrated(driver) => {
             match crate::orchestration::run(core, channel, driver, &mut facts).await {
                 Ok(response) => response,
-                Err(error) => return Err(Failure::Committed { error }),
+                Err(error) => return Err(Box::new(Failure::Committed { error })),
             }
         }
     };
@@ -163,7 +163,7 @@ pub(crate) async fn send<H: Host>(
         if !downstream_stream {
             let gproxy_protocol::OperationKind::ContentGeneration(kind) = source.kind else {
                 let (parts, _) = response.into_parts();
-                return Err(Failure::Interrupted {
+                return Err(Box::new(Failure::Interrupted {
                     channel: channel.descriptor().id,
                     facts,
                     status: parts.status,
@@ -172,7 +172,7 @@ pub(crate) async fn send<H: Host>(
                     error: TransportError::Interrupted(
                         "buffered stream source is not content generation".into(),
                     ),
-                });
+                }));
             };
             return match body::collect_stream(response, decoder, kind).await {
                 Ok(collected) => Ok(Completed {
@@ -196,14 +196,14 @@ pub(crate) async fn send<H: Host>(
                         "upstream response interrupted",
                     )
                     .await;
-                    Err(Failure::Interrupted {
+                    Err(Box::new(Failure::Interrupted {
                         channel: channel.descriptor().id,
                         facts,
                         status: failure.status,
                         headers: failure.headers,
                         body: failure.body,
                         error: failure.error,
-                    })
+                    }))
                 }
             };
         }
@@ -225,14 +225,14 @@ pub(crate) async fn send<H: Host>(
                 "upstream response interrupted",
             )
             .await;
-            return Err(Failure::Interrupted {
+            return Err(Box::new(Failure::Interrupted {
                 channel: channel.descriptor().id,
                 facts,
                 status: failure.status,
                 headers: failure.headers,
                 body: failure.body,
                 error: failure.error,
-            });
+            }));
         }
     };
     let disposition =
