@@ -53,7 +53,9 @@ pub use surface::{
     SynthCtx, Synthesizer, UsageView, UsageWindow,
 };
 pub use traffic::{TrafficBlacklistConfig, TrafficPolicyConfig};
-pub use usage::{NormalizedUsage, QuotaObservation};
+pub use usage::{
+    NormalizedUsage, QuotaObservation, QuotaResetCredits, QuotaResetOutcome, QuotaResetResult,
+};
 pub use wire::{
     Alpn, ByteStream, ClientProfile, ConfiguredClientProfile, CredentialId, Http2Profile,
     Http2Setting, MaybeSend, MaybeSync, PseudoHeader, TlsVersion, TransportError, WsDuplex,

@@ -107,4 +107,27 @@ pub struct QuotaProbeWindowDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct QuotaProbeResponse {
     pub windows: Vec<QuotaProbeWindowDto>,
+    pub reset_credits: Option<QuotaResetCreditsDto>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct QuotaResetCreditsDto {
+    pub available_count: i64,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum QuotaResetOutcomeDto {
+    Reset,
+    NothingToReset,
+    NoCredit,
+    AlreadyRedeemed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct QuotaResetResponse {
+    pub outcome: QuotaResetOutcomeDto,
+    pub windows_reset: Option<i64>,
 }

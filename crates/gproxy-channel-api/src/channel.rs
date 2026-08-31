@@ -2,6 +2,7 @@
 
 use bytes::Bytes;
 use gproxy_protocol::{OperationKey, StreamFraming};
+use http::{Request, StatusCode};
 use serde_json::Value;
 
 use crate::BoxFuture;
@@ -206,7 +207,7 @@ pub struct PrepareCtx<'a> {
 
 /// The upstream request, ready to send.
 pub struct PreparedRequest {
-    pub request: http::Request<Bytes>,
+    pub request: Request<Bytes>,
     /// Actual upstream stream framing when it differs from the operation's
     /// protocol default (for example an explicit Gemini `alt=sse`).
     pub framing: Option<StreamFraming>,
@@ -228,7 +229,7 @@ impl PreparedRequest {
 /// What classification may read. For streaming responses the body is
 /// whatever error page arrived before streaming began, or empty.
 pub struct ResponseView<'a> {
-    pub status: http::StatusCode,
+    pub status: StatusCode,
     pub headers: &'a http::HeaderMap,
     pub body: &'a [u8],
 }
@@ -256,7 +257,7 @@ pub struct UsageCtx<'a> {
 /// unshaped bytes.
 pub struct ResponseShapeCtx<'a> {
     pub key: OperationKey,
-    pub status: http::StatusCode,
+    pub status: StatusCode,
     pub headers: &'a http::HeaderMap,
     pub body: &'a Bytes,
 }
@@ -297,7 +298,7 @@ pub trait StreamDecoder: Send {
 pub trait SimpleHttp: MaybeSync {
     fn send<'a>(
         &'a self,
-        request: http::Request<Bytes>,
+        request: Request<Bytes>,
     ) -> BoxFuture<'a, Result<http::Response<Bytes>, ChannelError>>;
 }
 
@@ -362,47 +363,74 @@ pub trait Channel: Send + Sync {
         Ok(None)
     }
 
-    /// Classify one upstream answer for failover and health.
     fn classify(&self, response: ResponseView<'_>) -> Disposition;
 
-    /// A decoder when this operation's response streams in a shape the
-    /// engine cannot treat as opaque bytes; `None` = pass through.
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
         let _ = ctx;
         None
     }
 
-    /// Pull usage out of a buffered response body.
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage>;
 
-    /// Upstream quota-window readings riding this response's headers. Fires
-    /// on every upstream response, billable or not — headers are all a
-    /// streaming response has at observation time.
     fn observe_quota(&self, headers: &http::HeaderMap) -> Vec<crate::usage::QuotaObservation> {
         let _ = headers;
         Vec::new()
     }
 
-    /// Build the request for this channel's dedicated usage endpoint, when it
-    /// has one. Some upstreams rate-limit these aggressively — callers probe
-    /// on demand, never per exchange. `None` = no probe for this channel.
     fn prepare_quota_probe(
         &self,
         secret: &Value,
         provider_settings: &Value,
-    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+    ) -> Result<Option<Request<Bytes>>, ChannelError> {
         let _ = (secret, provider_settings);
         Ok(None)
     }
 
-    /// Parse the probe response into quota-window readings.
     fn parse_quota_probe(
         &self,
-        status: http::StatusCode,
+        status: StatusCode,
         body: &[u8],
     ) -> Vec<crate::usage::QuotaObservation> {
         let _ = (status, body);
         Vec::new()
+    }
+
+    /// Richer reset-credit details when the channel has a dedicated credits
+    /// endpoint (per-credit expiry). Fired after the usage probe; its
+    /// response also goes through [`Channel::parse_quota_probe_credits`].
+    fn prepare_quota_credits_probe(
+        &self,
+        _secret: &Value,
+        _provider_settings: &Value,
+    ) -> Result<Option<Request<Bytes>>, ChannelError> {
+        Ok(None)
+    }
+
+    /// Parses either the usage-probe body or the credits-probe body,
+    /// whichever the channel recognizes.
+    fn parse_quota_probe_credits(
+        &self,
+        _status: StatusCode,
+        _body: &[u8],
+    ) -> Option<crate::usage::QuotaResetCredits> {
+        None
+    }
+
+    fn prepare_quota_reset(
+        &self,
+        _secret: &Value,
+        _provider_settings: &Value,
+        _redeem_request_id: &str,
+    ) -> Result<Option<Request<Bytes>>, ChannelError> {
+        Ok(None)
+    }
+
+    fn parse_quota_reset(
+        &self,
+        _status: StatusCode,
+        _body: &[u8],
+    ) -> Option<crate::usage::QuotaResetResult> {
+        None
     }
 
     /// Prepare the trusted observer for a successful long-lived session.

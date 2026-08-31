@@ -41,7 +41,8 @@ pub(crate) type Shared<T> = std::rc::Rc<T>;
 
 pub use gproxy_channel_api as channel_api;
 pub use gproxy_channel_api::{
-    BindingStore, BoxFuture, CallerIdentity, QuotaWindow, UsageView, WsDuplex, WsFrame,
+    BindingStore, BoxFuture, CallerIdentity, QuotaResetCredits, QuotaResetOutcome,
+    QuotaResetResult, QuotaWindow, UsageView, WsDuplex, WsFrame,
 };
 pub use gproxy_channels as channels;
 pub use gproxy_protocol as protocol;
@@ -61,4 +62,5 @@ pub use host::{
     CacheBackend, CaptureSink, CredentialHealth, CredentialId, CredentialRecord, CredentialStore,
     Host, Spawner, UpstreamTransport, UsageSink,
 };
+pub use quota::QuotaProbeResult;
 pub use usage::{Ended, NormalizedUsage, Settlement, UsageSource};

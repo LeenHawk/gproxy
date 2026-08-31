@@ -205,6 +205,39 @@ impl Channel for CodexChannel {
         quota::parse_probe(status, body)
     }
 
+    fn prepare_quota_credits_probe(
+        &self,
+        secret: &serde_json::Value,
+        provider_settings: &serde_json::Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        quota::credits_probe_request(secret, provider_settings)
+    }
+
+    fn parse_quota_probe_credits(
+        &self,
+        status: http::StatusCode,
+        body: &[u8],
+    ) -> Option<gproxy_channel_api::QuotaResetCredits> {
+        quota::parse_probe_credits(status, body)
+    }
+
+    fn prepare_quota_reset(
+        &self,
+        secret: &serde_json::Value,
+        provider_settings: &serde_json::Value,
+        redeem_request_id: &str,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        quota::reset_request(secret, provider_settings, redeem_request_id)
+    }
+
+    fn parse_quota_reset(
+        &self,
+        status: http::StatusCode,
+        body: &[u8],
+    ) -> Option<gproxy_channel_api::QuotaResetResult> {
+        quota::parse_reset(status, body)
+    }
+
     fn session_preparer(&self) -> Option<SessionPreparer> {
         Some(realtime::prepare)
     }

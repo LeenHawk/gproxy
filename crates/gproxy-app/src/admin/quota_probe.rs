@@ -1,6 +1,7 @@
 use gproxy_admin::AdminError;
 use gproxy_admin::dto::{
     ConnectivityScopeDto, ConnectivityTestRequest, QuotaProbeResponse, QuotaProbeWindowDto,
+    QuotaResetCreditsDto,
 };
 
 use crate::AppHandle;
@@ -18,7 +19,7 @@ pub(super) async fn run(
             proxy_url: None,
         },
     )?;
-    let observations = app
+    let result = app
         .inner
         .core
         .quota_probe(
@@ -29,7 +30,8 @@ pub(super) async fn run(
         .await
         .map_err(probe_error)?;
     Ok(QuotaProbeResponse {
-        windows: observations
+        windows: result
+            .observations
             .into_iter()
             .map(|observation| QuotaProbeWindowDto {
                 window_key: observation.window_key,
@@ -37,6 +39,10 @@ pub(super) async fn run(
                 period_end: observation.period_end,
             })
             .collect(),
+        reset_credits: result.reset_credits.map(|credits| QuotaResetCreditsDto {
+            available_count: credits.available_count,
+            expires_at: credits.expires_at,
+        }),
     })
 }
 

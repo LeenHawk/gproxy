@@ -44,6 +44,7 @@ pub(crate) async fn dispatch(
         Route::ModelTest => connectivity::model_test(state, admin.id, body).await,
         Route::ModelDiscover => connectivity::model_discover(state, admin.id, body).await,
         Route::CredentialQuotaProbe(id) => connectivity::quota_probe(state, id).await,
+        Route::CredentialQuotaReset(id) => connectivity::quota_reset(state, id).await,
         Route::RevealUserKey(id) => identity::reveal(state, admin, id).await,
         Route::Usage => observability::usage(state, parts).await,
         Route::QuotaWindows => observability::quota_windows(state, parts).await,

@@ -11,6 +11,7 @@ default = []
 exhaustive = []
 
 [dependencies]
+base64.workspace = true
 gproxy-channel-api.workspace = true
 gproxy-channels.workspace = true
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
@@ -18,6 +19,7 @@ gproxy-transform.workspace = true
 bytes.workspace = true
 futures-core.workspace = true
 futures-util.workspace = true
+getrandom.workspace = true
 http.workspace = true
 regex.workspace = true
 rust_decimal.workspace = true

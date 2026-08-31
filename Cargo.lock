@@ -1589,9 +1589,11 @@ dependencies = [
 name = "gproxy-core"
 version = "3.0.0-alpha.0"
 dependencies = [
+ "base64 0.22.1",
  "bytes",
  "futures-core",
  "futures-util",
+ "getrandom 0.3.4",
  "gproxy-channel-api",
  "gproxy-channels",
  "gproxy-protocol",

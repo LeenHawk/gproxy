@@ -230,6 +230,21 @@
         "success": "已觀測 {{count}} 個配額視窗。",
         "error": "配額探測失敗。"
       },
+      "quotaReset": {
+        "count": "{{count}} 張重置卡",
+        "expires": "{{time}} 過期",
+        "action": "使用重置卡",
+        "confirmTitle": "使用一張重置卡？",
+        "confirmDescription": "這會消耗一張重置卡，並重置符合條件的 Codex 限流視窗。",
+        "confirmAction": "確認使用",
+        "error": "無法使用重置卡。",
+        "outcomes": {
+          "reset": "已重置 {{count}} 個限流視窗。",
+          "nothing_to_reset": "目前沒有需要重置的限流視窗。",
+          "no_credit": "目前沒有可用的重置卡。",
+          "already_redeemed": "本次重置請求已經兌換過。"
+        }
+      },
       "quotaCycle": "配額週期",
       "noQuotaCycle": "尚未觀測到上游配額週期。",
       "cycleModels": {

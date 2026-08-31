@@ -230,6 +230,21 @@
         "success": "Observed {{count}} quota windows.",
         "error": "Quota probe failed."
       },
+      "quotaReset": {
+        "count": "{{count}} reset credits",
+        "expires": "Expires {{time}}",
+        "action": "Consume reset credit",
+        "confirmTitle": "Consume a reset credit?",
+        "confirmDescription": "This spends one credit to reset the eligible Codex rate-limit windows.",
+        "confirmAction": "Consume credit",
+        "error": "Could not consume the reset credit.",
+        "outcomes": {
+          "reset": "Reset {{count}} rate-limit windows.",
+          "nothing_to_reset": "No eligible rate-limit window needs resetting.",
+          "no_credit": "No reset credit is available.",
+          "already_redeemed": "This reset request was already redeemed."
+        }
+      },
       "quotaCycle": "Quota cycle",
       "noQuotaCycle": "No upstream quota cycle observed.",
       "cycleModels": {

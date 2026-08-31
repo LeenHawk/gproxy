@@ -17,6 +17,7 @@ import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { PriceRuleWriteRequest } from "@/generated/PriceRuleWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { QuotaProbeResponse } from "@/generated/QuotaProbeResponse"
+import type { QuotaResetResponse } from "@/generated/QuotaResetResponse"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TokenizerFetchRequest } from "@/generated/TokenizerFetchRequest"
 import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
@@ -49,6 +50,8 @@ const save = <T>(path: string, value: T, id?: number) =>
 
 export const probeCredentialQuota = (id: number) =>
   api<QuotaProbeResponse>(`/admin/api/credentials/${id}/quota-probe`, json("POST", {}))
+export const resetCredentialQuota = (id: number) =>
+  api<QuotaResetResponse>(`/admin/api/credentials/${id}/quota-reset`, json("POST", {}))
 
 export const batch = (entity: Entity, action: BatchActionDto, ids: Array<number>) =>
   api<BatchResponse>(`/admin/api/batch/${entity}`, json("POST", { action, ids }))

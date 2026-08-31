@@ -41,6 +41,7 @@ pub(crate) enum Route {
     ModelTest,
     ModelDiscover,
     CredentialQuotaProbe(i64),
+    CredentialQuotaReset(i64),
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -97,6 +98,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if let ["credentials", credential, "quota-probe"] = segments.as_slice() {
             return Some(Route::CredentialQuotaProbe(credential.parse().ok()?));
+        }
+        if let ["credentials", credential, "quota-reset"] = segments.as_slice() {
+            return Some(Route::CredentialQuotaReset(credential.parse().ok()?));
         }
         if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
             return Some(Route::ApplyRulePreset {
@@ -241,6 +245,9 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::CredentialQuotaProbe(id) => {
             action("credential.quota_probe", "credentials", Some(*id))
         }
+        Route::CredentialQuotaReset(id) => {
+            action("credential.quota_reset", "credentials", Some(*id))
+        }
         Route::ModelDiscover => action("model.discover", "providers", None),
         Route::List(_)
         | Route::ConfigurationExport
@@ -301,5 +308,20 @@ impl Entity {
             Self::Rules => "rules",
             Self::ProviderRuleSets => "provider_rule_sets",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Route, audit, parse};
+
+    #[test]
+    fn parses_and_audits_credential_quota_reset() {
+        let route = parse(&http::Method::POST, "/admin/api/credentials/17/quota-reset").unwrap();
+        assert!(matches!(route, Route::CredentialQuotaReset(17)));
+        let descriptor = audit(&route, b"{}").unwrap();
+        assert_eq!(descriptor.action, "credential.quota_reset");
+        assert_eq!(descriptor.target_kind, "credentials");
+        assert_eq!(descriptor.target_id, Some(17));
     }
 }

@@ -4,7 +4,7 @@ use gproxy_store::records::CredentialEnvelope;
 use crate::dto::{
     ChannelDto, ConnectivityTestRequest, ConnectivityTestResponse, ExportSourceKeyDto,
     ModelDiscoverRequest, ModelDiscoverResponse, ModelTestRequest, ModelTestResponse,
-    PortalModelDto, QuotaProbeResponse, TokenizerVocabDto,
+    PortalModelDto, QuotaProbeResponse, QuotaResetResponse, TokenizerVocabDto,
 };
 use crate::{AdminError, PortalIdentity};
 
@@ -73,6 +73,11 @@ pub trait State: MaybeSend + MaybeSync {
         &'a self,
         credential_id: i64,
     ) -> BoxFuture<'a, Result<QuotaProbeResponse, AdminError>>;
+
+    fn quota_reset<'a>(
+        &'a self,
+        credential_id: i64,
+    ) -> BoxFuture<'a, Result<QuotaResetResponse, AdminError>>;
 
     /// Ask the provider for its catalogue through the funnel. Discovery is additive:
     /// unseen ids are inserted, blank fields are filled, and the operator's edits stay.

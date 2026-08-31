@@ -31,3 +31,25 @@ pub struct QuotaObservation {
     pub upstream_used: Option<Decimal>,
     pub upstream_limit: Option<Decimal>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotaResetCredits {
+    pub available_count: i64,
+    /// Soonest expiry among the credits, unix seconds — only the dedicated
+    /// credits endpoint reports per-credit expiry; the usage summary does not.
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotaResetOutcome {
+    Reset,
+    NothingToReset,
+    NoCredit,
+    AlreadyRedeemed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotaResetResult {
+    pub outcome: QuotaResetOutcome,
+    pub windows_reset: Option<i64>,
+}
