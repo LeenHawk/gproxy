@@ -90,7 +90,10 @@ impl ContentConverter {
         signature: Option<String>,
         rest: openai::Rest,
     ) -> openai::ResponseItem {
-        let id = super::super::ids::reasoning_id(signature.as_deref(), self.next_reasoning);
+        let id = super::super::ids::reasoning_id(
+            signature.as_deref().or(text.as_deref()),
+            self.next_reasoning,
+        );
         self.next_reasoning = self.next_reasoning.saturating_add(1);
         openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::Reasoning {
             id: Some(id),

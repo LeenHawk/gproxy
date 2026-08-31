@@ -83,4 +83,10 @@ impl ContentConverter {
         self.next_call = self.next_call.saturating_add(1);
         id
     }
+
+    fn allocate_named_call(&mut self, source: Option<String>, name: &str) -> String {
+        let id = source.unwrap_or_else(|| format!("call_{name}"));
+        self.next_call = self.next_call.saturating_add(1);
+        id
+    }
 }

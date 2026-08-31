@@ -13,7 +13,7 @@ impl ContentConverter {
         signature: Option<String>,
         mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
-        let call_id = self.allocate_call(call.id);
+        let call_id = self.allocate_named_call(call.id, &call.name);
         self.calls_by_name
             .entry(call.name.clone())
             .or_default()
@@ -75,8 +75,8 @@ impl ContentConverter {
         call: gemini::ToolCall,
         mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
-        let call_id = self.allocate_call(call.id);
         let name = wire::server_tool_name(&call.tool_type)?;
+        let call_id = self.allocate_named_call(call.id, &name);
         self.calls_by_name
             .entry(name.clone())
             .or_default()

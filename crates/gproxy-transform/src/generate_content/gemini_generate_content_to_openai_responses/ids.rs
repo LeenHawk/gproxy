@@ -6,8 +6,8 @@ pub(super) fn item_id(prefix: &str, call_id: &str) -> String {
     format!("{prefix}_{}", stable_suffix(call_id))
 }
 
-pub(super) fn reasoning_id(signature: Option<&str>, index: u32) -> String {
-    signature.map_or_else(
+pub(super) fn reasoning_id(source: Option<&str>, index: u32) -> String {
+    source.map_or_else(
         || format!("rs_gemini_{index}"),
         |value| item_id("rs", value),
     )

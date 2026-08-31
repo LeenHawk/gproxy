@@ -261,3 +261,67 @@ fn request_fields_map_or_drop_without_blocking_convertible_turns() {
     );
     assert_eq!(cached_chat["prompt_cache_key"], "cachedContents/stable");
 }
+
+#[test]
+fn chat_history_uses_output_messages_and_normalized_tool_correlation() {
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let request = convert_request(
+        chat,
+        responses,
+        json!({
+            "model":"route",
+            "messages":[
+                {"role":"assistant","content":"working","tool_calls":[{
+                    "id":"vendor-id","type":"function",
+                    "function":{"name":"lookup","arguments":"{}"}
+                }]},
+                {"role":"tool","tool_call_id":"vendor-id","content":"done"},
+                {"role":"assistant","content":[{
+                    "type":"text","text":"cached",
+                    "prompt_cache_breakpoint":{"mode":"explicit"}
+                }]}
+            ]
+        }),
+    );
+    assert_eq!(request["input"][0]["id"], "msg_0");
+    assert_eq!(request["input"][0]["status"], "completed");
+    assert_eq!(request["input"][0]["content"][0]["type"], "output_text");
+    let call_id = request["input"][1]["call_id"].as_str().unwrap();
+    assert!(call_id.starts_with("call_"));
+    assert_ne!(call_id, "vendor-id");
+    assert!(
+        request["input"][1]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("fc_"))
+    );
+    assert_eq!(request["input"][2]["call_id"], call_id);
+    assert!(request["input"][3].get("id").is_none());
+}
+
+#[test]
+fn gemini_missing_call_ids_use_v2_name_fallbacks_and_correlate_results() {
+    let gemini = content(Operation::GenerateContent, Kind::GeminiGenerateContent);
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let request = convert_request(
+        gemini,
+        responses,
+        json!({
+            "model":"gemini",
+            "contents":[
+                {"role":"model","parts":[
+                    {"functionCall":{"name":"alpha","args":{}}},
+                    {"functionCall":{"name":"beta","args":{}}}
+                ]},
+                {"role":"user","parts":[
+                    {"functionResponse":{"name":"alpha","response":{"ok":1}}},
+                    {"functionResponse":{"name":"beta","response":{"ok":2}}}
+                ]}
+            ]
+        }),
+    );
+    assert_eq!(request["input"][0]["call_id"], "call_alpha");
+    assert_eq!(request["input"][1]["call_id"], "call_beta");
+    assert_eq!(request["input"][2]["call_id"], "call_alpha");
+    assert_eq!(request["input"][3]["call_id"], "call_beta");
+}

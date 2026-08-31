@@ -12,10 +12,7 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
-    let mut items = Vec::new();
-    for message in input.messages {
-        items.extend(messages::message_items(message)?);
-    }
+    let items = messages::message_items(input.messages)?;
     let output = openai::ResponseCreateRequest {
         background: None,
         context_management: None,
