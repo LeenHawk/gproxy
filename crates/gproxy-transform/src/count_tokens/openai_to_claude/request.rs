@@ -9,17 +9,17 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
         crate::generate_content::openai_responses_to_claude_messages::request::count_tokens(
             input, model,
         )?;
-    output.messages = (!text.is_empty())
-        .then(|| {
-            vec![gproxy_protocol::claude::MessageParam {
-                role: gproxy_protocol::claude::MessageRole::Known(
-                    gproxy_protocol::claude::MessageRoleKnown::User,
-                ),
-                content: gproxy_protocol::claude::StringOrArray::String(text),
-                rest: Default::default(),
-            }]
-        })
-        .unwrap_or_default();
+    output.messages = if text.is_empty() {
+        Vec::new()
+    } else {
+        vec![gproxy_protocol::claude::MessageParam {
+            role: gproxy_protocol::claude::MessageRole::Known(
+                gproxy_protocol::claude::MessageRoleKnown::User,
+            ),
+            content: gproxy_protocol::claude::StringOrArray::String(text),
+            rest: Default::default(),
+        }]
+    };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 

@@ -72,9 +72,8 @@ pub(crate) fn transform(body: Bytes, model: &str, stream: bool) -> Result<Bytes,
 fn system_text(content: gemini::Content) -> Result<String, TransformError> {
     let mut text = String::new();
     for part in content.parts {
-        match part.data {
-            Some(gemini::PartData::Text { text: value, .. }) => text.push_str(&value),
-            None | Some(_) => {}
+        if let Some(gemini::PartData::Text { text: value, .. }) = part.data {
+            text.push_str(&value);
         }
     }
     Ok(text)
