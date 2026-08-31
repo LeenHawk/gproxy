@@ -10,6 +10,8 @@ use super::{
 };
 use crate::TransformError;
 
+mod order;
+
 #[test]
 fn public_collector_handles_split_tool_stream_and_rejects_incomplete_lifecycle() {
     let wire = concat!(

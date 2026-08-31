@@ -3,7 +3,7 @@ use gproxy_protocol::openai;
 
 use crate::TransformError;
 
-use super::events::{emit, message_item, message_part, reasoning_item, stream_logprob};
+use super::events::{emit, stream_logprob};
 use super::tools::merge_rest;
 use super::{Item, State};
 
@@ -14,7 +14,6 @@ impl State {
         rest: openai::Rest,
         logprobs: Vec<openai::TokenLogprob>,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = Vec::new();
         if self.text.is_none() {
             let item = Item {
                 id: self.item_id("msg")?,
@@ -23,31 +22,6 @@ impl State {
                 rest: rest.clone(),
                 logprobs: Vec::new(),
             };
-            output.push(emit(
-                openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
-                    openai::ResponseOutputItemEvent {
-                        item: Box::new(message_item(
-                            &item,
-                            openai::ResponseItemLifecycleStatus::InProgress,
-                        )),
-                        output_index: item.index,
-                        sequence_number: Some(self.next_sequence()),
-                        rest: Default::default(),
-                    },
-                ),
-            )?);
-            output.push(emit(
-                openai::KnownResponseStreamEvent::ResponseContentPartAdded(
-                    openai::ResponseContentPartEvent {
-                        content_index: 0,
-                        item_id: item.id.clone(),
-                        output_index: item.index,
-                        part: openai::ResponseContentPart::OutputText(message_part(&item)),
-                        sequence_number: Some(self.next_sequence()),
-                        rest: Default::default(),
-                    },
-                ),
-            )?);
             self.text = Some(item);
         }
         let (id, index) = {
@@ -57,8 +31,7 @@ impl State {
             merge_rest(&mut item.rest, rest);
             (item.id.clone(), item.index)
         };
-        output.push(self.emit_text_delta(id, index, delta, logprobs)?);
-        Ok(output)
+        Ok(vec![self.emit_text_delta(id, index, delta, logprobs)?])
     }
 
     pub(super) fn reasoning_delta(
@@ -66,7 +39,6 @@ impl State {
         delta: String,
         rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = Vec::new();
         if self.reasoning.is_none() {
             let item = Item {
                 id: self.item_id("rs")?,
@@ -75,19 +47,6 @@ impl State {
                 rest: rest.clone(),
                 logprobs: Vec::new(),
             };
-            output.push(emit(
-                openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
-                    openai::ResponseOutputItemEvent {
-                        item: Box::new(reasoning_item(
-                            &item,
-                            openai::ResponseItemLifecycleStatus::InProgress,
-                        )),
-                        output_index: item.index,
-                        sequence_number: Some(self.next_sequence()),
-                        rest: Default::default(),
-                    },
-                ),
-            )?);
             self.reasoning = Some(item);
         }
         let (id, index) = {
@@ -96,7 +55,7 @@ impl State {
             merge_rest(&mut item.rest, rest);
             (item.id.clone(), item.index)
         };
-        output.push(emit(
+        Ok(vec![emit(
             openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(
                 openai::ResponseContentDeltaEvent {
                     content_index: 0,
@@ -107,8 +66,27 @@ impl State {
                     rest: Default::default(),
                 },
             ),
-        )?);
-        Ok(output)
+        )?])
+    }
+
+    pub(super) fn refusal_delta(
+        &mut self,
+        output_index: u32,
+        delta: String,
+        rest: openai::Rest,
+    ) -> Result<Vec<Bytes>, TransformError> {
+        Ok(vec![emit(
+            openai::KnownResponseStreamEvent::ResponseRefusalDelta(
+                openai::ResponseContentDeltaEvent {
+                    content_index: 0,
+                    delta,
+                    item_id: format!("msg_{output_index}"),
+                    output_index,
+                    sequence_number: Some(self.next_sequence()),
+                    rest,
+                },
+            ),
+        )?])
     }
 
     fn emit_text_delta(

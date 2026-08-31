@@ -8,25 +8,6 @@ use super::suffix;
 use crate::generate_content::openai_chat_to_openai_responses::stream::wire::empty_delta;
 
 impl State {
-    /// `annotations` and `logprobs` ride along on every `output_text` OpenAI sends and
-    /// have no place in a Chat Completions delta. Chat is the lossy side of this pair,
-    /// so they are dropped: refusing them killed every Responses stream in flight.
-    pub(super) fn complete_message_part(
-        &mut self,
-        part: openai::ResponseMessageOutputContentPart,
-        event_rest: openai::Rest,
-    ) -> Result<Vec<Bytes>, TransformError> {
-        match part {
-            openai::ResponseMessageOutputContentPart::OutputText(part) => {
-                self.finish_text(part.text, part.rest, event_rest)
-            }
-            openai::ResponseMessageOutputContentPart::Refusal(part) => {
-                self.finish_refusal(part.refusal, part.rest, event_rest)
-            }
-            openai::ResponseMessageOutputContentPart::Unknown(_) => Ok(Vec::new()),
-        }
-    }
-
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn complete_part(
         &mut self,
         part: openai::ResponseContentPart,

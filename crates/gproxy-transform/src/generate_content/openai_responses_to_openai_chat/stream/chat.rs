@@ -29,39 +29,18 @@ impl State {
             .usage
             .map(usage::chat_to_responses)
             .or(self.usage.take());
-        let mut output = self.ensure_start()?;
+        let mut output = Vec::new();
         for choice in chunk.choices {
+            let terminal = choice.finish_reason.is_some();
             output.extend(self.choice(choice)?);
+            if terminal {
+                output.extend(self.stop()?);
+            }
         }
         Ok(output)
     }
 
     fn choice(&mut self, choice: openai::ChatChunkChoice) -> Result<Vec<Bytes>, TransformError> {
-        if choice.index != 0 {
-            return Err(TransformError::unsupported(
-                "Chat stream",
-                "multiple choices",
-            ));
-        }
-        if choice.delta.refusal.is_some() {
-            return Err(TransformError::unsupported("Chat stream", "refusal delta"));
-        }
-        if choice.delta.function_call.is_some() {
-            return Err(TransformError::unsupported(
-                "Chat stream",
-                "legacy function_call delta",
-            ));
-        }
-        if !choice
-            .logprobs
-            .as_ref()
-            .is_none_or(|logprobs| logprobs.refusal.is_empty())
-        {
-            return Err(TransformError::unsupported(
-                "Chat stream",
-                "refusal logprobs",
-            ));
-        }
         merge_rest(&mut self.response_rest, choice.rest);
         let content_logprobs = choice
             .logprobs
@@ -70,7 +49,8 @@ impl State {
         let delta = choice.delta;
         let has_content = delta.content.is_some();
         let has_reasoning = delta.reasoning_content.is_some();
-        let has_tools = delta.tool_calls.is_some();
+        let has_refusal = delta.refusal.is_some();
+        let has_tools = delta.tool_calls.is_some() || delta.function_call.is_some();
         let mut delta_rest = delta.rest;
         if let Some(obfuscation) = delta.obfuscation {
             delta_rest.insert("obfuscation".into(), serde_json::Value::String(obfuscation));
@@ -87,10 +67,23 @@ impl State {
         if let Some(reasoning) = delta.reasoning_content {
             output.extend(self.reasoning_delta(reasoning, delta_rest.clone())?);
         }
+        if let Some(refusal) = delta.refusal {
+            output.extend(self.refusal_delta(choice.index, refusal, delta_rest.clone())?);
+        }
         for call in delta.tool_calls.into_iter().flatten() {
             output.extend(self.tool_delta(call)?);
         }
-        if !has_content && !has_reasoning && !has_tools {
+        if let Some(function) = delta.function_call {
+            output.extend(self.tool_delta(openai::ChatToolCallDelta {
+                index: choice.index,
+                id: Some(format!("call_{}", choice.index)),
+                type_: Some(openai::ChatToolCallType::Function),
+                function: Some(function),
+                custom: None,
+                rest: Default::default(),
+            })?);
+        }
+        if !has_content && !has_reasoning && !has_refusal && !has_tools {
             merge_rest(&mut self.response_rest, delta_rest);
         }
         if choice.finish_reason.is_some() {

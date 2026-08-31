@@ -46,10 +46,10 @@ impl State {
                 choice.delta.refusal,
             );
             if let Some(call) = choice.delta.function_call {
-                tools::update_legacy(&mut self.tools, choice.index, call)?;
+                parts.extend(tools::update_legacy(&mut self.tools, choice.index, call)?);
             }
             for call in choice.delta.tool_calls.into_iter().flatten() {
-                tools::update(&mut self.tools, choice.index, call)?;
+                parts.extend(tools::update(&mut self.tools, choice.index, call)?);
             }
             let finish_reason = choice.finish_reason.map(wire::finish_reason);
             if finish_reason.is_some() {

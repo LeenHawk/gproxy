@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use bytes::Bytes;
 use gproxy_protocol::{gemini, openai};
 
@@ -21,8 +23,8 @@ struct State {
     pending: Vec<gemini::GenerateContentResponse>,
     content: ContentConverter,
     items: Vec<(u32, openai::ResponseItem)>,
-    text: Option<Item>,
-    reasoning: Option<Item>,
+    text: BTreeMap<i32, Item>,
+    reasoning: BTreeMap<i32, Item>,
     candidates: Vec<gemini::Candidate>,
     usage: Option<gemini::UsageMetadata>,
     response_rest: openai::Rest,
@@ -31,7 +33,8 @@ struct State {
     started: bool,
     blocked: bool,
     audio: bool,
-    finished_candidate: bool,
+    seen_candidates: BTreeSet<i32>,
+    finished_candidates: BTreeSet<i32>,
     stopped: bool,
 }
 
@@ -52,8 +55,8 @@ impl State {
             pending: Vec::new(),
             content: ContentConverter::new(),
             items: Vec::new(),
-            text: None,
-            reasoning: None,
+            text: BTreeMap::new(),
+            reasoning: BTreeMap::new(),
             candidates: Vec::new(),
             usage: None,
             response_rest: Default::default(),
@@ -62,7 +65,8 @@ impl State {
             started: false,
             blocked: false,
             audio: false,
-            finished_candidate: false,
+            seen_candidates: BTreeSet::new(),
+            finished_candidates: BTreeSet::new(),
             stopped: false,
         }
     }

@@ -4,60 +4,13 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 use crate::envelope::SseFrame;
 
-use super::{Item, Tool, ToolKind};
+use super::{Tool, ToolKind};
 
 pub(super) fn emit(event: openai::KnownResponseStreamEvent) -> Result<Bytes, TransformError> {
     SseFrame::typed(
         Some(event.event_name()),
         &openai::ResponseStreamEvent::Known(Box::new(event)),
     )
-}
-
-pub(super) fn message_item(
-    item: &Item,
-    status: openai::ResponseItemLifecycleStatus,
-) -> openai::ResponseItem {
-    openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
-        openai::ResponseOutputMessageItem {
-            type_: openai::ResponseMessageItemType::Message,
-            id: item.id.clone(),
-            role: openai::ResponseOutputMessageRole::Assistant,
-            content: vec![openai::ResponseMessageOutputContentPart::OutputText(
-                message_part(item),
-            )],
-            status,
-            phase: None,
-            rest: item.rest.clone(),
-        },
-    ))
-}
-
-pub(super) fn message_part(item: &Item) -> openai::ResponseOutputText {
-    openai::ResponseOutputText {
-        type_: openai::ResponseOutputTextType::OutputText,
-        annotations: Vec::new(),
-        logprobs: (!item.logprobs.is_empty()).then(|| item.logprobs.clone()),
-        text: item.text.clone(),
-        rest: Default::default(),
-    }
-}
-
-pub(super) fn reasoning_item(
-    item: &Item,
-    status: openai::ResponseItemLifecycleStatus,
-) -> openai::ResponseItem {
-    openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::Reasoning {
-        id: Some(item.id.clone()),
-        summary: Vec::new(),
-        content: Some(vec![openai::ResponseReasoningTextPart {
-            type_: openai::ResponseReasoningTextType::ReasoningText,
-            text: item.text.clone(),
-            rest: Default::default(),
-        }]),
-        encrypted_content: None,
-        status: Some(status),
-        rest: item.rest.clone(),
-    }))
 }
 
 pub(super) fn tool_item(

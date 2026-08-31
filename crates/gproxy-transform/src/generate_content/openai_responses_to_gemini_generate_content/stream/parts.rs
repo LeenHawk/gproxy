@@ -6,15 +6,25 @@ use crate::TransformError;
 use super::{State, events};
 
 impl State {
-    pub(super) fn part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn part(
+        &mut self,
+        candidate_index: i32,
+        part: gemini::Part,
+    ) -> Result<Vec<Bytes>, TransformError> {
         let thought = part.thought == Some(true);
         let signature = part.thought_signature.clone();
         match part.data.as_ref() {
             Some(gemini::PartData::Text { text, .. }) => {
-                return self.text_delta(text.clone(), thought, signature, part.rest);
+                return self.text_delta(
+                    candidate_index,
+                    text.clone(),
+                    thought,
+                    signature,
+                    part.rest,
+                );
             }
             None if signature.is_some() => {
-                return self.text_delta(String::new(), true, signature, part.rest);
+                return self.text_delta(candidate_index, String::new(), true, signature, part.rest);
             }
             Some(gemini::PartData::InlineData { inline_data, .. })
                 if inline_data.mime_type.starts_with("audio/") =>

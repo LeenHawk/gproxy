@@ -14,8 +14,6 @@ mod terminal;
 mod tool_stream;
 mod tools;
 
-use events::emit;
-
 pub(crate) fn converter() -> Box<dyn Converter> {
     Box::new(State::default())
 }
@@ -34,7 +32,6 @@ struct State {
     sequence: u64,
     service_tier: Option<openai::ServiceTier>,
     response_rest: openai::Rest,
-    started: bool,
     stopped: bool,
 }
 
@@ -64,22 +61,6 @@ struct Tool {
 }
 
 impl State {
-    fn ensure_start(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        if self.started {
-            return Ok(Vec::new());
-        }
-        let response = self.response(openai::ResponseStatus::InProgress)?;
-        self.started = true;
-        let sequence_number = Some(self.next_sequence());
-        Ok(vec![emit(
-            openai::KnownResponseStreamEvent::ResponseCreated(openai::ResponseLifecycleEvent {
-                response: Box::new(response),
-                sequence_number,
-                rest: Default::default(),
-            }),
-        )?])
-    }
-
     fn item_id(&self, prefix: &str) -> Result<String, TransformError> {
         self.id
             .as_ref()
@@ -106,10 +87,6 @@ impl Converter for State {
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        if self.stopped {
-            Ok(Vec::new())
-        } else {
-            Err(TransformError::IncompleteStream)
-        }
+        self.stop()
     }
 }

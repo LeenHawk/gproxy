@@ -13,37 +13,8 @@ impl State {
         &mut self,
         event: openai::ResponseLifecycleEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        if event
-            .response
-            .status
-            .as_ref()
-            .is_some_and(|status| status != &openai::ResponseStatus::InProgress)
-        {
-            return Err(TransformError::shape(
-                "Responses stream",
-                "start event response status is not in_progress",
-            ));
-        }
         self.update_response(&event.response);
-        let mut rest = event.response.rest.clone();
-        merge_rest(&mut rest, event.rest);
-        if self.started {
-            return if rest.is_empty() {
-                Ok(Vec::new())
-            } else {
-                Ok(vec![self.chunk(empty_delta(), None, None, rest)?])
-            };
-        }
-        self.started = true;
-        Ok(vec![self.chunk(
-            openai::ChatDelta {
-                role: Some(openai::ChatDeltaRole::Assistant),
-                ..empty_delta()
-            },
-            None,
-            None,
-            rest,
-        )?])
+        Ok(Vec::new())
     }
 
     pub(super) fn terminal(
@@ -52,21 +23,7 @@ impl State {
         expected: openai::ResponseStatus,
     ) -> Result<Vec<Bytes>, TransformError> {
         let response = event.response;
-        if response
-            .status
-            .as_ref()
-            .is_some_and(|status| status != &expected)
-        {
-            return Err(TransformError::shape(
-                "Responses stream",
-                "terminal event type does not match response status",
-            ));
-        }
         self.update_response(&response);
-        let mut output = Vec::new();
-        for (index, item) in response.output.iter().cloned().enumerate() {
-            output.extend(self.complete_item(item, index as u32, Default::default())?);
-        }
         let finish = match expected {
             openai::ResponseStatus::Completed if self.tools.is_empty() => {
                 openai::ChatFinishReason::Stop
@@ -84,24 +41,41 @@ impl State {
                 openai::ChatFinishReason::ContentFilter
             }
             openai::ResponseStatus::Incomplete => openai::ChatFinishReason::Length,
-            _ => {
-                return Err(TransformError::shape(
-                    "Responses stream",
-                    "unsupported successful terminal status",
-                ));
+            openai::ResponseStatus::Failed | openai::ResponseStatus::Cancelled => {
+                openai::ChatFinishReason::ContentFilter
             }
+            openai::ResponseStatus::InProgress | openai::ResponseStatus::Queued => {
+                openai::ChatFinishReason::Stop
+            }
+            openai::ResponseStatus::Unknown(_) => openai::ChatFinishReason::ContentFilter,
         };
         let mut rest = response.rest.clone();
         merge_rest(&mut rest, event.rest);
         self.stopped = true;
-        output.push(self.chunk(
+        let mut output = vec![self.chunk(
             empty_delta(),
             Some(finish),
             response.usage.clone().map(usage::responses_to_chat),
             rest,
-        )?);
+        )?];
         output.push(SseFrame::encode(None, "[DONE]"));
         Ok(output)
+    }
+
+    pub(super) fn error_terminal(&mut self) -> Result<Vec<Bytes>, TransformError> {
+        self.id.get_or_insert_with(|| "resp_error".into());
+        self.model
+            .get_or_insert_with(|| openai::OpenAiModelId::from("unknown"));
+        self.stopped = true;
+        Ok(vec![
+            self.chunk(
+                empty_delta(),
+                Some(openai::ChatFinishReason::ContentFilter),
+                None,
+                Default::default(),
+            )?,
+            SseFrame::encode(None, "[DONE]"),
+        ])
     }
 
     fn update_response(&mut self, response: &openai::ResponseObject) {

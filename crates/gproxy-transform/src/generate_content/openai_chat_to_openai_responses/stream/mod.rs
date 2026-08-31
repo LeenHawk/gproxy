@@ -38,15 +38,14 @@ impl State {
             openai::KnownResponseStreamEvent::ResponseIncomplete(event) => {
                 self.terminal(event, openai::ResponseStatus::Incomplete)
             }
-            openai::KnownResponseStreamEvent::ResponseFailed(_)
-            | openai::KnownResponseStreamEvent::Error(_) => Err(TransformError::unsupported(
-                "Responses stream",
-                "failed response",
-            )),
-            openai::KnownResponseStreamEvent::ResponseOutputItemAdded(event)
-            | openai::KnownResponseStreamEvent::ResponseOutputItemDone(event) => {
-                self.complete_item(*event.item, event.output_index, event.rest)
+            openai::KnownResponseStreamEvent::ResponseFailed(event) => {
+                self.terminal(event, openai::ResponseStatus::Failed)
             }
+            openai::KnownResponseStreamEvent::Error(_) => self.error_terminal(),
+            openai::KnownResponseStreamEvent::ResponseOutputItemAdded(event) => {
+                self.add_item(*event.item, event.output_index, event.rest)
+            }
+            openai::KnownResponseStreamEvent::ResponseOutputItemDone(_) => Ok(Vec::new()),
             openai::KnownResponseStreamEvent::ResponseContentPartAdded(event)
             | openai::KnownResponseStreamEvent::ResponseContentPartDone(event) => self
                 .complete_part(

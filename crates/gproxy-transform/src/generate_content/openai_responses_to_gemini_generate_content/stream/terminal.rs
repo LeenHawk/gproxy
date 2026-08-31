@@ -36,10 +36,10 @@ impl State {
         }
         let status = status.ok_or(TransformError::IncompleteStream)?;
         let mut output = Vec::new();
-        if let Some(item) = self.text.take() {
+        for (_, item) in std::mem::take(&mut self.text) {
             output.extend(self.finish_text(item)?);
         }
-        if let Some(item) = self.reasoning.take() {
+        for (_, item) in std::mem::take(&mut self.reasoning) {
             output.extend(self.finish_reasoning(item)?);
         }
         if self.audio {
@@ -107,6 +107,20 @@ impl State {
         };
         output.push(events::emit(event)?);
         self.stopped = true;
+        Ok(output)
+    }
+
+    pub(super) fn finish_candidate(
+        &mut self,
+        candidate_index: i32,
+    ) -> Result<Vec<Bytes>, TransformError> {
+        let mut output = Vec::new();
+        if let Some(item) = self.text.remove(&candidate_index) {
+            output.extend(self.finish_text(item)?);
+        }
+        if let Some(item) = self.reasoning.remove(&candidate_index) {
+            output.extend(self.finish_reasoning(item)?);
+        }
         Ok(output)
     }
 

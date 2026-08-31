@@ -19,21 +19,12 @@ impl State {
         if let Some(usage) = chunk.usage_metadata {
             self.usage = Some(usage);
         }
-        if chunk.candidates.len() > 1 {
-            return Err(TransformError::unsupported(
-                "Gemini stream",
-                "multiple candidates",
-            ));
-        }
         let mut output = Vec::new();
-        for mut candidate in chunk.candidates {
-            if candidate.index.is_some_and(|index| index != 0) {
-                return Err(TransformError::unsupported(
-                    "Gemini stream",
-                    "multiple candidates",
-                ));
-            }
-            if self.finished_candidate
+        let mut finished_here = false;
+        for (position, mut candidate) in chunk.candidates.into_iter().enumerate() {
+            let candidate_index = candidate.index.unwrap_or(position as i32);
+            self.seen_candidates.insert(candidate_index);
+            if self.finished_candidates.contains(&candidate_index)
                 && (candidate.content.is_some() || candidate.finish_reason.is_some())
             {
                 return Err(TransformError::shape(
@@ -42,31 +33,26 @@ impl State {
                 ));
             }
             if let Some(content) = candidate.content.take() {
-                if content.role.as_ref().is_some_and(|role| {
-                    !matches!(
-                        role,
-                        gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)
-                    )
-                }) {
-                    return Err(TransformError::unsupported(
-                        "Gemini stream response",
-                        "non-model content role",
-                    ));
-                }
                 for part in content.parts {
-                    output.extend(self.part(part)?);
+                    output.extend(self.part(candidate_index, part)?);
                 }
             }
             if candidate.finish_reason.is_some() {
-                self.finished_candidate = true;
+                self.finished_candidates.insert(candidate_index);
+                output.extend(self.finish_candidate(candidate_index)?);
                 self.candidates.push(candidate);
+                finished_here = true;
             }
+        }
+        if finished_here && self.seen_candidates == self.finished_candidates {
+            output.extend(self.terminal()?);
         }
         Ok(output)
     }
 
     pub(super) fn text_delta(
         &mut self,
+        candidate_index: i32,
         text: String,
         thought: bool,
         signature: Option<String>,
@@ -74,22 +60,26 @@ impl State {
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = Vec::new();
         if thought {
-            if self.reasoning.is_none() {
+            if !self.reasoning.contains_key(&candidate_index) {
+                let index = self.allocate();
                 let item = Item {
-                    id: format!("rs_{}", required_id(self)?),
-                    index: self.allocate(),
+                    id: format!("rs_{index}"),
+                    index,
                     text: String::new(),
                     signature: None,
                     rest,
                 };
-                output.push(self.item_added(events::reasoning_item(
-                    &item,
-                    openai::ResponseItemLifecycleStatus::InProgress,
-                ))?);
-                self.reasoning = Some(item);
+                output.push(self.item_added(
+                    index,
+                    events::reasoning_item(&item, openai::ResponseItemLifecycleStatus::InProgress),
+                )?);
+                self.reasoning.insert(candidate_index, item);
             }
             let (item_id, item_index) = {
-                let item = self.reasoning.as_mut().expect("created above");
+                let item = self
+                    .reasoning
+                    .get_mut(&candidate_index)
+                    .expect("created above");
                 item.text.push_str(&text);
                 if signature.is_some() {
                     item.signature = signature;
@@ -111,18 +101,19 @@ impl State {
             }
             return Ok(output);
         }
-        if self.text.is_none() {
+        if !self.text.contains_key(&candidate_index) {
+            let index = self.allocate();
             let item = Item {
-                id: format!("msg_{}", required_id(self)?),
-                index: self.allocate(),
+                id: format!("msg_{index}"),
+                index,
                 text: String::new(),
                 signature: None,
                 rest,
             };
-            output.push(self.item_added(events::message_item(
-                &item,
-                openai::ResponseItemLifecycleStatus::InProgress,
-            ))?);
+            output.push(self.item_added(
+                index,
+                events::message_item(&item, openai::ResponseItemLifecycleStatus::InProgress),
+            )?);
             let added = openai::KnownResponseStreamEvent::ResponseContentPartAdded(
                 openai::ResponseContentPartEvent {
                     content_index: 0,
@@ -134,10 +125,10 @@ impl State {
                 },
             );
             output.push(events::emit(added)?);
-            self.text = Some(item);
+            self.text.insert(candidate_index, item);
         }
         let (item_id, item_index) = {
-            let item = self.text.as_mut().expect("created above");
+            let item = self.text.get_mut(&candidate_index).expect("created above");
             item.text.push_str(&text);
             (item.id.clone(), item.index)
         };
@@ -158,24 +149,11 @@ impl State {
         Ok(output)
     }
 
-    fn item_added(&mut self, item: openai::ResponseItem) -> Result<Bytes, TransformError> {
-        let index = match &item {
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
-                if message.id.starts_with("msg_") {
-                    self.text.as_ref().map(|item| item.index)
-                } else {
-                    self.reasoning.as_ref().map(|item| item.index)
-                }
-            }
-            openai::ResponseItem::Message(
-                openai::ResponseMessageItem::Input(_)
-                | openai::ResponseMessageItem::EasyInput(_)
-                | openai::ResponseMessageItem::Unknown(_),
-            )
-            | openai::ResponseItem::Typed(_)
-            | openai::ResponseItem::Unknown(_) => None,
-        }
-        .unwrap_or(self.next_index.saturating_sub(1));
+    fn item_added(
+        &mut self,
+        index: u32,
+        item: openai::ResponseItem,
+    ) -> Result<Bytes, TransformError> {
         let event = openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
             openai::ResponseOutputItemEvent {
                 item: Box::new(item),
@@ -186,11 +164,4 @@ impl State {
         );
         events::emit(event)
     }
-}
-
-fn required_id(state: &State) -> Result<&str, TransformError> {
-    state
-        .id
-        .as_deref()
-        .ok_or_else(|| TransformError::shape("Gemini stream", "responseId missing"))
 }
