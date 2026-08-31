@@ -6,6 +6,7 @@ use super::generate_content::responses::{
     ResponseCreateRequest, ResponseItem, ResponseNamespaceTool, ResponseObject,
     ResponseStreamEvent, ResponseTool, ResponseWebSocketRequest,
 };
+use super::images::{CreateImageRequest, EditImageRequest};
 use super::memories::{MemorySummarizeRequest, MemorySummarizeResponse};
 use super::models::{ListModelsRequest, RetrieveModelRequest};
 
@@ -31,6 +32,18 @@ where
 
 #[test]
 fn requests_preserve_rest_and_unknown_union_members() {
+    let create_image = json!({
+        "prompt":"landscape","quality":"hd","size":"1792x1024"
+    });
+    let create_image = round_trip::<CreateImageRequest>(create_image);
+    assert_eq!(format!("{:?}", create_image.quality), "Some(Hd)");
+    let edit_image = serde_json::from_value::<EditImageRequest>(json!({
+        "images":[{"image_url":"data:image/png;base64,AAAA"}],
+        "prompt":"edit","quality":"hd","size":"1792x1024"
+    }))
+    .unwrap();
+    assert_eq!(format!("{:?}", edit_image.quality), "Some(Unknown(\"hd\"))");
+
     let chat = json!({
         "model": "gpt-future",
         "messages": [

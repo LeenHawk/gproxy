@@ -24,11 +24,11 @@ pub struct CreateImageRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partial_images: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub quality: Option<ImageEditQuality>,
+    pub quality: Option<ImageQuality>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<ImageResponseFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<ImageEditSize>,
+    pub size: Option<ImageSize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,9 +62,9 @@ pub struct EditImageRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partial_images: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub quality: Option<ImageQuality>,
+    pub quality: Option<ImageEditQuality>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<ImageSize>,
+    pub size: Option<ImageEditSize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
