@@ -14,6 +14,8 @@ pub enum KnownRealtimeServerEvent {
     SessionUpdated(RealtimeSessionEvent),
     #[serde(rename = "conversation.item.added")]
     ConversationItemAdded(RealtimeConversationItemEvent),
+    #[serde(rename = "conversation.created")]
+    ConversationCreated(RealtimeConversationCreatedEvent),
     #[serde(rename = "conversation.item.created")]
     ConversationItemCreated(RealtimeConversationItemEvent),
     #[serde(rename = "conversation.item.done")]
@@ -36,6 +38,8 @@ pub enum KnownRealtimeServerEvent {
     InputAudioBufferCommitted(RealtimeInputAudioBufferCommittedEvent),
     #[serde(rename = "input_audio_buffer.cleared")]
     InputAudioBufferCleared(RealtimeInputAudioBufferClearedEvent),
+    #[serde(rename = "input_audio_buffer.dtmf_event_received")]
+    InputAudioBufferDtmfEventReceived(RealtimeDtmfEvent),
     #[serde(rename = "input_audio_buffer.speech_started")]
     InputAudioBufferSpeechStarted(RealtimeInputAudioSpeechStartedEvent),
     #[serde(rename = "input_audio_buffer.speech_stopped")]

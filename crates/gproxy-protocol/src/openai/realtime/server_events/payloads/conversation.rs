@@ -35,3 +35,21 @@ pub struct RealtimeConversationItemDeletedEvent {
     #[serde(default, flatten)]
     pub rest: Rest,
 }
+
+/// `conversation.created` carries only the resource it announces.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RealtimeConversationCreatedEvent {
+    pub conversation: RealtimeConversationRef,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RealtimeConversationRef {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object: Option<String>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}

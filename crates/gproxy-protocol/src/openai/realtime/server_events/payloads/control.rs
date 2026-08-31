@@ -31,3 +31,14 @@ pub struct RealtimeResponseEvent {
     #[serde(default, flatten)]
     pub rest: Rest,
 }
+
+/// A telephony keypad press relayed by the server; `received_at` is a UTC Unix
+/// timestamp, not a session-relative offset.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RealtimeDtmfEvent {
+    pub event: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub received_at: Option<f64>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}

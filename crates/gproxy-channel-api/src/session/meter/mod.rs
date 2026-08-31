@@ -122,7 +122,11 @@ impl RealtimeMeter {
                     Err(error) => compromised(error.to_string(), false),
                 }
             }
-            KnownRealtimeServerEvent::Error(_)
+            // Neither carries usage: one announces a resource, the other relays a
+            // keypad press on a telephony leg.
+            KnownRealtimeServerEvent::ConversationCreated(_)
+            | KnownRealtimeServerEvent::InputAudioBufferDtmfEventReceived(_)
+            | KnownRealtimeServerEvent::Error(_)
             | KnownRealtimeServerEvent::ConversationItemAdded(_)
             | KnownRealtimeServerEvent::ConversationItemCreated(_)
             | KnownRealtimeServerEvent::ConversationItemDone(_)

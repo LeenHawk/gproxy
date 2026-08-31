@@ -85,7 +85,11 @@ mod tests {
             "future_client":true
         });
         let parsed: RealtimeClientEvent = serde_json::from_value(client.clone()).unwrap();
-        assert!(matches!(&parsed, RealtimeClientEvent::SessionUpdate { .. }));
+        assert!(matches!(
+            &parsed,
+            RealtimeClientEvent::Known(event)
+                if matches!(event.as_ref(), KnownRealtimeClientEvent::SessionUpdate { .. })
+        ));
         assert_eq!(serde_json::to_value(parsed).unwrap(), client);
 
         let item = json!({
@@ -136,5 +140,52 @@ mod tests {
         let parsed: RealtimeItem = serde_json::from_value(evolved_item.clone()).unwrap();
         assert!(matches!(&parsed, RealtimeItem::Unknown(_)));
         assert_eq!(serde_json::to_value(parsed).unwrap(), evolved_item);
+    }
+
+    /// Payloads taken from `upstream_docs/openai/docs/Realtime.md`, fetched after
+    /// the realtime types were written. Two server events had no arm, and the
+    /// client union had no fallback at all — so the translation surface OpenAI
+    /// documents (`session.close`, `session.input_audio_buffer.append`) would have
+    /// failed the connection rather than reaching an upstream that speaks it.
+    #[test]
+    fn realtime_matches_the_documented_wire() {
+        let created = json!({
+            "type":"conversation.created",
+            "event_id":"event_9999",
+            "conversation":{"id":"conv_001","object":"realtime.conversation"}
+        });
+        let parsed: RealtimeServerEvent = serde_json::from_value(created.clone()).unwrap();
+        assert!(matches!(
+            &parsed,
+            RealtimeServerEvent::Known(event)
+                if matches!(event.as_ref(), KnownRealtimeServerEvent::ConversationCreated(_))
+        ));
+        assert_eq!(serde_json::to_value(parsed).unwrap(), created);
+
+        let dtmf = json!({
+            "type":"input_audio_buffer.dtmf_event_received",
+            "event_id":"event_1",
+            "event":"5",
+            "received_at":1_764_000_000.0
+        });
+        let parsed: RealtimeServerEvent = serde_json::from_value(dtmf.clone()).unwrap();
+        assert!(matches!(
+            &parsed,
+            RealtimeServerEvent::Known(event)
+                if matches!(
+                    event.as_ref(),
+                    KnownRealtimeServerEvent::InputAudioBufferDtmfEventReceived(_)
+                )
+        ));
+        assert_eq!(serde_json::to_value(parsed).unwrap(), dtmf);
+
+        for translation in [
+            json!({"type":"session.close","event_id":"evt_2"}),
+            json!({"type":"session.input_audio_buffer.append","audio":"AAEC"}),
+        ] {
+            let parsed: RealtimeClientEvent = serde_json::from_value(translation.clone()).unwrap();
+            assert!(matches!(&parsed, RealtimeClientEvent::Unknown(_)));
+            assert_eq!(serde_json::to_value(parsed).unwrap(), translation);
+        }
     }
 }
