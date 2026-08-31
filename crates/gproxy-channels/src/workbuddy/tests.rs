@@ -102,7 +102,7 @@ fn resolves_default_and_exact_override() {
         "https://override.example/chat/hunyuan%2Fturbo"
     );
     assert_eq!(chat.request.headers()["authorization"], "Bearer token");
-    assert!(chat.request.headers().get("accept").is_none());
+    assert_eq!(chat.request.headers()["accept"], "text/event-stream");
     let request_id = chat.request.headers()["x-request-id"].to_str().unwrap();
     assert_eq!(request_id.len(), 32);
     assert!(request_id.bytes().all(|byte| byte.is_ascii_hexdigit()));

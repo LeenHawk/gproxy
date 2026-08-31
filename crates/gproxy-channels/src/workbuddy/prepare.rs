@@ -3,7 +3,7 @@ use http::header::{CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
 const DEFAULT_BASE_URL: &str = "https://copilot.tencent.com";
-const FORWARD_HEADERS: &[&str] = &[];
+const FORWARD_HEADERS: &[&str] = &["accept"];
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let path = super::model::path(ctx.key);
