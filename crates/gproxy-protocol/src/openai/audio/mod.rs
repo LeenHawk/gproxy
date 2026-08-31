@@ -41,6 +41,13 @@ mod tests {
         let parsed: TranscriptionResponse = serde_json::from_value(response.clone()).unwrap();
         assert_eq!(serde_json::to_value(parsed).unwrap(), response);
 
+        let verbose = json!({
+            "task":"transcribe","language":"english","duration":1.5,
+            "text":"hello","segments":[]
+        });
+        let parsed: TranscriptionResponse = serde_json::from_value(verbose).unwrap();
+        assert!(matches!(parsed, TranscriptionResponse::Verbose(_)));
+
         let event = json!({"type":"transcript.future", "delta":"x", "future_event":true});
         let parsed: TranscriptionStreamEvent = serde_json::from_value(event.clone()).unwrap();
         assert_eq!(serde_json::to_value(parsed).unwrap(), event);

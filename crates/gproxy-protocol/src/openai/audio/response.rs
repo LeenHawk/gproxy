@@ -6,8 +6,8 @@ use crate::openai::common::Rest;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TranscriptionResponse {
-    Diarized(TranscriptionDiarized),
     Verbose(TranscriptionVerbose),
+    Diarized(TranscriptionDiarized),
     Json(Transcription),
     Text(String),
     Raw(Value),
