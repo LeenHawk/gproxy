@@ -11,10 +11,9 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         .as_ref()
         .map(crate::models::common::wire_string)
         .transpose()?
-        .ok_or_else(|| TransformError::shape("OpenAI Responses response", "model is missing"))?
+        .unwrap_or_else(|| "unknown".into())
         .into();
-    let usage = usage::responses_to_claude(input.usage)
-        .ok_or_else(|| TransformError::shape("OpenAI Responses response", "usage is missing"))?;
+    let usage = usage::responses_to_claude(input.usage).unwrap_or_else(empty_usage);
     let mut rest = input.rest;
     preserve_number(&mut rest, "openai_created_at", input.created_at);
     preserve_number(&mut rest, "openai_completed_at", input.completed_at);
@@ -121,7 +120,7 @@ fn typed_blocks(
             vec![claude::ResponseContentBlock::ToolUse(
                 claude::ResponseToolUseBlock {
                     id: call_id,
-                    input: serde_json::from_str(&arguments)?,
+                    input: serde_json::from_str(&arguments).unwrap_or_default(),
                     name,
                     type_: claude::ToolUseBlockType::ToolUse,
                     caller: None,
@@ -141,7 +140,7 @@ fn typed_blocks(
             vec![claude::ResponseContentBlock::ToolUse(
                 claude::ResponseToolUseBlock {
                     id: call_id,
-                    input: serde_json::from_str(&input)?,
+                    input: string_input(input),
                     name,
                     type_: claude::ToolUseBlockType::ToolUse,
                     caller: None,
@@ -162,14 +161,32 @@ fn typed_blocks(
                 .flatten()
                 .map(|part| part.text)
                 .collect::<String>();
-            vec![claude::ResponseContentBlock::Thinking(
-                claude::ThinkingBlock {
-                    signature: encrypted_content,
-                    thinking,
-                    type_: claude::ThinkingBlockType::Thinking,
-                    rest,
-                },
-            )]
+            match (thinking.is_empty(), encrypted_content) {
+                (false, Some(signature)) => vec![claude::ResponseContentBlock::Thinking(
+                    claude::ThinkingBlock {
+                        signature: Some(signature),
+                        thinking,
+                        type_: claude::ThinkingBlockType::Thinking,
+                        rest,
+                    },
+                )],
+                (false, None) => vec![claude::ResponseContentBlock::Text(
+                    claude::ResponseTextBlock {
+                        citations: None,
+                        text: thinking,
+                        type_: claude::TextBlockType::Text,
+                        rest,
+                    },
+                )],
+                (true, Some(data)) => vec![claude::ResponseContentBlock::RedactedThinking(
+                    claude::RedactedThinkingBlock {
+                        data,
+                        type_: claude::RedactedThinkingBlockType::RedactedThinking,
+                        rest,
+                    },
+                )],
+                (true, None) => Vec::new(),
+            }
         }
         openai::TypedResponseItem::Compaction {
             encrypted_content,
@@ -252,5 +269,30 @@ fn preserve_string(
 ) {
     if let Some(value) = value {
         rest.insert(name.into(), value.into());
+    }
+}
+
+fn string_input(input: String) -> claude::JsonObject {
+    serde_json::from_str(&input).unwrap_or_else(|_| {
+        let mut object = claude::JsonObject::new();
+        object.insert("input".into(), input.into());
+        object
+    })
+}
+
+fn empty_usage() -> claude::Usage {
+    claude::Usage {
+        input_tokens: Some(0),
+        output_tokens: Some(0),
+        cache_creation_input_tokens: None,
+        cache_read_input_tokens: None,
+        cache_creation: None,
+        output_tokens_details: None,
+        server_tool_use: None,
+        iterations: None,
+        inference_geo: None,
+        service_tier: None,
+        speed: None,
+        rest: Default::default(),
     }
 }

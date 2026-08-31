@@ -95,7 +95,7 @@ fn pair_matrix_models_and_count_tokens_are_bidirectional() {
     assert_eq!(models["data"][0]["id"], "claude-opus");
     assert_eq!(models["data"][0]["context_window"], 200000);
     assert!(models["data"][0].get("created").is_none());
-    assert!(models["data"][0].get("owned_by").is_none());
+    assert_eq!(models["data"][0]["owned_by"], "unknown");
 
     let count = convert_request(
         family(Operation::CountTokens, WireFamily::OpenAi),
@@ -230,12 +230,12 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
             "stop_reason":"tool_use","usage":{"input_tokens":4,"output_tokens":2}
         }),
     );
-    assert_eq!(ordered["output"][0]["type"], "message");
-    assert_eq!(ordered["output"][1]["type"], "function_call");
-    assert_eq!(ordered["output"][2]["type"], "message");
-    assert_eq!(ordered["output"][0]["id"], "msg_msg_order_0");
-    assert!(ordered["output"][1].get("id").is_none());
-    assert_eq!(ordered["output"][2]["id"], "msg_msg_order_1");
+    assert_eq!(ordered["output"][0]["type"], "function_call");
+    assert_eq!(ordered["output"][1]["type"], "message");
+    assert!(ordered["output"][0].get("id").is_none());
+    assert_eq!(ordered["output"][1]["id"], "msg_msg_order_0");
+    assert_eq!(ordered["output"][1]["content"][0]["text"], "before");
+    assert_eq!(ordered["output"][1]["content"][1]["text"], "after");
 
     // Compact carries no caller budget and Claude demands one, so every compact
     // request failed until the default came back.

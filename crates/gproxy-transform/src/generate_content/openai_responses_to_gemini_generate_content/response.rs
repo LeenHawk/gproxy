@@ -8,20 +8,7 @@ use crate::generate_content::gemini_generate_content_to_openai_responses::{
 
 pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::GenerateContentResponse = serde_json::from_slice(&body)?;
-    if input.candidates.len() > 1
-        || input
-            .candidates
-            .iter()
-            .any(|candidate| candidate.index.is_some_and(|index| index != 0))
-    {
-        return Err(TransformError::unsupported(
-            "Gemini generateContent response",
-            "multiple or nonzero-index candidates",
-        ));
-    }
-    let id = input.response_id.ok_or_else(|| {
-        TransformError::shape("Gemini generateContent response", "responseId is missing")
-    })?;
+    let id = input.response_id.unwrap_or_default();
     let (status, incomplete_details) = response_status(&input.candidates);
     let service_tier = input
         .usage_metadata
@@ -34,38 +21,35 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
             output.extend(converter.response(content)?);
         }
     }
-    let output_text = output
-        .iter()
-        .filter_map(|item| match item {
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => Some(
-                message
-                    .content
-                    .iter()
-                    .filter_map(|part| match part {
-                        openai::ResponseMessageOutputContentPart::OutputText(part) => {
-                            Some(part.text.as_str())
-                        }
-                        openai::ResponseMessageOutputContentPart::Refusal(part) => {
-                            Some(part.refusal.as_str())
-                        }
-                        openai::ResponseMessageOutputContentPart::Unknown(_) => None,
-                    })
-                    .collect::<String>(),
-            ),
-            openai::ResponseItem::Message(
-                openai::ResponseMessageItem::Input(_)
-                | openai::ResponseMessageItem::EasyInput(_)
-                | openai::ResponseMessageItem::Unknown(_),
-            )
-            | openai::ResponseItem::Typed(_)
-            | openai::ResponseItem::Unknown(_) => None,
-        })
-        .collect::<String>();
+    let output_text = output.iter().find_map(|item| match item {
+        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => Some(
+            message
+                .content
+                .iter()
+                .filter_map(|part| match part {
+                    openai::ResponseMessageOutputContentPart::OutputText(part) => {
+                        Some(part.text.as_str())
+                    }
+                    openai::ResponseMessageOutputContentPart::Refusal(part) => {
+                        Some(part.refusal.as_str())
+                    }
+                    openai::ResponseMessageOutputContentPart::Unknown(_) => None,
+                })
+                .collect::<String>(),
+        ),
+        openai::ResponseItem::Message(
+            openai::ResponseMessageItem::Input(_)
+            | openai::ResponseMessageItem::EasyInput(_)
+            | openai::ResponseMessageItem::Unknown(_),
+        )
+        | openai::ResponseItem::Typed(_)
+        | openai::ResponseItem::Unknown(_) => None,
+    });
     let output = openai::ResponseObject {
         id,
-        created_at: None,
+        created_at: Some(0),
         background: None,
-        completed_at: None,
+        completed_at: (status == Some(openai::ResponseStatus::Completed)).then_some(0),
         conversation: None,
         error: None,
         incomplete_details,
@@ -78,7 +62,7 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
         multi_agent: None,
         object: openai::ResponseObjectType::Response,
         output,
-        output_text: (!output_text.is_empty()).then_some(output_text),
+        output_text: output_text.filter(|text| !text.is_empty()),
         parallel_tool_calls: None,
         prompt: None,
         prompt_cache_key: None,

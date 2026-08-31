@@ -35,6 +35,23 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             },
         ));
     }
+    let has_refusal = if let Some(refusal) = choice
+        .as_ref()
+        .and_then(|choice| choice.message.refusal.clone())
+        .filter(|value| !value.is_empty())
+    {
+        blocks.push(claude::ResponseContentBlock::Text(
+            claude::ResponseTextBlock {
+                citations: None,
+                text: refusal,
+                type_: claude::TextBlockType::Text,
+                rest: Default::default(),
+            },
+        ));
+        true
+    } else {
+        false
+    };
     if let Some(calls) = choice
         .as_ref()
         .and_then(|choice| choice.message.tool_calls.clone())
@@ -103,7 +120,19 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         model: crate::models::common::wire_string(&input.model)?.into(),
         stop_reason: choice.map_or_else(
             || claude::StopReason::Known(claude::StopReasonKnown::EndTurn),
-            |choice| stop::chat_to_claude(choice.finish_reason),
+            |choice| {
+                let reason = stop::chat_to_claude(choice.finish_reason);
+                if has_refusal
+                    && matches!(
+                        reason,
+                        claude::StopReason::Known(claude::StopReasonKnown::EndTurn)
+                    )
+                {
+                    claude::StopReason::Known(claude::StopReasonKnown::Refusal)
+                } else {
+                    reason
+                }
+            },
         ),
         stop_sequence: None,
         usage,

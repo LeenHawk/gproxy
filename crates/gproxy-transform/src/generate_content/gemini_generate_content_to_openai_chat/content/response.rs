@@ -114,7 +114,7 @@ pub(crate) fn message(
 fn empty() -> openai::ChatMessage {
     openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
-        content: None,
+        content: Some(String::new()),
         refusal: None,
         annotations: None,
         audio: None,

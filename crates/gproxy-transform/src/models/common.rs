@@ -27,23 +27,24 @@ pub(super) fn claude_to_openai(model: claude::ModelInfo) -> Result<openai::Model
         max_output_tokens: model.max_tokens,
         thinking_supported,
         object: openai::ModelObjectType::Model,
-        owned_by: take(&mut rest, "owned_by")?,
+        owned_by: take(&mut rest, "owned_by")?.or_else(|| Some("unknown".into())),
         rest,
     })
 }
 
 pub(super) fn openai_to_claude(model: openai::Model) -> Result<claude::ModelInfo, TransformError> {
     let mut rest = model.rest;
+    let id = wire_string(&model.id)?;
     preserve(&mut rest, "created", &model.created)?;
     preserve(&mut rest, "owned_by", &model.owned_by)?;
     preserve(&mut rest, "max_context_window", &model.max_context_window)?;
     preserve(&mut rest, "thinking_supported", &model.thinking_supported)?;
     Ok(claude::ModelInfo {
-        id: wire_string(&model.id)?.into(),
+        id: id.clone().into(),
         allowed_fallback_models: take(&mut rest, "allowed_fallback_models")?,
         type_: claude::ModelObjectType::Known(claude::ModelObjectTypeKnown::Model),
-        created_at: take(&mut rest, "created_at")?,
-        display_name: model.display_name,
+        created_at: take(&mut rest, "created_at")?.or_else(|| Some("1970-01-01T00:00:00Z".into())),
+        display_name: model.display_name.or(Some(id)),
         max_input_tokens: model.context_window.or(model.max_context_window),
         max_tokens: model.max_output_tokens,
         capabilities: take(&mut rest, "capabilities")?,

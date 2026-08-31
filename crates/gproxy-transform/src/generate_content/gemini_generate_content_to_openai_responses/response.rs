@@ -59,37 +59,23 @@ pub(in crate::generate_content) fn finish_reason(
     status: Option<&openai::ResponseStatus>,
     details: Option<&openai::IncompleteDetails>,
 ) -> Result<Option<gemini::FinishReason>, TransformError> {
-    if !matches!(status, Some(openai::ResponseStatus::Incomplete)) && details.is_some() {
-        return Err(TransformError::shape(
-            "Responses response",
-            "incomplete_details present without incomplete status",
-        ));
-    }
     Ok(match status {
         Some(openai::ResponseStatus::Completed) => {
             Some(gemini::FinishReason::Known(gemini::FinishReasonKnown::Stop))
         }
         Some(openai::ResponseStatus::Incomplete) => {
-            let details = details.ok_or_else(|| {
-                TransformError::shape("Responses incomplete response", "details are missing")
-            })?;
-            let reason = details.reason.as_ref().ok_or_else(|| {
-                TransformError::shape("Responses incomplete response", "reason is missing")
-            })?;
-            Some(match reason {
-                openai::IncompleteReason::MaxOutputTokens => {
+            Some(match details.and_then(|details| details.reason.as_ref()) {
+                None => gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens),
+                Some(openai::IncompleteReason::MaxOutputTokens) => {
                     gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens)
                 }
-                openai::IncompleteReason::ContentFilter => {
+                Some(openai::IncompleteReason::ContentFilter) => {
                     gemini::FinishReason::Known(gemini::FinishReasonKnown::Safety)
                 }
-                openai::IncompleteReason::Unknown(value) if value.is_empty() => {
-                    return Err(TransformError::shape(
-                        "Responses incomplete response",
-                        "reason is empty",
-                    ));
+                Some(openai::IncompleteReason::Unknown(value)) if value.is_empty() => {
+                    gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens)
                 }
-                openai::IncompleteReason::Unknown(value) => {
+                Some(openai::IncompleteReason::Unknown(value)) => {
                     gemini::FinishReason::Unknown(value.clone())
                 }
             })

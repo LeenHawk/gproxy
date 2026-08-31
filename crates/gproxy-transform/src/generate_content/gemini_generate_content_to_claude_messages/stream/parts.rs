@@ -110,7 +110,9 @@ impl State {
 
     fn closed_part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
         let mut output = self.close_open()?;
-        let block = super::super::content::response_part(part, &mut self.correlation)?;
+        let Some(block) = super::super::content::response_part(part, &mut self.correlation)? else {
+            return Ok(output);
+        };
         self.has_tool |= matches!(
             &block,
             claude::ResponseContentBlock::ToolUse(_)

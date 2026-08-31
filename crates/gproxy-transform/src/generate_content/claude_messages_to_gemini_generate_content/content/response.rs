@@ -24,50 +24,35 @@ pub(crate) fn response_block(
         }
         claude::ResponseContentBlock::Thinking(block) => thought(block),
         claude::ResponseContentBlock::ToolUse(block) if tools::is_native_name(&block.name) => {
-            if block.caller.is_some() || !block.rest.is_empty() {
-                return Err(TransformError::unsupported(
-                    "Claude native tool call",
-                    "caller or rest",
-                ));
-            }
             native::call(block.id, block.input, Default::default())?
         }
         claude::ResponseContentBlock::ToolUse(mut block) => {
-            if !block.rest.is_empty() {
-                return Err(TransformError::unsupported(
-                    "Claude tool call",
-                    "rest fields",
-                ));
-            }
             let signature = take_signature(&mut block.caller)?;
             function_call(block, signature)
         }
         claude::ResponseContentBlock::ServerToolUse(block)
             if tools::is_server_native_name(&block.name) =>
         {
-            if block.caller.is_some() || !block.rest.is_empty() {
-                return Err(TransformError::unsupported(
-                    "Claude server tool call",
-                    "caller or rest",
-                ));
-            }
             native::call(block.id, block.input, Default::default())?
         }
         claude::ResponseContentBlock::BashCodeExecutionToolResult(block) => {
             native::response_bash_result(block)?
         }
-        claude::ResponseContentBlock::Raw(raw) => {
-            return Err(TransformError::unsupported(
-                "Claude raw response block",
-                raw.to_string(),
-            ));
-        }
-        other => {
-            return Err(TransformError::unsupported(
-                "Claude response block",
-                serde_json::to_string(&other)?,
-            ));
-        }
+        claude::ResponseContentBlock::Raw(_)
+        | claude::ResponseContentBlock::RedactedThinking(_)
+        | claude::ResponseContentBlock::ServerToolUse(_)
+        | claude::ResponseContentBlock::WebSearchToolResult(_)
+        | claude::ResponseContentBlock::WebFetchToolResult(_)
+        | claude::ResponseContentBlock::AdvisorToolResult(_)
+        | claude::ResponseContentBlock::CodeExecutionToolResult(_)
+        | claude::ResponseContentBlock::TextEditorCodeExecutionToolResult(_)
+        | claude::ResponseContentBlock::ToolSearchToolResult(_)
+        | claude::ResponseContentBlock::McpToolUse(_)
+        | claude::ResponseContentBlock::McpToolResult(_)
+        | claude::ResponseContentBlock::ContainerUpload(_)
+        | claude::ResponseContentBlock::Compaction(_)
+        | claude::ResponseContentBlock::Fallback(_) => return Ok(None),
+        _future => return Ok(None),
     }))
 }
 

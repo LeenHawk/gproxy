@@ -23,7 +23,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
     let service_tier = input
         .service_tier
         .and_then(|tier| wire::service_tier(Some(tier)));
-    let mut usage_metadata = input.usage.map(wire::usage).transpose()?;
+    let mut usage_metadata = input.usage.map(v2_usage);
     if let Some(usage) = usage_metadata.as_mut() {
         usage.service_tier = service_tier;
     } else if let Some(tier) = service_tier {
@@ -59,4 +59,31 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+fn v2_usage(usage: openai::CompletionUsage) -> gemini::UsageMetadata {
+    gemini::UsageMetadata {
+        prompt_token_count: Some(clamp(usage.prompt_tokens)),
+        cached_content_token_count: usage
+            .prompt_tokens_details
+            .and_then(|details| details.cached_tokens)
+            .map(clamp),
+        candidates_token_count: Some(clamp(usage.completion_tokens)),
+        thoughts_token_count: usage
+            .completion_tokens_details
+            .and_then(|details| details.reasoning_tokens)
+            .map(clamp),
+        total_token_count: Some(clamp(usage.total_tokens)),
+        tool_use_prompt_token_count: None,
+        prompt_tokens_details: Vec::new(),
+        cache_tokens_details: Vec::new(),
+        candidates_tokens_details: Vec::new(),
+        tool_use_prompt_tokens_details: Vec::new(),
+        service_tier: None,
+        rest: Default::default(),
+    }
+}
+
+fn clamp(value: u32) -> i32 {
+    i32::try_from(value).unwrap_or(i32::MAX)
 }

@@ -3,6 +3,8 @@ use serde_json::json;
 
 use super::{content, convert_request, convert_response};
 
+mod defaults;
+
 #[test]
 fn defaults_survive_empty_provider_replies() {
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);

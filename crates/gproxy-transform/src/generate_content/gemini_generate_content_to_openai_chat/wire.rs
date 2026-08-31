@@ -64,10 +64,7 @@ pub(crate) fn finish_reason(
             | gemini::FinishReasonKnown::ImageRecitation,
         ) => openai::ChatFinishReason::ContentFilter,
         gemini::FinishReason::Known(gemini::FinishReasonKnown::FinishReasonUnspecified) => {
-            return Err(TransformError::unsupported(
-                "Gemini finish reason",
-                "FINISH_REASON_UNSPECIFIED",
-            ));
+            openai::ChatFinishReason::Stop
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::Other) => {
             openai::ChatFinishReason::Unknown("OTHER".into())

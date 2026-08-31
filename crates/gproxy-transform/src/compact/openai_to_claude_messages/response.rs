@@ -8,25 +8,29 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             body,
         )?;
     let input: openai::ResponseObject = serde_json::from_slice(&converted)?;
-    let usage = input
-        .usage
-        .ok_or_else(|| TransformError::shape("Claude compact response", "usage is incomplete"))?;
+    let usage = input.usage.unwrap_or_else(empty_usage);
+    let incomplete = input.status == Some(openai::ResponseStatus::Incomplete);
+    let mut items = input
+        .output
+        .into_iter()
+        .map(|item| compact_item(item, incomplete))
+        .collect::<Result<Vec<_>, _>>()?;
+    items.sort_by_key(|item| !matches!(item, openai::CompactResponseItem::Message(_)));
     let output = openai::CompactedResponseObject {
         id: input.id,
         created_at: input.created_at,
         object: openai::ResponseCompactionObjectType::ResponseCompaction,
-        output: input
-            .output
-            .into_iter()
-            .map(compact_item)
-            .collect::<Result<_, _>>()?,
+        output: items,
         usage,
         rest: input.rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 
-fn compact_item(item: openai::ResponseItem) -> Result<openai::CompactResponseItem, TransformError> {
+fn compact_item(
+    item: openai::ResponseItem,
+    incomplete: bool,
+) -> Result<openai::CompactResponseItem, TransformError> {
     Ok(match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
             openai::CompactResponseItem::Message(openai::CompactMessageItem {
@@ -56,7 +60,11 @@ fn compact_item(item: openai::ResponseItem) -> Result<openai::CompactResponseIte
                     })
                     .collect(),
                 role: openai::CompactMessageRole::Assistant,
-                status: message.status,
+                status: if incomplete {
+                    openai::ResponseItemLifecycleStatus::Incomplete
+                } else {
+                    message.status
+                },
                 phase: message.phase,
                 rest: message.rest,
             })
@@ -67,4 +75,15 @@ fn compact_item(item: openai::ResponseItem) -> Result<openai::CompactResponseIte
             openai::CompactResponseItem::Unknown(serde_json::to_value(message)?)
         }
     })
+}
+
+fn empty_usage() -> openai::ResponseUsage {
+    openai::ResponseUsage {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        input_tokens_details: None,
+        output_tokens_details: None,
+        rest: Default::default(),
+    }
 }

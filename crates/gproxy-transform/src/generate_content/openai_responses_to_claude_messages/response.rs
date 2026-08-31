@@ -17,6 +17,7 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
     let mut rest = input.rest;
     let created_at = take(&mut rest, "openai_created_at")?;
     let completed_at = take(&mut rest, "openai_completed_at")?;
+    let service_tier = claude_service_tier(&input.usage)?;
     let mut output = Vec::new();
     let mut text = Vec::new();
     let mut parts = Vec::new();
@@ -38,13 +39,6 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 ));
             }
             claude::ResponseContentBlock::Thinking(mut block) => {
-                flush_message(
-                    &mut output,
-                    &mut parts,
-                    &mut message_id,
-                    &id,
-                    &mut message_index,
-                );
                 let item_id = take(&mut block.rest, "openai_item_id")?;
                 output.push(reasoning(
                     item_id,
@@ -54,24 +48,10 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 ));
             }
             claude::ResponseContentBlock::RedactedThinking(mut block) => {
-                flush_message(
-                    &mut output,
-                    &mut parts,
-                    &mut message_id,
-                    &id,
-                    &mut message_index,
-                );
                 let item_id = take(&mut block.rest, "openai_item_id")?;
                 output.push(reasoning(item_id, None, Some(block.data), block.rest));
             }
             claude::ResponseContentBlock::ToolUse(block) => {
-                flush_message(
-                    &mut output,
-                    &mut parts,
-                    &mut message_id,
-                    &id,
-                    &mut message_index,
-                );
                 let (item, _) = items::claude_call(
                     block.id,
                     block.input,
@@ -82,13 +62,6 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 output.push(openai::ResponseItem::Typed(Box::new(item)));
             }
             claude::ResponseContentBlock::Compaction(mut block) => {
-                flush_message(
-                    &mut output,
-                    &mut parts,
-                    &mut message_id,
-                    &id,
-                    &mut message_index,
-                );
                 let item_id = take(&mut block.rest, "openai_item_id")?;
                 output.push(openai::ResponseItem::Typed(Box::new(
                     openai::TypedResponseItem::Compaction {
@@ -100,23 +73,9 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                 )));
             }
             claude::ResponseContentBlock::Raw(raw) => {
-                flush_message(
-                    &mut output,
-                    &mut parts,
-                    &mut message_id,
-                    &id,
-                    &mut message_index,
-                );
                 output.push(openai::ResponseItem::Unknown(raw));
             }
             other => {
-                flush_message(
-                    &mut output,
-                    &mut parts,
-                    &mut message_id,
-                    &id,
-                    &mut message_index,
-                );
                 output.push(openai::ResponseItem::Unknown(serde_json::to_value(other)?));
             }
         }
@@ -128,14 +87,15 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         &id,
         &mut message_index,
     );
-    let incomplete = matches!(
-        input.stop_reason,
-        claude::StopReason::Known(
-            claude::StopReasonKnown::MaxTokens
-                | claude::StopReasonKnown::ModelContextWindowExceeded
-                | claude::StopReasonKnown::Refusal
-        )
-    );
+    let stop_reason = crate::models::common::wire_string(&input.stop_reason)?;
+    let incomplete_reason = match stop_reason.as_str() {
+        "max_tokens" | "model_context_window_exceeded" => {
+            Some(openai::IncompleteReason::MaxOutputTokens)
+        }
+        "refusal" => Some(openai::IncompleteReason::ContentFilter),
+        "end_turn" | "stop_sequence" | "tool_use" | "pause_turn" | "compaction" => None,
+        _ => None,
+    };
     let response = openai::ResponseObject {
         id,
         created_at,
@@ -143,10 +103,12 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         completed_at,
         conversation: None,
         error: None,
-        incomplete_details: incomplete.then_some(openai::IncompleteDetails {
-            reason: Some(openai::IncompleteReason::MaxOutputTokens),
-            rest: Default::default(),
-        }),
+        incomplete_details: incomplete_reason
+            .clone()
+            .map(|reason| openai::IncompleteDetails {
+                reason: Some(reason),
+                rest: Default::default(),
+            }),
         instructions: None,
         max_output_tokens: None,
         max_tool_calls: None,
@@ -165,8 +127,8 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         previous_response_id: None,
         reasoning: None,
         safety_identifier: None,
-        service_tier: None,
-        status: Some(if incomplete {
+        service_tier,
+        status: Some(if incomplete_reason.is_some() {
             openai::ResponseStatus::Incomplete
         } else {
             openai::ResponseStatus::Completed
@@ -184,4 +146,24 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
+}
+
+fn claude_service_tier(
+    usage: &claude::Usage,
+) -> Result<Option<openai::ServiceTier>, TransformError> {
+    if matches!(
+        usage.speed,
+        Some(claude::Speed::Known(claude::SpeedKnown::Fast))
+    ) {
+        return Ok(Some(openai::ServiceTier::Priority));
+    }
+    let Some(tier) = usage.service_tier.as_ref() else {
+        return Ok(None);
+    };
+    let tier = crate::models::common::wire_string(tier)?;
+    Ok(Some(if tier == "priority" {
+        openai::ServiceTier::Priority
+    } else {
+        openai::ServiceTier::Default
+    }))
 }
