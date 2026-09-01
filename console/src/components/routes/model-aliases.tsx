@@ -57,7 +57,7 @@ export function ModelAliases({
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.name} ${routeById.get(alias.route_id)?.name ?? alias.route_id}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.name}</p><p className="text-xs text-muted-foreground">{routeById.get(alias.route_id)?.name ?? alias.route_id}</p></div>{actions(alias)}</div>} empty={t("routes.aliases.empty")} storageKey="model-aliases" selectable batchActions={(rows) => <BatchActions entity="model-aliases" rows={rows} queryKeys={["model-aliases"]} />} />
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.name} ${routeById.get(alias.route_id)?.name ?? alias.route_id}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.name}</p><p className="text-xs text-muted-foreground">{routeById.get(alias.route_id)?.name ?? alias.route_id}</p></div>{actions(alias)}</div>} empty={t("routes.aliases.empty")} storageKey="model-aliases" selectable batchActions={(rows, onApplied) => <BatchActions entity="model-aliases" rows={rows} queryKeys={["model-aliases"]} onApplied={onApplied} />} />
       </CardContent>
       {form ? (
         <ModelAliasForm

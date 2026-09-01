@@ -14,12 +14,16 @@ export function BatchActions<T extends { id: number }>({
   queryKeys,
   toggle = true,
   remove = true,
+  onApplied,
+  size = "sm",
 }: {
   entity: Entity
   rows: Array<T>
   queryKeys: Array<string>
   toggle?: boolean
   remove?: boolean
+  onApplied?: () => void
+  size?: "xs" | "sm"
 }) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -35,24 +39,25 @@ export function BatchActions<T extends { id: number }>({
       } else {
         toast.success(t(`common.batch.${action}d`, { count: result.outcomes.length }))
       }
+      onApplied?.()
     },
     onError: () => toast.error(t("common.batch.failed")),
   })
   const action = (value: BatchActionDto, icon: ReactNode) => (
     <Button
       key={value}
-      size="icon-xs"
-      variant={value === "delete" ? "ghost" : "outline"}
-      disabled={mutation.isPending}
+      size={size}
+      variant={value === "delete" ? "destructive" : "outline"}
+      disabled={mutation.isPending || rows.length === 0}
       onClick={() => mutation.mutate(value)}
       aria-label={t(`common.batch.${value}`)}
     >
-      {icon}
+      {icon}{t(`common.actions.${value}`)}
     </Button>
   )
   return <>
-    {toggle ? action("enable", <PowerIcon aria-hidden />) : null}
-    {toggle ? action("disable", <PowerOffIcon aria-hidden />) : null}
-    {remove ? action("delete", <Trash2Icon aria-hidden />) : null}
+    {toggle ? action("enable", <PowerIcon data-icon="inline-start" aria-hidden />) : null}
+    {toggle ? action("disable", <PowerOffIcon data-icon="inline-start" aria-hidden />) : null}
+    {remove ? action("delete", <Trash2Icon data-icon="inline-start" aria-hidden />) : null}
   </>
 }

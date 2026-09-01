@@ -47,7 +47,7 @@ export function KeyTable(props: KeyTableProps) {
       empty={t("users.keys.empty")}
       storageKey="user-keys"
       selectable
-      batchActions={(rows) => <BatchActions entity="user-keys" rows={rows} queryKeys={["user-keys"]} />}
+      batchActions={(rows, onApplied) => <BatchActions entity="user-keys" rows={rows} queryKeys={["user-keys"]} onApplied={onApplied} />}
     />
   )
 }

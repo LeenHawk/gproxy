@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
@@ -59,13 +60,9 @@ export function RulesWorkspace(props: Props) {
         <Card>
           <CardHeader>
             <CardTitle>{t("rules.sets.title")}</CardTitle>
-            <CardAction><div className="flex flex-wrap justify-end gap-2">
-              {props.scopeProviderId == null
-                ? <RuleSetDialog saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="sm">{t("rules.sets.add")}</Button>} />
-                : <><ApplicationPresetButton providerId={props.scopeProviderId} /><AttachmentDialog providers={props.providers} ruleSets={unattached} fixedProviderId={props.scopeProviderId} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" disabled={!unattached.length}>{t("rules.attachments.attachExisting")}</Button>} /></>}
-            </div></CardAction>
+            {props.scopeProviderId != null ? <CardAction><div className="flex flex-wrap justify-end gap-2"><ApplicationPresetButton providerId={props.scopeProviderId} /><AttachmentDialog providers={props.providers} ruleSets={unattached} fixedProviderId={props.scopeProviderId} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" disabled={!unattached.length}>{t("rules.attachments.attachExisting")}</Button>} /></div></CardAction> : null}
           </CardHeader>
-          <CardContent><DataTable columns={columns} rows={visibleSets} rowKey={(set) => set.id} searchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`} renderCard={(set) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{ruleSetText(set, "name", t)}</p><p className="truncate text-xs text-muted-foreground">{ruleSetText(set, "description", t)}</p></div><Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge></div>} empty={t(props.scopeProviderId == null ? "rules.sets.empty" : "rules.attachments.empty")} storageKey={props.scopeProviderId == null ? "rule-sets" : `provider-${props.scopeProviderId}-rule-sets`} activeRowKey={selected?.id} selectable batchActions={(rows) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} remove={props.scopeProviderId == null} />} onRowClick={(set) => setSelectedId(set.id)} /></CardContent>
+          <CardContent><DataTable columns={columns} rows={visibleSets} rowKey={(set) => set.id} searchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`} renderCard={(set) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{ruleSetText(set, "name", t)}</p><p className="truncate text-xs text-muted-foreground">{ruleSetText(set, "description", t)}</p></div><Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge></div>} empty={t(props.scopeProviderId == null ? "rules.sets.empty" : "rules.attachments.empty")} storageKey={props.scopeProviderId == null ? "rule-sets" : `provider-${props.scopeProviderId}-rule-sets`} activeRowKey={selected?.id} selectable createAction={props.scopeProviderId == null ? <RuleSetDialog saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="icon-sm" aria-label={t("rules.sets.add")}><PlusIcon aria-hidden /></Button>} /> : undefined} batchActions={(rows, onApplied) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} remove={props.scopeProviderId == null} onApplied={onApplied} />} onRowClick={(set) => setSelectedId(set.id)} /></CardContent>
         </Card>
       </div>
       <div className={cn("min-w-0", !selected && "hidden md:block")}>

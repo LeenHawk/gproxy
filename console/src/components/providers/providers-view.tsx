@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import type { ChannelDto } from "@/generated/ChannelDto"
@@ -121,10 +122,9 @@ export function ProvidersView(props: Props) {
       selectAllLabel={t("common.dataTable.selectAll")}
       selectRowLabel={(provider) => `${t("common.dataTable.selectRow")}: ${provider.label ?? provider.name}`}
       selectedLabel={(count) => t("common.dataTable.selected", { count })}
-      clearSelectionLabel={t("common.dataTable.clearSelection")}
       mobileBackLabel={t("providers.title")}
-      createAction={<ProviderDialog channels={props.channels} channelsLoading={props.channelsLoading} channelsError={props.channelsError} presets={props.presets} presetsLoading={props.presetsLoading} presetsError={props.presetsError} onSave={props.onSaveProvider} trigger={<Button>{t("providers.add")}</Button>} />}
-      batchActions={(rows) => <BatchActions entity="providers" rows={rows} queryKeys={["providers"]} />}
+      createAction={<ProviderDialog channels={props.channels} channelsLoading={props.channelsLoading} channelsError={props.channelsError} presets={props.presets} presetsLoading={props.presetsLoading} presetsError={props.presetsError} onSave={props.onSaveProvider} trigger={<Button size="icon-sm" aria-label={t("providers.add")}><PlusIcon aria-hidden /></Button>} />}
+      batchActions={(rows, onApplied) => <BatchActions entity="providers" rows={rows} queryKeys={["providers"]} onApplied={onApplied} size="xs" />}
       emptyState={<Empty className="min-h-[28rem]"><EmptyHeader><EmptyTitle>{t("providers.title")}</EmptyTitle><EmptyDescription>{t("providers.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
     >
       {selected ? <ProviderDetail

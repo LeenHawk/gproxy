@@ -1,5 +1,5 @@
-import { XIcon } from "lucide-react"
 import { useState, type CSSProperties, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -24,16 +24,17 @@ type Props<T extends { id: number }> = {
   selectAllLabel: string
   selectRowLabel: (item: T) => string
   selectedLabel: (count: number) => string
-  clearSelectionLabel: string
   mobileBackLabel: string
   createAction?: ReactNode
   emptyState: ReactNode
-  batchActions?: (items: Array<T>) => ReactNode
+  batchActions?: (items: Array<T>, onApplied: () => void) => ReactNode
   children: ReactNode
 }
 
 export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState("")
+  const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const pane = useWorkspacePaneWidth(props.storageKey)
   const needle = query.trim().toLocaleLowerCase()
@@ -57,6 +58,10 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
     }
     return next
   })
+  const exitBatch = () => {
+    setBatchMode(false)
+    setSelectedIds(new Set())
+  }
   const hasDetail = props.selectedId != null
 
   return (
@@ -68,10 +73,13 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
         <div className="grid gap-3 border-b p-3">
           <div className="flex items-center justify-between gap-2">
             <h1 className="truncate text-lg font-semibold">{props.title}</h1>
-            {props.createAction}
+            <div className="flex items-center gap-1">
+              {props.batchActions ? <Button size="sm" variant="outline" onClick={() => batchMode ? exitBatch() : setBatchMode(true)}>{t(`common.batch.${batchMode ? "cancel" : "select"}`)}</Button> : null}
+              {!batchMode ? props.createAction : null}
+            </div>
           </div>
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder} aria-label={props.searchPlaceholder} />
-          {props.batchActions ? (
+          {batchMode ? (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox checked={allSelected} onCheckedChange={(checked) => toggleAll(checked === true)} aria-label={props.selectAllLabel} />
               {props.selectAllLabel}
@@ -83,23 +91,20 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
           <ul className="grid gap-1">
             {filtered.map((item) => (
               <li key={item.id} className={cn("flex min-h-14 items-center gap-2 rounded-md border border-transparent", item.id === props.selectedId ? "bg-accent text-accent-foreground" : "hover:bg-muted/60")}>
-                {props.batchActions ? <Checkbox className="ml-3" checked={selectedIds.has(item.id)} onCheckedChange={(checked) => toggle(item.id, checked === true)} aria-label={props.selectRowLabel(item)} /> : null}
-                <button type="button" className="min-w-0 flex-1 px-3 py-2 text-left" onClick={() => props.onSelect(item)}>
+                {batchMode ? <Checkbox className="ml-3" checked={selectedIds.has(item.id)} onCheckedChange={(checked) => toggle(item.id, checked === true)} aria-label={props.selectRowLabel(item)} /> : null}
+                <button type="button" className="min-w-0 flex-1 px-3 py-2 text-left" onClick={() => batchMode ? toggle(item.id, !selectedIds.has(item.id)) : props.onSelect(item)}>
                   <span className="block truncate text-sm font-medium">{props.renderTitle(item)}</span>
                   <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">{props.renderSummary(item)}</span>
                 </button>
-                {props.renderAction ? <div className="shrink-0 pr-3">{props.renderAction(item)}</div> : null}
+                {!batchMode && props.renderAction ? <div className="shrink-0 pr-3">{props.renderAction(item)}</div> : null}
               </li>
             ))}
           </ul>
         </div>
-        {selectedItems.length > 0 && props.batchActions ? (
+        {batchMode && props.batchActions ? (
           <div className="flex items-center justify-between gap-2 border-t p-2">
             <span className="text-xs text-muted-foreground">{props.selectedLabel(selectedItems.length)}</span>
-            <div className="flex items-center gap-1">
-              {props.batchActions(selectedItems)}
-              <Button size="icon-xs" variant="ghost" onClick={() => setSelectedIds(new Set())} aria-label={props.clearSelectionLabel}><XIcon aria-hidden /></Button>
-            </div>
+            <div className="flex items-center gap-1">{props.batchActions(selectedItems, exitBatch)}</div>
           </div>
         ) : null}
       </aside>

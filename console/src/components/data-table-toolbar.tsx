@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react"
-import { Columns3Icon, XIcon } from "lucide-react"
+import { Columns3Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { DataTableColumn } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
@@ -18,18 +18,18 @@ export function DataTableToolbar<T>({
   columns,
   hidden,
   onToggleColumn,
-  selectedCount,
-  onClearSelection,
-  batchActions,
+  batchMode,
+  onToggleBatch,
+  createAction,
 }: {
   query: string
   onQuery: (value: string) => void
   columns: Array<DataTableColumn<T>>
   hidden: Set<string>
   onToggleColumn: (key: string) => void
-  selectedCount: number
-  onClearSelection: () => void
-  batchActions?: ReactNode
+  batchMode?: boolean
+  onToggleBatch?: () => void
+  createAction?: ReactNode
 }) {
   const { t } = useTranslation()
   const searchId = useId()
@@ -44,15 +44,8 @@ export function DataTableToolbar<T>({
           aria-label={t("common.dataTable.search")}
         />
       </div>
-      {selectedCount > 0 ? (
-        <div className="flex items-center gap-2 rounded-md border bg-muted px-2 py-1 text-xs">
-          <span>{t("common.dataTable.selected", { count: selectedCount })}</span>
-          {batchActions}
-          <Button size="icon-xs" variant="ghost" onClick={onClearSelection} aria-label={t("common.dataTable.clearSelection")}>
-            <XIcon aria-hidden />
-          </Button>
-        </div>
-      ) : null}
+      {onToggleBatch ? <Button size="sm" variant="outline" onClick={onToggleBatch}>{t(`common.batch.${batchMode ? "cancel" : "select"}`)}</Button> : null}
+      {!batchMode ? createAction : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon-sm" variant="outline" aria-label={t("common.dataTable.columns")}>

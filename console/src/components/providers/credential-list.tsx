@@ -67,7 +67,7 @@ export function CredentialList(props: Props) {
           empty={t("providers.credentials.empty")}
           storageKey="credentials"
           selectable
-          batchActions={(rows) => <BatchActions entity="credentials" rows={rows} queryKeys={["credentials", "credential-cycles"]} />}
+          batchActions={(rows, onApplied) => <BatchActions entity="credentials" rows={rows} queryKeys={["credentials", "credential-cycles"]} onApplied={onApplied} />}
           activeRowKey={props.activeCredentialId}
           onRowClick={props.onCredentialOpen}
         />

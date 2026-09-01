@@ -53,6 +53,8 @@
       "unknown": "Unknown error"
     },
     "batch": {
+      "select": "Batch",
+      "cancel": "Cancel",
       "enable": "Enable selected",
       "disable": "Disable selected",
       "delete": "Delete selected",
@@ -75,7 +77,6 @@
       "next": "Next",
       "page": "Page {{page}} of {{pages}}",
       "selected": "{{count}} selected",
-      "clearSelection": "Clear selection",
       "selectAll": "Select all rows",
       "selectRow": "Select row"
     },

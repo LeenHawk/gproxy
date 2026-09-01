@@ -56,7 +56,7 @@ export function RoutingAliases({
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t("routes.routingAliases.empty")} storageKey="routing-aliases" selectable batchActions={(rows) => <BatchActions entity="aliases" rows={rows} queryKeys={["aliases"]} />} />
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t("routes.routingAliases.empty")} storageKey="routing-aliases" selectable batchActions={(rows, onApplied) => <BatchActions entity="aliases" rows={rows} queryKeys={["aliases"]} onApplied={onApplied} />} />
       </CardContent>
       {form ? (
         <RoutingAliasForm

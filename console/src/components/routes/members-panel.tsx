@@ -86,7 +86,7 @@ export function MembersPanel({
           empty={t("routes.members.empty")}
           storageKey="route-members"
           selectable
-          batchActions={(rows) => <BatchActions entity="route-members" rows={rows} queryKeys={["route-members"]} />}
+          batchActions={(rows, onApplied) => <BatchActions entity="route-members" rows={rows} queryKeys={["route-members"]} onApplied={onApplied} />}
         />
       </CardContent>
       {form ? (

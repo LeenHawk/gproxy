@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveRoute } from "@/api/control"
 import type { RouteDto } from "@/generated/RouteDto"
@@ -6,7 +7,7 @@ import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
 import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
 import { RouteForm } from "@/components/routes/route-form"
 
@@ -49,11 +50,6 @@ export function RouteList({
     <Card>
       <CardHeader>
         <CardTitle>{t("routes.listTitle")}</CardTitle>
-        <CardAction>
-          <Button size="sm" onClick={(event) => openForm(null, event.currentTarget)}>
-            {t("routes.add")}
-          </Button>
-        </CardAction>
       </CardHeader>
       <CardContent>
         <DataTable
@@ -66,7 +62,8 @@ export function RouteList({
           storageKey="routes"
           activeRowKey={selectedId}
           selectable
-          batchActions={(rows) => <BatchActions entity="routes" rows={rows} queryKeys={["routes"]} />}
+          createAction={<Button size="icon-sm" aria-label={t("routes.add")} onClick={(event) => openForm(null, event.currentTarget)}><PlusIcon aria-hidden /></Button>}
+          batchActions={(rows, onApplied) => <BatchActions entity="routes" rows={rows} queryKeys={["routes"]} onApplied={onApplied} />}
           onRowClick={(route) => onSelect(route.id)}
         />
       </CardContent>

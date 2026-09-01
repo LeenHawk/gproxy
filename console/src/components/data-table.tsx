@@ -28,7 +28,8 @@ export type DataTableProps<T> = {
   onRowClick?: (row: T) => void
   activeRowKey?: string | number | null
   selectable?: boolean
-  batchActions?: (selectedRows: Array<T>) => ReactNode
+  batchActions?: (selectedRows: Array<T>, onApplied: () => void) => ReactNode
+  createAction?: ReactNode
   pageSize?: number
 }
 
@@ -50,12 +51,14 @@ export function DataTable<T>({
   activeRowKey,
   selectable = false,
   batchActions,
+  createAction,
   pageSize = 10,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase())
   const [page, setPage] = useState(1)
+  const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<Set<string | number>>(() => new Set())
   const { hidden, toggle } = useColumnVisibility(`gproxy.table.${storageKey}.columns`)
   const visibleColumns = columns.filter((column) => !hidden.has(column.key))
@@ -66,6 +69,7 @@ export function DataTable<T>({
   const currentPage = Math.min(page, pages)
   const visibleRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const selectedRows = rows.filter((row) => selected.has(rowKey(row)))
+  const selecting = selectable && batchMode
   const allSelected = filtered.length > 0 && filtered.every((row) => selected.has(rowKey(row)))
   const someSelected = filtered.some((row) => selected.has(rowKey(row)))
 
@@ -84,17 +88,23 @@ export function DataTable<T>({
     }
     return next
   })
+  const exitBatch = () => {
+    setBatchMode(false)
+    setSelected(new Set())
+  }
   const activate = (row: T) => (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return
     if (interactive(event.target)) return
     event.preventDefault()
-    onRowClick?.(row)
+    if (selecting) toggleRow(rowKey(row))
+    else onRowClick?.(row)
   }
   // A row that opens on click still holds switches and action buttons; a click that
   // landed on one of those was aimed at it, not at the row.
   const open = (row: T) => (event: MouseEvent) => {
     if (interactive(event.target)) return
-    onRowClick?.(row)
+    if (selecting) toggleRow(rowKey(row))
+    else onRowClick?.(row)
   }
 
   return (
@@ -105,9 +115,9 @@ export function DataTable<T>({
         columns={columns}
         hidden={hidden}
         onToggleColumn={toggle}
-        selectedCount={selectedRows.length}
-        onClearSelection={() => setSelected(new Set())}
-        batchActions={batchActions?.(selectedRows)}
+        batchMode={batchMode}
+        onToggleBatch={selectable && batchActions ? () => batchMode ? exitBatch() : setBatchMode(true) : undefined}
+        createAction={createAction}
       />
       {filtered.length === 0 ? (
         <Empty><EmptyHeader><EmptyTitle>{empty}</EmptyTitle></EmptyHeader></Empty>
@@ -116,13 +126,14 @@ export function DataTable<T>({
           <div className="hidden overflow-hidden rounded-md border bg-card md:block">
             <Table>
               <TableHeader><TableRow>
-                {selectable ? <TableHead className="w-10"><Checkbox checked={allSelected ? true : someSelected ? "indeterminate" : false} onCheckedChange={toggleAll} aria-label={t("common.dataTable.selectAll")} /></TableHead> : null}
+                {selecting ? <TableHead className="w-10"><Checkbox checked={allSelected ? true : someSelected ? "indeterminate" : false} onCheckedChange={toggleAll} aria-label={t("common.dataTable.selectAll")} /></TableHead> : null}
                 {visibleColumns.map((column) => <TableHead key={column.key} className={column.className}>{column.header}</TableHead>)}
               </TableRow></TableHeader>
               <TableBody>{visibleRows.map((row) => {
                 const id = rowKey(row)
-                return <TableRow key={id} data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
-                  {selectable ? <TableCell><Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /></TableCell> : null}
+                const clickable = selecting || onRowClick != null
+                return <TableRow key={id} data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} tabIndex={clickable ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
+                  {selecting ? <TableCell><Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /></TableCell> : null}
                   {visibleColumns.map((column) => <TableCell key={column.key} className={column.className}>{column.cell(row)}</TableCell>)}
                 </TableRow>
               })}</TableBody>
@@ -130,9 +141,10 @@ export function DataTable<T>({
           </div>
           <div className="grid gap-2 md:hidden">{visibleRows.map((row) => {
             const id = rowKey(row)
-            return <Card key={id} role={onRowClick ? "button" : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(onRowClick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
+            const clickable = selecting || onRowClick != null
+            return <Card key={id} role={clickable ? "button" : undefined} tabIndex={clickable ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
               <CardContent className="flex items-start gap-3">
-                {selectable ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
+                {selecting ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
                 <div className="min-w-0 flex-1">{renderCard(row)}</div>
               </CardContent>
             </Card>
@@ -140,6 +152,12 @@ export function DataTable<T>({
         </>
       )}
       <DataTablePagination page={currentPage} pages={pages} onPage={setPage} />
+      {selecting ? (
+        <div className="sticky bottom-3 flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
+          <span className="px-2 text-sm text-muted-foreground">{t("common.dataTable.selected", { count: selectedRows.length })}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">{batchActions?.(selectedRows, exitBatch)}</div>
+        </div>
+      ) : null}
     </div>
   )
 }

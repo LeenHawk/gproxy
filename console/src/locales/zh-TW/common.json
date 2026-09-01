@@ -53,6 +53,8 @@
       "unknown": "未知錯誤"
     },
     "batch": {
+      "select": "批次",
+      "cancel": "取消",
       "enable": "啟用所選項目",
       "disable": "停用所選項目",
       "delete": "刪除所選項目",
@@ -75,7 +77,6 @@
       "next": "下一頁",
       "page": "第 {{page}} / {{pages}} 頁",
       "selected": "已選擇 {{count}} 項",
-      "clearSelection": "清除選擇",
       "selectAll": "選擇所有列",
       "selectRow": "選擇此列"
     },
