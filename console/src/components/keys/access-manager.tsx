@@ -35,7 +35,7 @@ export type AccessManagerProps = {
   scopeId?: number
 }
 
-export function AccessManager(props: AccessManagerProps) {
+function AccessManager(props: AccessManagerProps & { scope: AccessScope; scopeId: number }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const subjectNames = useMemo(() => new Map<string, string>([
@@ -47,7 +47,6 @@ export function AccessManager(props: AccessManagerProps) {
   const providerNames = useMemo(() => new Map(props.providers.map((value) => [value.id, value.name])), [props.providers])
   const subject = (kind: string, id: number) => subjectNames.get(`${kind}:${id}`) ?? `${kind}:${id}`
   const scopeChain = useMemo(() => {
-    if (!props.scope || props.scopeId == null) return null
     const chain: Array<{ kind: AccessScope; id: number }> = [{ kind: props.scope, id: props.scopeId }]
     const addUserParents = (userId: number) => {
       const user = props.users.find((value) => value.id === userId)
@@ -91,6 +90,7 @@ export function AccessManager(props: AccessManagerProps) {
     onError: (_, value) => toast.error(t(value.kind === "permissions" ? "access.permissions.deleteError" : value.kind === "rate-limits" ? "access.rateLimits.deleteError" : "access.quotas.deleteError")),
   })
   const shared = { organizations: props.organizations, teams: props.teams, users: props.users, keys: props.keys }
+  const fixedSubject = { kind: props.scope, id: props.scopeId }
   const removing = (kind: Parameters<typeof removeIdentityRule>[0]) => removeMutation.isPending ? removeMutation.variables?.kind === kind ? removeMutation.variables.id : -1 : null
   const permissionRows = scoped(props.permissions).map((value) => ({
     id: value.id,
@@ -106,18 +106,18 @@ export function AccessManager(props: AccessManagerProps) {
 
   return (
     <Card>
-      <CardHeader><CardTitle>{scopeChain?.[0] ? t("access.scope.title", { scope: subject(scopeChain[0].kind, scopeChain[0].id) }) : t("access.title")}</CardTitle><CardDescription>{scopeChain ? t("access.scope.description") : t("access.subtitle")}</CardDescription></CardHeader>
+      <CardHeader><CardTitle>{t("access.scope.title", { scope: subject(scopeChain[0].kind, scopeChain[0].id) })}</CardTitle><CardDescription>{t("access.scope.description")}</CardDescription></CardHeader>
       <CardContent><Tabs defaultValue="permissions">
         <TabsList className="max-w-full overflow-x-auto overflow-y-hidden"><TabsTrigger value="permissions">{t("access.permissions.title")}</TabsTrigger><TabsTrigger value="rates">{t("access.rateLimits.title")}</TabsTrigger><TabsTrigger value="quotas">{t("access.quotas.title")}</TabsTrigger></TabsList>
-        <TabsContent value="permissions" className="flex flex-col gap-6 pt-5"><PermissionForm {...shared} providers={props.providers} groups={props.groups} pending={permissionMutation.isPending} onSubmit={(value) => {
+        <TabsContent value="permissions" className="flex flex-col gap-6 pt-5"><PermissionForm {...shared} fixedSubject={fixedSubject} providers={props.providers} groups={props.groups} pending={permissionMutation.isPending} onSubmit={(value) => {
           const stored = props.permissions.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.provider_id === value.provider_id && item.operation_group === value.operation_group)
           return permissionMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
         }} /><RuleTable entity="permissions" rows={permissionRows} empty={t("access.permissions.empty")} removeLabel={t("access.permissions.delete")} removingId={removing("permissions")} remove={(id) => removeMutation.mutate({ kind: "permissions", id })} /></TabsContent>
-        <TabsContent value="rates" className="flex flex-col gap-6 pt-5"><RateForm {...shared} pending={rateMutation.isPending} onSubmit={(value) => {
+        <TabsContent value="rates" className="flex flex-col gap-6 pt-5"><RateForm {...shared} fixedSubject={fixedSubject} pending={rateMutation.isPending} onSubmit={(value) => {
           const stored = props.rateLimits.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.window_seconds === value.window_seconds)
           return rateMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
         }} /><RuleTable entity="rate-limits" rows={rateRows} empty={t("access.rateLimits.empty")} removeLabel={t("access.rateLimits.delete")} removingId={removing("rate-limits")} remove={(id) => removeMutation.mutate({ kind: "rate-limits", id })} /></TabsContent>
-        <TabsContent value="quotas" className="flex flex-col gap-6 pt-5"><QuotaForm {...shared} pending={quotaMutation.isPending} onSubmit={(value) => {
+        <TabsContent value="quotas" className="flex flex-col gap-6 pt-5"><QuotaForm {...shared} fixedSubject={fixedSubject} pending={quotaMutation.isPending} onSubmit={(value) => {
           const stored = props.quotas.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id)
           return quotaMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
         }} /><RuleTable entity="quotas" rows={quotaRows} empty={t("access.quotas.empty")} removeLabel={t("access.quotas.delete")} removingId={removing("quotas")} remove={(id) => removeMutation.mutate({ kind: "quotas", id })} /></TabsContent>

@@ -1,7 +1,6 @@
 {
   "access": {
-    "title": "访问权限与限制",
-    "subtitle": "为用户或密钥设置权限、请求限制和成本配额。",
+    "title": "访问",
     "scope": {
       "title": "{{scope}} 的访问控制",
       "description": "此作用域设置的值会与上级继承值一同显示。",
@@ -59,9 +58,15 @@
     }
   },
   "users": {
-    "workspaceTabs": { "identities": "身份", "apiKeys": "API 密钥", "access": "访问", "requests": "门户" },
-    "title": "用户与密钥",
-    "subtitle": "管理身份、API 密钥、访问权限和支出限制。",
+    "title": "身份",
+    "subtitle": "管理用户、团队和组织，以及各自的密钥与访问策略。",
+    "entities": { "user": "用户", "team": "团队", "organization": "组织" },
+    "detail": { "profile": "基本信息" },
+    "createEntity": "创建{{entity}}",
+    "searchEntity": "搜索{{entity}}",
+    "selectEntity": "选择一个{{entity}}进行管理。",
+    "organizationSummary": "{{count}} 个团队",
+    "organizationTeamsDescription": "属于{{organization}}的团队。",
     "empty": "尚无用户。请先添加用户再签发 API 密钥。",
     "loadError": "无法加载用户，请重试。",
     "fields": {
@@ -78,6 +83,8 @@
     "saveError": "无法保存用户，请检查字段后重试。",
     "keys": {
       "title": "API 密钥",
+      "scopedDescription": "签发给{{user}}的密钥。",
+      "accessTitle": "密钥访问 — {{key}}",
       "create": "创建 API 密钥",
       "empty": "尚无 API 密钥。请为此用户创建一个。",
       "label": "密钥标签",

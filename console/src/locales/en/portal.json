@@ -113,17 +113,6 @@
         "complete": "Complete",
         "interrupted": "Interrupted"
       }
-    },
-    "admin": {
-      "recentRequests": {
-        "title": "User portal request history",
-        "description": "Control whether key holders can view their own settled request summaries.",
-        "label": "Show recent settled requests",
-        "hint": "This exposes metadata and usage only, never captured request or response bodies.",
-        "saved": "Portal request-history setting saved.",
-        "saveError": "Could not save the portal request-history setting. Retry.",
-        "loadError": "Could not load the portal request-history setting. Retry."
-      }
     }
   },
   "public": {

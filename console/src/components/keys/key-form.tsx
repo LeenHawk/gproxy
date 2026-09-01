@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-export function KeyForm({ users, pending, onSubmit, returnFocus }: { users: Array<UserDto>; pending: boolean; onSubmit: (value: UserKeyCreateRequest) => Promise<void>; returnFocus: () => void }) {
+export function KeyForm({ users, user, pending, onSubmit, returnFocus }: { users: Array<UserDto>; user?: UserDto; pending: boolean; onSubmit: (value: UserKeyCreateRequest) => Promise<void>; returnFocus: () => void }) {
   const { t } = useTranslation()
   const id = useId()
-  const [userId, setUserId] = useState("")
+  const [userId, setUserId] = useState(() => user ? String(user.id) : "")
   const [prefix, setPrefix] = useState<UserKeyPrefix>("sk")
   const [label, setLabel] = useState("")
   const [expiresAt, setExpiresAt] = useState("")
@@ -38,13 +38,13 @@ export function KeyForm({ users, pending, onSubmit, returnFocus }: { users: Arra
       <DialogHeader><DialogTitle>{t("users.keys.create")}</DialogTitle></DialogHeader>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void submit(event)}>
         <DialogBody><FieldGroup>
-          <Field>
+          {user ? null : <Field>
             <FieldLabel htmlFor={`${id}-user`}>{t("access.subjectKinds.user")}</FieldLabel>
             <Select value={userId} onValueChange={setUserId}>
               <SelectTrigger id={`${id}-user`}><SelectValue placeholder={t("common.required")} /></SelectTrigger>
               <SelectContent><SelectGroup>{users.map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
-          </Field>
+          </Field>}
           <Field>
             <FieldLabel id={`${id}-prefix-label`}>{t("users.keys.prefix")}</FieldLabel>
             <ToggleGroup type="single" variant="outline" value={prefix} aria-labelledby={`${id}-prefix-label`} className="flex-wrap justify-start" onValueChange={(value) => { if (value) setPrefix(value as UserKeyPrefix) }}>

@@ -9,7 +9,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAdminLocation } from "@/lib/admin-route"
 
-const KeysPage = lazy(() => import("@/pages/keys").then((module) => ({ default: module.KeysPage })))
+const IdentityPage = lazy(() => import("@/pages/keys").then((module) => ({ default: module.IdentityPage })))
 const OverviewPage = lazy(() => import("@/pages/overview").then((module) => ({ default: module.OverviewPage })))
 const ProvidersPage = lazy(() => import("@/pages/providers").then((module) => ({ default: module.ProvidersPage })))
 const RoutesPage = lazy(() => import("@/pages/routes").then((module) => ({ default: module.RoutesPage })))
@@ -52,7 +52,7 @@ function ConsoleApp() {
     providers: <ProvidersPage />,
     routes: <RoutesPage />,
     rules: <RulesPage />,
-    keys: <KeysPage />,
+    identity: <IdentityPage />,
     usage: <UsagePage />,
     audit: <AuditPage />,
     logs: <LogsPage />,

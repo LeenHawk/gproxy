@@ -125,6 +125,15 @@
       "size": "Database size cap (MiB)",
       "sizeHint": "Leave empty to disable size-pressure cleanup."
     },
+    "portal": {
+      "title": "User portal",
+      "description": "Configure what key holders can see in the separate user portal.",
+      "label": "Show recent settled requests",
+      "hint": "This exposes metadata and usage only, never captured request or response bodies.",
+      "saved": "Portal setting saved.",
+      "saveError": "Could not save the portal setting. Retry.",
+      "loadError": "Could not load the portal setting. Retry."
+    },
     "logs": {
       "enable_downstream_log": "Downstream metadata",
       "enable_downstream_logHint": "Record caller request and response metadata.",

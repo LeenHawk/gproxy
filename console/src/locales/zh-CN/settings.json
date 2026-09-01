@@ -125,6 +125,15 @@
       "size": "数据库大小上限（MiB）",
       "sizeHint": "留空可停用大小压力清理。"
     },
+    "portal": {
+      "title": "用户门户",
+      "description": "配置密钥持有者可在独立用户门户中查看的内容。",
+      "label": "显示最近结算请求",
+      "hint": "仅公开元数据和用量，绝不公开捕获的请求或响应正文。",
+      "saved": "已保存门户设置。",
+      "saveError": "无法保存门户设置，请重试。",
+      "loadError": "无法加载门户设置，请重试。"
+    },
     "logs": {
       "enable_downstream_log": "下游元数据",
       "enable_downstream_logHint": "记录调用方请求与响应元数据。",

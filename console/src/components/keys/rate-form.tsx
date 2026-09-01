@@ -1,21 +1,19 @@
 import { useId, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import type { RateLimitWriteRequest } from "@/generated/RateLimitWriteRequest"
-import { SubjectSelect, type SubjectSelectProps } from "@/components/keys/subject-select"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
-type RateFormProps = Pick<SubjectSelectProps, "organizations" | "teams" | "users" | "keys"> & {
+type RateFormProps = {
   pending: boolean
   onSubmit: (value: RateLimitWriteRequest) => Promise<void>
+  fixedSubject: { kind: string; id: number }
 }
 
 export function RateForm(props: RateFormProps) {
   const { t } = useTranslation()
   const id = useId()
-  const [kind, setKind] = useState("user_key")
-  const [subjectId, setSubjectId] = useState("")
   const [requests, setRequests] = useState("")
   const [seconds, setSeconds] = useState("")
 
@@ -23,8 +21,8 @@ export function RateForm(props: RateFormProps) {
     event.preventDefault()
     try {
       await props.onSubmit({
-        subject_kind: kind,
-        subject_id: Number(subjectId),
+        subject_kind: props.fixedSubject.kind,
+        subject_id: props.fixedSubject.id,
         requests: Number(requests),
         window_seconds: Number(seconds),
       })
@@ -35,7 +33,6 @@ export function RateForm(props: RateFormProps) {
 
   return (
     <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
-      <SubjectSelect {...props} kind={kind} subjectId={subjectId} onChange={(nextKind, nextId) => { setKind(nextKind); setSubjectId(nextId) }} />
       <FieldGroup className="grid sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${id}-requests`}>{t("access.rateLimits.requests")}</FieldLabel>
@@ -46,7 +43,7 @@ export function RateForm(props: RateFormProps) {
           <Input id={`${id}-seconds`} type="number" min={1} step={1} value={seconds} required onChange={(event) => setSeconds(event.target.value)} />
         </Field>
       </FieldGroup>
-      <Button className="self-start" disabled={props.pending || !subjectId || !requests || !seconds}>{t("access.rateLimits.add")}</Button>
+      <Button className="self-start" disabled={props.pending || !requests || !seconds}>{t("access.rateLimits.add")}</Button>
     </form>
   )
 }

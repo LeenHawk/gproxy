@@ -1,7 +1,6 @@
 {
   "access": {
-    "title": "Access and limits",
-    "subtitle": "Apply permissions, request limits, and cost quotas to a user or key.",
+    "title": "Access",
     "scope": {
       "title": "Access for {{scope}}",
       "description": "Values set on this scope appear with inherited values from its parents.",
@@ -59,9 +58,15 @@
     }
   },
   "users": {
-    "workspaceTabs": { "identities": "Identities", "apiKeys": "API keys", "access": "Access", "requests": "Portal" },
-    "title": "Users and keys",
-    "subtitle": "Manage identities, API keys, access, and spending limits.",
+    "title": "Identity",
+    "subtitle": "Manage users, teams, and organizations with their keys and access policies.",
+    "entities": { "user": "User", "team": "Team", "organization": "Organization" },
+    "detail": { "profile": "Profile" },
+    "createEntity": "Create {{entity}}",
+    "searchEntity": "Search {{entity}}",
+    "selectEntity": "Select a {{entity}} to manage it.",
+    "organizationSummary": "{{count}} teams",
+    "organizationTeamsDescription": "Teams that belong to {{organization}}.",
     "empty": "No users yet. Add one before issuing an API key.",
     "loadError": "Could not load users. Retry.",
     "fields": {
@@ -78,6 +83,8 @@
     "saveError": "Could not save the user. Check the fields and retry.",
     "keys": {
       "title": "API keys",
+      "scopedDescription": "Keys issued to {{user}}.",
+      "accessTitle": "Key access — {{key}}",
       "create": "Create API key",
       "empty": "No API keys. Create one for this user.",
       "label": "Key label",

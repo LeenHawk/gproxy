@@ -125,6 +125,15 @@
       "size": "資料庫大小上限（MiB）",
       "sizeHint": "留空可停用大小壓力清理。"
     },
+    "portal": {
+      "title": "使用者入口網站",
+      "description": "設定金鑰持有者可在獨立使用者入口網站中檢視的內容。",
+      "label": "顯示最近結算請求",
+      "hint": "僅公開中繼資料和用量，絕不公開擷取的請求或回應內文。",
+      "saved": "已儲存入口網站設定。",
+      "saveError": "無法儲存入口網站設定，請重試。",
+      "loadError": "無法載入入口網站設定，請重試。"
+    },
     "logs": {
       "enable_downstream_log": "下游中繼資料",
       "enable_downstream_logHint": "記錄呼叫端請求與回應中繼資料。",

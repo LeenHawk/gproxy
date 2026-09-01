@@ -1,7 +1,6 @@
 {
   "access": {
-    "title": "存取權限與限制",
-    "subtitle": "為使用者或金鑰設定權限、請求限制和成本配額。",
+    "title": "存取",
     "scope": {
       "title": "{{scope}} 的存取控制",
       "description": "此範圍設定的值會與上層繼承值一同顯示。",
@@ -59,9 +58,15 @@
     }
   },
   "users": {
-    "workspaceTabs": { "identities": "身分", "apiKeys": "API 金鑰", "access": "存取", "requests": "入口" },
-    "title": "使用者與金鑰",
-    "subtitle": "管理身分、API 金鑰、存取權限和支出限制。",
+    "title": "身分",
+    "subtitle": "管理使用者、團隊和組織，以及各自的金鑰與存取策略。",
+    "entities": { "user": "使用者", "team": "團隊", "organization": "組織" },
+    "detail": { "profile": "基本資訊" },
+    "createEntity": "建立{{entity}}",
+    "searchEntity": "搜尋{{entity}}",
+    "selectEntity": "選擇一個{{entity}}進行管理。",
+    "organizationSummary": "{{count}} 個團隊",
+    "organizationTeamsDescription": "屬於{{organization}}的團隊。",
     "empty": "尚無使用者。請先新增使用者再簽發 API 金鑰。",
     "loadError": "無法載入使用者，請重試。",
     "fields": {
@@ -78,6 +83,8 @@
     "saveError": "無法儲存使用者，請檢查欄位後重試。",
     "keys": {
       "title": "API 金鑰",
+      "scopedDescription": "簽發給{{user}}的金鑰。",
+      "accessTitle": "金鑰存取 — {{key}}",
       "create": "建立 API 金鑰",
       "empty": "尚無 API 金鑰。請為此使用者建立一個。",
       "label": "金鑰標籤",

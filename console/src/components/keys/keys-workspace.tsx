@@ -1,45 +1,47 @@
+import { useState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { saveOrganization, saveTeam, saveUser } from "@/api/identity"
 import type { OrganizationDto } from "@/generated/OrganizationDto"
-import type { PermissionDto } from "@/generated/PermissionDto"
-import type { ProviderDto } from "@/generated/ProviderDto"
-import type { QuotaDto } from "@/generated/QuotaDto"
-import type { RateLimitDto } from "@/generated/RateLimitDto"
 import type { TeamDto } from "@/generated/TeamDto"
 import type { UserDto } from "@/generated/UserDto"
-import type { UserKeyDto } from "@/generated/UserKeyDto"
-import { useTranslation } from "react-i18next"
-import { AccessManager, ScopeAccessEditor, type AccessScope } from "@/components/keys/access-manager"
-import { KeyManagement } from "@/components/keys/key-management"
-import { RecentRequestsSetting } from "@/components/portal/recent-requests-setting"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { AccessManagerProps } from "@/components/keys/access-manager"
+import { IdentityCreateDialog } from "@/components/identity/identity-create-dialog"
+import { OrganizationWorkspace } from "@/components/identity/organization-workspace"
+import { TeamWorkspace } from "@/components/identity/team-workspace"
+import { UserWorkspace } from "@/components/identity/user-workspace"
+import type { IdentityKind } from "@/components/keys/identity-forms"
+import type { OrganizationPanel } from "@/components/identity/organization-detail"
+import type { TeamPanel } from "@/components/identity/team-detail"
+import type { UserPanel } from "@/components/identity/user-detail"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
 
-type Props = {
-  organizations: Array<OrganizationDto>
-  teams: Array<TeamDto>
-  users: Array<UserDto>
-  keys: Array<UserKeyDto>
-  providers: Array<ProviderDto>
-  groups: Array<string>
-  permissions: Array<PermissionDto>
-  rateLimits: Array<RateLimitDto>
-  quotas: Array<QuotaDto>
-}
+type Entity = "users" | "teams" | "organizations"
 
-export function KeysWorkspace(props: Props) {
-  const identity = { organizations: props.organizations, teams: props.teams, users: props.users, keys: props.keys }
+export function IdentityWorkspace(access: AccessManagerProps) {
   const { t } = useTranslation()
+  const client = useQueryClient()
   const location = useAdminLocation()
-  const section = ["identities", "api-keys", "access", "requests"].includes(location.segments[0]) ? location.segments[0] : "identities"
-  const scope = ["organization", "team", "user", "user_key"].includes(location.segments[1]) ? location.segments[1] as AccessScope : null
-  const scopeId = Number(location.segments[2])
-  const access = { ...identity, providers: props.providers, groups: props.groups, permissions: props.permissions, rateLimits: props.rateLimits, quotas: props.quotas }
+  const entity = (["users", "teams", "organizations"] as const).includes(location.segments[0] as Entity) ? location.segments[0] as Entity : "users"
+  const selectedId = Number(location.segments[1])
+  const panel = location.segments[2]
+  const [createKind, setCreateKind] = useState<IdentityKind | null>(null)
+  const refresh = (...keys: Array<string>) => Promise.all(keys.map((key) => client.invalidateQueries({ queryKey: [key] })))
+  const organizationMutation = useMutation({ mutationFn: ({ value, id }: { value: Parameters<typeof saveOrganization>[0]; id?: number }) => saveOrganization(value, id), onSuccess: async () => { toast.success(t("common.actions.saved")); await refresh("organizations") }, onError: () => toast.error(t("common.errors.save")) })
+  const teamMutation = useMutation({ mutationFn: ({ value, id }: { value: Parameters<typeof saveTeam>[0]; id?: number }) => saveTeam(value, id), onSuccess: async () => { toast.success(t("common.actions.saved")); await refresh("teams") }, onError: () => toast.error(t("common.errors.save")) })
+  const userMutation = useMutation({ mutationFn: ({ value, id }: { value: Parameters<typeof saveUser>[0]; id?: number }) => saveUser(value, id), onSuccess: async (_, input) => { toast.success(t(input.id == null ? "users.created" : "users.updated")); await refresh("users") }, onError: () => toast.error(t("users.saveError")) })
+  const pending = organizationMutation.isPending || teamMutation.isPending || userMutation.isPending
+  const go = (nextEntity: Entity, id?: number, nextPanel?: string) => navigateAdminPath(`/admin/identity/${nextEntity}${id == null ? "" : `/${id}/${nextPanel ?? "profile"}`}`)
+  const common = { access, selectedId: Number.isFinite(selectedId) ? selectedId : null, pending, onCreate: () => setCreateKind(entity === "users" ? "user" : entity === "teams" ? "team" : "organization") }
   return (
-    <Tabs value={section} onValueChange={(value) => navigateAdminPath(`/admin/keys/${value}`)}>
-      <TabsList className="max-w-full"><TabsTrigger value="identities">{t("users.workspaceTabs.identities")}</TabsTrigger><TabsTrigger value="api-keys">{t("users.workspaceTabs.apiKeys")}</TabsTrigger><TabsTrigger value="access">{t("users.workspaceTabs.access")}</TabsTrigger><TabsTrigger value="requests">{t("users.workspaceTabs.requests")}</TabsTrigger></TabsList>
-      <TabsContent value="identities" className="pt-5"><KeyManagement {...identity} mode="identities" onScopeOpen={(kind, id) => navigateAdminPath(`/admin/keys/access/${kind}/${id}`)} /></TabsContent>
-      <TabsContent value="api-keys" className="pt-5"><KeyManagement {...identity} mode="keys" /></TabsContent>
-      <TabsContent value="access" className="pt-5">{scope && Number.isFinite(scopeId) ? <ScopeAccessEditor {...access} scope={scope} scopeId={scopeId} /> : <AccessManager {...access} />}</TabsContent>
-      <TabsContent value="requests" className="pt-5"><RecentRequestsSetting /></TabsContent>
-    </Tabs>
+    <div className="flex flex-col gap-5">
+      <Tabs value={entity} onValueChange={(value) => go(value as Entity)}><TabsList><TabsTrigger value="users">{t("access.subjectKinds.user")}</TabsTrigger><TabsTrigger value="teams">{t("users.fields.team")}</TabsTrigger><TabsTrigger value="organizations">{t("users.fields.organization")}</TabsTrigger></TabsList></Tabs>
+      {entity === "users" ? <UserWorkspace {...common} panel={(["profile", "keys", "access"].includes(panel) ? panel : "profile") as UserPanel} onSelect={(user) => go("users", user.id)} onBack={() => go("users")} onPanel={(next) => go("users", selectedId, next)} onToggle={(user: UserDto) => userMutation.mutate({ id: user.id, value: { organization_id: user.organization_id, team_id: user.team_id, name: user.name, enabled: !user.enabled, is_admin: user.is_admin, password: null } })} /> : null}
+      {entity === "teams" ? <TeamWorkspace {...common} panel={(["profile", "access"].includes(panel) ? panel : "profile") as TeamPanel} onSelect={(team) => go("teams", team.id)} onBack={() => go("teams")} onPanel={(next) => go("teams", selectedId, next)} onToggle={(team: TeamDto) => teamMutation.mutate({ id: team.id, value: { organization_id: team.organization_id, name: team.name, enabled: !team.enabled } })} /> : null}
+      {entity === "organizations" ? <OrganizationWorkspace {...common} panel={(["profile", "teams", "access"].includes(panel) ? panel : "profile") as OrganizationPanel} onSelect={(organization) => go("organizations", organization.id)} onBack={() => go("organizations")} onPanel={(next) => go("organizations", selectedId, next)} onTeam={(team) => go("teams", team.id)} onToggle={(organization: OrganizationDto) => organizationMutation.mutate({ id: organization.id, value: { name: organization.name, enabled: !organization.enabled } })} /> : null}
+      {createKind ? <IdentityCreateDialog open onOpenChange={(open) => { if (!open) setCreateKind(null) }} kind={createKind} organizations={access.organizations} teams={access.teams} pending={pending} onOrganization={(name) => organizationMutation.mutateAsync({ value: { name, enabled: true } }).then(() => { setCreateKind(null) })} onTeam={(organization_id, name) => teamMutation.mutateAsync({ value: { organization_id, name, enabled: true } }).then(() => { setCreateKind(null) })} onUser={(organization_id, team_id, name, password) => userMutation.mutateAsync({ value: { organization_id, team_id, name, enabled: true, is_admin: false, password } }).then(() => { setCreateKind(null) })} /> : null}
+    </div>
   )
 }

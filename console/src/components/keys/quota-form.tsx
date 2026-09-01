@@ -1,14 +1,14 @@
 import { useId, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import type { QuotaWriteRequest } from "@/generated/QuotaWriteRequest"
-import { SubjectSelect, type SubjectSelectProps } from "@/components/keys/subject-select"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
-type QuotaFormProps = Pick<SubjectSelectProps, "organizations" | "teams" | "users" | "keys"> & {
+type QuotaFormProps = {
   pending: boolean
   onSubmit: (value: QuotaWriteRequest) => Promise<void>
+  fixedSubject: { kind: string; id: number }
 }
 
 const optional = (value: string) => value || null
@@ -16,8 +16,6 @@ const optional = (value: string) => value || null
 export function QuotaForm(props: QuotaFormProps) {
   const { t } = useTranslation()
   const id = useId()
-  const [kind, setKind] = useState("user_key")
-  const [subjectId, setSubjectId] = useState("")
   const [total, setTotal] = useState("")
   const [daily, setDaily] = useState("")
   const [weekly, setWeekly] = useState("")
@@ -38,8 +36,8 @@ export function QuotaForm(props: QuotaFormProps) {
     event.preventDefault()
     try {
       await props.onSubmit({
-        subject_kind: kind,
-        subject_id: Number(subjectId),
+        subject_kind: props.fixedSubject.kind,
+        subject_id: props.fixedSubject.id,
         quota_total: total,
         quota_daily: optional(daily),
         quota_weekly: optional(weekly),
@@ -55,7 +53,6 @@ export function QuotaForm(props: QuotaFormProps) {
 
   return (
     <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
-      <SubjectSelect {...props} kind={kind} subjectId={subjectId} onChange={(nextKind, nextId) => { setKind(nextKind); setSubjectId(nextId) }} />
       <FieldGroup className="grid sm:grid-cols-2 lg:grid-cols-3">
         {values.map(([suffix, label, value, setValue, required]) => (
           <Field key={suffix}>
@@ -64,7 +61,7 @@ export function QuotaForm(props: QuotaFormProps) {
           </Field>
         ))}
       </FieldGroup>
-      <Button className="self-start" disabled={props.pending || !subjectId || !total}>{t("access.quotas.add")}</Button>
+      <Button className="self-start" disabled={props.pending || !total}>{t("access.quotas.add")}</Button>
     </form>
   )
 }
