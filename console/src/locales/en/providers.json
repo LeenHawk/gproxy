@@ -340,12 +340,6 @@
       "thinkingAdaptiveSupported": "Adaptive thinking supported",
       "thinkingEnabledSupported": "Enabled thinking supported",
       "thinkingHint": "Switch on capabilities this upstream explicitly supports. Undeclared values stay unknown until changed.",
-      "thinkingClear": "Restore undeclared state",
-      "thinkingStates": {
-        "undeclared": "Undeclared",
-        "supported": "Supported",
-        "unsupported": "Not supported"
-      },
       "variants": "Variants",
       "variantsHint": "Declare absolute model ids as an array, or use { expose_base, variants }.",
       "maxOutputTokens": "Max output tokens",

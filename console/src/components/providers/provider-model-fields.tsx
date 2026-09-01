@@ -1,7 +1,5 @@
 import { useId } from "react"
-import { RotateCcwIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -42,18 +40,12 @@ export function ProviderModelFields({ value, onChange }: { value: ModelMetadataS
   </>
 }
 
-function ThinkingField({ label, value, onChange }: { label: string; value: boolean | null; onChange: (value: boolean | null) => void }) {
-  const { t } = useTranslation()
+function ThinkingField({ label, value, onChange }: { label: string; value: boolean | null; onChange: (value: boolean) => void }) {
   const id = useId()
-  const state = value == null ? "undeclared" : value ? "supported" : "unsupported"
   return <Field orientation="horizontal" className="rounded-lg border px-3 py-2.5">
     <FieldContent>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <FieldDescription>{t(`providers.models.thinkingStates.${state}`)}</FieldDescription>
     </FieldContent>
-    <div className="flex items-center gap-1">
-      {value != null ? <Button type="button" variant="ghost" size="icon-xs" aria-label={t("providers.models.thinkingClear")} onClick={() => onChange(null)}><RotateCcwIcon aria-hidden /></Button> : null}
-      <Switch id={id} checked={value === true} onCheckedChange={onChange} />
-    </div>
+    <Switch id={id} checked={value === true} onCheckedChange={onChange} />
   </Field>
 }

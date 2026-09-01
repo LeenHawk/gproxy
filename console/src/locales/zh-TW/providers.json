@@ -340,12 +340,6 @@
       "thinkingAdaptiveSupported": "支援自適應思考",
       "thinkingEnabledSupported": "支援啟用思考",
       "thinkingHint": "開啟上游明確支援的能力；未宣告的值在修改前會繼續保持未知。",
-      "thinkingClear": "還原為未宣告",
-      "thinkingStates": {
-        "undeclared": "未宣告",
-        "supported": "支援",
-        "unsupported": "不支援"
-      },
       "variants": "變體",
       "variantsHint": "用陣列宣告完整模型名稱，或使用 { expose_base, variants }。",
       "maxOutputTokens": "最大輸出 Token",
