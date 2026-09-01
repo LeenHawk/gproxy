@@ -10,6 +10,7 @@ const cycle: CredentialQuotaCycleDto = {
   version: 1,
   credential_id: 7,
   window_key: "five-hour",
+  label: null,
   period_start: 100,
   period_end: 200,
   boundary_source: "upstream",
@@ -38,9 +39,9 @@ describe("CredentialCycleList", () => {
       />,
     )
 
-    const bars = screen.getAllByRole("progressbar")
-    expect(bars).toHaveLength(1)
-    expect(bars[0]).toHaveAttribute("aria-valuenow", "20")
+    expect(screen.getAllByText("five-hour")).toHaveLength(1)
+    expect(screen.getByText("20%")).toBeInTheDocument()
+    expect(screen.queryByText("10%")).toBeNull()
   })
 
   it("accepts only explicit start and end bounds in chronological order", () => {

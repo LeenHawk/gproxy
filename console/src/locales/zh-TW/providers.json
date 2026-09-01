@@ -221,17 +221,29 @@
       "enabled": "啟用憑證",
       "healthObserved": "觀測於 {{time}}",
       "healthDetail": "健康詳細資料",
+      "healthReset": {
+        "action": "清除健康狀態",
+        "hint": "點擊徽章清除已記錄的健康狀態。",
+        "success": "已清除健康狀態。",
+        "error": "無法清除健康狀態。"
+      },
       "modelHealth": {
         "issues": "異常模型 {{count}} 個",
         "more": "還有 {{count}} 個…"
       },
+      "quota": {
+        "raw": "原始回應",
+        "title": "上游額度",
+        "hint": "即時查詢上游帳號——部分上游對此限流，請勿頻繁重新整理。"
+      },
       "quotaProbe": {
-        "action": "拉取上游用量",
+        "action": "重新整理",
+        "pending": "查詢中…",
         "success": "已觀測 {{count}} 個配額視窗。",
         "error": "配額探測失敗。"
       },
       "quotaReset": {
-        "count": "{{count}} 張重置卡",
+        "available": "重置卡",
         "expires": "{{time}} 過期",
         "action": "使用重置卡",
         "confirmTitle": "使用一張重置卡？",
@@ -247,13 +259,13 @@
       },
       "noQuotaCycle": "尚未觀測到上游配額週期。",
       "cycleModels": {
-        "title": "依模型查看用量",
+        "byModel": "依模型（{{count}}）",
+        "total": "{{tokens}} tokens · {{cost}}",
         "unknownModel": "未知模型",
         "requests": "請求",
         "input_tokens": "輸入",
         "output_tokens": "輸出",
-        "cached_input_tokens": "快取讀取",
-        "cost": "費用"
+        "cached_input_tokens": "快取讀取"
       },
       "created": "已新增憑證。",
       "updated": "已更新憑證。",

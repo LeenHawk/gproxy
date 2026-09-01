@@ -52,6 +52,8 @@ export const probeCredentialQuota = (id: number) =>
   api<QuotaProbeResponse>(`/admin/api/credentials/${id}/quota-probe`, json("POST", {}))
 export const resetCredentialQuota = (id: number) =>
   api<QuotaResetResponse>(`/admin/api/credentials/${id}/quota-reset`, json("POST", {}))
+export const resetCredentialHealth = (id: number) =>
+  api<void>(`/admin/api/credentials/${id}/health-reset`, json("POST", {}))
 
 export const batch = (entity: Entity, action: BatchActionDto, ids: Array<number>) =>
   api<BatchResponse>(`/admin/api/batch/${entity}`, json("POST", { action, ids }))

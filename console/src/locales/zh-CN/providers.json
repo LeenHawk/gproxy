@@ -221,17 +221,29 @@
       "enabled": "启用凭据",
       "healthObserved": "观测于 {{time}}",
       "healthDetail": "健康详情",
+      "healthReset": {
+        "action": "清除健康状态",
+        "hint": "点击徽章清除已记录的健康状态。",
+        "success": "已清除健康状态。",
+        "error": "无法清除健康状态。"
+      },
       "modelHealth": {
         "issues": "异常模型 {{count}} 个",
         "more": "还有 {{count}} 个…"
       },
+      "quota": {
+        "raw": "原始响应",
+        "title": "上游额度",
+        "hint": "实时查询上游账号——部分上游对此限流，请勿频繁刷新。"
+      },
       "quotaProbe": {
-        "action": "拉取上游用量",
+        "action": "刷新",
+        "pending": "查询中…",
         "success": "已观测 {{count}} 个配额窗口。",
         "error": "配额探测失败。"
       },
       "quotaReset": {
-        "count": "{{count}} 张重置卡",
+        "available": "重置卡",
         "expires": "{{time}} 过期",
         "action": "使用重置卡",
         "confirmTitle": "使用一张重置卡？",
@@ -247,13 +259,13 @@
       },
       "noQuotaCycle": "尚未观测到上游配额周期。",
       "cycleModels": {
-        "title": "按模型查看用量",
+        "byModel": "按模型（{{count}}）",
+        "total": "{{tokens}} tokens · {{cost}}",
         "unknownModel": "未知模型",
         "requests": "请求",
         "input_tokens": "输入",
         "output_tokens": "输出",
-        "cached_input_tokens": "缓存读取",
-        "cost": "费用"
+        "cached_input_tokens": "缓存读取"
       },
       "created": "已添加凭据。",
       "updated": "已更新凭据。",

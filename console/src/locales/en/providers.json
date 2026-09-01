@@ -221,17 +221,29 @@
       "enabled": "Credential enabled",
       "healthObserved": "Observed {{time}}",
       "healthDetail": "Health detail",
+      "healthReset": {
+        "action": "Clear health state",
+        "hint": "Click the badge to clear the recorded health state.",
+        "success": "Health state cleared.",
+        "error": "Could not clear the health state."
+      },
       "modelHealth": {
         "issues": "Abnormal models: {{count}}",
         "more": "+{{count}} more…"
       },
+      "quota": {
+        "raw": "Raw response",
+        "title": "Upstream quota",
+        "hint": "Queries the upstream account live — some upstreams rate-limit this; use sparingly."
+      },
       "quotaProbe": {
-        "action": "Fetch upstream usage",
+        "action": "Refresh",
+        "pending": "Fetching…",
         "success": "Observed {{count}} quota windows.",
         "error": "Quota probe failed."
       },
       "quotaReset": {
-        "count": "{{count}} reset credits",
+        "available": "Reset credits",
         "expires": "Expires {{time}}",
         "action": "Consume reset credit",
         "confirmTitle": "Consume a reset credit?",
@@ -247,13 +259,13 @@
       },
       "noQuotaCycle": "No upstream quota cycle observed.",
       "cycleModels": {
-        "title": "Usage by model",
+        "byModel": "By model ({{count}})",
+        "total": "{{tokens}} tokens · {{cost}}",
         "unknownModel": "Unknown model",
         "requests": "Requests",
         "input_tokens": "Input",
         "output_tokens": "Output",
-        "cached_input_tokens": "Cache read",
-        "cost": "Cost"
+        "cached_input_tokens": "Cache read"
       },
       "created": "Credential added.",
       "updated": "Credential updated.",
