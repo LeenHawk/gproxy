@@ -21,7 +21,7 @@ export function CredentialSecretField({ fields, value, onChange, editing }: {
       <FieldLabel htmlFor="credential-secret">{label}</FieldLabel>
       {single
         ? <Input id="credential-secret" className="machine-text" autoComplete="off" spellCheck={false} placeholder={editing ? "••••••••" : undefined} value={value} onChange={(event) => onChange(event.target.value)} />
-        : <Textarea id="credential-secret" className="machine-text min-h-40" autoComplete="off" spellCheck={false} placeholder={secretTemplate(fields)} value={value} onChange={(event) => onChange(event.target.value)} />}
+        : <Textarea id="credential-secret" className="machine-text" rows={4} autoComplete="off" spellCheck={false} placeholder={secretTemplate(fields)} value={value} onChange={(event) => onChange(event.target.value)} />}
       {editing ? <FieldDescription>{t("providers.credentials.keepSecret")}</FieldDescription> : null}
     </Field>
   )

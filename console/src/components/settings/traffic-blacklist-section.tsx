@@ -47,13 +47,13 @@ export function TrafficBlacklistSection({
             <FieldGroup>
               <Field data-disabled>
                 <FieldLabel htmlFor={`traffic-blacklist-default-${key}`}>{t("settings.trafficBlacklist.builtIn")}</FieldLabel>
-                <Textarea id={`traffic-blacklist-default-${key}`} className="machine-text min-h-24" value={lines(defaults[key])} disabled readOnly />
+                <Textarea id={`traffic-blacklist-default-${key}`} className="machine-text" value={lines(defaults[key])} disabled readOnly />
               </Field>
               <Field>
                 <FieldLabel htmlFor={`traffic-blacklist-extra-${key}`}>{t("settings.trafficBlacklist.additional")}</FieldLabel>
                 <Textarea
                   id={`traffic-blacklist-extra-${key}`}
-                  className="machine-text min-h-24"
+                  className="machine-text"
                   value={lines(value[key])}
                   onChange={(event) => onChange({ ...value, [key]: parseLines(event.target.value) })}
                 />

@@ -28,7 +28,7 @@ export function ProviderModelFields({ value, onChange }: { value: ModelMetadataS
     <ThinkingField label={t("providers.models.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
     <Field>
       <FieldLabel htmlFor={`${id}-variants`}>{t("providers.models.variants")}</FieldLabel>
-      <Textarea id={`${id}-variants`} className="min-h-28 font-mono text-xs" value={value.variants} onChange={(event) => set("variants", event.target.value)} />
+      <Textarea id={`${id}-variants`} className="font-mono text-xs" rows={4} value={value.variants} onChange={(event) => set("variants", event.target.value)} />
       <FieldDescription>{t("providers.models.variantsHint")}</FieldDescription>
     </Field>
   </>

@@ -52,29 +52,31 @@ export function ProviderFormFields(props: {
         {source.channelsError ? <FieldError>{t("common.errors.load")}</FieldError> : null}
         {errors.channel ? <FieldError>{errors.channel}</FieldError> : null}
       </Field>
-      <TrafficPolicyFields
-        id={id}
-        defaults={selectedChannel?.traffic_policy}
-        value={draft.trafficPolicy}
-        onChange={props.onTrafficPolicy}
-      />
       <ProviderSettingsFields
         channel={selectedChannel}
         text={draft.settings}
         error={errors.settings}
         onChange={(value) => props.onChange("settings", value)}
         advancedChildren={(
-          <FingerprintField
-            text={draft.fingerprint}
-            preset={draft.preset}
-            presets={source.presets}
-            presetsLoading={source.presetsLoading}
-            presetsError={source.presetsError}
-            validationError={errors.fingerprint}
-            serverError={props.serverFingerprintError}
-            onPresetChange={props.onSelectPreset}
-            onTextChange={props.onCustomFingerprint}
-          />
+          <>
+            <TrafficPolicyFields
+              id={id}
+              defaults={selectedChannel?.traffic_policy}
+              value={draft.trafficPolicy}
+              onChange={props.onTrafficPolicy}
+            />
+            <FingerprintField
+              text={draft.fingerprint}
+              preset={draft.preset}
+              presets={source.presets}
+              presetsLoading={source.presetsLoading}
+              presetsError={source.presetsError}
+              validationError={errors.fingerprint}
+              serverError={props.serverFingerprintError}
+              onPresetChange={props.onSelectPreset}
+              onTextChange={props.onCustomFingerprint}
+            />
+          </>
         )}
       />
       <Field orientation="horizontal">

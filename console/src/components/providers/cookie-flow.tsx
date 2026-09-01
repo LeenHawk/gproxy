@@ -28,7 +28,7 @@ export function CookieFlow({ providerId, label, onDone }: Props) {
         <FieldLabel htmlFor={`${id}-cookie`}>{t("providers.login.cookieLabel")}</FieldLabel>
         <Textarea
           id={`${id}-cookie`}
-          className="machine-text min-h-24"
+          className="machine-text"
           value={cookie}
           onChange={(event) => setCookie(event.target.value)}
           autoComplete="off"

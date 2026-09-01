@@ -39,11 +39,7 @@ export function TrafficPolicyFields({
   const custom = value !== null
   const effective = value ?? defaults
   const update = (key: PolicyKey, text: string) => onChange({ ...copy(effective), [key]: parseLines(text) })
-  const fields: Array<{ key: PolicyKey; rows: number }> = [
-    { key: "request_headers", rows: 4 },
-    { key: "response_headers", rows: 4 },
-    { key: "request_query", rows: 3 },
-  ]
+  const fields: Array<PolicyKey> = ["request_headers", "response_headers", "request_query"]
   return (
     <FieldSet className="sm:col-span-2">
       <FieldLegend>{t("providers.trafficPolicy.title")}</FieldLegend>
@@ -61,17 +57,17 @@ export function TrafficPolicyFields({
           />
         </Field>
         {fields.map((field) => (
-          <Field key={field.key} data-disabled={!custom || undefined} data-field-span={field.key === "request_query" ? "full" : undefined}>
-            <FieldLabel htmlFor={`${id}-traffic-policy-${field.key}`}>{t(`providers.trafficPolicy.${field.key}.label`)}</FieldLabel>
+          <Field key={field} data-disabled={!custom || undefined} data-field-span={field === "request_query" ? "full" : undefined}>
+            <FieldLabel htmlFor={`${id}-traffic-policy-${field}`}>{t(`providers.trafficPolicy.${field}.label`)}</FieldLabel>
             <Textarea
-              id={`${id}-traffic-policy-${field.key}`}
-              className="machine-text min-h-24"
-              rows={field.rows}
-              value={lines(effective[field.key])}
+              id={`${id}-traffic-policy-${field}`}
+              className="machine-text"
+              rows={3}
+              value={lines(effective[field])}
               disabled={!custom}
-              onChange={(event) => update(field.key, event.target.value)}
+              onChange={(event) => update(field, event.target.value)}
             />
-            <FieldDescription>{t(`providers.trafficPolicy.${field.key}.description`)}</FieldDescription>
+            <FieldDescription>{t(`providers.trafficPolicy.${field}.description`)}</FieldDescription>
           </Field>
         ))}
       </FieldGroup>

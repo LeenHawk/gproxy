@@ -59,11 +59,12 @@ export function FingerprintField(props: Props) {
           </Select>
           {props.presetsError ? <FieldError>{t("providers.fingerprint.presetError")}</FieldError> : null}
         </Field>
-        <Field data-invalid={Boolean(error) || undefined}>
+        <Field data-field-span="full" data-invalid={Boolean(error) || undefined}>
           <FieldLabel htmlFor={`${id}-json`}>{t("providers.fingerprint.custom")}</FieldLabel>
           <Textarea
             id={`${id}-json`}
-            className="machine-text min-h-40"
+            className="machine-text"
+            rows={4}
             value={props.text}
             onChange={(event) => props.onTextChange(event.target.value)}
             aria-invalid={Boolean(error) || undefined}

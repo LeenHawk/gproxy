@@ -28,13 +28,11 @@ export function ProviderSettingsFields({
   const parsed = parseJsonObject<Record<string, unknown>>(text)
   const values = parsed.ok ? objectValue(parsed.value) : {}
   const fields = channel?.provider_fields ?? []
-  const basic = fields.filter((field) => !field.advanced)
-  const advanced = fields.filter((field) => field.advanced)
   const kinds = channel?.endpoint_kinds ?? []
   const commit = (next: Record<string, unknown>) => onChange(prettyJson(next))
   return (
     <>
-      <GenericSettingsFields fields={basic} values={values} onChange={commit} />
+      <GenericSettingsFields fields={fields} values={values} onChange={commit} />
       <EndpointFields
         kinds={kinds}
         rows={endpointRows(values, kinds)}
@@ -48,29 +46,29 @@ export function ProviderSettingsFields({
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="flex flex-col gap-4 pt-4">
-          <GenericSettingsFields fields={advanced} values={values} onChange={commit} />
           {advancedChildren}
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="self-start">
-                {t("providers.form.jsonEscape")}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <Field data-invalid={Boolean(error) || undefined}>
-                <FieldLabel htmlFor="provider-settings-json">{t("providers.fields.settings")}</FieldLabel>
-                <Textarea
-                  id="provider-settings-json"
-                  className="machine-text min-h-32"
-                  value={text}
-                  aria-invalid={Boolean(error) || undefined}
-                  onChange={(event) => onChange(event.target.value)}
-                />
-                <FieldDescription>{t("providers.form.settingsHint")}</FieldDescription>
-                {error ? <FieldError>{error}</FieldError> : null}
-              </Field>
-            </CollapsibleContent>
-          </Collapsible>
+        </CollapsibleContent>
+      </Collapsible>
+      <Collapsible data-field-span="full">
+        <CollapsibleTrigger asChild>
+          <Button type="button" variant="ghost" size="sm">
+            {t("providers.form.jsonEscape")}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <Field data-invalid={Boolean(error) || undefined}>
+            <FieldLabel htmlFor="provider-settings-json">{t("providers.fields.settings")}</FieldLabel>
+            <Textarea
+              id="provider-settings-json"
+              className="machine-text"
+              rows={4}
+              value={text}
+              aria-invalid={Boolean(error) || undefined}
+              onChange={(event) => onChange(event.target.value)}
+            />
+            <FieldDescription>{t("providers.form.settingsHint")}</FieldDescription>
+            {error ? <FieldError>{error}</FieldError> : null}
+          </Field>
         </CollapsibleContent>
       </Collapsible>
     </>

@@ -61,7 +61,7 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
         <FieldLabel htmlFor={`${id}-callback`}>{t("providers.login.callbackLabel")}</FieldLabel>
         <Textarea
           id={`${id}-callback`}
-          className="machine-text min-h-24"
+          className="machine-text"
           value={callbackUrl}
           onChange={(event) => setCallbackUrl(event.target.value)}
           onBlur={() => setTouched(true)}
