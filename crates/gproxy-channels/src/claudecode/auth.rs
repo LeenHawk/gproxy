@@ -1,18 +1,23 @@
 use bytes::Bytes;
 use gproxy_channel_api::{BoxFuture, ChannelError, SimpleHttp};
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub(super) const CLAUDE_AI_BASE_URL: &str = "https://claude.ai";
-pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
+pub(super) const TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
+pub(super) const COOKIE_TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
 pub(super) const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 pub(super) const OAUTH_SCOPE: &str =
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
+pub(super) const LOGIN_SCOPE: &str = concat!(
+    "org:create_api_key ",
+    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+);
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
-pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
+pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.252 (external, cli)";
 pub(super) const ANTHROPIC_VERSION: &str = "2023-06-01";
 const EXPIRY_SKEW_SECONDS: i64 = 30 * 60;
 
@@ -43,22 +48,15 @@ pub(super) fn refresh<'a>(
         }
     };
     let request = (|| {
-        let scope = refresh_scope(secret);
-        let body = crate::shared::http::form(&[
-            ("grant_type", "refresh_token"),
-            ("client_id", CLIENT_ID),
-            ("refresh_token", refresh_token),
-            ("scope", &scope),
-        ]);
+        let body = serde_json::to_vec(&json!({
+            "grant_type": "refresh_token",
+            "client_id": CLIENT_ID,
+            "refresh_token": refresh_token,
+            "scope": refresh_scope(secret),
+        }))
+        .map_err(|error| ChannelError::Refresh(error.to_string()))?;
         let mut request = http::Request::post(TOKEN_URL)
-            .header(
-                http::header::CONTENT_TYPE,
-                "application/x-www-form-urlencoded",
-            )
-            .header(http::header::ACCEPT, "application/json, text/plain, */*")
-            .header("anthropic-version", ANTHROPIC_VERSION)
-            .header("anthropic-beta", OAUTH_BETA)
-            .header(http::header::USER_AGENT, CLI_USER_AGENT)
+            .header(http::header::CONTENT_TYPE, "application/json")
             .body(Bytes::from(body))
             .map_err(|error| ChannelError::Refresh(error.to_string()))?;
         request
@@ -130,6 +128,7 @@ pub(super) fn apply_headers(
     headers: &mut http::HeaderMap,
     token: &str,
     session_id: &str,
+    client_user_agent: Option<&str>,
 ) -> Result<(), ChannelError> {
     insert(headers, AUTHORIZATION, &format!("Bearer {token}"))?;
     headers.insert(
@@ -148,11 +147,11 @@ pub(super) fn apply_headers(
         ("anthropic-dangerous-direct-browser-access", "true"),
         ("x-app", "cli"),
         ("x-stainless-retry-count", "0"),
-        ("x-stainless-timeout", "86400"),
+        ("x-stainless-timeout", "600"),
         ("x-stainless-lang", "js"),
-        ("x-stainless-package-version", "0.81.0"),
+        ("x-stainless-package-version", "0.112.1"),
         ("x-stainless-runtime", "node"),
-        ("x-stainless-runtime-version", "v22.20.0"),
+        ("x-stainless-runtime-version", "v26.3.0"),
     ] {
         headers.insert(
             HeaderName::from_static(name),
@@ -176,7 +175,12 @@ pub(super) fn apply_headers(
     )?;
     headers.insert(
         http::header::USER_AGENT,
-        HeaderValue::from_static(CLI_USER_AGENT),
+        HeaderValue::from_str(
+            client_user_agent
+                .filter(|value| valid_cli_user_agent(value))
+                .unwrap_or(CLI_USER_AGENT),
+        )
+        .map_err(|error| ChannelError::Prepare(format!("invalid user-agent: {error}")))?,
     );
     headers.insert(
         http::header::ACCEPT,
@@ -186,16 +190,23 @@ pub(super) fn apply_headers(
         http::header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
     );
-    headers.insert(http::header::ACCEPT_LANGUAGE, HeaderValue::from_static("*"));
-    headers.insert(
-        HeaderName::from_static("sec-fetch-mode"),
-        HeaderValue::from_static("cors"),
-    );
     headers.insert(
         http::header::ACCEPT_ENCODING,
-        HeaderValue::from_static("gzip, deflate"),
+        HeaderValue::from_static("gzip, deflate, br, zstd"),
     );
     Ok(())
+}
+
+fn valid_cli_user_agent(value: &str) -> bool {
+    value
+        .strip_prefix("claude-cli/2.1.252 (external, ")
+        .and_then(|value| value.strip_suffix(')'))
+        .is_some_and(|entrypoint| {
+            !entrypoint.is_empty()
+                && entrypoint
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        })
 }
 
 fn rotate(secret: &Value, token: &Value) -> Result<Value, ChannelError> {
@@ -244,7 +255,10 @@ fn refresh_scope(secret: &Value) -> String {
         .flatten()
         .filter_map(Value::as_str);
     for scope in stored {
-        if matches!(scope, "user:projects:read" | "user:projects:write") && !scopes.contains(&scope)
+        if matches!(
+            scope,
+            "user:projects:read" | "user:projects:write" | "user:plugins"
+        ) && !scopes.contains(&scope)
         {
             scopes.push(scope);
         }

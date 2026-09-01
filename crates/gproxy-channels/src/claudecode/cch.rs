@@ -1,7 +1,7 @@
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
-const CLI_VERSION: &str = "2.1.112";
+const CLI_VERSION: &str = "2.1.252";
 const SUFFIX_SALT: &str = "59cf53e54c78";
 
 pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
@@ -29,12 +29,6 @@ pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
         .expect("metadata was made an object")
         .insert("user_id".into(), Value::String(user_id));
 
-    let billing = json!({
-        "type": "text",
-        "text": format!(
-            "x-anthropic-billing-header: cc_version={CLI_VERSION}.{suffix}; cc_entrypoint=cli; cch=00000;"
-        ),
-    });
     let system = root
         .entry("system")
         .or_insert_with(|| Value::Array(Vec::new()));
@@ -43,16 +37,41 @@ pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
         *system = Value::Array(vec![previous]);
     }
     let blocks = system.as_array_mut().expect("system was made an array");
-    if let Some(existing) = blocks.iter_mut().find(|block| {
+    let existing = blocks.iter().position(|block| {
         block
             .get("text")
             .and_then(Value::as_str)
-            .is_some_and(|text| text.contains("x-anthropic-billing-header"))
-    }) {
-        *existing = billing;
+            .is_some_and(|text| text.starts_with("x-anthropic-billing-header:"))
+    });
+    let entrypoint = existing
+        .and_then(|index| blocks[index].get("text"))
+        .and_then(Value::as_str)
+        .and_then(|text| billing_field(text, "cc_entrypoint"))
+        .filter(|value| {
+            value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        })
+        .unwrap_or("cli");
+    let billing = json!({
+        "type": "text",
+        "text": format!(
+            "x-anthropic-billing-header: cc_version={CLI_VERSION}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;"
+        ),
+    });
+    if let Some(index) = existing {
+        blocks[index] = billing;
     } else {
         blocks.insert(0, billing);
     }
+}
+
+fn billing_field<'a>(text: &'a str, name: &str) -> Option<&'a str> {
+    text.split(';')
+        .map(str::trim)
+        .find_map(|field| field.strip_prefix(name)?.strip_prefix('='))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 fn first_user_text(body: &Value) -> &str {

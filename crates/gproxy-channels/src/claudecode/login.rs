@@ -25,7 +25,7 @@ impl ChannelLogin for ClaudeCodeChannel {
             ("client_id", auth::CLIENT_ID),
             ("response_type", "code"),
             ("redirect_uri", redirect_uri),
-            ("scope", auth::OAUTH_SCOPE),
+            ("scope", auth::LOGIN_SCOPE),
             ("code_challenge", ctx.pkce_challenge),
             ("code_challenge_method", "S256"),
             ("state", ctx.state),
@@ -48,22 +48,22 @@ impl ChannelLogin for ClaudeCodeChannel {
             .and_then(|extra| extra.get("state"))
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let body = crate::shared::http::form(&[
-            ("grant_type", "authorization_code"),
-            ("client_id", auth::CLIENT_ID),
-            ("code", ctx.code),
-            ("redirect_uri", ctx.redirect_uri),
-            ("code_verifier", ctx.verifier),
-            ("state", state),
-        ]);
+        let body = serde_json::to_vec(&json!({
+            "grant_type": "authorization_code",
+            "client_id": auth::CLIENT_ID,
+            "code": ctx.code,
+            "redirect_uri": ctx.redirect_uri,
+            "code_verifier": ctx.verifier,
+            "state": state,
+        }));
+        let body = match body {
+            Ok(body) => body,
+            Err(error) => {
+                return Box::pin(async move { Err(ChannelError::Login(error.to_string())) });
+            }
+        };
         let request = http::Request::post(auth::TOKEN_URL)
-            .header(
-                http::header::CONTENT_TYPE,
-                "application/x-www-form-urlencoded",
-            )
-            .header("anthropic-version", "2023-06-01")
-            .header("anthropic-beta", auth::OAUTH_BETA)
-            .header(http::header::USER_AGENT, auth::CLI_USER_AGENT)
+            .header(http::header::CONTENT_TYPE, "application/json")
             .body(Bytes::from(body));
         let mut request = match request {
             Ok(request) => request,

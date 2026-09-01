@@ -68,7 +68,7 @@ fn cookie_only_refresh_retries_bootstrap_and_mints_oauth_secret() {
         captured[2].uri,
         "https://api.anthropic.com/v1/oauth/org-sub/authorize"
     );
-    assert_eq!(captured[3].uri, auth::TOKEN_URL);
+    assert_eq!(captured[3].uri, auth::COOKIE_TOKEN_URL);
     assert!(
         std::str::from_utf8(&captured[2].body)
             .unwrap()

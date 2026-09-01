@@ -4,8 +4,8 @@ use std::task::{Context, Poll, Waker};
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, ClientProfile, Disposition, LoginMode, PrepareCtx, ResponseView,
-    SimpleHttp, StreamCtx, StreamEnd, SurfaceRequest, UsageCtx,
+    AuthCodeStartCtx, BoxFuture, Channel, ClientProfile, Disposition, LoginMode, PrepareCtx,
+    ResponseView, SimpleHttp, StreamCtx, StreamEnd, SurfaceRequest, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method, StatusCode};
@@ -66,6 +66,30 @@ fn descriptor_disposition_and_surface_table_are_explicit() {
 }
 
 #[test]
+fn authcode_start_uses_full_interactive_scope() {
+    let http = MockHttp::new(StatusCode::OK, b"{}");
+    let login = ClaudeCodeChannel.login().unwrap();
+    let started = ready(login.adapter.authcode_start(
+        &http,
+        AuthCodeStartCtx {
+            provider_settings: &json!({}),
+            params: &json!({}),
+            redirect_uri: "",
+            state: "state",
+            pkce_challenge: "challenge",
+        },
+    ))
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        started.redirect_uri,
+        "https://platform.claude.com/oauth/code/callback"
+    );
+    assert!(started.authorize_url.contains("org%3Acreate_api_key"));
+    assert!(started.authorize_url.contains("user%3Ainference"));
+}
+
+#[test]
 fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     let secret = json!({
         "access_token": " upstream-token ",
@@ -89,6 +113,10 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     );
     headers.insert("x-claude-code-session-id", "session-1".parse().unwrap());
     headers.insert("authorization", "Bearer downstream".parse().unwrap());
+    headers.insert(
+        http::header::USER_AGENT,
+        "claude-cli/2.1.252 (external, sdk-cli)".parse().unwrap(),
+    );
     let body = Bytes::from(
         json!({
             "model": "route-model",
@@ -97,6 +125,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
             "top_p": 0.9,
             "top_k": 40,
             "system": [
+                {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.252.abc; cc_entrypoint=sdk-cli;"},
                 {"type":"text", "text":" policy "},
                 {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
             ],
@@ -132,6 +161,10 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     );
     assert_eq!(prepared.request.headers()["x-app"], "cli");
     assert_eq!(
+        prepared.request.headers()[http::header::USER_AGENT],
+        "claude-cli/2.1.252 (external, sdk-cli)"
+    );
+    assert_eq!(
         prepared.request.headers()["x-claude-code-session-id"],
         "session-1"
     );
@@ -141,7 +174,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     );
     assert_eq!(
         prepared.request.headers()["x-stainless-package-version"],
-        "0.81.0"
+        "0.112.1"
     );
     let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
     assert_eq!(shaped["model"], "claude-opus-4-8");
@@ -151,11 +184,9 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     assert_eq!(shaped["messages"][1]["role"], "user");
     assert_eq!(shaped["system"][1]["text"], "policy");
     assert_eq!(shaped["system"][1]["cache_control"]["type"], "ephemeral");
-    assert!(
-        shaped["system"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("x-anthropic-billing-header")
+    assert_eq!(
+        shaped["system"][0]["text"],
+        "x-anthropic-billing-header: cc_version=2.1.252.489; cc_entrypoint=sdk-cli; cch=00000;"
     );
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
     assert_eq!(ids["device_id"], "device-1");
@@ -235,7 +266,7 @@ fn count_tokens_and_surface_requests_preserve_their_wire_contracts() {
         .unwrap();
     assert_eq!(
         count.request.uri(),
-        "https://api.anthropic.com/v1/messages/count_tokens"
+        "https://api.anthropic.com/v1/messages/count_tokens?beta=true"
     );
     let count_body: Value = serde_json::from_slice(count.request.body()).unwrap();
     assert_eq!(count_body["metadata"], json!({"kept": true}));
@@ -345,7 +376,7 @@ fn refresh_uses_profile_and_preserves_rotating_secret_fields() {
         "refresh_token":"old-refresh",
         "expires_at_ms":1,
         "account_uuid":"account",
-        "scopes":["user:inference", "user:projects:read"]
+        "scopes":["user:inference", "user:projects:read", "user:plugins"]
     });
     let settings = json!({});
     let future = ClaudeCodeChannel
@@ -365,13 +396,20 @@ fn refresh_uses_profile_and_preserves_rotating_secret_fields() {
 
     let captured = http.captured.lock().unwrap();
     let captured = captured.as_ref().unwrap();
-    assert_eq!(captured.uri, "https://api.anthropic.com/v1/oauth/token");
+    assert_eq!(captured.uri, "https://platform.claude.com/v1/oauth/token");
     assert!(captured.profile);
-    assert_eq!(captured.headers["anthropic-beta"], "oauth-2025-04-20");
-    let body = std::str::from_utf8(&captured.body).unwrap();
-    assert!(body.contains("grant_type=refresh_token"));
-    assert!(body.contains("refresh_token=old-refresh"));
-    assert!(body.contains("user%3Aprojects%3Aread"));
+    assert_eq!(
+        captured.headers[http::header::CONTENT_TYPE],
+        "application/json"
+    );
+    assert!(captured.headers.get("anthropic-beta").is_none());
+    let body: Value = serde_json::from_slice(&captured.body).unwrap();
+    assert_eq!(body["grant_type"], "refresh_token");
+    assert_eq!(body["refresh_token"], "old-refresh");
+    assert_eq!(
+        body["scope"],
+        "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:projects:read user:plugins"
+    );
 }
 
 struct Captured {

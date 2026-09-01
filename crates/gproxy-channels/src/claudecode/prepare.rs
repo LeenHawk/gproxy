@@ -12,7 +12,14 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let (method, path) = upstream_target(ctx.key, ctx.upstream_model)?;
     let query = query(&ctx)?;
     let uri = endpoint(&ctx, &path, query.as_deref())?;
-    super::auth::apply_headers(&mut headers, token, &session_id)?;
+    super::auth::apply_headers(
+        &mut headers,
+        token,
+        &session_id,
+        ctx.headers
+            .get(http::header::USER_AGENT)
+            .and_then(|value| value.to_str().ok()),
+    )?;
     let mut request = http::Request::builder()
         .method(method)
         .uri(crate::shared::http::strip_userinfo(uri)?)
@@ -53,7 +60,15 @@ pub(super) fn surface(
         .filter(|base| !base.is_empty())
         .unwrap_or(super::auth::DEFAULT_BASE_URL);
     let uri = crate::shared::http::join(base, &source.upstream_path, query.as_deref())?;
-    super::auth::apply_headers(&mut headers, token, &session_id)?;
+    super::auth::apply_headers(
+        &mut headers,
+        token,
+        &session_id,
+        source
+            .headers
+            .get(http::header::USER_AGENT)
+            .and_then(|value| value.to_str().ok()),
+    )?;
     if let Some(content_type) = content_type {
         headers.insert(http::header::CONTENT_TYPE, content_type);
     }
@@ -178,7 +193,7 @@ fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
         .filter(|pair| !pair.is_empty())
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if is_messages(ctx.key)
+    if (is_messages(ctx.key) || is_count_tokens(ctx.key))
         && !kept
             .iter()
             .any(|pair| pair.split('=').next() == Some("beta"))

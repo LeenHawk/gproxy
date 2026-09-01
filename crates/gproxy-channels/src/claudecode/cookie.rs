@@ -178,7 +178,7 @@ async fn token_exchange(
         ("code_verifier", verifier),
         ("state", state),
     ]);
-    let request = http::Request::post(auth::TOKEN_URL)
+    let request = http::Request::post(auth::COOKIE_TOKEN_URL)
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .header(ACCEPT, "application/json, text/plain, */*")
         .header("anthropic-version", auth::ANTHROPIC_VERSION)
