@@ -1,11 +1,10 @@
 use gproxy_channel_api::{NormalizedUsage, UsageCtx};
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
+use gproxy_protocol::{ContentGenerationKind, OperationKind};
 use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr as _;
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    let operation = ctx.key.operation;
     let response = ctx.response_body;
     let base = if matches!(
         ctx.key.kind,
@@ -20,9 +19,6 @@ pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     };
     let usage = value.get("usage");
     let mut normalized = enrich(base, usage);
-    if operation == Operation::Rerank {
-        normalized = rerank(normalized, usage);
-    }
     if let Some(is_byok) = value
         .pointer("/openrouter_metadata/is_byok")
         .and_then(Value::as_bool)
@@ -76,29 +72,6 @@ pub(super) fn enrich(
         normalized
             .dimensions
             .insert("is_byok".into(), is_byok.to_string());
-        measured = true;
-    }
-    measured.then_some(normalized)
-}
-
-fn rerank(base: Option<NormalizedUsage>, usage: Option<&Value>) -> Option<NormalizedUsage> {
-    let mut measured = base.is_some();
-    let mut normalized = base.unwrap_or_default();
-    if normalized.input_tokens == 0
-        && let Some(tokens) = usage
-            .and_then(|usage| usage.get("total_tokens"))
-            .and_then(Value::as_u64)
-    {
-        normalized.input_tokens = tokens;
-        measured = true;
-    }
-    if let Some(units) = usage
-        .and_then(|usage| usage.get("search_units"))
-        .and_then(Value::as_u64)
-    {
-        normalized
-            .metrics
-            .insert("search_units".into(), Decimal::from(units));
         measured = true;
     }
     measured.then_some(normalized)

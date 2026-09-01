@@ -101,6 +101,19 @@ fn resolves_documented_surfaces_and_exact_override_with_bearer_auth() {
     let rerank_body = Bytes::from_static(br#"{"model":"route","query":"q","documents":["a"]}"#);
     let rerank = prepare(
         family(O::Rerank, W::OpenAi),
+        "qwen3-rerank",
+        &rerank_body,
+        &json!({}),
+    );
+    assert_eq!(
+        rerank.request.uri(),
+        "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+    );
+    let request: Value = serde_json::from_slice(rerank.request.body()).unwrap();
+    assert_eq!(request["model"], "qwen3-rerank");
+
+    let rerank_override = prepare(
+        family(O::Rerank, W::OpenAi),
         "gte/rerank",
         &rerank_body,
         &json!({
@@ -108,7 +121,25 @@ fn resolves_documented_surfaces_and_exact_override_with_bearer_auth() {
             "endpoints":{"openai_rerank":"https://rank.example/{model}"}
         }),
     );
-    assert_eq!(rerank.request.uri(), "https://rank.example/gte%2Frerank");
+    assert_eq!(
+        rerank_override.request.uri(),
+        "https://rank.example/gte%2Frerank"
+    );
+
+    let response =
+        br#"{"model":"qwen3-rerank","results":[],"usage":{"total_tokens":21,"search_units":2}}"#;
+    let response_headers = HeaderMap::new();
+    let usage = DashScopeChannel
+        .extract_usage(UsageCtx {
+            key: family(O::Rerank, W::OpenAi),
+            request_body: &rerank_body,
+            response_headers: &response_headers,
+            response_body: response,
+        })
+        .unwrap();
+    assert_eq!(usage.input_tokens, 21);
+    assert_eq!(usage.output_tokens, 0);
+    assert_eq!(usage.metrics["search_units"], 2.into());
 }
 
 #[test]

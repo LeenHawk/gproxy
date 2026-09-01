@@ -15,10 +15,30 @@ pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
         Operation::CreateImage | Operation::EditImage => from_image_value(&value),
         Operation::CreateTranscription => from_transcription_value(&value),
         Operation::RetrieveVideo => from_video_value(&value),
+        Operation::Rerank => from_rerank_value(&value),
         _ => value.get("usage").and_then(from_usage),
     }?;
     apply_service_tier(&mut usage, &value);
     Some(usage)
+}
+
+fn from_rerank_value(value: &Value) -> Option<NormalizedUsage> {
+    let usage = value.get("usage")?;
+    let mut normalized = from_usage(usage).or_else(|| {
+        usage
+            .get("total_tokens")
+            .and_then(Value::as_u64)
+            .map(|input_tokens| NormalizedUsage {
+                input_tokens,
+                ..Default::default()
+            })
+    })?;
+    if let Some(units) = usage.get("search_units").and_then(Value::as_u64) {
+        normalized
+            .metrics
+            .insert("search_units".into(), Decimal::from(units));
+    }
+    Some(normalized)
 }
 
 pub(super) fn apply_service_tier(usage: &mut NormalizedUsage, value: &Value) {

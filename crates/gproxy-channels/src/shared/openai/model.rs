@@ -56,6 +56,7 @@ fn carries_model(operation: Operation) -> bool {
             | Operation::StreamGenerateContent
             | Operation::CompactContent
             | Operation::CreateEmbedding
+            | Operation::Rerank
             | Operation::CreateImage
             | Operation::EditImage
             | Operation::CreateSpeech

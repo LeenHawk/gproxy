@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, PrepareCtx};
+use gproxy_channel_api::{Channel, PrepareCtx, UsageCtx};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, StreamFraming, WireFamily};
 use http::{HeaderMap, Method};
 use serde_json::{Value, json};
@@ -96,6 +96,51 @@ fn resolves_base_and_exact_endpoints_with_target_wire_auth() {
     );
     assert_eq!(claude.request.headers()["x-api-key"], "upstream-key");
     assert_eq!(claude.request.headers()["anthropic-version"], "2023-06-01");
+}
+
+#[test]
+fn rerank_routes_rewrites_and_observes_aggregate_usage() {
+    let key = OperationKey::family(Operation::Rerank, WireFamily::OpenAi);
+    let body = Bytes::from_static(br#"{"model":"route","query":"q","documents":["a"]}"#);
+    let settings = json!({
+        "endpoints":{"openai_rerank":"https://rank.example/{model}"}
+    });
+    let rerank = CustomChannel
+        .prepare(PrepareCtx {
+            key,
+            stream: false,
+            method: &Method::POST,
+            path: "/v1/rerank",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &body,
+            upstream_model: "qwen3/rerank",
+            provider_settings: &settings,
+            secret: &json!({"api_key":"upstream-key"}),
+        })
+        .unwrap();
+    assert_eq!(rerank.request.uri(), "https://rank.example/qwen3%2Frerank");
+    assert_eq!(
+        rerank.request.headers()["authorization"],
+        "Bearer upstream-key"
+    );
+    let request: Value = serde_json::from_slice(rerank.request.body()).unwrap();
+    assert_eq!(request["model"], "qwen3/rerank");
+
+    let response =
+        br#"{"model":"qwen3-rerank","results":[],"usage":{"total_tokens":12,"search_units":1}}"#;
+    let response_headers = HeaderMap::new();
+    let usage = CustomChannel
+        .extract_usage(UsageCtx {
+            key,
+            request_body: &body,
+            response_headers: &response_headers,
+            response_body: response,
+        })
+        .unwrap();
+    assert_eq!(usage.input_tokens, 12);
+    assert_eq!(usage.output_tokens, 0);
+    assert_eq!(usage.metrics["search_units"], 1.into());
 }
 
 #[test]
