@@ -80,6 +80,7 @@ fn export_console_types() {
         CredentialHealthDto,
         CredentialDto,
         CredentialWriteRequest,
+        CredentialSecretResponse,
         RouteDto,
         RouteWriteRequest,
         RouteMemberDto,

@@ -39,6 +39,13 @@ pub trait State: MaybeSend + MaybeSync {
         at: i64,
     ) -> BoxFuture<'_, Result<String, AdminError>>;
 
+    fn reveal_credential_secret(
+        &self,
+        actor_user_id: i64,
+        id: i64,
+        at: i64,
+    ) -> BoxFuture<'_, Result<serde_json::Value, AdminError>>;
+
     fn admit_auth_attempt(
         &self,
         scope: &'static str,

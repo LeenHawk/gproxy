@@ -4,14 +4,15 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { ChevronDownIcon } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { revealCredentialSecret } from "@/api/control"
 import { ConnectivityTest } from "@/components/connectivity-test"
 import { proxyProbe } from "@/lib/connectivity-probe"
 import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "./fingerprint"
 import { FingerprintField } from "./fingerprint-field"
-import { buildSecret } from "@/components/providers/credential-secret"
+import { buildSecret, isSingleKey } from "@/components/providers/credential-secret"
 import { CredentialSecretField } from "@/components/providers/credential-secret-field"
 import { prettyJson } from "./json"
 import { Button } from "@/components/ui/button"
@@ -54,6 +55,23 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
   const fields = credential
     ? channel.credential_fields.map((field) => ({ ...field, required: false }))
     : channel.credential_fields
+
+  /* v2 parity: editing prefills the stored secret so the operator sees what
+     the credential holds. A failed reveal leaves the box empty, where blank
+     still means "keep the stored value". */
+  const prefilled = useRef(false)
+  useEffect(() => {
+    if (!credential || prefilled.current) return
+    prefilled.current = true
+    revealCredentialSecret(credential.id)
+      .then((result) => {
+        const secret = result.secret as Record<string, unknown> | null
+        const single = isSingleKey(fields) ? secret?.[fields[0].key] : undefined
+        const text = typeof single === "string" ? single : JSON.stringify(secret, null, 2)
+        setSecretText((current) => (current === "" ? text : current))
+      })
+      .catch(() => {})
+  }, [credential, fields])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()

@@ -198,3 +198,9 @@ pub struct ProviderModelWriteRequest {
     pub thinking_enabled_supported: Option<bool>,
     pub enabled: bool,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct CredentialSecretResponse {
+    #[ts(type = "unknown")]
+    pub secret: Value,
+}

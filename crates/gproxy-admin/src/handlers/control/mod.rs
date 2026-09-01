@@ -124,3 +124,17 @@ pub(super) async fn credential_health_reset(
 ) -> Result<Response<Bytes>, AdminError> {
     write::credential_health_reset(state, id).await
 }
+
+pub(super) async fn credential_secret(
+    state: &impl State,
+    admin: &crate::auth::AdminIdentity,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    let secret = state
+        .reveal_credential_secret(admin.id, id, crate::auth::now()?)
+        .await?;
+    crate::response::json(
+        http::StatusCode::OK,
+        &crate::dto::CredentialSecretResponse { secret },
+    )
+}

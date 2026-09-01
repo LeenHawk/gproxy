@@ -40,6 +40,7 @@ export * from "./CredentialHealthDto";
 export * from "./CredentialModelHealthDto";
 export * from "./CredentialQuotaCycleDto";
 export * from "./CredentialQuotaCycleModelDto";
+export * from "./CredentialSecretResponse";
 export * from "./CredentialWriteRequest";
 export * from "./DevicePollRequest";
 export * from "./DevicePollResponse";

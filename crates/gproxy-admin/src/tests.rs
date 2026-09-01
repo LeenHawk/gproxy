@@ -62,6 +62,15 @@ impl State for TestState {
         Box::pin(async { Ok("<redacted>".into()) })
     }
 
+    fn reveal_credential_secret(
+        &self,
+        _: i64,
+        _: i64,
+        _: i64,
+    ) -> BoxFuture<'_, Result<serde_json::Value, AdminError>> {
+        Box::pin(async { Ok(serde_json::json!({})) })
+    }
+
     fn admit_auth_attempt(
         &self,
         _: &'static str,

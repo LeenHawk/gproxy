@@ -43,6 +43,7 @@ pub(crate) enum Route {
     CredentialQuotaProbe(i64),
     CredentialQuotaReset(i64),
     CredentialHealthReset(i64),
+    RevealCredentialSecret(i64),
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -105,6 +106,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if let ["credentials", credential, "health-reset"] = segments.as_slice() {
             return Some(Route::CredentialHealthReset(credential.parse().ok()?));
+        }
+        if let ["credentials", credential, "reveal"] = segments.as_slice() {
+            return Some(Route::RevealCredentialSecret(credential.parse().ok()?));
         }
         if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
             return Some(Route::ApplyRulePreset {
@@ -260,6 +264,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         | Route::ConfigurationExport
         | Route::ConnectivityTest
         | Route::RevealUserKey(_)
+        | Route::RevealCredentialSecret(_)
         | Route::Usage
         | Route::QuotaWindows
         | Route::CredentialCycles

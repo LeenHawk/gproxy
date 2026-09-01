@@ -138,6 +138,45 @@ impl State for AppHandle {
         })
     }
 
+    fn reveal_credential_secret(
+        &self,
+        actor_user_id: i64,
+        id: i64,
+        at: i64,
+    ) -> BoxFuture<'_, Result<serde_json::Value, AdminError>> {
+        Box::pin(async move {
+            let stored = self
+                .inner
+                .host
+                .services
+                .store
+                .credential(id)
+                .await?
+                .ok_or(AdminError::NotFound)?;
+            let secret = self
+                .inner
+                .host
+                .services
+                .cipher
+                .open(&stored.envelope)
+                .map_err(|error| AdminError::Internal(error.to_string()))?;
+            self.inner
+                .host
+                .services
+                .store
+                .record_audit_event(&AuditEventInput {
+                    actor_user_id,
+                    action: "credential.secret_reveal".into(),
+                    target_kind: "credentials".into(),
+                    target_id: Some(id),
+                    at,
+                    details: None,
+                })
+                .await?;
+            Ok(secret)
+        })
+    }
+
     fn admit_auth_attempt(
         &self,
         scope: &'static str,
