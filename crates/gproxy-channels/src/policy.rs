@@ -93,18 +93,24 @@ pub(crate) const CLOUDFLARE: ChannelTrafficPolicy = ChannelTrafficPolicy::new(
 );
 pub(crate) const CODEX: ChannelTrafficPolicy = ChannelTrafficPolicy::new(
     &[
+        "if-none-match",
+        "oai-product-sku",
         "openai-alpha",
         "openai-beta",
         "originator",
         "session-id",
         "thread-id",
+        "user-agent",
+        "version",
         "x-client-request-id",
         "x-codex-*",
         "x-openai-memgen-request",
         "x-openai-subagent",
+        "x-openai-internal-codex-residency",
         "x-session-id",
     ],
     &[
+        "etag",
         "mcp-session-id",
         "openai-*",
         "x-codex-*",

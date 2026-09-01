@@ -45,6 +45,7 @@ pub(crate) enum Route {
     CredentialHealthReset(i64),
     RevealCredentialSecret(i64),
     RevealUserKey(i64),
+    UserPassword(i64),
     Usage,
     QuotaWindows,
     CredentialCycles,
@@ -109,6 +110,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if let ["credentials", credential, "reveal"] = segments.as_slice() {
             return Some(Route::RevealCredentialSecret(credential.parse().ok()?));
+        }
+        if let ["users", user, "password"] = segments.as_slice() {
+            return Some(Route::UserPassword(user.parse().ok()?));
         }
         if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
             return Some(Route::ApplyRulePreset {
@@ -232,6 +236,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
                 .unwrap_or_else(|| "batch".into());
             mutation(*entity, &verb, None)
         }
+        Route::UserPassword(id) => action("users.password", "users", Some(*id)),
         Route::ConfigurationImport => action("configuration.import", "configuration", None),
         Route::ApplyRulePreset { provider_id, .. } => {
             action("rule_preset.apply", "providers", Some(*provider_id))

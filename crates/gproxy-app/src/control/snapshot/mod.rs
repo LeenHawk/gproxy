@@ -34,6 +34,10 @@ pub(crate) struct SnapshotControl {
 }
 
 impl SnapshotControl {
+    pub(crate) fn has_named_target(&self, name: &str) -> bool {
+        self.snapshot.load().has_named_target(name)
+    }
+
     pub(crate) async fn new(
         store: Store,
         runtime: super::settings::RuntimeOverrides,

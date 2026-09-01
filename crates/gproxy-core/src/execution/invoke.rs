@@ -10,7 +10,7 @@ use crate::host::Host;
 
 pub(crate) async fn run<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     target: &Target,
     ctx: RequestCtx,
 ) -> Result<ExecOutcome, CoreError> {

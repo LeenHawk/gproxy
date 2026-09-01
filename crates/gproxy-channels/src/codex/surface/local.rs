@@ -67,7 +67,9 @@ impl Synthesizer for Local {
                     json!({"code":"no_credit","windows_reset":0})
                 }
                 ("POST", "/api/codex/accounts/send_add_credits_nudge_email")
-                | ("POST", "/api/codex/analytics-events/events") => json!({}),
+                | ("POST", "/api/codex/analytics-events/events")
+                | ("POST", "/v1/analytics/codex/turn-costs")
+                | ("POST", "/api/codex/analytics/codex/turn-costs") => json!({}),
                 _ => {
                     return Err(ChannelError::Prepare(format!(
                         "unsupported local Codex surface: {} {path}",

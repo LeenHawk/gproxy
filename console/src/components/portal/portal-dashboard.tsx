@@ -6,6 +6,7 @@ import type { PortalQuotaWindowDto } from "@/generated/PortalQuotaWindowDto"
 import type { PortalRecentRequestDto } from "@/generated/PortalRecentRequestDto"
 import type { PortalUsageDto } from "@/generated/PortalUsageDto"
 import { ConnectionGuide } from "@/components/portal/connection-guide"
+import { AccountManagement } from "@/components/portal/account-management"
 import { ModelCatalog } from "@/components/portal/model-catalog"
 import { QuotaWindows } from "@/components/portal/quota-windows"
 import { RecentRequests } from "@/components/portal/recent-requests"
@@ -61,6 +62,7 @@ export function PortalDashboard({
         <h1 className="text-2xl font-semibold tracking-tight">{t("portal.overview.title", { name: context.user_name })}</h1>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{t("portal.overview.description")}</p>
       </section>
+      <AccountManagement />
       <QueryState loading={modelsLoading} error={modelsError ? t("portal.models.loadError") : ""}>
         <div className="flex flex-col gap-6">
           <ConnectionGuide

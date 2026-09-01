@@ -7,7 +7,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, Url};
 
-const MAX_BODY_BYTES: usize = 100 * 1024 * 1024;
+pub(crate) const MAX_BODY_BYTES: usize = 100 * 1024 * 1024;
 
 pub(crate) struct Incoming {
     pub parts: Parts,

@@ -2,6 +2,7 @@ mod admission;
 mod bindings;
 mod continuations;
 mod credentials;
+mod oauth;
 mod sinks;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod tokenizers;
@@ -272,6 +273,10 @@ impl Host for AppHost {
     }
 
     fn bindings(&self) -> Option<&dyn BindingStore> {
+        Some(self)
+    }
+
+    fn oauth(&self) -> Option<&dyn gproxy_channel_api::OAuthService> {
         Some(self)
     }
 

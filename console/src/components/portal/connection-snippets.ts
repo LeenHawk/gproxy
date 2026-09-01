@@ -96,17 +96,15 @@ function snippets(values: Values, key: string): Array<Omit<ConnectionSnippet, "c
     {
       method: "codex",
       display: [
-        `export GPROXY_API_KEY=${shellString(key)}`,
-        "",
         "# ~/.codex/config.toml",
         `model = ${tomlString(values.model)}`,
-        'model_provider = "gproxy"',
+        'model_provider = "openai"',
+        `openai_base_url = ${tomlString(`${values.origin}/codex/backend-api/codex`)}`,
+        `chatgpt_base_url = ${tomlString(`${values.origin}/codex/backend-api`)}`,
         "",
-        "[model_providers.gproxy]",
-        'name = "gproxy"',
-        `base_url = ${tomlString(openAiBase)}`,
-        'wire_api = "responses"',
-        'env_key = "GPROXY_API_KEY"',
+        `export CODEX_REFRESH_TOKEN_URL_OVERRIDE=${shellString(`${values.origin}/codex/oauth/token`)}`,
+        `export CODEX_REVOKE_TOKEN_URL_OVERRIDE=${shellString(`${values.origin}/codex/oauth/revoke`)}`,
+        `codex login --device-auth --experimental_issuer ${shellString(`${values.origin}/codex`)} --experimental_client-id app_EMoamEEZ73f0CkXaXp7hrann`,
       ].join("\n"),
     },
     {

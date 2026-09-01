@@ -38,7 +38,7 @@ pub(crate) fn native_support<H: Host>(
 
 pub(crate) async fn prepare<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     target: &Target,
     ctx: &RequestCtx,
     classified: &Classified,

@@ -1,0 +1,108 @@
+use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+
+pub const TABLES: &[TableSpec] = &[
+    TableSpec {
+        version: SchemaVersion::Wave28,
+        name: "oauth_grants",
+        columns: &[
+            Col::id(),
+            Col::required("user_id", Integer),
+            Col::required("user_key_id", Integer),
+            Col::required("provider_id", Integer),
+            Col::required("client_id", Text),
+            Col::required("scopes", Text),
+            Col::required("chatgpt_user_id", Text),
+            Col::required("chatgpt_account_id", Text),
+            Col::required("created_at", Integer),
+            Col::optional("revoked_at", Integer),
+        ],
+        indexes: &[
+            IndexSpec {
+                name: "ix_oauth_grants_user",
+                columns: &["user_id", "revoked_at", "id"],
+                unique: false,
+                added_in: None,
+            },
+            IndexSpec {
+                name: "ix_oauth_grants_account",
+                columns: &["chatgpt_account_id"],
+                unique: false,
+                added_in: None,
+            },
+        ],
+    },
+    TableSpec {
+        version: SchemaVersion::Wave28,
+        name: "oauth_codes",
+        columns: &[
+            Col::id(),
+            Col::required("digest", Blob).unique(),
+            Col::required("grant_id", Integer),
+            Col::required("redirect_uri", Text),
+            Col::required("code_challenge", Text),
+            Col::required("created_at", Integer),
+            Col::required("expires_at", Integer),
+            Col::optional("consumed_at", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_oauth_codes_expiry",
+            columns: &["expires_at", "id"],
+            unique: false,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::Wave28,
+        name: "oauth_tokens",
+        columns: &[
+            Col::id(),
+            Col::required("digest", Blob).unique(),
+            Col::required("grant_id", Integer),
+            Col::required("kind", Text),
+            Col::required("created_at", Integer),
+            Col::required("expires_at", Integer),
+            Col::optional("consumed_at", Integer),
+            Col::optional("revoked_at", Integer),
+        ],
+        indexes: &[
+            IndexSpec {
+                name: "ix_oauth_tokens_grant",
+                columns: &["grant_id", "kind", "revoked_at"],
+                unique: false,
+                added_in: None,
+            },
+            IndexSpec {
+                name: "ix_oauth_tokens_expiry",
+                columns: &["expires_at", "id"],
+                unique: false,
+                added_in: None,
+            },
+        ],
+    },
+    TableSpec {
+        version: SchemaVersion::Wave28,
+        name: "oauth_devices",
+        columns: &[
+            Col::id(),
+            Col::required("device_digest", Blob).unique(),
+            Col::required("user_code", Text).unique(),
+            Col::required("client_id", Text),
+            Col::required("provider_id", Integer),
+            Col::required("created_at", Integer),
+            Col::required("expires_at", Integer),
+            Col::optional("grant_id", Integer),
+            Col::optional("approved_at", Integer),
+            Col::optional("consumed_at", Integer),
+            Col::optional("ciphertext", Blob),
+            Col::optional("wrapped_key", Blob),
+            Col::optional("payload_nonce", Blob),
+            Col::optional("key_nonce", Blob),
+        ],
+        indexes: &[IndexSpec {
+            name: "ix_oauth_devices_expiry",
+            columns: &["expires_at", "id"],
+            unique: false,
+            added_in: None,
+        }],
+    },
+];

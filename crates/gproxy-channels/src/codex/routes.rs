@@ -18,6 +18,8 @@ pub(super) static ROUTES: &[ChannelSupport] = &[
     route!(xform GenerateContent, claude_messages => StreamGenerateContent, openai_responses),
     route!(xform GenerateContent, gemini_generate_content => StreamGenerateContent, openai_responses),
     route!(pass StreamGenerateContent, openai_responses),
+    route!(pass GuardianReview, openai_responses),
+    route!(pass GuardianClassify, openai_responses),
     route!(pass StreamGenerateContent, openai_responses_websocket),
     route!(xform StreamGenerateContent, openai_chat => StreamGenerateContent, openai_responses),
     route!(xform StreamGenerateContent, claude_messages => StreamGenerateContent, openai_responses),

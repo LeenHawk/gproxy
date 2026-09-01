@@ -14,10 +14,11 @@ pub enum SchemaVersion {
     Configuration = 9,
     Wave26 = 10,
     Wave27 = 11,
+    Wave28 = 12,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Control,
         Self::Runtime,
         Self::Tokenizers,
@@ -29,8 +30,9 @@ impl SchemaVersion {
         Self::Configuration,
         Self::Wave26,
         Self::Wave27,
+        Self::Wave28,
     ];
-    pub const LATEST: Self = Self::Wave27;
+    pub const LATEST: Self = Self::Wave28;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -141,6 +143,7 @@ pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
         .chain(runtime::tables())
         .chain(tokenizer::TABLES)
         .chain(admin::TABLES)
+        .chain(super::oauth::TABLES)
 }
 
 pub(super) fn migration_tables() -> impl Iterator<Item = &'static TableSpec> {

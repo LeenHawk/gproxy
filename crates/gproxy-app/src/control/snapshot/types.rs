@@ -46,6 +46,14 @@ pub(super) struct CompiledSnapshot {
     pub process_rules: BTreeMap<i64, Arc<[gproxy_core::process::CompiledRule]>>,
 }
 
+impl CompiledSnapshot {
+    pub(super) fn has_named_target(&self, name: &str) -> bool {
+        self.namespaces.contains_key(&name.to_ascii_lowercase())
+            || self.route_names.contains_key(name)
+            || self.provider_names.contains_key(name)
+    }
+}
+
 pub(super) struct CompiledRoute {
     pub max_attempts: u32,
     pub targets: Vec<TargetSeed>,

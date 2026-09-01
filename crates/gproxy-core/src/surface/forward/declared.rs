@@ -23,7 +23,8 @@ pub(crate) async fn declared<H: Host>(
                 "operation alias reached the forward engine".into(),
             ));
         }
-        gproxy_channel_api::SurfaceAction::Synthesize { .. } => {
+        gproxy_channel_api::SurfaceAction::Synthesize { .. }
+        | gproxy_channel_api::SurfaceAction::PublicSynthesize { .. } => {
             return Err(CoreError::Internal(
                 "synthesizer reached the forward engine".into(),
             ));

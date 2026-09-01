@@ -19,6 +19,7 @@ pub(crate) mod preprocess;
 pub(crate) mod request;
 pub(crate) mod resource;
 mod session;
+mod websocket;
 
 use self::request::Classified;
 
@@ -31,13 +32,16 @@ pub(super) struct AdmittedRequest {
 
 pub(crate) async fn resolved<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     ctx: RequestCtx,
     mut plan: Plan,
     classified: Classified,
     identity: gproxy_channel_api::CallerIdentity,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
+    if ctx.upgrade {
+        return websocket::run(core, control, ctx, plan, classified, identity);
+    }
     let session_affinity =
         session::apply(core, &ctx, &classified, identity.user_key_id, &mut plan).await;
     if let Err(error) = core
@@ -64,7 +68,7 @@ pub(crate) async fn resolved<H: Host>(
 
 async fn execute_admitted<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     ctx: RequestCtx,
     plan: Plan,
     request: AdmittedRequest,

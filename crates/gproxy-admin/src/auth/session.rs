@@ -17,7 +17,7 @@ pub(crate) struct AdminIdentity {
     pub api_key: bool,
 }
 
-pub(super) async fn create(state: &impl State, user_id: i64) -> Result<String, AdminError> {
+pub(crate) async fn create(state: &impl State, user_id: i64) -> Result<String, AdminError> {
     let mut raw = [0_u8; 32];
     getrandom::fill(&mut raw)
         .map_err(|_| AdminError::Internal("secure randomness unavailable".into()))?;
@@ -82,7 +82,7 @@ pub(crate) fn now() -> Result<i64, AdminError> {
         .map_err(|_| AdminError::Internal("Unix time exceeds i64".into()))
 }
 
-fn token(parts: &Parts) -> Option<&str> {
+pub(crate) fn cookie_token<'a>(parts: &'a Parts, name: &str) -> Option<&'a str> {
     parts
         .headers
         .get(http::header::COOKIE)?
@@ -90,11 +90,15 @@ fn token(parts: &Parts) -> Option<&str> {
         .ok()?
         .split(';')
         .map(str::trim)
-        .find_map(|part| part.strip_prefix(&format!("{COOKIE_NAME}=")))
+        .find_map(|part| part.strip_prefix(&format!("{name}=")))
         .filter(|value| !value.is_empty())
 }
 
-fn digest(token: &str) -> Vec<u8> {
+fn token(parts: &Parts) -> Option<&str> {
+    cookie_token(parts, COOKIE_NAME)
+}
+
+pub(crate) fn digest(token: &str) -> Vec<u8> {
     Sha256::digest(token.as_bytes()).to_vec()
 }
 

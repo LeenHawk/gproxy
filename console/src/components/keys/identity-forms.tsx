@@ -21,7 +21,7 @@ type IdentityFormsProps = {
   pending: boolean
   onOrganization: (name: string) => Promise<void>
   onTeam: (organizationId: number, name: string) => Promise<void>
-  onUser: (organizationId: number | null, teamId: number | null, name: string) => Promise<void>
+  onUser: (organizationId: number | null, teamId: number | null, name: string, password: string) => Promise<void>
 }
 
 export function IdentityForms(props: IdentityFormsProps) {
@@ -31,6 +31,7 @@ export function IdentityForms(props: IdentityFormsProps) {
   const [teamOrganizationId, setTeamOrganizationId] = useState("")
   const [userOrganizationId, setUserOrganizationId] = useState("")
   const [userTeamId, setUserTeamId] = useState("")
+  const [userPassword, setUserPassword] = useState("")
 
   const submit = (action: () => Promise<void>) => async (event: FormEvent) => {
     event.preventDefault()
@@ -81,7 +82,7 @@ export function IdentityForms(props: IdentityFormsProps) {
         </form>
       </TabsContent>
       <TabsContent value="user" className="pt-5">
-        <form className="flex flex-col gap-4" onSubmit={submit(() => props.onUser(userOrganizationId ? Number(userOrganizationId) : null, userTeamId ? Number(userTeamId) : null, name.trim()))}>
+        <form className="flex flex-col gap-4" onSubmit={submit(() => props.onUser(userOrganizationId ? Number(userOrganizationId) : null, userTeamId ? Number(userTeamId) : null, name.trim(), userPassword))}>
           <FieldGroup>
             {organizationField("user", userOrganizationId, (value) => { setUserOrganizationId(value); setUserTeamId("") }, true)}
             <Field>
@@ -95,8 +96,12 @@ export function IdentityForms(props: IdentityFormsProps) {
               </Select>
             </Field>
             {nameField("user")}
+            <Field>
+              <FieldLabel htmlFor={`${id}-user-password`}>{t("portal.login.password")}</FieldLabel>
+              <Input id={`${id}-user-password`} type="password" autoComplete="new-password" value={userPassword} required onChange={(event) => setUserPassword(event.target.value)} />
+            </Field>
           </FieldGroup>
-          <Button className="self-start" disabled={props.pending || !name.trim()}>{t(props.pending ? "common.actions.saving" : "common.actions.create")}</Button>
+          <Button className="self-start" disabled={props.pending || !name.trim() || !userPassword}>{t(props.pending ? "common.actions.saving" : "common.actions.create")}</Button>
         </form>
       </TabsContent>
     </Tabs>

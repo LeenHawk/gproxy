@@ -134,6 +134,8 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         | SummarizeMemory
         | GenerateContent
         | StreamGenerateContent
+        | GuardianReview
+        | GuardianClassify
         | Rerank
         | WebSearch
         | CreateRealtimeCall

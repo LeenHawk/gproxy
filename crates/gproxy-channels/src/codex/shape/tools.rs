@@ -266,9 +266,6 @@ fn normalize_tool_search(
                 "additionalProperties":false
             })
         });
-    } else {
-        *description = None;
-        *parameters = None;
     }
 }
 

@@ -1,6 +1,7 @@
 use gproxy_channel_api::{BoxFuture, CallerIdentity};
 use gproxy_core::{CoreError, Plan, RequestCtx};
 use gproxy_protocol::OperationKey;
+use sha2::{Digest, Sha256};
 
 use super::super::AppHost;
 
@@ -8,7 +9,25 @@ pub(in crate::host) fn authenticate<'a>(
     host: &'a AppHost,
     request: &'a RequestCtx,
 ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>> {
-    Box::pin(async move { authenticate_headers(host, &request.headers) })
+    Box::pin(async move {
+        if let Ok(identity) = authenticate_headers(host, &request.headers) {
+            return Ok(identity);
+        }
+        let token = api_key(&request.headers).ok_or(CoreError::Unauthorized)?;
+        let identity = host
+            .services
+            .store
+            .oauth_access_identity(&Sha256::digest(token.as_bytes()), unix_now())
+            .await
+            .map_err(|error| CoreError::Store(gproxy_core::error::StoreError(error.to_string())))?
+            .ok_or(CoreError::Unauthorized)?;
+        Ok(CallerIdentity {
+            user_id: identity.user_id,
+            user_key_id: identity.user_key_id,
+            org_id: identity.organization_id,
+            team_id: identity.team_id,
+        })
+    })
 }
 
 pub(crate) fn authenticate_headers(

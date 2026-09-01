@@ -1,14 +1,69 @@
 use gproxy_channel_api::{SurfaceAffinity, SurfaceEntry};
 use gproxy_protocol::Seg;
 
-use super::{DELETE, GET, POST, SERVICE_PREFIXES, alias, pattern, synth};
+use super::{DELETE, GET, POST, SERVICE_PREFIXES, alias, pattern, public_synth, synth};
 
 pub(super) fn push(entries: &mut Vec<SurfaceEntry>) {
+    oauth(entries);
     v1(entries);
     service(entries);
 }
 
+fn oauth(entries: &mut Vec<SurfaceEntry>) {
+    for method in [GET, POST] {
+        entries.push(public_synth(
+            method,
+            pattern(&[], &[Seg::Lit("oauth"), Seg::Lit("authorize")]),
+            &super::super::oauth::HANDLER,
+        ));
+    }
+    for tail in ["token", "revoke"] {
+        entries.push(public_synth(
+            POST,
+            pattern(&[], &[Seg::Lit("oauth"), Seg::Lit(tail)]),
+            &super::super::oauth::HANDLER,
+        ));
+    }
+    for tail in ["usercode", "token"] {
+        entries.push(public_synth(
+            POST,
+            pattern(
+                &[],
+                &[
+                    Seg::Lit("api"),
+                    Seg::Lit("accounts"),
+                    Seg::Lit("deviceauth"),
+                    Seg::Lit(tail),
+                ],
+            ),
+            &super::super::oauth::HANDLER,
+        ));
+    }
+    for method in [GET, POST] {
+        entries.push(public_synth(
+            method,
+            pattern(&[], &[Seg::Lit("codex"), Seg::Lit("device")]),
+            &super::super::oauth::HANDLER,
+        ));
+    }
+}
+
 fn v1(entries: &mut Vec<SurfaceEntry>) {
+    entries.push(synth(
+        POST,
+        pattern(
+            &[],
+            &[
+                Seg::Lit("v1"),
+                Seg::Lit("analytics"),
+                Seg::Lit("codex"),
+                Seg::Lit("turn-costs"),
+            ],
+        ),
+        SurfaceAffinity::None,
+        &super::super::local::HANDLER,
+        false,
+    ));
     entries.push(synth(
         GET,
         pattern(
@@ -209,6 +264,14 @@ fn local(entries: &mut Vec<SurfaceEntry>, prefix: &[&'static str]) {
         (
             POST,
             &[Seg::Lit("analytics-events"), Seg::Lit("events")][..],
+        ),
+        (
+            POST,
+            &[
+                Seg::Lit("analytics"),
+                Seg::Lit("codex"),
+                Seg::Lit("turn-costs"),
+            ][..],
         ),
     ] {
         entries.push(synth(

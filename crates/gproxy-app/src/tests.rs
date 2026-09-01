@@ -1,5 +1,6 @@
 mod admin;
 mod fingerprint;
+mod oauth;
 mod pressure;
 mod quota;
 mod setup;

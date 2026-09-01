@@ -21,9 +21,13 @@ pub(super) async fn get(
         .usage_aggregate(&UsageAggregateQuery {
             from,
             to,
-            group_by: UsageGroupBy::UserKey,
-            user_key_id: Some(identity.user_key_id),
-            user_id: None,
+            group_by: if identity.user_key_id.is_some() {
+                UsageGroupBy::UserKey
+            } else {
+                UsageGroupBy::User
+            },
+            user_key_id: identity.user_key_id,
+            user_id: identity.user_key_id.is_none().then_some(identity.user_id),
             provider_id: None,
             model: None,
         })

@@ -51,7 +51,7 @@ async fn handle_request(
     let method = parts.method.clone();
     let path = parts.uri.path().to_owned();
     let query = parts.uri.query().map(str::to_owned);
-    let headers = parts.headers.clone();
+    let mut headers = parts.headers.clone();
     let permit = state
         .semaphore
         .clone()
@@ -110,11 +110,16 @@ async fn handle_request(
     if let Some(response) = crate::static_assets::serve(&parts) {
         return crate::response::buffered_response(response, permit, &request_id);
     }
+    let body = match gproxy_app::ingress::decode_body(&mut headers, body, MAX_BODY_BYTES) {
+        Ok(body) => body,
+        Err(error) => return (error.status, error.message).into_response(),
+    };
     let websocket = match websocket_upgrade(&mut parts, &state).await {
         Ok(upgrade) => upgrade,
         Err(response) => return *response,
     };
-    let (mode, path) = gproxy_app::ingress::normalize_path(&path);
+    let (mode, path) =
+        gproxy_app::ingress::normalize_path(&state.app, &method, &path, websocket.is_some());
     let request = RequestCtx {
         request_id: request_id.clone(),
         method,

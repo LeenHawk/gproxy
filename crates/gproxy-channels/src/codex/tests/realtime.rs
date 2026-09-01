@@ -69,11 +69,13 @@ fn sideband_reuses_selected_codex_credential_and_fixed_openai_uri() {
     );
     assert_eq!(
         prepared.request.request.headers()["originator"],
-        "codex_exec"
+        "codex_cli_rs"
     );
-    assert_eq!(
-        prepared.request.request.headers()[http::header::USER_AGENT],
-        super::super::auth::USER_AGENT
+    assert!(
+        prepared.request.request.headers()[http::header::USER_AGENT]
+            .to_str()
+            .unwrap()
+            .starts_with("codex_cli_rs/")
     );
     assert_eq!(
         prepared.request.request.headers()["session-id"],

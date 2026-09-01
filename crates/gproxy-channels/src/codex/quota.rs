@@ -240,10 +240,18 @@ fn authenticated(
     builder = builder
         .header(http::header::AUTHORIZATION, format!("Bearer {token}"))
         .header(http::header::ACCEPT, "application/json")
-        .header(http::header::USER_AGENT, super::auth::USER_AGENT)
-        .header("originator", super::auth::ORIGINATOR);
+        .header(http::header::USER_AGENT, super::auth::fallback_user_agent())
+        .header("originator", super::auth::ORIGINATOR)
+        .header("version", super::auth::VERSION);
     if let Some(account_id) = super::auth::account_id(secret) {
         builder = builder.header("chatgpt-account-id", account_id);
+    }
+    if secret
+        .get("chatgpt_account_is_fedramp")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        builder = builder.header("x-openai-fedramp", "true");
     }
     builder
 }

@@ -2,6 +2,7 @@ mod environments;
 mod files;
 mod helpers;
 mod local;
+mod oauth;
 mod remote;
 mod table;
 mod tasks;

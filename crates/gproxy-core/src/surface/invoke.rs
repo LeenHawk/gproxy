@@ -29,7 +29,7 @@ pub(crate) struct SurfaceCaller<'a, H: Host> {
 impl<'a, H: Host> SurfaceCaller<'a, H> {
     pub(crate) fn new(
         core: &'a Core<H>,
-        control: &impl ControlPlane,
+        control: &dyn ControlPlane,
         target: Target,
         identity: CallerIdentity,
         plan: Plan,

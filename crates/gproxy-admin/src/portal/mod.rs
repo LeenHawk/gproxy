@@ -1,4 +1,6 @@
+mod auth;
 mod context;
+mod keys;
 mod quota;
 mod recent;
 mod usage;
@@ -16,7 +18,7 @@ pub(crate) const RECENT_REQUESTS_SETTING: &str = "portal_recent_requests_enabled
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PortalIdentity {
     pub user_id: i64,
-    pub user_key_id: i64,
+    pub user_key_id: Option<i64>,
     pub org_id: Option<i64>,
     pub team_id: Option<i64>,
     pub user_name: String,
@@ -28,7 +30,7 @@ pub struct PortalIdentity {
 impl PortalIdentity {
     fn quota_scope(&self, kind: &str, id: i64) -> Option<PortalQuotaScopeDto> {
         match kind {
-            "user_key" if id == self.user_key_id => Some(PortalQuotaScopeDto::UserKey),
+            "user_key" if Some(id) == self.user_key_id => Some(PortalQuotaScopeDto::UserKey),
             "user" if id == self.user_id => Some(PortalQuotaScopeDto::User),
             "organization" if Some(id) == self.org_id => Some(PortalQuotaScopeDto::Organization),
             "team" if Some(id) == self.team_id => Some(PortalQuotaScopeDto::Team),
@@ -45,13 +47,39 @@ enum Route {
     RecentRequests,
 }
 
-pub async fn dispatch(state: &impl State, parts: &Parts, _body: Bytes) -> Option<Response<Bytes>> {
+pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<Response<Bytes>> {
     let path = parts.uri.path();
     if path != "/portal/api" && !path.starts_with("/portal/api/") {
         return None;
     }
     let result = async {
-        let identity = state.portal_identity(&parts.headers)?;
+        match (&parts.method, path) {
+            (&Method::POST, "/portal/api/login") => return auth::login(state, parts, &body).await,
+            (&Method::GET, "/portal/api/session") => return auth::status(state, parts).await,
+            (&Method::POST, "/portal/api/logout") => return auth::logout(state, parts).await,
+            (&Method::POST, "/portal/api/password") => {
+                return auth::change_password(state, parts, &body).await;
+            }
+            _ => {}
+        }
+        let identity = auth::identity(state, parts).await?;
+        if path == "/portal/api/keys" {
+            return match parts.method {
+                Method::GET => keys::list(state, &identity).await,
+                Method::POST => keys::create(state, parts, &identity, &body).await,
+                _ => Err(AdminError::NotFound),
+            };
+        }
+        if let Some(id) = path
+            .strip_prefix("/portal/api/keys/")
+            .and_then(|value| value.parse::<i64>().ok())
+        {
+            return match parts.method {
+                Method::PATCH => keys::update(state, parts, &identity, id, &body).await,
+                Method::DELETE => keys::delete(state, parts, &identity, id).await,
+                _ => Err(AdminError::NotFound),
+            };
+        }
         match route(&parts.method, path)? {
             Route::Context => context::get(state, &identity).await,
             Route::Models => response::json(StatusCode::OK, &models(state, &identity)),

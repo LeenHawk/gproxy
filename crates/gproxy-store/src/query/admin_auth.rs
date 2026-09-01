@@ -18,8 +18,25 @@ pub(crate) fn set_admin_password(
     Statement::query(&update)
 }
 
+pub(crate) fn set_user_password(id: i64, password_hash: &str) -> Result<Statement, StoreError> {
+    let mut update = Query::update();
+    update
+        .table(Alias::new("users"))
+        .value(Alias::new("password_hash"), password_hash.to_owned())
+        .and_where(Expr::col(Alias::new("id")).eq(id));
+    Statement::query(&update)
+}
+
 pub(crate) fn admin_by_username(username: &str) -> Result<Statement, StoreError> {
     let mut query = admin_select();
+    query
+        .and_where(Expr::col(Alias::new("name")).eq(username))
+        .limit(1);
+    Statement::query(&query)
+}
+
+pub(crate) fn user_by_username(username: &str) -> Result<Statement, StoreError> {
+    let mut query = user_select();
     query
         .and_where(Expr::col(Alias::new("name")).eq(username))
         .limit(1);
@@ -63,6 +80,25 @@ pub(crate) fn admin_for_session(token_digest: &[u8], now: i64) -> Result<Stateme
         .and_where(Expr::col((sessions, Alias::new("expires_at"))).gt(now))
         .and_where(Expr::col((users.clone(), Alias::new("enabled"))).eq(true))
         .and_where(Expr::col((users, Alias::new("is_admin"))).eq(true))
+        .limit(1);
+    Statement::query(&query)
+}
+
+pub(crate) fn user_for_session(token_digest: &[u8], now: i64) -> Result<Statement, StoreError> {
+    let users = Alias::new("users");
+    let sessions = Alias::new("user_sessions");
+    let mut query = user_select();
+    query
+        .join(
+            JoinType::InnerJoin,
+            sessions.clone(),
+            Expr::col((sessions.clone(), Alias::new("user_id")))
+                .equals((users.clone(), Alias::new("id"))),
+        )
+        .and_where(
+            Expr::col((sessions.clone(), Alias::new("token_digest"))).eq(token_digest.to_vec()),
+        )
+        .and_where(Expr::col((sessions, Alias::new("expires_at"))).gt(now))
         .limit(1);
     Statement::query(&query)
 }
@@ -117,5 +153,27 @@ fn admin_select() -> sea_query::SelectStatement {
         .from(Alias::new("users"))
         .and_where(Expr::col(Alias::new("is_admin")).eq(true))
         .and_where(Expr::col(Alias::new("password_hash")).is_not_null());
+    query.to_owned()
+}
+
+fn user_select() -> sea_query::SelectStatement {
+    let users = Alias::new("users");
+    let mut query = Query::select();
+    query
+        .columns(
+            [
+                "id",
+                "name",
+                "organization_id",
+                "team_id",
+                "password_hash",
+                "enabled",
+            ]
+            .into_iter()
+            .map(|column| (users.clone(), Alias::new(column))),
+        )
+        .from(users.clone())
+        .and_where(Expr::col((users.clone(), Alias::new("password_hash"))).is_not_null())
+        .and_where(Expr::col((users, Alias::new("enabled"))).eq(true));
     query.to_owned()
 }

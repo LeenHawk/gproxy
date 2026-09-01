@@ -1,7 +1,9 @@
 use aes_gcm::aead::{Aead, Key, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use gproxy_store::records::CredentialEnvelope;
+use hmac::{Hmac, Mac};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use zeroize::Zeroize;
 
 use crate::AppError;
@@ -12,17 +14,30 @@ const PAYLOAD_AAD: &[u8] = b"gproxy:v3:credential-envelope:v1:payload";
 const WRAPPED_KEY_AAD: &[u8] = b"gproxy:v3:credential-envelope:v1:wrapped-dek";
 const USER_KEY_PAYLOAD_AAD: &[u8] = b"gproxy:v3:user-key-envelope:v1:payload";
 const USER_KEY_WRAPPED_KEY_AAD: &[u8] = b"gproxy:v3:user-key-envelope:v1:wrapped-dek";
+const OAUTH_SIGNING_DOMAIN: &[u8] = b"gproxy:v3:oauth-signing:v1";
 
 #[derive(Clone)]
 pub(crate) struct EnvelopeCipher {
     master: Option<Aes256Gcm>,
+    oauth_signing_key: [u8; 32],
 }
 
 impl EnvelopeCipher {
     pub(crate) fn new(master_key: Option<[u8; DEK_BYTES]>) -> Self {
+        let mut signing = Sha256::new();
+        signing.update(OAUTH_SIGNING_DOMAIN);
+        signing.update(master_key.unwrap_or_default());
         Self {
             master: master_key.map(|key| Aes256Gcm::new(&Key::<Aes256Gcm>::from(key))),
+            oauth_signing_key: signing.finalize().into(),
         }
+    }
+
+    pub(crate) fn sign_oauth(&self, value: &[u8]) -> [u8; 32] {
+        let mut mac = Hmac::<Sha256>::new_from_slice(&self.oauth_signing_key)
+            .expect("SHA-256 HMAC accepts a 32-byte key");
+        mac.update(value);
+        mac.finalize().into_bytes().into()
     }
 
     pub(crate) fn seal(&self, value: &Value) -> Result<CredentialEnvelope, AppError> {

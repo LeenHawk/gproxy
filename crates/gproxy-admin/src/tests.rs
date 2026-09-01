@@ -246,7 +246,7 @@ impl State for TestState {
         }
         Ok(PortalIdentity {
             user_id: 11,
-            user_key_id: 12,
+            user_key_id: Some(12),
             org_id: Some(13),
             team_id: Some(14),
             user_name: "portal-user".into(),

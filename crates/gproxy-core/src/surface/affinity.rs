@@ -28,7 +28,14 @@ pub(crate) fn table_matches<H: Host>(core: &Core<H>, ctx: &RequestCtx) -> Vec<Ta
     let mut matches = Vec::new();
     for channel in core.channels.iter() {
         for entry in channel.surfaces().0 {
-            let websocket = matches!(&entry.action, SurfaceAction::ForwardWebSocket(_));
+            let websocket = match &entry.action {
+                SurfaceAction::ForwardWebSocket(_) => true,
+                SurfaceAction::OperationAlias { canonical_path } => {
+                    gproxy_protocol::match_ingress_for(entry.method, canonical_path, None)
+                        .is_some_and(|matched| matched.upgrade)
+                }
+                _ => false,
+            };
             if entry.method == ctx.method
                 && websocket == ctx.upgrade
                 && let Some(params) = match_path(entry.pattern, &ctx.path)

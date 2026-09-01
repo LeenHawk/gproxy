@@ -3,7 +3,7 @@ use crate::operation::OperationKind::ContentGeneration as CG;
 use crate::spec::Seg::{Lit, ParamAction};
 use crate::spec::{Affinity, OperationSpec, StreamDetect};
 
-use super::{BODY_STREAM, NEVER, POST, billed, ing};
+use super::{BODY_STREAM, GET, NEVER, POST, billed, ing, ing_ws};
 
 pub(super) const GENERATE: OperationSpec = billed(
     &[
@@ -40,15 +40,22 @@ pub(super) const GENERATE: OperationSpec = billed(
 );
 
 pub(super) const STREAM_GENERATE: OperationSpec = billed(
-    &[ing(
-        POST,
-        &[
-            Lit("v1beta"),
-            Lit("models"),
-            ParamAction("model", "streamGenerateContent"),
-        ],
-        CG(GeminiGenerateContent),
-        StreamDetect::Always,
-    )],
+    &[
+        ing(
+            POST,
+            &[
+                Lit("v1beta"),
+                Lit("models"),
+                ParamAction("model", "streamGenerateContent"),
+            ],
+            CG(GeminiGenerateContent),
+            StreamDetect::Always,
+        ),
+        ing_ws(
+            GET,
+            &[Lit("v1"), Lit("responses")],
+            CG(OpenAiResponsesWebSocket),
+        ),
+    ],
     Affinity::Session,
 );

@@ -1,7 +1,7 @@
 mod csrf;
 mod handlers;
 pub(crate) mod password;
-mod session;
+pub(crate) mod session;
 
 pub(crate) use csrf::verify_same_origin;
 pub(crate) use handlers::dispatch_public;

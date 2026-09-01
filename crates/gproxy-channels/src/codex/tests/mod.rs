@@ -104,7 +104,7 @@ fn prepare_applies_codex_endpoint_headers_profile_and_typed_shape() {
     );
     assert_eq!(prepared.request.headers()["authorization"], "Bearer token");
     assert_eq!(prepared.request.headers()["chatgpt-account-id"], "account");
-    assert_eq!(prepared.request.headers()["originator"], "codex_exec");
+    assert_eq!(prepared.request.headers()["originator"], "codex_cli_rs");
     assert_eq!(prepared.request.headers()["session-id"], "session-1");
     assert_eq!(prepared.profile, Some(&super::profile::CLIENT_PROFILE));
     let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();

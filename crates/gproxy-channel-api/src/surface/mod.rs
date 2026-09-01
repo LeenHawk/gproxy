@@ -107,6 +107,10 @@ pub enum SurfaceAction {
         /// visible by inspection, not by reading handler code.
         upstream: bool,
     },
+    /// Public local endpoint such as an OAuth issuer. The core resolves the
+    /// named provider but does not require a gateway API key before invoking
+    /// the handler.
+    PublicSynthesize { handler: &'static dyn Synthesizer },
 }
 
 /// Upstream mapping for a forwarded surface route.
@@ -136,6 +140,8 @@ pub struct SynthCtx<'a> {
     pub body: &'a Bytes,
     /// Captured pattern params, in pattern order.
     pub params: &'a [(&'static str, String)],
+    /// Named ingress prefix removed by the host, when present.
+    pub route_name: Option<&'a str>,
 }
 
 /// Narrow capabilities a synthesizer acts through.
@@ -152,6 +158,7 @@ pub struct SurfaceServices<'a> {
     /// synthesizer may fan out read-only aggregation through explicit invokes.
     pub credentials: &'a [CredentialId],
     pub usage: &'a dyn UsageView,
+    pub oauth: Option<&'a dyn crate::OAuthService>,
 }
 
 pub trait Synthesizer: Send + Sync {

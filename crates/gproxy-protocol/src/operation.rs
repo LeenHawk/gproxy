@@ -40,6 +40,8 @@ pub enum Operation {
     SummarizeMemory,
     GenerateContent,
     StreamGenerateContent,
+    GuardianReview,
+    GuardianClassify,
     CompactContent,
     CreateEmbedding,
     BatchCreateEmbedding,
@@ -232,6 +234,8 @@ impl Operation {
             SummarizeMemory => "summarize_memory",
             GenerateContent => "generate_content",
             StreamGenerateContent => "stream_generate_content",
+            GuardianReview => "guardian_review",
+            GuardianClassify => "guardian_classify",
             CompactContent => "compact_content",
             CreateEmbedding => "create_embedding",
             BatchCreateEmbedding => "batch_create_embedding",
@@ -271,6 +275,8 @@ impl Operation {
             "summarize_memory" => SummarizeMemory,
             "generate_content" => GenerateContent,
             "stream_generate_content" => StreamGenerateContent,
+            "guardian_review" => GuardianReview,
+            "guardian_classify" => GuardianClassify,
             "compact_content" => CompactContent,
             "create_embedding" => CreateEmbedding,
             "batch_create_embedding" => BatchCreateEmbedding,
@@ -310,7 +316,9 @@ impl Operation {
             ListModels | GetModel => OperationGroup::Models,
             CountTokens => OperationGroup::CountTokens,
             SummarizeMemory => OperationGroup::Memories,
-            GenerateContent | StreamGenerateContent => OperationGroup::GenerateContent,
+            GenerateContent | StreamGenerateContent | GuardianReview | GuardianClassify => {
+                OperationGroup::GenerateContent
+            }
             CompactContent => OperationGroup::Compact,
             CreateEmbedding | BatchCreateEmbedding => OperationGroup::Embeddings,
             Rerank => OperationGroup::Rerank,

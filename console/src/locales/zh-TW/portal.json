@@ -11,13 +11,17 @@
     },
     "login": {
       "title": "開啟你的入口網站",
-      "description": "輸入你收到的 API 金鑰，檢視連線方式和用量。",
-      "key": "API 金鑰",
-      "keyHint": "金鑰只保留在目前瀏覽器分頁中，入口網站不會儲存。",
+      "description": "使用管理員建立的使用者帳戶登入。",
+      "username": "使用者名稱",
+      "password": "密碼",
+      "passwordHint": "登入狀態會保存在安全的瀏覽器 Cookie 中。",
+      "checking": "正在檢查登入狀態…",
       "action": "繼續",
       "submitting": "正在檢查金鑰…",
-      "error": "無法驗證此金鑰。請檢查後重試。"
+      "error": "無法驗證此帳戶。請檢查後重試。"
     },
+    "keys": {"title":"API 金鑰","description":"為 API 用戶端或 Codex access-token 登入建立金鑰。","label":"標籤","create":"建立金鑰","created":"請立即複製此金鑰，之後不會再次顯示。","unnamed":"未命名金鑰","revoke":"撤銷","empty":"尚無金鑰"},
+    "password": {"title":"密碼","description":"變更登入使用者入口所使用的密碼。","current":"目前密碼","new":"新密碼","action":"變更密碼","saved":"密碼已變更。"},
     "overview": {
       "title": "歡迎，{{name}}",
       "description": "連接你的工具、檢視此金鑰可呼叫的模型，並追蹤已結算支出。"

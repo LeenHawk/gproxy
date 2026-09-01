@@ -8,6 +8,22 @@ use super::{RETRYABLE, SINGLE};
 pub(super) fn push(entries: &mut Vec<SurfaceEntry>, prefix: &[&'static str]) {
     entries.push(forward(
         GET,
+        pattern(
+            prefix,
+            &[
+                Seg::Lit("connectors"),
+                Seg::Lit("directory"),
+                Seg::Lit("list"),
+            ],
+        ),
+        SurfaceAffinity::None,
+        "connectors",
+        "/connectors/directory/list",
+        RETRYABLE,
+        false,
+    ));
+    entries.push(forward(
+        GET,
         pattern(prefix, &[Seg::Lit("plugins"), Seg::Lit("featured")]),
         SurfaceAffinity::None,
         "plugins",

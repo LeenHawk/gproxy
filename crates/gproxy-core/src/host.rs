@@ -278,6 +278,11 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         None
     }
 
+    /// Persistent OAuth issuer state for public vendor-auth surfaces.
+    fn oauth(&self) -> Option<&dyn gproxy_channel_api::OAuthService> {
+        None
+    }
+
     /// Process-local ownership of live upstream streams. Channels requiring
     /// this capability are native-only and rejected at startup when absent.
     fn continuations(&self) -> Option<&dyn ContinuationStore> {

@@ -6,6 +6,7 @@ mod common;
 pub(crate) use common::{count_all, delete_by_id};
 pub(crate) mod control;
 pub(crate) mod identity;
+pub(crate) mod oauth;
 pub(crate) mod runtime;
 pub(crate) mod tokenizer;
 pub(crate) mod usage;

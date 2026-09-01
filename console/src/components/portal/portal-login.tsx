@@ -13,16 +13,18 @@ export function PortalLogin({
 }: {
   pending: boolean
   failed: boolean
-  onSubmit: (key: string) => void
+  onSubmit: (username: string, password: string) => void
 }) {
   const { t } = useTranslation()
-  const keyId = useId()
-  const [key, setKey] = useState("")
+  const usernameId = useId()
+  const passwordId = useId()
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const value = key.trim()
-    if (value) onSubmit(value)
+    const value = username.trim()
+    if (value && password) onSubmit(value, password)
   }
 
   return (
@@ -36,21 +38,31 @@ export function PortalLogin({
           <FieldGroup>
             {failed ? <Alert variant="destructive"><AlertTitle>{t("portal.login.error")}</AlertTitle></Alert> : null}
             <Field>
-              <FieldLabel htmlFor={keyId}>{t("portal.login.key")}</FieldLabel>
+              <FieldLabel htmlFor={usernameId}>{t("portal.login.username")}</FieldLabel>
               <Input
-                id={keyId}
-                type="password"
-                value={key}
+                id={usernameId}
+                value={username}
                 required
                 autoFocus
-                autoComplete="off"
+                autoComplete="username"
                 autoCapitalize="none"
                 spellCheck={false}
-                onChange={(event) => setKey(event.target.value)}
+                onChange={(event) => setUsername(event.target.value)}
               />
-              <FieldDescription>{t("portal.login.keyHint")}</FieldDescription>
             </Field>
-            <Button type="submit" disabled={pending || key.trim().length === 0}>
+            <Field>
+              <FieldLabel htmlFor={passwordId}>{t("portal.login.password")}</FieldLabel>
+              <Input
+                id={passwordId}
+                type="password"
+                value={password}
+                required
+                autoComplete="current-password"
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <FieldDescription>{t("portal.login.passwordHint")}</FieldDescription>
+            </Field>
+            <Button type="submit" disabled={pending || username.trim().length === 0 || password.length === 0}>
               {t(pending ? "portal.login.submitting" : "portal.login.action")}
             </Button>
           </FieldGroup>

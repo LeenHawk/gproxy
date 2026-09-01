@@ -17,17 +17,21 @@ use super::invoke::SurfaceCaller;
 
 pub(crate) async fn run<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     ctx: &RequestCtx,
     plan: &Plan,
     identity: &gproxy_channel_api::CallerIdentity,
     selected: Selected,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
-    let SurfaceAction::Synthesize { handler, upstream } = &selected.entry.action else {
-        return Err(CoreError::Internal(
-            "forward action reached the synthesizer engine".into(),
-        ));
+    let (handler, upstream, sensitive) = match &selected.entry.action {
+        SurfaceAction::Synthesize { handler, upstream } => (*handler, *upstream, false),
+        SurfaceAction::PublicSynthesize { handler } => (*handler, false, true),
+        _ => {
+            return Err(CoreError::Internal(
+                "forward action reached the synthesizer engine".into(),
+            ));
+        }
     };
     let reply = {
         let caller = upstream.then(|| {
@@ -67,6 +71,13 @@ pub(crate) async fn run<H: Host>(
                     headers: &ctx.headers,
                     body: &ctx.body,
                     params: &selected.params,
+                    route_name: match &ctx.mode {
+                        crate::RoutingMode::Named { name } => Some(name.as_str()),
+                        crate::RoutingMode::Scoped { provider } => Some(provider.as_str()),
+                        crate::RoutingMode::Aggregated | crate::RoutingMode::Namespace { .. } => {
+                            None
+                        }
+                    },
                 },
                 SurfaceServices {
                     invoke: caller.as_ref().map(|caller| caller as &dyn SurfaceInvoke),
@@ -79,11 +90,21 @@ pub(crate) async fn run<H: Host>(
                     credential,
                     credentials: &credentials,
                     usage: usage.as_ref(),
+                    oauth: core.host.oauth(),
                 },
             )
             .await?
     };
-    finish(core, ctx, selected, reply, identity.user_id, started).await
+    finish(
+        core,
+        ctx,
+        selected,
+        reply,
+        identity.user_id,
+        started,
+        sensitive,
+    )
+    .await
 }
 
 async fn finish<H: Host>(
@@ -93,6 +114,7 @@ async fn finish<H: Host>(
     reply: gproxy_channel_api::SurfaceReply,
     owner_user_id: i64,
     started: Instant,
+    sensitive: bool,
 ) -> Result<ExecOutcome, CoreError> {
     let disposition = if reply.status.is_success() {
         Disposition::Success
@@ -112,9 +134,17 @@ async fn finish<H: Host>(
         started,
         upstream_url: None,
         request_method: None,
-        request_body: request.body.clone(),
+        request_body: if sensitive {
+            bytes::Bytes::new()
+        } else {
+            request.body.clone()
+        },
         request_headers: None,
-        client_headers: request.headers.clone(),
+        client_headers: if sensitive {
+            http::HeaderMap::new()
+        } else {
+            request.headers.clone()
+        },
         requested_model: None,
         response_headers: None,
         dedupe_key: None,
@@ -126,6 +156,17 @@ async fn finish<H: Host>(
         traffic_blacklist: None,
     };
     Ok(match reply.body {
+        SurfaceBody::Full(body) if sensitive => {
+            funnel::free_uncaptured_buffered(
+                core.host.as_ref(),
+                ctx,
+                reply.status,
+                reply.headers,
+                body,
+                disposition,
+            )
+            .await
+        }
         SurfaceBody::Full(body) => {
             funnel::free_buffered(
                 core.host.as_ref(),
@@ -136,6 +177,11 @@ async fn finish<H: Host>(
                 disposition,
             )
             .await
+        }
+        SurfaceBody::Stream(_) if sensitive => {
+            return Err(CoreError::Internal(
+                "sensitive public surfaces cannot stream".into(),
+            ));
         }
         SurfaceBody::Stream(body) => funnel::free_streaming(
             core.host.clone(),

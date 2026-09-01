@@ -47,6 +47,7 @@ pub(crate) async fn dispatch(
         Route::CredentialHealthReset(id) => control::credential_health_reset(state, id).await,
         Route::RevealCredentialSecret(id) => control::credential_secret(state, admin, id).await,
         Route::RevealUserKey(id) => identity::reveal(state, admin, id).await,
+        Route::UserPassword(id) => identity::password(state, id, body).await,
         Route::Usage => observability::usage(state, parts).await,
         Route::QuotaWindows => observability::quota_windows(state, parts).await,
         Route::CredentialCycles => observability::credential_cycles(state, parts).await,

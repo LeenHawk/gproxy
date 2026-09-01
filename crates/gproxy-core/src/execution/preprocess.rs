@@ -15,7 +15,7 @@ enum Preset {
 }
 
 pub(crate) fn apply(
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     request: &mut RequestCtx,
     classified: &mut Classified,
 ) -> Result<(), CoreError> {

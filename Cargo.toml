@@ -59,6 +59,7 @@ redis = { version = "1.6", default-features = false, features = ["connection-man
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
 rust_decimal = { version = "1", features = ["serde"] }
+ruzstd = "0.8"
 semver = "1"
 self-replace = "1"
 rust-embed = { version = "8", features = ["include-exclude"] }

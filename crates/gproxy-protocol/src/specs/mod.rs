@@ -9,6 +9,7 @@ mod count_tokens;
 mod embeddings;
 mod files;
 mod generate_content;
+mod guardian;
 mod images;
 mod memories;
 mod models;
@@ -47,6 +48,21 @@ pub(super) const fn ing(
         stream,
         framing: default_framing(kind, false),
         upgrade: false,
+    }
+}
+
+pub(super) const fn ing_ws(
+    method: &'static Method,
+    pattern: &'static [Seg],
+    kind: OperationKind,
+) -> Ingress {
+    Ingress {
+        method,
+        pattern: PathPattern(pattern),
+        kind,
+        stream: StreamDetect::Always,
+        framing: default_framing(kind, true),
+        upgrade: true,
     }
 }
 
@@ -90,7 +106,7 @@ pub(super) const fn video_character_op(ingress: &'static [Ingress]) -> Operation
     }
 }
 
-pub(crate) static REGISTRY: [(Operation, OperationSpec); 33] = [
+pub(crate) static REGISTRY: [(Operation, OperationSpec); 35] = [
     (Operation::ListModels, models::LIST_MODELS),
     (Operation::GetModel, models::GET_MODEL),
     (Operation::CountTokens, count_tokens::COUNT_TOKENS),
@@ -100,6 +116,8 @@ pub(crate) static REGISTRY: [(Operation, OperationSpec); 33] = [
         Operation::StreamGenerateContent,
         generate_content::STREAM_GENERATE,
     ),
+    (Operation::GuardianReview, guardian::REVIEW),
+    (Operation::GuardianClassify, guardian::CLASSIFY),
     (Operation::CompactContent, compact::COMPACT),
     (Operation::CreateEmbedding, embeddings::EMBEDDING),
     (Operation::BatchCreateEmbedding, embeddings::BATCH_EMBEDDING),
@@ -142,33 +160,35 @@ pub(crate) fn spec(operation: Operation) -> &'static OperationSpec {
         SummarizeMemory => 3,
         GenerateContent => 4,
         StreamGenerateContent => 5,
-        CompactContent => 6,
-        CreateEmbedding => 7,
-        BatchCreateEmbedding => 8,
-        Rerank => 9,
-        WebSearch => 10,
-        CreateImage => 11,
-        EditImage => 12,
-        CreateSpeech => 13,
-        CreateTranscription => 14,
-        CreateTranslation => 15,
-        CreateFile => 16,
-        ListFiles => 17,
-        RetrieveFileContent => 18,
-        RetrieveFile => 19,
-        DeleteFile => 20,
-        CreateVideo => 21,
-        RetrieveVideo => 22,
-        ListVideos => 23,
-        DeleteVideo => 24,
-        DownloadVideoContent => 25,
-        RemixVideo => 26,
-        CreateVideoCharacter => 27,
-        GetVideoCharacter => 28,
-        EditVideo => 29,
-        ExtendVideo => 30,
-        CreateRealtimeCall => 31,
-        ConnectRealtime => 32,
+        GuardianReview => 6,
+        GuardianClassify => 7,
+        CompactContent => 8,
+        CreateEmbedding => 9,
+        BatchCreateEmbedding => 10,
+        Rerank => 11,
+        WebSearch => 12,
+        CreateImage => 13,
+        EditImage => 14,
+        CreateSpeech => 15,
+        CreateTranscription => 16,
+        CreateTranslation => 17,
+        CreateFile => 18,
+        ListFiles => 19,
+        RetrieveFileContent => 20,
+        RetrieveFile => 21,
+        DeleteFile => 22,
+        CreateVideo => 23,
+        RetrieveVideo => 24,
+        ListVideos => 25,
+        DeleteVideo => 26,
+        DownloadVideoContent => 27,
+        RemixVideo => 28,
+        CreateVideoCharacter => 29,
+        GetVideoCharacter => 30,
+        EditVideo => 31,
+        ExtendVideo => 32,
+        CreateRealtimeCall => 33,
+        ConnectRealtime => 34,
     };
     &REGISTRY[index].1
 }

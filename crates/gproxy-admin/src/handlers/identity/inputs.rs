@@ -16,7 +16,13 @@ pub(super) fn user(request: UserWriteRequest) -> Result<UserInput, AdminError> {
         name: request.name,
         organization_id: request.organization_id,
         team_id: request.team_id,
-        password_hash: None,
+        password_hash: request
+            .password
+            .map(|password| {
+                crate::auth::password::validate(&password)?;
+                crate::auth::password::hash(&password)
+            })
+            .transpose()?,
         enabled: request.enabled,
         is_admin: request.is_admin,
     })

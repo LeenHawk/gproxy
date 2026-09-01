@@ -9,7 +9,10 @@ use rust_decimal::Decimal;
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     match ctx.key.operation {
-        Operation::GenerateContent | Operation::StreamGenerateContent => {
+        Operation::GenerateContent
+        | Operation::StreamGenerateContent
+        | Operation::GuardianReview
+        | Operation::GuardianClassify => {
             let response: ResponseObject = serde_json::from_slice(ctx.response_body).ok()?;
             response
                 .usage

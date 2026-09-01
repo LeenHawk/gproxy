@@ -1,16 +1,26 @@
 use gproxy_channel_api::SurfaceEntry;
 use gproxy_protocol::Seg;
 
-use super::{POST, SERVICE_PREFIXES, alias, pattern};
+use super::{GET, POST, SERVICE_PREFIXES, alias, pattern};
 
 pub(super) fn push(entries: &mut Vec<SurfaceEntry>) {
     for prefix in SERVICE_PREFIXES {
+        entries.push(alias(
+            GET,
+            pattern(prefix, &[Seg::Lit("responses")]),
+            "/v1/responses",
+        ));
         for (tail, canonical) in [
             (
                 &[Seg::Lit("memories"), Seg::Lit("trace_summarize")][..],
                 "/v1/memories/trace_summarize",
             ),
             (&[Seg::Lit("responses")][..], "/v1/responses"),
+            (&[Seg::Lit("guardian")][..], "/v1/guardian"),
+            (
+                &[Seg::Lit("guardian-classifier")][..],
+                "/v1/guardian-classifier",
+            ),
             (
                 &[Seg::Lit("responses"), Seg::Lit("compact")][..],
                 "/v1/responses/compact",

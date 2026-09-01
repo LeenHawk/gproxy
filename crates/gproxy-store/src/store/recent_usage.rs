@@ -17,6 +17,20 @@ impl Store {
             .map(parse)
             .collect()
     }
+
+    pub async fn recent_usage_for_user(
+        &self,
+        user_id: i64,
+        limit: u64,
+    ) -> Result<Vec<RecentUsageRecord>, StoreError> {
+        self.backend()
+            .execute(usage::recent_for_user(user_id, limit)?)
+            .await?
+            .rows
+            .into_iter()
+            .map(parse)
+            .collect()
+    }
 }
 
 fn parse(row: Row) -> Result<RecentUsageRecord, StoreError> {

@@ -88,6 +88,19 @@ pub(super) fn synth(
     }
 }
 
+pub(super) fn public_synth(
+    method: &'static Method,
+    pattern: PathPattern,
+    handler: &'static dyn Synthesizer,
+) -> SurfaceEntry {
+    SurfaceEntry {
+        method,
+        pattern,
+        affinity: SurfaceAffinity::None,
+        action: SurfaceAction::PublicSynthesize { handler },
+    }
+}
+
 pub(super) fn forward(
     method: &'static Method,
     pattern: PathPattern,

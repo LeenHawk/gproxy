@@ -14,7 +14,7 @@ use super::AdmittedRequest;
 
 pub(crate) async fn run<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     ctx: RequestCtx,
     plan: Plan,
     request: AdmittedRequest,

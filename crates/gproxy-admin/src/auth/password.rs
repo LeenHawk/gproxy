@@ -19,7 +19,7 @@ pub(crate) fn hash(password: &str) -> Result<String, AdminError> {
         .map_err(|error| AdminError::Internal(error.to_string()))
 }
 
-pub(super) fn verify(password: &str, hash: &str) -> bool {
+pub(crate) fn verify(password: &str, hash: &str) -> bool {
     PasswordHash::new(hash).is_ok_and(|hash| {
         Argon2::default()
             .verify_password(password.as_bytes(), &hash)

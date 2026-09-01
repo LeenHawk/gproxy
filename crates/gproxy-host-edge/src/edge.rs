@@ -99,7 +99,7 @@ impl EdgeHost {
         client_source: String,
     ) -> Result<EdgeReply, JsValue> {
         let request_id = request_id()?;
-        let incoming = match crate::request::read(&request, client_source).await {
+        let mut incoming = match crate::request::read(&request, client_source).await {
             Ok(incoming) => incoming,
             Err(error) => {
                 return crate::response::local_error(error.status, error.message, &request_id)
@@ -122,6 +122,17 @@ impl EdgeHost {
         {
             return crate::response::buffered(response, &request_id).map(EdgeReply::from);
         }
+        incoming.body = match gproxy_app::ingress::decode_body(
+            &mut incoming.parts.headers,
+            incoming.body,
+            crate::request::MAX_BODY_BYTES,
+        ) {
+            Ok(body) => body,
+            Err(error) => {
+                return crate::response::local_error(error.status, error.message, &request_id)
+                    .map(EdgeReply::from);
+            }
+        };
         let websocket_intent = crate::request::has_websocket_intent(&incoming.parts.headers);
         let upgrade = if websocket_intent {
             let upgrade = match crate::websocket::prepare(&request) {
@@ -147,7 +158,12 @@ impl EdgeHost {
         } else {
             None
         };
-        let (mode, path) = gproxy_app::ingress::normalize_path(&incoming.path);
+        let (mode, path) = gproxy_app::ingress::normalize_path(
+            &self.app,
+            &incoming.method,
+            &incoming.path,
+            upgrade.is_some(),
+        );
         let context = RequestCtx {
             request_id: request_id.clone(),
             method: incoming.method.clone(),

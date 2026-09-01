@@ -290,6 +290,39 @@ pub(crate) async fn free_buffered<H: Host>(
     }
 }
 
+pub(crate) async fn free_uncaptured_buffered<H: Host>(
+    host: &H,
+    ctx: FunnelCtx,
+    status: http::StatusCode,
+    headers: http::HeaderMap,
+    body: Bytes,
+    disposition: Disposition,
+) -> ExecOutcome {
+    settlement::complete(
+        host,
+        &ctx,
+        settlement::Completion {
+            status: Some(status),
+            response_body: None,
+            estimated_output_chars: None,
+            record_usage: false,
+            usage: None,
+            actual_service_tier: None,
+            cost_override: None,
+            capture_response: false,
+            ended: Ended::Complete,
+        },
+    )
+    .await;
+    ExecOutcome {
+        status,
+        headers: outward_headers(&ctx, headers),
+        body: ResponseBody::Full(body),
+        disposition,
+        _settled: Settled(()),
+    }
+}
+
 pub(crate) async fn local_buffered<H: Host>(
     host: &H,
     ctx: FunnelCtx,
@@ -381,6 +414,16 @@ pub(crate) fn websocket<H: Host>(
         status: http::StatusCode::SWITCHING_PROTOCOLS,
         headers: http::HeaderMap::new(),
         body: ResponseBody::WebSocket(Box::new(FunnelSocket::new(host, ctx, socket))),
+        disposition: Disposition::Success,
+        _settled: Settled(()),
+    }
+}
+
+pub(crate) fn bridged_websocket(socket: Box<dyn gproxy_channel_api::WsDuplex>) -> ExecOutcome {
+    ExecOutcome {
+        status: http::StatusCode::SWITCHING_PROTOCOLS,
+        headers: http::HeaderMap::new(),
+        body: ResponseBody::WebSocket(socket),
         disposition: Disposition::Success,
         _settled: Settled(()),
     }

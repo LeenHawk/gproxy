@@ -29,9 +29,7 @@ export function PortalShell({
               <>
                 <div className="hidden text-right sm:block">
                   <p className="text-sm font-medium">{context.user_name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {t("portal.account.maskedKey", { prefix: context.key_prefix ?? "" })}
-                  </p>
+                  {context.key_prefix ? <p className="font-mono text-xs text-muted-foreground">{t("portal.account.maskedKey", { prefix: context.key_prefix })}</p> : null}
                 </div>
                 <Button variant="outline" onClick={onLogout}>
                   {t("portal.account.logout")}

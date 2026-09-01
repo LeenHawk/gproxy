@@ -143,6 +143,8 @@ pub const fn streaming_sibling(operation: Operation) -> Option<Operation> {
         | Operation::CountTokens
         | Operation::SummarizeMemory
         | Operation::StreamGenerateContent
+        | Operation::GuardianReview
+        | Operation::GuardianClassify
         | Operation::CompactContent
         | Operation::CreateEmbedding
         | Operation::BatchCreateEmbedding

@@ -5,14 +5,16 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
-pub(super) const VERSION: &str = "0.147.0";
-pub(super) const ORIGINATOR: &str = "codex_exec";
-pub(super) const USER_AGENT: &str =
-    "codex_exec/0.147.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.147.0)";
+pub(super) const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(super) const ORIGINATOR: &str = "codex_cli_rs";
 
 pub(super) const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 pub(super) const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
-const EXPIRY_SKEW_SECONDS: i64 = 60;
+const EXPIRY_SKEW_SECONDS: i64 = 5 * 60;
+
+pub(super) fn fallback_user_agent() -> String {
+    format!("{ORIGINATOR}/{VERSION} (gproxy; {VERSION})")
+}
 
 pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
     secret_string(secret, "access_token")
@@ -38,16 +40,14 @@ pub(super) fn refresh<'a>(
     let request = (|| {
         let refresh_token = secret_string(secret, "refresh_token")
             .ok_or_else(|| ChannelError::Refresh("refresh_token missing".into()))?;
-        let body = crate::shared::http::form(&[
-            ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token),
-            ("client_id", CLIENT_ID),
-        ]);
+        let body = serde_json::to_vec(&serde_json::json!({
+            "client_id": CLIENT_ID,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }))
+        .map_err(|error| ChannelError::Refresh(error.to_string()))?;
         let mut request = http::Request::post(TOKEN_URL)
-            .header(
-                http::header::CONTENT_TYPE,
-                "application/x-www-form-urlencoded",
-            )
+            .header(http::header::CONTENT_TYPE, "application/json")
             .header(http::header::ACCEPT, "application/json")
             .body(Bytes::from(body))
             .map_err(|error| ChannelError::Refresh(error.to_string()))?;
@@ -115,14 +115,21 @@ pub(super) fn apply_headers(
         AUTHORIZATION,
         &format!("Bearer {}", access_token(secret)?),
     )?;
-    headers.insert(
-        http::header::USER_AGENT,
-        HeaderValue::from_static(USER_AGENT),
-    );
-    headers.insert(
-        HeaderName::from_static("originator"),
-        HeaderValue::from_static(ORIGINATOR),
-    );
+    if !headers.contains_key(http::header::USER_AGENT) {
+        insert(headers, http::header::USER_AGENT, &fallback_user_agent())?;
+    }
+    if !headers.contains_key("originator") {
+        headers.insert(
+            HeaderName::from_static("originator"),
+            HeaderValue::from_static(ORIGINATOR),
+        );
+    }
+    if !headers.contains_key("version") {
+        headers.insert(
+            HeaderName::from_static("version"),
+            HeaderValue::from_static(VERSION),
+        );
+    }
     insert(headers, HeaderName::from_static("session-id"), session_id)?;
     if !headers.contains_key("x-client-request-id") {
         insert(
@@ -137,6 +144,17 @@ pub(super) fn apply_headers(
             HeaderName::from_static("chatgpt-account-id"),
             account_id,
         )?;
+    }
+    headers.remove("x-openai-fedramp");
+    if secret
+        .get("chatgpt_account_is_fedramp")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        headers.insert(
+            HeaderName::from_static("x-openai-fedramp"),
+            HeaderValue::from_static("true"),
+        );
     }
     headers.insert(
         http::header::CONTENT_TYPE,
@@ -168,6 +186,9 @@ fn rotate(secret: &Value, token: &Value) -> Result<Value, ChannelError> {
         }
         if let Some(email) = email_from_jwt(id_token) {
             object.insert("user_email".into(), Value::String(email));
+        }
+        if let Some(fedramp) = fedramp_from_jwt(id_token) {
+            object.insert("chatgpt_account_is_fedramp".into(), Value::Bool(fedramp));
         }
     }
     object.insert(
@@ -205,6 +226,12 @@ fn email_from_jwt(token: &str) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
+}
+
+fn fedramp_from_jwt(token: &str) -> Option<bool> {
+    jwt_claims(token)?
+        .pointer("/https:~1~1api.openai.com~1auth/chatgpt_account_is_fedramp")
+        .and_then(Value::as_bool)
 }
 
 fn jwt_claims(token: &str) -> Option<Value> {

@@ -16,7 +16,7 @@ use super::request::Classified;
 
 pub(super) async fn run<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     request: &RequestCtx,
     plan: &Plan,
     classified: &Classified,
@@ -73,7 +73,7 @@ fn local_route<H: Host>(core: &Core<H>, plan: &Plan, key: gproxy_protocol::Opera
 
 async fn serve<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     request: &RequestCtx,
     plan: &Plan,
     classified: &Classified,

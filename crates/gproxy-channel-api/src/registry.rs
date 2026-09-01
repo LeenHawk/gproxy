@@ -9,6 +9,7 @@ use crate::login::ChannelLoginRef;
 /// Built once at startup from the built-in set plus any compile-time
 /// linked extensions (the native `linkme` collection lives with the app,
 /// not here). Duplicate ids fail construction — v2 policy, kept.
+#[derive(Clone)]
 pub struct ChannelRegistry {
     channels: BTreeMap<&'static str, Arc<dyn Channel>>,
 }

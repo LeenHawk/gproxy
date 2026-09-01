@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::UserKeyPrefix;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct PortalContextDto {
     pub user_name: String,
@@ -8,6 +10,33 @@ pub struct PortalContextDto {
     pub key_label: Option<String>,
     pub expires_at: Option<i64>,
     pub recent_requests_enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PortalLoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct PortalSessionStatusDto {
+    pub user: Option<PortalContextDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PortalPasswordChangeRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct PortalKeyCreateRequest {
+    pub prefix: UserKeyPrefix,
+    pub label: Option<String>,
+    pub expires_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

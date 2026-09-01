@@ -1,8 +1,8 @@
 use crate::backend::Row;
 use crate::query::{admin, admin_auth, admin_seed};
 use crate::records::{
-    AdminUserRecord, AuditEventInput, AuditEventRecord, CredentialEnvelope, UserKeySecretRecord,
-    UserSessionInput,
+    AdminUserRecord, AuditEventInput, AuditEventRecord, CredentialEnvelope, UserAuthRecord,
+    UserKeySecretRecord, UserSessionInput,
 };
 use crate::{Store, StoreError};
 
@@ -58,6 +58,32 @@ impl Store {
         Ok(result.affected_rows > 0)
     }
 
+    pub async fn set_user_password(
+        &self,
+        id: i64,
+        password_hash: &str,
+    ) -> Result<bool, StoreError> {
+        let result = self
+            .backend()
+            .execute(admin_auth::set_user_password(id, password_hash)?)
+            .await?;
+        Ok(result.affected_rows > 0)
+    }
+
+    pub async fn user_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<UserAuthRecord>, StoreError> {
+        self.backend()
+            .execute(admin_auth::user_by_username(username)?)
+            .await?
+            .rows
+            .into_iter()
+            .next()
+            .map(parse_user_auth)
+            .transpose()
+    }
+
     pub async fn admin_by_username(
         &self,
         username: &str,
@@ -106,6 +132,21 @@ impl Store {
             .transpose()
     }
 
+    pub async fn user_for_session(
+        &self,
+        token_digest: &[u8],
+        now: i64,
+    ) -> Result<Option<UserAuthRecord>, StoreError> {
+        self.backend()
+            .execute(admin_auth::user_for_session(token_digest, now)?)
+            .await?
+            .rows
+            .into_iter()
+            .next()
+            .map(parse_user_auth)
+            .transpose()
+    }
+
     pub async fn delete_user_session(&self, token_digest: &[u8]) -> Result<(), StoreError> {
         self.backend()
             .execute(admin_auth::delete_user_session(token_digest)?)
@@ -146,6 +187,17 @@ fn parse_admin(row: Row) -> Result<AdminUserRecord, StoreError> {
     Ok(AdminUserRecord {
         id: row.i64("id")?,
         name: row.text("name")?.to_owned(),
+        password_hash: row.text("password_hash")?.to_owned(),
+        enabled: row.i64("enabled")? != 0,
+    })
+}
+
+fn parse_user_auth(row: Row) -> Result<UserAuthRecord, StoreError> {
+    Ok(UserAuthRecord {
+        id: row.i64("id")?,
+        name: row.text("name")?.to_owned(),
+        organization_id: row.optional_i64("organization_id")?,
+        team_id: row.optional_i64("team_id")?,
         password_hash: row.text("password_hash")?.to_owned(),
         enabled: row.i64("enabled")? != 0,
     })

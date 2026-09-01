@@ -15,6 +15,7 @@ pub mod channel;
 pub mod disposition;
 pub mod endpoint;
 pub mod login;
+pub mod oauth;
 pub mod operation;
 pub mod registry;
 pub mod resource;
@@ -37,6 +38,7 @@ pub use login::{
     CookieExchangeCtx, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, LoginDescriptor,
     LoginMode, LoginParam, LoginParamKind,
 };
+pub use oauth::*;
 pub use operation::{
     DriverInput, OperationDriver, OperationStep, OperationStream, Pause, StepResponse, StreamOutput,
 };

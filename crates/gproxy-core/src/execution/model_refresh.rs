@@ -11,7 +11,7 @@ use crate::host::Host;
 
 pub(super) async fn run<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     request: &RequestCtx,
     plan: &Plan,
     owner_user_id: i64,

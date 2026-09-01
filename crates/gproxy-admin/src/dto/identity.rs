@@ -46,6 +46,13 @@ pub struct UserWriteRequest {
     pub team_id: Option<i64>,
     pub enabled: bool,
     pub is_admin: bool,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct UserPasswordRequest {
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

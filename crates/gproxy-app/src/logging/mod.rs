@@ -41,7 +41,7 @@ pub(crate) async fn begin(
     if !enabled(settings, ENABLE_DOWNSTREAM_LOG) {
         return None;
     }
-    let redact = !enabled(settings, DISABLE_LOG_REDACTION);
+    let redact = sensitive_path(&request.path) || !enabled(settings, DISABLE_LOG_REDACTION);
     let body = enabled(settings, ENABLE_DOWNSTREAM_LOG_BODY);
     let input = RequestLogInput {
         request_id: request.request_id.clone(),
@@ -64,6 +64,13 @@ pub(crate) async fn begin(
         redact,
         body,
     })
+}
+
+fn sensitive_path(path: &str) -> bool {
+    path.starts_with("/oauth/")
+        || path.starts_with("/api/accounts/deviceauth/")
+        || path == "/codex/device"
+        || matches!(path, "/portal/api/login" | "/portal/api/password")
 }
 
 pub(crate) async fn finish(

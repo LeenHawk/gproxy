@@ -11,6 +11,30 @@ pub struct AdminUserRecord {
     pub enabled: bool,
 }
 
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UserAuthRecord {
+    pub id: i64,
+    pub name: String,
+    pub organization_id: Option<i64>,
+    pub team_id: Option<i64>,
+    pub password_hash: String,
+    pub enabled: bool,
+}
+
+impl std::fmt::Debug for UserAuthRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UserAuthRecord")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("organization_id", &self.organization_id)
+            .field("team_id", &self.team_id)
+            .field("password_hash", &"<redacted>")
+            .field("enabled", &self.enabled)
+            .finish()
+    }
+}
+
 impl std::fmt::Debug for AdminUserRecord {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter

@@ -31,10 +31,16 @@ pub(super) async fn get(
         .iter()
         .map(|provider| (provider.id, provider.name.clone()))
         .collect::<BTreeMap<_, _>>();
-    let values = state
-        .store()
-        .recent_usage_for_key(identity.user_key_id, limit)
-        .await?
+    let recent = match identity.user_key_id {
+        Some(key) => state.store().recent_usage_for_key(key, limit).await?,
+        None => {
+            state
+                .store()
+                .recent_usage_for_user(identity.user_id, limit)
+                .await?
+        }
+    };
+    let values = recent
         .into_iter()
         .map(|record| PortalRecentRequestDto {
             request_id: record.request_id,

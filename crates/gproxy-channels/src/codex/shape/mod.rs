@@ -18,9 +18,10 @@ pub(super) fn request(
     model: &str,
 ) -> Result<Bytes, ChannelError> {
     match operation {
-        Operation::GenerateContent | Operation::StreamGenerateContent => {
-            responses::request(body, model)
-        }
+        Operation::GenerateContent
+        | Operation::StreamGenerateContent
+        | Operation::GuardianReview
+        | Operation::GuardianClassify => responses::request(body, model),
         Operation::CreateImage => images::create(body, model),
         Operation::EditImage => images::edit(headers, body, model),
         Operation::SummarizeMemory => rewrite_memory_model(body, model),

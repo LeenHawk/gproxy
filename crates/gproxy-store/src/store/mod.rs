@@ -5,6 +5,7 @@ mod credentials;
 mod delete;
 mod identity;
 mod import;
+mod oauth;
 mod process;
 mod recent_usage;
 mod runtime;

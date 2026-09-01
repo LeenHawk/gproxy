@@ -3,6 +3,7 @@ mod build;
 mod catalog;
 mod control;
 mod identity;
+mod oauth;
 mod runtime;
 mod tokenizer;
 mod wave26;

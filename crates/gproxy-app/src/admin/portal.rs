@@ -26,7 +26,7 @@ pub(super) fn identity(
         .ok_or(AdminError::Unauthorized)?;
     Ok(PortalIdentity {
         user_id: caller.user_id,
-        user_key_id: caller.user_key_id,
+        user_key_id: Some(caller.user_key_id),
         org_id: caller.org_id,
         team_id: caller.team_id,
         user_name: user.name.clone(),
@@ -103,7 +103,7 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
 fn caller(identity: &PortalIdentity) -> CallerIdentity {
     CallerIdentity {
         user_id: identity.user_id,
-        user_key_id: identity.user_key_id,
+        user_key_id: identity.user_key_id.unwrap_or(-identity.user_id),
         org_id: identity.org_id,
         team_id: identity.team_id,
     }

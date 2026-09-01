@@ -32,7 +32,7 @@ pub(crate) enum Dispatch {
 
 pub(crate) async fn dispatch<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     ctx: RequestCtx,
     planned: Option<&Plan>,
     classified: Result<crate::execution::request::Classified, CoreError>,
@@ -43,7 +43,7 @@ pub(crate) async fn dispatch<H: Host>(
 
 async fn run<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     mut ctx: RequestCtx,
     planned: Option<&Plan>,
     mut classified: Result<crate::execution::request::Classified, CoreError>,
@@ -74,6 +74,9 @@ async fn run<H: Host>(
             gproxy_channel_api::SurfaceAffinity::BearerToken { .. }
         )
     });
+    let public = matches
+        .iter()
+        .any(|matched| matches!(matched.entry.action, SurfaceAction::PublicSynthesize { .. }));
     let resolve = |affinity| {
         planned.cloned().map_or_else(
             || {
@@ -91,7 +94,21 @@ async fn run<H: Host>(
             Ok,
         )
     };
-    let (identity, plan) = if bearer_auth {
+    let (identity, plan) = if public {
+        let plan = match resolve(None) {
+            Ok(plan) => plan,
+            Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
+        };
+        (
+            gproxy_channel_api::CallerIdentity {
+                user_id: 0,
+                user_key_id: 0,
+                org_id: None,
+                team_id: None,
+            },
+            plan,
+        )
+    } else if bearer_auth {
         let plan = match resolve(None) {
             Ok(plan) => plan,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
@@ -157,7 +174,7 @@ async fn run<H: Host>(
             },
         )
     } else {
-        if let Err(error) = core.host.admit(&identity, &ctx, None, &plan).await {
+        if !public && let Err(error) = core.host.admit(&identity, &ctx, None, &plan).await {
             return Dispatch::Outcome(reject(&ctx, matched_label, error));
         }
         let mut selected = match affinity::select(core, &ctx, &identity, &plan, matches).await {
@@ -181,7 +198,9 @@ async fn run<H: Host>(
             },
         )
     };
-    crate::execution::ingress::strip(&mut ctx);
+    if !public && !ctx.upgrade {
+        crate::execution::ingress::strip(&mut ctx);
+    }
     let (selected, affinity, pin, surface_label) = match route {
         Route::Continue(classified) => {
             return Dispatch::Continue {
@@ -237,7 +256,7 @@ async fn run<H: Host>(
 
 async fn action<H: Host>(
     core: &Core<H>,
-    control: &impl ControlPlane,
+    control: &dyn ControlPlane,
     ctx: &RequestCtx,
     plan: &Plan,
     identity: &gproxy_channel_api::CallerIdentity,
@@ -251,7 +270,7 @@ async fn action<H: Host>(
         SurfaceAction::OperationAlias { .. } => Err(CoreError::Internal(
             "operation alias reached the surface action engine".into(),
         )),
-        SurfaceAction::Synthesize { .. } => {
+        SurfaceAction::Synthesize { .. } | SurfaceAction::PublicSynthesize { .. } => {
             let target = selected.target.clone();
             synth::run(core, control, ctx, plan, identity, selected, started)
                 .await
@@ -272,7 +291,9 @@ fn reject<T>(
 fn action_label(action: &SurfaceAction) -> Option<&'static str> {
     match action {
         SurfaceAction::Forward(spec) | SurfaceAction::ForwardWebSocket(spec) => Some(spec.label),
-        SurfaceAction::OperationAlias { .. } | SurfaceAction::Synthesize { .. } => None,
+        SurfaceAction::OperationAlias { .. }
+        | SurfaceAction::Synthesize { .. }
+        | SurfaceAction::PublicSynthesize { .. } => None,
     }
 }
 

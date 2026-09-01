@@ -267,7 +267,7 @@ fn committed_disposition(disposition: Disposition, committed: bool) -> Dispositi
 
 pub(crate) async fn finish<H: Host>(
     core: &Core<H>,
-    control: &impl crate::control::ControlPlane,
+    control: &dyn crate::control::ControlPlane,
     completed: Completed,
 ) -> ExecOutcome {
     let channel = core

@@ -1,61 +1,82 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQueries, useQueryClient } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import type { PortalContextDto } from "@/generated/PortalContextDto"
 import {
-  portalContext,
+  portalLogin,
+  portalLogout,
   portalModels,
   portalQuotaWindows,
   portalRecentRequests,
   portalUsage,
+  portalSession,
 } from "@/api/portal"
 import { PortalDashboard } from "@/components/portal/portal-dashboard"
 import { PortalLogin } from "@/components/portal/portal-login"
 import { PortalShell } from "@/components/portal/portal-shell"
 import type { UsageDays } from "@/components/portal/usage-panel"
 
-type PortalSession = { apiKey: string; context: PortalContextDto }
+type PortalSession = { context: PortalContextDto }
+
+function continueOAuth() {
+  const value = new URLSearchParams(window.location.search).get("oauth_return")
+  if (value?.startsWith("/") && !value.startsWith("//")) window.location.assign(value)
+}
 
 export function PortalPage() {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [session, setSession] = useState<PortalSession | null>(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
   const [loginPending, setLoginPending] = useState(false)
   const [loginFailed, setLoginFailed] = useState(false)
   const [usageDays, setUsageDays] = useState<UsageDays>(7)
-  const apiKey = session?.apiKey ?? ""
   const authenticated = session != null
   const recentEnabled = session?.context.recent_requests_enabled ?? false
   const [modelsQuery, usageQuery, quotaQuery, recentQuery] = useQueries({ queries: [
     {
       queryKey: ["portal", "models"],
-      queryFn: ({ signal }) => portalModels(apiKey, signal),
+      queryFn: ({ signal }) => portalModels(signal),
       enabled: authenticated,
     },
     {
       queryKey: ["portal", "usage", usageDays],
       queryFn: ({ signal }) => {
         const to = Math.floor(Date.now() / 1_000) + 1
-        return portalUsage(apiKey, { from: to - usageDays * 86_400, to }, signal)
+        return portalUsage({ from: to - usageDays * 86_400, to }, signal)
       },
       enabled: authenticated,
     },
     {
       queryKey: ["portal", "quota-windows"],
-      queryFn: ({ signal }) => portalQuotaWindows(apiKey, signal),
+      queryFn: ({ signal }) => portalQuotaWindows(signal),
       enabled: authenticated,
     },
     {
       queryKey: ["portal", "recent-requests"],
-      queryFn: ({ signal }) => portalRecentRequests(apiKey, { limit: 20 }, signal),
+      queryFn: ({ signal }) => portalRecentRequests({ limit: 20 }, signal),
       enabled: authenticated && recentEnabled,
     },
   ] })
 
-  async function login(key: string) {
+  useEffect(() => {
+    void portalSession()
+      .then((status) => {
+        if (status.user) {
+          setSession({ context: status.user })
+          continueOAuth()
+        }
+      })
+      .finally(() => setSessionLoading(false))
+  }, [])
+
+  async function login(username: string, password: string) {
     setLoginPending(true)
     setLoginFailed(false)
     try {
-      const context = await portalContext(key)
-      setSession({ apiKey: key, context })
+      const context = await portalLogin({ username, password })
+      setSession({ context })
+      continueOAuth()
     } catch {
       setLoginFailed(true)
     } finally {
@@ -63,7 +84,8 @@ export function PortalPage() {
     }
   }
 
-  function logout() {
+  async function logout() {
+    await portalLogout().catch(() => undefined)
     setSession(null)
     setUsageDays(7)
     setLoginFailed(false)
@@ -71,19 +93,21 @@ export function PortalPage() {
     queryClient.removeQueries({ queryKey: ["portal"] })
   }
 
+  if (sessionLoading) return <PortalShell context={null}><p>{t("portal.login.checking")}</p></PortalShell>
+
   if (!session) {
     return (
       <PortalShell context={null}>
-        <PortalLogin pending={loginPending} failed={loginFailed} onSubmit={(key) => void login(key)} />
+        <PortalLogin pending={loginPending} failed={loginFailed} onSubmit={(username, password) => void login(username, password)} />
       </PortalShell>
     )
   }
 
   return (
-    <PortalShell context={session.context} onLogout={logout}>
+      <PortalShell context={session.context} onLogout={() => void logout()}>
       <PortalDashboard
         context={session.context}
-        apiKey={session.apiKey}
+        apiKey={t("portal.connect.keyPlaceholder")}
         origin={window.location.origin}
         models={modelsQuery.data ?? []}
         modelsLoading={modelsQuery.isLoading}

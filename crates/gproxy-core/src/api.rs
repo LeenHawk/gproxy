@@ -39,7 +39,43 @@ pub struct Core<H: Host> {
     pub(crate) channels: ChannelRegistry,
 }
 
+impl<H: Host> Clone for Core<H> {
+    fn clone(&self) -> Self {
+        Self {
+            host: self.host.clone(),
+            channels: self.channels.clone(),
+        }
+    }
+}
+
 impl<H: Host> Core<H> {
+    /// Returns whether a host request path is a declared operation or channel
+    /// service surface. Hosts use this before stripping a named-route prefix so
+    /// routing syntax never grows a second list of protocol paths.
+    pub fn matches_ingress(&self, method: &http::Method, path: &str, upgrade: bool) -> bool {
+        let operation = gproxy_protocol::match_ingress_for(method, path, None)
+            .is_some_and(|matched| matched.upgrade == upgrade);
+        operation
+            || self.channels.iter().any(|channel| {
+                channel.surfaces().0.iter().any(|entry| {
+                    if entry.method != method
+                        || gproxy_protocol::match_path(entry.pattern, path).is_none()
+                    {
+                        return false;
+                    }
+                    let websocket = match &entry.action {
+                        gproxy_channel_api::SurfaceAction::ForwardWebSocket(_) => true,
+                        gproxy_channel_api::SurfaceAction::OperationAlias { canonical_path } => {
+                            gproxy_protocol::match_ingress_for(entry.method, canonical_path, None)
+                                .is_some_and(|matched| matched.upgrade)
+                        }
+                        _ => false,
+                    };
+                    websocket == upgrade
+                })
+            })
+    }
+
     pub fn channels(&self) -> impl Iterator<Item = &dyn gproxy_channel_api::Channel> + '_ {
         self.channels.iter()
     }
@@ -117,7 +153,7 @@ impl<H: Host> Core<H> {
     /// still apply. Service-surface forwards use exactly this.
     pub async fn invoke(
         &self,
-        control: &impl ControlPlane,
+        control: &dyn ControlPlane,
         target: &Target,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
@@ -128,7 +164,7 @@ impl<H: Host> Core<H> {
     /// then behaves as [`Self::execute_planned`].
     pub async fn execute(
         &self,
-        control: &impl ControlPlane,
+        control: &dyn ControlPlane,
         ctx: RequestCtx,
     ) -> Result<ExecOutcome, CoreError> {
         let classified = crate::execution::request::classify(&ctx);
@@ -152,7 +188,7 @@ impl<H: Host> Core<H> {
     /// over inside the plan's budget, and settles through the funnel.
     pub async fn execute_planned(
         &self,
-        control: &impl ControlPlane,
+        control: &dyn ControlPlane,
         ctx: RequestCtx,
         plan: Plan,
     ) -> Result<ExecOutcome, CoreError> {

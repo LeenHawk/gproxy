@@ -98,6 +98,21 @@ pub(super) async fn reveal(
     keys::reveal(state, admin, id).await
 }
 
+pub(super) async fn password(
+    state: &impl State,
+    id: i64,
+    body: &Bytes,
+) -> Result<Response<Bytes>, AdminError> {
+    let request: crate::dto::UserPasswordRequest = super::util::parse(body)?;
+    crate::auth::password::validate(&request.password)?;
+    validators::user(state, id).await?;
+    let hash = crate::auth::password::hash(&request.password)?;
+    if !state.store().set_user_password(id, &hash).await? {
+        return Err(AdminError::NotFound);
+    }
+    Ok(response::empty(StatusCode::NO_CONTENT))
+}
+
 pub(super) async fn delete(
     state: &impl State,
     entity: Entity,
