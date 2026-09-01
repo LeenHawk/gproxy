@@ -2,4 +2,8 @@
 import type { QuotaProbeWindowDto } from "./QuotaProbeWindowDto";
 import type { QuotaResetCreditsDto } from "./QuotaResetCreditsDto";
 
-export type QuotaProbeResponse = { windows: Array<QuotaProbeWindowDto>, reset_credits: QuotaResetCreditsDto | null, };
+export type QuotaProbeResponse = { windows: Array<QuotaProbeWindowDto>, reset_credits: QuotaResetCreditsDto | null, 
+/**
+ * Verbatim usage-endpoint body for operator inspection.
+ */
+raw: string, };

@@ -43,6 +43,7 @@ pub(super) async fn run(
             available_count: credits.available_count,
             expires_at: credits.expires_at,
         }),
+        raw: result.raw,
     })
 }
 

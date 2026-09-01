@@ -108,6 +108,8 @@ pub struct QuotaProbeWindowDto {
 pub struct QuotaProbeResponse {
     pub windows: Vec<QuotaProbeWindowDto>,
     pub reset_credits: Option<QuotaResetCreditsDto>,
+    /// Verbatim usage-endpoint body for operator inspection.
+    pub raw: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

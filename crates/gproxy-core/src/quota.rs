@@ -15,6 +15,9 @@ use crate::{Core, CoreError, Host, ProviderRef, UpstreamTransport};
 pub struct QuotaProbeResult {
     pub observations: Vec<QuotaObservation>,
     pub reset_credits: Option<QuotaResetCredits>,
+    /// Verbatim usage-endpoint body, so an operator can inspect windows the
+    /// channel parser does not (yet) extract.
+    pub raw: String,
 }
 
 impl<H: Host> Core<H> {
@@ -40,6 +43,7 @@ impl<H: Host> Core<H> {
         };
         crate::fingerprint::apply_request(&mut request, provider)?;
         let (status, body) = self.buffered(request).await?;
+        let raw = String::from_utf8_lossy(&body).into_owned();
         let observations = channel.parse_quota_probe(status, &body);
         let mut reset_credits = channel.parse_quota_probe_credits(status, &body);
         // The dedicated credits endpoint carries per-credit expiry the usage
@@ -62,6 +66,7 @@ impl<H: Host> Core<H> {
         Ok(QuotaProbeResult {
             observations,
             reset_credits,
+            raw,
         })
     }
 
