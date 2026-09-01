@@ -12,6 +12,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("target_id", Integer),
             Col::required("at", Integer),
             Col::optional("details_json", Text),
+            Col::optional("client_ip", Text).since(SchemaVersion::Wave29),
         ],
         indexes: &[IndexSpec {
             name: "ix_admin_audit_at",

@@ -42,10 +42,13 @@ pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreEr
             target_kind: "user_key".into(),
             target_id: Some(user_key),
             at: 150,
+            client_ip: Some("203.0.113.4".into()),
             details: None,
         })
         .await?;
-    let audit_events = store.audit_events(10).await?.len();
+    let audit = store.audit_events(10).await?;
+    assert_eq!(audit[0].event.client_ip.as_deref(), Some("203.0.113.4"));
+    let audit_events = audit.len();
     store
         .record_credential_health(&crate::records::CredentialHealthInput {
             credential_id: 1,

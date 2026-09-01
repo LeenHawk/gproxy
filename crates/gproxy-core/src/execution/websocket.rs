@@ -144,6 +144,7 @@ impl<H: Host> ResponsesBridge<H> {
                 self.control.as_ref(),
                 RequestCtx {
                     request_id,
+                    client_ip: None,
                     method: http::Method::POST,
                     path: "/v1/responses".into(),
                     query: None,

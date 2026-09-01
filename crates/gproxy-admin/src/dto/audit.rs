@@ -10,6 +10,7 @@ pub struct AuditEventDto {
     pub target_kind: String,
     pub target_id: Option<i64>,
     pub at: i64,
+    pub client_ip: Option<String>,
     #[ts(type = "unknown | null")]
     pub details: Option<Value>,
 }

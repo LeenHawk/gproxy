@@ -11,6 +11,7 @@ const REQUEST_COLUMNS: &[&str] = &[
     "method",
     "path",
     "query",
+    "client_ip",
     "request_headers",
     "request_body",
     "response_status",
@@ -35,22 +36,41 @@ const WIRE_COLUMNS: &[&str] = &[
 
 pub(crate) fn list_logs(input: &LogQuery) -> Result<Statement, StoreError> {
     let requests = Alias::new("r");
+    let usage = Alias::new("u");
     let mut query = Query::select();
+    query.distinct();
+    for column in [
+        "id",
+        "request_id",
+        "at",
+        "method",
+        "path",
+        "response_status",
+        "error_kind",
+        "client_ip",
+    ] {
+        query.expr_as(
+            Expr::col((requests.clone(), Alias::new(column))),
+            Alias::new(column),
+        );
+    }
     query
-        .distinct()
-        .columns(
-            [
-                "id",
-                "request_id",
-                "at",
-                "method",
-                "path",
-                "response_status",
-                "error_kind",
-            ]
-            .map(|column| (requests.clone(), Alias::new(column))),
+        .expr_as(
+            Expr::col((usage.clone(), Alias::new("latency_ms"))),
+            Alias::new("duration_ms"),
+        )
+        .expr_as(
+            Expr::col((usage.clone(), Alias::new("output_tokens"))),
+            Alias::new("output_tokens"),
         )
         .from_as(Alias::new("request_logs"), requests.clone())
+        .join_as(
+            JoinType::LeftJoin,
+            Alias::new("usage_rows"),
+            usage.clone(),
+            Expr::col((usage.clone(), Alias::new("request_id")))
+                .equals((requests.clone(), Alias::new("request_id"))),
+        )
         .and_where(Expr::col((requests.clone(), Alias::new("at"))).gte(input.start))
         .and_where(Expr::col((requests.clone(), Alias::new("at"))).lt(input.end))
         .order_by((requests.clone(), Alias::new("at")), Order::Desc)
@@ -80,36 +100,50 @@ pub(crate) fn list_logs(input: &LogQuery) -> Result<Statement, StoreError> {
             Expr::col((Alias::new("wire_logs"), Alias::new("provider_id"))).eq(provider_id),
         );
     }
-    add_identity_filters(&mut query, &requests, input);
+    add_identity_filters(&mut query, &usage, input);
     Statement::query(&query)
 }
 
-fn add_identity_filters(
-    query: &mut sea_query::SelectStatement,
-    requests: &Alias,
-    input: &LogQuery,
-) {
-    if input.user_id.is_none() && input.user_key_id.is_none() {
-        return;
-    }
-    query.join(
-        JoinType::InnerJoin,
-        Alias::new("usage_rows"),
-        Expr::col((Alias::new("usage_rows"), Alias::new("request_id")))
-            .equals((requests.clone(), Alias::new("request_id"))),
-    );
+fn add_identity_filters(query: &mut sea_query::SelectStatement, usage: &Alias, input: &LogQuery) {
     for (column, filter) in [
         ("user_id", input.user_id),
         ("user_key_id", input.user_key_id),
     ] {
         if let Some(value) = filter {
-            query.and_where(Expr::col((Alias::new("usage_rows"), Alias::new(column))).eq(value));
+            query.and_where(Expr::col((usage.clone(), Alias::new(column))).eq(value));
         }
     }
 }
 
 pub(crate) fn request_log(request_id: &str) -> Result<Statement, StoreError> {
-    select_exchange("request_logs", REQUEST_COLUMNS, request_id, false)
+    let requests = Alias::new("r");
+    let usage = Alias::new("u");
+    let mut query = Query::select();
+    for column in REQUEST_COLUMNS {
+        query.expr_as(
+            Expr::col((requests.clone(), Alias::new(*column))),
+            Alias::new(*column),
+        );
+    }
+    query
+        .expr_as(
+            Expr::col((usage.clone(), Alias::new("latency_ms"))),
+            Alias::new("duration_ms"),
+        )
+        .expr_as(
+            Expr::col((usage.clone(), Alias::new("output_tokens"))),
+            Alias::new("output_tokens"),
+        )
+        .from_as(Alias::new("request_logs"), requests.clone())
+        .join_as(
+            JoinType::LeftJoin,
+            Alias::new("usage_rows"),
+            usage.clone(),
+            Expr::col((usage, Alias::new("request_id")))
+                .equals((requests.clone(), Alias::new("request_id"))),
+        )
+        .and_where(Expr::col((requests, Alias::new("request_id"))).eq(request_id));
+    Statement::query(&query)
 }
 
 pub(crate) fn wire_logs(request_id: &str) -> Result<Statement, StoreError> {

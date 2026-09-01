@@ -14,6 +14,7 @@ pub(crate) fn insert_audit_event(input: &AuditEventInput) -> Result<Statement, S
             "target_kind",
             "target_id",
             "at",
+            "client_ip",
             "details_json",
         ],
         vec![
@@ -22,6 +23,7 @@ pub(crate) fn insert_audit_event(input: &AuditEventInput) -> Result<Statement, S
             value(input.target_kind.clone()),
             value(input.target_id),
             value(input.at),
+            value(input.client_ip.clone()),
             value(
                 input
                     .details
@@ -44,6 +46,7 @@ pub(crate) fn select_audit_events(limit: u64) -> Result<Statement, StoreError> {
                 "target_kind",
                 "target_id",
                 "at",
+                "client_ip",
                 "details_json",
             ]
             .into_iter()

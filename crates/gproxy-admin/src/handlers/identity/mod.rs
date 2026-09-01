@@ -7,7 +7,6 @@ mod write;
 use bytes::Bytes;
 use http::{Response, StatusCode};
 
-use crate::auth::AdminIdentity;
 use crate::route::Entity;
 use crate::{AdminError, State, response};
 
@@ -90,12 +89,8 @@ pub(super) async fn update(
     }
 }
 
-pub(super) async fn reveal(
-    state: &impl State,
-    admin: &AdminIdentity,
-    id: i64,
-) -> Result<Response<Bytes>, AdminError> {
-    keys::reveal(state, admin, id).await
+pub(super) async fn reveal(state: &impl State, id: i64) -> Result<Response<Bytes>, AdminError> {
+    keys::reveal(state, id).await
 }
 
 pub(super) async fn password(

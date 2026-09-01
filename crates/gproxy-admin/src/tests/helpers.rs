@@ -27,7 +27,11 @@ pub(super) fn parts(method: Method, uri: &str, cookie: Option<&str>) -> http::re
     if let Some(cookie) = cookie {
         request = request.header(http::header::COOKIE, cookie);
     }
-    request.body(()).expect("request").into_parts().0
+    let mut parts = request.body(()).expect("request").into_parts().0;
+    parts
+        .extensions
+        .insert(crate::AuthSource("192.0.2.1".into()));
+    parts
 }
 
 pub(super) fn key_parts(method: Method, uri: &str) -> http::request::Parts {
@@ -42,14 +46,18 @@ pub(super) fn key_parts(method: Method, uri: &str) -> http::request::Parts {
 }
 
 pub(super) fn admin_parts(method: Method, uri: &str) -> http::request::Parts {
-    http::Request::builder()
+    let mut parts = http::Request::builder()
         .method(method)
         .uri(uri)
         .header(http::header::AUTHORIZATION, "Bearer admin-test-key")
         .body(())
         .expect("request")
         .into_parts()
-        .0
+        .0;
+    parts
+        .extensions
+        .insert(crate::AuthSource("192.0.2.2".into()));
+    parts
 }
 
 pub(super) async fn seed_admin_key(state: &TestState) {

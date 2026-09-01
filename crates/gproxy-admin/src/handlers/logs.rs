@@ -6,6 +6,7 @@ use gproxy_store::records::{
 };
 use http::request::Parts;
 use http::{Response, StatusCode};
+use rust_decimal::Decimal;
 use serde_json::Value;
 
 use crate::dto::{
@@ -47,6 +48,9 @@ pub(super) async fn list(state: &impl State, parts: &Parts) -> Result<Response<B
                     path: item.path,
                     response_status: item.response_status,
                     error_kind: item.error_kind,
+                    client_ip: item.client_ip,
+                    duration_ms: item.duration_ms,
+                    tps: throughput(item.output_tokens, item.duration_ms),
                 })
                 .collect(),
             next_cursor: page.next_cursor,
@@ -74,6 +78,9 @@ pub(super) async fn detail(
                 method: downstream.input.method,
                 path: downstream.input.path,
                 query: downstream.input.query,
+                client_ip: downstream.input.client_ip,
+                duration_ms: downstream.duration_ms,
+                tps: throughput(downstream.output_tokens, downstream.duration_ms),
                 request_headers: downstream.input.request_headers,
                 request_body: text(downstream.input.request_body),
                 response_status: downstream.response_status,
@@ -99,6 +106,21 @@ pub(super) async fn detail(
                 })
                 .collect(),
         },
+    )
+}
+
+fn throughput(output_tokens: Option<u64>, duration_ms: Option<u64>) -> Option<String> {
+    let (Some(output_tokens), Some(duration_ms)) = (output_tokens, duration_ms) else {
+        return None;
+    };
+    if duration_ms == 0 {
+        return None;
+    }
+    Some(
+        (Decimal::from(output_tokens) * Decimal::from(1_000_u64) / Decimal::from(duration_ms))
+            .round_dp(2)
+            .normalize()
+            .to_string(),
     )
 }
 
@@ -188,4 +210,18 @@ fn positive(values: &[SettingRecord], key: &str) -> Option<u64> {
 
 fn text(value: Option<Vec<u8>>) -> Option<String> {
     value.map(|body| String::from_utf8_lossy(&body).into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn throughput_uses_total_usage_duration() {
+        assert_eq!(
+            super::throughput(Some(50), Some(2_000)).as_deref(),
+            Some("25")
+        );
+        assert_eq!(super::throughput(Some(1), Some(333)).as_deref(), Some("3"));
+        assert_eq!(super::throughput(Some(1), Some(0)), None);
+        assert_eq!(super::throughput(None, Some(1_000)), None);
+    }
 }

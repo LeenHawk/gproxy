@@ -11,9 +11,12 @@ pub(crate) use session::{AdminIdentity, authenticate, now};
 pub struct AuthSource(pub String);
 
 pub(crate) fn source(parts: &http::request::Parts) -> &str {
+    source_ip(parts).unwrap_or("unknown")
+}
+
+pub(crate) fn source_ip(parts: &http::request::Parts) -> Option<&str> {
     parts
         .extensions
         .get::<AuthSource>()
         .map(|source| source.0.as_str())
-        .unwrap_or("unknown")
 }

@@ -474,6 +474,7 @@ fn target() -> Target {
 fn request(stream: bool, id: &str) -> RequestCtx {
     RequestCtx {
         request_id: format!("request-{id}"),
+        client_ip: None,
         method: Method::POST,
         path: "/v1/responses".into(),
         query: None,

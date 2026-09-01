@@ -24,6 +24,9 @@ pub struct LogListItemDto {
     pub path: String,
     pub response_status: Option<u16>,
     pub error_kind: Option<String>,
+    pub client_ip: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub tps: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -40,6 +43,9 @@ pub struct DownstreamLogDto {
     pub method: String,
     pub path: String,
     pub query: Option<String>,
+    pub client_ip: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub tps: Option<String>,
     #[ts(type = "Record<string, string> | null")]
     pub request_headers: Option<Value>,
     pub request_body: Option<String>,

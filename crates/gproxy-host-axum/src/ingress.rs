@@ -44,10 +44,11 @@ async fn handle_request(
         "request accepted"
     );
     let (mut parts, body) = request.into_parts();
-    parts.extensions.insert(gproxy_admin::AuthSource(
-        crate::request_policy::client_ip(peer.ip(), &parts.headers, &state.trusted_proxies)
-            .to_string(),
-    ));
+    let client_ip =
+        crate::request_policy::client_ip(peer.ip(), &parts.headers, &state.trusted_proxies);
+    parts
+        .extensions
+        .insert(gproxy_admin::AuthSource(client_ip.to_string()));
     let method = parts.method.clone();
     let path = parts.uri.path().to_owned();
     let query = parts.uri.query().map(str::to_owned);
@@ -122,6 +123,7 @@ async fn handle_request(
         gproxy_app::ingress::normalize_path(&state.app, &method, &path, websocket.is_some());
     let request = RequestCtx {
         request_id: request_id.clone(),
+        client_ip: Some(client_ip),
         method,
         path,
         query,

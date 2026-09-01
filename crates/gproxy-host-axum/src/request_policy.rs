@@ -58,3 +58,23 @@ pub(crate) fn apply_cors(mut response: Response, origin: Option<&HeaderValue>) -
     headers.append(http::header::VARY, HeaderValue::from_static("Origin"));
     response
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    #[test]
+    fn client_ip_trusts_forwarding_headers_only_from_a_trusted_peer() {
+        let claimed = "203.0.113.9";
+        let mut headers = http::HeaderMap::new();
+        headers.insert("x-forwarded-for", claimed.parse().unwrap());
+        let untrusted = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7));
+        assert_eq!(super::client_ip(untrusted, &headers, &[]), untrusted);
+
+        let loopback = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        assert_eq!(
+            super::client_ip(loopback, &headers, &[]),
+            claimed.parse::<IpAddr>().unwrap()
+        );
+    }
+}

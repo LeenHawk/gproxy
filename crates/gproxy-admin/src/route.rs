@@ -268,12 +268,14 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::CredentialHealthReset(id) => {
             action("credential.health_reset", "credentials", Some(*id))
         }
+        Route::RevealUserKey(id) => action("user_key.reveal", "user_key", Some(*id)),
+        Route::RevealCredentialSecret(id) => {
+            action("credential.secret_reveal", "credentials", Some(*id))
+        }
         Route::ModelDiscover => action("model.discover", "providers", None),
         Route::List(_)
         | Route::ConfigurationExport
         | Route::ConnectivityTest
-        | Route::RevealUserKey(_)
-        | Route::RevealCredentialSecret(_)
         | Route::Usage
         | Route::QuotaWindows
         | Route::CredentialCycles
@@ -357,5 +359,13 @@ mod tests {
             panic!("expected log detail route");
         };
         assert_eq!(request_id, "model-test:1:gpt-5.6-luna");
+    }
+
+    #[test]
+    fn secret_reveal_is_a_central_audit_action() {
+        let route = parse(&http::Method::POST, "/admin/api/credentials/17/reveal").unwrap();
+        let descriptor = audit(&route, b"{}").unwrap();
+        assert_eq!(descriptor.action, "credential.secret_reveal");
+        assert_eq!(descriptor.target_id, Some(17));
     }
 }

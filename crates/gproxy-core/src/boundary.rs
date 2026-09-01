@@ -20,6 +20,8 @@ pub use gproxy_channel_api::{ByteStream, TransportError};
 pub struct RequestCtx {
     /// Host-assigned id; threads every log line, capture row, and usage row.
     pub request_id: String,
+    /// Host-observed caller address. Direct embedders may not have one.
+    pub client_ip: Option<std::net::IpAddr>,
     pub method: Method,
     pub path: String,
     pub query: Option<String>,

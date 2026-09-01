@@ -99,6 +99,7 @@ impl EdgeHost {
         client_source: String,
     ) -> Result<EdgeReply, JsValue> {
         let request_id = request_id()?;
+        let client_ip = client_source.parse().ok();
         let mut incoming = match crate::request::read(&request, client_source).await {
             Ok(incoming) => incoming,
             Err(error) => {
@@ -166,6 +167,7 @@ impl EdgeHost {
         );
         let context = RequestCtx {
             request_id: request_id.clone(),
+            client_ip,
             method: incoming.method.clone(),
             path,
             query: incoming.query,

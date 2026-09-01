@@ -176,6 +176,7 @@ fn request(session: &str, first_user: &str, with_tail: bool) -> RequestCtx {
     }
     RequestCtx {
         request_id: format!("request-{session}-{with_tail}"),
+        client_ip: None,
         method: Method::POST,
         path: "/v1/responses".into(),
         query: None,
@@ -217,6 +218,7 @@ fn claude_request(session: &str, first_user: &str, with_tail: bool) -> RequestCt
     headers.insert("anthropic-version", "2023-06-01".parse().unwrap());
     RequestCtx {
         request_id: format!("request-{session}-{with_tail}"),
+        client_ip: None,
         method: Method::POST,
         path: "/v1/messages".into(),
         query: None,

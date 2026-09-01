@@ -162,6 +162,7 @@ pub(super) async fn seed_capture(
             method: "POST".into(),
             path: "/v1/responses".into(),
             query: None,
+            client_ip: Some("198.51.100.7".into()),
             request_headers: None,
             request_body: None,
         })

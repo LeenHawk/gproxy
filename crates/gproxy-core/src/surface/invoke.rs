@@ -150,6 +150,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
             let (parts, body) = request.into_parts();
             let ctx = RequestCtx {
                 request_id: request_id.clone(),
+                client_ip: None,
                 method: parts.method.clone(),
                 path: parts.uri.path().into(),
                 query: parts.uri.query().map(str::to_owned),

@@ -3,7 +3,7 @@ use bytes::Bytes;
 use gproxy_store::records::{UserKeyInput, UserKeyUpdateInput};
 use http::{Response, StatusCode};
 
-use crate::auth::{AdminIdentity, now};
+use crate::auth::now;
 use crate::dto::{
     UserKeyCreateRequest, UserKeyCreateResponse, UserKeyPrefix, UserKeyRevealResponse,
     UserKeyUpdateRequest,
@@ -76,13 +76,9 @@ pub(super) async fn update(
     util::updated(state, applied).await
 }
 
-pub(super) async fn reveal(
-    state: &impl State,
-    admin: &AdminIdentity,
-    id: i64,
-) -> Result<Response<Bytes>, AdminError> {
+pub(super) async fn reveal(state: &impl State, id: i64) -> Result<Response<Bytes>, AdminError> {
     let revealed_at = now()?;
-    let api_key = state.reveal_user_key(admin.id, id, revealed_at).await?;
+    let api_key = state.reveal_user_key(id).await?;
     response::json(
         StatusCode::OK,
         &UserKeyRevealResponse {

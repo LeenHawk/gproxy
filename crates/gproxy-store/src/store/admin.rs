@@ -212,6 +212,7 @@ fn parse_audit(row: Row) -> Result<AuditEventRecord, StoreError> {
             target_kind: row.text("target_kind")?.to_owned(),
             target_id: row.optional_i64("target_id")?,
             at: row.i64("at")?,
+            client_ip: row.optional_text("client_ip")?.map(str::to_owned),
             details: row
                 .optional_text("details_json")?
                 .map(|value| serde_json::from_str(value).map_err(invalid_json))

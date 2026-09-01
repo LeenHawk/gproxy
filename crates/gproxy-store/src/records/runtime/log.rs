@@ -39,6 +39,7 @@ pub struct RequestLogInput {
     pub method: String,
     pub path: String,
     pub query: Option<String>,
+    pub client_ip: Option<String>,
     pub request_headers: Option<serde_json::Value>,
     pub request_body: Option<Vec<u8>>,
 }
@@ -74,6 +75,9 @@ pub struct RequestLogSummary {
     pub path: String,
     pub response_status: Option<u16>,
     pub error_kind: Option<String>,
+    pub client_ip: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub output_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +94,8 @@ pub struct RequestLogRecord {
     pub error_kind: Option<String>,
     pub response_headers: Option<serde_json::Value>,
     pub response_body: Option<Vec<u8>>,
+    pub duration_ms: Option<u64>,
+    pub output_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

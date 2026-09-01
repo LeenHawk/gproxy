@@ -48,6 +48,7 @@ pub(crate) async fn begin(
         at: unix_now(),
         method: request.method.to_string(),
         path: request.path.clone(),
+        client_ip: request.client_ip.map(|ip| ip.to_string()),
         query: request
             .query
             .as_deref()

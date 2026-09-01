@@ -111,6 +111,7 @@ fn claudeweb_new_and_resume_turns_transfer_one_scoped_stream() {
 fn request(id: &str, body: serde_json::Value) -> RequestCtx {
     RequestCtx {
         request_id: id.into(),
+        client_ip: None,
         method: http::Method::POST,
         path: "/v1/messages".into(),
         query: None,

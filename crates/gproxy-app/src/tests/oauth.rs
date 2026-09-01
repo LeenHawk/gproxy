@@ -158,6 +158,7 @@ async fn named_codex_oauth_issues_an_authenticating_access_token() {
         .host
         .authenticate(&RequestCtx {
             request_id: "access-auth".into(),
+            client_ip: None,
             method: Method::GET,
             path: "/v1/models".into(),
             query: None,
@@ -222,6 +223,7 @@ async fn named_codex_oauth_issues_an_authenticating_access_token() {
     let outcome = app
         .execute(RequestCtx {
             request_id: "responses-ws".into(),
+            client_ip: None,
             method,
             path,
             query: None,
@@ -365,6 +367,7 @@ fn request(
     let (mode, normalized) = crate::ingress::normalize_path(app, &method, path, false);
     RequestCtx {
         request_id: random(),
+        client_ip: None,
         method,
         path: normalized,
         query: (path.ends_with("authorize")).then(|| {

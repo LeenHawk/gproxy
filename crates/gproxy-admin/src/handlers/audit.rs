@@ -9,6 +9,7 @@ use crate::{AdminError, State, response};
 pub(crate) async fn record(
     state: &impl State,
     actor_user_id: i64,
+    client_ip: Option<&str>,
     event: crate::route::AuditDescriptor,
 ) -> Result<(), AdminError> {
     state
@@ -19,6 +20,7 @@ pub(crate) async fn record(
             target_kind: event.target_kind,
             target_id: event.target_id,
             at: crate::auth::now()?,
+            client_ip: client_ip.map(str::to_owned),
             details: None,
         })
         .await?;
@@ -48,6 +50,7 @@ pub(super) async fn list(state: &impl State, parts: &Parts) -> Result<Response<B
             target_kind: value.event.target_kind,
             target_id: value.event.target_id,
             at: value.event.at,
+            client_ip: value.event.client_ip,
             details: value.event.details,
         })
         .collect::<Vec<_>>();

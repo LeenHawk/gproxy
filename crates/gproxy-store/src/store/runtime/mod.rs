@@ -103,6 +103,9 @@ fn parse_summary(row: Row) -> Result<RequestLogSummary, StoreError> {
         path: row.text("path")?.to_owned(),
         response_status: optional_status(&row)?,
         error_kind: row.optional_text("error_kind")?.map(str::to_owned),
+        client_ip: row.optional_text("client_ip")?.map(str::to_owned),
+        duration_ms: optional_unsigned(&row, "duration_ms")?,
+        output_tokens: optional_unsigned(&row, "output_tokens")?,
     })
 }
 
@@ -115,6 +118,7 @@ fn parse_request(row: Row) -> Result<RequestLogRecord, StoreError> {
             method: row.text("method")?.to_owned(),
             path: row.text("path")?.to_owned(),
             query: row.optional_text("query")?.map(str::to_owned),
+            client_ip: row.optional_text("client_ip")?.map(str::to_owned),
             request_headers: optional_json(&row, "request_headers")?,
             request_body: row.optional_blob("request_body")?.map(<[u8]>::to_vec),
         },
@@ -122,6 +126,8 @@ fn parse_request(row: Row) -> Result<RequestLogRecord, StoreError> {
         error_kind: row.optional_text("error_kind")?.map(str::to_owned),
         response_headers: optional_json(&row, "response_headers")?,
         response_body: row.optional_blob("response_body")?.map(<[u8]>::to_vec),
+        duration_ms: optional_unsigned(&row, "duration_ms")?,
+        output_tokens: optional_unsigned(&row, "output_tokens")?,
     })
 }
 
@@ -163,5 +169,11 @@ fn optional_status(row: &Row) -> Result<Option<u16>, StoreError> {
                 message: error.to_string(),
             })
         })
+        .transpose()
+}
+
+fn optional_unsigned(row: &Row, field: &'static str) -> Result<Option<u64>, StoreError> {
+    row.optional_i64(field)?
+        .map(|value| super::usage::unsigned(value, field))
         .transpose()
 }

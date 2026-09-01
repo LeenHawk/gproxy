@@ -185,6 +185,7 @@ pub(super) fn request(id: &str, input: &str, api_key: &str) -> gproxy_core::Requ
     );
     gproxy_core::RequestCtx {
         request_id: format!("request-{id}"),
+        client_ip: None,
         method: Method::POST,
         path: "/v1/chat/completions".into(),
         query: None,

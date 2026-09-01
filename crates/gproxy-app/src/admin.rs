@@ -13,7 +13,7 @@ use gproxy_admin::dto::{ChannelDto, ExportSourceKeyDto, PortalModelDto, channel_
 use gproxy_admin::{AdminError, PortalIdentity, State};
 use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll};
 use gproxy_core::CacheBackend;
-use gproxy_store::records::{AuditEventInput, CredentialEnvelope};
+use gproxy_store::records::CredentialEnvelope;
 
 use crate::AppHandle;
 #[cfg(not(target_arch = "wasm32"))]
@@ -72,12 +72,7 @@ impl State for AppHandle {
         )
     }
 
-    fn reveal_user_key(
-        &self,
-        actor_user_id: i64,
-        id: i64,
-        at: i64,
-    ) -> BoxFuture<'_, Result<String, AdminError>> {
+    fn reveal_user_key(&self, id: i64) -> BoxFuture<'_, Result<String, AdminError>> {
         Box::pin(async move {
             let secret = self
                 .inner
@@ -107,28 +102,13 @@ impl State for AppHandle {
                     ));
                 }
             };
-            self.inner
-                .host
-                .services
-                .store
-                .record_audit_event(&AuditEventInput {
-                    actor_user_id,
-                    action: "user_key.reveal".into(),
-                    target_kind: "user_key".into(),
-                    target_id: Some(id),
-                    at,
-                    details: None,
-                })
-                .await?;
             Ok(api_key)
         })
     }
 
     fn reveal_credential_secret(
         &self,
-        actor_user_id: i64,
         id: i64,
-        at: i64,
     ) -> BoxFuture<'_, Result<serde_json::Value, AdminError>> {
         Box::pin(async move {
             let stored = self
@@ -146,19 +126,6 @@ impl State for AppHandle {
                 .cipher
                 .open(&stored.envelope)
                 .map_err(|error| AdminError::Internal(error.to_string()))?;
-            self.inner
-                .host
-                .services
-                .store
-                .record_audit_event(&AuditEventInput {
-                    actor_user_id,
-                    action: "credential.secret_reveal".into(),
-                    target_kind: "credentials".into(),
-                    target_id: Some(id),
-                    at,
-                    details: None,
-                })
-                .await?;
             Ok(secret)
         })
     }

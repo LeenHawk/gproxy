@@ -30,7 +30,7 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
                     .ok()
                     .and_then(|value| value.get("id")?.as_i64());
             }
-            handlers::audit::record(state, admin.id, event).await?;
+            handlers::audit::record(state, admin.id, auth::source_ip(parts), event).await?;
         }
         Ok(response)
     }

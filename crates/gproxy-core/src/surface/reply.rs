@@ -12,6 +12,7 @@ pub(crate) fn request_ctx(
 ) -> RequestCtx {
     RequestCtx {
         request_id,
+        client_ip: None,
         method: request.method.clone(),
         path: request.upstream_path.clone(),
         query: request.query.clone(),

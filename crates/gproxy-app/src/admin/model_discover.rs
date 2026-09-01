@@ -38,6 +38,7 @@ pub(super) async fn run(
     );
     let ctx = gproxy_core::RequestCtx {
         request_id: format!("model-discover:{}", request.provider_id),
+        client_ip: None,
         method: Method::GET,
         path: "/v1/models".into(),
         query: None,

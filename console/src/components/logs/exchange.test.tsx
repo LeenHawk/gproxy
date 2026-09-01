@@ -31,6 +31,11 @@ describe("Exchange", () => {
         status={201}
         responseHeaders={{ "content-type": "application/json" }}
         responseBody={'{"ok":true}'}
+        metrics={[
+          { label: "Client IP", value: "198.51.100.7" },
+          { label: "Duration", value: "2,000 ms" },
+          { label: "Output TPS", value: "25 tok/s" },
+        ]}
       />,
     )
 
@@ -44,6 +49,8 @@ describe("Exchange", () => {
     expect(screen.getAllByRole("button", { name: /^Copy / })).toHaveLength(4)
     expect(screen.getByRole("button", { name: "Copy Request body" })).toBeDisabled()
     expect(screen.getByLabelText("Response status: 201")).toBeInTheDocument()
+    expect(screen.getByText("198.51.100.7")).toBeInTheDocument()
+    expect(screen.getByText("25 tok/s")).toBeInTheDocument()
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Copy Request headers" })) })
     expect(writeText).toHaveBeenCalledWith('{\n  "authorization": "[redacted]"\n}')

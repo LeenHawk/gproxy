@@ -117,6 +117,7 @@ fn configure(host: &MemoryHost) {
 fn request(request_id: &str) -> RequestCtx {
     RequestCtx {
         request_id: request_id.into(),
+        client_ip: None,
         method: Method::POST,
         path: "/v1/realtime/calls".into(),
         query: None,

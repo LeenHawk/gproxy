@@ -15,6 +15,7 @@ pub(crate) fn begin_request_log(input: &RequestLogInput) -> Result<Statement, St
             Alias::new("method"),
             Alias::new("path"),
             Alias::new("query"),
+            Alias::new("client_ip"),
             Alias::new("request_headers"),
             Alias::new("request_body"),
         ])
@@ -24,6 +25,7 @@ pub(crate) fn begin_request_log(input: &RequestLogInput) -> Result<Statement, St
             value(input.method.clone()),
             value(input.path.clone()),
             value(input.query.clone()),
+            value(input.client_ip.clone()),
             value(
                 input
                     .request_headers

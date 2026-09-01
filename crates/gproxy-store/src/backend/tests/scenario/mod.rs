@@ -217,6 +217,12 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(binding.next_cursor, None);
     assert_eq!(rollup_requests, 1);
     assert_eq!(wire_logs, 2);
+    assert_eq!(
+        log.downstream.input.client_ip.as_deref(),
+        Some("198.51.100.7")
+    );
+    assert_eq!(log.downstream.duration_ms, Some(12));
+    assert_eq!(log.downstream.output_tokens, Some(5));
     assert_eq!(log.upstream.len(), 2);
     assert_eq!(log.upstream[0].input.response_status, Some(503));
     assert_eq!(log.upstream[1].input.response_status, Some(200));

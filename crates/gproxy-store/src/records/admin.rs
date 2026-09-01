@@ -74,6 +74,7 @@ pub struct AuditEventInput {
     pub target_kind: String,
     pub target_id: Option<i64>,
     pub at: i64,
+    pub client_ip: Option<String>,
     pub details: Option<Value>,
 }
 

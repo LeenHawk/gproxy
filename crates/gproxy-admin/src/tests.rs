@@ -58,14 +58,12 @@ impl State for TestState {
         (1, Sha256::digest(api_key.as_bytes()).to_vec())
     }
 
-    fn reveal_user_key(&self, _: i64, _: i64, _: i64) -> BoxFuture<'_, Result<String, AdminError>> {
+    fn reveal_user_key(&self, _: i64) -> BoxFuture<'_, Result<String, AdminError>> {
         Box::pin(async { Ok("<redacted>".into()) })
     }
 
     fn reveal_credential_secret(
         &self,
-        _: i64,
-        _: i64,
         _: i64,
     ) -> BoxFuture<'_, Result<serde_json::Value, AdminError>> {
         Box::pin(async { Ok(serde_json::json!({})) })

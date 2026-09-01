@@ -44,6 +44,7 @@ pub(super) async fn run(
     });
     let ctx = gproxy_core::RequestCtx {
         request_id: format!("model-test:{}:{}", request.provider_id, request.model_id),
+        client_ip: None,
         method: Method::POST,
         // The provider prefix lives in the routing mode, not the path: ingress patterns
         // are matched after a host has stripped it.

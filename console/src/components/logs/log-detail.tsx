@@ -5,9 +5,10 @@ import type { ProviderDto } from "@/generated/ProviderDto"
 import { Exchange } from "@/components/logs/exchange"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { QueryState } from "@/components/query-state"
+import { formatNumber } from "@/lib/format"
 
 export function LogDetail({ value, loading, error, providers }: { value: LogDetailDto | null; loading: boolean; error: boolean; providers: Array<ProviderDto> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const providerNames = useMemo(() => new Map(providers.map((provider) => [provider.id, provider.name])), [providers])
   if (!value && !loading && !error) {
     return <Card size="sm"><CardHeader><CardTitle>{t("logs.detail.title")}</CardTitle></CardHeader><CardContent><p className="py-10 text-center text-sm text-muted-foreground">{t("logs.detail.select")}</p></CardContent></Card>
@@ -26,6 +27,11 @@ export function LogDetail({ value, loading, error, providers }: { value: LogDeta
             status={value.downstream.response_status}
             responseHeaders={value.downstream.response_headers}
             responseBody={value.downstream.response_body}
+            metrics={[
+              { label: t("logs.clientIp"), value: value.downstream.client_ip ?? t("common.none") },
+              { label: t("logs.duration"), value: value.downstream.duration_ms == null ? t("common.none") : t("logs.durationValue", { value: formatNumber(value.downstream.duration_ms, i18n.language) }) },
+              { label: t("logs.tps"), value: value.downstream.tps == null ? t("common.none") : t("logs.tpsValue", { value: formatNumber(Number(value.downstream.tps), i18n.language) }) },
+            ]}
           />
           <div className="flex min-w-0 flex-col gap-4">
             {value.upstream.length === 0 ? <Card size="sm"><CardHeader><CardTitle>{t("logs.detail.upstream")}</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">{t("logs.detail.noAttempts")}</p></CardContent></Card> : value.upstream.map((attempt, index) => (

@@ -11,6 +11,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("method", Text),
             Col::required("path", Text),
             Col::optional("query", Text),
+            Col::optional("client_ip", Text).since(SchemaVersion::Wave29),
             Col::optional("request_headers", Text).since(SchemaVersion::Logging),
             Col::optional("request_body", Blob).since(SchemaVersion::Logging),
             Col::optional("response_status", Integer),

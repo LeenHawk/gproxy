@@ -25,6 +25,7 @@ export function AuditPage() {
   const columns: Array<DataTableColumn<AuditEventDto>> = [
     { key: "time", label: t("audit.time"), header: t("audit.time"), cell: (event) => <span className="text-xs">{formatInstant(event.at, i18n.language)}</span> },
     { key: "actor", label: t("audit.actor"), header: t("audit.actor"), cell: (event) => userNames.get(event.actor_user_id) ?? `#${event.actor_user_id}` },
+    { key: "ip", label: t("audit.ip"), header: t("audit.ip"), cell: (event) => <span className="machine-text text-xs">{event.client_ip ?? t("common.none")}</span> },
     { key: "action", label: t("audit.action"), header: t("audit.action"), cell: action },
     { key: "target", label: t("audit.target"), header: t("audit.target"), cell: target },
   ]
@@ -34,7 +35,7 @@ export function AuditPage() {
     <PageLayout title={t("audit.title")} description={t("audit.description")}>
       <ObservabilityTabs value="audit" />
       <QueryState loading={loading} error={error ? t("common.loadError") : ""}>
-        <DataTable columns={columns} rows={eventQuery.data ?? []} rowKey={(event) => event.id} searchText={(event) => `${userNames.get(event.actor_user_id) ?? event.actor_user_id} ${event.action} ${event.target_kind} ${event.target_id ?? ""}`} renderCard={(event) => <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3"><p className="font-medium">{action(event)}</p><span className="text-xs text-muted-foreground">{formatInstant(event.at, i18n.language)}</span></div><p className="text-xs text-muted-foreground">{userNames.get(event.actor_user_id) ?? `#${event.actor_user_id}`} · {target(event)}</p></div>} empty={t("audit.empty")} storageKey="audit-events" />
+        <DataTable columns={columns} rows={eventQuery.data ?? []} rowKey={(event) => event.id} searchText={(event) => `${userNames.get(event.actor_user_id) ?? event.actor_user_id} ${event.client_ip ?? ""} ${event.action} ${event.target_kind} ${event.target_id ?? ""}`} renderCard={(event) => <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3"><p className="font-medium">{action(event)}</p><span className="text-xs text-muted-foreground">{formatInstant(event.at, i18n.language)}</span></div><p className="text-xs text-muted-foreground">{userNames.get(event.actor_user_id) ?? `#${event.actor_user_id}`} · {event.client_ip ?? t("common.none")} · {target(event)}</p></div>} empty={t("audit.empty")} storageKey="audit-events" />
       </QueryState>
     </PageLayout>
   )

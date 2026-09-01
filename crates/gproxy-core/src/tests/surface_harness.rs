@@ -38,6 +38,7 @@ pub(super) fn outcome(
         host,
         crate::RequestCtx {
             request_id: format!("surface:{path}"),
+            client_ip: None,
             method,
             path: path.into(),
             query: None,

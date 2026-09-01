@@ -87,6 +87,7 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
     let audit = state.store.audit_events(1).await.unwrap();
     assert_eq!(audit[0].event.action, "providers.delete");
     assert_eq!(audit[0].event.target_id, Some(id));
+    assert_eq!(audit[0].event.client_ip.as_deref(), Some("192.0.2.2"));
 }
 
 #[tokio::test]

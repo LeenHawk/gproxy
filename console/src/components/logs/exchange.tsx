@@ -8,6 +8,9 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { copyText } from "@/lib/copy-text"
 import { formattedLogContent } from "@/lib/log-content"
 
+type Metric = { label: string; value: string }
+const EMPTY_METRICS: Array<Metric> = []
+
 type Props = {
   title: string
   subtitle: string
@@ -18,6 +21,7 @@ type Props = {
   status: number | null
   responseHeaders: Record<string, string> | null
   responseBody: string | null
+  metrics?: Array<Metric>
 }
 
 function Section({ title, value }: { title: string; value: string | null }) {
@@ -58,7 +62,7 @@ function statusVariant(status: number | null) {
   return "success"
 }
 
-export function Exchange({ title, subtitle, method, target, requestHeaders, requestBody, status, responseHeaders, responseBody }: Props) {
+export function Exchange({ title, subtitle, method, target, requestHeaders, requestBody, status, responseHeaders, responseBody, metrics = EMPTY_METRICS }: Props) {
   const { t } = useTranslation()
   return (
     <Card size="sm" className="min-w-0">
@@ -71,6 +75,7 @@ export function Exchange({ title, subtitle, method, target, requestHeaders, requ
       </CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-5">
         <p className="machine-text break-all text-sm"><span className="font-semibold">{method ?? t("common.none")}</span> {target}</p>
+        {metrics.length ? <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs">{metrics.map((metric) => <div key={metric.label} className="flex gap-1.5"><dt className="text-muted-foreground">{metric.label}</dt><dd className="machine-text">{metric.value}</dd></div>)}</dl> : null}
         <div className="flex min-w-0 flex-col gap-4">
           <Section title={t("logs.detail.requestHeaders")} value={headers(requestHeaders)} />
           <Section title={t("logs.detail.requestBody")} value={requestBody} />
