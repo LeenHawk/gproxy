@@ -1425,11 +1425,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1439,9 +1437,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1493,7 +1493,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "form_urlencoded",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "gproxy-channel-api",
  "gproxy-core",
  "gproxy-protocol",
@@ -1524,7 +1524,7 @@ dependencies = [
  "chacha20poly1305",
  "clap",
  "futures-util",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "gloo-timers",
  "gproxy-admin",
  "gproxy-channel-api",
@@ -1571,7 +1571,7 @@ dependencies = [
  "crc32fast",
  "futures-util",
  "getrandom 0.2.17",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "gproxy-channel-api",
  "gproxy-protocol",
  "hmac 0.12.1",
@@ -1593,7 +1593,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "gproxy-channel-api",
  "gproxy-channels",
  "gproxy-protocol",
@@ -1619,7 +1619,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-core",
  "futures-util",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "gproxy-admin",
  "gproxy-app",
  "gproxy-channel-api",
@@ -1650,7 +1650,7 @@ version = "3.0.0-alpha.0"
 dependencies = [
  "bytes",
  "futures-util",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "gproxy-admin",
  "gproxy-app",
  "gproxy-channel-api",

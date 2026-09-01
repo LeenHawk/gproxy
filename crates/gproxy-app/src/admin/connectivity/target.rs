@@ -32,7 +32,7 @@ pub(in crate::admin) fn resolve(
         ));
     }
     if request.scope == ConnectivityScopeDto::Global {
-        let source = fallback(settings.proxy.as_ref(), settings.inherit_system_proxy);
+        let source = fallback(settings.proxy.as_ref(), settings.inherit_system_proxy());
         return Ok((
             ProviderRef {
                 id: 0,
@@ -77,7 +77,7 @@ pub(in crate::admin) fn resolve(
     } else if provider_proxy.is_some() {
         ConnectivityProxySourceDto::Provider
     } else {
-        fallback(settings.proxy.as_ref(), settings.inherit_system_proxy)
+        fallback(settings.proxy.as_ref(), settings.inherit_system_proxy())
     };
     let fingerprint = settings
         .spoof_emulation

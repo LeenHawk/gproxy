@@ -83,6 +83,13 @@ impl EffectiveSettings {
             traffic_blacklist: traffic_blacklist(values),
         }
     }
+
+    pub(crate) fn inherit_system_proxy(&self) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        return self.inherit_system_proxy;
+        #[cfg(target_arch = "wasm32")]
+        false
+    }
 }
 
 pub(crate) fn effective_proxy(

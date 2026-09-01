@@ -1,13 +1,19 @@
+#[cfg(not(target_arch = "wasm32"))]
 use gproxy_admin::dto::*;
+#[cfg(not(target_arch = "wasm32"))]
 use gproxy_core::UpstreamTransport;
 
+#[cfg(not(target_arch = "wasm32"))]
 use gproxy_admin::AdminError;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::AppHandle;
 
+#[cfg(not(target_arch = "wasm32"))]
 mod probe;
 pub(super) mod target;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub(super) async fn run(
     app: &AppHandle,
     request: &ConnectivityTestRequest,
@@ -47,7 +53,7 @@ pub(super) async fn run(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use std::sync::Mutex;
 

@@ -1,4 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
 mod connectivity;
 mod helpers;
 mod import;
@@ -17,7 +16,9 @@ use gproxy_core::CacheBackend;
 use gproxy_store::records::{AuditEventInput, CredentialEnvelope};
 
 use crate::AppHandle;
-use helpers::{auth_limit_key, cache_error, login_error, operator_key, tokenizer_dto};
+#[cfg(not(target_arch = "wasm32"))]
+use helpers::tokenizer_dto;
+use helpers::{auth_limit_key, cache_error, login_error, operator_key};
 
 impl State for AppHandle {
     fn store(&self) -> &gproxy_store::Store {

@@ -145,6 +145,7 @@ impl<T: Zeroize> Drop for SecretBytes<T> {
 
 /// A gateway API key, in the one shape the console also mints (`sk-gp-…`). Two
 /// formats for the same thing is a bug even when both authenticate.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn random_api_key() -> Result<String, AppError> {
     let bytes = random_bytes::<32>()?;
     Ok(format!(
