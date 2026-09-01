@@ -1,6 +1,7 @@
 //! Framework-free control-plane dispatch shared by every gproxy host.
 
 mod auth;
+mod credential_label;
 mod defaults;
 mod dispatch;
 pub mod dto;
@@ -12,6 +13,7 @@ mod route;
 mod state;
 
 pub use auth::AuthSource;
+pub use credential_label::auto_label as default_credential_label;
 pub use defaults::{backfill_provider_defaults, reset_provider_defaults, seed_provider_defaults};
 pub use dispatch::dispatch;
 pub use error::AdminError;

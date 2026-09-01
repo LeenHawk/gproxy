@@ -36,13 +36,13 @@ impl State for TestState {
         Ok(envelope())
     }
 
-    fn reseal_imported_credential(
+    fn open_imported_credential(
         &self,
-        envelope: &CredentialEnvelope,
+        _: &CredentialEnvelope,
         _: &crate::dto::ExportSourceKeyDto,
         _: Option<&str>,
-    ) -> Result<CredentialEnvelope, AdminError> {
-        Ok(envelope.clone())
+    ) -> Result<serde_json::Value, AdminError> {
+        Ok(serde_json::json!({"api_key": "imported-secret"}))
     }
 
     fn reseal_imported_user_key(

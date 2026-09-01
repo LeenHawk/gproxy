@@ -1,13 +1,13 @@
 //! Best-effort auto display-name for credentials, derived from the plaintext
-//! secret at creation time. Shared by the admin create path and the login
-//! flows so every entrance names credentials identically.
+//! secret at creation time. Shared by every control-plane creation path so
+//! credentials are named identically before their secret is sealed.
 
 use serde_json::Value;
 
 /// Derive a display name when the caller supplied none. `None` means nothing
 /// identifying could be extracted — the label stays NULL and the console
 /// falls back to "Credential #id".
-pub(in crate::handlers) fn auto_label(kind: &str, secret: &Value) -> Option<String> {
+pub fn auto_label(kind: &str, secret: &Value) -> Option<String> {
     // An account identity beats token material for every kind: OAuth and
     // cookie logins carry user_email/account_id, service-account JSON carries
     // client_email — even when stored under the api_key kind.

@@ -38,8 +38,7 @@ pub(super) async fn import_credentials(
         let source = source.ok_or_else(|| {
             AdminError::BadRequest("config-only export contains a credential secret".into())
         })?;
-        let envelope =
-            state.reseal_imported_credential(&secret.into(), source, source_master_key)?;
+        let secret = state.open_imported_credential(&secret.into(), source, source_master_key)?;
         let config = value.config;
         if let Some(fingerprint) = &config.tls_fingerprint {
             fingerprint
@@ -50,9 +49,11 @@ pub(super) async fn import_credentials(
             .store()
             .insert_credential(&CredentialInput {
                 provider_id: mapped(&maps.providers, config.provider_id)?,
-                label: config.label,
+                label: config
+                    .label
+                    .or_else(|| crate::default_credential_label(&config.kind, &secret)),
                 kind: config.kind,
-                envelope,
+                envelope: state.seal_credential(&secret)?,
                 enabled: config.enabled,
                 weight: config.weight,
                 rpm_limit: config.rpm_limit,

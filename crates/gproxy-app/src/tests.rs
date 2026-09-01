@@ -281,7 +281,7 @@ async fn sealed_store_without_key_names_required_fingerprint() {
 }
 
 #[tokio::test]
-async fn configuration_import_reseals_credentials_under_the_destination_key() {
+async fn credential_mutation_and_import_apply_default_labels() {
     let source_directory = tempfile::tempdir().unwrap();
     let destination_directory = tempfile::tempdir().unwrap();
     let source_key = [51; 32];
@@ -309,15 +309,27 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
             .await
             .unwrap(),
     );
-    source
-        .mutate(crate::ControlMutation::Credential {
-            provider_id: provider,
-            label: Some("migrated".into()),
-            secret: json!({"api_key": "source-secret"}),
-            enabled: true,
-        })
+    let credential_id = setup::id(
+        source
+            .mutate(crate::ControlMutation::Credential {
+                provider_id: provider,
+                label: None,
+                secret: json!({"api_key": "source-secret"}),
+                enabled: true,
+            })
+            .await
+            .unwrap(),
+    );
+    let source_credential = source
+        .inner
+        .host
+        .services
+        .store
+        .credential(credential_id)
         .await
+        .unwrap()
         .unwrap();
+    assert_eq!(source_credential.label.as_deref(), Some("sourc…cret"));
     seed_admin_key(&source).await;
     let export = source
         .admin_dispatch(
@@ -327,8 +339,9 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
         .await
         .unwrap();
     assert_eq!(export.status(), http::StatusCode::OK);
-    let export: gproxy_admin::dto::ConfigurationExportDto =
+    let mut export: gproxy_admin::dto::ConfigurationExportDto =
         serde_json::from_slice(export.body()).unwrap();
+    export.data.credentials[0].config.label = None;
 
     let destination = crate::App::start(test_config(
         destination_directory.path(),
@@ -359,6 +372,7 @@ async fn configuration_import_reseals_credentials_under_the_destination_key() {
         .await
         .unwrap()
         .unwrap();
+    assert_eq!(credential.label.as_deref(), Some("sourc…cret"));
     assert_eq!(
         destination
             .inner

@@ -1,8 +1,35 @@
 use base64::Engine as _;
 use gproxy_admin::AdminError;
 use gproxy_admin::dto::ExportSourceKeyDto;
+use gproxy_store::records::CredentialEnvelope;
 
-pub(super) fn cipher(
+pub(super) fn open_credential(
+    envelope: &CredentialEnvelope,
+    source: &ExportSourceKeyDto,
+    encoded: Option<&str>,
+) -> Result<serde_json::Value, AdminError> {
+    cipher(source, encoded)?.open(envelope).map_err(|_| {
+        AdminError::BadRequest("credential secret could not be opened with the source key".into())
+    })
+}
+
+pub(super) fn reseal_user_key(
+    destination: &crate::secrets::EnvelopeCipher,
+    envelope: &CredentialEnvelope,
+    source: &ExportSourceKeyDto,
+    encoded: Option<&str>,
+) -> Result<CredentialEnvelope, AdminError> {
+    let value = cipher(source, encoded)?
+        .open_user_key(envelope)
+        .map_err(|_| {
+            AdminError::BadRequest("user key could not be opened with the source key".into())
+        })?;
+    destination
+        .seal_user_key(&value)
+        .map_err(|error| AdminError::Internal(error.to_string()))
+}
+
+fn cipher(
     source: &ExportSourceKeyDto,
     encoded: Option<&str>,
 ) -> Result<crate::secrets::EnvelopeCipher, AdminError> {

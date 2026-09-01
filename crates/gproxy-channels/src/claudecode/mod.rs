@@ -1,5 +1,6 @@
 mod routes;
 
+mod account;
 mod auth;
 mod cch;
 mod hygiene;

@@ -51,6 +51,8 @@ pub(crate) async fn apply(
             secret,
             enabled,
         } => {
+            let label =
+                label.or_else(|| gproxy_admin::default_credential_label("api_key", &secret));
             let envelope = services.cipher.seal(&secret)?;
             MutationResult::Id(
                 services

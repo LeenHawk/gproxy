@@ -45,37 +45,22 @@ impl State for AppHandle {
             .map_err(|error| AdminError::Internal(error.to_string()))
     }
 
-    fn reseal_imported_credential(
+    fn open_imported_credential(
         &self,
         envelope: &CredentialEnvelope,
         source: &ExportSourceKeyDto,
         source_master_key: Option<&str>,
-    ) -> Result<CredentialEnvelope, AdminError> {
-        let source = import::cipher(source, source_master_key)?;
-        let value = source.open(envelope).map_err(|_| {
-            AdminError::BadRequest(
-                "credential secret could not be opened with the source key".into(),
-            )
-        })?;
-        self.seal_credential(&value)
+    ) -> Result<serde_json::Value, AdminError> {
+        import::open_credential(envelope, source, source_master_key)
     }
 
     fn reseal_imported_user_key(
         &self,
         envelope: &CredentialEnvelope,
         source: &ExportSourceKeyDto,
-        source_master_key: Option<&str>,
+        key: Option<&str>,
     ) -> Result<CredentialEnvelope, AdminError> {
-        let source = import::cipher(source, source_master_key)?;
-        let value = source.open_user_key(envelope).map_err(|_| {
-            AdminError::BadRequest("user key could not be opened with the source key".into())
-        })?;
-        self.inner
-            .host
-            .services
-            .cipher
-            .seal_user_key(&value)
-            .map_err(|error| AdminError::Internal(error.to_string()))
+        import::reseal_user_key(&self.inner.host.services.cipher, envelope, source, key)
     }
 
     fn digest_user_key(&self, api_key: &str) -> (u32, Vec<u8>) {

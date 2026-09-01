@@ -5,7 +5,7 @@ use gproxy_channel_api::{
 };
 use serde_json::{Value, json};
 
-use super::{ClaudeCodeChannel, auth, profile};
+use super::{ClaudeCodeChannel, account, auth, profile};
 
 const AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
 const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
@@ -85,7 +85,9 @@ impl ChannelLogin for ClaudeCodeChannel {
             }
             let token: Value = serde_json::from_slice(response.body())
                 .map_err(|_| ChannelError::Login("invalid token response".into()))?;
-            login_secret(&token)
+            let mut secret = login_secret(&token)?;
+            account::enrich(http, &mut secret).await;
+            Ok(secret)
         })
     }
 }

@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 
 use super::CodexChannel;
 
+mod auth;
 mod cache;
 mod memory;
 mod quota;

@@ -166,6 +166,9 @@ fn rotate(secret: &Value, token: &Value) -> Result<Value, ChannelError> {
         if let Some(account_id) = account_id_from_jwt(id_token) {
             object.insert("account_id".into(), Value::String(account_id));
         }
+        if let Some(email) = email_from_jwt(id_token) {
+            object.insert("user_email".into(), Value::String(email));
+        }
     }
     object.insert(
         "expires_at_ms".into(),
@@ -180,15 +183,34 @@ pub(super) fn login_secret(token: &Value) -> Result<Value, ChannelError> {
 }
 
 fn account_id_from_jwt(token: &str) -> Option<String> {
-    let payload = token.split('.').nth(1)?;
-    let decoded = base64_url_decode(payload)?;
-    let claims: Value = serde_json::from_slice(&decoded).ok()?;
+    let claims = jwt_claims(token)?;
     claims
         .pointer("/https:~1~1api.openai.com~1auth/chatgpt_account_id")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
+}
+
+fn email_from_jwt(token: &str) -> Option<String> {
+    let claims = jwt_claims(token)?;
+    claims
+        .get("email")
+        .or_else(|| {
+            claims
+                .get("https://api.openai.com/profile")
+                .and_then(|profile| profile.get("email"))
+        })
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn jwt_claims(token: &str) -> Option<Value> {
+    let payload = token.split('.').nth(1)?;
+    let decoded = base64_url_decode(payload)?;
+    serde_json::from_slice(&decoded).ok()
 }
 
 fn base64_url_decode(value: &str) -> Option<Vec<u8>> {

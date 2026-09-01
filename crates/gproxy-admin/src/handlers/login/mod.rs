@@ -169,7 +169,7 @@ async fn insert(
     kind: &str,
     secret: &Value,
 ) -> Result<IdResponse, AdminError> {
-    let label = label.or_else(|| crate::handlers::credential_label::auto_label(kind, secret));
+    let label = label.or_else(|| crate::default_credential_label(kind, secret));
     let id = app
         .store()
         .insert_credential(&CredentialInput {

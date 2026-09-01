@@ -12,78 +12,79 @@ pub(super) async fn create(
     entity: Entity,
     body: &Bytes,
 ) -> Result<Response<Bytes>, AdminError> {
-    let id =
-        match entity {
-            Entity::Providers => {
-                let input = super::inputs::provider(state, util::parse(body)?)?;
-                let id = state.store().insert_provider(&input).await?;
-                let channel = state
-                    .channel_catalogue()
-                    .into_iter()
-                    .find(|channel| channel.id == input.channel)
-                    .ok_or_else(|| AdminError::BadRequest("unknown channel".into()))?;
-                crate::seed_provider_defaults(state.store(), id, &channel).await?;
-                id
-            }
-            Entity::Credentials => {
-                let request: CredentialWriteRequest = util::parse(body)?;
-                super::validators::provider(state, request.provider_id).await?;
-                super::validators::credential_settings(&request)?;
-                let secret = request.secret.as_ref().ok_or_else(|| {
-                    AdminError::BadRequest("credential secret is required".into())
-                })?;
-                // Auto-name on create when the caller supplied no label; updates
-                // keep the caller's label verbatim (None clears).
-                let label = request.label.clone().or_else(|| {
-                    crate::handlers::credential_label::auto_label(&request.kind, secret)
-                });
-                state
-                    .store()
-                    .insert_credential(&CredentialInput {
-                        provider_id: request.provider_id,
-                        label,
-                        kind: request.kind,
-                        envelope: state.seal_credential(secret)?,
-                        enabled: request.enabled,
-                        weight: request.weight,
-                        rpm_limit: request.rpm_limit,
-                        tpm_limit: request.tpm_limit,
-                        proxy_url: request.proxy_url,
-                        tls_fingerprint: request
-                            .tls_fingerprint
-                            .map(serde_json::to_value)
-                            .transpose()
-                            .map_err(|error| AdminError::BadRequest(error.to_string()))?,
-                    })
-                    .await?
-            }
-            Entity::Routes => {
-                state
-                    .store()
-                    .insert_route(&super::inputs::route(util::parse(body)?)?)
-                    .await?
-            }
-            Entity::RouteMembers => {
-                let input = super::inputs::route_member(util::parse(body)?)?;
-                super::validators::route_member(state, &input).await?;
-                state.store().insert_route_member(&input).await?
-            }
-            Entity::Aliases => {
-                let input = super::inputs::alias(util::parse(body)?)?;
-                super::validators::alias(state, &input).await?;
-                state.store().insert_alias(&input).await?
-            }
-            Entity::ModelAliases => {
-                let input = super::inputs::model_alias(util::parse(body)?)?;
-                super::validators::model_alias(state, &input).await?;
-                state.store().insert_exposed_model(&input).await?
-            }
-            Entity::ProviderModels => {
-                let input = super::inputs::provider_model(util::parse(body)?)?;
-                state.store().insert_provider_model(&input).await?
-            }
-            _ => return Err(AdminError::NotFound),
-        };
+    let id = match entity {
+        Entity::Providers => {
+            let input = super::inputs::provider(state, util::parse(body)?)?;
+            let id = state.store().insert_provider(&input).await?;
+            let channel = state
+                .channel_catalogue()
+                .into_iter()
+                .find(|channel| channel.id == input.channel)
+                .ok_or_else(|| AdminError::BadRequest("unknown channel".into()))?;
+            crate::seed_provider_defaults(state.store(), id, &channel).await?;
+            id
+        }
+        Entity::Credentials => {
+            let request: CredentialWriteRequest = util::parse(body)?;
+            super::validators::provider(state, request.provider_id).await?;
+            super::validators::credential_settings(&request)?;
+            let secret = request
+                .secret
+                .as_ref()
+                .ok_or_else(|| AdminError::BadRequest("credential secret is required".into()))?;
+            // Auto-name on create when the caller supplied no label; updates
+            // keep the caller's label verbatim (None clears).
+            let label = request
+                .label
+                .clone()
+                .or_else(|| crate::default_credential_label(&request.kind, secret));
+            state
+                .store()
+                .insert_credential(&CredentialInput {
+                    provider_id: request.provider_id,
+                    label,
+                    kind: request.kind,
+                    envelope: state.seal_credential(secret)?,
+                    enabled: request.enabled,
+                    weight: request.weight,
+                    rpm_limit: request.rpm_limit,
+                    tpm_limit: request.tpm_limit,
+                    proxy_url: request.proxy_url,
+                    tls_fingerprint: request
+                        .tls_fingerprint
+                        .map(serde_json::to_value)
+                        .transpose()
+                        .map_err(|error| AdminError::BadRequest(error.to_string()))?,
+                })
+                .await?
+        }
+        Entity::Routes => {
+            state
+                .store()
+                .insert_route(&super::inputs::route(util::parse(body)?)?)
+                .await?
+        }
+        Entity::RouteMembers => {
+            let input = super::inputs::route_member(util::parse(body)?)?;
+            super::validators::route_member(state, &input).await?;
+            state.store().insert_route_member(&input).await?
+        }
+        Entity::Aliases => {
+            let input = super::inputs::alias(util::parse(body)?)?;
+            super::validators::alias(state, &input).await?;
+            state.store().insert_alias(&input).await?
+        }
+        Entity::ModelAliases => {
+            let input = super::inputs::model_alias(util::parse(body)?)?;
+            super::validators::model_alias(state, &input).await?;
+            state.store().insert_exposed_model(&input).await?
+        }
+        Entity::ProviderModels => {
+            let input = super::inputs::provider_model(util::parse(body)?)?;
+            state.store().insert_provider_model(&input).await?
+        }
+        _ => return Err(AdminError::NotFound),
+    };
     util::created(state, id).await
 }
 

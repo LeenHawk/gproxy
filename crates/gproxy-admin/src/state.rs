@@ -16,12 +16,12 @@ pub trait State: MaybeSend + MaybeSync {
 
     fn seal_user_key(&self, api_key: &str) -> Result<CredentialEnvelope, AdminError>;
 
-    fn reseal_imported_credential(
+    fn open_imported_credential(
         &self,
         envelope: &CredentialEnvelope,
         source: &ExportSourceKeyDto,
         source_master_key: Option<&str>,
-    ) -> Result<CredentialEnvelope, AdminError>;
+    ) -> Result<serde_json::Value, AdminError>;
 
     fn reseal_imported_user_key(
         &self,

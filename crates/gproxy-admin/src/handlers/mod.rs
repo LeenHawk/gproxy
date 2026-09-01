@@ -3,7 +3,6 @@ mod batch;
 mod catalogue;
 mod connectivity;
 mod control;
-mod credential_label;
 mod identity;
 mod instance_settings;
 pub(crate) mod login;
