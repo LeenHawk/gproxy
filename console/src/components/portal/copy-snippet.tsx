@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { copyText } from "@/components/portal/copy-text"
+import { copyText } from "@/lib/copy-text"
 
 export function CopySnippet({ title, display, copyPayload }: { title: string; display: string; copyPayload: string }) {
   const { t } = useTranslation()

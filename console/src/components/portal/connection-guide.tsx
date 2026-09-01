@@ -9,7 +9,7 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { connectionSnippets, connectionSource } from "@/components/portal/connection-snippets"
-import { copyText } from "@/components/portal/copy-text"
+import { copyText } from "@/lib/copy-text"
 import { CopySnippet } from "@/components/portal/copy-snippet"
 
 export function ConnectionGuide({

@@ -60,7 +60,7 @@
   },
   "logs": {
     "title": "请求审计",
-    "description": "并排查看调用方请求及其产生的每一次上游尝试。",
+    "description": "查看每次客户端请求及其产生的所有上游调用。",
     "pending": "处理中",
     "filters": {
       "user": "用户",
@@ -78,19 +78,22 @@
     },
     "detail": {
       "title": "请求详情",
-      "select": "选择一个请求以加载完整交换。",
-      "loadError": "无法加载该交换，请重试。",
-      "downstream": "下游交换",
-      "upstream": "上游尝试",
-      "noAttempts": "该请求没有产生上游尝试。",
-      "attempt": "上游尝试 {{number}}",
+      "select": "选择一个请求以加载详情。",
+      "loadError": "无法加载该请求，请重试。",
+      "downstream": "客户端请求",
+      "upstream": "上游调用",
+      "noAttempts": "该请求没有产生上游调用。",
+      "attempt": "第 {{number}} 次上游调用",
       "unknownProvider": "未知供应商",
       "requestHeaders": "请求头",
       "requestBody": "请求正文",
       "responseHeaders": "响应头",
       "responseBody": "响应正文",
       "notCaptured": "未采集",
-      "status": "响应状态码"
+      "status": "响应状态码",
+      "copy": "复制{{label}}",
+      "copied": "已复制{{label}}。",
+      "copyError": "无法复制{{label}}。"
     }
   },
   "usage": {

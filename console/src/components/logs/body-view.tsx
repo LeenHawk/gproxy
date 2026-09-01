@@ -1,15 +1,8 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import { formattedLogContent } from "@/lib/log-content"
 
 const marker = /\[redacted\]/gi
-
-function formatted(value: string) {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  } catch {
-    return value
-  }
-}
 
 function highlighted(value: string): Array<ReactNode> {
   return value.split(marker).flatMap((part, index, values) => index + 1 < values.length
@@ -19,10 +12,9 @@ function highlighted(value: string): Array<ReactNode> {
 
 export function BodyView({ value }: { value: string | null }) {
   const { t } = useTranslation()
-  if (value == null) return <p className="text-sm text-muted-foreground">{t("logs.detail.notCaptured")}</p>
-  return <pre className="machine-text max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs leading-relaxed">{highlighted(formatted(value))}</pre>
-}
-
-export function HeadersView({ value }: { value: Record<string, string> | null }) {
-  return <BodyView value={value == null ? null : JSON.stringify(value)} />
+  return (
+    <pre className="machine-text min-h-20 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs leading-relaxed">
+      {value == null ? <span className="text-muted-foreground">{t("logs.detail.notCaptured")}</span> : highlighted(formattedLogContent(value))}
+    </pre>
+  )
 }

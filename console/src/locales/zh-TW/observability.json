@@ -60,7 +60,7 @@
   },
   "logs": {
     "title": "請求稽核",
-    "description": "並排檢視呼叫方請求及其產生的每一次上游嘗試。",
+    "description": "檢視每次用戶端請求及其產生的所有上游呼叫。",
     "pending": "處理中",
     "filters": {
       "user": "使用者",
@@ -78,19 +78,22 @@
     },
     "detail": {
       "title": "請求詳情",
-      "select": "選擇一個請求以載入完整交換。",
-      "loadError": "無法載入該交換，請重試。",
-      "downstream": "下游交換",
-      "upstream": "上游嘗試",
-      "noAttempts": "該請求沒有產生上游嘗試。",
-      "attempt": "上游嘗試 {{number}}",
+      "select": "選擇一個請求以載入詳情。",
+      "loadError": "無法載入該請求，請重試。",
+      "downstream": "用戶端請求",
+      "upstream": "上游呼叫",
+      "noAttempts": "該請求沒有產生上游呼叫。",
+      "attempt": "第 {{number}} 次上游呼叫",
       "unknownProvider": "未知供應商",
       "requestHeaders": "請求標頭",
       "requestBody": "請求正文",
       "responseHeaders": "回應標頭",
       "responseBody": "回應正文",
       "notCaptured": "未擷取",
-      "status": "回應狀態碼"
+      "status": "回應狀態碼",
+      "copy": "複製{{label}}",
+      "copied": "已複製{{label}}。",
+      "copyError": "無法複製{{label}}。"
     }
   },
   "usage": {

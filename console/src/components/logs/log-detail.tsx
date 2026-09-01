@@ -15,7 +15,7 @@ export function LogDetail({ value, loading, error, providers }: { value: LogDeta
   return (
     <QueryState loading={loading} error={error ? t("logs.detail.loadError") : ""}>
       {value ? (
-        <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-4">
           <Exchange
             title={t("logs.detail.downstream")}
             subtitle={value.downstream.request_id}

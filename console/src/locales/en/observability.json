@@ -60,7 +60,7 @@
   },
   "logs": {
     "title": "Request audit",
-    "description": "Inspect each caller request beside every upstream attempt it produced.",
+    "description": "Inspect each client request and every upstream call it produced.",
     "pending": "Pending",
     "filters": {
       "user": "User",
@@ -78,19 +78,22 @@
     },
     "detail": {
       "title": "Request detail",
-      "select": "Select a request to load its exchange.",
-      "loadError": "Could not load this exchange. Retry.",
-      "downstream": "Downstream exchange",
-      "upstream": "Upstream attempts",
-      "noAttempts": "This request produced no upstream attempt.",
-      "attempt": "Upstream attempt {{number}}",
+      "select": "Select a request to load its details.",
+      "loadError": "Could not load this request. Retry.",
+      "downstream": "Client request",
+      "upstream": "Upstream calls",
+      "noAttempts": "This request produced no upstream call.",
+      "attempt": "Upstream call {{number}}",
       "unknownProvider": "Unknown provider",
       "requestHeaders": "Request headers",
       "requestBody": "Request body",
       "responseHeaders": "Response headers",
       "responseBody": "Response body",
       "notCaptured": "Not captured",
-      "status": "Response status"
+      "status": "Response status",
+      "copy": "Copy {{label}}",
+      "copied": "{{label}} copied.",
+      "copyError": "Could not copy {{label}}."
     }
   },
   "usage": {
