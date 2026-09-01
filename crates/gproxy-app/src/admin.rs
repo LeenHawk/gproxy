@@ -16,9 +16,9 @@ use gproxy_core::CacheBackend;
 use gproxy_store::records::CredentialEnvelope;
 
 use crate::AppHandle;
-#[cfg(not(target_arch = "wasm32"))]
-use helpers::tokenizer_dto;
 use helpers::{auth_limit_key, cache_error, login_error, operator_key};
+#[cfg(not(target_arch = "wasm32"))]
+use helpers::{tokenizer_dto, tokenizer_progress_dto};
 
 impl State for AppHandle {
     fn store(&self) -> &gproxy_store::Store {
@@ -237,11 +237,12 @@ impl State for AppHandle {
     fn fetch_tokenizer_vocab<'a>(
         &'a self,
         name: &'a str,
+        repository: &'a str,
     ) -> BoxFuture<'a, Result<gproxy_admin::dto::TokenizerVocabDto, AdminError>> {
         Box::pin(async move {
             #[cfg(target_arch = "wasm32")]
             {
-                let _ = name;
+                let _ = (name, repository);
                 Err(AdminError::Forbidden)
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -251,8 +252,14 @@ impl State for AppHandle {
                         "tokenizer vocabulary name must not be blank".into(),
                     ));
                 }
+                if repository.is_empty() {
+                    return Err(AdminError::BadRequest(
+                        "tokenizer repository must not be blank".into(),
+                    ));
+                }
                 let registry = &self.inner.host.services.tokenizers;
-                registry.fetch(name).await.map_err(|_| {
+                registry.fetch(name, repository).await.map_err(|error| {
+                    tracing::warn!(name, repository, %error, "manual tokenizer fetch failed");
                     AdminError::BadRequest("tokenizer vocabulary could not be fetched".into())
                 })?;
                 self.inner
@@ -267,6 +274,26 @@ impl State for AppHandle {
                     .ok_or(AdminError::NotFound)
             }
         })
+    }
+
+    fn tokenizer_vocab_progress(
+        &self,
+        name: &str,
+    ) -> Option<gproxy_admin::dto::TokenizerDownloadProgressDto> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = name;
+            None
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.inner
+                .host
+                .services
+                .tokenizers
+                .download_progress(name)
+                .map(tokenizer_progress_dto)
+        }
     }
 
     fn delete_tokenizer_vocab<'a>(

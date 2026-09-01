@@ -7,7 +7,9 @@ The counting ladder is deterministic:
 
 1. built-in tiktoken vocabularies for GPT, o1, o3, and o4 model families;
 2. a persisted or downloaded Hugging Face tokenizer selected by the most
-   specific `tokenizer_map` glob, or by the model name;
+   specific `tokenizer_map` glob, or by the model name. A downloaded tokenizer
+   has an operator-chosen local name separate from its Hugging Face repository,
+   so many model patterns can share one cached vocabulary;
 3. the bundled DeepSeek V4 Pro tokenizer;
 4. `ceil(Unicode scalar values / 2)` when no usable tokenizer exists. This is
    always the final rung on edge builds, where local tokenizer features stay

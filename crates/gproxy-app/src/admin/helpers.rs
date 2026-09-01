@@ -10,8 +10,19 @@ pub(super) fn tokenizer_dto(
 ) -> gproxy_admin::dto::TokenizerVocabDto {
     gproxy_admin::dto::TokenizerVocabDto {
         name: vocab.name,
+        repository: vocab.repository,
         size_bytes: vocab.size_bytes,
         updated_at: vocab.updated_at,
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn tokenizer_progress_dto(
+    progress: gproxy_tokenize::TokenizerDownloadProgress,
+) -> gproxy_admin::dto::TokenizerDownloadProgressDto {
+    gproxy_admin::dto::TokenizerDownloadProgressDto {
+        downloaded_bytes: progress.downloaded_bytes,
+        total_bytes: progress.total_bytes,
     }
 }
 

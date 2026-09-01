@@ -63,6 +63,7 @@ pub(crate) enum Route {
     InstanceSettingsWrite,
     TokenizerVocabsRead,
     TokenizerVocabFetch,
+    TokenizerVocabProgress,
     TokenizerVocabDelete,
     PortalSettingsRead,
     PortalSettingsWrite,
@@ -147,6 +148,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
             .ok()?
             .into_owned();
         return Some(Route::LogDetail(request_id));
+    }
+    if segments.as_slice() == ["tokenizer-vocabs", "progress"] && method == Method::GET {
+        return Some(Route::TokenizerVocabProgress);
     }
     if segments.len() == 2 && segments[0] == "batch" && method == Method::POST {
         return Some(Route::Batch(entity(segments[1])?));
@@ -288,6 +292,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         | Route::LogSettingsRead
         | Route::InstanceSettingsRead
         | Route::TokenizerVocabsRead
+        | Route::TokenizerVocabProgress
         | Route::PortalSettingsRead => return None,
     })
 }

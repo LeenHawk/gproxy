@@ -16,6 +16,17 @@ export function formatNumber(value: number, locale: string) {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)
 }
 
+export function formatByteSize(value: number, locale: string) {
+  const units = ["B", "KiB", "MiB", "GiB"]
+  let amount = Math.max(0, value)
+  let unit = 0
+  while (amount >= 1024 && unit < units.length - 1) {
+    amount /= 1024
+    unit += 1
+  }
+  return `${formatNumber(amount, locale)} ${units[unit]}`
+}
+
 export function formatPercent(value: number, locale: string) {
   return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 }).format(value)
 }

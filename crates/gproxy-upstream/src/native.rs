@@ -10,6 +10,7 @@ pub struct WreqTransport {
     direct_client: wreq::Client,
     system_client: wreq::Client,
     inherit_system_proxy: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    default_proxy: std::sync::Arc<std::sync::RwLock<Option<String>>>,
 }
 
 impl WreqTransport {
@@ -29,6 +30,7 @@ impl WreqTransport {
             inherit_system_proxy: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
                 inherit_system_proxy,
             )),
+            default_proxy: Default::default(),
         }
     }
 
@@ -37,12 +39,18 @@ impl WreqTransport {
             direct_client: client.clone(),
             system_client: client,
             inherit_system_proxy: Default::default(),
+            default_proxy: Default::default(),
         }
     }
 
     pub fn set_inherit_system_proxy(&self, inherit: bool) {
         self.inherit_system_proxy
             .store(inherit, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn set_default_proxy(&self, proxy: Option<String>) {
+        *self.default_proxy.write().expect("default proxy lock") =
+            proxy.filter(|value| !value.trim().is_empty());
     }
 
     fn client(&self) -> wreq::Client {
@@ -54,6 +62,20 @@ impl WreqTransport {
         } else {
             self.direct_client.clone()
         }
+    }
+
+    fn proxy(&self, request: &http::Request<Bytes>) -> Option<UpstreamProxy> {
+        request
+            .extensions()
+            .get::<UpstreamProxy>()
+            .cloned()
+            .or_else(|| {
+                self.default_proxy
+                    .read()
+                    .expect("default proxy lock")
+                    .clone()
+                    .map(UpstreamProxy)
+            })
     }
 }
 
@@ -71,7 +93,7 @@ impl UpstreamTransport for WreqTransport {
         let client = self.client();
         Box::pin(async move {
             let profile = request.extensions().get::<ClientProfile>().cloned();
-            let proxy = request.extensions().get::<UpstreamProxy>().cloned();
+            let proxy = self.proxy(&request);
             let (parts, body) = request.into_parts();
             let mut request = client
                 .request(parts.method, parts.uri.to_string())
@@ -106,7 +128,7 @@ impl UpstreamTransport for WreqTransport {
     ) -> BoxFuture<'a, Result<Box<dyn WsDuplex>, TransportError>> {
         let client = self.client();
         let profile = request.extensions().get::<ClientProfile>().cloned();
-        let proxy = request.extensions().get::<UpstreamProxy>().cloned();
+        let proxy = self.proxy(&request);
         let (parts, _) = request.into_parts();
         Box::pin(async move {
             let mut request = client
@@ -188,5 +210,27 @@ fn map_error(error: wreq::Error, other: fn(String) -> TransportError) -> Transpo
         TransportError::Status(status.as_u16())
     } else {
         other(error.without_uri().to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_proxy_overrides_the_transport_default() {
+        let transport = WreqTransport::new();
+        transport.set_default_proxy(Some("http://global-proxy".into()));
+        let mut request = http::Request::new(Bytes::new());
+        assert_eq!(transport.proxy(&request).unwrap().0, "http://global-proxy");
+
+        request
+            .extensions_mut()
+            .insert(UpstreamProxy("http://request-proxy".into()));
+        assert_eq!(transport.proxy(&request).unwrap().0, "http://request-proxy");
+
+        request.extensions_mut().remove::<UpstreamProxy>();
+        transport.set_default_proxy(None);
+        assert!(transport.proxy(&request).is_none());
     }
 }

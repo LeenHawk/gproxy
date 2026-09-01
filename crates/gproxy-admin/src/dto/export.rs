@@ -163,6 +163,8 @@ fn export_console_types() {
         InstanceSettingsDto,
         TokenizerVocabDto,
         TokenizerFetchRequest,
+        TokenizerDeleteRequest,
+        TokenizerDownloadProgressDto,
         AuditEventDto,
         PortalContextDto,
         PortalLoginRequest,

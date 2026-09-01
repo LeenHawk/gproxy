@@ -28,8 +28,13 @@ impl App {
         let control = SnapshotControl::new(store.clone(), runtime).await?;
         let cache = cache(&config, store.clone()).await?;
         #[cfg(not(target_arch = "wasm32"))]
-        let transport =
-            gproxy_upstream::Transport::with_system_proxy(control.settings().inherit_system_proxy);
+        let transport = {
+            let settings = control.settings();
+            let transport =
+                gproxy_upstream::Transport::with_system_proxy(settings.inherit_system_proxy);
+            transport.set_default_proxy(settings.proxy.clone());
+            transport
+        };
         #[cfg(target_arch = "wasm32")]
         let transport = gproxy_upstream::Transport::default();
         #[cfg(not(target_arch = "wasm32"))]

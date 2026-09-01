@@ -143,6 +143,8 @@ export * from "./TlsFingerprintDto";
 export * from "./TlsPresetDto";
 export * from "./TlsProfileDto";
 export * from "./TlsVersionDto";
+export * from "./TokenizerDeleteRequest";
+export * from "./TokenizerDownloadProgressDto";
 export * from "./TokenizerFetchRequest";
 export * from "./TokenizerVocabDto";
 export * from "./TrafficBlacklistDto";

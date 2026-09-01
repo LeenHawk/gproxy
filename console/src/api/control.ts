@@ -21,6 +21,8 @@ import type { QuotaProbeResponse } from "@/generated/QuotaProbeResponse"
 import type { QuotaResetResponse } from "@/generated/QuotaResetResponse"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TokenizerFetchRequest } from "@/generated/TokenizerFetchRequest"
+import type { TokenizerDeleteRequest } from "@/generated/TokenizerDeleteRequest"
+import type { TokenizerDownloadProgressDto } from "@/generated/TokenizerDownloadProgressDto"
 import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
 import type { BatchActionDto } from "@/generated/BatchActionDto"
 import type { BatchResponse } from "@/generated/BatchResponse"
@@ -125,5 +127,7 @@ export const saveInstanceSettings = (value: InstanceSettingsDto) =>
 export const tokenizerVocabs = () => api<Array<TokenizerVocabDto>>("/admin/api/tokenizer-vocabs")
 export const fetchTokenizerVocab = (value: TokenizerFetchRequest) =>
   api<TokenizerVocabDto>("/admin/api/tokenizer-vocabs", json("POST", value))
-export const deleteTokenizerVocab = (value: TokenizerFetchRequest) =>
+export const tokenizerVocabProgress = (name: string) =>
+  api<TokenizerDownloadProgressDto | null>(`/admin/api/tokenizer-vocabs/progress?${new URLSearchParams({ name })}`)
+export const deleteTokenizerVocab = (value: TokenizerDeleteRequest) =>
   api<void>("/admin/api/tokenizer-vocabs", json("DELETE", value))

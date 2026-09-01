@@ -85,7 +85,7 @@ wasm-bindgen-futures = "0.4"
 wasm-streams = "0.6"
 web-sys = "0.3"
 web-time = "1"
-wreq = { version = "6.0.0-rc.29", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate"] }
+wreq = { version = "6.0.0-rc.29", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate", "socks"] }
 wreq-util = { version = "3.0.0-rc.14", features = ["emulation"] }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 zeroize = "1"

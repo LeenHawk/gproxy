@@ -65,6 +65,11 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
     if version == SchemaVersion::Wave26 {
         statements.extend(wave26::statements(dialect));
     }
+    if version == SchemaVersion::Wave30 {
+        statements.push(
+            "UPDATE tokenizer_vocabs SET repository = name WHERE repository IS NULL".to_owned(),
+        );
+    }
     statements
 }
 

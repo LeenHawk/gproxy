@@ -14,6 +14,7 @@ async fn tokenizer_admin_actions_ignore_automatic_download_policy() {
         .services
         .store
         .put_tokenizer_vocab(
+            "local-vocab",
             "owner/model",
             include_bytes!(
                 "../../../gproxy-tokenize/assets/tokenizers/deepseek-v4-pro.tokenizer.json"
@@ -23,12 +24,13 @@ async fn tokenizer_admin_actions_ignore_automatic_download_policy() {
         .expect("seed tokenizer");
 
     let vocab = app
-        .fetch_tokenizer_vocab("owner/model")
+        .fetch_tokenizer_vocab("local-vocab", "owner/model")
         .await
         .expect("manual fetch should remain available");
-    assert_eq!(vocab.name, "owner/model");
+    assert_eq!(vocab.name, "local-vocab");
+    assert_eq!(vocab.repository, "owner/model");
 
-    app.delete_tokenizer_vocab("owner/model")
+    app.delete_tokenizer_vocab("local-vocab")
         .await
         .expect("manual delete should remain available");
     assert_eq!(
@@ -36,7 +38,7 @@ async fn tokenizer_admin_actions_ignore_automatic_download_policy() {
             .host
             .services
             .store
-            .tokenizer_vocab("owner/model")
+            .tokenizer_vocab("local-vocab")
             .await
             .expect("read tokenizer"),
         None

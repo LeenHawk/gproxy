@@ -25,6 +25,7 @@ pub struct InstanceSettingsDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct TokenizerVocabDto {
     pub name: String,
+    pub repository: String,
     pub size_bytes: u64,
     pub updated_at: i64,
 }
@@ -32,4 +33,16 @@ pub struct TokenizerVocabDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct TokenizerFetchRequest {
     pub name: String,
+    pub repository: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct TokenizerDeleteRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct TokenizerDownloadProgressDto {
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
 }

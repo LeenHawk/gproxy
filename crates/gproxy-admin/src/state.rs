@@ -90,9 +90,18 @@ pub trait State: MaybeSend + MaybeSync {
     fn fetch_tokenizer_vocab<'a>(
         &'a self,
         name: &'a str,
+        repository: &'a str,
     ) -> BoxFuture<'a, Result<TokenizerVocabDto, AdminError>> {
-        let _ = name;
+        let _ = (name, repository);
         Box::pin(async { Err(AdminError::Forbidden) })
+    }
+
+    fn tokenizer_vocab_progress(
+        &self,
+        name: &str,
+    ) -> Option<crate::dto::TokenizerDownloadProgressDto> {
+        let _ = name;
+        None
     }
 
     fn delete_tokenizer_vocab<'a>(

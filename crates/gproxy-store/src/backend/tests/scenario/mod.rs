@@ -182,14 +182,19 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     let mut binding = seed_binding(store, provider, credential.id).await?;
     binding.items[0].created_at = 0;
     seed_capture(store, provider, credential.id).await?;
-    store.put_tokenizer_vocab("owner/model", b"vocab").await?;
+    store
+        .put_tokenizer_vocab("local-vocab", "owner/model", b"vocab")
+        .await?;
     assert_eq!(
-        store.tokenizer_vocab("owner/model").await?,
-        Some(b"vocab".to_vec())
+        store.tokenizer_vocab("local-vocab").await?,
+        Some(crate::records::TokenizerVocabData {
+            repository: "owner/model".into(),
+            bytes: b"vocab".to_vec(),
+        })
     );
     let tokenizer_vocabs = store.tokenizer_vocab_names().await?;
-    store.delete_tokenizer_vocab("owner/model").await?;
-    assert_eq!(store.tokenizer_vocab("owner/model").await?, None);
+    store.delete_tokenizer_vocab("local-vocab").await?;
+    assert_eq!(store.tokenizer_vocab("local-vocab").await?, None);
     let rollup_requests = scalar(store, "SELECT requests FROM usage_rollups").await?;
     let wire_logs = scalar(store, "SELECT COUNT(*) AS value FROM wire_logs").await?;
     let log = store.log_detail("request-1").await?.expect("log detail");

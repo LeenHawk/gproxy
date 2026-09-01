@@ -33,10 +33,14 @@ impl RegistryError {
 
 pub trait TokenizerStore: Send + Sync {
     fn list<'a>(&'a self) -> BoxFuture<'a, Result<Vec<String>, RegistryError>>;
-    fn get<'a>(&'a self, name: &'a str) -> BoxFuture<'a, Result<Option<Vec<u8>>, RegistryError>>;
+    fn get<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<Option<StoredTokenizer>, RegistryError>>;
     fn put<'a>(
         &'a self,
         name: &'a str,
+        repository: &'a str,
         bytes: &'a [u8],
     ) -> BoxFuture<'a, Result<(), RegistryError>>;
     fn quarantine<'a>(
@@ -49,12 +53,27 @@ pub trait TokenizerStore: Send + Sync {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredTokenizer {
+    pub repository: String,
+    pub bytes: Vec<u8>,
+}
+
 pub trait TokenizerClient: Send + Sync {
     fn send<'a>(
         &'a self,
         request: http::Request<Bytes>,
+        progress: Option<ProgressReporter>,
     ) -> BoxFuture<'a, Result<http::Response<Bytes>, RegistryError>>;
 }
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TokenizerDownloadProgress {
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+}
+
+pub type ProgressReporter = Arc<dyn Fn(TokenizerDownloadProgress) + Send + Sync>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VocabSource {
@@ -87,6 +106,7 @@ pub struct TokenizerRegistry {
     pub(super) loaded: Arc<DashMap<String, Arc<Tokenizer>>>,
     pub(super) inflight: Arc<DashMap<String, ()>>,
     pub(super) negative: Arc<DashMap<String, ()>>,
+    pub(super) downloads: Arc<DashMap<String, TokenizerDownloadProgress>>,
 }
 
 impl TokenizerRegistry {
@@ -100,6 +120,7 @@ impl TokenizerRegistry {
             loaded: Arc::new(DashMap::new()),
             inflight: Arc::new(DashMap::new()),
             negative: Arc::new(DashMap::new()),
+            downloads: Arc::new(DashMap::new()),
         }
     }
 
@@ -132,6 +153,10 @@ impl TokenizerRegistry {
 
     pub fn default_vocab(&self) -> Option<String> {
         self.default_vocab.read().ok()?.clone()
+    }
+
+    pub fn download_progress(&self, name: &str) -> Option<TokenizerDownloadProgress> {
+        self.downloads.get(name).map(|progress| *progress)
     }
 
     pub fn evict(&self, name: &str) {

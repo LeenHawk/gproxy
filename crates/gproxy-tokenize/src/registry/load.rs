@@ -3,10 +3,15 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tokenizers::Tokenizer;
 
-use super::{LoadRequestStatus, RegistryError, TokenizerClient, TokenizerRegistry, TokenizerStore};
+use super::{
+    LoadRequestStatus, ProgressReporter, RegistryError, TokenizerClient, TokenizerDownloadProgress,
+    TokenizerRegistry, TokenizerStore,
+};
 
-pub const MAX_TOKENIZER_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_TOKENIZER_BYTES: usize = 32 * 1024 * 1024;
+const MAX_REDIRECTS: usize = 5;
 type Loaded = Arc<DashMap<String, Arc<Tokenizer>>>;
+type Downloads = Arc<DashMap<String, TokenizerDownloadProgress>>;
 
 impl TokenizerRegistry {
     pub fn request_load(&self, name: &str) -> LoadRequestStatus {
@@ -25,12 +30,22 @@ impl TokenizerRegistry {
         let loaded = Arc::clone(&self.loaded);
         let inflight = Arc::clone(&self.inflight);
         let negative = Arc::clone(&self.negative);
+        let downloads = Arc::clone(&self.downloads);
         let download_enabled = self
             .download_enabled
             .load(std::sync::atomic::Ordering::Relaxed);
         let name = name.to_owned();
         runtime.spawn(async move {
-            match load(store, upstream, &name, &loaded, download_enabled).await {
+            match load(
+                store,
+                upstream,
+                &name,
+                &loaded,
+                &downloads,
+                download_enabled,
+            )
+            .await
+            {
                 Ok(LoadOutcome::Loaded) => {
                     negative.remove(&name);
                 }
@@ -62,6 +77,7 @@ impl TokenizerRegistry {
             Arc::clone(&self.upstream),
             name,
             &self.loaded,
+            &self.downloads,
             self.download_enabled
                 .load(std::sync::atomic::Ordering::Relaxed),
         )
@@ -75,23 +91,38 @@ impl TokenizerRegistry {
         }
     }
 
-    pub async fn fetch(&self, name: &str) -> Result<Arc<Tokenizer>, RegistryError> {
-        match load(
+    pub async fn fetch(
+        &self,
+        name: &str,
+        repository: &str,
+    ) -> Result<Arc<Tokenizer>, RegistryError> {
+        validate_vocab_name(name)?;
+        validate_repo_id(repository)?;
+        if let Some(stored) = self.store.get(name).await?
+            && stored.repository == repository
+        {
+            match parse(stored.bytes).await {
+                Ok(tokenizer) => {
+                    let tokenizer = Arc::new(tokenizer);
+                    self.loaded.insert(name.to_owned(), Arc::clone(&tokenizer));
+                    self.negative.remove(name);
+                    return Ok(tokenizer);
+                }
+                Err(error) => self.store.quarantine(name, &error.to_string()).await?,
+            }
+        }
+        download(
             Arc::clone(&self.store),
             Arc::clone(&self.upstream),
             name,
+            repository,
             &self.loaded,
-            true,
+            &self.downloads,
         )
-        .await?
-        {
-            LoadOutcome::Loaded => {
-                self.negative.remove(name);
-                self.resolve(name)
-                    .ok_or_else(|| RegistryError::new("tokenizer was not loaded"))
-            }
-            LoadOutcome::Missing => Err(RegistryError::new("tokenizer was not found")),
-        }
+        .await?;
+        self.negative.remove(name);
+        self.resolve(name)
+            .ok_or_else(|| RegistryError::new("tokenizer was not loaded"))
     }
 }
 
@@ -105,10 +136,14 @@ async fn load(
     upstream: Arc<dyn TokenizerClient>,
     name: &str,
     loaded: &Loaded,
+    downloads: &Downloads,
     download_enabled: bool,
 ) -> Result<LoadOutcome, RegistryError> {
-    if let Some(bytes) = store.get(name).await? {
-        match parse(bytes).await {
+    validate_vocab_name(name)?;
+    let mut repository = name.to_owned();
+    if let Some(stored) = store.get(name).await? {
+        repository = stored.repository;
+        match parse(stored.bytes).await {
             Ok(tokenizer) => {
                 loaded.insert(name.to_owned(), Arc::new(tokenizer));
                 return Ok(LoadOutcome::Loaded);
@@ -124,28 +159,113 @@ async fn load(
     if !download_enabled {
         return Ok(LoadOutcome::Missing);
     }
-    validate_repo_id(name)?;
+    validate_repo_id(&repository)?;
+    download(store, upstream, name, &repository, loaded, downloads).await?;
+    Ok(LoadOutcome::Loaded)
+}
+
+async fn download(
+    store: Arc<dyn TokenizerStore>,
+    upstream: Arc<dyn TokenizerClient>,
+    name: &str,
+    repository: &str,
+    loaded: &Loaded,
+    downloads: &Downloads,
+) -> Result<(), RegistryError> {
     let request = http::Request::builder()
         .method(http::Method::GET)
         .uri(format!(
-            "https://huggingface.co/{name}/resolve/main/tokenizer.json"
+            "https://huggingface.co/{repository}/resolve/main/tokenizer.json"
         ))
+        .header(http::header::ACCEPT_ENCODING, "identity")
         .body(bytes::Bytes::new())
         .map_err(|error| RegistryError::new(error.to_string()))?;
-    let response = upstream.send(request).await?;
-    if !response.status().is_success() {
-        return Err(RegistryError::new(format!("HTTP {}", response.status())));
+    downloads.insert(name.to_owned(), TokenizerDownloadProgress::default());
+    let progress_name = name.to_owned();
+    let progress_downloads = Arc::clone(downloads);
+    let reporter: ProgressReporter = Arc::new(move |progress| {
+        progress_downloads.insert(progress_name.clone(), progress);
+    });
+    let result = async {
+        let response = send_following_redirects(&upstream, request, reporter).await?;
+        if !response.status().is_success() {
+            return Err(RegistryError::new(format!("HTTP {}", response.status())));
+        }
+        let bytes = response.into_body();
+        let tokenizer = parse(bytes.to_vec()).await?;
+        store.put(name, repository, &bytes).await?;
+        loaded.insert(name.to_owned(), Arc::new(tokenizer));
+        Ok(())
     }
-    let bytes = response.into_body();
-    let tokenizer = parse(bytes.to_vec()).await?;
-    store.put(name, &bytes).await?;
-    loaded.insert(name.to_owned(), Arc::new(tokenizer));
-    Ok(LoadOutcome::Loaded)
+    .await;
+    downloads.remove(name);
+    result
+}
+
+async fn send_following_redirects(
+    upstream: &Arc<dyn TokenizerClient>,
+    mut request: http::Request<bytes::Bytes>,
+    reporter: ProgressReporter,
+) -> Result<http::Response<bytes::Bytes>, RegistryError> {
+    for redirects in 0..=MAX_REDIRECTS {
+        let current = request.uri().clone();
+        let response = upstream.send(request, Some(Arc::clone(&reporter))).await?;
+        if !response.status().is_redirection() {
+            return Ok(response);
+        }
+        if redirects == MAX_REDIRECTS {
+            return Err(RegistryError::new("too many tokenizer redirects"));
+        }
+        let location = response
+            .headers()
+            .get(http::header::LOCATION)
+            .ok_or_else(|| RegistryError::new("tokenizer redirect is missing Location"))?;
+        let uri = redirect_uri(&current, location)?;
+        request = http::Request::builder()
+            .method(http::Method::GET)
+            .uri(uri)
+            .header(http::header::ACCEPT_ENCODING, "identity")
+            .body(bytes::Bytes::new())
+            .map_err(|error| RegistryError::new(error.to_string()))?;
+    }
+    Err(RegistryError::new("too many tokenizer redirects"))
+}
+
+fn redirect_uri(
+    current: &http::Uri,
+    location: &http::HeaderValue,
+) -> Result<http::Uri, RegistryError> {
+    let location = location
+        .to_str()
+        .map_err(|_| RegistryError::new("invalid tokenizer redirect"))?;
+    let uri = if location.starts_with('/') {
+        format!(
+            "{}://{}{}",
+            current.scheme_str().unwrap_or("https"),
+            current
+                .authority()
+                .ok_or_else(|| RegistryError::new("tokenizer redirect has no authority"))?,
+            location
+        )
+        .parse::<http::Uri>()
+    } else {
+        location.parse::<http::Uri>()
+    }
+    .map_err(|_| RegistryError::new("invalid tokenizer redirect"))?;
+    let host = uri
+        .host()
+        .ok_or_else(|| RegistryError::new("tokenizer redirect has no host"))?;
+    let trusted_host =
+        host == "huggingface.co" || host.ends_with(".huggingface.co") || host.ends_with(".hf.co");
+    if uri.scheme_str() != Some("https") || !trusted_host {
+        return Err(RegistryError::new("untrusted tokenizer redirect"));
+    }
+    Ok(uri)
 }
 
 async fn parse(bytes: Vec<u8>) -> Result<Tokenizer, RegistryError> {
     if bytes.len() > MAX_TOKENIZER_BYTES {
-        return Err(RegistryError::new("tokenizer exceeds 16 MiB"));
+        return Err(RegistryError::new("tokenizer exceeds 32 MiB"));
     }
     tokio::task::spawn_blocking(move || {
         Tokenizer::from_bytes(bytes).map_err(|error| RegistryError::new(error.to_string()))
@@ -171,4 +291,19 @@ fn validate_repo_id(name: &str) -> Result<(), RegistryError> {
     valid
         .then_some(())
         .ok_or_else(|| RegistryError::new("invalid Hugging Face repository id"))
+}
+
+fn validate_vocab_name(name: &str) -> Result<(), RegistryError> {
+    let valid = !name.is_empty()
+        && name.len() <= 200
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'/'))
+        && !name.starts_with(['.', '-', '/'])
+        && !name.ends_with(['.', '-', '/'])
+        && !name.contains("..")
+        && !name.contains("//");
+    valid
+        .then_some(())
+        .ok_or_else(|| RegistryError::new("invalid tokenizer vocabulary name"))
 }

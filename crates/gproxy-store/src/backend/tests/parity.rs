@@ -75,6 +75,42 @@ async fn fresh_and_incrementally_migrated_databases_converge() {
 }
 
 #[tokio::test]
+async fn wave_30_preserves_vocabularies_and_backfills_their_repository() {
+    let directory = tempfile::tempdir().expect("native tempdir");
+    let executor = std::sync::Arc::new(
+        NativeSql::open(directory.path().join("tokenizers.db"))
+            .await
+            .expect("native database"),
+    );
+    migration::migrate_to(
+        executor.as_ref(),
+        Dialect::NativeSqlite,
+        SchemaVersion::Wave29,
+    )
+    .await
+    .expect("pre-wave migration");
+    executor
+        .execute(Statement::plain(
+            "INSERT INTO tokenizer_vocabs (name, bytes, updated_at) VALUES ('owner/model', X'0102', 100)",
+        ))
+        .await
+        .expect("seed tokenizer");
+
+    migration::migrate(executor.as_ref(), Dialect::NativeSqlite)
+        .await
+        .expect("wave 30 migration");
+    let vocab = store(executor)
+        .tokenizer_vocabs()
+        .await
+        .expect("list tokenizers")
+        .pop()
+        .expect("preserved tokenizer");
+
+    assert_eq!(vocab.name, "owner/model");
+    assert_eq!(vocab.repository, "owner/model");
+}
+
+#[tokio::test]
 async fn wave_26_preserves_admin_identity_across_backends() {
     let native_dir = tempfile::tempdir().expect("native tempdir");
     let remote_dir = tempfile::tempdir().expect("libsql tempdir");
