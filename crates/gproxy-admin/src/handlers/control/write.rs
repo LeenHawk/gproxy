@@ -162,3 +162,11 @@ pub(super) async fn update(
     }
     util::updated(state, applied).await
 }
+
+pub(super) async fn credential_health_reset(
+    state: &impl State,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    state.store().clear_credential_health(id).await?;
+    util::updated(state, true).await
+}

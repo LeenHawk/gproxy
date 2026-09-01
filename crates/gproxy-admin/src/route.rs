@@ -42,6 +42,7 @@ pub(crate) enum Route {
     ModelDiscover,
     CredentialQuotaProbe(i64),
     CredentialQuotaReset(i64),
+    CredentialHealthReset(i64),
     RevealUserKey(i64),
     Usage,
     QuotaWindows,
@@ -101,6 +102,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if let ["credentials", credential, "quota-reset"] = segments.as_slice() {
             return Some(Route::CredentialQuotaReset(credential.parse().ok()?));
+        }
+        if let ["credentials", credential, "health-reset"] = segments.as_slice() {
+            return Some(Route::CredentialHealthReset(credential.parse().ok()?));
         }
         if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
             return Some(Route::ApplyRulePreset {
@@ -247,6 +251,9 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         }
         Route::CredentialQuotaReset(id) => {
             action("credential.quota_reset", "credentials", Some(*id))
+        }
+        Route::CredentialHealthReset(id) => {
+            action("credential.health_reset", "credentials", Some(*id))
         }
         Route::ModelDiscover => action("model.discover", "providers", None),
         Route::List(_)

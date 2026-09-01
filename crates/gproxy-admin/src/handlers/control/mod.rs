@@ -117,3 +117,10 @@ pub(super) async fn delete(
     };
     crate::handlers::util::updated(state, applied).await
 }
+
+pub(super) async fn credential_health_reset(
+    state: &impl State,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    write::credential_health_reset(state, id).await
+}
