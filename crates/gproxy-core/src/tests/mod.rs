@@ -8,6 +8,7 @@ mod pricing;
 mod process;
 mod realtime;
 mod services;
+mod session_affinity;
 mod surface;
 mod surface_engine;
 mod surface_harness;

@@ -162,11 +162,29 @@ fn surfaces_scope_affinity_assemble_services_and_require_bindings() {
     assert_eq!(alias["result"], "ok");
 
     let state = host.state.lock().expect("state lock");
-    assert_eq!(state.cache.len(), 3);
-    assert!(state.cache.keys().all(|key| {
-        key.starts_with("gproxy:surface:3:") && !key.contains("session") && !key.contains("server")
+    assert_eq!(
+        state
+            .cache
+            .keys()
+            .filter(|key| key.starts_with("gproxy:surface:3:"))
+            .count(),
+        3
+    );
+    assert_eq!(
+        state
+            .cache
+            .keys()
+            .filter(|key| key.starts_with("gproxy:session-affinity:v1:"))
+            .count(),
+        1
+    );
+    assert!(state.cache_ttls.iter().all(|(key, ttl)| {
+        if key.starts_with("gproxy:session-affinity:v1:") {
+            *ttl == 3_600
+        } else {
+            *ttl == 60
+        }
     }));
-    assert!(state.cache_ttls.values().all(|ttl| *ttl == 60));
     assert_eq!(state.admission_finishes.len(), state.admit_calls);
     assert_eq!(state.admission_finishes.last(), Some(&true));
     assert_eq!(state.authorizations.len(), 3);

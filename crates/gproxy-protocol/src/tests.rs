@@ -144,6 +144,11 @@ fn memory_summary_is_a_billed_openai_family_operation() {
 }
 
 #[test]
+fn compact_keeps_session_affinity() {
+    assert_eq!(Operation::CompactContent.spec().affinity, Affinity::Session);
+}
+
+#[test]
 fn shared_model_paths_honor_the_wire_family_preference() {
     let default = match_ingress(&Method::GET, "/v1/models").expect("default model list");
     assert_eq!(default.kind, OperationKind::Family(WireFamily::OpenAi));

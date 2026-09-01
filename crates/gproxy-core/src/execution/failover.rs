@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use web_time::Instant;
 
 use gproxy_channel_api::{ChannelError, Disposition};
 
@@ -11,16 +10,14 @@ use crate::error::CoreError;
 use crate::funnel::error as funnel_error;
 use crate::host::Host;
 
-use super::request::Classified;
+use super::AdmittedRequest;
 
 pub(crate) async fn run<H: Host>(
     core: &Core<H>,
     control: &impl ControlPlane,
     ctx: RequestCtx,
     plan: Plan,
-    classified: Classified,
-    owner_user_id: i64,
-    started: Instant,
+    request: AdmittedRequest,
 ) -> Result<ExecOutcome, CoreError> {
     if plan.targets.is_empty() {
         return Err(CoreError::NoCredentials);
@@ -30,7 +27,8 @@ pub(crate) async fn run<H: Host>(
             "attempt budget is zero".into(),
         ));
     }
-    let resource_pins = super::resource::pins(core, &plan, &classified, owner_user_id).await?;
+    let resource_pins =
+        super::resource::pins(core, &plan, &request.classified, request.owner_user_id).await?;
 
     let mut attempts = 0;
     let mut supported = false;
@@ -51,7 +49,7 @@ pub(crate) async fn run<H: Host>(
         {
             continue;
         }
-        let Some(support) = attempt::support(core, target, classified.key)? else {
+        let Some(support) = attempt::support(core, target, request.classified.key)? else {
             continue;
         };
         if support.source != support.target
@@ -64,7 +62,7 @@ pub(crate) async fn run<H: Host>(
             if matches!(error, CoreError::RateLimited { .. }) {
                 let reason = "credential rate limit reached";
                 last_reason = Some(reason);
-                funnel_error::pre_send(&ctx, target, classified.key, reason);
+                funnel_error::pre_send(&ctx, target, request.classified.key, reason);
                 pre_send_error = Some(error);
                 continue;
             }
@@ -72,43 +70,55 @@ pub(crate) async fn run<H: Host>(
         }
         let admission = AdmissionCtx {
             admitted: true,
-            owner_user_id: Some(owner_user_id),
+            owner_user_id: Some(request.owner_user_id),
         };
-        let prepared =
-            match attempt::prepare(core, control, target, &ctx, &classified, admission, started)
-                .await
-            {
-                Ok(prepared) => prepared,
-                Err(CoreError::Channel(ChannelError::Secret(_))) => {
-                    dead.insert(target.credential);
-                    let reason = "credential secret rejected";
-                    last_reason = Some(reason);
-                    funnel_error::pre_send(&ctx, target, classified.key, reason);
-                    continue;
-                }
-                Err(CoreError::Channel(ChannelError::Refresh(_))) => {
-                    dead.insert(target.credential);
-                    let reason = "credential refresh failed";
-                    last_reason = Some(reason);
-                    funnel_error::pre_send(&ctx, target, classified.key, reason);
-                    continue;
-                }
-                Err(error @ CoreError::Channel(ChannelError::Prepare(_))) => {
-                    let reason = "channel prepare failed";
-                    last_reason = Some(reason);
-                    funnel_error::pre_send(&ctx, target, classified.key, reason);
-                    pre_send_error = Some(error);
-                    continue;
-                }
-                Err(CoreError::Unsupported) => continue,
-                Err(error) => return Err(error),
-            };
+        let prepared = match attempt::prepare(
+            core,
+            control,
+            target,
+            &ctx,
+            &request.classified,
+            admission,
+            request.started,
+        )
+        .await
+        {
+            Ok(prepared) => prepared,
+            Err(CoreError::Channel(ChannelError::Secret(_))) => {
+                dead.insert(target.credential);
+                let reason = "credential secret rejected";
+                last_reason = Some(reason);
+                funnel_error::pre_send(&ctx, target, request.classified.key, reason);
+                continue;
+            }
+            Err(CoreError::Channel(ChannelError::Refresh(_))) => {
+                dead.insert(target.credential);
+                let reason = "credential refresh failed";
+                last_reason = Some(reason);
+                funnel_error::pre_send(&ctx, target, request.classified.key, reason);
+                continue;
+            }
+            Err(error @ CoreError::Channel(ChannelError::Prepare(_))) => {
+                let reason = "channel prepare failed";
+                last_reason = Some(reason);
+                funnel_error::pre_send(&ctx, target, request.classified.key, reason);
+                pre_send_error = Some(error);
+                continue;
+            }
+            Err(CoreError::Unsupported) => continue,
+            Err(error) => return Err(error),
+        };
         selected = true;
         attempts += 1;
         match attempt::send(core, prepared).await {
             Ok(completed) => {
                 let disposition = completed.disposition;
                 if !disposition.should_failover() {
+                    if disposition == Disposition::Success
+                        && let Some(affinity) = &request.session_affinity
+                    {
+                        affinity.commit(core, &completed.facts.target).await;
+                    }
                     return Ok(attempt::finish(core, control, completed).await);
                 }
                 if disposition == Disposition::CredentialDead {

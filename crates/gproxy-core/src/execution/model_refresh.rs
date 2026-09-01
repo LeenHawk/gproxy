@@ -48,9 +48,12 @@ pub(super) async fn run<H: Host>(
                     control,
                     request,
                     Plan { targets, budget },
-                    classified,
-                    owner_user_id,
-                    Instant::now(),
+                    super::AdmittedRequest {
+                        classified,
+                        owner_user_id,
+                        session_affinity: None,
+                        started: Instant::now(),
+                    },
                 )
                 .await
                 .ok()?;

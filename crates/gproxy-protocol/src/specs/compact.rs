@@ -10,5 +10,5 @@ pub(super) const COMPACT: OperationSpec = billed(
         FAM_OAI,
         NEVER,
     )],
-    Affinity::None,
+    Affinity::Session,
 );

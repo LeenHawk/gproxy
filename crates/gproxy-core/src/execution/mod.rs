@@ -18,18 +18,28 @@ mod model_refresh;
 pub(crate) mod preprocess;
 pub(crate) mod request;
 pub(crate) mod resource;
+mod session;
 
 use self::request::Classified;
+
+pub(super) struct AdmittedRequest {
+    classified: Classified,
+    owner_user_id: i64,
+    session_affinity: Option<session::SessionAffinity>,
+    started: Instant,
+}
 
 pub(crate) async fn resolved<H: Host>(
     core: &Core<H>,
     control: &impl ControlPlane,
     ctx: RequestCtx,
-    plan: Plan,
+    mut plan: Plan,
     classified: Classified,
     identity: gproxy_channel_api::CallerIdentity,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
+    let session_affinity =
+        session::apply(core, &ctx, &classified, identity.user_key_id, &mut plan).await;
     if let Err(error) = core
         .host
         .admit(&identity, &ctx, Some(classified.key), &plan)
@@ -42,9 +52,12 @@ pub(crate) async fn resolved<H: Host>(
         control,
         ctx,
         plan,
-        classified,
-        identity.user_id,
-        started,
+        AdmittedRequest {
+            classified,
+            owner_user_id: identity.user_id,
+            session_affinity,
+            started,
+        },
     )
     .await
 }
@@ -54,25 +67,23 @@ async fn execute_admitted<H: Host>(
     control: &impl ControlPlane,
     ctx: RequestCtx,
     plan: Plan,
-    classified: Classified,
-    owner_user_id: i64,
-    started: Instant,
+    request: AdmittedRequest,
 ) -> Result<ExecOutcome, CoreError> {
     let telemetry_ctx = ctx.clone();
-    let key = classified.key;
+    let key = request.classified.key;
     let result = match local::run(
         core,
         control,
         &ctx,
         &plan,
-        &classified,
-        owner_user_id,
-        started,
+        &request.classified,
+        request.owner_user_id,
+        request.started,
     )
     .await
     {
         Some(result) => result,
-        None => failover::run(core, control, ctx, plan, classified, owner_user_id, started).await,
+        None => failover::run(core, control, ctx, plan, request).await,
     };
     if let Err(error) = &result {
         core.host

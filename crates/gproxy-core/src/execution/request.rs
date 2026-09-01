@@ -12,9 +12,18 @@ pub(crate) struct Classified {
     pub framing: StreamFraming,
     pub model: Option<String>,
     resource: Option<(&'static str, String)>,
+    pub(super) session: Option<super::session::SessionSubject>,
 }
 
 impl Classified {
+    pub(crate) fn routing_affinity(&self, user_key_id: i64) -> i64 {
+        if self.key.operation.spec().affinity == Affinity::Session {
+            super::session::selection_key(self.session, user_key_id)
+        } else {
+            user_key_id
+        }
+    }
+
     pub(crate) fn dedupe_key(&self, provider_id: i64) -> Option<String> {
         (self.key.operation.spec().settle == SettleMode::OnCompletedStatus)
             .then(|| {
@@ -92,6 +101,9 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
             .map(|(_, id)| (kind, id.clone())),
         Affinity::None | Affinity::Session => None,
     };
+    let session = (spec.affinity == Affinity::Session)
+        .then(|| super::session::subject(ctx, matched.kind, body.as_ref()))
+        .flatten();
     Ok(Classified {
         key: OperationKey {
             operation,
@@ -101,6 +113,7 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
         framing,
         model,
         resource,
+        session,
     })
 }
 

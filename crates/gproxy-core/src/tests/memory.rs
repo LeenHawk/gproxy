@@ -42,6 +42,7 @@ pub(super) struct State {
     pub(super) plan: Option<Plan>,
     pub(super) statuses: VecDeque<StatusCode>,
     pub(super) resolved_models: Vec<Option<String>>,
+    pub(super) resolved_affinities: Vec<Option<i64>>,
     pub(super) aliases: BTreeMap<String, String>,
     pub(super) variants: BTreeMap<String, String>,
     pub(super) exposed_models: Vec<ExposedModel>,
@@ -100,6 +101,7 @@ impl MemoryHost {
                 plan: None,
                 statuses: VecDeque::new(),
                 resolved_models: Vec::new(),
+                resolved_affinities: Vec::new(),
                 aliases: BTreeMap::new(),
                 variants: BTreeMap::new(),
                 exposed_models: vec![ExposedModel {
@@ -308,10 +310,11 @@ impl ControlPlane for MemoryHost {
         &self,
         model: Option<&str>,
         _: &RoutingMode,
-        _: Option<i64>,
+        affinity: Option<i64>,
     ) -> Result<Plan, CoreError> {
         let mut state = self.state.lock().expect("state lock");
         state.resolved_models.push(model.map(str::to_owned));
+        state.resolved_affinities.push(affinity);
         state
             .plan
             .clone()

@@ -109,7 +109,14 @@ async fn run<H: Host>(
             Ok(identity) => identity,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
-        let plan = match resolve(Some(identity.user_key_id)) {
+        let classified_affinity = alias_request
+            .as_ref()
+            .map(|(_, classified)| classified)
+            .or_else(|| classified.as_ref().ok());
+        let affinity = classified_affinity
+            .map(|classified| classified.routing_affinity(identity.user_key_id))
+            .unwrap_or(identity.user_key_id);
+        let plan = match resolve(Some(affinity)) {
             Ok(plan) => plan,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
         };
