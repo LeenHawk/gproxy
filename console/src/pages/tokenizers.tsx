@@ -11,6 +11,8 @@ import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 
+const BUILTIN_DEFAULT_VOCAB = "deepseek-v4-pro"
+
 export function TokenizersPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -62,7 +64,7 @@ export function TokenizersPage() {
 
 function DefaultVocabField({ settings, saving, onSave }: { settings: InstanceSettingsDto; saving: boolean; onSave: (value: InstanceSettingsDto) => void }) {
   const { t } = useTranslation()
-  const stored = settings.default_tokenizer_vocab ?? ""
+  const stored = settings.default_tokenizer_vocab ?? BUILTIN_DEFAULT_VOCAB
   const [draft, setDraft] = useState(stored)
   const commit = () => {
     const next = draft.trim()
