@@ -7,9 +7,6 @@ use serde_json::{Value, json};
 use super::OpenRouterChannel;
 
 const CHAT: OperationKey = OperationKey::content(Operation::GenerateContent, Kind::OpenAiChat);
-const MAGIC: &str =
-    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
-
 fn family(operation: Operation) -> OperationKey {
     OperationKey::family(operation, WireFamily::OpenAi)
 }
@@ -153,7 +150,7 @@ fn prepare_applies_service_tier_image_edit_and_video_wire_shaping() {
     let claude_body = Bytes::from(
         json!({
             "model":"route","max_tokens":8,
-            "messages":[{"role":"user","content":[{"type":"text","text":format!("stable {MAGIC}")}]}]
+            "messages":[{"role":"user","content":[{"type":"text","text":"stable"}]}]
         })
         .to_string(),
     );
@@ -164,13 +161,9 @@ fn prepare_applies_service_tier_image_edit_and_video_wire_shaping() {
         &HeaderMap::new(),
         &claude_body,
         "anthropic/claude-fable-5",
-        &json!({"enable_claude_magic_cache":true,"claude_fallback_mode":"default"}),
+        &json!({"claude_fallback_mode":"default"}),
     );
     let claude_value: Value = serde_json::from_slice(claude.body()).unwrap();
-    assert_eq!(
-        claude_value["messages"][0]["content"][0]["cache_control"]["type"],
-        "ephemeral"
-    );
     assert_eq!(
         claude_value["fallbacks"][0]["model"],
         "anthropic/claude-opus-4-8"

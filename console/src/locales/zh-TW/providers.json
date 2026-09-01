@@ -26,6 +26,10 @@
         "label": "OpenAI 魔法字串快取",
         "description": "辨識支援的觸發字串，並寫入明確的 OpenAI 快取斷點。"
       },
+      "enable_claude_magic_cache": {
+        "label": "Claude 魔法字串快取",
+        "description": "辨識支援的觸發字串，並寫入明確的 Claude 快取斷點。"
+      },
       "claude_fallback_mode": {
         "label": "Claude 回退模式",
         "description": "可關閉回退、使用上游預設路由，或套用明確的模型鏈。"

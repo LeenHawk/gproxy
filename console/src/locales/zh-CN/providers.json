@@ -26,6 +26,10 @@
         "label": "OpenAI 魔法字符串缓存",
         "description": "识别支持的触发字符串，并写入明确的 OpenAI 缓存断点。"
       },
+      "enable_claude_magic_cache": {
+        "label": "Claude 魔法字符串缓存",
+        "description": "识别支持的触发字符串，并写入明确的 Claude 缓存断点。"
+      },
       "claude_fallback_mode": {
         "label": "Claude 回退模式",
         "description": "可关闭回退、使用上游默认路由，或应用明确的模型链。"

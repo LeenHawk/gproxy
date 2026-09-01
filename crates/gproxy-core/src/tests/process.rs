@@ -345,6 +345,7 @@ fn magic_markers_a_rule_inserts_are_still_shaped() {
     let host = MemoryHost::new(false);
     let core = core(&host).expect("core");
     let mut selected = target();
+    selected.provider.settings = json!({"enable_claude_magic_cache": true});
     selected.rules.process = Arc::from(
         crate::process::compile_all(&[spec(
             7,

@@ -26,6 +26,10 @@
         "label": "OpenAI magic-string cache",
         "description": "Recognizes supported trigger strings and writes explicit OpenAI cache breakpoints."
       },
+      "enable_claude_magic_cache": {
+        "label": "Claude magic-string cache",
+        "description": "Recognizes supported trigger strings and writes explicit Claude cache breakpoints."
+      },
       "claude_fallback_mode": {
         "label": "Claude fallback mode",
         "description": "Turns fallback off, uses the upstream default, or applies an explicit model chain."

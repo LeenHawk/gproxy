@@ -42,18 +42,12 @@ fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, Channe
     );
     let claude =
         ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
-    let cache = (openai
+    let cache = openai
         && ctx
             .provider_settings
             .get("enable_openai_magic_cache")
             .and_then(Value::as_bool)
-            == Some(true))
-        || (claude
-            && ctx
-                .provider_settings
-                .get("enable_claude_magic_cache")
-                .and_then(Value::as_bool)
-                == Some(true));
+            == Some(true);
     let fallback = claude && crate::shared::claude::fallback::enabled(ctx.provider_settings);
     if !openai && !cache && !fallback {
         return Ok(body);
@@ -64,15 +58,11 @@ fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, Channe
         }
         let mut value = Value::Object(std::mem::take(object));
         if cache {
-            if openai {
-                let kind = match ctx.key.kind {
-                    OperationKind::ContentGeneration(kind) => kind,
-                    OperationKind::Family(_) => return Ok(()),
-                };
-                crate::shared::openai::cache::apply(&mut value, kind);
-            } else {
-                crate::shared::cache::claude(&mut value);
-            }
+            let kind = match ctx.key.kind {
+                OperationKind::ContentGeneration(kind) => kind,
+                OperationKind::Family(_) => return Ok(()),
+            };
+            crate::shared::openai::cache::apply(&mut value, kind);
         }
         if fallback {
             crate::shared::claude::fallback::apply_without_beta(&mut value, ctx.provider_settings);

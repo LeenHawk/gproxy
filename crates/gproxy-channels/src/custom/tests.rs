@@ -143,13 +143,12 @@ fn applies_only_the_enabled_protocol_cache_and_fallback_shaping() {
 
     let claude_settings = json!({
         "base_url":"https://claude.example",
-        "enable_claude_magic_cache":true,
         "claude_fallback_mode":"default"
     });
     let claude_body = Bytes::from(
         json!({
             "model":"route","max_tokens":8,
-            "messages":[{"role":"user","content":[{"type":"text","text":format!("stable {MAGIC}")}]}]
+            "messages":[{"role":"user","content":[{"type":"text","text":"stable"}]}]
         })
         .to_string(),
     );
@@ -171,10 +170,6 @@ fn applies_only_the_enabled_protocol_cache_and_fallback_shaping() {
         })
         .unwrap();
     let value: Value = serde_json::from_slice(claude.request.body()).unwrap();
-    assert_eq!(
-        value["messages"][0]["content"][0]["cache_control"]["type"],
-        "ephemeral"
-    );
     assert_eq!(value["fallbacks"], "default");
     assert_eq!(
         claude.request.headers()["anthropic-beta"],

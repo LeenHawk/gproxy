@@ -101,11 +101,18 @@ pub(crate) async fn prepare<H: Host>(
     );
     body = mutation.body;
     // After the rules, not before: a rule that inserts text can carry a magic marker,
-    // and v2 shaped at this point for exactly that reason.
+    // and v2 shaped at this point for exactly that reason. The provider switch stays
+    // authoritative so operators can opt into this client-to-proxy protocol.
     if support.target.kind
         == gproxy_protocol::OperationKind::ContentGeneration(
             gproxy_protocol::ContentGenerationKind::ClaudeMessages,
         )
+        && target
+            .provider
+            .settings
+            .get("enable_claude_magic_cache")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
     {
         body = gproxy_channels::apply_claude_magic_cache(body)?;
     }

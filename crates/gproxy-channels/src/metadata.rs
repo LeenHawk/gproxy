@@ -40,12 +40,19 @@ pub(crate) const OPENAI_CACHE: &[ChannelField] = &[
 ];
 pub(crate) const CLAUDE: &[ChannelField] = &[
     field("base_url", Url, false, false),
+    field("enable_claude_magic_cache", Boolean, false, true),
     select("claude_fallback_mode", &["off", "default", "models"], "off"),
     field("claude_fallback_models", StringList, false, true),
+];
+pub(crate) const AZURE: &[ChannelField] = &[
+    field("base_url", Url, false, false),
+    field("enable_openai_magic_cache", Boolean, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
 ];
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
     select("claude_fallback_mode", &["off", "default", "models"], "off"),
     field("claude_fallback_models", StringList, false, true),
 ];
@@ -53,6 +60,7 @@ pub(crate) const BEDROCK: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("region", Text, false, false),
     field("video_output_s3_uri", Text, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
 ];
 pub(crate) const VERTEX: &[ChannelField] = &[
     field("base_url", Url, false, false),
@@ -72,6 +80,7 @@ pub(crate) const OPENCODE: &[ChannelField] = &[
     field("tier", Text, false, false),
     field("console_base_url", Url, false, true),
     field("enable_openai_magic_cache", Boolean, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
 ];
 pub(crate) const OPENROUTER: &[ChannelField] = CUSTOM;
 pub(crate) const VERCEL: &[ChannelField] = CUSTOM;
@@ -108,3 +117,24 @@ pub(crate) const AWS: &[ChannelField] = &[
     field("secret_access_key", Secret, false, false),
     field("session_token", Secret, false, true),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_claude_target_field_set_exposes_the_magic_cache_switch() {
+        for fields in [CLAUDE, AZURE, CUSTOM, BEDROCK, OPENCODE] {
+            assert!(
+                fields
+                    .iter()
+                    .any(|field| field.key == "enable_claude_magic_cache")
+            );
+        }
+        assert!(
+            OPENAI_CACHE
+                .iter()
+                .all(|field| field.key != "enable_claude_magic_cache")
+        );
+    }
+}

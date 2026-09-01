@@ -87,7 +87,7 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "azure",
     display_name: "Microsoft Azure",
     supports: &SUPPORTS,
-    provider_fields: crate::metadata::OPENAI_CACHE,
+    provider_fields: crate::metadata::AZURE,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
     traffic_policy: crate::policy::AZURE,
