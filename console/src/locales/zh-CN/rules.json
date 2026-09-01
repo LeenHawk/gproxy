@@ -10,9 +10,12 @@
       "title": "规则集",
       "add": "新建规则集",
       "edit": "编辑规则集",
+      "settings": "基本设置",
       "empty": "暂无规则集",
       "noDescription": "暂无说明",
-      "selectPrompt": "选择一个规则集进行编辑。"
+      "selectPrompt": "选择一个规则集进行编辑。",
+      "search": "搜索规则集…",
+      "resize": "调整规则集列表宽度"
     },
     "entries": {
       "title": "变更规则",
@@ -37,7 +40,8 @@
       "attach": "附加",
       "attachExisting": "附加已有规则集",
       "detach": "移除附加",
-      "empty": "此 Provider 尚未附加规则集。"
+      "empty": "此 Provider 尚未附加规则集。",
+      "emptyForSet": "此规则集尚未关联 Provider。"
     },
     "presets": {
       "apply": "应用兼容性预设",

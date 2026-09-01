@@ -16,7 +16,7 @@ export function PricingPage() {
   return (
     <PageLayout title={t("pricing.title")} description={t("pricing.subtitle")}>
       <QueryState loading={queries.some((query) => query.isLoading)} error={queries.some((query) => query.error) ? t("pricing.loadError") : ""}>
-        <PricingWorkspace rules={ruleQuery.data ?? []} rates={rateQuery.data ?? []} providers={providerQuery.data ?? []} />
+        <PricingWorkspace rules={ruleQuery.data ?? []} rates={rateQuery.data ?? []} providers={providerQuery.data ?? []} scopeProviderId={null} />
       </QueryState>
     </PageLayout>
   )

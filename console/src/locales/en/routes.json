@@ -7,6 +7,9 @@
     "empty": "No load balancers yet — create one to expose a logical model name.",
     "loadError": "Could not load load balancers. Try again.",
     "selectPrompt": "Select a load balancer to view and edit details.",
+    "search": "Search load balancers…",
+    "resize": "Resize load balancer list",
+    "summary": "{{attempts}} maximum attempts",
     "tabs": {
       "settings": "Settings"
     },
@@ -43,8 +46,12 @@
     },
     "routingAliases": {
       "title": "Routing aliases",
+      "globalTitle": "Global model aliases",
+      "providerTitle": "Model aliases",
       "add": "Add routing alias",
+      "modelAdd": "Add model alias",
       "empty": "No provider routing aliases are configured.",
+      "modelEmpty": "No model aliases are configured.",
       "alias": "Incoming name",
       "target": "Upstream name",
       "provider": "Provider",

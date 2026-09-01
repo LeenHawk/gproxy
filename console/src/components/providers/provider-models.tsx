@@ -63,7 +63,7 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, className: "text-right", cell: (model) => (
       <div className="flex items-center justify-end gap-1">
         <Button size="icon-xs" variant="ghost" disabled={probe.isPending} aria-label={`${t("providers.models.test")}: ${model.model_id}`} onClick={() => probe.mutate(model.model_id)}>{probe.isPending ? <LoaderCircleIcon className="animate-spin" aria-hidden /> : <PlayIcon aria-hidden />}</Button>
-        <Button size="icon-xs" variant="ghost" aria-label={`${t("providers.models.priceRule")}: ${model.model_id}`} onClick={() => navigateAdminPath(`/admin/pricing/${model.model_id}`)}><BadgeDollarSignIcon aria-hidden /></Button>
+        <Button size="icon-xs" variant="ghost" aria-label={`${t("providers.models.priceRule")}: ${model.model_id}`} onClick={() => navigateAdminPath(`/admin/providers/${providerId}/pricing`)}><BadgeDollarSignIcon aria-hidden /></Button>
         <Button size="icon-xs" variant="ghost" aria-label={`${t("common.actions.edit")}: ${model.model_id}`} onClick={() => openEditor(model)}><PencilIcon aria-hidden /></Button>
         <EntityDeleteButton entity="provider-models" id={model.id} label={model.model_id} queryKeys={["provider-models"]} />
       </div>

@@ -1,57 +1,83 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
+import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { deletePriceRate } from "@/api/control"
 import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
-import { EntityDeleteButton } from "@/components/entity-delete-button"
-import { PriceRateDialog } from "@/components/pricing/price-rate-dialog"
+import { PriceRuleDetail } from "@/components/pricing/price-rule-detail"
 import { PriceRuleDialog } from "@/components/pricing/price-rule-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
 import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
-import { cn } from "@/lib/utils"
 
-export function PricingWorkspace({ rules, rates, providers }: { rules: Array<PriceRuleDto>; rates: Array<PriceRateDto>; providers: Array<ProviderDto> }) {
+type Props = {
+  rules: Array<PriceRuleDto>
+  rates: Array<PriceRateDto>
+  providers: Array<ProviderDto>
+  scopeProviderId?: number | null
+}
+
+export function PricingWorkspace(props: Props) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const location = useAdminLocation()
-  const providerNames = useMemo(() => new Map(providers.map((provider) => [provider.id, provider.name])), [providers])
-  const selectedId = Number(location.segments[0])
-  const selected = rules.find((rule) => rule.id === selectedId) ?? null
-  const selectedRates = rates.filter((rate) => rate.rule_id === selected?.id)
-  const remove = useMutation({
-    mutationFn: deletePriceRate,
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["price-rates"] }); toast.success(t("pricing.rates.deleted")) },
-    onError: () => toast.error(t("pricing.rates.deleteError")),
-  })
-  const ruleActions = (rule: PriceRuleDto) => <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}><PriceRuleDialog rule={rule} providers={providers} trigger={<Button size="icon-sm" variant="outline" aria-label={t("common.actions.edit")}><PencilIcon aria-hidden /></Button>} /><EntityDeleteButton entity="price-rules" id={rule.id} label={rule.model_pattern} queryKeys={["price-rules", "price-rates"]} /></div>
-  const ruleColumns: Array<DataTableColumn<PriceRuleDto>> = [
-    { key: "model", label: t("pricing.rules.pattern"), header: t("pricing.rules.pattern"), cell: (rule) => <span className="font-mono text-xs">{rule.model_pattern}</span> },
-    { key: "provider", label: t("pricing.rules.provider"), header: t("pricing.rules.provider"), cell: (rule) => rule.provider_id == null ? t("pricing.rules.allProviders") : providerNames.get(rule.provider_id) ?? rule.provider_id },
-    { key: "status", label: t("common.status.label"), header: t("common.status.label"), cell: (rule) => <Badge variant={rule.enabled ? "outline" : "secondary"}>{t(`common.status.${rule.enabled ? "enabled" : "disabled"}`)}</Badge> },
-    { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: ruleActions },
-  ]
-  const rateActions = (rate: PriceRateDto) => <div className="flex items-center justify-end gap-2"><PriceRateDialog rate={rate} rules={rules} trigger={<Button size="sm" variant="outline">{t("common.actions.edit")}</Button>} /><Button size="icon-sm" variant="ghost" aria-label={t("common.actions.delete")} disabled={remove.isPending} onClick={() => remove.mutate(rate.id)}><Trash2Icon aria-hidden /></Button></div>
-  const rateColumns: Array<DataTableColumn<PriceRateDto>> = [
-    { key: "metric", label: t("pricing.rates.metric"), header: t("pricing.rates.metric"), cell: (rate) => <div><p className="font-mono text-xs">{rate.metric}</p><p className="text-xs text-muted-foreground">{t("pricing.rates.summary", { price: rate.price, units: rate.unit_size })}</p></div> },
-    { key: "priority", label: t("pricing.rates.priority"), header: t("pricing.rates.priority"), cell: (rate) => <Badge variant="outline">{t("pricing.rates.priorityValue", { value: rate.priority })}</Badge> },
-    { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: rateActions },
-  ]
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]">
-        <div className={cn(selected && "hidden md:block")}><DataTable columns={ruleColumns} rows={rules} rowKey={(rule) => rule.id} searchText={(rule) => `${rule.model_pattern} ${rule.provider_id == null ? t("pricing.rules.allProviders") : providerNames.get(rule.provider_id) ?? rule.provider_id}`} renderCard={(rule) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs">{rule.model_pattern}</p><p className="text-xs text-muted-foreground">{rule.provider_id == null ? t("pricing.rules.allProviders") : providerNames.get(rule.provider_id) ?? rule.provider_id}</p></div><Badge variant={rule.enabled ? "outline" : "secondary"}>{t(`common.status.${rule.enabled ? "enabled" : "disabled"}`)}</Badge></div>{ruleActions(rule)}</div>} empty={t("pricing.rules.empty")} storageKey="price-rules" activeRowKey={selected?.id} selectable createAction={<PriceRuleDialog providers={providers} trigger={<Button size="icon-sm" aria-label={t("pricing.rules.add")}><PlusIcon aria-hidden /></Button>} />} batchActions={(rows, onApplied) => <BatchActions entity="price-rules" rows={rows} queryKeys={["price-rules", "price-rates"]} onApplied={onApplied} />} onRowClick={(rule) => navigateAdminPath(`/admin/pricing/${rule.id}/rates`)} /></div>
-        <div className={cn("min-w-0", !selected && "hidden md:block")}>
-          {selected ? <><Button className="mb-3 md:hidden" variant="ghost" onClick={() => navigateAdminPath(adminPath("pricing"))}>{t("common.actions.back")}</Button><Card><CardHeader><CardTitle className="font-mono">{selected.model_pattern}</CardTitle><CardAction><PriceRateDialog rules={rules} initialRuleId={selected.id} trigger={<Button size="sm" variant="outline">{t("pricing.rates.add")}</Button>} /></CardAction></CardHeader><CardContent><DataTable columns={rateColumns} rows={selectedRates} rowKey={(rate) => rate.id} searchText={(rate) => `${rate.metric} ${rate.price}`} renderCard={(rate) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{rate.metric}</p><p className="text-xs text-muted-foreground">{t("pricing.rates.summary", { price: rate.price, units: rate.unit_size })}</p></div>{rateActions(rate)}</div>} empty={t("pricing.rates.empty")} storageKey="price-rates" selectable batchActions={(rows, onApplied) => <BatchActions entity="price-rates" rows={rows} queryKeys={["price-rates"]} toggle={false} remove onApplied={onApplied} />} /></CardContent></Card></> : <div className="grid min-h-80 place-items-center text-sm text-muted-foreground">{t("pricing.rules.selectPrompt")}</div>}
-        </div>
-      </div>
-    </div>
+  const embedded = typeof props.scopeProviderId === "number"
+  const scopedRules = useMemo(
+    () => props.rules.filter((rule) => props.scopeProviderId === undefined || rule.provider_id === props.scopeProviderId),
+    [props.rules, props.scopeProviderId],
   )
+  const providerNames = useMemo(
+    () => new Map(props.providers.map((provider) => [provider.id, provider.name])),
+    [props.providers],
+  )
+  const [localSelectedId, setLocalSelectedId] = useState<number | null>(null)
+  const [localTab, setLocalTab] = useState("rates")
+  const routedId = Number(location.segments[0])
+  const selectedId = embedded ? localSelectedId : Number.isFinite(routedId) ? routedId : null
+  const selected = scopedRules.find((rule) => rule.id === selectedId) ?? null
+  const detailTab = embedded
+    ? localTab
+    : location.segments[1] === "tiers" || location.segments[1] === "settings"
+      ? location.segments[1]
+      : "rates"
+
+  return <WorkspaceLayout
+    storageKey={embedded ? `gproxy.workspace.provider-${props.scopeProviderId}-pricing.width` : "gproxy.workspace.pricing.width"}
+    title={t("pricing.title")}
+    items={scopedRules}
+    selectedId={selected?.id ?? null}
+    getSearchText={(rule) => `${rule.model_pattern} ${providerLabel(rule, providerNames, t)}`}
+    renderTitle={(rule) => <span className="font-mono">{rule.model_pattern}</span>}
+    renderSummary={(rule) => providerLabel(rule, providerNames, t)}
+    renderAction={(rule) => <Badge variant={rule.enabled ? "outline" : "secondary"}>{t(`common.status.${rule.enabled ? "enabled" : "disabled"}`)}</Badge>}
+    onSelect={(rule) => embedded ? setLocalSelectedId(rule.id) : navigateAdminPath(`/admin/pricing/${rule.id}/rates`)}
+    onBack={() => embedded ? setLocalSelectedId(null) : navigateAdminPath(adminPath("pricing"))}
+    searchPlaceholder={t("pricing.rules.search")}
+    emptyLabel={t("pricing.rules.empty")}
+    resizeLabel={t("pricing.rules.resize")}
+    selectAllLabel={t("common.dataTable.selectAll")}
+    selectRowLabel={(rule) => `${t("common.dataTable.selectRow")}: ${rule.model_pattern}`}
+    selectedLabel={(count) => t("common.dataTable.selected", { count })}
+    mobileBackLabel={t("common.actions.back")}
+    createAction={<PriceRuleDialog providers={props.providers} fixedProviderId={props.scopeProviderId} trigger={<Button size="icon-sm" aria-label={t("pricing.rules.add")}><PlusIcon aria-hidden /></Button>} />}
+    batchActions={(rows, done) => <BatchActions entity="price-rules" rows={rows} queryKeys={["price-rules", "price-rates"]} onApplied={done} size="xs" />}
+    emptyState={<Empty><EmptyHeader><EmptyTitle>{t("pricing.title")}</EmptyTitle><EmptyDescription>{t("pricing.rules.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
+  >
+    {selected ? <PriceRuleDetail
+      rule={selected}
+      rules={scopedRules}
+      rates={props.rates.filter((rate) => rate.rule_id === selected.id)}
+      providers={props.providers}
+      providerNames={providerNames}
+      scopeProviderId={props.scopeProviderId}
+      tab={detailTab}
+      onTab={(tab) => embedded ? setLocalTab(tab) : navigateAdminPath(`/admin/pricing/${selected.id}/${tab}`, true)}
+    /> : null}
+  </WorkspaceLayout>
+}
+
+function providerLabel(rule: PriceRuleDto, names: Map<number, string>, t: (key: string) => string) {
+  return rule.provider_id == null ? t("pricing.rules.allProviders") : names.get(rule.provider_id) ?? `#${rule.provider_id}`
 }

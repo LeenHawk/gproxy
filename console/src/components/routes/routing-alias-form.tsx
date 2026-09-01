@@ -27,12 +27,14 @@ export function RoutingAliasForm({
   opener,
   onOpenChange,
   onChanged,
+  fixedProviderId,
 }: {
   alias: AliasDto | null
   providers: Array<ProviderDto>
   opener: HTMLElement | null
   onOpenChange: (open: boolean) => void
   onChanged: () => void
+  fixedProviderId?: number | null
 }) {
   const { t } = useTranslation()
   const aliasId = useId()
@@ -42,7 +44,7 @@ export function RoutingAliasForm({
   const enabledId = useId()
   const [incoming, setIncoming] = useState(alias?.alias ?? "")
   const [target, setTarget] = useState(alias?.target ?? "")
-  const [provider, setProvider] = useState(alias?.provider_id == null ? "any" : String(alias.provider_id))
+  const [provider, setProvider] = useState(fixedProviderId === undefined ? alias?.provider_id == null ? "any" : String(alias.provider_id) : fixedProviderId == null ? "any" : String(fixedProviderId))
   const [priority, setPriority] = useState(String(alias?.priority ?? 0))
   const [enabled, setEnabled] = useState(alias?.enabled ?? true)
   const mutation = useMutation({
@@ -60,7 +62,7 @@ export function RoutingAliasForm({
     mutation.mutate({
       alias: incoming.trim(),
       target: target.trim(),
-      provider_id: provider === "any" ? null : Number(provider),
+      provider_id: fixedProviderId === undefined ? provider === "any" ? null : Number(provider) : fixedProviderId,
       priority: Number(priority),
       enabled,
     })
@@ -71,7 +73,7 @@ export function RoutingAliasForm({
       <FormDialogContent opener={opener}>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>{t(alias ? "common.actions.edit" : "routes.routingAliases.add")}</DialogTitle>
+            <DialogTitle>{t(alias ? "common.actions.edit" : fixedProviderId === undefined ? "routes.routingAliases.add" : "routes.routingAliases.modelAdd")}</DialogTitle>
           </DialogHeader>
           <DialogBody><FieldGroup>
             <Field>
@@ -82,7 +84,7 @@ export function RoutingAliasForm({
               <FieldLabel htmlFor={targetId}>{t("routes.routingAliases.target")}</FieldLabel>
               <Input id={targetId} className="font-mono" value={target} required onChange={(event) => setTarget(event.target.value)} />
             </Field>
-            <Field>
+            {fixedProviderId === undefined ? <Field>
               <FieldLabel htmlFor={providerId}>{t("routes.routingAliases.provider")}</FieldLabel>
               <SearchableSelect
                 id={providerId}
@@ -97,7 +99,7 @@ export function RoutingAliasForm({
                 ariaLabel={t("routes.routingAliases.provider")}
                 onChange={setProvider}
               />
-            </Field>
+            </Field> : null}
             <Field>
               <FieldLabel htmlFor={priorityId}>{t("routes.routingAliases.priority")}</FieldLabel>
               <Input id={priorityId} type="number" step={1} value={priority} required onChange={(event) => setPriority(event.target.value)} />

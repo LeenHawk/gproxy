@@ -17,15 +17,16 @@ import { Switch } from "@/components/ui/switch"
 import { TierEditor } from "./tier-editor"
 import { losesLongContextStep, serializeTiers, tierDrafts } from "./tier-values"
 
-export function PriceRuleDialog({ rule, providers, trigger }: {
+export function PriceRuleDialog({ rule, providers, trigger, fixedProviderId }: {
   rule?: PriceRuleDto
   providers: Array<ProviderDto>
   trigger: ReactElement
+  fixedProviderId?: number | null
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [provider, setProvider] = useState(rule?.provider_id == null ? "all" : String(rule.provider_id))
+  const [provider, setProvider] = useState(fixedProviderId === undefined ? rule?.provider_id == null ? "all" : String(rule.provider_id) : fixedProviderId == null ? "all" : String(fixedProviderId))
   const [pattern, setPattern] = useState(rule?.model_pattern ?? "")
   const [priority, setPriority] = useState(String(rule?.priority ?? 0))
   const [enabled, setEnabled] = useState(rule?.enabled ?? true)
@@ -42,7 +43,7 @@ export function PriceRuleDialog({ rule, providers, trigger }: {
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
     mutation.mutate({
-      provider_id: provider === "all" ? null : Number(provider),
+      provider_id: fixedProviderId === undefined ? provider === "all" ? null : Number(provider) : fixedProviderId,
       model_pattern: pattern.trim(),
       tiers: tiers.length ? serializeTiers(tiers) : null,
       priority: Number(priority),
@@ -57,7 +58,7 @@ export function PriceRuleDialog({ rule, providers, trigger }: {
           <DialogHeader><DialogTitle>{t(rule ? "pricing.rules.edit" : "pricing.rules.add")}</DialogTitle></DialogHeader>
           <DialogBody><FieldGroup>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
+              {fixedProviderId === undefined ? <Field>
                 <FieldLabel htmlFor="price-provider">{t("pricing.rules.provider")}</FieldLabel>
                 <SearchableSelect
                   id="price-provider"
@@ -69,7 +70,7 @@ export function PriceRuleDialog({ rule, providers, trigger }: {
                   ariaLabel={t("pricing.rules.provider")}
                   onChange={setProvider}
                 />
-              </Field>
+              </Field> : null}
               <Field><FieldLabel htmlFor="price-pattern">{t("pricing.rules.pattern")}</FieldLabel><Input id="price-pattern" className="font-mono" required value={pattern} onChange={(event) => setPattern(event.target.value)} /></Field>
               <Field><FieldLabel htmlFor="price-priority">{t("pricing.rules.priority")}</FieldLabel><Input id="price-priority" type="number" step={1} required value={priority} onChange={(event) => setPriority(event.target.value)} /></Field>
               <Field orientation="horizontal"><FieldLabel htmlFor="price-enabled">{t("pricing.rules.enabled")}</FieldLabel><Switch id="price-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>

@@ -10,12 +10,14 @@ import { ApplicationPresetButton } from "@/components/rules/application-preset-b
 import { AttachmentDialog } from "@/components/rules/attachment-dialog"
 import { RuleList } from "@/components/rules/rule-list"
 import { RuleSetDialog } from "@/components/rules/rule-set-dialog"
+import { BatchActions } from "@/components/batch-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { BatchActions } from "@/components/batch-actions"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
-import { cn } from "@/lib/utils"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
+import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
 
 export type RuleMutations = {
   saving: boolean
@@ -38,55 +40,173 @@ type Props = {
 
 export function RulesWorkspace(props: Props) {
   const { t } = useTranslation()
-  const scopedAttachments = props.scopeProviderId == null
-    ? props.attachments
-    : props.attachments.filter((attachment) => attachment.provider_id === props.scopeProviderId)
-  const visibleIds = props.scopeProviderId == null ? null : new Set(scopedAttachments.map((value) => value.rule_set_id))
+  const location = useAdminLocation()
+  const embedded = props.scopeProviderId != null
+  const scopedAttachments = embedded
+    ? props.attachments.filter((attachment) => attachment.provider_id === props.scopeProviderId)
+    : props.attachments
+  const visibleIds = embedded ? new Set(scopedAttachments.map((attachment) => attachment.rule_set_id)) : null
   const visibleSets = visibleIds == null ? props.ruleSets : props.ruleSets.filter((set) => visibleIds.has(set.id))
-  const [selectedId, setSelectedId] = useState<number | null | undefined>(undefined)
-  const effectiveSelectedId = selectedId === undefined ? visibleSets[0]?.id : selectedId
-  const selected = visibleSets.find((set) => set.id === effectiveSelectedId) ?? (selectedId == null ? null : visibleSets[0] ?? null)
-  const selectedAttachments = selected ? props.attachments.filter((value) => value.rule_set_id === selected.id) : []
-  const scopedAttachment = props.scopeProviderId == null ? null : selectedAttachments.find((value) => value.provider_id === props.scopeProviderId) ?? null
-  const providerNames = useMemo(() => new Map(props.providers.map((provider) => [provider.id, provider.name])), [props.providers])
-  const unattached = props.ruleSets.filter((set) => !scopedAttachments.some((value) => value.rule_set_id === set.id))
-  const columns: Array<DataTableColumn<RuleSetDto>> = [
-    { key: "name", label: t("rules.fields.name"), header: t("rules.fields.name"), cell: (set) => <span className="font-medium">{ruleSetText(set, "name", t)}</span> },
-    { key: "scope", label: t("rules.fields.scope"), header: t("rules.fields.scope"), cell: (set) => <Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge> },
-  ]
+  const [localSelectedId, setLocalSelectedId] = useState<number | null>(null)
+  const routedId = Number(location.segments[0])
+  const selectedId = embedded ? localSelectedId : Number.isFinite(routedId) ? routedId : null
+  const selected = visibleSets.find((set) => set.id === selectedId) ?? null
+  const selectedAttachments = selected
+    ? props.attachments.filter((attachment) => attachment.rule_set_id === selected.id)
+    : []
+  const providerNames = useMemo(
+    () => new Map(props.providers.map((provider) => [provider.id, provider.name])),
+    [props.providers],
+  )
+  const unattached = props.ruleSets.filter(
+    (set) => !scopedAttachments.some((attachment) => attachment.rule_set_id === set.id),
+  )
+  const detailTab = location.segments[1] === "providers" || location.segments[1] === "settings"
+    ? location.segments[1]
+    : "rules"
 
-  return <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(16rem,0.7fr)_minmax(0,1.3fr)]">
-      <div className={cn(selected && "hidden md:block")}>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("rules.sets.title")}</CardTitle>
-            {props.scopeProviderId != null ? <CardAction><div className="flex flex-wrap justify-end gap-2"><ApplicationPresetButton providerId={props.scopeProviderId} /><AttachmentDialog providers={props.providers} ruleSets={unattached} fixedProviderId={props.scopeProviderId} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" disabled={!unattached.length}>{t("rules.attachments.attachExisting")}</Button>} /></div></CardAction> : null}
-          </CardHeader>
-          <CardContent><DataTable columns={columns} rows={visibleSets} rowKey={(set) => set.id} searchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`} renderCard={(set) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{ruleSetText(set, "name", t)}</p><p className="truncate text-xs text-muted-foreground">{ruleSetText(set, "description", t)}</p></div><Badge variant="secondary">{scopeLabel(props.attachments.filter((value) => value.rule_set_id === set.id).length, t)}</Badge></div>} empty={t(props.scopeProviderId == null ? "rules.sets.empty" : "rules.attachments.empty")} storageKey={props.scopeProviderId == null ? "rule-sets" : `provider-${props.scopeProviderId}-rule-sets`} activeRowKey={selected?.id} selectable createAction={props.scopeProviderId == null ? <RuleSetDialog saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="icon-sm" aria-label={t("rules.sets.add")}><PlusIcon aria-hidden /></Button>} /> : undefined} batchActions={(rows, onApplied) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} remove={props.scopeProviderId == null} onApplied={onApplied} />} onRowClick={(set) => setSelectedId(set.id)} /></CardContent>
-        </Card>
-      </div>
-      <div className={cn("min-w-0", !selected && "hidden md:block")}>
-        {selected ? <div className="flex flex-col gap-4">
-          <Button className="self-start md:hidden" variant="ghost" onClick={() => setSelectedId(null)}>{t("common.actions.back")}</Button>
-          <Card><CardHeader><CardTitle>{ruleSetText(selected, "name", t)}</CardTitle><CardDescription>{ruleSetText(selected, "description", t)}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2"><Badge>{scopeLabel(selectedAttachments.length, t)}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!selected.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}</div>
-            <div className="flex flex-wrap gap-2">
-              <RuleSetDialog ruleSet={selected} saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button size="sm" variant="outline">{t("common.actions.edit")}</Button>} />
-              {props.scopeProviderId == null ? <AttachmentDialog providers={props.providers} ruleSets={[selected]} fixedRuleSetId={selected.id} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm" variant="outline">{t("rules.attachments.attach")}</Button>} /> : null}
-              {scopedAttachment ? <Button size="sm" variant="outline" onClick={() => detach(scopedAttachment)}>{t("rules.attachments.detach")}</Button> : null}
-              <Button size="sm" variant="ghost" disabled={props.rules.some((rule) => rule.rule_set_id === selected.id) || selectedAttachments.length > 0} onClick={() => props.mutations.deleteSet(selected.id)}>{t("common.actions.delete")}</Button>
-            </div>
-            {props.scopeProviderId == null && selectedAttachments.length ? <div><p className="mb-2 text-sm font-medium">{t("rules.attachments.title")}</p><div className="flex flex-wrap gap-2">{selectedAttachments.map((value) => <Badge key={value.id} variant="outline">{providerNames.get(value.provider_id) ?? value.provider_id}</Badge>)}</div></div> : null}
-          </CardContent></Card>
-          <RuleList ruleSetId={selected.id} rules={props.rules.filter((rule) => rule.rule_set_id === selected.id)} inherited={scopedAttachment?.inherited ?? false} saving={props.mutations.saving} onSave={props.mutations.saveRule} onDelete={props.mutations.deleteRule} />
-        </div> : <div className="grid min-h-80 place-items-center text-sm text-muted-foreground">{t("rules.sets.selectPrompt")}</div>}
-      </div>
+  const detach = (attachment: ProviderRuleSetDto) => {
+    if (!attachment.inherited) {
+      props.mutations.detach(attachment.id)
+      return
+    }
+    void props.mutations.attach({
+      provider_id: attachment.provider_id,
+      rule_set_id: attachment.rule_set_id,
+      sort_order: attachment.sort_order,
+      enabled: false,
+    }, attachment.id)
+  }
+
+  const createAction = embedded ? <div className="flex items-center gap-1">
+    <ApplicationPresetButton providerId={props.scopeProviderId!} />
+    <AttachmentDialog
+      providers={props.providers}
+      ruleSets={unattached}
+      fixedProviderId={props.scopeProviderId}
+      saving={props.mutations.saving}
+      onSave={props.mutations.attach}
+      trigger={<Button size="icon-sm" disabled={!unattached.length} aria-label={t("rules.attachments.attachExisting")}><PlusIcon aria-hidden /></Button>}
+    />
+  </div> : <RuleSetDialog
+    saving={props.mutations.saving}
+    onSave={props.mutations.saveSet}
+    trigger={<Button size="icon-sm" aria-label={t("rules.sets.add")}><PlusIcon aria-hidden /></Button>}
+  />
+
+  return <WorkspaceLayout
+    storageKey={embedded ? `gproxy.workspace.provider-${props.scopeProviderId}-rules.width` : "gproxy.workspace.rules.width"}
+    title={t("rules.sets.title")}
+    items={visibleSets}
+    selectedId={selected?.id ?? null}
+    getSearchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`}
+    renderTitle={(set) => ruleSetText(set, "name", t)}
+    renderSummary={(set) => ruleSetText(set, "description", t)}
+    renderAction={(set) => <Badge variant="secondary" aria-label={t("rules.fields.scope")}>{scopeLabel(props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length, t)}</Badge>}
+    onSelect={(set) => embedded ? setLocalSelectedId(set.id) : navigateAdminPath(`/admin/rules/${set.id}/rules`)}
+    onBack={() => embedded ? setLocalSelectedId(null) : navigateAdminPath(adminPath("rules"))}
+    searchPlaceholder={t("rules.sets.search")}
+    emptyLabel={t(embedded ? "rules.attachments.empty" : "rules.sets.empty")}
+    resizeLabel={t("rules.sets.resize")}
+    selectAllLabel={t("common.dataTable.selectAll")}
+    selectRowLabel={(set) => `${t("common.dataTable.selectRow")}: ${ruleSetText(set, "name", t)}`}
+    selectedLabel={(count) => t("common.dataTable.selected", { count })}
+    mobileBackLabel={t("common.actions.back")}
+    createAction={createAction}
+    batchActions={embedded ? undefined : (rows, done) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} onApplied={done} size="xs" />}
+    emptyState={<Empty><EmptyHeader><EmptyTitle>{t("rules.sets.title")}</EmptyTitle><EmptyDescription>{t("rules.sets.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
+  >
+    {selected ? <RuleSetDetail
+      selected={selected}
+      detailTab={detailTab}
+      embedded={embedded}
+      scopeProviderId={props.scopeProviderId}
+      rules={props.rules}
+      providers={props.providers}
+      attachments={selectedAttachments}
+      providerNames={providerNames}
+      mutations={props.mutations}
+      onDetach={detach}
+    /> : null}
+  </WorkspaceLayout>
+}
+
+function RuleSetDetail(props: {
+  selected: RuleSetDto
+  detailTab: string
+  embedded: boolean
+  scopeProviderId?: number
+  rules: Array<RuleDto>
+  providers: Array<ProviderDto>
+  attachments: Array<ProviderRuleSetDto>
+  providerNames: Map<number, string>
+  mutations: RuleMutations
+  onDetach: (attachment: ProviderRuleSetDto) => void
+}) {
+  const { t } = useTranslation()
+  const selectedRules = props.rules.filter((rule) => rule.rule_set_id === props.selected.id)
+  const scopedAttachment = props.attachments.find(
+    (attachment) => attachment.provider_id === props.scopeProviderId,
+  )
+
+  if (props.embedded) return <div className="flex flex-col gap-4">
+    <RuleSetSummary set={props.selected} attachments={props.attachments} scopedAttachment={scopedAttachment} />
+    {scopedAttachment ? <Button className="self-start" size="sm" variant="outline" onClick={() => props.onDetach(scopedAttachment)}>{t("rules.attachments.detach")}</Button> : null}
+    <RuleList ruleSetId={props.selected.id} rules={selectedRules} inherited={scopedAttachment?.inherited ?? false} saving={props.mutations.saving} onSave={props.mutations.saveRule} onDelete={props.mutations.deleteRule} />
   </div>
 
-  function detach(attachment: ProviderRuleSetDto) {
-    if (!attachment.inherited) return props.mutations.detach(attachment.id)
-    void props.mutations.attach({ provider_id: attachment.provider_id, rule_set_id: attachment.rule_set_id, sort_order: attachment.sort_order, enabled: false }, attachment.id)
-  }
+  return <div className="flex flex-col gap-4">
+    <RuleSetSummary set={props.selected} attachments={props.attachments} />
+    <Tabs value={props.detailTab} onValueChange={(tab) => navigateAdminPath(`/admin/rules/${props.selected.id}/${tab}`, true)}>
+      <TabsList variant="line">
+        <TabsTrigger value="rules">{t("rules.entries.title")}</TabsTrigger>
+        <TabsTrigger value="providers">{t("rules.attachments.title")}</TabsTrigger>
+        <TabsTrigger value="settings">{t("rules.sets.settings")}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="rules" className="pt-4">
+        <RuleList ruleSetId={props.selected.id} rules={selectedRules} inherited={false} saving={props.mutations.saving} onSave={props.mutations.saveRule} onDelete={props.mutations.deleteRule} />
+      </TabsContent>
+      <TabsContent value="providers" className="pt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("rules.attachments.title")}</CardTitle>
+            <CardAction><AttachmentDialog providers={props.providers} ruleSets={[props.selected]} fixedRuleSetId={props.selected.id} saving={props.mutations.saving} onSave={props.mutations.attach} trigger={<Button size="sm">{t("rules.attachments.attach")}</Button>} /></CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {props.attachments.length ? props.attachments.map((attachment) => <div key={attachment.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div className="min-w-0"><p className="truncate text-sm font-medium">{props.providerNames.get(attachment.provider_id) ?? `#${attachment.provider_id}`}</p><p className="text-xs text-muted-foreground">{attachment.inherited ? t("rules.values.inherited") : t("rules.attachments.title")}</p></div>
+              <Button size="sm" variant="outline" onClick={() => props.onDetach(attachment)}>{t("rules.attachments.detach")}</Button>
+            </div>) : <p className="text-sm text-muted-foreground">{t("rules.attachments.emptyForSet")}</p>}
+          </CardContent>
+        </Card>
+      </TabsContent>
+      <TabsContent value="settings" className="pt-4">
+        <Card>
+          <CardHeader><CardTitle>{t("rules.sets.settings")}</CardTitle></CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <RuleSetDialog ruleSet={props.selected} saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button variant="outline">{t("common.actions.edit")}</Button>} />
+            <Button variant="ghost" disabled={selectedRules.length > 0 || props.attachments.length > 0} onClick={() => props.mutations.deleteSet(props.selected.id)}>{t("common.actions.delete")}</Button>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
+  </div>
+}
+
+function RuleSetSummary({ set, attachments, scopedAttachment }: {
+  set: RuleSetDto
+  attachments: Array<ProviderRuleSetDto>
+  scopedAttachment?: ProviderRuleSetDto
+}) {
+  const { t } = useTranslation()
+  return <Card>
+    <CardHeader><CardTitle>{ruleSetText(set, "name", t)}</CardTitle><CardDescription>{ruleSetText(set, "description", t)}</CardDescription></CardHeader>
+    <CardContent className="flex flex-wrap gap-2">
+      <Badge>{scopeLabel(attachments.length, t)}</Badge>
+      {scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}
+      {!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}
+    </CardContent>
+  </Card>
 }
 
 function scopeLabel(count: number, t: (key: string) => string) {
@@ -95,11 +215,11 @@ function scopeLabel(count: number, t: (key: string) => string) {
   return t("rules.scope.shared")
 }
 
-function ruleSetText(ruleSet: RuleSetDto, field: "name" | "description", t: (key: string) => string) {
-  const marker = ruleSet.description?.startsWith("gproxy:channel-default:") ? ruleSet.description : null
+function ruleSetText(set: RuleSetDto, field: "name" | "description", t: (key: string) => string) {
+  const marker = set.description?.startsWith("gproxy:channel-default:") ? set.description : null
   if (marker) {
     const key = marker.slice("gproxy:channel-default:".length).replaceAll(":", "_")
     return t(`rules.channelDefaults.${key}.${field}`)
   }
-  return field === "name" ? ruleSet.name : ruleSet.description ?? t("rules.sets.noDescription")
+  return field === "name" ? set.name : set.description ?? t("rules.sets.noDescription")
 }

@@ -7,6 +7,9 @@
     "empty": "尚無負載均衡——建立一個以對外公開一個邏輯模型名稱。",
     "loadError": "無法載入負載均衡，請重試。",
     "selectPrompt": "選擇負載均衡以檢視及編輯詳細資料。",
+    "search": "搜尋負載均衡…",
+    "resize": "調整負載均衡清單寬度",
+    "summary": "最多嘗試 {{attempts}} 次",
     "tabs": {
       "settings": "設定"
     },
@@ -43,8 +46,12 @@
     },
     "routingAliases": {
       "title": "路由別名",
+      "globalTitle": "全域模型別名",
+      "providerTitle": "模型別名",
       "add": "新增路由別名",
+      "modelAdd": "新增模型別名",
       "empty": "尚未設定供應商路由別名。",
+      "modelEmpty": "尚未設定模型別名。",
       "alias": "傳入名稱",
       "target": "上游名稱",
       "provider": "供應商",

@@ -27,19 +27,21 @@ export function ModelAliasForm({
   opener,
   onOpenChange,
   onChanged,
+  fixedRouteId,
 }: {
   alias: ModelAliasDto | null
   routes: Array<RouteDto>
   opener: HTMLElement | null
   onOpenChange: (open: boolean) => void
   onChanged: () => void
+  fixedRouteId?: number
 }) {
   const { t } = useTranslation()
   const nameId = useId()
   const routeId = useId()
   const enabledId = useId()
   const [name, setName] = useState(alias?.name ?? "")
-  const [selectedRoute, setSelectedRoute] = useState(String(alias?.route_id ?? routes[0]?.id ?? 0))
+  const [selectedRoute, setSelectedRoute] = useState(String(fixedRouteId ?? alias?.route_id ?? routes[0]?.id ?? 0))
   const [enabled, setEnabled] = useState(alias?.enabled ?? true)
   const mutation = useMutation({
     mutationFn: (value: ModelAliasWriteRequest) => saveModelAlias(value, alias?.id),
@@ -72,7 +74,7 @@ export function ModelAliasForm({
               <FieldLabel htmlFor={nameId}>{t("routes.aliases.name")}</FieldLabel>
               <Input id={nameId} className="font-mono" value={name} required autoFocus onChange={(event) => setName(event.target.value)} />
             </Field>
-            <Field>
+            {fixedRouteId == null ? <Field>
               <FieldLabel htmlFor={routeId}>{t("routes.aliases.route")}</FieldLabel>
               <SearchableSelect
                 id={routeId}
@@ -84,7 +86,7 @@ export function ModelAliasForm({
                 ariaLabel={t("routes.aliases.route")}
                 onChange={setSelectedRoute}
               />
-            </Field>
+            </Field> : null}
             <Field orientation="horizontal">
               <FieldLabel htmlFor={enabledId}>{t("routes.aliases.enabled")}</FieldLabel>
               <Switch id={enabledId} checked={enabled} onCheckedChange={setEnabled} />

@@ -6,11 +6,14 @@
     "rules": {
       "add": "Add price rule",
       "edit": "Edit price rule",
+      "settings": "Basic settings",
       "created": "Price rule created.",
       "updated": "Price rule updated.",
       "saveError": "Could not save the price rule. Retry.",
       "empty": "No price rules. Add one before traffic can settle at a non-zero cost.",
       "selectPrompt": "Select a price rule to inspect its dimensional rates.",
+      "search": "Search price rules…",
+      "resize": "Resize price rule list",
       "provider": "Provider",
       "allProviders": "All providers",
       "pattern": "Model pattern",
@@ -19,6 +22,8 @@
     },
     "tiers": {
       "title": "Prompt and service tiers",
+      "base": "Base tier",
+      "empty": "No prompt or service-tier overrides.",
       "add": "Add tier row",
       "serviceTier": "Service tier",
       "threshold": "Minimum prompt tokens",
@@ -36,6 +41,7 @@
       "longContext": "This explicit service-tier price replaces the base ladder, but the base ladder has a higher threshold. Add the matching service-tier threshold row or use a multiplier."
     },
     "rates": {
+      "title": "Dimensional rates",
       "add": "Add rate",
       "edit": "Edit rate",
       "created": "Rate created.",

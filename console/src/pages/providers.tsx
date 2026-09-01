@@ -3,11 +3,13 @@ import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   credentials as fetchCredentials,
+  aliases,
   providers as fetchProviders,
   saveCredential,
   saveProvider,
   providerRuleSets,
   priceRules,
+  priceRates,
   providerModels,
   routingRules,
   ruleSets,
@@ -46,6 +48,8 @@ export function ProvidersPage() {
   const routingQuery = useQuery({ queryKey: ["routing-rules"], queryFn: routingRules })
   const providerModelQuery = useQuery({ queryKey: ["provider-models"], queryFn: providerModels })
   const priceRuleQuery = useQuery({ queryKey: ["price-rules"], queryFn: priceRules })
+  const priceRateQuery = useQuery({ queryKey: ["price-rates"], queryFn: priceRates })
+  const aliasQuery = useQuery({ queryKey: ["aliases"], queryFn: aliases })
   const providerMutation = useMutation({
     mutationFn: ({ value, id }: ProviderMutation) => saveProvider(value, id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
@@ -87,6 +91,9 @@ export function ProvidersPage() {
       routingRules={routingQuery.data ?? []}
       providerModels={providerModelQuery.data ?? []}
       priceRules={priceRuleQuery.data ?? []}
+      priceRates={priceRateQuery.data ?? []}
+      aliases={aliasQuery.data ?? []}
+      onAliasesChanged={() => void aliasQuery.refetch()}
       ruleMutations={ruleMutations}
     />
   )

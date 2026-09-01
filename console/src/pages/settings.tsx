@@ -9,6 +9,7 @@ import { ConfigurationTransferCard } from "@/components/settings/configuration-t
 import { AutostartCard } from "@/components/settings/autostart-card"
 import { UpdateCard } from "@/components/settings/update-card"
 import { PortalSettingsCard } from "@/components/settings/portal-settings-card"
+import { GlobalAliasesCard } from "@/components/settings/global-aliases-card"
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -26,6 +27,7 @@ export function SettingsPage() {
       </QueryState>
       <ConfigurationTransferCard />
       <PortalSettingsCard />
+      <GlobalAliasesCard />
       <AutostartCard />
       <UpdateCard />
       </div>

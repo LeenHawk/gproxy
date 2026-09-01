@@ -16,15 +16,17 @@ export function ModelAliases({
   aliases,
   routes,
   onChanged,
+  routeId,
 }: {
   aliases: Array<ModelAliasDto>
   routes: Array<RouteDto>
   onChanged: () => void
+  routeId?: number
 }) {
   const { t } = useTranslation()
   const [form, setForm] = useState<{ alias: ModelAliasDto | null; opener: HTMLElement } | null>(null)
   const routeById = useMemo(() => new Map(routes.map((route) => [route.id, route])), [routes])
-  const ordered = useMemo(() => [...aliases].sort((a, b) => a.name.localeCompare(b.name)), [aliases])
+  const ordered = useMemo(() => aliases.filter((alias) => routeId == null || alias.route_id === routeId).sort((a, b) => a.name.localeCompare(b.name)), [aliases, routeId])
 
   function openForm(value: ModelAliasDto | null, element: HTMLElement) {
     setForm({ alias: value, opener: element })
@@ -57,7 +59,7 @@ export function ModelAliases({
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.name} ${routeById.get(alias.route_id)?.name ?? alias.route_id}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.name}</p><p className="text-xs text-muted-foreground">{routeById.get(alias.route_id)?.name ?? alias.route_id}</p></div>{actions(alias)}</div>} empty={t("routes.aliases.empty")} storageKey="model-aliases" selectable batchActions={(rows, onApplied) => <BatchActions entity="model-aliases" rows={rows} queryKeys={["model-aliases"]} onApplied={onApplied} />} />
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.name} ${routeById.get(alias.route_id)?.name ?? alias.route_id}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.name}</p><p className="text-xs text-muted-foreground">{routeById.get(alias.route_id)?.name ?? alias.route_id}</p></div>{actions(alias)}</div>} empty={t("routes.aliases.empty")} storageKey={routeId == null ? "model-aliases" : `route-${routeId}-models`} selectable batchActions={(rows, onApplied) => <BatchActions entity="model-aliases" rows={rows} queryKeys={["model-aliases"]} onApplied={onApplied} />} />
       </CardContent>
       {form ? (
         <ModelAliasForm
@@ -67,6 +69,7 @@ export function ModelAliases({
           opener={form.opener}
           onOpenChange={(open) => { if (!open) setForm(null) }}
           onChanged={onChanged}
+          fixedRouteId={routeId}
         />
       ) : null}
     </Card>

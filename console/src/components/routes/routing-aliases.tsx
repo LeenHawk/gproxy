@@ -15,17 +15,19 @@ export function RoutingAliases({
   aliases,
   providers,
   onChanged,
+  scopeProviderId,
 }: {
   aliases: Array<AliasDto>
   providers: Array<ProviderDto>
   onChanged: () => void
+  scopeProviderId?: number | null
 }) {
   const { t } = useTranslation()
   const [form, setForm] = useState<{ alias: AliasDto | null; opener: HTMLElement } | null>(null)
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
   const ordered = useMemo(
-    () => [...aliases].sort((a, b) => a.priority - b.priority || a.id - b.id),
-    [aliases],
+    () => aliases.filter((alias) => scopeProviderId === undefined || alias.provider_id === scopeProviderId).sort((a, b) => a.priority - b.priority || a.id - b.id),
+    [aliases, scopeProviderId],
   )
 
   function openForm(value: AliasDto | null, element: HTMLElement) {
@@ -48,15 +50,15 @@ export function RoutingAliases({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("routes.routingAliases.title")}</CardTitle>
+        <CardTitle>{t(scopeProviderId === null ? "routes.routingAliases.globalTitle" : scopeProviderId === undefined ? "routes.routingAliases.title" : "routes.routingAliases.providerTitle")}</CardTitle>
         <CardAction>
           <Button size="sm" onClick={(event) => openForm(null, event.currentTarget)}>
-            {t("routes.routingAliases.add")}
+            {t(scopeProviderId === undefined ? "routes.routingAliases.add" : "routes.routingAliases.modelAdd")}
           </Button>
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t("routes.routingAliases.empty")} storageKey="routing-aliases" selectable batchActions={(rows, onApplied) => <BatchActions entity="aliases" rows={rows} queryKeys={["aliases"]} onApplied={onApplied} />} />
+        <DataTable columns={columns} rows={ordered} rowKey={(alias) => alias.id} searchText={(alias) => `${alias.alias} ${alias.target} ${providerLabel(alias)}`} renderCard={(alias) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{alias.alias} → {alias.target}</p><p className="text-xs text-muted-foreground">{providerLabel(alias)} · {t("routes.routingAliases.priority")}: {alias.priority}</p></div>{actions(alias)}</div>} empty={t(scopeProviderId === undefined ? "routes.routingAliases.empty" : "routes.routingAliases.modelEmpty")} storageKey={scopeProviderId === null ? "global-routing-aliases" : scopeProviderId === undefined ? "routing-aliases" : `provider-${scopeProviderId}-aliases`} selectable batchActions={(rows, onApplied) => <BatchActions entity="aliases" rows={rows} queryKeys={["aliases"]} onApplied={onApplied} />} />
       </CardContent>
       {form ? (
         <RoutingAliasForm
@@ -66,6 +68,7 @@ export function RoutingAliases({
           opener={form.opener}
           onOpenChange={(open) => { if (!open) setForm(null) }}
           onChanged={onChanged}
+          fixedProviderId={scopeProviderId}
         />
       ) : null}
     </Card>

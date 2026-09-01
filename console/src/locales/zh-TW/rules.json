@@ -10,9 +10,12 @@
       "title": "規則集",
       "add": "新增規則集",
       "edit": "編輯規則集",
+      "settings": "基本設定",
       "empty": "暫無規則集",
       "noDescription": "暫無說明",
-      "selectPrompt": "選擇一個規則集進行編輯。"
+      "selectPrompt": "選擇一個規則集進行編輯。",
+      "search": "搜尋規則集…",
+      "resize": "調整規則集清單寬度"
     },
     "entries": {
       "title": "變更規則",
@@ -37,7 +40,8 @@
       "attach": "附加",
       "attachExisting": "附加現有規則集",
       "detach": "移除附加",
-      "empty": "此 Provider 尚未附加規則集。"
+      "empty": "此 Provider 尚未附加規則集。",
+      "emptyForSet": "此規則集尚未關聯 Provider。"
     },
     "presets": {
       "apply": "套用相容性預設",

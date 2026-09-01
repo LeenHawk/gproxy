@@ -7,6 +7,9 @@
     "empty": "还没有负载均衡——创建一个以对外暴露一个逻辑模型名。",
     "loadError": "无法加载负载均衡，请重试。",
     "selectPrompt": "选择负载均衡以查看和编辑详情。",
+    "search": "搜索负载均衡…",
+    "resize": "调整负载均衡列表宽度",
+    "summary": "最多尝试 {{attempts}} 次",
     "tabs": {
       "settings": "设置"
     },
@@ -43,8 +46,12 @@
     },
     "routingAliases": {
       "title": "路由别名",
+      "globalTitle": "全局模型别名",
+      "providerTitle": "模型别名",
       "add": "添加路由别名",
+      "modelAdd": "添加模型别名",
       "empty": "尚未配置供应商路由别名。",
+      "modelEmpty": "尚未配置模型别名。",
       "alias": "传入名称",
       "target": "上游名称",
       "provider": "供应商",
