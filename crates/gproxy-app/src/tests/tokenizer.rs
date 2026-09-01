@@ -5,15 +5,42 @@ use serde_json::json;
 use super::setup;
 
 #[tokio::test]
-async fn tokenizer_download_gate_refuses_admin_fetch() {
+async fn tokenizer_admin_actions_ignore_automatic_download_policy() {
     use gproxy_admin::State as _;
 
     let setup::Fixture { app, .. } = setup::fixture().await;
-    let error = app
+    app.inner
+        .host
+        .services
+        .store
+        .put_tokenizer_vocab(
+            "owner/model",
+            include_bytes!(
+                "../../../gproxy-tokenize/assets/tokenizers/deepseek-v4-pro.tokenizer.json"
+            ),
+        )
+        .await
+        .expect("seed tokenizer");
+
+    let vocab = app
         .fetch_tokenizer_vocab("owner/model")
         .await
-        .expect_err("downloads are disabled by default");
-    assert!(matches!(error, gproxy_admin::AdminError::Forbidden));
+        .expect("manual fetch should remain available");
+    assert_eq!(vocab.name, "owner/model");
+
+    app.delete_tokenizer_vocab("owner/model")
+        .await
+        .expect("manual delete should remain available");
+    assert_eq!(
+        app.inner
+            .host
+            .services
+            .store
+            .tokenizer_vocab("owner/model")
+            .await
+            .expect("read tokenizer"),
+        None
+    );
 }
 
 #[tokio::test]

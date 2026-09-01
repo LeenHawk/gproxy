@@ -81,6 +81,35 @@ mod local {
         }
     }
 
+    struct Available;
+
+    impl TokenizerClient for Available {
+        fn send<'a>(
+            &'a self,
+            _: http::Request<Bytes>,
+        ) -> BoxFuture<'a, Result<http::Response<Bytes>, RegistryError>> {
+            Box::pin(async {
+                Ok(http::Response::new(Bytes::from_static(
+                    crate::registry::bundled_bytes(),
+                )))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_fetch_ignores_automatic_download_policy() {
+        let store = Arc::new(Store::default());
+        let registry = TokenizerRegistry::new(store.clone(), Arc::new(Available));
+
+        registry
+            .fetch("owner/model")
+            .await
+            .expect("explicit fetch should download");
+
+        assert!(registry.resolve("owner/model").is_some());
+        assert!(store.0.lock().expect("store").contains_key("owner/model"));
+    }
+
     #[tokio::test]
     async fn native_ladder_selects_exact_mapped_and_bundled_vocabularies() {
         let store = Arc::new(Store::default());

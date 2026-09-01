@@ -285,16 +285,9 @@ impl State for AppHandle {
                     ));
                 }
                 let registry = &self.inner.host.services.tokenizers;
-                if !registry.download_enabled() {
-                    return Err(AdminError::Forbidden);
-                }
-                registry
-                    .resolve_or_load(name)
-                    .await
-                    .map_err(|_| {
-                        AdminError::BadRequest("tokenizer vocabulary could not be fetched".into())
-                    })?
-                    .ok_or(AdminError::NotFound)?;
+                registry.fetch(name).await.map_err(|_| {
+                    AdminError::BadRequest("tokenizer vocabulary could not be fetched".into())
+                })?;
                 self.inner
                     .host
                     .services
@@ -322,9 +315,6 @@ impl State for AppHandle {
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let registry = &self.inner.host.services.tokenizers;
-                if !registry.download_enabled() {
-                    return Err(AdminError::Forbidden);
-                }
                 self.inner
                     .host
                     .services

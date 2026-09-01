@@ -11,9 +11,9 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { formatInstant, formatNumber } from "@/lib/format"
 
-type Props = { values: Array<TokenizerVocabDto>; downloadEnabled: boolean }
+type Props = { values: Array<TokenizerVocabDto> }
 
-export function TokenizerVocabsCard({ values, downloadEnabled }: Props) {
+export function TokenizerVocabsCard({ values }: Props) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [name, setName] = useState("")
@@ -29,7 +29,7 @@ export function TokenizerVocabsCard({ values, downloadEnabled }: Props) {
     onError: () => toast.error(t("settings.tokenizers.deleteError")),
   })
   const actions = (vocab: TokenizerVocabDto) => (
-    <Button size="icon-sm" variant="ghost" disabled={!downloadEnabled || remove.isPending} aria-label={`${t("common.actions.delete")}: ${vocab.name}`} onClick={() => remove.mutate({ name: vocab.name })}>
+    <Button size="icon-sm" variant="ghost" disabled={remove.isPending} aria-label={`${t("common.actions.delete")}: ${vocab.name}`} onClick={() => remove.mutate({ name: vocab.name })}>
       <Trash2Icon aria-hidden />
     </Button>
   )
@@ -45,10 +45,10 @@ export function TokenizerVocabsCard({ values, downloadEnabled }: Props) {
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={(event) => { event.preventDefault(); fetchVocab.mutate({ name: name.trim() }) }}>
           <Field className="flex-1">
             <FieldLabel htmlFor="tokenizer-repo">{t("settings.tokenizers.repository")}</FieldLabel>
-            <Input id="tokenizer-repo" className="font-mono" placeholder={t("settings.tokenizers.placeholder")} value={name} onChange={(event) => setName(event.target.value)} disabled={!downloadEnabled} />
-            <FieldDescription>{t(downloadEnabled ? "settings.tokenizers.hint" : "settings.tokenizers.disabledHint")}</FieldDescription>
+            <Input id="tokenizer-repo" className="font-mono" placeholder={t("settings.tokenizers.placeholder")} value={name} onChange={(event) => setName(event.target.value)} />
+            <FieldDescription>{t("settings.tokenizers.hint")}</FieldDescription>
           </Field>
-          <Button type="submit" disabled={!downloadEnabled || !name.trim() || fetchVocab.isPending}>{t(fetchVocab.isPending ? "settings.tokenizers.fetching" : "settings.tokenizers.fetch")}</Button>
+          <Button type="submit" disabled={!name.trim() || fetchVocab.isPending}>{t(fetchVocab.isPending ? "settings.tokenizers.fetching" : "settings.tokenizers.fetch")}</Button>
         </form>
         <DataTable columns={columns} rows={values} rowKey={(vocab) => vocab.name} searchText={(vocab) => vocab.name} renderCard={(vocab) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{vocab.name}</p><p className="text-xs text-muted-foreground">{t("settings.tokenizers.bytes", { value: formatNumber(vocab.size_bytes, i18n.language) })} · {formatInstant(vocab.updated_at, i18n.language)}</p></div>{actions(vocab)}</div>} empty={t("settings.tokenizers.empty")} storageKey="tokenizer-vocabs" />
     </div>

@@ -110,10 +110,6 @@ impl TokenizerRegistry {
         }
     }
 
-    pub fn download_enabled(&self) -> bool {
-        self.download_enabled.load(Ordering::Relaxed)
-    }
-
     /// Off, counting skips the vocabulary registry entirely and settles on the
     /// character estimate. tiktoken still applies: it is compiled in, exact for
     /// the models it covers, and costs nothing to consult.

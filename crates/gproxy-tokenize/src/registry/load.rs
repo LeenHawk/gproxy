@@ -74,6 +74,25 @@ impl TokenizerRegistry {
             }
         }
     }
+
+    pub async fn fetch(&self, name: &str) -> Result<Arc<Tokenizer>, RegistryError> {
+        match load(
+            Arc::clone(&self.store),
+            Arc::clone(&self.upstream),
+            name,
+            &self.loaded,
+            true,
+        )
+        .await?
+        {
+            LoadOutcome::Loaded => {
+                self.negative.remove(name);
+                self.resolve(name)
+                    .ok_or_else(|| RegistryError::new("tokenizer was not loaded"))
+            }
+            LoadOutcome::Missing => Err(RegistryError::new("tokenizer was not found")),
+        }
+    }
 }
 
 enum LoadOutcome {

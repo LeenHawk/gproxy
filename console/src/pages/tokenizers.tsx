@@ -52,7 +52,7 @@ export function TokenizersPage() {
               />
             </Field>
             <DefaultVocabField key={current.default_tokenizer_vocab ?? ""} settings={current} saving={save.isPending} onSave={(value) => save.mutate(value)} />
-            <TokenizerVocabsCard values={vocabs.data} downloadEnabled={current.enable_tokenizer_download} />
+            <TokenizerVocabsCard values={vocabs.data} />
           </> : null}
         </QueryState>
       </div>
