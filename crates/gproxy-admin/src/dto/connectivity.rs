@@ -91,7 +91,13 @@ pub struct DiscoveredModelDto {
     pub display_name: Option<String>,
     pub context_window: Option<i64>,
     pub max_output_tokens: Option<i64>,
-    /// The operator already has a row for this id.
+    pub thinking_supported: Option<bool>,
+    pub thinking_adaptive_supported: Option<bool>,
+    pub thinking_enabled_supported: Option<bool>,
+    pub input_modalities: Vec<String>,
+    pub output_modalities: Vec<String>,
+    pub supported_parameters: Vec<String>,
+    pub default_price_available: bool,
     pub known: bool,
 }
 

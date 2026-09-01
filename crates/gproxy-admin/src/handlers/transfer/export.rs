@@ -5,7 +5,7 @@ use gproxy_store::records::{MasterKeyFingerprint, StoredSecret};
 use http::{Response, StatusCode};
 
 use crate::dto::*;
-use crate::handlers::{control, default_pricing, identity, rules, util};
+use crate::handlers::{control, default_models, identity, rules, util};
 use crate::{AdminError, State, response};
 
 pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Bytes>, AdminError> {
@@ -20,7 +20,7 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
     let credential_secrets = secrets(inventory.as_ref().map(|value| &value.credentials));
     let user_key_secrets = secrets(inventory.as_ref().map(|value| &value.user_keys));
     let embedded_prices =
-        default_pricing::embedded_global_rule_ids(&snapshot.price_rules, &snapshot.price_rates);
+        default_models::embedded_global_rule_ids(&snapshot.price_rules, &snapshot.price_rates);
     let data = ConfigurationDataDto {
         organizations: snapshot
             .organizations

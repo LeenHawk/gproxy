@@ -8,6 +8,7 @@ mod fingerprint;
 mod identity;
 mod log;
 mod login;
+mod model_catalog;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
 mod portal;
@@ -28,6 +29,7 @@ pub use fingerprint::*;
 pub use identity::*;
 pub use log::*;
 pub use login::*;
+pub use model_catalog::*;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::*;
 pub use portal::*;

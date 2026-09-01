@@ -356,7 +356,7 @@
       "pull": "Pull from upstream",
       "pullSynced": "Sync complete: {{models}} models saved, {{prices}} price overrides added.",
       "pullDefaultPrices": "Apply default prices",
-      "pullDefaultPricesHint": "Match the embedded table and create exact model overrides for this provider; existing rules are preserved.",
+      "pullDefaultPricesHint": "Match the embedded model catalog and create exact price overrides for this provider; existing rules are preserved.",
       "defaultPriceAvailable": "Default price",
       "pullFailed": "Upstream returned {{status}}.",
       "pullError": "Could not reach the provider.",

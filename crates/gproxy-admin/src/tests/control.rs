@@ -160,18 +160,26 @@ async fn embedded_default_prices_import_once_without_overwriting() {
 
     let response = crate::dispatch(
         &state,
-        &admin_parts(Method::GET, "/admin/api/default-price-catalog"),
+        &admin_parts(Method::GET, "/admin/api/default-model-catalog"),
         Bytes::new(),
     )
     .await
-    .expect("default price catalog");
+    .expect("default model catalog");
     assert_eq!(response.status(), StatusCode::OK);
-    let catalog: crate::dto::DefaultPriceCatalogDto =
+    let catalog: crate::dto::DefaultModelCatalogDto =
         serde_json::from_slice(response.body()).expect("catalog response");
-    assert_eq!(catalog.price_rules.len(), catalog.source.included_models);
+    assert_eq!(catalog.models.len(), catalog.source.total_models);
+    assert_eq!(
+        catalog
+            .models
+            .iter()
+            .filter(|model| model.pricing.is_some())
+            .count(),
+        catalog.source.priced_models
+    );
 
     let body = Bytes::from(
-        serde_json::to_vec(&crate::dto::ApplyDefaultPricesRequest {
+        serde_json::to_vec(&crate::dto::ApplyDefaultModelPricesRequest {
             provider_id,
             model_ids: vec!["gpt-5.6-sol".into(), "claude-opus-5-20260801".into()],
         })
@@ -179,13 +187,16 @@ async fn embedded_default_prices_import_once_without_overwriting() {
     );
     let response = crate::dispatch(
         &state,
-        &admin_parts(Method::POST, "/admin/api/default-price-catalog/apply"),
+        &admin_parts(
+            Method::POST,
+            "/admin/api/default-model-catalog/apply-prices",
+        ),
         body.clone(),
     )
     .await
     .expect("apply defaults");
     assert_eq!(response.status(), StatusCode::CREATED);
-    let applied: crate::dto::ApplyDefaultPricesResponse =
+    let applied: crate::dto::ApplyDefaultModelPricesResponse =
         serde_json::from_slice(response.body()).unwrap();
     assert_eq!(applied.created, 2);
     assert_eq!(applied.skipped, 0);
@@ -208,13 +219,16 @@ async fn embedded_default_prices_import_once_without_overwriting() {
 
     let response = crate::dispatch(
         &state,
-        &admin_parts(Method::POST, "/admin/api/default-price-catalog/apply"),
+        &admin_parts(
+            Method::POST,
+            "/admin/api/default-model-catalog/apply-prices",
+        ),
         body,
     )
     .await
     .expect("reapply defaults");
     assert_eq!(response.status(), StatusCode::OK);
-    let applied: crate::dto::ApplyDefaultPricesResponse =
+    let applied: crate::dto::ApplyDefaultModelPricesResponse =
         serde_json::from_slice(response.body()).unwrap();
     assert_eq!(applied.created, 0);
     assert_eq!(applied.skipped, 2);
@@ -239,11 +253,18 @@ async fn embedded_default_prices_import_once_without_overwriting() {
 async fn untouched_embedded_prices_are_not_exported_as_operator_configuration() {
     let state = state().await;
     seed_admin_key(&state).await;
+    let expected = crate::handlers::default_models::list()
+        .and_then(|response| {
+            serde_json::from_slice::<crate::dto::DefaultModelCatalogDto>(response.body())
+                .map(|catalog| catalog.source.priced_models)
+                .map_err(|error| crate::AdminError::Internal(error.to_string()))
+        })
+        .unwrap();
     assert_eq!(
         crate::seed_global_default_prices(&state.store)
             .await
             .unwrap(),
-        493
+        expected
     );
 
     let response = crate::dispatch(

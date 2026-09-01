@@ -3,7 +3,7 @@ mod batch;
 mod catalogue;
 mod connectivity;
 mod control;
-pub(crate) mod default_pricing;
+pub(crate) mod default_models;
 mod identity;
 mod instance_settings;
 pub(crate) mod login;
@@ -41,8 +41,8 @@ pub(crate) async fn dispatch(
         Route::Batch(entity) => batch::run(state, entity, body).await,
         Route::ConfigurationExport => transfer::export(state, body).await,
         Route::ConfigurationImport => transfer::import(state, body).await,
-        Route::DefaultPriceCatalog => default_pricing::list(),
-        Route::ApplyDefaultPrices => default_pricing::apply(state, body).await,
+        Route::DefaultModelCatalog => default_models::list(),
+        Route::ApplyDefaultModelPrices => default_models::apply(state, body).await,
         Route::ConnectivityTest => connectivity::test(state, body).await,
         Route::ModelTest => connectivity::model_test(state, admin.id, body).await,
         Route::ModelDiscover => connectivity::model_discover(state, admin.id, body).await,

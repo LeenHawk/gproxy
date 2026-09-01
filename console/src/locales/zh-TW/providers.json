@@ -356,7 +356,7 @@
       "pull": "拉取上游模型",
       "pullSynced": "同步完成：儲存模型 {{models}} 個，價格覆寫 {{prices}} 個。",
       "pullDefaultPrices": "同時套用預設價格",
-      "pullDefaultPricesHint": "從內嵌價格表比對，並為目前供應商建立精確模型覆寫；既有規則不會被覆蓋。",
+      "pullDefaultPricesHint": "從內嵌模型目錄比對，並為目前供應商建立精確價格覆寫；既有規則不會被覆蓋。",
       "defaultPriceAvailable": "有預設價格",
       "pullFailed": "上游回傳 {{status}}。",
       "pullError": "連不上這個供應商。",

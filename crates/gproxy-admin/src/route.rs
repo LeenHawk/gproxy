@@ -37,8 +37,8 @@ pub(crate) enum Route {
     Batch(Entity),
     ConfigurationExport,
     ConfigurationImport,
-    DefaultPriceCatalog,
-    ApplyDefaultPrices,
+    DefaultModelCatalog,
+    ApplyDefaultModelPrices,
     ConnectivityTest,
     ModelTest,
     ModelDiscover,
@@ -105,8 +105,8 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         if segments.as_slice() == ["models", "discover"] {
             return Some(Route::ModelDiscover);
         }
-        if segments.as_slice() == ["default-price-catalog", "apply"] {
-            return Some(Route::ApplyDefaultPrices);
+        if segments.as_slice() == ["default-model-catalog", "apply-prices"] {
+            return Some(Route::ApplyDefaultModelPrices);
         }
         if segments.as_slice() == ["tokenizer-auth", "reveal"] {
             return Some(Route::TokenizerAuthReveal);
@@ -204,7 +204,7 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::PATCH, "portal-settings") => Some(Route::PortalSettingsWrite),
         (&Method::POST, "export") => Some(Route::ConfigurationExport),
         (&Method::POST, "import") => Some(Route::ConfigurationImport),
-        (&Method::GET, "default-price-catalog") => Some(Route::DefaultPriceCatalog),
+        (&Method::GET, "default-model-catalog") => Some(Route::DefaultModelCatalog),
         _ => None,
     }
 }
@@ -260,7 +260,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         }
         Route::UserPassword(id) => action("users.password", "users", Some(*id)),
         Route::ConfigurationImport => action("configuration.import", "configuration", None),
-        Route::ApplyDefaultPrices => provider_action("default_prices.apply", body),
+        Route::ApplyDefaultModelPrices => provider_action("default_prices.apply", body),
         Route::ApplyRulePreset { provider_id, .. } => {
             action("rule_preset.apply", "providers", Some(*provider_id))
         }
@@ -296,7 +296,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::ModelDiscover => action("model.discover", "providers", None),
         Route::List(_)
         | Route::ConfigurationExport
-        | Route::DefaultPriceCatalog
+        | Route::DefaultModelCatalog
         | Route::ConnectivityTest
         | Route::Usage
         | Route::QuotaWindows

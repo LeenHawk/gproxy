@@ -114,15 +114,43 @@ fn parse(
                 .or_else(|| entry.get("name"))
                 .and_then(Value::as_str)?;
             let model_id = id.strip_prefix(&prefix).unwrap_or(id).to_owned();
+            let defaults = gproxy_admin::default_model(&model_id);
+            let supported_parameters = strings(entry, "supported_parameters")
+                .or_else(|| defaults.map(|model| model.supported_parameters.clone()))
+                .unwrap_or_default();
             Some(DiscoveredModelDto {
                 known: known.contains(model_id.as_str()),
                 display_name: entry
                     .get("display_name")
                     .or_else(|| entry.get("displayName"))
                     .and_then(Value::as_str)
-                    .map(str::to_owned),
-                context_window: number(entry, &["context_window", "inputTokenLimit"]),
-                max_output_tokens: number(entry, &["max_output_tokens", "outputTokenLimit"]),
+                    .map(str::to_owned)
+                    .or_else(|| defaults.and_then(|model| model.display_name.clone())),
+                context_window: number(entry, &["context_window", "inputTokenLimit"])
+                    .or_else(|| defaults.and_then(|model| model.context_window)),
+                max_output_tokens: number(entry, &["max_output_tokens", "outputTokenLimit"])
+                    .or_else(|| defaults.and_then(|model| model.max_output_tokens)),
+                thinking_supported: boolean(entry, "thinking_supported").or_else(|| {
+                    supported_parameters
+                        .iter()
+                        .any(|parameter| {
+                            matches!(
+                                parameter.as_str(),
+                                "reasoning" | "reasoning_effort" | "include_reasoning"
+                            )
+                        })
+                        .then_some(true)
+                }),
+                thinking_adaptive_supported: boolean(entry, "thinking_adaptive_supported"),
+                thinking_enabled_supported: boolean(entry, "thinking_enabled_supported"),
+                input_modalities: strings(entry, "input_modalities")
+                    .or_else(|| defaults.map(|model| model.input_modalities.clone()))
+                    .unwrap_or_default(),
+                output_modalities: strings(entry, "output_modalities")
+                    .or_else(|| defaults.map(|model| model.output_modalities.clone()))
+                    .unwrap_or_default(),
+                supported_parameters,
+                default_price_available: gproxy_admin::default_model_price_available(&model_id),
                 model_id,
             })
         })
@@ -138,8 +166,43 @@ fn number(entry: &Value, names: &[&str]) -> Option<i64> {
         .find_map(|name| entry.get(*name).and_then(Value::as_i64))
 }
 
+fn boolean(entry: &Value, name: &str) -> Option<bool> {
+    entry.get(name).and_then(Value::as_bool)
+}
+
+fn strings(entry: &Value, name: &str) -> Option<Vec<String>> {
+    Some(
+        entry
+            .get(name)?
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+    )
+}
+
 fn upstream_error(body: &[u8]) -> Option<String> {
     let text = String::from_utf8(body.to_vec()).ok()?;
     let text = text.trim();
     (!text.is_empty()).then(|| text.chars().take(300).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn discovery_keeps_upstream_values_and_fills_catalog_gaps() {
+        let known = std::collections::BTreeSet::new();
+        let models = super::parse(
+            br#"{"data":[{"id":"gpt-5.6-sol","context_window":42}]}"#,
+            "codex",
+            &known,
+        );
+        let model = models.first().expect("discovered model");
+        assert_eq!(model.context_window, Some(42));
+        assert!(model.max_output_tokens.is_some());
+        assert!(model.thinking_supported.is_some());
+        assert!(model.input_modalities.iter().any(|value| value == "text"));
+        assert!(model.default_price_available);
+    }
 }

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url"
 const MODELS_URL = "https://openrouter.ai/api/v1/models?limit=1000&output_modalities=all"
 const scriptPath = fileURLToPath(import.meta.url)
 const root = path.resolve(path.dirname(scriptPath), "..")
-const outputPath = path.join(root, "crates", "gproxy-admin", "assets", "openrouter-price-catalog.json")
+const outputPath = path.join(root, "crates", "gproxy-admin", "assets", "default-model-catalog.json")
 const DECIMAL = /^(?:0|[1-9]\d*)(?:\.\d+)?$/
 const SUPPORTED_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings", "rerank"])
 const TOKEN_UNIT = 1_000_000
@@ -93,8 +93,7 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
     throw new Error(`OpenRouter response is incomplete: received ${payload.data.length} of ${payload.total_count}`)
   }
 
-  const priceRules = []
-  let supportedOutputModels = 0
+  const models = []
   let dynamicPriceModels = 0
   let embeddingModels = 0
   let rerankModels = 0
@@ -102,72 +101,101 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
     if (typeof model?.id !== "string" || !model.id.includes("/")) {
       throw new Error(`invalid OpenRouter model id: ${String(model?.id)}`)
     }
-    const outputModalities = model?.architecture?.output_modalities
-    if (!Array.isArray(outputModalities)
-      || !outputModalities.some((modality) => SUPPORTED_OUTPUT_MODALITIES.has(modality))) continue
-    supportedOutputModels += 1
-    const pricing = model.pricing
-    if (!pricing || typeof pricing.prompt !== "string" || typeof pricing.completion !== "string") {
-      throw new Error(`model ${model.id} has no prompt/completion pricing`)
+    const architecture = model.architecture
+    const inputModalities = architecture?.input_modalities
+    const outputModalities = architecture?.output_modalities
+    const supportedParameters = model.supported_parameters
+    if (!Array.isArray(inputModalities) || !Array.isArray(outputModalities)
+      || !Array.isArray(supportedParameters)) {
+      throw new Error(`model ${model.id} has incomplete capabilities`)
     }
-    const represented = [
-      pricing.prompt,
-      pricing.completion,
-      pricing.input_cache_read,
-      pricing.input_cache_write,
-      pricing.input_cache_write_1h,
-      pricing.image_output,
-      pricing.audio,
-      pricing.audio_output,
-      pricing.input_audio_cache,
-      pricing.web_search,
-    ]
-    if (represented.some((price) => typeof price === "string" && price.startsWith("-"))) {
-      dynamicPriceModels += 1
-      continue
+    if (model.context_length != null && !Number.isInteger(model.context_length)) {
+      throw new Error(`model ${model.id} has an invalid context length`)
     }
-    if (Array.isArray(pricing.overrides)
-      && pricing.overrides.some((override) => !Number.isInteger(override.min_prompt_tokens))) {
-      dynamicPriceModels += 1
-      continue
+    const contextWindow = model.context_length > 0 ? model.context_length : null
+    const rawMaxOutputTokens = model.top_provider?.max_completion_tokens
+    if (rawMaxOutputTokens != null && !Number.isInteger(rawMaxOutputTokens)) {
+      throw new Error(`model ${model.id} has an invalid completion limit`)
     }
-    const author = model.id.slice(0, model.id.indexOf("/")).replace(/^~/, "")
-    const basename = model.id.slice(model.id.lastIndexOf("/") + 1)
-    if (basename.includes("*")) throw new Error(`model ${model.id} cannot become a glob pattern`)
+    const maxOutputTokens = rawMaxOutputTokens > 0 ? rawMaxOutputTokens : null
     if (outputModalities.includes("embeddings")) embeddingModels += 1
     if (outputModalities.includes("rerank")) rerankModels += 1
-    priceRules.push({
+    models.push({
       model_id: model.id,
-      model_pattern: `*${basename}*`,
-      tiers: tiers(pricing, author, model.id),
-      priority: 1_000_000 - basename.length,
-      rates: rates(pricing, author),
+      display_name: typeof model.name === "string" && model.name.trim() ? model.name : null,
+      context_window: contextWindow,
+      max_output_tokens: maxOutputTokens ?? null,
+      input_modalities: [...new Set(inputModalities)].sort(),
+      output_modalities: [...new Set(outputModalities)].sort(),
+      supported_parameters: [...new Set(supportedParameters)].sort(),
+      pricing: modelPricing(model, outputModalities, () => { dynamicPriceModels += 1 }),
     })
   }
 
-  priceRules.sort((left, right) => left.model_id.localeCompare(right.model_id))
+  models.sort((left, right) => left.model_id.localeCompare(right.model_id))
   const patterns = new Set()
-  for (const rule of priceRules) {
-    if (patterns.has(rule.model_pattern)) {
-      throw new Error(`duplicate OpenRouter model basename: ${rule.model_pattern.slice(1, -1)}`)
+  for (const model of models) {
+    if (model.pricing == null) continue
+    if (patterns.has(model.pricing.model_pattern)) {
+      throw new Error(`duplicate OpenRouter model basename: ${model.pricing.model_pattern.slice(1, -1)}`)
     }
-    patterns.add(rule.model_pattern)
+    patterns.add(model.pricing.model_pattern)
   }
+  const pricedModels = models.filter((model) => model.pricing != null)
   return {
-    schema_version: 1,
+    schema_version: 2,
     source: {
       catalog: "openrouter",
       fetched_at: fetchedAt,
       total_models: payload.data.length,
-      supported_output_models: supportedOutputModels,
+      context_models: models.filter((model) => model.context_window != null).length,
+      output_limit_models: models.filter((model) => model.max_output_tokens != null).length,
+      priced_models: pricedModels.length,
       dynamic_price_models: dynamicPriceModels,
-      included_models: priceRules.length,
       embedding_models: embeddingModels,
       rerank_models: rerankModels,
-      image_output_priced_models: priceRules.filter((rule) =>
-        rule.rates.some((rate) => rate.metric === "image_output_tokens")).length,
+      image_output_priced_models: pricedModels.filter((model) =>
+        model.pricing.rates.some((rate) => rate.metric === "image_output_tokens")).length,
     },
-    price_rules: priceRules,
+    models,
+  }
+}
+
+function modelPricing(model, outputModalities, dynamic) {
+  if (!outputModalities.some((modality) => SUPPORTED_OUTPUT_MODALITIES.has(modality))) return null
+  const pricing = model.pricing
+  if (!pricing || typeof pricing.prompt !== "string" || typeof pricing.completion !== "string") {
+    throw new Error(`model ${model.id} has no prompt/completion pricing`)
+  }
+  const represented = [
+    pricing.prompt,
+    pricing.completion,
+    pricing.input_cache_read,
+    pricing.input_cache_write,
+    pricing.input_cache_write_1h,
+    pricing.image_output,
+    pricing.audio,
+    pricing.audio_output,
+    pricing.input_audio_cache,
+    pricing.web_search,
+  ]
+  if (represented.some((price) => typeof price === "string" && price.startsWith("-"))) {
+    dynamic()
+    return null
+  }
+  if (Array.isArray(pricing.overrides)
+    && pricing.overrides.some((override) => !Number.isInteger(override.min_prompt_tokens))) {
+    dynamic()
+    return null
+  }
+  const author = model.id.slice(0, model.id.indexOf("/")).replace(/^~/, "")
+  const basename = model.id.slice(model.id.lastIndexOf("/") + 1)
+  if (basename.includes("*")) throw new Error(`model ${model.id} cannot become a glob pattern`)
+  return {
+    model_pattern: `*${basename}*`,
+    tiers: tiers(pricing, author, model.id),
+    priority: 1_000_000 - basename.length,
+    rates: rates(pricing, author),
   }
 }
 
@@ -184,11 +212,11 @@ async function loadPayload(inputPath) {
 async function main() {
   const args = process.argv.slice(2)
   if (args.length !== 0 && (args.length !== 2 || args[0] !== "--input")) {
-    throw new Error("usage: node scripts/update-openrouter-price-catalog.mjs [--input response.json]")
+    throw new Error("usage: node scripts/update-openrouter-model-catalog.mjs [--input response.json]")
   }
   const catalog = buildCatalog(await loadPayload(args[1]))
   await writeFile(outputPath, `${JSON.stringify(catalog)}\n`, "utf8")
-  console.log(`Updated ${outputPath} with ${catalog.price_rules.length} rules.`)
+  console.log(`Updated ${outputPath} with ${catalog.models.length} models.`)
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {

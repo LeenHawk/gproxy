@@ -21,7 +21,15 @@ pub use portal::{PortalIdentity, dispatch as portal_dispatch};
 pub use state::State;
 
 pub async fn seed_global_default_prices(store: &gproxy_store::Store) -> Result<usize, AdminError> {
-    handlers::default_pricing::seed_global(store).await
+    handlers::default_models::seed_global(store).await
+}
+
+pub fn default_model(model: &str) -> Option<&'static dto::DefaultModelDto> {
+    handlers::default_models::model(model)
+}
+
+pub fn default_model_price_available(model: &str) -> bool {
+    handlers::default_models::has_price(model)
 }
 
 pub async fn seed_first_admin(
