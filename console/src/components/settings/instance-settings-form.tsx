@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { saveInstanceSettings } from "@/api/control"
-import { Button } from "@/components/ui/button"
 import { Section } from "@/components/section"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -15,6 +14,9 @@ import { TrafficBlacklistSection } from "@/components/settings/traffic-blacklist
 
 type BooleanKey = "enable_downstream_log" | "enable_downstream_log_body" | "enable_upstream_log" | "enable_upstream_log_body"
 
+export const INSTANCE_SETTINGS_FORM_ID = "instance-settings-form"
+export const INSTANCE_SETTINGS_MUTATION_KEY = ["instance-settings", "save"] as const
+
 export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsDto }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -22,6 +24,7 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
   const [retention, setRetention] = useState(settings.retention_days?.toString() ?? "")
   const [size, setSize] = useState(settings.max_database_size_mb?.toString() ?? "")
   const mutation = useMutation({
+    mutationKey: INSTANCE_SETTINGS_MUTATION_KEY,
     mutationFn: saveInstanceSettings,
     onSuccess: async (value) => {
       setDraft(value)
@@ -46,8 +49,7 @@ export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsD
     "enable_upstream_log_body",
   ]
   return (
-    <form className="flex flex-col gap-8" onSubmit={submit}>
-      <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending}>{t(mutation.isPending ? "common.actions.saving" : "common.actions.save")}</Button></div>
+    <form id={INSTANCE_SETTINGS_FORM_ID} className="flex flex-col gap-8" onSubmit={submit}>
       <RuntimeSettingsCard draft={draft} setDraft={setDraft} />
       <TrafficBlacklistSection
         defaults={draft.traffic_blacklist_defaults}
