@@ -8,9 +8,7 @@ import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
 import type { LogDetailDto } from "@/generated/LogDetailDto"
 import type { LogPageDto } from "@/generated/LogPageDto"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
-import type { LogSettingsDto } from "@/generated/LogSettingsDto"
-import type { LogSettingsUpdateDto } from "@/generated/LogSettingsUpdateDto"
-import { api, json } from "@/api/client"
+import { api } from "@/api/client"
 
 const queryString = (entries: object) => {
   const query = new URLSearchParams()
@@ -35,6 +33,3 @@ export const credentialCycles = (from: number, to: number, credentialId?: number
 export const audit = (limit = 100) => api<Array<AuditEventDto>>(`/admin/api/audit?limit=${limit}`)
 export const logs = (value: LogQueryDto) => api<LogPageDto>(`/admin/api/logs?${queryString(value)}`)
 export const logDetail = (requestId: string) => api<LogDetailDto>(`/admin/api/logs/${encodeURIComponent(requestId)}`)
-export const logSettings = () => api<LogSettingsDto>("/admin/api/log-settings")
-export const saveLogSettings = (value: LogSettingsUpdateDto) =>
-  api<LogSettingsDto>("/admin/api/log-settings", json("PATCH", value))

@@ -47,6 +47,7 @@ pub(crate) fn aggregate(
         ("user_key_id", input.user_key_id),
         ("user_id", input.user_id),
         ("provider_id", input.provider_id),
+        ("credential_id", input.credential_id),
     ] {
         if let Some(value) = value {
             query.and_where(Expr::col(Alias::new(column)).eq(value));

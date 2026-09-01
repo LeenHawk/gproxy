@@ -29,6 +29,7 @@ pub(super) async fn get(
             user_key_id: identity.user_key_id,
             user_id: identity.user_key_id.is_none().then_some(identity.user_id),
             provider_id: None,
+            credential_id: None,
             model: None,
         })
         .await?

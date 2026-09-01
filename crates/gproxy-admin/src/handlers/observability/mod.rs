@@ -34,6 +34,7 @@ pub(super) async fn usage(
             user_key_id: query.user_key_id,
             user_id: query.user_id,
             provider_id: query.provider_id,
+            credential_id: query.credential_id,
             model: query.model,
         })
         .await?;

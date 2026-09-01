@@ -72,6 +72,7 @@ pub struct UsageAggregateQuery {
     pub user_key_id: Option<i64>,
     pub user_id: Option<i64>,
     pub provider_id: Option<i64>,
+    pub credential_id: Option<i64>,
     pub model: Option<String>,
 }
 

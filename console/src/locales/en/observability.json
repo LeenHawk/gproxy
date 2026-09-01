@@ -76,34 +76,6 @@
       "empty": "No captured requests match these filters.",
       "next": "Next page"
     },
-    "settings": {
-      "title": "Capture settings",
-      "description": "Metadata and bodies are controlled separately for caller-facing and upstream traffic.",
-      "saved": "Capture settings saved.",
-      "saveError": "Could not save capture settings. Retry.",
-      "bodyBlocked": "Body capture is refused until positive retention_days or max_database_size_mb is configured. Metadata capture remains available.",
-      "retention": "Retention days: {{days}} · Database size cap (MiB): {{size}}",
-      "enable_downstream_log": {
-        "label": "Downstream metadata",
-        "description": "Record caller method, path, query, headers, response status, and response headers."
-      },
-      "enable_downstream_log_body": {
-        "label": "Downstream bodies",
-        "description": "Include caller request and response bodies when a retention bound exists."
-      },
-      "enable_upstream_log": {
-        "label": "Upstream metadata",
-        "description": "Record every upstream attempt, including method, URL, headers, provider, credential, and status."
-      },
-      "enable_upstream_log_body": {
-        "label": "Upstream bodies",
-        "description": "Include request and response bodies for every upstream attempt when a retention bound exists."
-      },
-      "disable_log_redaction": {
-        "label": "Disable log redaction",
-        "description": "Writes credentials, cookies, user content, and other sensitive values to the database in clear text. Only enable this temporarily on an instance you control."
-      }
-    },
     "detail": {
       "title": "Request detail",
       "select": "Select a request to load its exchange.",
@@ -127,6 +99,7 @@
     "empty": "No usage was recorded for this period. Widen the time range.",
     "filters": {
       "provider": "Provider",
+      "credential": "Credential",
       "user": "User",
       "key": "API key",
       "model": "Model",
@@ -144,13 +117,9 @@
       "label": "Cost"
     },
     "windows": "Quota windows",
-    "quotaWindows": "Quota windows",
-    "credentialCycles": "Credential quota cycles",
-    "windowStates": {
-      "empty": "No active quota windows for this selection."
-    },
+    "credentialCycles": "Upstream credential quota windows",
     "cycleStates": {
-      "empty": "No credential quota cycles were observed in this period."
+      "empty": "No upstream credential quota windows were observed in this period."
     },
     "windowNames": {
       "five_hour": "5-hour window",

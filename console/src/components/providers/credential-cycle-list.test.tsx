@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import "@/i18n"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
+import { WindowList } from "@/components/usage/window-list"
 import { validDateRange } from "@/lib/date-range"
 
 const cycle: CredentialQuotaCycleDto = {
@@ -42,6 +43,20 @@ describe("CredentialCycleList", () => {
     expect(screen.getAllByText("five-hour")).toHaveLength(1)
     expect(screen.getByText("20%")).toBeInTheDocument()
     expect(screen.queryByText("10%")).toBeNull()
+  })
+
+  it("uses the latest upstream label for historical scoped quota windows", () => {
+    render(
+      <WindowList
+        cycles={[
+          { ...cycle, window_key: "additional_secondary:bengalfox", label: "Codex bengalfox", last_observed_at: 140 },
+          { ...cycle, id: 2, window_key: "additional_secondary:bengalfox", label: "GPT-5.3-Codex-Spark", last_observed_at: 150 },
+        ]}
+      />,
+    )
+
+    expect(screen.getAllByText(/GPT-5.3-Codex-Spark/)).toHaveLength(2)
+    expect(screen.queryByText(/Bengalfox/)).toBeNull()
   })
 
   it("accepts only explicit start and end bounds in chronological order", () => {

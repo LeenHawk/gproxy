@@ -1502,6 +1502,7 @@ dependencies = [
  "gproxy-protocol",
  "gproxy-store",
  "http",
+ "percent-encoding",
  "rust_decimal",
  "serde",
  "serde_json",

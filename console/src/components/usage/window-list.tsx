@@ -1,23 +1,30 @@
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
-import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
-import type { UserDto } from "@/generated/UserDto"
-import type { UserKeyDto } from "@/generated/UserKeyDto"
 import { CycleWindow } from "@/components/cycle-window"
-import { QuotaWindowBar } from "@/components/usage/quota-window"
+import { windowName } from "@/lib/quota-window"
 
-export function WindowList({ quotas, cycles, users, keys }: { quotas: Array<QuotaWindowDto>; cycles: Array<CredentialQuotaCycleDto>; users: Array<UserDto>; keys: Array<UserKeyDto> }) {
+export function WindowList({ cycles }: { cycles: Array<CredentialQuotaCycleDto> }) {
   const { t } = useTranslation()
+  const latestLabels = useMemo(() => {
+    const values = new Map<string, { label: string; observedAt: number }>()
+    for (const cycle of cycles) {
+      if (!cycle.label) continue
+      const key = `${cycle.credential_id}:${cycle.window_key}`
+      const current = values.get(key)
+      if (!current || cycle.last_observed_at > current.observedAt) {
+        values.set(key, { label: cycle.label, observedAt: cycle.last_observed_at })
+      }
+    }
+    return values
+  }, [cycles])
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
-      <section className="flex flex-col gap-5">
-        <h2 className="text-sm font-semibold">{t("usage.quotaWindows")}</h2>
-        {quotas.length ? quotas.map((window) => <QuotaWindowBar key={`${window.quota_id}-${window.window_kind}`} window={window} users={users} keys={keys} />) : <p className="text-sm text-muted-foreground">{t("usage.windowStates.empty")}</p>}
-      </section>
-      <section className="flex flex-col gap-5">
-        <h2 className="text-sm font-semibold">{t("usage.credentialCycles")}</h2>
-        {cycles.length ? cycles.map((cycle) => <CycleWindow key={cycle.id} cycle={cycle} />) : <p className="text-sm text-muted-foreground">{t("usage.cycleStates.empty")}</p>}
-      </section>
-    </div>
+    <section className="flex flex-col gap-5">
+      <h2 className="text-sm font-semibold">{t("usage.credentialCycles")}</h2>
+      {cycles.length ? cycles.map((cycle) => {
+        const label = latestLabels.get(`${cycle.credential_id}:${cycle.window_key}`)?.label
+        return <CycleWindow key={cycle.id} cycle={cycle} label={`${windowName(cycle.window_key, t, label)} · #${cycle.credential_id}`} />
+      }) : <p className="text-sm text-muted-foreground">{t("usage.cycleStates.empty")}</p>}
+    </section>
   )
 }

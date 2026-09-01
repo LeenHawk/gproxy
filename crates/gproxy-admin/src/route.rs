@@ -142,7 +142,11 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         });
     }
     if segments.len() == 2 && segments[0] == "logs" && method == Method::GET {
-        return Some(Route::LogDetail(segments[1].to_owned()));
+        let request_id = percent_encoding::percent_decode_str(segments[1])
+            .decode_utf8()
+            .ok()?
+            .into_owned();
+        return Some(Route::LogDetail(request_id));
     }
     if segments.len() == 2 && segments[0] == "batch" && method == Method::POST {
         return Some(Route::Batch(entity(segments[1])?));
@@ -340,5 +344,18 @@ mod tests {
         assert_eq!(descriptor.action, "credential.quota_reset");
         assert_eq!(descriptor.target_kind, "credentials");
         assert_eq!(descriptor.target_id, Some(17));
+    }
+
+    #[test]
+    fn log_detail_decodes_the_request_id_path_segment() {
+        let route = parse(
+            &http::Method::GET,
+            "/admin/api/logs/model-test%3A1%3Agpt-5.6-luna",
+        )
+        .unwrap();
+        let Route::LogDetail(request_id) = route else {
+            panic!("expected log detail route");
+        };
+        assert_eq!(request_id, "model-test:1:gpt-5.6-luna");
     }
 }

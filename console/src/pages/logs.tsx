@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
-import { logDetail, logs, logSettings } from "@/api/observability"
+import { logDetail, logs } from "@/api/observability"
 import { providers } from "@/api/control"
 import { userKeys, users } from "@/api/identity"
 import { LogExplorer } from "@/components/logs/log-explorer"
@@ -22,16 +22,15 @@ export function LogsPage() {
   const [query, setQuery] = useState<LogQueryDto>(draft)
   const location = useAdminLocation()
   const selected = location.segments[0] ?? null
-  const [logQuery, settingsQuery, providerQuery, userQuery, keyQuery] = useQueries({ queries: [
+  const [logQuery, providerQuery, userQuery, keyQuery] = useQueries({ queries: [
     { queryKey: ["logs", query], queryFn: () => logs(query) },
-    { queryKey: ["log-settings"], queryFn: logSettings },
     { queryKey: ["providers"], queryFn: providers },
     { queryKey: ["users"], queryFn: users },
     { queryKey: ["user-keys"], queryFn: userKeys },
   ] })
   const detailQuery = useQuery({ queryKey: ["log-detail", selected], queryFn: () => logDetail(selected!), enabled: selected != null })
-  const loading = [logQuery, settingsQuery, providerQuery, userQuery, keyQuery].some((item) => item.isLoading)
-  const error = [logQuery, settingsQuery, providerQuery, userQuery, keyQuery].some((item) => item.error)
+  const loading = [logQuery, providerQuery, userQuery, keyQuery].some((item) => item.isLoading)
+  const error = [logQuery, providerQuery, userQuery, keyQuery].some((item) => item.error)
   return (
     <PageLayout title={t("logs.title")} description={t("logs.description")}>
       <ObservabilityTabs value="logs" />
@@ -42,7 +41,6 @@ export function LogsPage() {
           onSearch={() => { navigateAdminPath(adminPath("logs"), true); setQuery({ ...draft, cursor: null }) }}
           onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next); navigateAdminPath(adminPath("logs"), true) }}
           page={logQuery.data!}
-          settings={settingsQuery.data!}
           providers={providerQuery.data ?? []}
           users={userQuery.data ?? []}
           keys={keyQuery.data ?? []}

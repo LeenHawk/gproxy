@@ -162,6 +162,19 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             user_key_id: None,
             user_id: None,
             provider_id: None,
+            credential_id: None,
+            model: None,
+        })
+        .await?;
+    let filtered_statistics = store
+        .usage_aggregate(&UsageAggregateQuery {
+            from: 0,
+            to: 4_000,
+            group_by: UsageGroupBy::Dimensions,
+            user_key_id: None,
+            user_id: None,
+            provider_id: None,
+            credential_id: Some(credential.id),
             model: None,
         })
         .await?;
@@ -195,6 +208,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(statistics[0].cache_creation_5m_tokens, 3);
     assert_eq!(statistics[0].cache_creation_30m_tokens, 4);
     assert_eq!(statistics[0].cache_creation_1h_tokens, 5);
+    assert_eq!(filtered_statistics, statistics);
     assert_eq!(window.input_tokens, 10);
     assert_eq!(window.output_tokens, 5);
     assert_eq!(quota.cost_used, Decimal::new(15, 4));

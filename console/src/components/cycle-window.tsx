@@ -9,7 +9,7 @@ export function CycleWindow({ cycle, label: labelOverride }: { cycle: Credential
   const hasPercent = cycle.used_percent != null
   const status = t(`common.status.${cycle.status}`)
   const reason = cycle.close_reason ? t(`window.closeReason.${cycle.close_reason}`) : null
-  const label = `${labelOverride ?? `${windowName(cycle.window_key, t)} · #${cycle.credential_id}`} · ${status}${reason ? ` · ${reason}` : ""}`
+  const label = `${labelOverride ?? `${windowName(cycle.window_key, t, cycle.label)} · #${cycle.credential_id}`} · ${status}${reason ? ` · ${reason}` : ""}`
   if (!hasUpstreamPair && !hasPercent) {
     return <p className="text-sm text-muted-foreground"><span className="font-mono">{label}</span> — {t("window.usageUnknown")}</p>
   }

@@ -55,6 +55,7 @@ hmac = "0.13"
 js-sys = "0.3"
 mime_guess = "2"
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
+percent-encoding = "2"
 redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"

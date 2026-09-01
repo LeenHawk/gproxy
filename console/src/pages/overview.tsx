@@ -13,7 +13,7 @@ export function OverviewPage() {
   const [providerQuery, credentialQuery, usageQuery, quotaQuery, cycleQuery] = useQueries({ queries: [
     { queryKey: ["providers"], queryFn: providers },
     { queryKey: ["credentials"], queryFn: credentials },
-    { queryKey: ["usage", "provider", now - 86_400, now], queryFn: () => usage({ from: now - 86_400, to: now, group_by: "provider", user_key_id: null, user_id: null, provider_id: null, model: null }) },
+    { queryKey: ["usage", "provider", now - 86_400, now], queryFn: () => usage({ from: now - 86_400, to: now, group_by: "provider", user_key_id: null, user_id: null, provider_id: null, credential_id: null, model: null }) },
     { queryKey: ["quota-windows"], queryFn: () => quotaWindows() },
     { queryKey: ["credential-cycles", now - 604_800, now], queryFn: () => credentialCycles(now - 604_800, now) },
   ] })
