@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::ChannelError;
-use hmac::{Hmac, Mac as _};
+use hmac::{Hmac, KeyInit as _, Mac as _};
 use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};

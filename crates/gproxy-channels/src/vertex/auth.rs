@@ -112,7 +112,7 @@ impl ServiceAccount {
         let claims = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(claims);
         let signing_input = format!("{header}.{claims}");
         let key = rsa_key(&self.private_key)?;
-        let signing_key = rsa::pkcs1v15::SigningKey::<sha2::Sha256>::new(key);
+        let signing_key = rsa::pkcs1v15::SigningKey::<rsa::sha2::Sha256>::new(key);
         let signature = rsa::signature::Signer::sign(&signing_key, signing_input.as_bytes());
         let signature = rsa::signature::SignatureEncoding::to_vec(&signature);
         Ok(format!(
