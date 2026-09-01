@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use gproxy_channel_api::{ClientProfile, TlsVersion};
 
 pub(super) static PROFILE: ClientProfile = ClientProfile {
+    preset: None,
     alpn: Some(Cow::Borrowed(&[])),
     min_tls_version: Some(TlsVersion::Tls12),
     max_tls_version: Some(TlsVersion::Tls13),

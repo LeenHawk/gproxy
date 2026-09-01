@@ -1,8 +1,6 @@
 use bytes::Bytes;
 use futures_util::StreamExt;
-use gproxy_channel_api::{
-    BoxFuture, ByteStream, ConfiguredClientProfile, TransportError, WsDuplex,
-};
+use gproxy_channel_api::{BoxFuture, ByteStream, RequiredClientProfile, TransportError, WsDuplex};
 use gproxy_core::{UpstreamProxy, UpstreamTransport};
 use js_sys::{Array, Promise, Uint8Array};
 use wasm_bindgen::JsCast;
@@ -108,7 +106,7 @@ fn reject_configured_profile(request: &http::Request<Bytes>) -> Result<(), Trans
     }
     if request
         .extensions()
-        .get::<ConfiguredClientProfile>()
+        .get::<RequiredClientProfile>()
         .is_none()
     {
         return Ok(());

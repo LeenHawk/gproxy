@@ -25,6 +25,13 @@ pub fn apply_request(
             .extensions_mut()
             .insert(crate::control::UpstreamProxy(proxy_url.clone()));
     }
+    if request
+        .extensions()
+        .get::<gproxy_channel_api::RequiredClientProfile>()
+        .is_some()
+    {
+        return Ok(());
+    }
     let Some(configured) = &provider.fingerprint else {
         return Ok(());
     };
@@ -46,7 +53,7 @@ pub fn apply_request(
                 request.extensions_mut().insert(profile.clone());
                 request
                     .extensions_mut()
-                    .insert(gproxy_channel_api::ConfiguredClientProfile);
+                    .insert(gproxy_channel_api::RequiredClientProfile);
             }
             Ok(())
         }
@@ -64,4 +71,53 @@ fn fail(provider: &ProviderRef, reason: &str) -> Result<(), CoreError> {
         "configured client fingerprint is unusable: {reason}"
     ))
     .into())
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use gproxy_channel_api::{ClientProfile, ClientProfilePreset, RequiredClientProfile};
+
+    use super::*;
+
+    #[test]
+    fn required_profile_survives_provider_override_and_keeps_proxy() {
+        let mut request = http::Request::new(Bytes::new());
+        request
+            .extensions_mut()
+            .insert(ClientProfile::preset(ClientProfilePreset::Chrome148));
+        request.extensions_mut().insert(RequiredClientProfile);
+        let mut headers = http::HeaderMap::new();
+        headers.insert("x-provider-profile", "ignored".parse().unwrap());
+        let provider = ProviderRef {
+            id: 1,
+            name: "provider".into(),
+            channel: "test".into(),
+            settings: serde_json::json!({}),
+            fingerprint: Some(ConfiguredFingerprint::Usable(Box::new(
+                crate::control::FingerprintOverride {
+                    headers,
+                    profile: None,
+                },
+            ))),
+            proxy_url: Some("http://proxy.example".into()),
+            traffic_blacklist: Default::default(),
+        };
+
+        apply_request(&mut request, &provider).unwrap();
+
+        assert!(request.headers().get("x-provider-profile").is_none());
+        assert_eq!(
+            request.extensions().get::<ClientProfile>().unwrap().preset,
+            Some(ClientProfilePreset::Chrome148)
+        );
+        assert_eq!(
+            request
+                .extensions()
+                .get::<crate::control::UpstreamProxy>()
+                .unwrap()
+                .0,
+            "http://proxy.example"
+        );
+    }
 }

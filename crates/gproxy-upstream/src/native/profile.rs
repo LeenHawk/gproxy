@@ -1,8 +1,16 @@
-use gproxy_channel_api::{Alpn, ClientProfile, Http2Setting, PseudoHeader, TlsVersion};
+use gproxy_channel_api::{
+    Alpn, ClientProfile, ClientProfilePreset, Http2Setting, PseudoHeader, TlsVersion,
+};
+use wreq::IntoEmulation;
 use wreq::http2::{Http2Options, PseudoId, PseudoOrder, SettingId, SettingsOrder};
 use wreq::tls::{AlpnProtocol, ExtensionType, TlsOptions, TlsVersion as WreqTlsVersion};
 
 pub(super) fn client_emulation(profile: &ClientProfile) -> wreq::Emulation {
+    if let Some(preset) = profile.preset {
+        return match preset {
+            ClientProfilePreset::Chrome148 => wreq_util::Emulation::Chrome148.into_emulation(),
+        };
+    }
     let mut emulation = wreq::Emulation::builder();
     let mut tls = TlsOptions::builder();
     let mut has_tls = false;

@@ -307,7 +307,7 @@
       "retryPoll": "重試狀態檢查",
       "restart": "重新開始",
       "cookieLabel": "瀏覽器工作階段 Cookie",
-      "cookieHint": "貼上工作階段 Cookie。它只會傳送一次，API 不會將其傳回。",
+      "cookieHint": "貼上完整 Cookie Header 或 sessionKey。它會加密儲存，用於首次換取 OAuth 憑證及僅 Cookie 的重新登入；一般憑證回應不會傳回。",
       "errors": {
         "startTitle": "無法開始登入",
         "startDescription": "供應商拒絕了啟動步驟。請檢查供應商設定後重試。",

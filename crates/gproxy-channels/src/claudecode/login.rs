@@ -1,14 +1,13 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, BoxFuture, ChannelError, ChannelLogin,
-    SimpleHttp,
+    CookieExchangeCtx, SimpleHttp,
 };
 use serde_json::{Value, json};
 
-use super::{ClaudeCodeChannel, account, auth, profile};
+use super::{ClaudeCodeChannel, account, auth, cookie, profile};
 
 const AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
-const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 
 impl ChannelLogin for ClaudeCodeChannel {
     fn authcode_start<'a>(
@@ -17,7 +16,7 @@ impl ChannelLogin for ClaudeCodeChannel {
         ctx: AuthCodeStartCtx<'a>,
     ) -> BoxFuture<'a, Result<Option<AuthCodeStart>, ChannelError>> {
         let redirect_uri = if ctx.redirect_uri.trim().is_empty() {
-            DEFAULT_REDIRECT_URI
+            auth::DEFAULT_REDIRECT_URI
         } else {
             ctx.redirect_uri
         };
@@ -90,6 +89,14 @@ impl ChannelLogin for ClaudeCodeChannel {
             Ok(secret)
         })
     }
+
+    fn cookie_exchange<'a>(
+        &'a self,
+        http: &'a dyn SimpleHttp,
+        ctx: CookieExchangeCtx<'a>,
+    ) -> BoxFuture<'a, Result<Value, ChannelError>> {
+        cookie::exchange(http, ctx.cookie)
+    }
 }
 
 fn login_secret(token: &Value) -> Result<Value, ChannelError> {
@@ -103,7 +110,7 @@ fn login_secret(token: &Value) -> Result<Value, ChannelError> {
     let mut secret = json!({
         "access_token": access,
         "refresh_token": refresh,
-        "expires_at_ms": unix_now_ms().saturating_add(expires_in.saturating_mul(1_000)),
+        "expires_at_ms": auth::unix_now_ms().saturating_add(expires_in.saturating_mul(1_000)),
         "device_id": auth::device_id(token),
     });
     if let Some(scope) = token.get("scope").and_then(Value::as_str) {
@@ -123,11 +130,4 @@ fn required<'a>(token: &'a Value, name: &str) -> Result<&'a str, ChannelError> {
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| ChannelError::Login(format!("token response missing {name}")))
-}
-
-fn unix_now_ms() -> i64 {
-    web_time::SystemTime::now()
-        .duration_since(web_time::UNIX_EPOCH)
-        .expect("system clock is before the Unix epoch")
-        .as_millis() as i64
 }

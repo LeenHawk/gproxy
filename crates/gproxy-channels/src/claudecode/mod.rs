@@ -3,6 +3,7 @@ mod routes;
 mod account;
 mod auth;
 mod cch;
+mod cookie;
 mod hygiene;
 mod login;
 mod prepare;
@@ -106,8 +107,13 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     traffic_policy: crate::policy::CLAUDE_CODE,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+const LOGIN_MODES: &[LoginMode] = &[LoginMode::AuthCode, LoginMode::Cookie];
+#[cfg(target_arch = "wasm32")]
+const LOGIN_MODES: &[LoginMode] = &[LoginMode::AuthCode];
+
 static LOGIN: LoginDescriptor = LoginDescriptor {
-    modes: &[LoginMode::AuthCode],
+    modes: LOGIN_MODES,
     params: &[],
 };
 

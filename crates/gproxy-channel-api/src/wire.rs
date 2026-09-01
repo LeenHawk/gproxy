@@ -63,10 +63,12 @@ pub struct Http2Profile {
     pub settings_order: Option<Cow<'static, [Http2Setting]>>,
 }
 
-/// Channel-declared native client fingerprint. Edge hosts ignore it because
-/// their runtimes own the TLS stack.
+/// Channel-declared native client fingerprint. Edge hosts ignore optional
+/// profiles because their runtimes own the TLS stack; requests marked with
+/// [`RequiredClientProfile`] fail instead of silently losing one.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ClientProfile {
+    pub preset: Option<ClientProfilePreset>,
     pub alpn: Option<Cow<'static, [Alpn]>>,
     pub min_tls_version: Option<TlsVersion>,
     pub max_tls_version: Option<TlsVersion>,
@@ -80,8 +82,25 @@ pub struct ClientProfile {
 }
 
 impl ClientProfile {
+    pub const fn preset(preset: ClientProfilePreset) -> Self {
+        Self {
+            preset: Some(preset),
+            alpn: None,
+            min_tls_version: None,
+            max_tls_version: None,
+            cipher_list: None,
+            curves_list: None,
+            sigalgs_list: None,
+            preserve_tls13_cipher_list: None,
+            grease: None,
+            extension_permutation: None,
+            http2: None,
+        }
+    }
+
     pub fn is_usable(&self) -> bool {
-        self.alpn.is_some()
+        self.preset.is_some()
+            || self.alpn.is_some()
             || self.min_tls_version.is_some()
             || self.max_tls_version.is_some()
             || self.cipher_list.is_some()
@@ -95,7 +114,13 @@ impl ClientProfile {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ConfiguredClientProfile;
+pub enum ClientProfilePreset {
+    /// Captured desktop Chrome 148 TLS, HTTP/2 and default-header behavior.
+    Chrome148,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequiredClientProfile;
 
 /// Response body stream. Zero-copy passthrough is the default path: frames
 /// flow as refcounted `Bytes` and are only re-encoded when something must

@@ -307,7 +307,7 @@
       "retryPoll": "Retry status check",
       "restart": "Start again",
       "cookieLabel": "Browser session cookie",
-      "cookieHint": "Paste the session cookie. It is sent once and never returned by the API.",
+      "cookieHint": "Paste the full Cookie header or sessionKey. It is stored encrypted for the initial OAuth exchange and cookie-only re-login, and omitted from ordinary credential responses.",
       "errors": {
         "startTitle": "Could not start sign-in",
         "startDescription": "The provider rejected the start step. Check the provider settings and retry.",

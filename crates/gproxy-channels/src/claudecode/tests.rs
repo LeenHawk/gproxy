@@ -4,8 +4,8 @@ use std::task::{Context, Poll, Waker};
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, ClientProfile, Disposition, PrepareCtx, ResponseView, SimpleHttp,
-    StreamCtx, StreamEnd, SurfaceRequest, UsageCtx,
+    BoxFuture, Channel, ClientProfile, Disposition, LoginMode, PrepareCtx, ResponseView,
+    SimpleHttp, StreamCtx, StreamEnd, SurfaceRequest, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, Method, StatusCode};
@@ -40,6 +40,10 @@ fn descriptor_disposition_and_surface_table_are_explicit() {
         5
     );
     assert_eq!(ClaudeCodeChannel.surfaces().0.len(), 23);
+    assert_eq!(
+        ClaudeCodeChannel.login().unwrap().descriptor.modes,
+        &[LoginMode::AuthCode, LoginMode::Cookie]
+    );
 
     let headers = HeaderMap::new();
     for (status, expected) in [

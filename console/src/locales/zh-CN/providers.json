@@ -307,7 +307,7 @@
       "retryPoll": "重试状态检查",
       "restart": "重新开始",
       "cookieLabel": "浏览器会话 Cookie",
-      "cookieHint": "粘贴会话 Cookie。它只发送一次，API 不会将其返回。",
+      "cookieHint": "粘贴完整 Cookie Header 或 sessionKey。它会加密保存，用于首次换取 OAuth 凭据及仅 Cookie 的重新登录；普通凭据响应不会返回。",
       "errors": {
         "startTitle": "无法开始登录",
         "startDescription": "供应商拒绝了启动步骤。请检查供应商设置后重试。",

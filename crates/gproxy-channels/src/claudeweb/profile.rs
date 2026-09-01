@@ -5,6 +5,7 @@ use gproxy_channel_api::{
 };
 
 pub(super) static CLIENT_PROFILE: ClientProfile = ClientProfile {
+    preset: None,
     alpn: Some(Cow::Borrowed(&[Alpn::Http2, Alpn::Http1])),
     min_tls_version: Some(TlsVersion::Tls12),
     max_tls_version: Some(TlsVersion::Tls13),

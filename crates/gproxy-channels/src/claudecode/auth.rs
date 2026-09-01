@@ -5,12 +5,15 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
+pub(super) const CLAUDE_AI_BASE_URL: &str = "https://claude.ai";
 pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
+pub(super) const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 pub(super) const OAUTH_SCOPE: &str =
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
 pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
+pub(super) const ANTHROPIC_VERSION: &str = "2023-06-01";
 const EXPIRY_SKEW_SECONDS: i64 = 30 * 60;
 
 pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
@@ -30,9 +33,16 @@ pub(super) fn refresh<'a>(
     secret: &'a Value,
     http: &'a dyn SimpleHttp,
 ) -> BoxFuture<'a, Result<Value, ChannelError>> {
+    let refresh_token = match secret_string(secret, "refresh_token") {
+        Some(token) => token,
+        None if secret_string(secret, "cookie").is_some() => {
+            return super::cookie::refresh(secret, http);
+        }
+        None => {
+            return Box::pin(async { Err(ChannelError::Refresh("refresh_token missing".into())) });
+        }
+    };
     let request = (|| {
-        let refresh_token = secret_string(secret, "refresh_token")
-            .ok_or_else(|| ChannelError::Refresh("refresh_token missing".into()))?;
         let scope = refresh_scope(secret);
         let body = crate::shared::http::form(&[
             ("grant_type", "refresh_token"),
@@ -46,7 +56,7 @@ pub(super) fn refresh<'a>(
                 "application/x-www-form-urlencoded",
             )
             .header(http::header::ACCEPT, "application/json, text/plain, */*")
-            .header("anthropic-version", "2023-06-01")
+            .header("anthropic-version", ANTHROPIC_VERSION)
             .header("anthropic-beta", OAUTH_BETA)
             .header(http::header::USER_AGENT, CLI_USER_AGENT)
             .body(Bytes::from(body))
@@ -287,7 +297,7 @@ fn hex(bytes: &[u8]) -> String {
     output
 }
 
-fn unix_now_ms() -> i64 {
+pub(super) fn unix_now_ms() -> i64 {
     web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
         .expect("system clock is before the Unix epoch")
