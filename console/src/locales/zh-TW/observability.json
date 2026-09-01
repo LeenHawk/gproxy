@@ -122,17 +122,9 @@
     }
   },
   "usage": {
-    "description": "按時間範圍比較請求數、Token 數和結算成本。",
+    "description": "按時間範圍檢視請求、Token、快取讀寫和結算成本。",
     "overviewDescription": "檢視目前憑證健康狀態、成本和配額壓力。",
     "empty": "此期間沒有用量紀錄，請擴大時間範圍。",
-    "groupBy": {
-      "label": "分組方式",
-      "user_key": "API 金鑰",
-      "userKey": "API 金鑰",
-      "user": "使用者",
-      "provider": "供應商",
-      "model": "模型"
-    },
     "filters": {
       "provider": "供應商",
       "user": "使用者",
@@ -140,13 +132,15 @@
       "model": "模型",
       "all": "全部"
     },
-    "group": "群組",
     "requests": "請求數",
     "inputTokens": "輸入 Token",
-    "cachedTokens": "快取輸入",
+    "cachedTokens": "快取讀取",
+    "cacheCreation5m": "快取寫入 5min",
+    "cacheCreation30m": "快取寫入 30min",
+    "cacheCreation1h": "快取寫入 1h",
     "outputTokens": "輸出 Token",
     "cost": {
-      "title": "用量成本",
+      "title": "用量與成本",
       "label": "成本"
     },
     "windows": "配額視窗",

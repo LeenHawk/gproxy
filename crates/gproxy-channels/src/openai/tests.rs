@@ -254,9 +254,9 @@ fn buffered_and_fragmented_stream_usage_normalize() {
             response_body: br#"{"usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":40,"cache_write_tokens":3},"completion_tokens_details":{"reasoning_tokens":7}}}"#,
         })
         .unwrap();
-    assert_eq!((chat.input_tokens, chat.output_tokens), (100, 20));
+    assert_eq!((chat.input_tokens, chat.output_tokens), (97, 20));
     assert_eq!(chat.cached_input_tokens, 40);
-    assert_eq!(chat.metrics["cache_write_tokens"], Decimal::from(3));
+    assert_eq!(chat.metrics["cache_creation_30m_tokens"], Decimal::from(3));
     assert_eq!(chat.metrics["reasoning_tokens"], Decimal::from(7));
 
     let transcript = OpenAiChannel

@@ -143,7 +143,7 @@ fn export_console_types() {
         QuotaWriteRequest,
         UsageGroupByDto,
         UsageQueryDto,
-        UsageAggregateDto,
+        UsageStatisticsDto,
         QuotaWindowDto,
         BoundarySourceDto,
         BoundaryConfidenceDto,

@@ -12,7 +12,7 @@ import { ObservabilityTabs } from "@/components/observability-tabs"
 
 function initialQuery(): UsageQueryDto {
   const to = Math.floor(Date.now() / 1000)
-  return { from: to - 7 * 86_400, to, group_by: "provider", user_key_id: null, user_id: null, provider_id: null, model: null }
+  return { from: to - 7 * 86_400, to, group_by: null, user_key_id: null, user_id: null, provider_id: null, model: null }
 }
 
 export function UsagePage() {

@@ -354,7 +354,7 @@ fn sparse_stream_repairs_tool_lifecycle_before_exact_terminal() {
 #[test]
 fn usage_keeps_actual_tier_and_image_dimensions() {
     let response = Bytes::from_static(
-        br#"{"id":"r1","created_at":1,"object":"response","output":[],"service_tier":"priority","usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3,"output_tokens_details":{"reasoning_tokens":0}}}"#,
+        br#"{"id":"r1","created_at":1,"object":"response","output":[],"service_tier":"priority","usage":{"input_tokens":2,"input_tokens_details":{"cache_write_tokens":1},"output_tokens":1,"total_tokens":3,"output_tokens_details":{"reasoning_tokens":0}}}"#,
     );
     let usage = super::usage::from_body(UsageCtx {
         key: RESPONSES,
@@ -363,7 +363,9 @@ fn usage_keeps_actual_tier_and_image_dimensions() {
         response_body: &response,
     })
     .unwrap();
+    assert_eq!(usage.input_tokens, 1);
     assert_eq!(usage.dimensions["service_tier"], "priority");
+    assert_eq!(usage.metrics["cache_creation_30m_tokens"], 1.into());
 
     let image = Bytes::from_static(
         br#"{"created":1,"data":[],"size":"1024x1024","quality":"high","usage":{"input_tokens":1,"input_tokens_details":{"image_tokens":0,"text_tokens":1},"output_tokens":2,"total_tokens":3,"output_tokens_details":{"image_tokens":2,"text_tokens":0}}}"#,

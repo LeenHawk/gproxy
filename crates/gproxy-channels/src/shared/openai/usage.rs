@@ -170,18 +170,21 @@ pub(super) fn from_transcription_value(value: &Value) -> Option<NormalizedUsage>
 }
 
 fn chat_usage(usage: &Value) -> NormalizedUsage {
+    let input = usage.get("prompt_tokens_details");
+    let cache_write = input
+        .map(|details| field(details, "cache_write_tokens"))
+        .unwrap_or_default();
     let mut normalized = NormalizedUsage {
-        input_tokens: field(usage, "prompt_tokens"),
+        input_tokens: field(usage, "prompt_tokens").saturating_sub(cache_write),
         output_tokens: field(usage, "completion_tokens"),
-        cached_input_tokens: usage
-            .get("prompt_tokens_details")
+        cached_input_tokens: input
             .map(|details| field(details, "cached_tokens"))
             .unwrap_or_default(),
         ..Default::default()
     };
     add_details(
         &mut normalized,
-        usage.get("prompt_tokens_details"),
+        input,
         usage.get("completion_tokens_details"),
         usage,
     );
@@ -189,18 +192,21 @@ fn chat_usage(usage: &Value) -> NormalizedUsage {
 }
 
 fn responses_usage(usage: &Value) -> NormalizedUsage {
+    let input = usage.get("input_tokens_details");
+    let cache_write = input
+        .map(|details| field(details, "cache_write_tokens"))
+        .unwrap_or_default();
     let mut normalized = NormalizedUsage {
-        input_tokens: field(usage, "input_tokens"),
+        input_tokens: field(usage, "input_tokens").saturating_sub(cache_write),
         output_tokens: field(usage, "output_tokens"),
-        cached_input_tokens: usage
-            .get("input_tokens_details")
+        cached_input_tokens: input
             .map(|details| field(details, "cached_tokens"))
             .unwrap_or_default(),
         ..Default::default()
     };
     add_details(
         &mut normalized,
-        usage.get("input_tokens_details"),
+        input,
         usage.get("output_tokens_details"),
         usage,
     );
@@ -215,7 +221,7 @@ fn add_details(
 ) {
     for (name, value) in [
         (
-            "cache_write_tokens",
+            "cache_creation_30m_tokens",
             input.map(|v| field(v, "cache_write_tokens")),
         ),
         (

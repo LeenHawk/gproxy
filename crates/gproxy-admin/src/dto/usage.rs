@@ -16,7 +16,7 @@ pub enum UsageGroupByDto {
 pub struct UsageQueryDto {
     pub from: i64,
     pub to: i64,
-    pub group_by: UsageGroupByDto,
+    pub group_by: Option<UsageGroupByDto>,
     pub user_key_id: Option<i64>,
     pub user_id: Option<i64>,
     pub provider_id: Option<i64>,
@@ -24,12 +24,18 @@ pub struct UsageQueryDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-pub struct UsageAggregateDto {
-    pub group: String,
+pub struct UsageStatisticsDto {
+    pub user_key_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub provider_id: Option<i64>,
+    pub model: Option<String>,
     pub requests: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_input_tokens: u64,
+    pub cache_creation_5m_tokens: u64,
+    pub cache_creation_30m_tokens: u64,
+    pub cache_creation_1h_tokens: u64,
     pub cost: String,
 }
 

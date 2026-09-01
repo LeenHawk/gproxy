@@ -7,7 +7,7 @@ use gproxy_store::records::{QuotaRecord, QuotaWindowKind, UsageAggregateQuery, U
 use http::request::Parts;
 use http::{Response, StatusCode};
 
-use crate::dto::{QuotaWindowDto, UsageAggregateDto, UsageGroupByDto, UsageQueryDto};
+use crate::dto::{QuotaWindowDto, UsageGroupByDto, UsageQueryDto, UsageStatisticsDto};
 use crate::handlers::util;
 use crate::{AdminError, State, response};
 
@@ -19,10 +19,11 @@ pub(super) async fn usage(
         .map_err(|error| AdminError::BadRequest(error.to_string()))?;
     let (from, to) = range(query.from, query.to)?;
     let group_by = match query.group_by {
-        UsageGroupByDto::UserKey => UsageGroupBy::UserKey,
-        UsageGroupByDto::User => UsageGroupBy::User,
-        UsageGroupByDto::Provider => UsageGroupBy::Provider,
-        UsageGroupByDto::Model => UsageGroupBy::Model,
+        Some(UsageGroupByDto::UserKey) => UsageGroupBy::UserKey,
+        Some(UsageGroupByDto::User) => UsageGroupBy::User,
+        Some(UsageGroupByDto::Provider) => UsageGroupBy::Provider,
+        Some(UsageGroupByDto::Model) => UsageGroupBy::Model,
+        None => UsageGroupBy::Dimensions,
     };
     let records = state
         .store()
@@ -38,12 +39,24 @@ pub(super) async fn usage(
         .await?;
     let records = records
         .into_iter()
-        .map(|record| UsageAggregateDto {
-            group: record.group,
+        .map(|record| UsageStatisticsDto {
+            user_key_id: matches!(group_by, UsageGroupBy::UserKey | UsageGroupBy::Dimensions)
+                .then_some(record.user_key_id)
+                .flatten(),
+            user_id: matches!(group_by, UsageGroupBy::User | UsageGroupBy::Dimensions)
+                .then_some(record.user_id)
+                .flatten(),
+            provider_id: matches!(group_by, UsageGroupBy::Provider | UsageGroupBy::Dimensions)
+                .then_some(record.provider_id),
+            model: matches!(group_by, UsageGroupBy::Model | UsageGroupBy::Dimensions)
+                .then_some(record.model),
             requests: record.requests,
             input_tokens: record.input_tokens,
             output_tokens: record.output_tokens,
             cached_input_tokens: record.cached_input_tokens,
+            cache_creation_5m_tokens: record.cache_creation_5m_tokens,
+            cache_creation_30m_tokens: record.cache_creation_30m_tokens,
+            cache_creation_1h_tokens: record.cache_creation_1h_tokens,
             cost: record.cost.normalize().to_string(),
         })
         .collect::<Vec<_>>();

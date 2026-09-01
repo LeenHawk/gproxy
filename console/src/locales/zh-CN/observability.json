@@ -122,17 +122,9 @@
     }
   },
   "usage": {
-    "description": "按时间范围比较请求数、令牌数和结算成本。",
+    "description": "按时间范围查看请求、令牌、缓存读写和结算成本。",
     "overviewDescription": "查看当前凭据健康状态、成本和配额压力。",
     "empty": "该时段没有用量记录，请扩大时间范围。",
-    "groupBy": {
-      "label": "分组方式",
-      "user_key": "API 密钥",
-      "userKey": "API 密钥",
-      "user": "用户",
-      "provider": "供应商",
-      "model": "模型"
-    },
     "filters": {
       "provider": "供应商",
       "user": "用户",
@@ -140,13 +132,15 @@
       "model": "模型",
       "all": "全部"
     },
-    "group": "分组",
     "requests": "请求数",
     "inputTokens": "输入令牌",
-    "cachedTokens": "缓存输入",
+    "cachedTokens": "缓存读取",
+    "cacheCreation5m": "缓存写入 5min",
+    "cacheCreation30m": "缓存写入 30min",
+    "cacheCreation1h": "缓存写入 1h",
     "outputTokens": "输出令牌",
     "cost": {
-      "title": "用量成本",
+      "title": "用量与成本",
       "label": "成本"
     },
     "windows": "配额窗口",

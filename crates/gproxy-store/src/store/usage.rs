@@ -4,6 +4,7 @@ use crate::records::{
     UsageAggregateQuery, UsageAggregateRecord, UsageInput, UsageRecord, UsageWindow,
 };
 use crate::{Store, StoreError};
+use rust_decimal::prelude::ToPrimitive as _;
 
 impl Store {
     pub async fn usage_count(&self) -> Result<u64, StoreError> {
@@ -21,7 +22,7 @@ impl Store {
     ) -> Result<Vec<UsageAggregateRecord>, StoreError> {
         const PAGE_SIZE: u64 = 5_000;
         const MAX_PAGES: usize = 20;
-        let mut groups = std::collections::BTreeMap::<String, UsageAggregateRecord>::new();
+        let mut groups = std::collections::BTreeMap::<AggregateKey, UsageAggregateRecord>::new();
         let mut after_id = 0;
         for page in 0..MAX_PAGES {
             let page_limit = if page + 1 == MAX_PAGES {
@@ -43,7 +44,7 @@ impl Store {
             }
             for row in rows {
                 after_id = row.i64("id")?;
-                accumulate(&mut groups, row)?;
+                accumulate(&mut groups, query.group_by, row)?;
             }
             if row_count < page_limit as usize {
                 break;
@@ -54,7 +55,10 @@ impl Store {
             right
                 .cost
                 .cmp(&left.cost)
-                .then_with(|| left.group.cmp(&right.group))
+                .then_with(|| left.provider_id.cmp(&right.provider_id))
+                .then_with(|| left.model.cmp(&right.model))
+                .then_with(|| left.user_id.cmp(&right.user_id))
+                .then_with(|| left.user_key_id.cmp(&right.user_key_id))
         });
         values.truncate(500);
         Ok(values)
@@ -106,17 +110,49 @@ impl Store {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum AggregateKey {
+    Scalar(String),
+    Dimensions(Option<i64>, Option<i64>, i64, String),
+}
+
 fn accumulate(
-    groups: &mut std::collections::BTreeMap<String, UsageAggregateRecord>,
+    groups: &mut std::collections::BTreeMap<AggregateKey, UsageAggregateRecord>,
+    group_by: crate::records::UsageGroupBy,
     row: Row,
 ) -> Result<(), StoreError> {
-    let group = row.text("group_key")?.to_owned();
-    let value = groups.entry(group.clone()).or_insert(UsageAggregateRecord {
+    let user_key_id = row.optional_i64("user_key_id")?;
+    let user_id = row.optional_i64("user_id")?;
+    let provider_id = row.i64("provider_id")?;
+    let model = row.text("upstream_model")?.to_owned();
+    let group = match group_by {
+        crate::records::UsageGroupBy::UserKey => required_group(user_key_id, "user_key_id")?,
+        crate::records::UsageGroupBy::User => required_group(user_id, "user_id")?,
+        crate::records::UsageGroupBy::Provider => provider_id.to_string(),
+        crate::records::UsageGroupBy::Model | crate::records::UsageGroupBy::Dimensions => {
+            model.clone()
+        }
+    };
+    let key = match group_by {
+        crate::records::UsageGroupBy::Dimensions => {
+            AggregateKey::Dimensions(user_key_id, user_id, provider_id, model.clone())
+        }
+        _ => AggregateKey::Scalar(group.clone()),
+    };
+    let metrics = json(row.text("metrics_json")?, "metrics_json")?;
+    let value = groups.entry(key).or_insert(UsageAggregateRecord {
         group,
+        user_key_id,
+        user_id,
+        provider_id,
+        model,
         requests: 0,
         input_tokens: 0,
         output_tokens: 0,
         cached_input_tokens: 0,
+        cache_creation_5m_tokens: 0,
+        cache_creation_30m_tokens: 0,
+        cache_creation_1h_tokens: 0,
         cost: rust_decimal::Decimal::ZERO,
     });
     checked_add(&mut value.requests, 1, "requests")?;
@@ -135,8 +171,62 @@ fn accumulate(
         unsigned(row.i64("cached_input_tokens")?, "cached_input_tokens")?,
         "cached_input_tokens",
     )?;
+    for (target, name) in [
+        (
+            &mut value.cache_creation_5m_tokens,
+            "cache_creation_5m_tokens",
+        ),
+        (
+            &mut value.cache_creation_30m_tokens,
+            "cache_creation_30m_tokens",
+        ),
+        (
+            &mut value.cache_creation_1h_tokens,
+            "cache_creation_1h_tokens",
+        ),
+    ] {
+        checked_add(target, metric_tokens(&metrics, name)?, name)?;
+    }
     value.cost += decimal(row.text("cost")?, "cost")?;
     Ok(())
+}
+
+fn required_group(value: Option<i64>, field: &'static str) -> Result<String, StoreError> {
+    value
+        .map(|value| value.to_string())
+        .ok_or_else(|| StoreError::InvalidData {
+            field,
+            message: "usage group key is null".into(),
+        })
+}
+
+fn metric_tokens(metrics: &serde_json::Value, field: &'static str) -> Result<u64, StoreError> {
+    let Some(value) = metrics.get(field) else {
+        return Ok(0);
+    };
+    let value = match value {
+        serde_json::Value::Number(value) => value.to_string(),
+        serde_json::Value::String(value) => value.clone(),
+        _ => {
+            return Err(StoreError::InvalidData {
+                field,
+                message: "usage token metric must be a number".into(),
+            });
+        }
+    };
+    let value = value
+        .parse::<rust_decimal::Decimal>()
+        .map_err(|error| invalid(field, error))?;
+    if !value.fract().is_zero() {
+        return Err(StoreError::InvalidData {
+            field,
+            message: "usage token metric must be an integer".into(),
+        });
+    }
+    value.to_u64().ok_or_else(|| StoreError::InvalidData {
+        field,
+        message: "usage token metric is outside the u64 range".into(),
+    })
 }
 
 fn checked_add(target: &mut u64, value: u64, field: &'static str) -> Result<(), StoreError> {

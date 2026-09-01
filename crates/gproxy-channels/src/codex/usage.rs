@@ -75,21 +75,21 @@ pub(super) fn from_response_with_tier(
         .input_tokens_details
         .as_ref()
         .and_then(|details| details.cached_tokens);
+    let write = usage
+        .input_tokens_details
+        .as_ref()
+        .and_then(|details| details.cache_write_tokens)
+        .filter(|tokens| *tokens > 0);
     let mut normalized = NormalizedUsage {
-        input_tokens: u64::from(usage.input_tokens),
+        input_tokens: u64::from(usage.input_tokens.saturating_sub(write.unwrap_or_default())),
         output_tokens: u64::from(usage.output_tokens),
         cached_input_tokens: cached.map(u64::from).unwrap_or_default(),
         ..Default::default()
     };
-    if let Some(write) = usage
-        .input_tokens_details
-        .as_ref()
-        .and_then(|details| details.cache_write_tokens)
-        .filter(|tokens| *tokens > 0)
-    {
+    if let Some(write) = write {
         normalized
             .metrics
-            .insert("cache_write_tokens".into(), Decimal::from(write));
+            .insert("cache_creation_30m_tokens".into(), Decimal::from(write));
     }
     let reasoning = usage
         .output_tokens_details

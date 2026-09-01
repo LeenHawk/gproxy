@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
-import type { UsageAggregateDto } from "@/generated/UsageAggregateDto"
+import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
 import type { UsageQueryDto } from "@/generated/UsageQueryDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { UserDto } from "@/generated/UserDto"
@@ -11,18 +11,15 @@ import { SearchableSelect } from "@/components/searchable-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { UsageTable } from "@/components/usage/usage-table"
 import { WindowList } from "@/components/usage/window-list"
-
-const groups: Array<UsageQueryDto["group_by"]> = ["user_key", "user", "provider", "model"]
 
 type Props = {
   draft: UsageQueryDto
   onDraft: (value: UsageQueryDto) => void
   onApply: () => void
   onReset: () => void
-  rows: Array<UsageAggregateDto>
+  rows: Array<UsageStatisticsDto>
   quotas: Array<QuotaWindowDto>
   cycles: Array<CredentialQuotaCycleDto>
   providers: Array<ProviderDto>
@@ -35,9 +32,6 @@ export function UsageExplorer({ draft, onDraft, onApply, onReset, rows, quotas, 
   const update = <K extends keyof UsageQueryDto>(key: K, value: UsageQueryDto[K]) => onDraft({ ...draft, [key]: value })
   return (
     <div className="flex flex-col gap-5">
-      <ToggleGroup type="single" variant="outline" className="flex-wrap justify-start" value={draft.group_by} onValueChange={(value) => value && update("group_by", value as UsageQueryDto["group_by"])} aria-label={t("usage.groupBy.label")}>
-          {groups.map((value) => <ToggleGroupItem key={value} value={value}>{t(`usage.groupBy.${value}`)}</ToggleGroupItem>)}
-      </ToggleGroup>
       <DateRangeFilterBar
         range={{ start: draft.from, end: draft.to }}
         onRange={({ start, end }) => onDraft({ ...draft, from: start, to: end })}
@@ -51,7 +45,7 @@ export function UsageExplorer({ draft, onDraft, onApply, onReset, rows, quotas, 
       </DateRangeFilterBar>
       <Tabs defaultValue="cost">
         <TabsList><TabsTrigger value="cost">{t("usage.cost.title")}</TabsTrigger><TabsTrigger value="windows">{t("usage.windows")}</TabsTrigger></TabsList>
-        <TabsContent value="cost" className="pt-4"><UsageTable rows={rows} group={draft.group_by} providers={providers} users={users} keys={keys} /></TabsContent>
+        <TabsContent value="cost" className="pt-4"><UsageTable rows={rows} providers={providers} users={users} keys={keys} /></TabsContent>
         <TabsContent value="windows" className="pt-5"><WindowList quotas={quotas} cycles={cycles} users={users} keys={keys} /></TabsContent>
       </Tabs>
     </div>

@@ -61,6 +61,7 @@ pub enum UsageGroupBy {
     User,
     Provider,
     Model,
+    Dimensions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,9 +78,16 @@ pub struct UsageAggregateQuery {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageAggregateRecord {
     pub group: String,
+    pub user_key_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub provider_id: i64,
+    pub model: String,
     pub requests: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_input_tokens: u64,
+    pub cache_creation_5m_tokens: u64,
+    pub cache_creation_30m_tokens: u64,
+    pub cache_creation_1h_tokens: u64,
     pub cost: Decimal,
 }

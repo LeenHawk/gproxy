@@ -14,6 +14,7 @@ pub(super) struct Outcome {
     snapshot: ControlSnapshot,
     credential: CredentialRecord,
     usage: UsageRecord,
+    statistics: Vec<UsageAggregateRecord>,
     window: UsageWindow,
     quota: QuotaWindowRecord,
     cycle: cycle::Outcome,
@@ -153,6 +154,17 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     second_usage.metrics = json!({"audio_seconds": 2});
     second_usage.cost = Decimal::new(1, 5);
     assert!(store.record_usage(&second_usage).await?);
+    let statistics = store
+        .usage_aggregate(&UsageAggregateQuery {
+            from: 0,
+            to: 4_000,
+            group_by: UsageGroupBy::Dimensions,
+            user_key_id: None,
+            user_id: None,
+            provider_id: None,
+            model: None,
+        })
+        .await?;
     let cycle = cycle::run(store, credential.id).await?;
     let mut binding = seed_binding(store, provider, credential.id).await?;
     binding.items[0].created_at = 0;
@@ -175,6 +187,14 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(credential.envelope, envelope(2));
     assert_eq!(usage.usage.cost, usage_input.cost);
     assert!(usage.usage.cost > rust_decimal::Decimal::ZERO);
+    assert_eq!(statistics.len(), 2);
+    assert_eq!(statistics[0].user_key_id, Some(1));
+    assert_eq!(statistics[0].user_id, Some(1));
+    assert_eq!(statistics[0].provider_id, provider);
+    assert_eq!(statistics[0].model, "upstream-model");
+    assert_eq!(statistics[0].cache_creation_5m_tokens, 3);
+    assert_eq!(statistics[0].cache_creation_30m_tokens, 4);
+    assert_eq!(statistics[0].cache_creation_1h_tokens, 5);
     assert_eq!(window.input_tokens, 10);
     assert_eq!(window.output_tokens, 5);
     assert_eq!(quota.cost_used, Decimal::new(15, 4));
@@ -191,6 +211,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         snapshot,
         credential,
         usage,
+        statistics,
         window,
         quota,
         cycle,

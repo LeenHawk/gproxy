@@ -3,8 +3,8 @@ import type { ChannelDto } from "@/generated/ChannelDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
-import type { UsageAggregateDto } from "@/generated/UsageAggregateDto"
 import type { UsageQueryDto } from "@/generated/UsageQueryDto"
+import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
 import type { LogDetailDto } from "@/generated/LogDetailDto"
 import type { LogPageDto } from "@/generated/LogPageDto"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
@@ -23,7 +23,7 @@ const queryString = (entries: object) => {
 export const channels = () => api<Array<ChannelDto>>("/admin/api/channels")
 export const tlsPresets = () => api<Array<TlsPresetDto>>("/admin/api/tls-presets")
 export const usage = (value: UsageQueryDto) =>
-  api<Array<UsageAggregateDto>>(`/admin/api/usage?${queryString(value)}`)
+  api<Array<UsageStatisticsDto>>(`/admin/api/usage?${queryString(value)}`)
 export const quotaWindows = (subjectKind?: string, subjectId?: number) =>
   api<Array<QuotaWindowDto>>(
     `/admin/api/quota-windows?${queryString({ subject_kind: subjectKind ?? "", subject_id: subjectId ?? null })}`,

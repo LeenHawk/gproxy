@@ -118,7 +118,12 @@ pub(super) fn usage(provider_id: i64, credential_id: i64) -> UsageInput {
         input_tokens: 10,
         output_tokens: 5,
         cached_input_tokens: 2,
-        metrics: json!({"audio_seconds": 1}),
+        metrics: json!({
+            "audio_seconds": 1,
+            "cache_creation_5m_tokens": 3,
+            "cache_creation_30m_tokens": 4,
+            "cache_creation_1h_tokens": 5
+        }),
         dimensions: json!({"tier": "standard"}),
         cost: Decimal::new(2, 5),
         usage_source: "upstream".into(),

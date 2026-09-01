@@ -122,17 +122,9 @@
     }
   },
   "usage": {
-    "description": "Compare requests, tokens, and settled cost across a time range.",
+    "description": "Review requests, tokens, cache reads and writes, and settled cost across a time range.",
     "overviewDescription": "Current credential health, cost, and quota pressure.",
     "empty": "No usage was recorded for this period. Widen the time range.",
-    "groupBy": {
-      "label": "Group by",
-      "user_key": "API key",
-      "userKey": "API key",
-      "user": "User",
-      "provider": "Provider",
-      "model": "Model"
-    },
     "filters": {
       "provider": "Provider",
       "user": "User",
@@ -140,13 +132,15 @@
       "model": "Model",
       "all": "All"
     },
-    "group": "Group",
     "requests": "Requests",
     "inputTokens": "Input tokens",
-    "cachedTokens": "Cached input",
+    "cachedTokens": "Cache read",
+    "cacheCreation5m": "Cache write 5min",
+    "cacheCreation30m": "Cache write 30min",
+    "cacheCreation1h": "Cache write 1h",
     "outputTokens": "Output tokens",
     "cost": {
-      "title": "Usage cost",
+      "title": "Usage and cost",
       "label": "Cost"
     },
     "windows": "Quota windows",
