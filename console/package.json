@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/sync-to-embed.mjs",
     "lint": "tsc -b --pretty false && eslint . && pnpm i18n:check",
-    "test": "vitest run",
+    "test": "vitest run && node --test ../scripts/update-openrouter-price-catalog.test.mjs",
+    "pricing:update": "node ../scripts/update-openrouter-price-catalog.mjs",
     "i18n:check": "node scripts/i18n-parity.mjs && node scripts/i18n-unused.mjs"
   },
   "dependencies": {

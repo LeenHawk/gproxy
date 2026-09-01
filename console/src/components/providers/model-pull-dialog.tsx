@@ -1,26 +1,30 @@
 import { useMemo, useState, type ReactElement } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertCircleIcon, LoaderCircleIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { discoverModels, saveProviderModel } from "@/api/control"
+import { applyDefaultPrices, defaultPriceCatalog, discoverModels, saveProviderModel } from "@/api/control"
 import type { DiscoveredModelDto } from "@/generated/DiscoveredModelDto"
+import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import { ModelPullList, type ModelPullAction } from "@/components/providers/model-pull-list"
+import { ModelPullPriceOption } from "@/components/providers/model-pull-price-option"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { exactProviderPrices, findDefaultPrice } from "@/lib/default-pricing"
 
 type Props = {
   providerId: number
   existing: Array<ProviderModelDto>
+  priceRules: Array<PriceRuleDto>
   trigger: ReactElement
 }
 
-export function ModelPullDialog({ providerId, existing, trigger }: Props) {
+export function ModelPullDialog({ providerId, existing, priceRules, trigger }: Props) {
   const { t } = useTranslation()
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -29,8 +33,14 @@ export function ModelPullDialog({ providerId, existing, trigger }: Props) {
   const [search, setSearch] = useState("")
   const [keyPrefix, setKeyPrefix] = useState<string>()
   const [pullError, setPullError] = useState("")
+  const [importPrices, setImportPrices] = useState(true)
+  const catalog = useQuery({ queryKey: ["default-price-catalog"], queryFn: defaultPriceCatalog, enabled: open, staleTime: Infinity })
 
   const rows = useMemo(() => new Map(existing.map((model) => [model.model_id, model])), [existing])
+  const priced = useMemo(() => exactProviderPrices(providerId, priceRules), [priceRules, providerId])
+  const defaultPriced = useMemo(() => new Set(models
+    .filter((model) => findDefaultPrice(catalog.data, model.model_id) != null)
+    .map((model) => model.model_id)), [catalog.data, models])
   const gaps = (model: DiscoveredModelDto) => {
     const row = rows.get(model.model_id)
     if (!row) return 0
@@ -41,9 +51,12 @@ export function ModelPullDialog({ providerId, existing, trigger }: Props) {
     ].filter(Boolean).length
   }
   const modelWrite = (model: DiscoveredModelDto) => !model.known || gaps(model) > 0
+  const priceAvailable = (model: DiscoveredModelDto) => !priced.has(model.model_id) && defaultPriced.has(model.model_id)
   const actionFor = (model: DiscoveredModelDto): ModelPullAction => ({
-    actionable: modelWrite(model),
+    actionable: modelWrite(model) || (importPrices && priceAvailable(model)),
     gaps: gaps(model),
+    priceAvailable: priceAvailable(model),
+    priced: priced.has(model.model_id),
   })
 
   const pull = useMutation({
@@ -102,11 +115,17 @@ export function ModelPullDialog({ providerId, existing, trigger }: Props) {
         }, row?.id)
         saved += 1
       }
-      return saved
+      const priceModels = importPrices ? picked.filter(priceAvailable).map((model) => model.model_id) : []
+      const prices = priceModels.length > 0 ? await applyDefaultPrices({ provider_id: providerId, model_ids: priceModels }) : { created: 0 }
+      return { saved, priced: prices.created }
     },
-    onSuccess: async (saved) => {
-      await client.invalidateQueries({ queryKey: ["provider-models"] })
-      toast.success(t("providers.models.pullAdded", { added: saved }))
+    onSuccess: async ({ saved, priced: imported }) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["provider-models"] }),
+        client.invalidateQueries({ queryKey: ["price-rules"] }),
+        client.invalidateQueries({ queryKey: ["price-rates"] }),
+      ])
+      toast.success(t("providers.models.pullSynced", { models: saved, prices: imported }))
       close()
     },
     onError: () => toast.error(t("providers.models.saveError")),
@@ -118,6 +137,7 @@ export function ModelPullDialog({ providerId, existing, trigger }: Props) {
     setSearch("")
     setKeyPrefix(undefined)
     setPullError("")
+    setImportPrices(true)
   }
   const close = () => { setOpen(false); reset() }
   const changeOpen = (value: boolean) => {
@@ -159,6 +179,7 @@ export function ModelPullDialog({ providerId, existing, trigger }: Props) {
             </label>
             {keyPrefix ? <span className="machine-text max-w-44 truncate">{t("providers.models.pullCredential", { prefix: keyPrefix })}</span> : null}
           </div>
+          <ModelPullPriceOption checked={importPrices} onCheckedChange={setImportPrices} disabled={add.isPending || catalog.isPending || catalog.isError} />
           {visible.length > 0
             ? <ModelPullList models={visible} selected={selected} pending={add.isPending} actionFor={actionFor} onToggle={toggle} />
             : <Empty className="min-h-36 border"><EmptyHeader><EmptyTitle>{t("providers.models.pullNoMatches")}</EmptyTitle><EmptyDescription>{t("providers.models.pullNoMatchesHint")}</EmptyDescription></EmptyHeader></Empty>}

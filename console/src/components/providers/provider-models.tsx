@@ -77,6 +77,7 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
         <ModelPullDialog
           providerId={providerId}
           existing={rows}
+          priceRules={priceRules}
           trigger={<Button size="sm" variant="outline"><DownloadIcon aria-hidden />{t("providers.models.pull")}</Button>}
         />
         <Button size="sm" onClick={() => openEditor()}>{t("providers.models.add")}</Button>

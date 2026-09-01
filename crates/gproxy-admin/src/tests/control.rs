@@ -151,3 +151,111 @@ async fn backfill_does_not_overwrite_operator_route() {
     assert_eq!(row.sort_order, 7);
     assert!(!row.enabled);
 }
+
+#[tokio::test]
+async fn embedded_default_prices_import_once_without_overwriting() {
+    let state = state().await;
+    seed_admin_key(&state).await;
+    let provider_id = provider(&state).await;
+
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(Method::GET, "/admin/api/default-price-catalog"),
+        Bytes::new(),
+    )
+    .await
+    .expect("default price catalog");
+    assert_eq!(response.status(), StatusCode::OK);
+    let catalog: crate::dto::DefaultPriceCatalogDto =
+        serde_json::from_slice(response.body()).expect("catalog response");
+    assert_eq!(catalog.price_rules.len(), catalog.source.included_models);
+
+    let body = Bytes::from(
+        serde_json::to_vec(&crate::dto::ApplyDefaultPricesRequest {
+            provider_id,
+            model_ids: vec!["gpt-5.6-sol".into(), "claude-opus-5-20260801".into()],
+        })
+        .unwrap(),
+    );
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(Method::POST, "/admin/api/default-price-catalog/apply"),
+        body.clone(),
+    )
+    .await
+    .expect("apply defaults");
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let applied: crate::dto::ApplyDefaultPricesResponse =
+        serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(applied.created, 2);
+    assert_eq!(applied.skipped, 0);
+    assert_eq!(applied.unmatched, 0);
+    let snapshot = state.store.control_snapshot().await.unwrap();
+    assert_eq!(snapshot.price_rules.len(), 2);
+    assert!(snapshot.price_rates.len() >= 4);
+    assert!(
+        snapshot
+            .price_rules
+            .iter()
+            .all(|rule| rule.provider_id == Some(provider_id))
+    );
+    assert!(
+        snapshot
+            .price_rules
+            .iter()
+            .any(|rule| rule.model_pattern == "gpt-5.6-sol")
+    );
+
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(Method::POST, "/admin/api/default-price-catalog/apply"),
+        body,
+    )
+    .await
+    .expect("reapply defaults");
+    assert_eq!(response.status(), StatusCode::OK);
+    let applied: crate::dto::ApplyDefaultPricesResponse =
+        serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(applied.created, 0);
+    assert_eq!(applied.skipped, 2);
+    assert_eq!(applied.unmatched, 0);
+    assert_eq!(
+        state
+            .store
+            .control_snapshot()
+            .await
+            .unwrap()
+            .price_rules
+            .len(),
+        2
+    );
+    assert_eq!(
+        state.store.audit_events(10).await.unwrap()[0].event.action,
+        "default_prices.apply"
+    );
+}
+
+#[tokio::test]
+async fn untouched_embedded_prices_are_not_exported_as_operator_configuration() {
+    let state = state().await;
+    seed_admin_key(&state).await;
+    assert_eq!(
+        crate::seed_global_default_prices(&state.store)
+            .await
+            .unwrap(),
+        493
+    );
+
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(Method::POST, "/admin/api/export"),
+        Bytes::from_static(br#"{"include_secrets":false}"#),
+    )
+    .await
+    .expect("configuration export");
+    assert_eq!(response.status(), StatusCode::OK);
+    let export: crate::dto::ConfigurationExportDto =
+        serde_json::from_slice(response.body()).unwrap();
+    assert!(export.data.price_rules.is_empty());
+    assert!(export.data.price_rates.is_empty());
+}

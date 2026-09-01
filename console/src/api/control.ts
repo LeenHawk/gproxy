@@ -16,6 +16,9 @@ import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { PriceRateWriteRequest } from "@/generated/PriceRateWriteRequest"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { PriceRuleWriteRequest } from "@/generated/PriceRuleWriteRequest"
+import type { ApplyDefaultPricesRequest } from "@/generated/ApplyDefaultPricesRequest"
+import type { ApplyDefaultPricesResponse } from "@/generated/ApplyDefaultPricesResponse"
+import type { DefaultPriceCatalogDto } from "@/generated/DefaultPriceCatalogDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { QuotaProbeResponse } from "@/generated/QuotaProbeResponse"
 import type { QuotaResetResponse } from "@/generated/QuotaResetResponse"
@@ -105,6 +108,10 @@ export const savePriceRule = (value: PriceRuleWriteRequest, id?: number) =>
 export const priceRates = () => api<Array<PriceRateDto>>("/admin/api/price-rates")
 export const savePriceRate = (value: PriceRateWriteRequest, id?: number) =>
   save("/admin/api/price-rates", value, id)
+export const defaultPriceCatalog = () =>
+  api<DefaultPriceCatalogDto>("/admin/api/default-price-catalog")
+export const applyDefaultPrices = (value: ApplyDefaultPricesRequest) =>
+  api<ApplyDefaultPricesResponse>("/admin/api/default-price-catalog/apply", json("POST", value))
 export const deletePriceRate = (id: number) =>
   deleteEntity("price-rates", id)
 export const routingRules = () => api<Array<RoutingRuleDto>>("/admin/api/routing-rules")

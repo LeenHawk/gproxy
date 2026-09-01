@@ -20,6 +20,10 @@ pub use error::AdminError;
 pub use portal::{PortalIdentity, dispatch as portal_dispatch};
 pub use state::State;
 
+pub async fn seed_global_default_prices(store: &gproxy_store::Store) -> Result<usize, AdminError> {
+    handlers::default_pricing::seed_global(store).await
+}
+
 pub async fn seed_first_admin(
     store: &gproxy_store::Store,
     username: &str,

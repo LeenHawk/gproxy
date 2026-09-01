@@ -20,6 +20,28 @@ fn generation_operation() -> gproxy_protocol::OperationKey {
 }
 
 #[tokio::test]
+async fn fresh_instance_loads_global_prices_once() {
+    let directory = tempfile::tempdir().unwrap();
+    let config = || test_config(directory.path(), crate::MasterKeyConfig::new(None));
+    let app = crate::App::start(config()).await.unwrap();
+    let snapshot = app.inner.host.services.control.current();
+    assert_eq!(snapshot.price_rules.len(), 493);
+    assert!(
+        snapshot
+            .price_rules
+            .iter()
+            .all(|rule| rule.provider_id.is_none())
+    );
+    drop(app);
+
+    let app = crate::App::start(config()).await.unwrap();
+    assert_eq!(
+        app.inner.host.services.control.current().price_rules.len(),
+        493
+    );
+}
+
+#[tokio::test]
 async fn log_sink_redacts_by_default_and_writes_clear_only_when_disabled() {
     let setup::Fixture {
         app,

@@ -13,6 +13,17 @@ impl App {
         std::fs::create_dir_all(config.data_dir())
             .map_err(|error| AppError::Bootstrap(error.to_string()))?;
         let store = gproxy_store::Store::open(config.backend_config()).await?;
+        let fresh_store = store
+            .entity_counts()
+            .await?
+            .into_iter()
+            .all(|(_, count)| count == 0);
+        if fresh_store {
+            let rules = gproxy_admin::seed_global_default_prices(&store)
+                .await
+                .map_err(|error| AppError::Bootstrap(error.to_string()))?;
+            tracing::info!(rules, "loaded embedded global price catalog");
+        }
         let cipher = crate::key_rotation::prepare(&store, config.secret_keys()).await?;
         let channels = channels()?;
         #[cfg(not(target_arch = "wasm32"))]
