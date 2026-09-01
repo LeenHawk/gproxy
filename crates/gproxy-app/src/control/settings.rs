@@ -4,8 +4,7 @@ use gproxy_store::records::{
     INHERIT_SYSTEM_PROXY,
 };
 use gproxy_store::records::{
-    ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SPOOF_EMULATION, SettingRecord,
-    TRAFFIC_BLACKLIST,
+    ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SettingRecord, TRAFFIC_BLACKLIST,
 };
 
 #[derive(Clone)]
@@ -41,7 +40,6 @@ impl RuntimeOverrides {
 #[derive(Clone)]
 pub(crate) struct EffectiveSettings {
     pub proxy: Option<String>,
-    pub spoof_emulation: bool,
     pub enable_usage: bool,
     #[cfg(not(target_arch = "wasm32"))]
     pub enable_tokenizer_vocabs: bool,
@@ -62,7 +60,6 @@ impl EffectiveSettings {
     pub(super) fn read(values: &[SettingRecord], runtime: &RuntimeOverrides) -> Self {
         Self {
             proxy: runtime.global_proxy.clone().or_else(|| text(values, PROXY)),
-            spoof_emulation: boolean(values, SPOOF_EMULATION, false),
             enable_usage: boolean(values, ENABLE_USAGE, true),
             #[cfg(not(target_arch = "wasm32"))]
             enable_tokenizer_vocabs: boolean(values, ENABLE_TOKENIZER_VOCABS, true),

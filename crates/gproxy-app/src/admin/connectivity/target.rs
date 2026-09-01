@@ -79,15 +79,10 @@ pub(in crate::admin) fn resolve(
     } else {
         fallback(settings.proxy.as_ref(), settings.inherit_system_proxy())
     };
-    let fingerprint = settings
-        .spoof_emulation
-        .then(|| {
-            credential
-                .and_then(|value| value.tls_fingerprint.as_ref())
-                .or(provider.tls_fingerprint.as_ref())
-                .and_then(|value| crate::control::fingerprint::parse(Some(value)))
-        })
-        .flatten();
+    let fingerprint = credential
+        .and_then(|value| value.tls_fingerprint.as_ref())
+        .or(provider.tls_fingerprint.as_ref())
+        .and_then(|value| crate::control::fingerprint::parse(Some(value)));
     Ok((
         ProviderRef {
             id: provider.id,

@@ -8,7 +8,6 @@ pub const DISABLE_LOG_REDACTION: &str = "disable_log_redaction";
 pub const RETENTION_DAYS: &str = "retention_days";
 pub const MAX_DATABASE_SIZE_MB: &str = "max_database_size_mb";
 pub const PROXY: &str = "proxy";
-pub const SPOOF_EMULATION: &str = "spoof_emulation";
 pub const ENABLE_USAGE: &str = "enable_usage";
 pub const ENABLE_TOKENIZER_VOCABS: &str = "enable_tokenizer_vocabs";
 pub const ENABLE_TOKENIZER_DOWNLOAD: &str = "enable_tokenizer_download";

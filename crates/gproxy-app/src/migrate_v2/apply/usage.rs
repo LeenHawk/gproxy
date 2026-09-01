@@ -17,10 +17,6 @@ pub(super) async fn settings(
     let values = vec![
         setting(INSTANCE_NAME, Value::String(settings.instance_name.clone())),
         setting(PROXY, option_text(settings.proxy.as_deref())),
-        setting(
-            SPOOF_EMULATION,
-            Value::Bool(settings.spoof_emulation.unwrap_or(false)),
-        ),
         setting(ENABLE_USAGE, Value::Bool(settings.enable_usage)),
         setting(
             ENABLE_TOKENIZER_DOWNLOAD,

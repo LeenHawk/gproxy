@@ -51,14 +51,9 @@ impl CompiledSnapshot {
                             channel: gproxy_channels::canonical_channel_id(&provider.channel)
                                 .into(),
                             settings,
-                            fingerprint: effective
-                                .spoof_emulation
-                                .then(|| {
-                                    super::super::fingerprint::parse(
-                                        provider.tls_fingerprint.as_ref(),
-                                    )
-                                })
-                                .flatten(),
+                            fingerprint: super::super::fingerprint::parse(
+                                provider.tls_fingerprint.as_ref(),
+                            ),
                             proxy_url: super::super::settings::effective_proxy(
                                 None,
                                 provider.proxy_url.as_deref(),
@@ -83,8 +78,7 @@ impl CompiledSnapshot {
             .values()
             .map(|provider| (provider.name.clone(), provider.id))
             .collect();
-        let (credentials, credential_providers) =
-            credentials(&stored, &providers, effective.spoof_emulation);
+        let (credentials, credential_providers) = credentials(&stored, &providers);
         let routes = routes(
             &stored,
             &providers,
@@ -161,7 +155,6 @@ fn validate_windows(stored: &ControlSnapshot) -> Result<(), StoreError> {
 fn credentials(
     stored: &ControlSnapshot,
     providers: &BTreeMap<i64, ProviderRef>,
-    spoof_emulation: bool,
 ) -> (
     BTreeMap<i64, Vec<super::types::CredentialSeed>>,
     BTreeMap<i64, i64>,
@@ -181,9 +174,7 @@ fn credentials(
                 version: credential.version,
                 weight: credential.weight,
                 proxy_url: credential.proxy_url.clone(),
-                fingerprint: spoof_emulation
-                    .then(|| super::super::fingerprint::parse(credential.tls_fingerprint.as_ref()))
-                    .flatten(),
+                fingerprint: super::super::fingerprint::parse(credential.tls_fingerprint.as_ref()),
             });
         credential_providers.insert(credential.id, credential.provider_id);
     }

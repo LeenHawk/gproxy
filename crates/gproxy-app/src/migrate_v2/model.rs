@@ -115,7 +115,6 @@ pub(super) struct ProviderModel {
 pub(super) struct Settings {
     pub instance_name: String,
     pub proxy: Option<String>,
-    pub spoof_emulation: Option<bool>,
     pub enable_usage: bool,
     pub enable_upstream_log: bool,
     pub enable_upstream_log_body: bool,

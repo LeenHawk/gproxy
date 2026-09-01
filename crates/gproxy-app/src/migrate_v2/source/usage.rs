@@ -11,7 +11,7 @@ pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()>
 
 fn settings(connection: &Connection) -> Result<Vec<Legacy<Settings>>> {
     let mut query = connection.prepare(
-        "SELECT id,instance_name,proxy,spoof_emulation,enable_usage,enable_upstream_log,enable_upstream_log_body,enable_downstream_log,enable_downstream_log_body,disable_log_redaction,enable_tokenizer_download,retention_days,max_database_size_mb,file_upload_max_in_flight FROM instance_settings ORDER BY id",
+        "SELECT id,instance_name,proxy,enable_usage,enable_upstream_log,enable_upstream_log_body,enable_downstream_log,enable_downstream_log_body,disable_log_redaction,enable_tokenizer_download,retention_days,max_database_size_mb,file_upload_max_in_flight FROM instance_settings ORDER BY id",
     )?;
     query
         .query_map([], |row| {
@@ -20,17 +20,16 @@ fn settings(connection: &Connection) -> Result<Vec<Legacy<Settings>>> {
                 value: Settings {
                     instance_name: row.get(1)?,
                     proxy: row.get(2)?,
-                    spoof_emulation: row.get(3)?,
-                    enable_usage: row.get(4)?,
-                    enable_upstream_log: row.get(5)?,
-                    enable_upstream_log_body: row.get(6)?,
-                    enable_downstream_log: row.get(7)?,
-                    enable_downstream_log_body: row.get(8)?,
-                    disable_log_redaction: row.get(9)?,
-                    enable_tokenizer_download: row.get(10)?,
-                    retention_days: row.get(11)?,
-                    max_database_size_mb: row.get(12)?,
-                    file_upload_max_in_flight: row.get(13)?,
+                    enable_usage: row.get(3)?,
+                    enable_upstream_log: row.get(4)?,
+                    enable_upstream_log_body: row.get(5)?,
+                    enable_downstream_log: row.get(6)?,
+                    enable_downstream_log_body: row.get(7)?,
+                    disable_log_redaction: row.get(8)?,
+                    enable_tokenizer_download: row.get(9)?,
+                    retention_days: row.get(10)?,
+                    max_database_size_mb: row.get(11)?,
+                    file_upload_max_in_flight: row.get(12)?,
                 },
             })
         })?

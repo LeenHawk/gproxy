@@ -14,7 +14,7 @@ type Props = {
   setDraft: Dispatch<SetStateAction<InstanceSettingsDto>>
 }
 
-type ToggleKey = "spoof_emulation" | "enable_usage" | "enable_tokenizer_download" | "inherit_system_proxy"
+type ToggleKey = "enable_usage" | "enable_tokenizer_download" | "inherit_system_proxy"
 
 export function RuntimeSettingsCard({ draft, setDraft }: Props) {
   const { t } = useTranslation()
@@ -22,7 +22,6 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
     setDraft((current) => ({ ...current, [key]: value }))
   }
   const toggles: Array<ToggleKey> = [
-    "spoof_emulation",
     "enable_usage",
     "inherit_system_proxy",
   ]

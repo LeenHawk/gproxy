@@ -5,7 +5,6 @@ use ts_rs::TS;
 pub struct InstanceSettingsDto {
     pub instance_name: String,
     pub proxy: Option<String>,
-    pub spoof_emulation: bool,
     pub enable_usage: bool,
     pub enable_tokenizer_vocabs: bool,
     pub enable_tokenizer_download: bool,

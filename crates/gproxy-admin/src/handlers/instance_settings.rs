@@ -3,8 +3,8 @@ use gproxy_store::records::{
     DEFAULT_TOKENIZER_VOCAB, DISABLE_LOG_REDACTION, ENABLE_DOWNSTREAM_LOG,
     ENABLE_DOWNSTREAM_LOG_BODY, ENABLE_TOKENIZER_DOWNLOAD, ENABLE_TOKENIZER_VOCABS,
     ENABLE_UPSTREAM_LOG, ENABLE_UPSTREAM_LOG_BODY, ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT,
-    INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY, RETENTION_DAYS,
-    SPOOF_EMULATION, SettingInput, SettingRecord, TRAFFIC_BLACKLIST,
+    INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY, RETENTION_DAYS, SettingInput,
+    SettingRecord, TRAFFIC_BLACKLIST,
 };
 use http::{Response, StatusCode};
 use serde_json::Value;
@@ -50,7 +50,6 @@ pub(super) async fn update(
         .set_settings(&[
             string(INSTANCE_NAME, Some(request.instance_name.trim())),
             string(PROXY, request.proxy.as_deref().map(str::trim)),
-            boolean(SPOOF_EMULATION, request.spoof_emulation),
             boolean(ENABLE_USAGE, request.enable_usage),
             boolean(ENABLE_TOKENIZER_VOCABS, request.enable_tokenizer_vocabs),
             boolean(ENABLE_TOKENIZER_DOWNLOAD, request.enable_tokenizer_download),
@@ -81,7 +80,6 @@ fn read(values: &[SettingRecord]) -> InstanceSettingsDto {
     InstanceSettingsDto {
         instance_name: text(values, INSTANCE_NAME).unwrap_or_else(|| "default".into()),
         proxy: text(values, PROXY),
-        spoof_emulation: enabled(values, SPOOF_EMULATION),
         enable_usage: enabled_or(values, ENABLE_USAGE, true),
         enable_tokenizer_vocabs: enabled_or(values, ENABLE_TOKENIZER_VOCABS, true),
         enable_tokenizer_download: enabled(values, ENABLE_TOKENIZER_DOWNLOAD),

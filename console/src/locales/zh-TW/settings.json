@@ -39,8 +39,6 @@
       "proxyHint": "在憑證和 Provider Proxy 均未設定時使用；留空表示直連。",
       "connectivity": "全域出口",
       "connectivityHint": "測試已儲存的全域與系統代理設定。",
-      "spoof_emulation": "TLS 指紋模擬",
-      "spoof_emulationHint": "套用 Provider 與憑證設定的客戶端指紋。",
       "enable_usage": "用量記錄",
       "enable_usageHint": "結算後持久化用量記錄；關閉時准入和計費結算仍會完成。",
       "enable_tokenizer_download": "分詞器下載",
