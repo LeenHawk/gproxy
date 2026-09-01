@@ -25,6 +25,7 @@ impl Store {
             .backend()
             .batch(vec![
                 admin_seed::ensure_default_organization()?,
+                admin_seed::ensure_default_team()?,
                 admin_seed::promote_first_admin(username, password_hash)?,
                 admin_seed::insert_first_admin(username, password_hash)?,
                 admin_seed::ensure_admin_permission(username)?,
@@ -39,7 +40,7 @@ impl Store {
             .next()
             .map(parse_admin)
             .transpose()?;
-        let changed = results[1].affected_rows > 0 || results[2].affected_rows > 0;
+        let changed = results[2].affected_rows > 0 || results[3].affected_rows > 0;
         Ok(changed.then(|| account.map(|value| value.id)).flatten())
     }
 

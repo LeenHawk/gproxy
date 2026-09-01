@@ -17,6 +17,24 @@ pub(super) async fn run(store: &Store, user_key: i64) -> Result<Outcome, StoreEr
         store.create_first_admin("second", "argon2-hash").await?,
         None
     );
+    let snapshot = store.control_snapshot().await?;
+    let default_org = snapshot
+        .organizations
+        .iter()
+        .find(|organization| organization.name == "default")
+        .expect("default organization");
+    let default_team = snapshot
+        .teams
+        .iter()
+        .find(|team| team.organization_id == default_org.id && team.name == "default")
+        .expect("default team");
+    let admin = snapshot
+        .users
+        .iter()
+        .find(|user| user.id == admin_id)
+        .expect("admin user");
+    assert_eq!(admin.organization_id, Some(default_org.id));
+    assert_eq!(admin.team_id, Some(default_team.id));
     let token_digest = vec![9; 32];
     store
         .create_user_session(&UserSessionInput {

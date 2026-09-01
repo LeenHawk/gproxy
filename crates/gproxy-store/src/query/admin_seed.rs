@@ -34,6 +34,44 @@ pub(crate) fn ensure_default_organization() -> Result<Statement, StoreError> {
     Statement::query(&query)
 }
 
+pub(crate) fn ensure_default_team() -> Result<Statement, StoreError> {
+    let mut default_org = Query::select();
+    default_org
+        .column(Alias::new("id"))
+        .from(Alias::new("organizations"))
+        .and_where(Expr::col(Alias::new("name")).eq("default"))
+        .limit(1);
+    let mut exists = Query::select();
+    exists
+        .expr(Expr::val(1))
+        .from(Alias::new("teams"))
+        .and_where(
+            Expr::col(Alias::new("organization_id"))
+                .eq(Expr::SubQuery(None, Box::new(default_org.clone().into()))),
+        )
+        .and_where(Expr::col(Alias::new("name")).eq("default"))
+        .limit(1);
+    let mut values = Query::select();
+    values
+        .exprs([
+            Expr::SubQuery(None, Box::new(default_org.into())),
+            value("default"),
+            value(true),
+        ])
+        .cond_where(Cond::all().not().add(Expr::exists(exists)));
+    let mut query = Query::insert();
+    query
+        .into_table(Alias::new("teams"))
+        .columns([
+            Alias::new("organization_id"),
+            Alias::new("name"),
+            Alias::new("enabled"),
+        ])
+        .select_from(values)
+        .map_err(|error| StoreError::Database(error.to_string()))?;
+    Statement::query(&query)
+}
+
 pub(crate) fn promote_first_admin(
     username: &str,
     password_hash: &str,
@@ -77,12 +115,22 @@ pub(crate) fn insert_first_admin(
         .from(Alias::new("organizations"))
         .and_where(Expr::col(Alias::new("name")).eq("default"))
         .limit(1);
+    let mut default_team = Query::select();
+    default_team
+        .column(Alias::new("id"))
+        .from(Alias::new("teams"))
+        .and_where(
+            Expr::col(Alias::new("organization_id"))
+                .eq(Expr::SubQuery(None, Box::new(default_org.clone().into()))),
+        )
+        .and_where(Expr::col(Alias::new("name")).eq("default"))
+        .limit(1);
     let mut values = Query::select();
     values
         .exprs([
             value(username.to_owned()),
             Expr::SubQuery(None, Box::new(default_org.into())),
-            value(Option::<i64>::None),
+            Expr::SubQuery(None, Box::new(default_team.into())),
             value(password_hash.to_owned()),
             value(true),
             value(true),
