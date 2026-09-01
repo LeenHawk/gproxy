@@ -339,6 +339,13 @@
       "displayName": "显示名称",
       "thinkingAdaptiveSupported": "支持自适应思考",
       "thinkingEnabledSupported": "支持启用思考",
+      "thinkingHint": "打开上游明确支持的能力；未声明的值在修改前会继续保持未知。",
+      "thinkingClear": "恢复为未声明",
+      "thinkingStates": {
+        "undeclared": "未声明",
+        "supported": "支持",
+        "unsupported": "不支持"
+      },
       "variants": "变体",
       "variantsHint": "用数组声明完整模型名，或使用 { expose_base, variants }。",
       "maxOutputTokens": "最大输出 Token",
@@ -356,11 +363,22 @@
       "pullFailed": "上游返回 {{status}}。",
       "pullError": "连不上这个供应商。",
       "pulling": "拉取中…",
-      "pullTitle": "这个供应商报告的模型",
+      "pullTitle": "从上游导入模型",
+      "pullDescription": "获取供应商当前的模型目录，再选择要导入的模型元数据和默认价格。",
+      "pullLoadingHint": "正在向供应商获取最新模型目录。",
+      "pullErrorTitle": "模型拉取失败",
+      "pullRetry": "重新拉取",
+      "pullRefresh": "刷新模型",
+      "pullSearch": "搜索上游模型",
+      "pullCredential": "经由 {{prefix}}",
       "pullCount": "显示 {{shown}} 个 · 已选 {{selected}} 个",
       "pullKnown": "已添加",
-      "pullAdd": "添加 {{count}} 个",
+      "pullAdd": "导入 {{count}} 个",
       "pullEmpty": "供应商没有报告任何模型。",
+      "pullEmptyHint": "可以重新拉取，或关闭弹窗后手动添加模型。",
+      "pullNoDisplayName": "无显示名称",
+      "pullNoMatches": "没有匹配的模型",
+      "pullNoMatchesHint": "换一个模型名，或清空搜索内容。",
       "pullGaps": "可补 {{count}} 项"
     }
   }

@@ -339,6 +339,13 @@
       "displayName": "顯示名稱",
       "thinkingAdaptiveSupported": "支援自適應思考",
       "thinkingEnabledSupported": "支援啟用思考",
+      "thinkingHint": "開啟上游明確支援的能力；未宣告的值在修改前會繼續保持未知。",
+      "thinkingClear": "還原為未宣告",
+      "thinkingStates": {
+        "undeclared": "未宣告",
+        "supported": "支援",
+        "unsupported": "不支援"
+      },
       "variants": "變體",
       "variantsHint": "用陣列宣告完整模型名稱，或使用 { expose_base, variants }。",
       "maxOutputTokens": "最大輸出 Token",
@@ -356,11 +363,22 @@
       "pullFailed": "上游回傳 {{status}}。",
       "pullError": "連不上這個供應商。",
       "pulling": "拉取中…",
-      "pullTitle": "這個供應商回報的模型",
+      "pullTitle": "從上游匯入模型",
+      "pullDescription": "取得供應商目前的模型目錄，再選擇要匯入的模型中繼資料和預設價格。",
+      "pullLoadingHint": "正在向供應商取得最新模型目錄。",
+      "pullErrorTitle": "模型拉取失敗",
+      "pullRetry": "重新拉取",
+      "pullRefresh": "重新整理模型",
+      "pullSearch": "搜尋上游模型",
+      "pullCredential": "經由 {{prefix}}",
       "pullCount": "顯示 {{shown}} 個 · 已選 {{selected}} 個",
       "pullKnown": "已新增",
-      "pullAdd": "新增 {{count}} 個",
+      "pullAdd": "匯入 {{count}} 個",
       "pullEmpty": "供應商沒有回報任何模型。",
+      "pullEmptyHint": "可以重新拉取，或關閉視窗後手動新增模型。",
+      "pullNoDisplayName": "無顯示名稱",
+      "pullNoMatches": "沒有相符的模型",
+      "pullNoMatchesHint": "換一個模型名稱，或清除搜尋內容。",
       "pullGaps": "可補 {{count}} 項"
     }
   }

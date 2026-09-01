@@ -22,7 +22,6 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
   const client = useQueryClient()
   const [editing, setEditing] = useState<ProviderModelDto>()
   const [open, setOpen] = useState(false)
-  const [pulling, setPulling] = useState(false)
   const mutation = useMutation({
     mutationFn: ({ value, id }: { value: ProviderModelWriteRequest; id?: number }) => saveProviderModel(value, id),
     onSuccess: async () => {
@@ -75,7 +74,11 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
       title={t("providers.models.title")}
       description={t("providers.models.description")}
       actions={<div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => setPulling(true)}><DownloadIcon aria-hidden />{t("providers.models.pull")}</Button>
+        <ModelPullDialog
+          providerId={providerId}
+          existing={rows}
+          trigger={<Button size="sm" variant="outline"><DownloadIcon aria-hidden />{t("providers.models.pull")}</Button>}
+        />
         <Button size="sm" onClick={() => openEditor()}>{t("providers.models.add")}</Button>
       </div>}
     >
@@ -89,7 +92,6 @@ export function ProviderModels({ providerId, models, priceRules }: { providerId:
         storageKey="provider-models"
         onRowClick={openEditor}
       />
-      <ModelPullDialog providerId={providerId} existing={rows} open={pulling} onOpenChange={setPulling} />
       <ProviderModelDialog
         key={editing?.id ?? "new"}
         open={open}

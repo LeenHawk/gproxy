@@ -1,10 +1,12 @@
 import { useId } from "react"
+import { RotateCcwIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Button } from "@/components/ui/button"
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import type { ModelMetadataState, TriState } from "@/components/providers/provider-model-state"
+import type { ModelMetadataState } from "@/components/providers/provider-model-state"
 
 export function ProviderModelFields({ value, onChange }: { value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
   const { t } = useTranslation()
@@ -23,9 +25,15 @@ export function ProviderModelFields({ value, onChange }: { value: ModelMetadataS
       <FieldLabel htmlFor={`${id}-output`}>{t("providers.models.maxOutputTokens")}</FieldLabel>
       <Input id={`${id}-output`} type="number" min="1" inputMode="numeric" value={value.maxOutputTokens} onChange={(event) => set("maxOutputTokens", event.target.value)} />
     </Field>
-    <ThinkingField label={t("providers.models.thinkingSupported")} value={value.thinkingSupported} onChange={(next) => set("thinkingSupported", next)} />
-    <ThinkingField label={t("providers.models.thinkingAdaptiveSupported")} value={value.thinkingAdaptiveSupported} onChange={(next) => set("thinkingAdaptiveSupported", next)} />
-    <ThinkingField label={t("providers.models.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
+    <FieldSet data-field-span="full">
+      <FieldLegend variant="label">{t("providers.models.thinking")}</FieldLegend>
+      <FieldDescription>{t("providers.models.thinkingHint")}</FieldDescription>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <ThinkingField label={t("providers.models.thinkingSupported")} value={value.thinkingSupported} onChange={(next) => set("thinkingSupported", next)} />
+        <ThinkingField label={t("providers.models.thinkingAdaptiveSupported")} value={value.thinkingAdaptiveSupported} onChange={(next) => set("thinkingAdaptiveSupported", next)} />
+        <ThinkingField label={t("providers.models.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
+      </div>
+    </FieldSet>
     <Field>
       <FieldLabel htmlFor={`${id}-variants`}>{t("providers.models.variants")}</FieldLabel>
       <Textarea id={`${id}-variants`} className="font-mono text-xs" rows={4} value={value.variants} onChange={(event) => set("variants", event.target.value)} />
@@ -34,18 +42,18 @@ export function ProviderModelFields({ value, onChange }: { value: ModelMetadataS
   </>
 }
 
-function ThinkingField({ label, value, onChange }: { label: string; value: TriState; onChange: (value: TriState) => void }) {
+function ThinkingField({ label, value, onChange }: { label: string; value: boolean | null; onChange: (value: boolean | null) => void }) {
   const { t } = useTranslation()
   const id = useId()
-  return <Field>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <Select value={value} onValueChange={(next) => onChange(next as TriState)}>
-      <SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger>
-      <SelectContent>
-        <SelectItem value="unset">{t("common.none")}</SelectItem>
-        <SelectItem value="true">{t("common.yes")}</SelectItem>
-        <SelectItem value="false">{t("common.no")}</SelectItem>
-      </SelectContent>
-    </Select>
+  const state = value == null ? "undeclared" : value ? "supported" : "unsupported"
+  return <Field orientation="horizontal" className="rounded-lg border px-3 py-2.5">
+    <FieldContent>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldDescription>{t(`providers.models.thinkingStates.${state}`)}</FieldDescription>
+    </FieldContent>
+    <div className="flex items-center gap-1">
+      {value != null ? <Button type="button" variant="ghost" size="icon-xs" aria-label={t("providers.models.thinkingClear")} onClick={() => onChange(null)}><RotateCcwIcon aria-hidden /></Button> : null}
+      <Switch id={id} checked={value === true} onCheckedChange={onChange} />
+    </div>
   </Field>
 }

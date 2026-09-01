@@ -339,6 +339,13 @@
       "displayName": "Display name",
       "thinkingAdaptiveSupported": "Adaptive thinking supported",
       "thinkingEnabledSupported": "Enabled thinking supported",
+      "thinkingHint": "Switch on capabilities this upstream explicitly supports. Undeclared values stay unknown until changed.",
+      "thinkingClear": "Restore undeclared state",
+      "thinkingStates": {
+        "undeclared": "Undeclared",
+        "supported": "Supported",
+        "unsupported": "Not supported"
+      },
       "variants": "Variants",
       "variantsHint": "Declare absolute model ids as an array, or use { expose_base, variants }.",
       "maxOutputTokens": "Max output tokens",
@@ -356,11 +363,22 @@
       "pullFailed": "Upstream returned {{status}}.",
       "pullError": "Could not reach the provider.",
       "pulling": "Pulling…",
-      "pullTitle": "Models this provider reports",
+      "pullTitle": "Import models from upstream",
+      "pullDescription": "Fetch this provider's live model catalog, then choose which model metadata and default prices to import.",
+      "pullLoadingHint": "Asking the provider for its current model catalog.",
+      "pullErrorTitle": "Could not fetch models",
+      "pullRetry": "Try again",
+      "pullRefresh": "Refresh models",
+      "pullSearch": "Search upstream models",
+      "pullCredential": "via {{prefix}}",
       "pullCount": "{{shown}} shown · {{selected}} selected",
       "pullKnown": "Already added",
-      "pullAdd": "Add {{count}}",
+      "pullAdd": "Import {{count}}",
       "pullEmpty": "The provider reported no models.",
+      "pullEmptyHint": "Refresh to ask the provider again, or add a model manually.",
+      "pullNoDisplayName": "No display name",
+      "pullNoMatches": "No matching models",
+      "pullNoMatchesHint": "Try a different model name or clear the search.",
       "pullGaps": "Fills {{count}}"
     }
   }

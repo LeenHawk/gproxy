@@ -1,39 +1,36 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactElement } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { AlertCircleIcon, LoaderCircleIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { discoverModels, saveProviderModel } from "@/api/control"
 import type { DiscoveredModelDto } from "@/generated/DiscoveredModelDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
-import { Badge } from "@/components/ui/badge"
+import { ModelPullList, type ModelPullAction } from "@/components/providers/model-pull-list"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 
-export function ModelPullDialog({ providerId, existing, open, onOpenChange }: { providerId: number; existing: Array<ProviderModelDto>; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { t, i18n } = useTranslation()
+type Props = {
+  providerId: number
+  existing: Array<ProviderModelDto>
+  trigger: ReactElement
+}
+
+export function ModelPullDialog({ providerId, existing, trigger }: Props) {
+  const { t } = useTranslation()
   const client = useQueryClient()
+  const [open, setOpen] = useState(false)
   const [models, setModels] = useState<Array<DiscoveredModelDto>>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState("")
   const [keyPrefix, setKeyPrefix] = useState<string>()
-
-  const pull = useMutation({
-    mutationFn: () => discoverModels({ provider_id: providerId }),
-    onSuccess: (result) => {
-      setKeyPrefix(result.key_prefix)
-      if (!result.ok) { toast.error(result.message ?? t("providers.models.pullFailed", { status: result.status })); return }
-      setModels(result.models)
-      setSelected(new Set())
-      if (result.models.length === 0) toast.info(t("providers.models.pullEmpty"))
-    },
-    onError: () => toast.error(t("providers.models.pullError")),
-  })
+  const [pullError, setPullError] = useState("")
 
   const rows = useMemo(() => new Map(existing.map((model) => [model.model_id, model])), [existing])
-  // A row already added is still worth listing when the wire knows something it does
-  // not: picking it fills only the blanks, never overwriting what the operator set.
   const gaps = (model: DiscoveredModelDto) => {
     const row = rows.get(model.model_id)
     if (!row) return 0
@@ -43,12 +40,53 @@ export function ModelPullDialog({ providerId, existing, open, onOpenChange }: { 
       row.max_output_tokens == null && model.max_output_tokens != null,
     ].filter(Boolean).length
   }
-  const actionable = (model: DiscoveredModelDto) => !model.known || gaps(model) > 0
+  const modelWrite = (model: DiscoveredModelDto) => !model.known || gaps(model) > 0
+  const actionFor = (model: DiscoveredModelDto): ModelPullAction => ({
+    actionable: modelWrite(model),
+    gaps: gaps(model),
+  })
+
+  const pull = useMutation({
+    mutationFn: () => discoverModels({ provider_id: providerId }),
+    onMutate: () => setPullError(""),
+    onSuccess: (result) => {
+      setKeyPrefix(result.key_prefix)
+      setSelected(new Set())
+      if (!result.ok) {
+        setModels([])
+        setPullError(result.message ?? t("providers.models.pullFailed", { status: result.status }))
+        return
+      }
+      setModels(result.models)
+    },
+    onError: () => {
+      setModels([])
+      setPullError(t("providers.models.pullError"))
+    },
+  })
+
+  const term = search.trim().toLowerCase()
+  const visible = useMemo(() => term
+    ? models.filter((model) => model.model_id.toLowerCase().includes(term) || (model.display_name ?? "").toLowerCase().includes(term))
+    : models, [models, term])
+  const addable = visible.filter((model) => actionFor(model).actionable)
+  const picked = models.filter((model) => selected.has(model.model_id) && actionFor(model).actionable)
+  const allPicked = addable.length > 0 && addable.every((model) => selected.has(model.model_id))
+  const toggle = (id: string) => setSelected((previous) => {
+    const next = new Set(previous)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleAll = () => setSelected((previous) => {
+    const next = new Set(previous)
+    addable.forEach((model) => allPicked ? next.delete(model.model_id) : next.add(model.model_id))
+    return next
+  })
 
   const add = useMutation({
     mutationFn: async () => {
-      const picked = models.filter((model) => selected.has(model.model_id) && actionable(model))
-      for (const model of picked) {
+      let saved = 0
+      for (const model of picked.filter(modelWrite)) {
         const row = rows.get(model.model_id)
         await saveProviderModel({
           provider_id: providerId,
@@ -62,70 +100,74 @@ export function ModelPullDialog({ providerId, existing, open, onOpenChange }: { 
           thinking_enabled_supported: row?.thinking_enabled_supported ?? null,
           enabled: row?.enabled ?? true,
         }, row?.id)
+        saved += 1
       }
-      return picked.length
+      return saved
     },
-    onSuccess: async (added) => {
+    onSuccess: async (saved) => {
       await client.invalidateQueries({ queryKey: ["provider-models"] })
-      toast.success(t("providers.models.pullAdded", { added }))
-      onOpenChange(false)
+      toast.success(t("providers.models.pullAdded", { added: saved }))
+      close()
     },
     onError: () => toast.error(t("providers.models.saveError")),
   })
 
-  const term = search.trim().toLowerCase()
-  const visible = useMemo(() => term
-    ? models.filter((model) => model.model_id.toLowerCase().includes(term) || (model.display_name ?? "").toLowerCase().includes(term))
-    : models, [models, term])
-  // Select-all acts on what is both new and visible, so you can search, select, search
-  // again, and keep what you already picked.
-  const addable = visible.filter(actionable)
-  const allPicked = addable.length > 0 && addable.every((model) => selected.has(model.model_id))
-  const toggle = (id: string) => setSelected((previous) => {
-    const next = new Set(previous)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    return next
-  })
-  const toggleAll = () => setSelected((previous) => {
-    const next = new Set(previous)
-    addable.forEach((model) => allPicked ? next.delete(model.model_id) : next.add(model.model_id))
-    return next
-  })
-  const number = (value: number | null) => value == null ? "—" : value.toLocaleString(i18n.language)
+  const reset = () => {
+    setModels([])
+    setSelected(new Set())
+    setSearch("")
+    setKeyPrefix(undefined)
+    setPullError("")
+  }
+  const close = () => { setOpen(false); reset() }
+  const changeOpen = (value: boolean) => {
+    setOpen(value)
+    if (value) pull.mutate(); else reset()
+  }
 
-  return (
-    <Dialog open={open} onOpenChange={(value) => { onOpenChange(value); if (!value) { setModels([]); setSelected(new Set()); setSearch("") } }}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader><DialogTitle>{t("providers.models.pullTitle")}</DialogTitle></DialogHeader>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => pull.mutate()} disabled={pull.isPending}>{t(pull.isPending ? "providers.models.pulling" : "providers.models.pull")}</Button>
-          {models.length > 0 ? <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("common.dataTable.search")} className="h-8" /> : null}
-          {keyPrefix ? <span className="machine-text shrink-0 text-xs text-muted-foreground">{keyPrefix}</span> : null}
-        </div>
-        {models.length > 0 ? (
-          <div className="flex max-h-[50vh] flex-col gap-1 overflow-y-auto rounded-md border p-1">
-            <label className="flex items-center gap-2 border-b px-2 py-1.5 text-xs text-muted-foreground">
-              <Checkbox checked={allPicked} onCheckedChange={toggleAll} disabled={addable.length === 0} aria-label={t("common.dataTable.selectAll")} />
-              {t("providers.models.pullCount", { shown: visible.length, selected: selected.size })}
-            </label>
-            {visible.map((model) => (
-              <label key={model.model_id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50">
-                <Checkbox checked={selected.has(model.model_id)} disabled={!actionable(model)} onCheckedChange={() => toggle(model.model_id)} aria-label={model.model_id} />
-                <span className="min-w-0 flex-1">
-                  <span className="machine-text block truncate text-xs">{model.model_id}</span>
-                  {model.display_name ? <span className="block truncate text-xs text-muted-foreground">{model.display_name}</span> : null}
-                </span>
-                <span className="machine-text shrink-0 text-xs text-muted-foreground">{number(model.context_window)} / {number(model.max_output_tokens)}</span>
-                {model.known ? <Badge variant={gaps(model) > 0 ? "outline" : "secondary"}>{t(gaps(model) > 0 ? "providers.models.pullGaps" : "providers.models.pullKnown", { count: gaps(model) })}</Badge> : null}
-              </label>
-            ))}
+  return <Dialog open={open} onOpenChange={changeOpen}>
+    <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <DialogContent className="sm:max-w-3xl" closeLabel={t("common.actions.close")}>
+      <DialogHeader>
+        <DialogTitle>{t("providers.models.pullTitle")}</DialogTitle>
+        <DialogDescription>{t("providers.models.pullDescription")}</DialogDescription>
+      </DialogHeader>
+      <DialogBody className="flex flex-col gap-3">
+        {pull.isPending && models.length === 0 ? <Empty className="min-h-56 border">
+          <LoaderCircleIcon className="animate-spin text-muted-foreground" aria-hidden />
+          <EmptyHeader><EmptyTitle>{t("providers.models.pulling")}</EmptyTitle><EmptyDescription>{t("providers.models.pullLoadingHint")}</EmptyDescription></EmptyHeader>
+        </Empty> : pullError ? <Alert variant="destructive">
+          <AlertCircleIcon aria-hidden />
+          <AlertTitle>{t("providers.models.pullErrorTitle")}</AlertTitle>
+          <AlertDescription>{pullError}</AlertDescription>
+          <Button className="mt-2 justify-self-start" size="sm" variant="outline" onClick={() => pull.mutate()}>{t("providers.models.pullRetry")}</Button>
+        </Alert> : models.length === 0 ? <Empty className="min-h-56 border">
+          <EmptyHeader><EmptyTitle>{t("providers.models.pullEmpty")}</EmptyTitle><EmptyDescription>{t("providers.models.pullEmptyHint")}</EmptyDescription></EmptyHeader>
+          <Button size="sm" variant="outline" onClick={() => pull.mutate()}><RefreshCwIcon data-icon="inline-start" aria-hidden />{t("providers.models.pullRefresh")}</Button>
+        </Empty> : <>
+          <div className="flex items-center gap-2">
+            <InputGroup>
+              <InputGroupAddon><SearchIcon aria-hidden /></InputGroupAddon>
+              <InputGroupInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("providers.models.pullSearch")} />
+            </InputGroup>
+            <Button size="icon-sm" variant="outline" disabled={pull.isPending || add.isPending} aria-label={t("providers.models.pullRefresh")} onClick={() => pull.mutate()}>{pull.isPending ? <LoaderCircleIcon className="animate-spin" aria-hidden /> : <RefreshCwIcon aria-hidden />}</Button>
           </div>
-        ) : null}
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("common.actions.cancel")}</Button>
-          <Button onClick={() => add.mutate()} disabled={selected.size === 0 || add.isPending}>{t("providers.models.pullAdd", { count: selected.size })}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+          <div className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
+            <label className="flex items-center gap-2">
+              <Checkbox checked={allPicked} onCheckedChange={toggleAll} disabled={addable.length === 0 || add.isPending} aria-label={t("common.dataTable.selectAll")} />
+              {t("providers.models.pullCount", { shown: visible.length, selected: picked.length })}
+            </label>
+            {keyPrefix ? <span className="machine-text max-w-44 truncate">{t("providers.models.pullCredential", { prefix: keyPrefix })}</span> : null}
+          </div>
+          {visible.length > 0
+            ? <ModelPullList models={visible} selected={selected} pending={add.isPending} actionFor={actionFor} onToggle={toggle} />
+            : <Empty className="min-h-36 border"><EmptyHeader><EmptyTitle>{t("providers.models.pullNoMatches")}</EmptyTitle><EmptyDescription>{t("providers.models.pullNoMatchesHint")}</EmptyDescription></EmptyHeader></Empty>}
+        </>}
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="outline" onClick={close}>{t("common.actions.cancel")}</Button>
+        <Button onClick={() => add.mutate()} disabled={picked.length === 0 || add.isPending || pull.isPending}>{add.isPending ? <LoaderCircleIcon className="animate-spin" data-icon="inline-start" aria-hidden /> : null}{t("providers.models.pullAdd", { count: picked.length })}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 }
