@@ -46,3 +46,18 @@ pub struct TokenizerDownloadProgressDto {
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct TokenizerAuthDto {
+    pub configured: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct TokenizerAuthUpdate {
+    pub token: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct TokenizerAuthRevealResponse {
+    pub token: String,
+}

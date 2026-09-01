@@ -70,6 +70,7 @@ pub struct SecretInventory {
     pub fingerprint: MasterKeyFingerprint,
     pub credentials: Vec<StoredSecret>,
     pub user_keys: Vec<StoredSecret>,
+    pub tokenizer_auth: Vec<super::TokenizerAuthSecret>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

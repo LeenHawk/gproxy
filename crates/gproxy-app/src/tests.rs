@@ -208,6 +208,21 @@ async fn key_rotation_reseals_every_secret_and_updates_fingerprint() {
         .await
         .unwrap();
     }
+    let tokenizer_token = format!("rotation-token-{}", std::process::id());
+    let tokenizer_envelope = app
+        .inner
+        .host
+        .services
+        .cipher
+        .seal(&json!(tokenizer_token))
+        .unwrap();
+    app.inner
+        .host
+        .services
+        .store
+        .put_tokenizer_auth("hugging_face", &tokenizer_envelope)
+        .await
+        .unwrap();
 
     let first_key = [17; 32];
     let second_key = [29; 32];
@@ -439,6 +454,7 @@ async fn assert_secret_inventory(app: &crate::AppHandle, key: Option<&[u8; 32]>)
     let inventory = services.store.secret_inventory().await.unwrap();
     assert_eq!(inventory.credentials.len(), 2);
     assert_eq!(inventory.user_keys.len(), 2);
+    assert_eq!(inventory.tokenizer_auth.len(), 1);
     let expected = crate::key_rotation::fingerprint(key);
     match inventory.fingerprint {
         gproxy_store::records::MasterKeyFingerprint::Plaintext => assert!(expected.is_none()),
@@ -452,5 +468,8 @@ async fn assert_secret_inventory(app: &crate::AppHandle, key: Option<&[u8; 32]>)
     }
     for secret in &inventory.user_keys {
         services.cipher.open_user_key(&secret.envelope).unwrap();
+    }
+    for secret in &inventory.tokenizer_auth {
+        services.cipher.open(&secret.envelope).unwrap();
     }
 }

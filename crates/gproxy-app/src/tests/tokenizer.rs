@@ -5,6 +5,43 @@ use serde_json::json;
 use super::setup;
 
 #[tokio::test]
+async fn tokenizer_auth_is_sealed_revealable_and_clearable() {
+    use gproxy_admin::State as _;
+
+    let setup::Fixture { app, .. } = setup::fixture().await;
+    let token = format!("tokenizer-auth-{}", std::process::id());
+    assert!(!app.tokenizer_auth().await.expect("auth state"));
+
+    assert!(
+        app.update_tokenizer_auth(Some(&token))
+            .await
+            .expect("set auth")
+    );
+    assert_eq!(
+        app.reveal_tokenizer_auth().await.expect("reveal auth"),
+        token
+    );
+    let envelope = app
+        .inner
+        .host
+        .services
+        .store
+        .tokenizer_auth("hugging_face")
+        .await
+        .expect("read auth")
+        .expect("stored auth");
+    assert!(
+        !envelope
+            .ciphertext
+            .windows(token.len())
+            .any(|window| window == token.as_bytes())
+    );
+
+    assert!(!app.update_tokenizer_auth(None).await.expect("clear auth"));
+    assert!(app.reveal_tokenizer_auth().await.is_err());
+}
+
+#[tokio::test]
 async fn tokenizer_admin_actions_ignore_automatic_download_policy() {
     use gproxy_admin::State as _;
 

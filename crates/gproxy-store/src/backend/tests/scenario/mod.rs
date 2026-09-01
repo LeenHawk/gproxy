@@ -195,6 +195,11 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     let tokenizer_vocabs = store.tokenizer_vocab_names().await?;
     store.delete_tokenizer_vocab("local-vocab").await?;
     assert_eq!(store.tokenizer_vocab("local-vocab").await?, None);
+    let auth = envelope(9);
+    store.put_tokenizer_auth("hugging_face", &auth).await?;
+    assert_eq!(store.tokenizer_auth("hugging_face").await?, Some(auth));
+    store.delete_tokenizer_auth("hugging_face").await?;
+    assert_eq!(store.tokenizer_auth("hugging_face").await?, None);
     let rollup_requests = scalar(store, "SELECT requests FROM usage_rollups").await?;
     let wire_logs = scalar(store, "SELECT COUNT(*) AS value FROM wire_logs").await?;
     let log = store.log_detail("request-1").await?.expect("log detail");

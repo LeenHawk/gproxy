@@ -2,8 +2,10 @@ use serde_json::Value;
 
 use crate::backend::{QueryResult, Row};
 use crate::query::control;
+use crate::query::tokenizer;
 use crate::records::{
     CredentialEnvelope, MasterKeyFingerprint, SecretInventory, SettingInput, StoredSecret,
+    TokenizerAuthSecret,
 };
 use crate::{Store, StoreError};
 
@@ -17,6 +19,7 @@ impl Store {
                 control::select_secret_fingerprint(MASTER_KEY_FINGERPRINT)?,
                 control::select_credential_secrets()?,
                 control::select_user_key_secrets()?,
+                tokenizer::auth_list()?,
             ])
             .await?
             .into_iter();
@@ -24,6 +27,7 @@ impl Store {
             fingerprint: parse_fingerprint(next(&mut results)?)?,
             credentials: parse_secrets(next(&mut results)?)?,
             user_keys: parse_secrets(next(&mut results)?)?,
+            tokenizer_auth: parse_tokenizer_auth(next(&mut results)?)?,
         })
     }
 
@@ -31,6 +35,7 @@ impl Store {
         &self,
         credentials: &[StoredSecret],
         user_keys: &[StoredSecret],
+        tokenizer_auth: &[TokenizerAuthSecret],
         fingerprint: Option<&str>,
     ) -> Result<(), StoreError> {
         let mut statements = credentials
@@ -40,6 +45,11 @@ impl Store {
                 user_keys
                     .iter()
                     .map(|secret| control::update_secret("user_keys", secret.id, &secret.envelope)),
+            )
+            .chain(
+                tokenizer_auth
+                    .iter()
+                    .map(|secret| tokenizer::auth_update(&secret.kind, &secret.envelope)),
             )
             .collect::<Result<Vec<_>, _>>()?;
         statements.push(control::insert_setting(&SettingInput {
@@ -75,13 +85,26 @@ fn parse_secrets(result: QueryResult) -> Result<Vec<StoredSecret>, StoreError> {
         .collect()
 }
 
-fn parse_envelope(row: &Row) -> Result<CredentialEnvelope, StoreError> {
+pub(crate) fn parse_envelope(row: &Row) -> Result<CredentialEnvelope, StoreError> {
     Ok(CredentialEnvelope {
         ciphertext: row.blob("ciphertext")?.to_vec(),
         wrapped_key: row.blob("wrapped_key")?.to_vec(),
         payload_nonce: row.blob("payload_nonce")?.to_vec(),
         key_nonce: row.blob("key_nonce")?.to_vec(),
     })
+}
+
+fn parse_tokenizer_auth(result: QueryResult) -> Result<Vec<TokenizerAuthSecret>, StoreError> {
+    result
+        .rows
+        .into_iter()
+        .map(|row| {
+            Ok(TokenizerAuthSecret {
+                kind: row.text("kind")?.to_owned(),
+                envelope: parse_envelope(&row)?,
+            })
+        })
+        .collect()
 }
 
 fn next(results: &mut impl Iterator<Item = QueryResult>) -> Result<QueryResult, StoreError> {

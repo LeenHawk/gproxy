@@ -78,6 +78,13 @@ impl AppHandle {
             tokenizers.set_vocabs_enabled(settings.enable_tokenizer_vocabs);
             tokenizers.set_download_enabled(settings.enable_tokenizer_download);
             tokenizers.set_default_vocab(settings.default_tokenizer_vocab.clone());
+            tokenizers.set_hugging_face_token(
+                crate::host::tokenizers::hugging_face_token(
+                    &self.inner.host.services.store,
+                    &self.inner.host.services.cipher,
+                )
+                .await?,
+            );
         }
         self.inner
             .host

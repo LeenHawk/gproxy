@@ -6,6 +6,7 @@ mod model_test;
 mod portal;
 mod quota_probe;
 mod quota_reset;
+mod tokenizer_auth;
 
 use std::time::Duration;
 
@@ -319,6 +320,21 @@ impl State for AppHandle {
                 Ok(())
             }
         })
+    }
+
+    fn tokenizer_auth<'a>(&'a self) -> BoxFuture<'a, Result<bool, AdminError>> {
+        tokenizer_auth::configured(self)
+    }
+
+    fn update_tokenizer_auth<'a>(
+        &'a self,
+        token: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<bool, AdminError>> {
+        tokenizer_auth::update(self, token)
+    }
+
+    fn reveal_tokenizer_auth<'a>(&'a self) -> BoxFuture<'a, Result<String, AdminError>> {
+        tokenizer_auth::reveal(self)
     }
 
     fn login_state_get<'a>(

@@ -12,6 +12,7 @@ mod portal_settings;
 mod pricing;
 mod rule_presets;
 mod rules;
+mod tokenizer_auth;
 mod tokenizer_vocabs;
 mod transfer;
 mod util;
@@ -72,6 +73,9 @@ pub(crate) async fn dispatch(
         Route::TokenizerVocabFetch => tokenizer_vocabs::fetch(state, body).await,
         Route::TokenizerVocabProgress => tokenizer_vocabs::progress(state, parts),
         Route::TokenizerVocabDelete => tokenizer_vocabs::delete(state, body).await,
+        Route::TokenizerAuthRead => tokenizer_auth::get(state).await,
+        Route::TokenizerAuthWrite => tokenizer_auth::update(state, body).await,
+        Route::TokenizerAuthReveal => tokenizer_auth::reveal(state).await,
         Route::PortalSettingsRead => portal_settings::get(state).await,
         Route::PortalSettingsWrite => portal_settings::update(state, body).await,
         Route::LoginAuthCodeStart => login::authcode_start(state, body).await,

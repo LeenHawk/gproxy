@@ -17,10 +17,11 @@ pub enum SchemaVersion {
     Wave28 = 12,
     Wave29 = 13,
     Wave30 = 14,
+    Wave32 = 15,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Control,
         Self::Runtime,
         Self::Tokenizers,
@@ -35,8 +36,9 @@ impl SchemaVersion {
         Self::Wave28,
         Self::Wave29,
         Self::Wave30,
+        Self::Wave32,
     ];
-    pub const LATEST: Self = Self::Wave30;
+    pub const LATEST: Self = Self::Wave32;
 
     pub const fn number(self) -> i64 {
         self as i64

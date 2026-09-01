@@ -112,6 +112,22 @@ pub trait State: MaybeSend + MaybeSync {
         Box::pin(async { Err(AdminError::Forbidden) })
     }
 
+    fn tokenizer_auth<'a>(&'a self) -> BoxFuture<'a, Result<bool, AdminError>> {
+        Box::pin(async { Err(AdminError::Forbidden) })
+    }
+
+    fn update_tokenizer_auth<'a>(
+        &'a self,
+        token: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<bool, AdminError>> {
+        let _ = token;
+        Box::pin(async { Err(AdminError::Forbidden) })
+    }
+
+    fn reveal_tokenizer_auth<'a>(&'a self) -> BoxFuture<'a, Result<String, AdminError>> {
+        Box::pin(async { Err(AdminError::Forbidden) })
+    }
+
     fn login_state_get<'a>(
         &'a self,
         key: &'a str,

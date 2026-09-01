@@ -65,6 +65,9 @@ pub(crate) enum Route {
     TokenizerVocabFetch,
     TokenizerVocabProgress,
     TokenizerVocabDelete,
+    TokenizerAuthRead,
+    TokenizerAuthWrite,
+    TokenizerAuthReveal,
     PortalSettingsRead,
     PortalSettingsWrite,
     LoginAuthCodeStart,
@@ -99,6 +102,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         }
         if segments.as_slice() == ["models", "discover"] {
             return Some(Route::ModelDiscover);
+        }
+        if segments.as_slice() == ["tokenizer-auth", "reveal"] {
+            return Some(Route::TokenizerAuthReveal);
         }
         if let ["credentials", credential, "quota-probe"] = segments.as_slice() {
             return Some(Route::CredentialQuotaProbe(credential.parse().ok()?));
@@ -187,6 +193,8 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::GET, "tokenizer-vocabs") => Some(Route::TokenizerVocabsRead),
         (&Method::POST, "tokenizer-vocabs") => Some(Route::TokenizerVocabFetch),
         (&Method::DELETE, "tokenizer-vocabs") => Some(Route::TokenizerVocabDelete),
+        (&Method::GET, "tokenizer-auth") => Some(Route::TokenizerAuthRead),
+        (&Method::PATCH, "tokenizer-auth") => Some(Route::TokenizerAuthWrite),
         (&Method::GET, "portal-settings") => Some(Route::PortalSettingsRead),
         (&Method::PATCH, "portal-settings") => Some(Route::PortalSettingsWrite),
         (&Method::POST, "export") => Some(Route::ConfigurationExport),
@@ -256,6 +264,8 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::InstanceSettingsWrite => action("instance_settings.update", "settings", None),
         Route::TokenizerVocabFetch => action("tokenizer_vocab.fetch", "tokenizer_vocabs", None),
         Route::TokenizerVocabDelete => action("tokenizer_vocab.delete", "tokenizer_vocabs", None),
+        Route::TokenizerAuthWrite => action("tokenizer_auth.update", "tokenizer_auth", None),
+        Route::TokenizerAuthReveal => action("tokenizer_auth.reveal", "tokenizer_auth", None),
         Route::PortalSettingsWrite => action("portal_settings.update", "settings", None),
         Route::LoginAuthCodeStart => provider_action("channel_login.authcode_start", body),
         Route::LoginAuthCodeComplete => provider_action("channel_login.authcode_complete", body),
@@ -293,6 +303,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         | Route::InstanceSettingsRead
         | Route::TokenizerVocabsRead
         | Route::TokenizerVocabProgress
+        | Route::TokenizerAuthRead
         | Route::PortalSettingsRead => return None,
     })
 }
@@ -372,5 +383,10 @@ mod tests {
         let descriptor = audit(&route, b"{}").unwrap();
         assert_eq!(descriptor.action, "credential.secret_reveal");
         assert_eq!(descriptor.target_id, Some(17));
+
+        let route = parse(&http::Method::POST, "/admin/api/tokenizer-auth/reveal").unwrap();
+        let descriptor = audit(&route, b"{}").unwrap();
+        assert_eq!(descriptor.action, "tokenizer_auth.reveal");
+        assert_eq!(descriptor.target_id, None);
     }
 }

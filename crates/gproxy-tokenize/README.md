@@ -22,3 +22,6 @@ is the strict alternative.
 The default feature set only depends on `serde_json` and compiles for
 `wasm32-unknown-unknown`. Native hosts enable `count-local`; registry I/O is
 provided by the host through `TokenizerStore` and `TokenizerClient`.
+Native hosts may configure one global Hugging Face bearer token. It is attached
+only to Hub requests on `huggingface.co` and is removed before trusted CDN
+redirects are followed.

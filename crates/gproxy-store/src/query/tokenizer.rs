@@ -3,6 +3,7 @@ use sea_query::{Alias, Expr, ExprTrait, OnConflict, Query};
 use crate::StoreError;
 use crate::backend::Statement;
 use crate::query::common::value;
+use crate::records::CredentialEnvelope;
 
 pub(crate) fn list() -> Result<Statement, StoreError> {
     let mut query = Query::select();
@@ -66,5 +67,104 @@ pub(crate) fn delete(name: &str) -> Result<Statement, StoreError> {
     query
         .from_table(Alias::new("tokenizer_vocabs"))
         .and_where(Expr::col(Alias::new("name")).eq(name));
+    Statement::query(&query)
+}
+
+pub(crate) fn auth_get(kind: &str) -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .columns([
+            Alias::new("ciphertext"),
+            Alias::new("wrapped_key"),
+            Alias::new("payload_nonce"),
+            Alias::new("key_nonce"),
+        ])
+        .from(Alias::new("tokenizer_auth"))
+        .and_where(Expr::col(Alias::new("kind")).eq(kind))
+        .limit(1);
+    Statement::query(&query)
+}
+
+pub(crate) fn auth_list() -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .columns([
+            Alias::new("kind"),
+            Alias::new("ciphertext"),
+            Alias::new("wrapped_key"),
+            Alias::new("payload_nonce"),
+            Alias::new("key_nonce"),
+        ])
+        .from(Alias::new("tokenizer_auth"))
+        .order_by(Alias::new("kind"), sea_query::Order::Asc);
+    Statement::query(&query)
+}
+
+pub(crate) fn auth_put(
+    kind: &str,
+    envelope: &CredentialEnvelope,
+    updated_at: i64,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::insert();
+    query
+        .into_table(Alias::new("tokenizer_auth"))
+        .columns([
+            Alias::new("kind"),
+            Alias::new("ciphertext"),
+            Alias::new("wrapped_key"),
+            Alias::new("payload_nonce"),
+            Alias::new("key_nonce"),
+            Alias::new("updated_at"),
+        ])
+        .values_panic([
+            value(kind.to_owned()),
+            value(envelope.ciphertext.clone()),
+            value(envelope.wrapped_key.clone()),
+            value(envelope.payload_nonce.clone()),
+            value(envelope.key_nonce.clone()),
+            value(updated_at),
+        ])
+        .on_conflict(
+            OnConflict::column(Alias::new("kind"))
+                .update_columns([
+                    Alias::new("ciphertext"),
+                    Alias::new("wrapped_key"),
+                    Alias::new("payload_nonce"),
+                    Alias::new("key_nonce"),
+                    Alias::new("updated_at"),
+                ])
+                .to_owned(),
+        );
+    Statement::query(&query)
+}
+
+pub(crate) fn auth_delete(kind: &str) -> Result<Statement, StoreError> {
+    let mut query = Query::delete();
+    query
+        .from_table(Alias::new("tokenizer_auth"))
+        .and_where(Expr::col(Alias::new("kind")).eq(kind));
+    Statement::query(&query)
+}
+
+pub(crate) fn auth_update(
+    kind: &str,
+    envelope: &CredentialEnvelope,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::update();
+    query
+        .table(Alias::new("tokenizer_auth"))
+        .values([
+            (Alias::new("ciphertext"), value(envelope.ciphertext.clone())),
+            (
+                Alias::new("wrapped_key"),
+                value(envelope.wrapped_key.clone()),
+            ),
+            (
+                Alias::new("payload_nonce"),
+                value(envelope.payload_nonce.clone()),
+            ),
+            (Alias::new("key_nonce"), value(envelope.key_nonce.clone())),
+        ])
+        .and_where(Expr::col(Alias::new("kind")).eq(kind));
     Statement::query(&query)
 }

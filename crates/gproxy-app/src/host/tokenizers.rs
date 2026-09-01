@@ -10,6 +10,23 @@ use gproxy_tokenize::{
 
 struct StoreAdapter(gproxy_store::Store);
 
+pub(crate) const HUGGING_FACE_AUTH: &str = "hugging_face";
+
+pub(crate) async fn hugging_face_token(
+    store: &gproxy_store::Store,
+    cipher: &crate::secrets::EnvelopeCipher,
+) -> Result<Option<String>, crate::AppError> {
+    let Some(envelope) = store.tokenizer_auth(HUGGING_FACE_AUTH).await? else {
+        return Ok(None);
+    };
+    let value = cipher.open(&envelope)?;
+    value
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| crate::AppError::Encryption("tokenizer auth secret is invalid".into()))
+        .map(Some)
+}
+
 impl TokenizerStore for StoreAdapter {
     fn list<'a>(&'a self) -> BoxFuture<'a, Result<Vec<String>, RegistryError>> {
         Box::pin(async move { self.0.tokenizer_vocab_names().await.map_err(registry_error) })
@@ -111,12 +128,14 @@ pub(crate) fn build(
     store: gproxy_store::Store,
     transport: gproxy_upstream::Transport,
     download_enabled: bool,
+    hugging_face_token: Option<String>,
 ) -> Arc<TokenizerRegistry> {
     let registry = Arc::new(TokenizerRegistry::new(
         Arc::new(StoreAdapter(store)),
         Arc::new(ClientAdapter(transport)),
     ));
     registry.set_download_enabled(download_enabled);
+    registry.set_hugging_face_token(hugging_face_token);
     registry.preheat();
     registry
 }

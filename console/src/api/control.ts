@@ -24,6 +24,9 @@ import type { TokenizerFetchRequest } from "@/generated/TokenizerFetchRequest"
 import type { TokenizerDeleteRequest } from "@/generated/TokenizerDeleteRequest"
 import type { TokenizerDownloadProgressDto } from "@/generated/TokenizerDownloadProgressDto"
 import type { TokenizerVocabDto } from "@/generated/TokenizerVocabDto"
+import type { TokenizerAuthDto } from "@/generated/TokenizerAuthDto"
+import type { TokenizerAuthUpdate } from "@/generated/TokenizerAuthUpdate"
+import type { TokenizerAuthRevealResponse } from "@/generated/TokenizerAuthRevealResponse"
 import type { BatchActionDto } from "@/generated/BatchActionDto"
 import type { BatchResponse } from "@/generated/BatchResponse"
 import type { Entity } from "@/generated/Entity"
@@ -131,3 +134,8 @@ export const tokenizerVocabProgress = (name: string) =>
   api<TokenizerDownloadProgressDto | null>(`/admin/api/tokenizer-vocabs/progress?${new URLSearchParams({ name })}`)
 export const deleteTokenizerVocab = (value: TokenizerDeleteRequest) =>
   api<void>("/admin/api/tokenizer-vocabs", json("DELETE", value))
+export const tokenizerAuth = () => api<TokenizerAuthDto>("/admin/api/tokenizer-auth")
+export const updateTokenizerAuth = (value: TokenizerAuthUpdate) =>
+  api<TokenizerAuthDto>("/admin/api/tokenizer-auth", json("PATCH", value))
+export const revealTokenizerAuth = () =>
+  api<TokenizerAuthRevealResponse>("/admin/api/tokenizer-auth/reveal", json("POST", {}))

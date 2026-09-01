@@ -110,8 +110,10 @@ mod local {
         resume: Arc<tokio::sync::Notify>,
     }
 
-    #[derive(Default)]
-    struct Redirecting(Mutex<u8>);
+    struct Redirecting {
+        requests: Mutex<u8>,
+        authorization: String,
+    }
 
     impl TokenizerClient for Redirecting {
         fn send<'a>(
@@ -124,9 +126,16 @@ mod local {
                     request.headers().get(http::header::ACCEPT_ENCODING),
                     Some(&http::HeaderValue::from_static("identity"))
                 );
-                let mut requests = self.0.lock().expect("requests");
+                let mut requests = self.requests.lock().expect("requests");
                 *requests += 1;
                 if *requests == 1 {
+                    assert_eq!(
+                        request
+                            .headers()
+                            .get(http::header::AUTHORIZATION)
+                            .and_then(|value| value.to_str().ok()),
+                        Some(self.authorization.as_str())
+                    );
                     assert_eq!(
                         request.uri().path(),
                         "/owner/model/resolve/main/tokenizer.json"
@@ -137,8 +146,26 @@ mod local {
                         .body(Bytes::new())
                         .expect("redirect response"));
                 }
-                assert_eq!(request.uri().host(), Some("huggingface.co"));
-                assert_eq!(request.uri().path(), "/api/resolve-cache/tokenizer.json");
+                if *requests == 2 {
+                    assert_eq!(request.uri().host(), Some("huggingface.co"));
+                    assert_eq!(
+                        request
+                            .headers()
+                            .get(http::header::AUTHORIZATION)
+                            .and_then(|value| value.to_str().ok()),
+                        Some(self.authorization.as_str())
+                    );
+                    return Ok(http::Response::builder()
+                        .status(http::StatusCode::TEMPORARY_REDIRECT)
+                        .header(
+                            http::header::LOCATION,
+                            "https://cdn-lfs.hf.co/api/resolve-cache/tokenizer.json",
+                        )
+                        .body(Bytes::new())
+                        .expect("CDN redirect response"));
+                }
+                assert_eq!(request.uri().host(), Some("cdn-lfs.hf.co"));
+                assert_eq!(request.headers().get(http::header::AUTHORIZATION), None);
                 Ok(http::Response::new(Bytes::from_static(
                     crate::registry::bundled_bytes(),
                 )))
@@ -224,15 +251,21 @@ mod local {
 
     #[tokio::test]
     async fn explicit_fetch_follows_trusted_hugging_face_redirects() {
-        let client = Arc::new(Redirecting::default());
+        let token = format!("tokenizer-test-{}", std::process::id());
+        let authorization = format!("Bearer {token}");
+        let client = Arc::new(Redirecting {
+            requests: Mutex::new(0),
+            authorization,
+        });
         let registry = TokenizerRegistry::new(Arc::new(Store::default()), client.clone());
+        registry.set_hugging_face_token(Some(token));
 
         registry
             .fetch("local-vocab", "owner/model")
             .await
             .expect("fetch tokenizer");
 
-        assert_eq!(*client.0.lock().expect("requests"), 2);
+        assert_eq!(*client.requests.lock().expect("requests"), 3);
     }
 
     #[tokio::test]

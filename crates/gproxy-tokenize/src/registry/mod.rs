@@ -104,6 +104,7 @@ pub struct TokenizerRegistry {
     pub(super) download_enabled: AtomicBool,
     pub(super) default_vocab: std::sync::RwLock<Option<String>>,
     pub(super) loaded: Arc<DashMap<String, Arc<Tokenizer>>>,
+    pub(super) hugging_face_token: Arc<std::sync::RwLock<Option<String>>>,
     pub(super) inflight: Arc<DashMap<String, ()>>,
     pub(super) negative: Arc<DashMap<String, ()>>,
     pub(super) downloads: Arc<DashMap<String, TokenizerDownloadProgress>>,
@@ -118,6 +119,7 @@ impl TokenizerRegistry {
             download_enabled: AtomicBool::new(false),
             default_vocab: std::sync::RwLock::new(None),
             loaded: Arc::new(DashMap::new()),
+            hugging_face_token: Arc::new(std::sync::RwLock::new(None)),
             inflight: Arc::new(DashMap::new()),
             negative: Arc::new(DashMap::new()),
             downloads: Arc::new(DashMap::new()),
@@ -148,6 +150,13 @@ impl TokenizerRegistry {
         let value = name.filter(|value| !value.trim().is_empty());
         if let Ok(mut slot) = self.default_vocab.write() {
             *slot = value;
+        }
+    }
+
+    pub fn set_hugging_face_token(&self, token: Option<String>) {
+        let token = token.filter(|value| !value.trim().is_empty());
+        if let Ok(mut slot) = self.hugging_face_token.write() {
+            *slot = token;
         }
     }
 

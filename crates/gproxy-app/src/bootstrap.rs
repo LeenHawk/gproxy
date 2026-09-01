@@ -38,10 +38,14 @@ impl App {
         #[cfg(target_arch = "wasm32")]
         let transport = gproxy_upstream::Transport::default();
         #[cfg(not(target_arch = "wasm32"))]
+        let hugging_face_token =
+            crate::host::tokenizers::hugging_face_token(&store, &cipher).await?;
+        #[cfg(not(target_arch = "wasm32"))]
         let tokenizers = crate::host::tokenizers::build(
             store.clone(),
             transport.clone(),
             control.settings().enable_tokenizer_download,
+            hugging_face_token,
         );
         #[cfg(not(target_arch = "wasm32"))]
         {

@@ -15,6 +15,11 @@ pub(crate) async fn prepare(
     let current = EnvelopeCipher::new(keys.current);
     let opened_credentials = open_all(&current, &inventory.credentials, false)?;
     let opened_user_keys = open_all(&current, &inventory.user_keys, true)?;
+    let opened_tokenizer_auth = inventory
+        .tokenizer_auth
+        .iter()
+        .map(|secret| current.open(&secret.envelope))
+        .collect::<Result<Vec<_>, _>>()?;
 
     if !keys.rotate {
         if !matches!(&keys.next, RotationTarget::Unset) {
@@ -24,7 +29,7 @@ pub(crate) async fn prepare(
         }
         if matches!(inventory.fingerprint, MasterKeyFingerprint::Missing) {
             store
-                .replace_secret_inventory(&[], &[], current_fingerprint.as_deref())
+                .replace_secret_inventory(&[], &[], &[], current_fingerprint.as_deref())
                 .await?;
         }
         if keys.current.is_none() {
@@ -45,9 +50,25 @@ pub(crate) async fn prepare(
     let next = EnvelopeCipher::new(next_key);
     let credentials = reseal_all(&next, &inventory.credentials, opened_credentials, false)?;
     let user_keys = reseal_all(&next, &inventory.user_keys, opened_user_keys, true)?;
+    let tokenizer_auth = inventory
+        .tokenizer_auth
+        .iter()
+        .zip(opened_tokenizer_auth)
+        .map(|(secret, value)| {
+            Ok(gproxy_store::records::TokenizerAuthSecret {
+                kind: secret.kind.clone(),
+                envelope: next.seal(&value)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
     let next_fingerprint = fingerprint(next_key.as_ref());
     store
-        .replace_secret_inventory(&credentials, &user_keys, next_fingerprint.as_deref())
+        .replace_secret_inventory(
+            &credentials,
+            &user_keys,
+            &tokenizer_auth,
+            next_fingerprint.as_deref(),
+        )
         .await?;
     if next_key.is_some() {
         tracing::warn!(

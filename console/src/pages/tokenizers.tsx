@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { instanceSettings, saveInstanceSettings, tokenizerVocabs } from "@/api/control"
+import { instanceSettings, saveInstanceSettings, tokenizerAuth, tokenizerVocabs } from "@/api/control"
 import type { InstanceSettingsDto } from "@/generated/InstanceSettingsDto"
 import { PageLayout } from "@/components/page-layout"
 import { QueryState } from "@/components/query-state"
 import { TokenizerVocabsCard } from "@/components/settings/tokenizer-vocabs-card"
+import { HuggingFaceTokenField } from "@/components/settings/hugging-face-token-field"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -18,6 +19,7 @@ export function TokenizersPage() {
   const client = useQueryClient()
   const settings = useQuery({ queryKey: ["instance-settings"], queryFn: instanceSettings })
   const vocabs = useQuery({ queryKey: ["tokenizer-vocabs"], queryFn: tokenizerVocabs })
+  const auth = useQuery({ queryKey: ["tokenizer-auth"], queryFn: tokenizerAuth })
   const save = useMutation({
     mutationFn: (value: InstanceSettingsDto) => saveInstanceSettings(value),
     onSuccess: async () => { await client.invalidateQueries({ queryKey: ["instance-settings"] }) },
@@ -27,8 +29,8 @@ export function TokenizersPage() {
   return (
     <PageLayout title={t("settings.tokenizers.title")} description={t("settings.tokenizers.description")}>
       <div className="flex max-w-4xl flex-col gap-8">
-        <QueryState loading={settings.isLoading || vocabs.isLoading} error={settings.error || vocabs.error ? t("settings.tokenizers.loadError") : ""}>
-          {current && vocabs.data ? <>
+        <QueryState loading={settings.isLoading || vocabs.isLoading || auth.isLoading} error={settings.error || vocabs.error || auth.error ? t("settings.tokenizers.loadError") : ""}>
+          {current && vocabs.data && auth.data ? <>
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldLabel htmlFor="tokenizer-vocabs">{t("settings.runtime.enable_tokenizer_vocabs")}</FieldLabel>
@@ -54,6 +56,7 @@ export function TokenizersPage() {
               />
             </Field>
             <DefaultVocabField key={current.default_tokenizer_vocab ?? ""} settings={current} saving={save.isPending} onSave={(value) => save.mutate(value)} />
+            <HuggingFaceTokenField auth={auth.data} />
             <TokenizerVocabsCard values={vocabs.data} />
           </> : null}
         </QueryState>

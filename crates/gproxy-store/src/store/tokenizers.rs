@@ -65,6 +65,35 @@ impl Store {
         self.backend().execute(tokenizer::delete(name)?).await?;
         Ok(())
     }
+
+    pub async fn tokenizer_auth(
+        &self,
+        kind: &str,
+    ) -> Result<Option<crate::records::CredentialEnvelope>, StoreError> {
+        let mut result = self.backend().execute(tokenizer::auth_get(kind)?).await?;
+        let Some(row) = result.rows.pop() else {
+            return Ok(None);
+        };
+        Ok(Some(crate::store::secrets::parse_envelope(&row)?))
+    }
+
+    pub async fn put_tokenizer_auth(
+        &self,
+        kind: &str,
+        envelope: &crate::records::CredentialEnvelope,
+    ) -> Result<(), StoreError> {
+        self.backend()
+            .execute(tokenizer::auth_put(kind, envelope, unix_now())?)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_tokenizer_auth(&self, kind: &str) -> Result<(), StoreError> {
+        self.backend()
+            .execute(tokenizer::auth_delete(kind)?)
+            .await?;
+        Ok(())
+    }
 }
 
 fn unix_now() -> i64 {

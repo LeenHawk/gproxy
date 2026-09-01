@@ -12,6 +12,7 @@ pub const MAX_TOKENIZER_BYTES: usize = 32 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 5;
 type Loaded = Arc<DashMap<String, Arc<Tokenizer>>>;
 type Downloads = Arc<DashMap<String, TokenizerDownloadProgress>>;
+type HuggingFaceToken = Arc<std::sync::RwLock<Option<String>>>;
 
 impl TokenizerRegistry {
     pub fn request_load(&self, name: &str) -> LoadRequestStatus {
@@ -28,6 +29,7 @@ impl TokenizerRegistry {
         let store = Arc::clone(&self.store);
         let upstream = Arc::clone(&self.upstream);
         let loaded = Arc::clone(&self.loaded);
+        let hugging_face_token = Arc::clone(&self.hugging_face_token);
         let inflight = Arc::clone(&self.inflight);
         let negative = Arc::clone(&self.negative);
         let downloads = Arc::clone(&self.downloads);
@@ -41,6 +43,7 @@ impl TokenizerRegistry {
                 upstream,
                 &name,
                 &loaded,
+                &hugging_face_token,
                 &downloads,
                 download_enabled,
             )
@@ -77,6 +80,7 @@ impl TokenizerRegistry {
             Arc::clone(&self.upstream),
             name,
             &self.loaded,
+            &self.hugging_face_token,
             &self.downloads,
             self.download_enabled
                 .load(std::sync::atomic::Ordering::Relaxed),
@@ -117,6 +121,7 @@ impl TokenizerRegistry {
             name,
             repository,
             &self.loaded,
+            &self.hugging_face_token,
             &self.downloads,
         )
         .await?;
@@ -136,6 +141,7 @@ async fn load(
     upstream: Arc<dyn TokenizerClient>,
     name: &str,
     loaded: &Loaded,
+    hugging_face_token: &HuggingFaceToken,
     downloads: &Downloads,
     download_enabled: bool,
 ) -> Result<LoadOutcome, RegistryError> {
@@ -160,7 +166,16 @@ async fn load(
         return Ok(LoadOutcome::Missing);
     }
     validate_repo_id(&repository)?;
-    download(store, upstream, name, &repository, loaded, downloads).await?;
+    download(
+        store,
+        upstream,
+        name,
+        &repository,
+        loaded,
+        hugging_face_token,
+        downloads,
+    )
+    .await?;
     Ok(LoadOutcome::Loaded)
 }
 
@@ -170,14 +185,25 @@ async fn download(
     name: &str,
     repository: &str,
     loaded: &Loaded,
+    hugging_face_token: &HuggingFaceToken,
     downloads: &Downloads,
 ) -> Result<(), RegistryError> {
-    let request = http::Request::builder()
+    let mut builder = http::Request::builder()
         .method(http::Method::GET)
         .uri(format!(
             "https://huggingface.co/{repository}/resolve/main/tokenizer.json"
         ))
-        .header(http::header::ACCEPT_ENCODING, "identity")
+        .header(http::header::ACCEPT_ENCODING, "identity");
+    if let Some(token) = hugging_face_token
+        .read()
+        .ok()
+        .and_then(|token| token.clone())
+    {
+        let authorization = http::HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| RegistryError::new("invalid Hugging Face token"))?;
+        builder = builder.header(http::header::AUTHORIZATION, authorization);
+    }
+    let request = builder
         .body(bytes::Bytes::new())
         .map_err(|error| RegistryError::new(error.to_string()))?;
     downloads.insert(name.to_owned(), TokenizerDownloadProgress::default());
@@ -209,6 +235,7 @@ async fn send_following_redirects(
 ) -> Result<http::Response<bytes::Bytes>, RegistryError> {
     for redirects in 0..=MAX_REDIRECTS {
         let current = request.uri().clone();
+        let authorization = request.headers().get(http::header::AUTHORIZATION).cloned();
         let response = upstream.send(request, Some(Arc::clone(&reporter))).await?;
         if !response.status().is_redirection() {
             return Ok(response);
@@ -221,10 +248,17 @@ async fn send_following_redirects(
             .get(http::header::LOCATION)
             .ok_or_else(|| RegistryError::new("tokenizer redirect is missing Location"))?;
         let uri = redirect_uri(&current, location)?;
-        request = http::Request::builder()
+        let keep_authorization = uri.host() == Some("huggingface.co");
+        let mut builder = http::Request::builder()
             .method(http::Method::GET)
             .uri(uri)
-            .header(http::header::ACCEPT_ENCODING, "identity")
+            .header(http::header::ACCEPT_ENCODING, "identity");
+        if let Some(authorization) = authorization
+            && keep_authorization
+        {
+            builder = builder.header(http::header::AUTHORIZATION, authorization);
+        }
+        request = builder
             .body(bytes::Bytes::new())
             .map_err(|error| RegistryError::new(error.to_string()))?;
     }
