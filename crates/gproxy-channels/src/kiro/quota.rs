@@ -73,6 +73,7 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
                         format!("usage_{index}")
                     }
                 }),
+            label: None,
             period_start: None,
             period_end: item
                 .next_date_reset

@@ -74,6 +74,7 @@ fn window(record: &Value, window_key: String, seconds: Option<i64>) -> Option<Qu
     let period_end = text(record.get("resetTime")).and_then(crate::shared::quota::iso_to_unix);
     Some(QuotaObservation {
         window_key,
+        label: None,
         period_start: period_end
             .zip(seconds.filter(|seconds| *seconds > 0))
             .map(|(end, seconds)| end - seconds),

@@ -25,6 +25,9 @@ pub struct NormalizedUsage {
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuotaObservation {
     pub window_key: String,
+    /// Upstream display name for the limit (e.g. codex `limit_name`), when
+    /// the wire carries one beside the stable key.
+    pub label: Option<String>,
     pub period_start: Option<i64>,
     pub period_end: Option<i64>,
     pub used_percent: Option<Decimal>,

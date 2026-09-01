@@ -24,4 +24,5 @@ const COLUMNS: &[&str] = &[
     "used_percent",
     "coverage",
     "metrics_json",
+    "label",
 ];

@@ -15,6 +15,7 @@ use super::CodexChannel;
 
 mod cache;
 mod memory;
+mod quota;
 mod realtime;
 
 const RESPONSES: OperationKey = OperationKey::content(

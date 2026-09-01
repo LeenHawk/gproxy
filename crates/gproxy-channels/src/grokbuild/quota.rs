@@ -77,6 +77,7 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             .unwrap_or("usage");
         observations.push(QuotaObservation {
             window_key: window_key.to_owned(),
+            label: None,
             period_start,
             period_end,
             used_percent: Some(included_percent(&config).unwrap_or(Decimal::ZERO)),
@@ -92,10 +93,13 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             .product
             .as_deref()
             .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("Product");
+            .filter(|value| !value.is_empty());
         observations.push(QuotaObservation {
-            window_key: format!("product:{}", crate::shared::quota::slug(label, "product")),
+            window_key: format!(
+                "product:{}",
+                crate::shared::quota::slug(label.unwrap_or("Product"), "product")
+            ),
+            label: label.map(str::to_owned),
             period_start,
             period_end,
             used_percent: Decimal::try_from(percent).ok(),

@@ -85,6 +85,7 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             .and_then(crate::shared::quota::iso_to_unix);
         observations.push(QuotaObservation {
             window_key: scope.window_key(),
+            label: None,
             period_start: period_end.map(|end| end - SEVEN_DAYS),
             period_end,
             used_percent: limit
@@ -101,6 +102,7 @@ fn observation(window_key: String, duration: i64, window: &WebWindow) -> QuotaOb
     let period_end = crate::shared::quota::iso_to_unix(&window.resets_at);
     QuotaObservation {
         window_key,
+        label: None,
         period_start: period_end.map(|end| end - duration),
         period_end,
         used_percent: window

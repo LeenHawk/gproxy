@@ -219,6 +219,7 @@ impl Host for AppHost {
                 let observation = gproxy_store::records::CredentialQuotaObservation {
                     credential_id: credential.0,
                     window_key: value.window_key,
+                    label: value.label,
                     period_start: value.period_start,
                     period_end: value.period_end,
                     boundary_source: source,

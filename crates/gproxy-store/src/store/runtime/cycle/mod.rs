@@ -32,6 +32,11 @@ impl Store {
             if let Some(open) = open.as_ref() {
                 state::preserve_cycle_bounds(open, &mut input);
                 state::validate(&input)?;
+                // A header-borne observation may omit the display label the
+                // probe recorded; absence is not removal.
+                if input.label.is_none() {
+                    input.label = open.label.clone();
+                }
             }
             match open {
                 Some(open) if state::stale_open(&open, &input) => return Ok(open),

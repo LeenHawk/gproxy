@@ -1,12 +1,15 @@
-//! Quota windows from the `x-codex` rate-limit response headers — the same
-//! family the codex CLI itself parses (codex-rs/codex-api/src/rate_limits.rs):
-//! `x-codex-{primary,secondary}-used-percent` (f64, 0–100),
-//! `-window-minutes` (i64), `-reset-at` (unix seconds). A window only counts
-//! when its used-percent parses, and an all-zero window carries no
-//! information — both rules mirror the CLI's own `has_data` check.
+//! Quota windows from the `x-{limit}` rate-limit response header families —
+//! the same families the codex CLI parses (codex-rs/codex-api/src/rate_limits.rs):
+//! `x-{limit}-{primary,secondary}-used-percent` (f64, 0–100),
+//! `-window-minutes` (i64), `-reset-at` (unix seconds). The default family is
+//! `x-codex`; additional metered features ship their own family (e.g.
+//! `x-codex-spark-…`). A window only counts when its used-percent parses, and
+//! an all-zero window carries no information — both rules mirror the CLI's
+//! own `has_data` check.
 //!
 //! The probe half queries `GET {backend-api}/wham/usage` (what the CLI's
-//! `/status` reads): the same primary/secondary windows as the headers, as
+//! `/status` reads): the default windows under `rate_limit`, plus one entry
+//! per metered feature under `additional_rate_limits`, each as
 //! `{used_percent, limit_window_seconds, reset_at}` objects.
 
 use bytes::Bytes;
@@ -18,9 +21,26 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub(super) fn from_headers(headers: &http::HeaderMap) -> Vec<QuotaObservation> {
-    ["primary", "secondary"]
+    let mut limits = vec!["codex"];
+    for name in headers.keys() {
+        if let Some(limit) = name
+            .as_str()
+            .strip_prefix("x-")
+            .and_then(|name| name.strip_suffix("-primary-used-percent"))
+            && limit != "codex"
+        {
+            limits.push(limit);
+        }
+    }
+    limits.sort_unstable();
+    limits.dedup();
+    limits
         .into_iter()
-        .filter_map(|window| observe(headers, window))
+        .flat_map(|limit| {
+            ["primary", "secondary"]
+                .into_iter()
+                .filter_map(move |window| observe(headers, limit, window))
+        })
         .collect()
 }
 
@@ -80,32 +100,77 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
     let Ok(payload) = serde_json::from_slice::<ProbePayload>(body) else {
         return Vec::new();
     };
-    let Some(rate_limit) = payload.rate_limit else {
-        return Vec::new();
-    };
-    [
+    let mut observations = Vec::new();
+    if let Some(rate_limit) = payload.rate_limit {
+        push_windows(&mut observations, rate_limit, None);
+    }
+    for (index, additional) in payload
+        .additional_rate_limits
+        .unwrap_or_default()
+        .into_iter()
+        .enumerate()
+    {
+        let Some(rate_limit) = additional.rate_limit else {
+            continue;
+        };
+        // `metered_feature` is the limit id the CLI keys snapshots by; the
+        // header family for the same limit converges on the same stable key.
+        let feature = [&additional.metered_feature, &additional.limit_name]
+            .into_iter()
+            .map(|value| stable_key(value))
+            .find(|key| !key.is_empty())
+            .unwrap_or_else(|| format!("additional_{index}"));
+        let label = Some(additional.limit_name)
+            .filter(|name| !name.is_empty())
+            .or_else(|| Some(additional.metered_feature).filter(|name| !name.is_empty()));
+        push_windows(&mut observations, rate_limit, Some((&feature, label)));
+    }
+    observations
+}
+
+fn push_windows(
+    observations: &mut Vec<QuotaObservation>,
+    rate_limit: ProbeRateLimit,
+    feature: Option<(&str, Option<String>)>,
+) {
+    let windows = [
         ("primary", rate_limit.primary_window),
         ("secondary", rate_limit.secondary_window),
-    ]
-    .into_iter()
-    .filter_map(|(window_key, window)| {
-        let window = window?;
-        let period_end = window.reset_at;
+    ];
+    for (window, snapshot) in windows {
+        let Some(snapshot) = snapshot else { continue };
+        let (window_key, label) = match &feature {
+            None => (window.to_owned(), None),
+            Some((feature, label)) => (format!("additional_{window}:{feature}"), label.clone()),
+        };
+        let period_end = snapshot.reset_at;
         let period_start = period_end
-            .zip(window.limit_window_seconds.filter(|seconds| *seconds > 0))
+            .zip(snapshot.limit_window_seconds.filter(|seconds| *seconds > 0))
             .map(|(end, seconds)| end - seconds);
-        Some(QuotaObservation {
-            window_key: window_key.to_owned(),
+        observations.push(QuotaObservation {
+            window_key,
+            label,
             period_start,
             period_end,
-            used_percent: window
+            used_percent: snapshot
                 .used_percent
                 .and_then(|value| Decimal::try_from(value).ok()),
             upstream_used: None,
             upstream_limit: None,
-        })
-    })
-    .collect()
+        });
+    }
+}
+
+fn stable_key(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.is_empty() && !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    out.trim_end_matches('_').to_owned()
 }
 
 pub(super) fn parse_probe_credits(
@@ -186,6 +251,16 @@ fn authenticated(
 #[derive(Deserialize)]
 struct ProbePayload {
     rate_limit: Option<ProbeRateLimit>,
+    additional_rate_limits: Option<Vec<ProbeAdditionalLimit>>,
+}
+
+#[derive(Deserialize)]
+struct ProbeAdditionalLimit {
+    #[serde(default)]
+    limit_name: String,
+    #[serde(default)]
+    metered_feature: String,
+    rate_limit: Option<ProbeRateLimit>,
 }
 
 #[derive(Deserialize)]
@@ -244,18 +319,31 @@ struct ProbeWindow {
     reset_at: Option<i64>,
 }
 
-fn observe(headers: &http::HeaderMap, window: &str) -> Option<QuotaObservation> {
-    let used_percent = float(headers, &format!("x-codex-{window}-used-percent"))?;
-    let reset_at = integer(headers, &format!("x-codex-{window}-reset-at"));
-    let window_minutes = integer(headers, &format!("x-codex-{window}-window-minutes"));
+fn observe(headers: &http::HeaderMap, limit: &str, window: &str) -> Option<QuotaObservation> {
+    let prefix = format!("x-{limit}-{window}");
+    let used_percent = float(headers, &format!("{prefix}-used-percent"))?;
+    let reset_at = integer(headers, &format!("{prefix}-reset-at"));
+    let window_minutes = integer(headers, &format!("{prefix}-window-minutes"));
     if used_percent == 0.0 && reset_at.is_none() && window_minutes.unwrap_or(0) == 0 {
         return None;
     }
     let period_start = reset_at
         .zip(window_minutes.filter(|minutes| *minutes > 0))
         .map(|(end, minutes)| end - minutes * 60);
+    let (window_key, label) = if limit == "codex" {
+        (window.to_owned(), None)
+    } else {
+        (
+            format!("additional_{window}:{}", stable_key(limit)),
+            text(headers, &format!("x-{limit}-limit-name"))
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned),
+        )
+    };
     Some(QuotaObservation {
-        window_key: window.to_owned(),
+        window_key,
+        label,
         period_start,
         period_end: reset_at,
         used_percent: Decimal::try_from(used_percent).ok(),
@@ -277,114 +365,4 @@ fn integer(headers: &http::HeaderMap, name: &str) -> Option<i64> {
 
 fn text<'a>(headers: &'a http::HeaderMap, name: &str) -> Option<&'a str> {
     headers.get(name)?.to_str().ok()
-}
-
-#[cfg(test)]
-mod tests {
-    use gproxy_channel_api::QuotaResetOutcome;
-
-    use super::{from_headers, parse_probe, parse_probe_credits, parse_reset};
-
-    fn headers(pairs: &[(&str, &str)]) -> http::HeaderMap {
-        pairs
-            .iter()
-            .map(|(name, value)| {
-                (
-                    http::HeaderName::try_from(*name).unwrap(),
-                    http::HeaderValue::from_str(value).unwrap(),
-                )
-            })
-            .collect()
-    }
-
-    #[test]
-    fn reads_both_windows_and_derives_period_start() {
-        let observed = from_headers(&headers(&[
-            ("x-codex-primary-used-percent", "37.5"),
-            ("x-codex-primary-window-minutes", "300"),
-            ("x-codex-primary-reset-at", "1756900000"),
-            ("x-codex-secondary-used-percent", "12"),
-            ("x-codex-secondary-window-minutes", "10080"),
-            ("x-codex-secondary-reset-at", "1757300000"),
-        ]));
-        assert_eq!(observed.len(), 2);
-        assert_eq!(observed[0].window_key, "primary");
-        assert_eq!(observed[0].period_end, Some(1_756_900_000));
-        assert_eq!(observed[0].period_start, Some(1_756_900_000 - 300 * 60));
-        assert_eq!(observed[0].used_percent, Some("37.5".parse().unwrap()));
-        assert_eq!(observed[1].window_key, "secondary");
-        assert_eq!(observed[1].period_start, Some(1_757_300_000 - 10_080 * 60));
-    }
-
-    #[test]
-    fn skips_missing_percent_and_empty_windows() {
-        assert!(from_headers(&headers(&[("x-codex-primary-reset-at", "1756900000")])).is_empty());
-        assert!(from_headers(&headers(&[("x-codex-primary-used-percent", "0")])).is_empty());
-        let observed = from_headers(&headers(&[
-            ("x-codex-primary-used-percent", "0"),
-            ("x-codex-primary-reset-at", "1756900000"),
-        ]));
-        assert_eq!(observed.len(), 1);
-        assert_eq!(observed[0].period_start, None);
-    }
-
-    #[test]
-    fn probe_body_yields_windows_and_reset_credit_count() {
-        let body = br#"{
-            "rate_limit": {
-                "primary_window": {
-                    "used_percent": 42,
-                    "limit_window_seconds": 18000,
-                    "reset_at": 1756900000
-                }
-            },
-            "rate_limit_reset_credits": {"available_count": 3}
-        }"#;
-        let windows = parse_probe(http::StatusCode::OK, body);
-        let credits = parse_probe_credits(http::StatusCode::OK, body).unwrap();
-        assert_eq!(windows.len(), 1);
-        assert_eq!(windows[0].period_start, Some(1_756_900_000 - 18_000));
-        assert_eq!(credits.available_count, 3);
-    }
-
-    #[test]
-    fn credit_details_carry_the_soonest_available_expiry() {
-        let body = serde_json::json!({
-            "credits": [
-                { "id": "c1", "status": "available", "expires_at": "2026-09-20T00:00:00Z" },
-                { "id": "c2", "status": "available", "expires_at": "2026-09-10T00:00:00Z" },
-                { "id": "c3", "status": "redeemed", "expires_at": "2026-09-01T00:00:00Z" }
-            ],
-            "available_count": 2
-        });
-        let credits =
-            super::parse_probe_credits(http::StatusCode::OK, &serde_json::to_vec(&body).unwrap())
-                .unwrap();
-        assert_eq!(credits.available_count, 2);
-        assert_eq!(
-            credits.expires_at,
-            crate::shared::quota::iso_to_unix("2026-09-10T00:00:00Z")
-        );
-    }
-
-    #[test]
-    fn parses_every_reset_outcome() {
-        let cases = [
-            ("reset", QuotaResetOutcome::Reset),
-            ("nothing_to_reset", QuotaResetOutcome::NothingToReset),
-            ("no_credit", QuotaResetOutcome::NoCredit),
-            ("already_redeemed", QuotaResetOutcome::AlreadyRedeemed),
-        ];
-        for (code, expected) in cases {
-            let body = serde_json::to_vec(&serde_json::json!({
-                "code": code,
-                "windows_reset": 2
-            }))
-            .unwrap();
-            let result = parse_reset(http::StatusCode::OK, &body).unwrap();
-            assert_eq!(result.outcome, expected);
-            assert_eq!(result.windows_reset, Some(2));
-        }
-        assert!(parse_reset(http::StatusCode::BAD_REQUEST, b"{}").is_none());
-    }
 }

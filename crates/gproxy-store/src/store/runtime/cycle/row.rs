@@ -13,6 +13,7 @@ pub(super) fn parse(row: Row) -> Result<CredentialQuotaCycleRecord, StoreError> 
         version: u64::try_from(row.i64("version")?).map_err(|error| invalid("version", error))?,
         credential_id: row.i64("credential_id")?,
         window_key: row.text("window_key")?.to_owned(),
+        label: row.optional_text("label")?.map(ToOwned::to_owned),
         period_start: row.optional_i64("period_start")?,
         period_end: row.optional_i64("period_end")?,
         boundary_source: enum_value::<QuotaBoundarySource>(&row, "boundary_source")?,

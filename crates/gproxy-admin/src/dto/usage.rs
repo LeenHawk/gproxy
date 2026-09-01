@@ -97,6 +97,8 @@ pub struct CredentialQuotaCycleDto {
     pub version: u64,
     pub credential_id: i64,
     pub window_key: String,
+    /// Upstream display name for the limit, when the wire declared one.
+    pub label: Option<String>,
     pub period_start: Option<i64>,
     pub period_end: Option<i64>,
     pub boundary_source: BoundarySourceDto,

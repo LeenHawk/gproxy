@@ -174,6 +174,8 @@
       "seven_day_scoped": "{{scope}} 週限額",
       "weekly_model": "{{scope}} 週限額",
       "weekly_surface": "{{scope}} 週限額",
+      "additional_primary": "{{scope}} 主視窗",
+      "additional_secondary": "{{scope}} 次視窗",
       "product": "{{scope}}"
     }
   },

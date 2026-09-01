@@ -6,4 +6,8 @@ import type { QuotaCoverageDto } from "./QuotaCoverageDto";
 import type { QuotaCycleCloseReasonDto } from "./QuotaCycleCloseReasonDto";
 import type { QuotaCycleStatusDto } from "./QuotaCycleStatusDto";
 
-export type CredentialQuotaCycleDto = { id: number, version: number, credential_id: number, window_key: string, period_start: number | null, period_end: number | null, boundary_source: BoundarySourceDto, boundary_confidence: BoundaryConfidenceDto, status: QuotaCycleStatusDto, close_reason: QuotaCycleCloseReasonDto | null, last_observed_at: number, upstream_used: string | null, upstream_limit: string | null, used_percent: string | null, coverage: QuotaCoverageDto, metrics: unknown, models: Array<CredentialQuotaCycleModelDto>, };
+export type CredentialQuotaCycleDto = { id: number, version: number, credential_id: number, window_key: string, 
+/**
+ * Upstream display name for the limit, when the wire declared one.
+ */
+label: string | null, period_start: number | null, period_end: number | null, boundary_source: BoundarySourceDto, boundary_confidence: BoundaryConfidenceDto, status: QuotaCycleStatusDto, close_reason: QuotaCycleCloseReasonDto | null, last_observed_at: number, upstream_used: string | null, upstream_limit: string | null, used_percent: string | null, coverage: QuotaCoverageDto, metrics: unknown, models: Array<CredentialQuotaCycleModelDto>, };

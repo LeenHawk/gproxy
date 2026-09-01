@@ -49,6 +49,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::optional("used_percent", Text),
             Col::required("coverage", Text),
             Col::required("metrics_json", Text),
+            Col::optional("label", Text).since(SchemaVersion::Wave27),
         ],
         indexes: &[
             IndexSpec {

@@ -107,6 +107,7 @@ fn observation(
     let period_end = resets_at.and_then(iso_to_unix);
     QuotaObservation {
         window_key,
+        label: None,
         period_start: period_end.map(|end| end - duration),
         period_end,
         used_percent: percent.and_then(|value| Decimal::try_from(value).ok()),

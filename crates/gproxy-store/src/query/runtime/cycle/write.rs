@@ -39,6 +39,7 @@ pub(crate) fn insert_credential_quota_cycle(
             value(input.used_percent.map(decimal)),
             value(enum_text(&coverage, "coverage")?),
             value(json(metrics, "metrics")?),
+            value(input.label.clone()),
         ])
         .returning_col(Alias::new("id"));
     Statement::query(&query)
@@ -89,6 +90,7 @@ pub(crate) fn update_credential_quota_cycle(
                 value(enum_text(&coverage, "coverage")?),
             ),
             (Alias::new("metrics_json"), value(json(metrics, "metrics")?)),
+            (Alias::new("label"), value(input.label.clone())),
         ])
         .and_where(Expr::col(Alias::new("id")).eq(expected.id))
         .and_where(Expr::col(Alias::new("open_slot")).eq(1))

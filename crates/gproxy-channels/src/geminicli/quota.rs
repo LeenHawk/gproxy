@@ -94,6 +94,7 @@ impl Bucket {
         });
         QuotaObservation {
             window_key: window_key(self.model_id.as_deref(), self.token_type.as_deref(), index),
+            label: None,
             period_start: None,
             period_end: self
                 .reset_time

@@ -48,6 +48,7 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             let quota = model.get("quotaInfo").filter(|value| value.is_object())?;
             Some(QuotaObservation {
                 window_key: model_id.clone(),
+                label: None,
                 period_start: None,
                 period_end: quota
                     .get("resetTime")

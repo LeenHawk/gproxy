@@ -201,6 +201,7 @@ fn observation(
     CredentialQuotaObservation {
         credential_id,
         window_key: window_key.into(),
+        label: None,
         period_start: Some(period_start),
         period_end: Some(period_end),
         boundary_source: QuotaBoundarySource::Upstream,

@@ -41,6 +41,7 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         }
         Some(QuotaObservation {
             window_key: window_key.to_owned(),
+            label: None,
             period_start: None,
             period_end,
             used_percent: detail

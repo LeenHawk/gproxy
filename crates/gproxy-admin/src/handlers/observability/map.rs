@@ -80,6 +80,7 @@ pub(super) fn credential_cycle(value: &CredentialQuotaCycleRecord) -> Credential
         version: value.version,
         credential_id: value.credential_id,
         window_key: value.window_key.clone(),
+        label: value.label.clone(),
         period_start: value.period_start,
         period_end: value.period_end,
         boundary_source: match value.boundary_source {

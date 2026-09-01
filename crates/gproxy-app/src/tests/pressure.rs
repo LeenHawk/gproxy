@@ -49,6 +49,7 @@ async fn near_limit_credential_is_deprioritized() {
         .observe_credential_quota_cycle(CredentialQuotaObservation {
             credential_id: credential,
             window_key: "five-hour".into(),
+            label: None,
             period_start: Some(now - 60),
             period_end: Some(now + 18_000),
             boundary_source: QuotaBoundarySource::Upstream,

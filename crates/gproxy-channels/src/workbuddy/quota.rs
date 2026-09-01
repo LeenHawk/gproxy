@@ -84,6 +84,7 @@ fn personal(accounts: &[Value]) -> Vec<QuotaObservation> {
                     .or_else(|| string(resource, "ResourceId"))
                     .map(str::to_owned)
                     .unwrap_or_else(|| format!("resource_{index}")),
+                label: None,
                 period_start: None,
                 period_end: string(resource, "CycleEndTime")
                     .and_then(crate::shared::quota::iso_to_unix),
@@ -100,6 +101,7 @@ fn enterprise(data: &Value) -> Option<QuotaObservation> {
     let used = number(data, "credit").unwrap_or(Decimal::ZERO);
     Some(QuotaObservation {
         window_key: "enterprise".into(),
+        label: None,
         period_start: None,
         period_end: string(data, "cycleResetTime").and_then(crate::shared::quota::iso_to_unix),
         used_percent: crate::shared::quota::percent_used(used, limit),

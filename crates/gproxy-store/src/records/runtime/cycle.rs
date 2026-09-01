@@ -46,6 +46,8 @@ pub struct CredentialQuotaObservation {
     pub credential_id: i64,
     pub window_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub period_start: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub period_end: Option<i64>,
@@ -66,6 +68,8 @@ pub struct CredentialQuotaCycleRecord {
     pub version: u64,
     pub credential_id: i64,
     pub window_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub period_start: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
