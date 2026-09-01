@@ -46,7 +46,6 @@
     },
     "routingAliases": {
       "title": "Routing aliases",
-      "globalTitle": "Global model aliases",
       "providerTitle": "Model aliases",
       "add": "Add routing alias",
       "modelAdd": "Add model alias",

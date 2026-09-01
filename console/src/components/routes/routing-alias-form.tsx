@@ -34,7 +34,7 @@ export function RoutingAliasForm({
   opener: HTMLElement | null
   onOpenChange: (open: boolean) => void
   onChanged: () => void
-  fixedProviderId?: number | null
+  fixedProviderId?: number
 }) {
   const { t } = useTranslation()
   const aliasId = useId()
@@ -44,7 +44,7 @@ export function RoutingAliasForm({
   const enabledId = useId()
   const [incoming, setIncoming] = useState(alias?.alias ?? "")
   const [target, setTarget] = useState(alias?.target ?? "")
-  const [provider, setProvider] = useState(fixedProviderId === undefined ? alias?.provider_id == null ? "any" : String(alias.provider_id) : fixedProviderId == null ? "any" : String(fixedProviderId))
+  const [provider, setProvider] = useState(fixedProviderId === undefined ? alias?.provider_id == null ? "any" : String(alias.provider_id) : String(fixedProviderId))
   const [priority, setPriority] = useState(String(alias?.priority ?? 0))
   const [enabled, setEnabled] = useState(alias?.enabled ?? true)
   const mutation = useMutation({

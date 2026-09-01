@@ -46,7 +46,6 @@
     },
     "routingAliases": {
       "title": "路由別名",
-      "globalTitle": "全域模型別名",
       "providerTitle": "模型別名",
       "add": "新增路由別名",
       "modelAdd": "新增模型別名",
