@@ -347,6 +347,7 @@
       "pricing": "定价",
       "priced": "已定价",
       "priceRule": "价格规则",
+      "priceRuleTitle": "{{model}} 的价格",
       "test": "测试",
       "testTrailer": "{{latency}} 毫秒 · 用 {{key}}",
       "testEmpty": "有回应,但没有文本。",

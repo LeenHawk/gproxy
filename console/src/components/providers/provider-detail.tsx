@@ -2,7 +2,6 @@ import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import type { ChannelDto } from "@/generated/ChannelDto"
-import type { AliasDto } from "@/generated/AliasDto"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
@@ -23,8 +22,6 @@ import { ProviderModels } from "@/components/providers/provider-models"
 import { ProviderSettingsPanel } from "@/components/providers/provider-settings-panel"
 import { ProviderRoutingRules } from "@/components/rules/provider-routing-rules"
 import { RulesWorkspace, type RuleMutations } from "@/components/rules/rules-workspace"
-import { RoutingAliases } from "@/components/routes/routing-aliases"
-import { PricingWorkspace } from "@/components/pricing/pricing-workspace"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,7 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 type Props = {
   provider: ProviderDto
   providers: Array<ProviderDto>
-  tab: "credentials" | "models" | "aliases" | "rules" | "routing" | "pricing" | "settings"
+  tab: "credentials" | "models" | "rules" | "routing" | "settings"
   onTab: (tab: Props["tab"]) => void
   channel?: ChannelDto
   channels: Array<ChannelDto>
@@ -60,8 +57,6 @@ type Props = {
   providerModels: Array<ProviderModelDto>
   priceRules: Array<PriceRuleDto>
   priceRates: Array<PriceRateDto>
-  aliases: Array<AliasDto>
-  onAliasesChanged: () => void
   ruleMutations: RuleMutations
 }
 
@@ -109,10 +104,8 @@ export function ProviderDetail(props: Props) {
         <TabsList>
           <TabsTrigger value="credentials">{t("providers.credentials.title")}</TabsTrigger>
           <TabsTrigger value="models">{t("providers.models.tab")}</TabsTrigger>
-          <TabsTrigger value="aliases">{t("routes.routingAliases.providerTitle")}</TabsTrigger>
           <TabsTrigger value="rules">{t("rules.providerTab")}</TabsTrigger>
           <TabsTrigger value="routing">{t("rules.routing.tab")}</TabsTrigger>
-          <TabsTrigger value="pricing">{t("pricing.title")}</TabsTrigger>
           <TabsTrigger value="settings">{t("providers.tabs.settings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="credentials" className="pt-4">
@@ -144,11 +137,9 @@ export function ProviderDetail(props: Props) {
             onCredentialOpen={props.onCredentialOpen}
           />}
         </TabsContent>
-        <TabsContent value="models" className="pt-4"><ProviderModels providerId={props.provider.id} models={props.providerModels} priceRules={props.priceRules} /></TabsContent>
-        <TabsContent value="aliases" className="pt-4"><RoutingAliases aliases={props.aliases} providers={props.providers} scopeProviderId={props.provider.id} onChanged={props.onAliasesChanged} /></TabsContent>
+        <TabsContent value="models" className="pt-4"><ProviderModels provider={props.provider} models={props.providerModels} priceRules={props.priceRules} priceRates={props.priceRates} /></TabsContent>
         <TabsContent value="rules" className="pt-4"><RulesWorkspace ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} providers={props.providers} scopeProviderId={props.provider.id} mutations={props.ruleMutations} /></TabsContent>
         <TabsContent value="routing" className="pt-4"><ProviderRoutingRules provider={props.provider} channel={props.channel} rules={props.routingRules} /></TabsContent>
-        <TabsContent value="pricing" className="pt-4"><PricingWorkspace rules={props.priceRules} rates={props.priceRates} providers={props.providers} scopeProviderId={props.provider.id} /></TabsContent>
         <TabsContent value="settings" className="pt-4">
           <ProviderSettingsPanel
             provider={props.provider}

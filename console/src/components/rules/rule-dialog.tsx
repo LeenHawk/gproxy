@@ -1,20 +1,17 @@
 import type { ReactElement } from "react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import type { RuleConfigDto } from "@/generated/RuleConfigDto"
 import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleWriteRequest } from "@/generated/RuleWriteRequest"
 import { configFromDraft, ruleDraft, type RuleDraft } from "./rule-draft"
 import { RuleConfigFields } from "./rule-config-fields"
+import { RuleKindPicker } from "./rule-kind-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-
-const KINDS: Array<RuleConfigDto["kind"]> = ["system_text", "cache_breakpoint", "rewrite", "transform", "header"]
 
 export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
   ruleSetId: number
@@ -72,7 +69,7 @@ export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
           <DialogHeader><DialogTitle>{t(rule ? "rules.entries.edit" : "rules.entries.add")}</DialogTitle></DialogHeader>
           <DialogBody><FieldGroup>
             {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-            <Field><FieldLabel htmlFor="rule-kind">{t("rules.fields.kind")}</FieldLabel><Select name="rule-kind" value={draft.kind} onValueChange={(kind) => setDraft({ ...ruleDraft(), kind: kind as RuleConfigDto["kind"] })}><SelectTrigger id="rule-kind" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{KINDS.map((kind) => <SelectItem key={kind} value={kind}>{t(`rules.kinds.${kind}`)}</SelectItem>)}</SelectContent></Select><FieldDescription>{t(`rules.kindDesc.${draft.kind}`)}</FieldDescription></Field>
+            <FieldSet data-field-span="full"><FieldLegend variant="label">{t("rules.fields.kind")}</FieldLegend><RuleKindPicker value={draft.kind} onChange={(kind) => setDraft({ ...ruleDraft(), kind })} /></FieldSet>
             <RuleConfigFields draft={draft} onChange={setDraft} />
             <Field><FieldLabel htmlFor="rule-model-filter">{t("rules.filters.model")}</FieldLabel><Input id="rule-model-filter" className="font-mono" value={model} placeholder={t("rules.placeholders.allModels")} onChange={(event) => setModel(event.target.value)} /><FieldDescription>{t("rules.filters.modelHelp")}</FieldDescription></Field>
             <Field><FieldLabel htmlFor="rule-operation-filter">{t("rules.filters.operations")}</FieldLabel><Input id="rule-operation-filter" className="font-mono" value={operations} placeholder={t("rules.placeholders.allOperations")} onChange={(event) => setOperations(event.target.value)} /><FieldDescription>{t("rules.filters.operationsHelp")}</FieldDescription></Field>

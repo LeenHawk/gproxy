@@ -347,6 +347,7 @@
       "pricing": "Pricing",
       "priced": "Priced",
       "priceRule": "Price rule",
+      "priceRuleTitle": "Pricing for {{model}}",
       "test": "Test",
       "testTrailer": "{{latency}} ms · via {{key}}",
       "testEmpty": "Answered with no text.",

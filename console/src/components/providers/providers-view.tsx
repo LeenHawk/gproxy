@@ -20,7 +20,6 @@ import { ProviderDetail } from "@/components/providers/provider-detail"
 import { ProviderDialog } from "@/components/providers/provider-dialog"
 import { ProviderSummary } from "@/components/providers/provider-summary"
 import type { RuleMutations } from "@/components/rules/rules-workspace"
-import type { AliasDto } from "@/generated/AliasDto"
 import type { PriceRateDto } from "@/generated/PriceRateDto"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
@@ -55,8 +54,6 @@ type Props = {
   providerModels: Array<ProviderModelDto>
   priceRules: Array<PriceRuleDto>
   priceRates: Array<PriceRateDto>
-  aliases: Array<AliasDto>
-  onAliasesChanged: () => void
   ruleMutations: RuleMutations
 }
 
@@ -65,7 +62,12 @@ export function ProvidersView(props: Props) {
   const location = useAdminLocation()
   const selectedId = Number(location.segments[0])
   const selected = props.providers.find((provider) => provider.id === selectedId) ?? null
-  const tab = ["models", "aliases", "rules", "routing", "pricing", "settings"].includes(location.segments[1]) ? location.segments[1] as "models" | "aliases" | "rules" | "routing" | "pricing" | "settings" : "credentials"
+  const requestedTab = location.segments[1]
+  const tab = requestedTab === "aliases" || requestedTab === "pricing"
+    ? "models"
+    : ["models", "rules", "routing", "settings"].includes(requestedTab)
+      ? requestedTab as "models" | "rules" | "routing" | "settings"
+      : "credentials"
   const activeCredentialId = tab === "credentials" ? Number(location.segments[2]) : Number.NaN
   const credentialsByProvider = useMemo(() => {
     const groups = new Map<number, Array<CredentialDto>>()
@@ -160,8 +162,6 @@ export function ProvidersView(props: Props) {
         providerModels={props.providerModels}
         priceRules={props.priceRules}
         priceRates={props.priceRates}
-        aliases={props.aliases}
-        onAliasesChanged={props.onAliasesChanged}
         ruleMutations={props.ruleMutations}
       /> : null}
     </WorkspaceLayout>

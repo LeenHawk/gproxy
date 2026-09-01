@@ -17,17 +17,19 @@ import { Switch } from "@/components/ui/switch"
 import { TierEditor } from "./tier-editor"
 import { losesLongContextStep, serializeTiers, tierDrafts } from "./tier-values"
 
-export function PriceRuleDialog({ rule, providers, trigger, fixedProviderId }: {
+export function PriceRuleDialog({ rule, providers, trigger, fixedProviderId, initialPattern, lockedPattern = false }: {
   rule?: PriceRuleDto
   providers: Array<ProviderDto>
   trigger: ReactElement
   fixedProviderId?: number | null
+  initialPattern?: string
+  lockedPattern?: boolean
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [provider, setProvider] = useState(fixedProviderId === undefined ? rule?.provider_id == null ? "all" : String(rule.provider_id) : fixedProviderId == null ? "all" : String(fixedProviderId))
-  const [pattern, setPattern] = useState(rule?.model_pattern ?? "")
+  const [pattern, setPattern] = useState(rule?.model_pattern ?? initialPattern ?? "")
   const [priority, setPriority] = useState(String(rule?.priority ?? 0))
   const [enabled, setEnabled] = useState(rule?.enabled ?? true)
   const [tiers, setTiers] = useState(() => tierDrafts(rule?.tiers))
@@ -71,7 +73,7 @@ export function PriceRuleDialog({ rule, providers, trigger, fixedProviderId }: {
                   onChange={setProvider}
                 />
               </Field> : null}
-              <Field><FieldLabel htmlFor="price-pattern">{t("pricing.rules.pattern")}</FieldLabel><Input id="price-pattern" className="font-mono" required value={pattern} onChange={(event) => setPattern(event.target.value)} /></Field>
+              <Field><FieldLabel htmlFor="price-pattern">{t("pricing.rules.pattern")}</FieldLabel><Input id="price-pattern" className="font-mono" required readOnly={lockedPattern} value={pattern} onChange={(event) => setPattern(event.target.value)} /></Field>
               <Field><FieldLabel htmlFor="price-priority">{t("pricing.rules.priority")}</FieldLabel><Input id="price-priority" type="number" step={1} required value={priority} onChange={(event) => setPriority(event.target.value)} /></Field>
               <Field orientation="horizontal"><FieldLabel htmlFor="price-enabled">{t("pricing.rules.enabled")}</FieldLabel><Switch id="price-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>
             </div>
