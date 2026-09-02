@@ -12,6 +12,7 @@ import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
 import type { ModelAliasWriteRequest } from "@/generated/ModelAliasWriteRequest"
 import type { InstanceSettingsDto } from "@/generated/InstanceSettingsDto"
+import type { IdResponse } from "@/generated/IdResponse"
 import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { PriceRateWriteRequest } from "@/generated/PriceRateWriteRequest"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
@@ -55,8 +56,8 @@ import type { RuleWriteRequest } from "@/generated/RuleWriteRequest"
 import type { RulePresetDto } from "@/generated/RulePresetDto"
 import { api, json } from "@/api/client"
 
-const save = <T>(path: string, value: T, id?: number) =>
-  api(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
+const save = <T, R = unknown>(path: string, value: T, id?: number) =>
+  api<R>(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
 
 export const probeCredentialQuota = (id: number) =>
   api<QuotaProbeResponse>(`/admin/api/credentials/${id}/quota-probe`, json("POST", {}))
@@ -86,7 +87,7 @@ export const saveCredential = (value: CredentialWriteRequest, id?: number) =>
   save("/admin/api/credentials", value, id)
 export const routes = () => api<Array<RouteDto>>("/admin/api/routes")
 export const saveRoute = (value: RouteWriteRequest, id?: number) =>
-  save("/admin/api/routes", value, id)
+  save<RouteWriteRequest, IdResponse | undefined>("/admin/api/routes", value, id)
 export const routeMembers = () => api<Array<RouteMemberDto>>("/admin/api/route-members")
 export const saveRouteMember = (value: RouteMemberWriteRequest, id?: number) =>
   save("/admin/api/route-members", value, id)
@@ -122,7 +123,7 @@ export const deleteRoutingRule = (id: number) => deleteEntity("routing-rules", i
 export const resetRoutingDefaults = (providerId: number) =>
   api<void>(`/admin/api/providers/${providerId}/routing-defaults/reset`, json("POST", {}))
 export const ruleSets = () => api<Array<RuleSetDto>>("/admin/api/rule-sets")
-export const saveRuleSet = (value: RuleSetWriteRequest, id?: number) => save("/admin/api/rule-sets", value, id)
+export const saveRuleSet = (value: RuleSetWriteRequest, id?: number) => save<RuleSetWriteRequest, IdResponse | undefined>("/admin/api/rule-sets", value, id)
 export const deleteRuleSet = (id: number) => deleteEntity("rule-sets", id)
 export const rules = () => api<Array<RuleDto>>("/admin/api/rules")
 export const saveRule = (value: RuleWriteRequest, id?: number) => save("/admin/api/rules", value, id)

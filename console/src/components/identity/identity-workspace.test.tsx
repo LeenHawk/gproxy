@@ -36,6 +36,7 @@ describe("IdentityWorkspace", () => {
       quotas={[]}
     /></QueryClientProvider>)
 
+    expect(screen.getAllByRole("button", { name: "Delete: Alice" })).toHaveLength(2)
     const user = userEvent.setup()
     await user.clear(screen.getByRole("textbox", { name: "Name" }))
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Alice Renamed")

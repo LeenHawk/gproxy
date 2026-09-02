@@ -12,6 +12,7 @@ type Props<T extends { id: number }> = {
   title: string
   items: Array<T>
   selectedId: number | null
+  detailOpen?: boolean
   getSearchText: (item: T) => string
   renderTitle: (item: T) => ReactNode
   renderSummary: (item: T) => ReactNode
@@ -62,7 +63,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
     setBatchMode(false)
     setSelectedIds(new Set())
   }
-  const hasDetail = props.selectedId != null
+  const hasDetail = props.detailOpen ?? props.selectedId != null
 
   return (
     <div className="flex min-h-[calc(100svh-10rem)] overflow-hidden rounded-xl border bg-background">

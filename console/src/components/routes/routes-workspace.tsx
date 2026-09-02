@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveRoute } from "@/api/control"
@@ -12,9 +11,10 @@ import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { EnabledSwitch } from "@/components/routes/enabled-switch"
 import { MembersPanel } from "@/components/routes/members-panel"
 import { ModelAliases } from "@/components/routes/model-aliases"
-import { RouteEditor, RouteForm } from "@/components/routes/route-form"
+import { RouteEditor } from "@/components/routes/route-form"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
@@ -34,15 +34,15 @@ type Props = {
 export function RoutesWorkspace(props: Props) {
   const { t } = useTranslation()
   const location = useAdminLocation()
-  const [form, setForm] = useState<{ opener: HTMLElement } | null>(null)
+  const creating = location.segments[0] === "new"
   const selectedId = Number(location.segments[0])
   const selected = props.routes.find((route) => route.id === selectedId) ?? null
   const detailTab = location.segments[1] === "models" || location.segments[1] === "settings"
     ? location.segments[1]
     : "members"
 
-  return <>
-    <WorkspaceLayout
+  const back = () => navigateAdminPath(adminPath("routes"))
+  return <WorkspaceLayout
       storageKey="gproxy.workspace.routes.width"
       title={t("routes.listTitle")}
       items={props.routes}
@@ -50,15 +50,9 @@ export function RoutesWorkspace(props: Props) {
       getSearchText={(route) => route.name}
       renderTitle={(route) => route.name}
       renderSummary={(route) => t("routes.summary", { attempts: route.max_attempts })}
-      renderAction={(route) => <EnabledSwitch
-        checked={route.enabled}
-        label={`${route.name}: ${t("routes.fields.enabled")}`}
-        errorMessage={t("routes.form.updateError")}
-        onChange={(enabled) => saveRoute({ name: route.name, max_attempts: route.max_attempts, enabled }, route.id)}
-        onChanged={props.onRoutesChanged}
-      />}
+      renderAction={(route) => <div className="flex items-center gap-1"><EnabledSwitch checked={route.enabled} label={`${route.name}: ${t("routes.fields.enabled")}`} errorMessage={t("routes.form.updateError")} onChange={(enabled) => saveRoute({ name: route.name, max_attempts: route.max_attempts, enabled }, route.id)} onChanged={props.onRoutesChanged} /><EntityDeleteButton entity="routes" id={route.id} label={route.name} queryKeys={["routes", "route-members", "model-aliases"]} onDeleted={route.id === selected?.id ? back : undefined} /></div>}
       onSelect={(route) => navigateAdminPath(`/admin/routes/${route.id}/members`)}
-      onBack={() => navigateAdminPath(adminPath("routes"))}
+      onBack={back}
       searchPlaceholder={t("routes.search")}
       emptyLabel={t("routes.empty")}
       resizeLabel={t("routes.resize")}
@@ -66,11 +60,15 @@ export function RoutesWorkspace(props: Props) {
       selectRowLabel={(route) => `${t("common.dataTable.selectRow")}: ${route.name}`}
       selectedLabel={(count) => t("common.dataTable.selected", { count })}
       mobileBackLabel={t("common.actions.back")}
-      createAction={<Button size="icon-sm" aria-label={t("routes.add")} onClick={(event) => setForm({ opener: event.currentTarget })}><PlusIcon aria-hidden /></Button>}
+      createAction={<Button size="icon-sm" aria-label={t("routes.add")} onClick={() => navigateAdminPath("/admin/routes/new/settings")}><PlusIcon aria-hidden /></Button>}
       batchActions={(rows, done) => <BatchActions entity="routes" rows={rows} queryKeys={["routes", "route-members", "model-aliases"]} onApplied={done} size="xs" />}
       emptyState={<Empty><EmptyHeader><EmptyTitle>{t("routes.listTitle")}</EmptyTitle><EmptyDescription>{t("routes.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
+      detailOpen={creating || selected != null}
     >
-      {selected ? <Tabs value={detailTab} onValueChange={(tab) => navigateAdminPath(`/admin/routes/${selected.id}/${tab}`, true)}>
+      {creating ? <Card><CardHeader><CardTitle>{t("routes.form.createTitle")}</CardTitle></CardHeader><CardContent><RouteEditor route={null} onChanged={props.onRoutesChanged} onSaved={(result) => { if (result) navigateAdminPath(`/admin/routes/${result.id}/settings`) }} /></CardContent></Card> : null}
+      {selected ? <div className="flex flex-col gap-4">
+        <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">{selected.name}</h2><p className="mt-1 text-sm text-muted-foreground">{t("routes.summary", { attempts: selected.max_attempts })}</p></div><div className="flex items-center gap-2"><Badge variant={selected.enabled ? "success" : "outline"}>{t(`common.status.${selected.enabled ? "enabled" : "disabled"}`)}</Badge><EntityDeleteButton entity="routes" id={selected.id} label={selected.name} queryKeys={["routes", "route-members", "model-aliases"]} onDeleted={back} /></div></header>
+        <Tabs value={detailTab} onValueChange={(tab) => navigateAdminPath(`/admin/routes/${selected.id}/${tab}`, true)}>
         <TabsList variant="line">
           <TabsTrigger value="members">{t("routes.members.title")}</TabsTrigger>
           <TabsTrigger value="models">{t("routes.aliases.title")}</TabsTrigger>
@@ -84,17 +82,11 @@ export function RoutesWorkspace(props: Props) {
         </TabsContent>
         <TabsContent value="settings" className="pt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>{selected.name}</CardTitle>
-              <CardAction className="flex items-center gap-2">
-                <EntityDeleteButton entity="routes" id={selected.id} label={selected.name} queryKeys={["routes", "route-members", "model-aliases"]} />
-              </CardAction>
-            </CardHeader>
+            <CardHeader><CardTitle>{t("routes.tabs.settings")}</CardTitle></CardHeader>
             <CardContent><RouteEditor key={`${selected.id}-${selected.name}-${selected.max_attempts}-${selected.enabled}`} route={selected} onChanged={props.onRoutesChanged} /></CardContent>
           </Card>
         </TabsContent>
-      </Tabs> : null}
+        </Tabs>
+      </div> : null}
     </WorkspaceLayout>
-    {form ? <RouteForm opener={form.opener} onOpenChange={(open) => { if (!open) setForm(null) }} onChanged={props.onRoutesChanged} /> : null}
-  </>
 }

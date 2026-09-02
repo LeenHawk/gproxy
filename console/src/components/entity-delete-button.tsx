@@ -6,11 +6,12 @@ import { deleteEntity } from "@/api/control"
 import type { Entity } from "@/generated/Entity"
 import { Button } from "@/components/ui/button"
 
-export function EntityDeleteButton({ entity, id, label, queryKeys, onDeleted }: {
+export function EntityDeleteButton({ entity, id, label, queryKeys, disabled, onDeleted }: {
   entity: Entity
   id: number
   label: string
   queryKeys: Array<string>
+  disabled?: boolean
   onDeleted?: () => void
 }) {
   const { t } = useTranslation()
@@ -25,7 +26,7 @@ export function EntityDeleteButton({ entity, id, label, queryKeys, onDeleted }: 
     onError: () => toast.error(t("common.batch.failed")),
   })
   return (
-    <Button size="icon-sm" variant="ghost" disabled={mutation.isPending} onClick={() => mutation.mutate()} aria-label={`${t("common.actions.delete")}: ${label}`}>
+    <Button size="icon-sm" variant="ghost" disabled={disabled || mutation.isPending} onClick={() => mutation.mutate()} aria-label={`${t("common.actions.delete")}: ${label}`}>
       <Trash2Icon aria-hidden />
     </Button>
   )

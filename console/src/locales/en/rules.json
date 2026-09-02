@@ -9,7 +9,6 @@
     "sets": {
       "title": "Rule sets",
       "add": "New rule set",
-      "edit": "Edit rule set",
       "settings": "Basic settings",
       "empty": "No rule sets",
       "noDescription": "No description",

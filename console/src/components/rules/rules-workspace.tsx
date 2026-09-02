@@ -1,19 +1,22 @@
 import { useMemo, useState } from "react"
 import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import type { IdResponse } from "@/generated/IdResponse"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
 import type { ProviderRuleSetWriteRequest } from "@/generated/ProviderRuleSetWriteRequest"
 import type { RuleDto } from "@/generated/RuleDto"
 import type { RuleSetDto } from "@/generated/RuleSetDto"
+import type { RuleSetWriteRequest } from "@/generated/RuleSetWriteRequest"
 import { ApplicationPresetButton } from "@/components/rules/application-preset-button"
 import { AttachmentDialog } from "@/components/rules/attachment-dialog"
 import { RuleList } from "@/components/rules/rule-list"
-import { RuleSetDialog } from "@/components/rules/rule-set-dialog"
+import { RuleSetForm } from "@/components/rules/rule-set-form"
 import { BatchActions } from "@/components/batch-actions"
+import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
@@ -21,8 +24,7 @@ import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-rout
 
 export type RuleMutations = {
   saving: boolean
-  saveSet: Parameters<typeof RuleSetDialog>[0]["onSave"]
-  deleteSet: (id: number) => void
+  saveSet: (value: RuleSetWriteRequest, id?: number) => Promise<IdResponse | undefined>
   saveRule: Parameters<typeof RuleList>[0]["onSave"]
   deleteRule: (id: number) => void
   attach: (value: ProviderRuleSetWriteRequest, id?: number) => Promise<void>
@@ -42,6 +44,7 @@ export function RulesWorkspace(props: Props) {
   const { t } = useTranslation()
   const location = useAdminLocation()
   const embedded = props.scopeProviderId != null
+  const creating = !embedded && location.segments[0] === "new"
   const scopedAttachments = embedded
     ? props.attachments.filter((attachment) => attachment.provider_id === props.scopeProviderId)
     : props.attachments
@@ -88,11 +91,11 @@ export function RulesWorkspace(props: Props) {
       onSave={props.mutations.attach}
       trigger={<Button size="icon-sm" disabled={!unattached.length} aria-label={t("rules.attachments.attachExisting")}><PlusIcon aria-hidden /></Button>}
     />
-  </div> : <RuleSetDialog
-    saving={props.mutations.saving}
-    onSave={props.mutations.saveSet}
-    trigger={<Button size="icon-sm" aria-label={t("rules.sets.add")}><PlusIcon aria-hidden /></Button>}
-  />
+  </div> : <Button size="icon-sm" aria-label={t("rules.sets.add")} onClick={() => navigateAdminPath("/admin/rules/new/settings")}><PlusIcon aria-hidden /></Button>
+
+  const back = () => embedded ? setLocalSelectedId(null) : navigateAdminPath(adminPath("rules"))
+  const cannotDelete = (set: RuleSetDto) => props.rules.some((rule) => rule.rule_set_id === set.id)
+    || props.attachments.some((attachment) => attachment.rule_set_id === set.id)
 
   return <WorkspaceLayout
     storageKey={embedded ? `gproxy.workspace.provider-${props.scopeProviderId}-rules.width` : "gproxy.workspace.rules.width"}
@@ -102,9 +105,9 @@ export function RulesWorkspace(props: Props) {
     getSearchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`}
     renderTitle={(set) => ruleSetText(set, "name", t)}
     renderSummary={(set) => ruleSetText(set, "description", t)}
-    renderAction={(set) => <Badge variant="secondary" aria-label={t("rules.fields.scope")}>{scopeLabel(props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length, t)}</Badge>}
+    renderAction={(set) => <div className="flex items-center gap-1"><Badge variant="secondary" aria-label={t("rules.fields.scope")}>{scopeLabel(props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length, t)}</Badge>{embedded ? null : <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} disabled={cannotDelete(set)} onDeleted={set.id === selected?.id ? back : undefined} />}</div>}
     onSelect={(set) => embedded ? setLocalSelectedId(set.id) : navigateAdminPath(`/admin/rules/${set.id}/rules`)}
-    onBack={() => embedded ? setLocalSelectedId(null) : navigateAdminPath(adminPath("rules"))}
+    onBack={back}
     searchPlaceholder={t("rules.sets.search")}
     emptyLabel={t(embedded ? "rules.attachments.empty" : "rules.sets.empty")}
     resizeLabel={t("rules.sets.resize")}
@@ -115,7 +118,9 @@ export function RulesWorkspace(props: Props) {
     createAction={createAction}
     batchActions={embedded ? undefined : (rows, done) => <BatchActions entity="rule-sets" rows={rows} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} onApplied={done} size="xs" />}
     emptyState={<Empty><EmptyHeader><EmptyTitle>{t("rules.sets.title")}</EmptyTitle><EmptyDescription>{t("rules.sets.selectPrompt")}</EmptyDescription></EmptyHeader></Empty>}
+    detailOpen={creating || selected != null}
   >
+    {creating ? <Card><CardHeader><CardTitle>{t("rules.sets.add")}</CardTitle></CardHeader><CardContent><RuleSetForm saving={props.mutations.saving} onSave={props.mutations.saveSet} onSaved={(result) => { if (result) navigateAdminPath(`/admin/rules/${result.id}/settings`) }} /></CardContent></Card> : null}
     {selected ? <RuleSetDetail
       selected={selected}
       detailTab={detailTab}
@@ -127,6 +132,7 @@ export function RulesWorkspace(props: Props) {
       providerNames={providerNames}
       mutations={props.mutations}
       onDetach={detach}
+      onDeleted={back}
     /> : null}
   </WorkspaceLayout>
 }
@@ -142,6 +148,7 @@ function RuleSetDetail(props: {
   providerNames: Map<number, string>
   mutations: RuleMutations
   onDetach: (attachment: ProviderRuleSetDto) => void
+  onDeleted: () => void
 }) {
   const { t } = useTranslation()
   const selectedRules = props.rules.filter((rule) => rule.rule_set_id === props.selected.id)
@@ -156,7 +163,7 @@ function RuleSetDetail(props: {
   </div>
 
   return <div className="flex flex-col gap-4">
-    <RuleSetSummary set={props.selected} attachments={props.attachments} />
+    <RuleSetSummary set={props.selected} attachments={props.attachments} deleteDisabled={selectedRules.length > 0 || props.attachments.length > 0} onDeleted={props.onDeleted} />
     <Tabs value={props.detailTab} onValueChange={(tab) => navigateAdminPath(`/admin/rules/${props.selected.id}/${tab}`, true)}>
       <TabsList variant="line">
         <TabsTrigger value="rules">{t("rules.entries.title")}</TabsTrigger>
@@ -183,30 +190,25 @@ function RuleSetDetail(props: {
       <TabsContent value="settings" className="pt-4">
         <Card>
           <CardHeader><CardTitle>{t("rules.sets.settings")}</CardTitle></CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <RuleSetDialog ruleSet={props.selected} saving={props.mutations.saving} onSave={props.mutations.saveSet} trigger={<Button variant="outline">{t("common.actions.edit")}</Button>} />
-            <Button variant="ghost" disabled={selectedRules.length > 0 || props.attachments.length > 0} onClick={() => props.mutations.deleteSet(props.selected.id)}>{t("common.actions.delete")}</Button>
-          </CardContent>
+          <CardContent><RuleSetForm key={`${props.selected.id}-${props.selected.name}-${props.selected.description}-${props.selected.enabled}`} ruleSet={props.selected} saving={props.mutations.saving} onSave={props.mutations.saveSet} /></CardContent>
         </Card>
       </TabsContent>
     </Tabs>
   </div>
 }
 
-function RuleSetSummary({ set, attachments, scopedAttachment }: {
+function RuleSetSummary({ set, attachments, scopedAttachment, deleteDisabled, onDeleted }: {
   set: RuleSetDto
   attachments: Array<ProviderRuleSetDto>
   scopedAttachment?: ProviderRuleSetDto
+  deleteDisabled?: boolean
+  onDeleted?: () => void
 }) {
   const { t } = useTranslation()
-  return <Card>
-    <CardHeader><CardTitle>{ruleSetText(set, "name", t)}</CardTitle><CardDescription>{ruleSetText(set, "description", t)}</CardDescription></CardHeader>
-    <CardContent className="flex flex-wrap gap-2">
-      <Badge>{scopeLabel(attachments.length, t)}</Badge>
-      {scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}
-      {!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}
-    </CardContent>
-  </Card>
+  return <header className="flex flex-wrap items-start justify-between gap-3">
+    <div><h2 className="text-xl font-semibold">{ruleSetText(set, "name", t)}</h2><p className="mt-1 text-sm text-muted-foreground">{ruleSetText(set, "description", t)}</p></div>
+    <div className="flex flex-wrap items-center gap-2"><Badge>{scopeLabel(attachments.length, t)}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}{onDeleted ? <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} disabled={deleteDisabled} onDeleted={onDeleted} /> : null}</div>
+  </header>
 }
 
 function scopeLabel(count: number, t: (key: string) => string) {
