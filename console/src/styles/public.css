@@ -16,12 +16,18 @@
   --border: #bcccdc;
   --input: var(--border);
   --ring: #087f8c;
+  --rewrite: #c44a26;
+  --rewrite-soft: color-mix(in srgb, var(--background) 80%, var(--rewrite));
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
 }
 
 .public-display {
+  font-family: "Noto Sans Mono Variable", "Noto Sans SC Variable", "Noto Sans TC Variable", ui-monospace, monospace;
+}
+
+.public-machine {
   font-family: "Noto Sans Mono Variable", "Noto Sans SC Variable", "Noto Sans TC Variable", ui-monospace, monospace;
 }
 
@@ -75,6 +81,7 @@
   font-weight: 680;
   letter-spacing: -0.075em;
   line-height: 0.96;
+  word-break: keep-all;
 }
 
 .public-hero-copy p {
@@ -85,32 +92,48 @@
   line-height: 1.7;
 }
 
-.public-lab {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 0.8rem;
-  background: var(--card);
-  box-shadow: 0 1.8rem 4rem color-mix(in srgb, var(--foreground) 10%, transparent);
+.public-section-title {
+  max-width: 18ch;
+  margin: 0;
+  font-family: "Noto Sans Mono Variable", "Noto Sans SC Variable", "Noto Sans TC Variable", ui-monospace, monospace;
+  font-size: clamp(2rem, 4.4vw, 4rem);
+  font-weight: 660;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
 }
 
-.public-lab-toolbar {
+.public-section-lede {
+  max-width: 52rem;
+  margin: 1rem 0 0;
+  color: var(--muted-foreground);
+  font-size: clamp(1rem, 1.4vw, 1.12rem);
+  line-height: 1.7;
+}
+
+.public-footer {
   display: flex;
-  min-height: 4.25rem;
+  width: min(100% - 2rem, 80rem);
+  min-height: 7rem;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
+  gap: 1.5rem;
+  margin-inline: auto;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
 }
 
-.public-lab-title {
-  margin: 0;
-  font-size: 0.76rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.public-footer-meta,
+.public-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem 1.2rem;
 }
+
+.public-footer-brand { color: var(--foreground); font-weight: 720; }
+.public-footer a { color: var(--foreground); text-decoration: none; }
+.public-footer a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 
 @media (max-width: 54rem) {
   .public-hero-copy { grid-template-columns: 1fr; }
@@ -120,5 +143,5 @@
   .public-masthead { align-items: flex-start; padding-block: 1rem; }
   .public-nav { flex-wrap: wrap; justify-content: flex-end; }
   .public-hero-copy { gap: 1.5rem; }
-  .public-lab-toolbar { align-items: flex-start; flex-direction: column; }
+  .public-footer { align-items: flex-start; flex-direction: column; padding-block: 2rem; }
 }

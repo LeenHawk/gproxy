@@ -113,13 +113,14 @@
       "portal": "User login"
     },
     "hero": {
-      "title": "One request. Every provider dialect. Nothing dropped.",
-      "description": "Send the wire your client already speaks. GPROXY translates directly, preserves unknown fields, and makes every response pass through settlement.",
-      "labLabel": "Live request translation",
-      "labTitle": "Live wire translation",
-      "switchLabel": "Provider wire format",
+      "title": "Your tools. Your models. One gateway.",
+      "description": "Point OpenAI, Claude, Gemini, Codex CLI, or Claude Code at GPROXY. It handles translation, credential pooling, failover, quotas, and billing without changing how your clients work.",
+      "labLabel": "Request translation example",
+      "switchLabel": "Translate to",
       "clientLabel": "Client request",
-      "providerLabel": "Provider wire",
+      "providerLabel": "Upstream request",
+      "passthrough": "No translation needed · request passes through unchanged",
+      "summary": "{{rewritten}} lines changed · {{kept}} kept unchanged",
       "dialects": {
         "openai": "OpenAI Chat",
         "claude": "Claude Messages",
@@ -137,34 +138,64 @@
         "gemini": "{\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": \"Inspect src/auth.rs for a refresh race.\"\n    }]\n  }],\n  \"tools\": [{\n    \"functionDeclarations\": [{\n      \"name\": \"read_file\",\n      \"description\": \"Read a repository file.\",\n      \"parameters\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"path\": { \"type\": \"STRING\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }]\n  }],\n  \"toolConfig\": {\n    \"functionCallingConfig\": { \"mode\": \"AUTO\" }\n  }\n}"
       }
     },
+    "funnel": {
+      "title": "Every request takes the same path.",
+      "description": "Whether it comes from an SDK or a vendor CLI, every request goes through the same routing, failover, quota, settlement, and telemetry pipeline. No hidden shortcuts. No missed billing.",
+      "pipelineLabel": "GPROXY request execution pipeline",
+      "funnelLabel": "Mandatory response settlement stages",
+      "caption": "A response cannot leave GPROXY until settlement is complete.",
+      "stages": {
+        "ingress": "ingress",
+        "classify": "classify",
+        "auth": "auth",
+        "route": "route",
+        "admit": "admit",
+        "transform": "transform",
+        "upstream": "upstream",
+        "settle": "settle",
+        "capture": "capture",
+        "telemetry": "telemetry"
+      }
+    },
     "claims": {
-      "title": "Many wires enter. Every response exits through settlement.",
-      "convergenceLabel": "OpenAI Chat, Claude Messages, and Gemini converge on one settlement funnel.",
-      "funnel": "settlement funnel",
-      "compile": {
-        "title": "Skipping billing is a compile error.",
-        "body": "Every response carries a proof token only the settlement funnel can construct. Bypass it and Rust refuses the build."
-      },
       "pairwise": {
-        "title": "No IR sands off the edges.",
-        "body": "Conversions are direct pairs between real wire formats. There is no hub schema deciding which details survive."
+        "title": "Protocol details stay intact.",
+        "body": "GPROXY translates directly between real provider formats instead of squeezing every request through a lossy common schema."
       },
       "unknown": {
-        "title": "Unknown fields survive the round trip.",
-        "body": "Every typed model retains unmodeled JSON. A field a provider ships today still reaches your client."
+        "title": "New provider fields do not disappear.",
+        "body": "Fields GPROXY does not recognize yet are preserved, so provider updates can still reach your client."
       },
       "cli": {
-        "title": "Your CLIs stay vendor-native.",
-        "body": "Codex CLI and Claude Code run against pooled credentials through the same metered execution path."
+        "title": "Codex CLI and Claude Code just work.",
+        "body": "Use their normal login and request flows while GPROXY supplies pooled credentials and keeps every request metered."
       },
       "providers": {
-        "title": "28 providers. One base URL.",
-        "body": "Pool credentials, fail over between route members, and enforce spend limits per key without reconfiguring clients."
+        "title": "Multiple providers. One base URL.",
+        "body": "Pool credentials, fail over between routes, and enforce spending limits without reconfiguring every client."
       },
       "runtime": {
-        "title": "Native binary or wasm at the edge.",
-        "body": "The same framework-free request and outcome boundary runs behind a TCP host or a fetch worker."
+        "title": "Deploy it where you need it.",
+        "body": "Run GPROXY as a native server or put the same core behind an edge worker."
       }
+    },
+    "connect": {
+      "title": "Bring the client you already use.",
+      "description": "Copy an example for your SDK or CLI. Sign in to see the models available to your account and create an API key.",
+      "modelPlaceholder": "your-model",
+      "note": "Your models and API keys are waiting in the user portal.",
+      "portalLink": "Open the portal",
+      "methodsLabel": "Connection examples",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Copy failed"
+    },
+    "version": "v{{version}}",
+    "footer": {
+      "label": "Project links",
+      "license": "AGPL-3.0",
+      "source": "Source",
+      "architecture": "Architecture"
     }
   }
 }

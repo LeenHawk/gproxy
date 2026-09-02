@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { DialectLab } from "@/components/public/dialect-lab"
+import { WireDiff } from "@/components/public/wire-diff"
 
 export function PublicHero() {
   const { t } = useTranslation()
@@ -9,7 +9,7 @@ export function PublicHero() {
         <h1 id="public-title" className="public-display">{t("public.hero.title")}</h1>
         <p>{t("public.hero.description")}</p>
       </div>
-      <DialectLab />
+      <WireDiff />
     </section>
   )
 }

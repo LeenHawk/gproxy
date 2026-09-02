@@ -113,13 +113,14 @@
       "portal": "用户登录"
     },
     "hero": {
-      "title": "一次请求。每种供应商协议。信息不丢失。",
-      "description": "继续发送客户端原本使用的协议。GPROXY 直接转换，保留未知字段，并让每个响应都经过结算。",
-      "labLabel": "实时请求转换",
-      "labTitle": "实时协议转换",
-      "switchLabel": "供应商协议格式",
+      "title": "工具照旧，多家模型，一个网关。",
+      "description": "把 OpenAI、Claude、Gemini、Codex CLI 或 Claude Code 指向 GPROXY。协议转换、凭据池、故障切换、配额和计费统一处理，客户端无需改造。",
+      "labLabel": "请求转换示例",
+      "switchLabel": "转换为",
       "clientLabel": "客户端请求",
-      "providerLabel": "供应商协议",
+      "providerLabel": "上游请求",
+      "passthrough": "无需转换 · 请求原样转发",
+      "summary": "转换 {{rewritten}} 行 · {{kept}} 行保持不变",
       "dialects": {
         "openai": "OpenAI Chat",
         "claude": "Claude Messages",
@@ -137,34 +138,64 @@
         "gemini": "{\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": \"检查 src/auth.rs 中的令牌刷新竞态。\"\n    }]\n  }],\n  \"tools\": [{\n    \"functionDeclarations\": [{\n      \"name\": \"read_file\",\n      \"description\": \"读取仓库文件。\",\n      \"parameters\": {\n        \"type\": \"OBJECT\",\n        \"properties\": {\n          \"path\": { \"type\": \"STRING\" }\n        },\n        \"required\": [\"path\"]\n      }\n    }]\n  }],\n  \"toolConfig\": {\n    \"functionCallingConfig\": { \"mode\": \"AUTO\" }\n  }\n}"
       }
     },
+    "funnel": {
+      "title": "每个请求，都走同一条完整链路。",
+      "description": "无论来自 SDK 还是官方 CLI，请求都会经过同一套路由、故障切换、配额、结算和遥测流程。没有隐藏旁路，也不会漏计费。",
+      "pipelineLabel": "GPROXY 请求执行管线",
+      "funnelLabel": "强制响应结算阶段",
+      "caption": "结算完成之前，响应无法离开 GPROXY。",
+      "stages": {
+        "ingress": "入口",
+        "classify": "分类",
+        "auth": "鉴权",
+        "route": "路由",
+        "admit": "准入",
+        "transform": "转换",
+        "upstream": "上游",
+        "settle": "结算",
+        "capture": "采集",
+        "telemetry": "遥测"
+      }
+    },
     "claims": {
-      "title": "多种协议进入。每个响应都经结算后离开。",
-      "convergenceLabel": "OpenAI Chat、Claude Messages 和 Gemini 汇聚到同一个结算漏斗。",
-      "funnel": "结算漏斗",
-      "compile": {
-        "title": "跳过计费，编译就会失败。",
-        "body": "每个响应都携带只有结算漏斗才能构造的证明令牌。绕过它，Rust 就会拒绝构建。"
-      },
       "pairwise": {
-        "title": "没有中间表示磨掉细节。",
-        "body": "转换直接发生在真实协议之间。不存在一个枢纽模式来决定哪些细节可以保留。"
+        "title": "协议细节不会被磨平。",
+        "body": "GPROXY 在真实的供应商格式之间直接转换，不会把所有请求硬塞进一个有损的通用结构。"
       },
       "unknown": {
-        "title": "未知字段也能完整往返。",
-        "body": "每个类型化模型都保留尚未建模的 JSON。供应商今天发布的字段，仍能到达你的客户端。"
+        "title": "供应商新增字段也不会消失。",
+        "body": "暂时无法识别的字段会被原样保留，因此供应商刚发布的新能力仍能传到客户端。"
       },
       "cli": {
-        "title": "你的 CLI 仍像在直连供应商。",
-        "body": "Codex CLI 和 Claude Code 使用池化凭据运行，并经过同一条计量执行路径。"
+        "title": "Codex CLI 和 Claude Code 开箱即用。",
+        "body": "继续使用它们原本的登录和请求流程，GPROXY 在背后提供池化凭据，并确保每个请求都被计量。"
       },
       "providers": {
-        "title": "28 个供应商，一个 Base URL。",
-        "body": "池化凭据、在路由成员间故障转移，并按密钥执行支出限制，无需重新配置客户端。"
+        "title": "多个供应商，只用一个 Base URL。",
+        "body": "统一池化凭据、切换故障路由并执行支出限制，不必逐个重新配置客户端。"
       },
       "runtime": {
-        "title": "原生二进制，或边缘 wasm。",
-        "body": "同一套无框架请求与结果边界，可以运行在 TCP 主机或 fetch worker 之后。"
+        "title": "部署在哪里，由你决定。",
+        "body": "既可以作为原生服务器运行，也可以把同一套核心放到边缘 Worker 后面。"
       }
+    },
+    "connect": {
+      "title": "用你手上的客户端，直接连。",
+      "description": "复制 SDK 或 CLI 示例即可开始。登录后可查看账号可用模型并创建 API 密钥。",
+      "modelPlaceholder": "你的模型",
+      "note": "你的可用模型和 API 密钥都在用户门户里。",
+      "portalLink": "打开用户门户",
+      "methodsLabel": "连接示例",
+      "copy": "复制",
+      "copied": "已复制",
+      "copyFailed": "复制失败"
+    },
+    "version": "v{{version}}",
+    "footer": {
+      "label": "项目链接",
+      "license": "AGPL-3.0",
+      "source": "源代码",
+      "architecture": "架构"
     }
   }
 }

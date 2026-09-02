@@ -7,7 +7,7 @@ import { applyInitialTheme } from "@/lib/theme-state"
 import "@/styles/globals.css"
 import "@/styles/public.css"
 import "@/styles/public-wire.css"
-import "@/styles/public-rail.css"
+import "@/styles/public-claims.css"
 
 applyInitialTheme()
 
