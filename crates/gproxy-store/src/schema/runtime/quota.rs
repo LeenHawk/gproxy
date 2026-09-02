@@ -2,7 +2,7 @@ use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, T
 
 pub(super) const TABLES: &[TableSpec] = &[
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "quota_windows",
         columns: &[
             Col::id(),
@@ -29,7 +29,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "credential_quota_cycles",
         columns: &[
             Col::id(),
@@ -49,7 +49,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::optional("used_percent", Text),
             Col::required("coverage", Text),
             Col::required("metrics_json", Text),
-            Col::optional("label", Text).since(SchemaVersion::Wave27),
+            Col::optional("label", Text),
         ],
         indexes: &[
             IndexSpec {
@@ -67,7 +67,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Wave26,
+        version: SchemaVersion::Initial,
         name: "credential_quota_cycle_models",
         columns: &[
             Col::id(),
@@ -91,7 +91,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "quota_settlements",
         columns: &[
             Col::id(),

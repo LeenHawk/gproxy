@@ -3,42 +3,12 @@ use super::{admin, control, identity, runtime, tokenizer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i64)]
 pub enum SchemaVersion {
-    Control = 1,
-    Runtime = 2,
-    Tokenizers = 3,
-    Admin = 4,
-    Pricing = 5,
-    Logging = 6,
-    Routing = 7,
-    Process = 8,
-    Configuration = 9,
-    Wave26 = 10,
-    Wave27 = 11,
-    Wave28 = 12,
-    Wave29 = 13,
-    Wave30 = 14,
-    Wave32 = 15,
+    Initial = 1,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 15] = [
-        Self::Control,
-        Self::Runtime,
-        Self::Tokenizers,
-        Self::Admin,
-        Self::Pricing,
-        Self::Logging,
-        Self::Routing,
-        Self::Process,
-        Self::Configuration,
-        Self::Wave26,
-        Self::Wave27,
-        Self::Wave28,
-        Self::Wave29,
-        Self::Wave30,
-        Self::Wave32,
-    ];
-    pub const LATEST: Self = Self::Wave32;
+    pub const ALL: [Self; 1] = [Self::Initial];
+    pub const LATEST: Self = Self::Initial;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -150,8 +120,4 @@ pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
         .chain(tokenizer::TABLES)
         .chain(admin::TABLES)
         .chain(super::oauth::TABLES)
-}
-
-pub(super) fn migration_tables() -> impl Iterator<Item = &'static TableSpec> {
-    tables().chain(admin::LEGACY_TABLES)
 }

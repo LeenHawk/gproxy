@@ -1,7 +1,7 @@
 use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
 
 pub(super) const TABLES: &[TableSpec] = &[TableSpec {
-    version: SchemaVersion::Runtime,
+    version: SchemaVersion::Initial,
     name: "surface_bindings",
     columns: &[
         Col::id(),

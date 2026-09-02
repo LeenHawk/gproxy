@@ -2,7 +2,7 @@ use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpe
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
-        version: SchemaVersion::Wave28,
+        version: SchemaVersion::Initial,
         name: "oauth_grants",
         columns: &[
             Col::id(),
@@ -32,7 +32,7 @@ pub const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Wave28,
+        version: SchemaVersion::Initial,
         name: "oauth_codes",
         columns: &[
             Col::id(),
@@ -52,7 +52,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Wave28,
+        version: SchemaVersion::Initial,
         name: "oauth_tokens",
         columns: &[
             Col::id(),
@@ -80,7 +80,7 @@ pub const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Wave28,
+        version: SchemaVersion::Initial,
         name: "oauth_devices",
         columns: &[
             Col::id(),

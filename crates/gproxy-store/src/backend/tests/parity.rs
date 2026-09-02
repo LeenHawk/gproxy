@@ -1,12 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::libsql::LibsqlHttp;
-use super::super::native::NativeSql;
-use super::super::{Executor, SharedExecutor, Statement};
-use super::sender::SqliteHrana;
-use super::{libsql_store, native_store, scenario, store};
-use crate::migration;
-use crate::schema::{Dialect, SchemaVersion, tables};
+use super::super::{Executor, Statement};
+use super::{libsql_store, native_store, scenario};
+use crate::schema::{Dialect, tables};
 
 #[tokio::test]
 async fn native_and_libsql_share_schema_and_query_behavior() {
@@ -21,6 +17,8 @@ async fn native_and_libsql_share_schema_and_query_behavior() {
 
     assert_eq!(schema_shape(native_db.as_ref()).await, expected_shape());
     assert_eq!(index_shape(native_db.as_ref()).await, expected_indexes());
+    assert_eq!(migration_versions(native_db.as_ref()).await, vec![1]);
+    assert_eq!(migration_versions(remote_db.as_ref()).await, vec![1]);
     assert_eq!(
         schema_shape(native_db.as_ref()).await,
         schema_shape(remote_db.as_ref()).await
@@ -30,179 +28,6 @@ async fn native_and_libsql_share_schema_and_query_behavior() {
         index_shape(remote_db.as_ref()).await
     );
     assert_eq!(scenario::run(&native).await, scenario::run(&libsql).await);
-}
-
-#[tokio::test]
-async fn fresh_and_incrementally_migrated_databases_converge() {
-    let fresh_dir = tempfile::tempdir().expect("fresh tempdir");
-    let old_dir = tempfile::tempdir().expect("old tempdir");
-    let fresh = std::sync::Arc::new(
-        super::super::native::NativeSql::open(fresh_dir.path().join("fresh.db"))
-            .await
-            .expect("fresh database"),
-    );
-    migration::migrate(fresh.as_ref(), Dialect::NativeSqlite)
-        .await
-        .expect("fresh migration");
-
-    let old = std::sync::Arc::new(
-        super::super::native::NativeSql::open(old_dir.path().join("old.db"))
-            .await
-            .expect("old database"),
-    );
-    migration::migrate_to(old.as_ref(), Dialect::NativeSqlite, SchemaVersion::Control)
-        .await
-        .expect("control migration");
-    assert!(!schema_shape(old.as_ref()).await.contains_key("usage_rows"));
-    migration::migrate(old.as_ref(), Dialect::NativeSqlite)
-        .await
-        .expect("runtime migration");
-
-    assert_eq!(
-        schema_shape(fresh.as_ref()).await,
-        schema_shape(old.as_ref()).await
-    );
-    assert_eq!(
-        index_shape(fresh.as_ref()).await,
-        index_shape(old.as_ref()).await
-    );
-    let fresh_store = store(fresh);
-    let old_store = store(old);
-    assert_eq!(
-        scenario::run(&fresh_store).await,
-        scenario::run(&old_store).await
-    );
-}
-
-#[tokio::test]
-async fn wave_30_preserves_vocabularies_and_backfills_their_repository() {
-    let directory = tempfile::tempdir().expect("native tempdir");
-    let executor = std::sync::Arc::new(
-        NativeSql::open(directory.path().join("tokenizers.db"))
-            .await
-            .expect("native database"),
-    );
-    migration::migrate_to(
-        executor.as_ref(),
-        Dialect::NativeSqlite,
-        SchemaVersion::Wave29,
-    )
-    .await
-    .expect("pre-wave migration");
-    executor
-        .execute(Statement::plain(
-            "INSERT INTO tokenizer_vocabs (name, bytes, updated_at) VALUES ('owner/model', X'0102', 100)",
-        ))
-        .await
-        .expect("seed tokenizer");
-
-    migration::migrate(executor.as_ref(), Dialect::NativeSqlite)
-        .await
-        .expect("wave 30 migration");
-    let vocab = store(executor)
-        .tokenizer_vocabs()
-        .await
-        .expect("list tokenizers")
-        .pop()
-        .expect("preserved tokenizer");
-
-    assert_eq!(vocab.name, "owner/model");
-    assert_eq!(vocab.repository, "owner/model");
-}
-
-#[tokio::test]
-async fn wave_26_preserves_admin_identity_across_backends() {
-    let native_dir = tempfile::tempdir().expect("native tempdir");
-    let remote_dir = tempfile::tempdir().expect("libsql tempdir");
-    let native: SharedExecutor = std::sync::Arc::new(
-        NativeSql::open(native_dir.path().join("native.db"))
-            .await
-            .expect("native database"),
-    );
-    let remote = std::sync::Arc::new(
-        NativeSql::open(remote_dir.path().join("remote.db"))
-            .await
-            .expect("remote database"),
-    );
-    let libsql: SharedExecutor = std::sync::Arc::new(LibsqlHttp::with_sender(
-        "https://store.invalid".into(),
-        "test-token".into(),
-        SqliteHrana::new(remote),
-    ));
-
-    for (executor, dialect) in [(native, Dialect::NativeSqlite), (libsql, Dialect::Libsql)] {
-        migration::migrate_to(executor.as_ref(), dialect, SchemaVersion::Configuration)
-            .await
-            .expect("pre-wave migration");
-        executor
-            .batch(vec![
-                Statement::plain("INSERT INTO organizations (id, name, enabled) VALUES (1, 'existing', 1)"),
-                Statement::plain("INSERT INTO users (id, name, organization_id, team_id, enabled) VALUES (1, 'existing-user', 1, NULL, 1)"),
-                Statement::plain("INSERT INTO admin_accounts (id, username, password_hash, enabled, created_at) VALUES (1, 'operator', 'argon2-hash', 1, 100)"),
-                Statement::plain("INSERT INTO admin_sessions (token_digest, admin_id, created_at, expires_at) VALUES (X'0102', 1, 100, 200)"),
-                Statement::plain("INSERT INTO admin_api_keys (digest, admin_id, created_at) VALUES (X'0304', 1, 100)"),
-                Statement::plain("INSERT INTO admin_audit_events (actor_admin_id, action, target_kind, target_id, at, details_json) VALUES (1, 'provider.update', 'provider', 9, 110, NULL)"),
-                Statement::plain("INSERT INTO credential_health (credential_id, credential_version, version, state, observed_at, response_status, detail) VALUES (7, 1, 2, 'dead', 120, 401, 'rejected')"),
-            ])
-            .await
-            .expect("pre-wave seed");
-
-        migration::migrate(executor.as_ref(), dialect)
-            .await
-            .expect("wave 26 migration");
-        assert_eq!(schema_shape(executor.as_ref()).await, expected_shape());
-        assert_eq!(index_shape(executor.as_ref()).await, expected_indexes());
-
-        let store = crate::Store {
-            executor: executor.clone(),
-            dialect,
-        };
-        let admin = store
-            .admin_by_username("operator")
-            .await
-            .expect("admin lookup")
-            .expect("migrated admin");
-        assert_eq!(admin.password_hash, "argon2-hash");
-        assert_ne!(
-            admin.id, 1,
-            "legacy admin id must not be copied as a user id"
-        );
-        assert_eq!(
-            store
-                .admin_for_session(&[1, 2], 150)
-                .await
-                .expect("session lookup")
-                .expect("migrated session")
-                .id,
-            admin.id
-        );
-        assert_eq!(
-            store
-                .admin_for_api_key(&[3, 4], 150)
-                .await
-                .expect("key lookup")
-                .expect("migrated key")
-                .id,
-            admin.id
-        );
-        let audit = store.audit_events(1).await.expect("audit lookup");
-        assert_eq!(audit[0].event.actor_user_id, admin.id);
-        let snapshot = store.control_snapshot().await.expect("control snapshot");
-        let user = snapshot
-            .users
-            .iter()
-            .find(|user| user.id == admin.id)
-            .expect("admin in user list");
-        assert!(user.is_admin);
-        assert!(user.organization_id.is_some());
-        assert!(snapshot.permissions.iter().any(|permission| {
-            permission.subject_kind == "user"
-                && permission.subject_id == admin.id
-                && permission.allowed
-        }));
-        let health = store.credential_health().await.expect("health lookup");
-        assert_eq!(health[0].model, "*");
-    }
 }
 
 #[tokio::test]
@@ -342,6 +167,19 @@ async fn row_count(store: &crate::Store, table: &str) -> i64 {
         .rows[0]
         .i64("count")
         .expect("count")
+}
+
+async fn migration_versions(executor: &dyn Executor) -> Vec<i64> {
+    executor
+        .execute(Statement::plain(
+            "SELECT version FROM schema_migrations ORDER BY version",
+        ))
+        .await
+        .expect("migration history")
+        .rows
+        .iter()
+        .map(|row| row.i64("version").expect("migration version"))
+        .collect()
 }
 
 async fn schema_shape(executor: &dyn Executor) -> BTreeMap<String, BTreeSet<String>> {

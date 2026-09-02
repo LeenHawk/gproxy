@@ -2,7 +2,7 @@ use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpe
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "organizations",
         columns: &[
             Col::id(),
@@ -12,7 +12,7 @@ pub const TABLES: &[TableSpec] = &[
         indexes: &[],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "teams",
         columns: &[
             Col::id(),
@@ -28,18 +28,16 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "users",
         columns: &[
             Col::id(),
             Col::required("name", Text).unique(),
             Col::optional("organization_id", Integer),
             Col::optional("team_id", Integer),
-            Col::optional("password_hash", Text).since(SchemaVersion::Wave26),
+            Col::optional("password_hash", Text),
             Col::required("enabled", Integer),
-            Col::required("is_admin", Integer)
-                .default("0")
-                .since(SchemaVersion::Wave26),
+            Col::required("is_admin", Integer).default("0"),
         ],
         indexes: &[
             IndexSpec {
@@ -57,7 +55,7 @@ pub const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "user_keys",
         columns: &[
             Col::id(),
@@ -66,14 +64,12 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("label", Text),
             Col::optional("expires_at", Integer),
             Col::required("enabled", Integer),
-            Col::required("digest_version", Integer)
-                .default("1")
-                .since(SchemaVersion::Admin),
-            Col::optional("prefix", Text).since(SchemaVersion::Admin),
-            Col::optional("ciphertext", Blob).since(SchemaVersion::Admin),
-            Col::optional("wrapped_key", Blob).since(SchemaVersion::Admin),
-            Col::optional("payload_nonce", Blob).since(SchemaVersion::Admin),
-            Col::optional("key_nonce", Blob).since(SchemaVersion::Admin),
+            Col::required("digest_version", Integer).default("1"),
+            Col::optional("prefix", Text),
+            Col::optional("ciphertext", Blob),
+            Col::optional("wrapped_key", Blob),
+            Col::optional("payload_nonce", Blob),
+            Col::optional("key_nonce", Blob),
         ],
         indexes: &[IndexSpec {
             name: "ix_user_keys_user_enabled",
@@ -83,7 +79,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Wave26,
+        version: SchemaVersion::Initial,
         name: "user_sessions",
         columns: &[
             Col::id(),
@@ -100,7 +96,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "permissions",
         columns: &[
             Col::id(),
@@ -118,7 +114,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "rate_limits",
         columns: &[
             Col::id(),
@@ -135,7 +131,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "quotas",
         columns: &[
             Col::id(),
@@ -147,9 +143,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("quota_monthly", Text),
             Col::optional("quota_5h", Text),
             Col::optional("quota_7d", Text),
-            Col::required("enabled", Integer)
-                .default("1")
-                .since(SchemaVersion::Admin),
+            Col::required("enabled", Integer).default("1"),
         ],
         indexes: &[IndexSpec {
             name: "uq_quotas_subject",

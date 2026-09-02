@@ -2,7 +2,7 @@ use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, T
 
 pub(super) const TABLES: &[TableSpec] = &[
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "request_logs",
         columns: &[
             Col::id(),
@@ -11,13 +11,13 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("method", Text),
             Col::required("path", Text),
             Col::optional("query", Text),
-            Col::optional("client_ip", Text).since(SchemaVersion::Wave29),
-            Col::optional("request_headers", Text).since(SchemaVersion::Logging),
-            Col::optional("request_body", Blob).since(SchemaVersion::Logging),
+            Col::optional("client_ip", Text),
+            Col::optional("request_headers", Text),
+            Col::optional("request_body", Blob),
             Col::optional("response_status", Integer),
             Col::optional("error_kind", Text),
-            Col::optional("response_headers", Text).since(SchemaVersion::Logging),
-            Col::optional("response_body", Blob).since(SchemaVersion::Logging),
+            Col::optional("response_headers", Text),
+            Col::optional("response_body", Blob),
         ],
         indexes: &[IndexSpec {
             name: "ix_request_logs_at",
@@ -27,7 +27,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "wire_logs",
         columns: &[
             Col::id(),
@@ -36,10 +36,10 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::optional("provider_id", Integer),
             Col::optional("credential_id", Integer),
             Col::optional("upstream_url", Text),
-            Col::optional("request_method", Text).since(SchemaVersion::Logging),
-            Col::optional("request_headers", Text).since(SchemaVersion::Logging),
+            Col::optional("request_method", Text),
+            Col::optional("request_headers", Text),
             Col::optional("response_status", Integer),
-            Col::optional("response_headers", Text).since(SchemaVersion::Logging),
+            Col::optional("response_headers", Text),
             Col::optional("request_body", Blob),
             Col::optional("response_body", Blob),
         ],

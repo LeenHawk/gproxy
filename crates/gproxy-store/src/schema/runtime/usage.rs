@@ -2,7 +2,7 @@ use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, T
 
 pub(super) const TABLES: &[TableSpec] = &[
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "usage_rows",
         columns: &[
             Col::id(),
@@ -44,40 +44,35 @@ pub(super) const TABLES: &[TableSpec] = &[
                 columns: &["at", "id"],
                 unique: false,
                 added_in: None,
-            }
-            .since(SchemaVersion::Admin),
+            },
             IndexSpec {
                 name: "ix_usage_rows_key_at",
                 columns: &["user_key_id", "at", "id"],
                 unique: false,
                 added_in: None,
-            }
-            .since(SchemaVersion::Admin),
+            },
             IndexSpec {
                 name: "ix_usage_rows_user_at",
                 columns: &["user_id", "at", "id"],
                 unique: false,
                 added_in: None,
-            }
-            .since(SchemaVersion::Admin),
+            },
             IndexSpec {
                 name: "ix_usage_rows_provider_at",
                 columns: &["provider_id", "at", "id"],
                 unique: false,
                 added_in: None,
-            }
-            .since(SchemaVersion::Admin),
+            },
             IndexSpec {
                 name: "ix_usage_rows_model_at",
                 columns: &["upstream_model", "at", "id"],
                 unique: false,
                 added_in: None,
-            }
-            .since(SchemaVersion::Admin),
+            },
         ],
     },
     TableSpec {
-        version: SchemaVersion::Runtime,
+        version: SchemaVersion::Initial,
         name: "usage_rollups",
         columns: &[
             Col::id(),

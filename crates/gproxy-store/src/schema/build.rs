@@ -3,8 +3,7 @@ use sea_query::{
     Table,
 };
 
-use super::catalog::migration_tables;
-use super::{ColumnKind, IndexSpec, SchemaVersion, TableSpec, tables, wave26};
+use super::{ColumnKind, IndexSpec, SchemaVersion, TableSpec, tables};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialect {
@@ -16,14 +15,10 @@ pub enum Dialect {
 
 pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<String> {
     let mut statements = Vec::new();
-    if version == SchemaVersion::Control && dialect == Dialect::NativeSqlite {
+    if version == SchemaVersion::Initial && dialect == Dialect::NativeSqlite {
         statements.push("PRAGMA foreign_keys = ON".to_owned());
     }
-    for table in migration_tables().filter(|table| {
-        table.version == version
-            && !(version == SchemaVersion::Wave26
-                && matches!(table.name, "admin_audit_events" | "credential_health"))
-    }) {
+    for table in tables().filter(|table| table.version == version) {
         statements.push(create_table(table, version, dialect));
         statements.extend(
             table
@@ -37,13 +32,7 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
                 .map(|index| create_index(table.name, index, dialect)),
         );
     }
-    if version == SchemaVersion::Logging {
-        statements.extend(rebuild_wire_logs(version, dialect));
-    }
     for table in tables().filter(|table| table.version != version) {
-        if version == SchemaVersion::Logging && table.name == "wire_logs" {
-            continue;
-        }
         for column in table
             .columns
             .iter()
@@ -59,47 +48,6 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
                 .map(|index| create_index(table.name, index, dialect)),
         );
     }
-    if version == SchemaVersion::Routing {
-        statements.push("UPDATE route_members SET tier = priority".to_owned());
-    }
-    if version == SchemaVersion::Wave26 {
-        statements.extend(wave26::statements(dialect));
-    }
-    if version == SchemaVersion::Wave30 {
-        statements.push(
-            "UPDATE tokenizer_vocabs SET repository = name WHERE repository IS NULL".to_owned(),
-        );
-    }
-    statements
-}
-
-fn rebuild_wire_logs(version: SchemaVersion, dialect: Dialect) -> Vec<String> {
-    let spec = tables()
-        .find(|table| table.name == "wire_logs")
-        .expect("wire log schema exists");
-    let old_columns = [
-        "id",
-        "request_id",
-        "at",
-        "provider_id",
-        "credential_id",
-        "upstream_url",
-        "response_status",
-        "request_body",
-        "response_body",
-    ];
-    let columns = old_columns.join(", ");
-    let mut statements = vec![
-        "ALTER TABLE wire_logs RENAME TO wire_logs_before_logging".to_owned(),
-        create_table(spec, version, dialect),
-        format!("INSERT INTO wire_logs ({columns}) SELECT {columns} FROM wire_logs_before_logging"),
-        "DROP TABLE wire_logs_before_logging".to_owned(),
-    ];
-    statements.extend(
-        spec.indexes
-            .iter()
-            .map(|index| create_index(spec.name, index, dialect)),
-    );
     statements
 }
 

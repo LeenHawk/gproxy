@@ -2,7 +2,7 @@ use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpe
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "providers",
         columns: &[
             Col::id(),
@@ -10,17 +10,15 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("channel", Text),
             Col::required("settings_json", Text),
             Col::required("enabled", Integer),
-            Col::optional("tls_fingerprint", Text).since(SchemaVersion::Admin),
-            Col::optional("label", Text).since(SchemaVersion::Configuration),
-            Col::required("credential_strategy", Text)
-                .default("'round_robin'")
-                .since(SchemaVersion::Configuration),
-            Col::optional("proxy_url", Text).since(SchemaVersion::Configuration),
+            Col::optional("tls_fingerprint", Text),
+            Col::optional("label", Text),
+            Col::required("credential_strategy", Text).default("'round_robin'"),
+            Col::optional("proxy_url", Text),
         ],
         indexes: &[],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "credentials",
         columns: &[
             Col::id(),
@@ -32,16 +30,12 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("key_nonce", Blob),
             Col::required("version", Integer),
             Col::required("enabled", Integer),
-            Col::required("weight", Integer)
-                .default("100")
-                .since(SchemaVersion::Routing),
-            Col::optional("rpm_limit", Integer).since(SchemaVersion::Routing),
-            Col::optional("tpm_limit", Integer).since(SchemaVersion::Routing),
-            Col::optional("proxy_url", Text).since(SchemaVersion::Routing),
-            Col::optional("tls_fingerprint", Text).since(SchemaVersion::Routing),
-            Col::required("kind", Text)
-                .default("'api_key'")
-                .since(SchemaVersion::Configuration),
+            Col::required("weight", Integer).default("100"),
+            Col::optional("rpm_limit", Integer),
+            Col::optional("tpm_limit", Integer),
+            Col::optional("proxy_url", Text),
+            Col::optional("tls_fingerprint", Text),
+            Col::required("kind", Text).default("'api_key'"),
         ],
         indexes: &[IndexSpec {
             name: "ix_credentials_provider_enabled",
@@ -51,7 +45,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "routes",
         columns: &[
             Col::id(),
@@ -62,7 +56,7 @@ pub const TABLES: &[TableSpec] = &[
         indexes: &[],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "route_members",
         columns: &[
             Col::id(),
@@ -71,12 +65,8 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("credential_id", Integer),
             Col::required("upstream_model", Text),
             Col::required("priority", Integer),
-            Col::required("tier", Integer)
-                .default("0")
-                .since(SchemaVersion::Routing),
-            Col::required("weight", Integer)
-                .default("100")
-                .since(SchemaVersion::Routing),
+            Col::required("tier", Integer).default("0"),
+            Col::required("weight", Integer).default("100"),
             Col::required("enabled", Integer),
         ],
         indexes: &[
@@ -90,7 +80,7 @@ pub const TABLES: &[TableSpec] = &[
                 name: "ix_route_members_route_balance",
                 columns: &["route_id", "enabled", "tier", "weight", "id"],
                 unique: false,
-                added_in: Some(SchemaVersion::Routing),
+                added_in: None,
             },
             IndexSpec {
                 name: "ix_route_members_provider",
@@ -101,7 +91,7 @@ pub const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "aliases",
         columns: &[
             Col::id(),
@@ -119,7 +109,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         // What a model can do is a property of the provider serving it. A route with
         // several members advertises the conservative fold of these rows, never a
         // hand-typed number that can drift from what the upstreams actually accept.
@@ -145,7 +135,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         // The exposed model is the client-facing name and nothing more. What a model
         // can do is a property of the provider serving it, so it lives on provider_models
         // and the catalogue folds it across a route's members.
@@ -164,13 +154,13 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "price_rules",
         columns: &[
             Col::id(),
             Col::optional("provider_id", Integer),
             Col::required("model_pattern", Text),
-            Col::optional("tiers_json", Text).since(SchemaVersion::Pricing),
+            Col::optional("tiers_json", Text),
             Col::required("priority", Integer),
             Col::required("enabled", Integer),
         ],
@@ -182,7 +172,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "price_rates",
         columns: &[
             Col::id(),
@@ -201,7 +191,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Control,
+        version: SchemaVersion::Initial,
         name: "settings",
         columns: &[
             Col::required("key", Text).primary(),
@@ -210,7 +200,7 @@ pub const TABLES: &[TableSpec] = &[
         indexes: &[],
     },
     TableSpec {
-        version: SchemaVersion::Process,
+        version: SchemaVersion::Initial,
         name: "routing_rules",
         columns: &[
             Col::id(),
@@ -222,9 +212,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("dest_kind", Text),
             Col::required("sort_order", Integer),
             Col::required("enabled", Integer),
-            Col::required("origin", Text)
-                .default("'operator'")
-                .since(SchemaVersion::Wave26),
+            Col::required("origin", Text).default("'operator'"),
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
@@ -244,7 +232,7 @@ pub const TABLES: &[TableSpec] = &[
         ],
     },
     TableSpec {
-        version: SchemaVersion::Process,
+        version: SchemaVersion::Initial,
         name: "rule_sets",
         columns: &[
             Col::id(),
@@ -257,7 +245,7 @@ pub const TABLES: &[TableSpec] = &[
         indexes: &[],
     },
     TableSpec {
-        version: SchemaVersion::Process,
+        version: SchemaVersion::Initial,
         name: "rules",
         columns: &[
             Col::id(),
@@ -280,7 +268,7 @@ pub const TABLES: &[TableSpec] = &[
         }],
     },
     TableSpec {
-        version: SchemaVersion::Process,
+        version: SchemaVersion::Initial,
         name: "provider_rule_sets",
         columns: &[
             Col::id(),
@@ -288,9 +276,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("rule_set_id", Integer),
             Col::required("sort_order", Integer),
             Col::required("enabled", Integer),
-            Col::required("origin", Text)
-                .default("'operator'")
-                .since(SchemaVersion::Wave26),
+            Col::required("origin", Text).default("'operator'"),
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
