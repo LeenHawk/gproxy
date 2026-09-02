@@ -61,16 +61,16 @@
       "saveError": "Could not save the routing alias. Retry."
     },
     "aliases": {
-      "title": "Model aliases",
-      "add": "Add alias",
-      "empty": "No aliases point to this route.",
-      "name": "Client-facing model",
-      "route": "Route",
+      "title": "Model mappings",
+      "add": "Add mapping",
+      "empty": "No model mappings point to this load balancer.",
+      "name": "Public model name",
+      "route": "Load balancer",
       "invalidMetadata": "Model metadata is invalid. Check the token limits and variants JSON.",
-      "enabled": "Alias enabled",
-      "created": "Alias added.",
-      "updated": "Alias updated.",
-      "saveError": "Could not save the model alias. Check that the name is unique."
+      "enabled": "Mapping enabled",
+      "created": "Model mapping added.",
+      "updated": "Model mapping updated.",
+      "saveError": "Could not save the model mapping. Check that the name is unique."
     }
   }
 }

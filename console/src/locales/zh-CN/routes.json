@@ -61,16 +61,16 @@
       "saveError": "无法保存路由别名，请重试。"
     },
     "aliases": {
-      "title": "模型别名",
-      "add": "添加别名",
-      "empty": "尚无别名指向此路由。",
-      "name": "客户端模型名",
-      "route": "路由",
+      "title": "模型映射",
+      "add": "添加映射",
+      "empty": "尚无模型映射指向此负载均衡。",
+      "name": "公开模型名",
+      "route": "负载均衡",
       "invalidMetadata": "模型元数据无效，请检查 token 限制和变体 JSON。",
-      "enabled": "启用别名",
-      "created": "已添加别名。",
-      "updated": "已更新别名。",
-      "saveError": "无法保存模型别名，请确认名称唯一。"
+      "enabled": "启用映射",
+      "created": "已添加模型映射。",
+      "updated": "已更新模型映射。",
+      "saveError": "无法保存模型映射，请确认名称唯一。"
     }
   }
 }
