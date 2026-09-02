@@ -92,7 +92,7 @@ impl Collector {
 
     fn is_complete(&self) -> bool {
         match self {
-            Self::Chat(state) => state.complete,
+            Self::Chat(state) => state.is_complete(),
             Self::Responses(state) => state.response.is_some(),
             Self::Claude(state) => state.complete,
             Self::Gemini(state) => state.is_complete(),

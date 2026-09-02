@@ -1,6 +1,8 @@
 use futures_util::FutureExt as _;
 use futures_util::future::{Either, select};
-use gproxy_channel_api::{Channel, RealtimeMeter, SessionUsage, WsDuplex, WsFrame};
+use gproxy_channel_api::{
+    Channel, PreparedRequest, RealtimeMeter, SessionUsage, WsDuplex, WsFrame,
+};
 
 use crate::control::ControlPlane;
 use crate::error::CoreError;
@@ -10,12 +12,11 @@ use super::super::FunnelCtx;
 
 pub(super) struct Installed {
     pub socket: Box<dyn WsDuplex>,
+    pub termination: PreparedRequest,
     pub meter: RealtimeMeter,
     pub control: Box<dyn ControlPlane>,
-    pub connector: super::connector::Connector,
     pub initial: Vec<SessionUsage>,
     pub lease: super::ownership::Lease,
-    pub credential_version: u64,
 }
 
 pub(super) async fn open<H: Host>(
@@ -62,6 +63,7 @@ pub(super) async fn open<H: Host>(
             return Err(error.into());
         }
     };
+    let termination = attempt.termination;
     let mut meter = attempt.meter;
     let mut initial = Vec::new();
     let ready_started = web_time::Instant::now();
@@ -116,12 +118,11 @@ pub(super) async fn open<H: Host>(
     }
     Ok(Installed {
         socket,
+        termination,
         meter,
         control: control.detached(),
-        connector,
         initial,
         lease,
-        credential_version: attempt.credential_version,
     })
 }
 

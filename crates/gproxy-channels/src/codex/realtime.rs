@@ -7,6 +7,7 @@ use http::Method;
 pub(super) fn prepare(ctx: SessionPrepareCtx<'_>) -> Result<PreparedSession, ChannelError> {
     let id = crate::shared::openai::realtime::call_id(ctx.response_headers)?;
     let uri = crate::shared::openai::realtime::sideband_uri(&id)?;
+    let hangup_uri = crate::shared::openai::realtime::hangup_uri(&id)?;
     let mut headers = ctx.request_headers.clone();
     let session_id = super::auth::session_id(ctx.secret, &headers);
     super::auth::apply_headers(&mut headers, ctx.secret, &session_id)?;
@@ -18,13 +19,25 @@ pub(super) fn prepare(ctx: SessionPrepareCtx<'_>) -> Result<PreparedSession, Cha
         .uri(uri)
         .body(Bytes::new())
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
-    *request.headers_mut() = headers;
+    *request.headers_mut() = headers.clone();
+    let mut termination = http::Request::builder()
+        .method(Method::POST)
+        .uri(hangup_uri)
+        .body(Bytes::new())
+        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+    *termination.headers_mut() = headers;
     Ok(PreparedSession {
         id,
         request: PreparedRequest {
             request,
             framing: None,
             websocket: true,
+            profile: Some(&super::profile::CLIENT_PROFILE),
+        },
+        termination: PreparedRequest {
+            request: termination,
+            framing: None,
+            websocket: false,
             profile: Some(&super::profile::CLIENT_PROFILE),
         },
         meter: RealtimeMeter::new(ctx.request_body, ctx.upstream_model),

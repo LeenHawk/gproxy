@@ -32,6 +32,12 @@ pub(crate) fn sideband_uri(call_id: &str) -> Result<Uri, ChannelError> {
         .map_err(|error| observe(format!("bad Realtime sideband URL: {error}")))
 }
 
+pub(crate) fn hangup_uri(call_id: &str) -> Result<Uri, ChannelError> {
+    format!("https://api.openai.com/v1/realtime/calls/{call_id}/hangup")
+        .parse::<Uri>()
+        .map_err(|error| observe(format!("bad Realtime hangup URL: {error}")))
+}
+
 fn observe(message: impl Into<String>) -> ChannelError {
     ChannelError::Observe(message.into())
 }

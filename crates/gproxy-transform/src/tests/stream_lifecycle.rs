@@ -50,10 +50,23 @@ fn public_collector_handles_split_tool_stream_and_rejects_incomplete_lifecycle()
             b"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt\",\"choices\":[]}\n\ndata: [DONE]\n\n",
         ))
         .unwrap();
-    let BufferedResponse::OpenAiChat(defaulted) = false_stop.finish().unwrap() else {
-        panic!("wrong buffered family");
-    };
-    assert_eq!(defaulted.choices.len(), 1);
+    assert!(!false_stop.is_complete());
+    assert!(matches!(
+        false_stop.finish(),
+        Err(TransformError::IncompleteStream)
+    ));
+
+    let mut missing_reason = ResponseCollector::new(Kind::OpenAiChat).unwrap();
+    missing_reason
+        .push(Bytes::from_static(
+            b"data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n",
+        ))
+        .unwrap();
+    assert!(!missing_reason.is_complete());
+    assert!(matches!(
+        missing_reason.finish(),
+        Err(TransformError::IncompleteStream)
+    ));
 
     let false_end_turn_wire = Bytes::from_static(
         b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",

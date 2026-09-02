@@ -64,12 +64,9 @@ impl ChatCollector {
         Ok(())
     }
 
-    pub(super) fn finish(mut self) -> Result<openai::ChatCompletionResponse, TransformError> {
-        if !self.complete {
+    pub(super) fn finish(self) -> Result<openai::ChatCompletionResponse, TransformError> {
+        if !self.is_complete() {
             return Err(TransformError::IncompleteStream);
-        }
-        if self.choices.is_empty() {
-            self.choices.insert(0, Choice::default());
         }
         Ok(openai::ChatCompletionResponse {
             id: self.id.unwrap_or_default(),
@@ -77,7 +74,7 @@ impl ChatCollector {
                 .choices
                 .into_iter()
                 .map(|(index, choice)| choice.finish(index))
-                .collect(),
+                .collect::<Result<_, _>>()?,
             created: self.created.or(Some(0)),
             model: self
                 .model
@@ -89,6 +86,15 @@ impl ChatCollector {
             usage: self.usage,
             rest: self.rest,
         })
+    }
+
+    pub(super) fn is_complete(&self) -> bool {
+        self.complete
+            && !self.choices.is_empty()
+            && self
+                .choices
+                .values()
+                .all(|choice| choice.finish_reason.is_some())
     }
 }
 
@@ -116,7 +122,8 @@ impl Choice {
         self.message_rest.extend(delta.rest);
     }
 
-    fn finish(self, index: u32) -> openai::ChatCompletionChoice {
+    fn finish(self, index: u32) -> Result<openai::ChatCompletionChoice, TransformError> {
+        let finish_reason = self.finish_reason.ok_or(TransformError::IncompleteStream)?;
         let function_call = self.function_name.map(|name| openai::FunctionCall {
             arguments: self.function_arguments,
             name,
@@ -131,8 +138,8 @@ impl Choice {
             || !self.refusal.is_empty()
             || function_call.is_some()
             || !tools.is_empty();
-        openai::ChatCompletionChoice {
-            finish_reason: self.finish_reason.unwrap_or(openai::ChatFinishReason::Stop),
+        Ok(openai::ChatCompletionChoice {
+            finish_reason,
             index,
             logprobs: self.logprobs,
             message: openai::ChatMessage {
@@ -153,7 +160,7 @@ impl Choice {
                 rest: self.message_rest,
             },
             rest: self.rest,
-        }
+        })
     }
 }
 

@@ -9,7 +9,6 @@ use crate::control::Target;
 use crate::error::CoreError;
 use crate::host::{Host, UpstreamTransport};
 
-#[derive(Clone)]
 pub(super) struct Connector {
     channel: Arc<dyn Channel>,
     target: Target,
@@ -22,6 +21,7 @@ pub(super) struct Connector {
 pub(super) struct Prepared {
     pub id: String,
     pub request: PreparedRequest,
+    pub termination: PreparedRequest,
     pub meter: RealtimeMeter,
     pub credential_version: u64,
 }
@@ -30,6 +30,7 @@ pub(super) struct Attempt {
     pub url: String,
     pub body: Bytes,
     pub opened: Result<Box<dyn WsDuplex>, gproxy_channel_api::TransportError>,
+    pub termination: PreparedRequest,
     pub meter: RealtimeMeter,
     pub credential_version: u64,
 }
@@ -89,10 +90,17 @@ impl Connector {
                 "session observer was not prepared as a websocket".into(),
             ));
         }
+        if prepared.termination.websocket {
+            return Err(CoreError::Internal(
+                "session termination was prepared as a websocket".into(),
+            ));
+        }
         crate::fingerprint::apply_prepared(&mut prepared.request, &self.target.provider)?;
+        crate::fingerprint::apply_prepared(&mut prepared.termination, &self.target.provider)?;
         Ok(Prepared {
             id: prepared.id,
             request: prepared.request,
+            termination: prepared.termination,
             meter: prepared.meter,
             credential_version: credential.version,
         })
@@ -101,15 +109,23 @@ impl Connector {
 
 impl Prepared {
     pub(super) async fn open<H: Host>(self, host: &H) -> Attempt {
-        let url = self.request.request.uri().to_string();
-        let body = self.request.request.body().clone();
-        let opened = host.transport().open_websocket(self.request.request).await;
+        let Self {
+            request,
+            termination,
+            meter,
+            credential_version,
+            ..
+        } = self;
+        let url = request.request.uri().to_string();
+        let body = request.request.body().clone();
+        let opened = host.transport().open_websocket(request.request).await;
         Attempt {
             url,
             body,
             opened,
-            meter: self.meter,
-            credential_version: self.credential_version,
+            termination,
+            meter,
+            credential_version,
         }
     }
 }

@@ -87,6 +87,17 @@ fn sideband_reuses_selected_codex_credential_and_fixed_openai_uri() {
     );
     assert!(prepared.request.websocket);
     assert!(prepared.request.profile.is_some());
+    assert_eq!(
+        prepared.termination.request.uri(),
+        "https://api.openai.com/v1/realtime/calls/rtc_selected/hangup"
+    );
+    assert_eq!(prepared.termination.request.method(), http::Method::POST);
+    assert_eq!(
+        prepared.termination.request.headers()[http::header::AUTHORIZATION],
+        "Bearer oauth-token"
+    );
+    assert!(!prepared.termination.websocket);
+    assert!(prepared.termination.profile.is_some());
 }
 
 #[test]

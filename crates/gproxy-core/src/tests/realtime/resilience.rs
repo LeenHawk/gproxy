@@ -57,7 +57,7 @@ fn cancelled_meter_releases_owner_and_settles_interrupted() -> Result<(), InitEr
 }
 
 #[test]
-fn gone_call_stops_reconnect_and_finally_settles() -> Result<(), InitError> {
+fn observer_disconnect_hangs_up_and_settles_interrupted() -> Result<(), InitError> {
     let host = MemoryHost::with_session_spawner();
     configure(&host);
     let mut state = host.state.lock().expect("state lock");
@@ -73,17 +73,47 @@ fn gone_call_stops_reconnect_and_finally_settles() -> Result<(), InitError> {
         WsFrame::Close(Some(1011)),
     ]
     .into();
-    state.socket_statuses = [101, 410].into();
     drop(state);
     let core = core(&host)?;
     let outcome = block_on(core.execute(&host, request("request-gone"))).expect("call");
     assert_eq!(outcome.status, StatusCode::OK);
     let state = host.state.lock().expect("state lock");
-    assert_eq!(state.socket_opens, 2);
+    assert_eq!(state.socket_opens, 1);
+    assert!(
+        state
+            .upstream_requests
+            .iter()
+            .any(|(_, uri)| uri.ends_with("/calls/rtc_test/hangup"))
+    );
     assert_eq!(state.settlements.len(), 1);
     assert_eq!(state.settlements[0].cost, Decimal::ONE);
     assert_eq!(state.settlements[0].ended, crate::Ended::Interrupted);
+    assert_eq!(
+        state.settlements[0].usage.metrics["realtime_meter_compromised"],
+        Decimal::ONE
+    );
     assert_eq!(state.admission_finishes, [true]);
+    assert_eq!(state.captures.len(), 3);
     assert!(state.cache.keys().all(|key| !key.contains("session-owner")));
+    Ok(())
+}
+
+#[test]
+fn initial_sideband_failure_does_not_release_the_sdp_answer() -> Result<(), InitError> {
+    let host = MemoryHost::with_session_spawner();
+    configure(&host);
+    host.state.lock().expect("state lock").socket_statuses = [503].into();
+    let core = core(&host)?;
+    let outcome = block_on(core.execute(&host, request("request-no-observer")))
+        .expect("sideband failure outcome");
+    assert!(!outcome.status.is_success());
+    assert!(!matches!(
+        outcome.body,
+        crate::ResponseBody::Full(ref body) if body.as_ref() == b"v=answer"
+    ));
+    let state = host.state.lock().expect("state lock");
+    assert_eq!(state.socket_opens, 1);
+    assert!(state.settlements.is_empty());
+    assert_eq!(state.admission_finishes, [false]);
     Ok(())
 }

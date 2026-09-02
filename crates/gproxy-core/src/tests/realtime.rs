@@ -38,23 +38,8 @@ fn call_defers_one_settlement_to_the_owned_sideband() -> Result<(), InitError> {
             r#"{"type":"session.created","session":{"type":"realtime","model":"upstream-model-actual","audio":{"input":{"transcription":{"model":"transcription-model"}}}}}"#
                 .into(),
         ),
-        WsFrame::Text(r#"{"type":"response.done","response":{}}"#.into()),
         WsFrame::Text(
             r#"{"type":"response.done","response":{"usage":{"input_tokens":1000000,"output_tokens":1000000,"total_tokens":2000000}}}"#
-                .into(),
-        ),
-        WsFrame::Close(Some(1011)),
-        WsFrame::Text(
-            r#"{"type":"session.created","session":{"type":"realtime","model":"upstream-model-actual","audio":{"input":{"transcription":{"model":"transcription-model"}}}}}"#
-                .into(),
-        ),
-        WsFrame::Text(
-            r#"{"type":"response.done","response":{"usage":{"input_tokens":1000000,"output_tokens":0,"total_tokens":1000000}}}"#
-                .into(),
-        ),
-        WsFrame::Text(r#"{"type":"session.updated","future":true}"#.into()),
-        WsFrame::Text(
-            r#"{"type":"session.created","session":{"type":"realtime","model":"upstream-model-actual","audio":{"input":{"transcription":{"model":"transcription-model-2"}}}}}"#
                 .into(),
         ),
         WsFrame::Text(
@@ -64,7 +49,6 @@ fn call_defers_one_settlement_to_the_owned_sideband() -> Result<(), InitError> {
         WsFrame::Close(Some(1000)),
     ]
     .into();
-    state.socket_statuses = [101, 401, 101, 101].into();
     drop(state);
     let core = core(&host)?;
     let outcome =
@@ -74,30 +58,32 @@ fn call_defers_one_settlement_to_the_owned_sideband() -> Result<(), InitError> {
 
     let state = host.state.lock().expect("state lock");
     assert_eq!(state.settlements.len(), 1);
-    assert_eq!(state.settlements[0].cost, Decimal::from(9));
-    assert_eq!(state.settlements[0].usage.input_tokens, 3_000_000);
+    assert_eq!(state.settlements[0].cost, Decimal::from(6));
+    assert_eq!(state.settlements[0].usage.input_tokens, 2_000_000);
     assert_eq!(state.settlements[0].upstream_model, "upstream-model-actual");
     assert_eq!(
         state.settlements[0].usage.dimensions["transcription_model"],
-        "transcription-model-2"
+        "transcription-model"
     );
     assert_eq!(
         state.settlements[0].usage.metrics["session_model/primary/upstream-model-actual/cost"],
-        Decimal::from(4)
+        Decimal::from(3)
     );
     assert_eq!(
-        state.settlements[0].usage.metrics["session_model/transcription/transcription-model-2/cost"],
-        Decimal::from(5)
+        state.settlements[0].usage.metrics["session_model/transcription/transcription-model/cost"],
+        Decimal::from(3)
     );
     assert_eq!(state.admission_finishes, [true]);
-    assert_eq!(state.socket_opens, 4);
-    assert_eq!(state.settlements[0].ended, crate::Ended::Interrupted);
-    assert_eq!(
-        state.settlements[0].usage.metrics["realtime_meter_compromised"],
-        Decimal::ONE
+    assert_eq!(state.socket_opens, 1);
+    assert_eq!(state.settlements[0].ended, crate::Ended::Complete);
+    assert!(
+        !state.settlements[0]
+            .usage
+            .metrics
+            .contains_key("realtime_meter_compromised")
     );
-    assert_eq!(state.captures.len(), 5);
-    assert_eq!(state.rotations, [4]);
+    assert_eq!(state.captures.len(), 2);
+    assert!(state.rotations.is_empty());
     assert!(state.cache.keys().all(|key| !key.contains("session-owner")));
     Ok(())
 }

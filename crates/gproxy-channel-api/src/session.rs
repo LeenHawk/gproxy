@@ -19,6 +19,7 @@ pub struct SessionPrepareCtx<'a> {
 pub struct PreparedSession {
     pub id: String,
     pub request: PreparedRequest,
+    pub termination: PreparedRequest,
     pub meter: RealtimeMeter,
 }
 

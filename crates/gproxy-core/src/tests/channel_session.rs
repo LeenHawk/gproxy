@@ -18,12 +18,25 @@ pub(super) fn prepare_test_session(
     let request = http::Request::get(format!("wss://upstream.test/session?call_id={id}"))
         .body(Bytes::new())
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+    let mut termination = http::Request::post(format!("https://upstream.test/calls/{id}/hangup"))
+        .body(Bytes::new())
+        .map_err(|error| ChannelError::Prepare(error.to_string()))?;
+    termination.headers_mut().insert(
+        http::header::AUTHORIZATION,
+        "Bearer session-test".parse().expect("test authorization"),
+    );
     Ok(PreparedSession {
         id: id.into(),
         request: PreparedRequest {
             request,
             framing: None,
             websocket: true,
+            profile: None,
+        },
+        termination: PreparedRequest {
+            request: termination,
+            framing: None,
+            websocket: false,
             profile: None,
         },
         meter: RealtimeMeter::new(ctx.request_body, ctx.upstream_model),

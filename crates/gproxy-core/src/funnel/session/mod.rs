@@ -2,9 +2,10 @@ mod capture;
 mod connector;
 mod guard;
 mod install;
+mod observer;
 mod ownership;
-mod reconnect;
 mod runner;
+mod termination;
 mod usage;
 
 use bytes::Bytes;
