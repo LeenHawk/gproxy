@@ -142,6 +142,8 @@ impl ToolAliases {
             | Known::ResponseMcpListToolsInProgress(_)
             | Known::ResponseMcpListToolsCompleted(_)
             | Known::ResponseMcpListToolsFailed(_)
+            | Known::ResponseInjectCreated(_)
+            | Known::ResponseInjectFailed(_)
             | Known::Error(_) => Ok(vec![event]),
         }
     }

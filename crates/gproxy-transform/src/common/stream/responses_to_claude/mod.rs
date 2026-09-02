@@ -86,6 +86,8 @@ impl State {
                 self.response_tool_done(Some(&event.item_id), event.output_index, event.rest)
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextAnnotationAdded(_)
+            | openai::KnownResponseStreamEvent::ResponseInjectCreated(_)
+            | openai::KnownResponseStreamEvent::ResponseInjectFailed(_)
             | openai::KnownResponseStreamEvent::ResponseReasoningSummaryPartAdded(_)
             | openai::KnownResponseStreamEvent::ResponseReasoningSummaryPartDone(_)
             | openai::KnownResponseStreamEvent::ResponseAudioDelta(_)

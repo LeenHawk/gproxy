@@ -161,6 +161,38 @@ async fn backfill_does_not_overwrite_operator_route() {
 }
 
 #[tokio::test]
+async fn backfill_refreshes_channel_owned_route_definition() {
+    let state = state().await;
+    let id = provider(&state).await;
+    crate::seed_provider_defaults(
+        &state.store,
+        id,
+        "routing-provider",
+        &channel(vec![route(RoutingImplementationDto::Local)]),
+    )
+    .await
+    .expect("seed defaults");
+
+    crate::backfill_provider_defaults(
+        &state.store,
+        &[channel(vec![route(RoutingImplementationDto::Passthrough)])],
+    )
+    .await
+    .expect("refresh defaults");
+
+    let row = state
+        .store
+        .control_snapshot()
+        .await
+        .unwrap()
+        .routing_rules
+        .remove(0);
+    assert_eq!(row.implementation, "passthrough");
+    assert_eq!(row.origin, "channel_default");
+    assert!(row.enabled);
+}
+
+#[tokio::test]
 async fn embedded_default_prices_import_once_without_overwriting() {
     let state = state().await;
     seed_admin_key(&state).await;

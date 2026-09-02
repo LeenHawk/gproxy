@@ -3,13 +3,14 @@ use serde_json::Value;
 
 use crate::openai::common::{Metadata, Rest};
 
-use super::ResponseCreateRequest;
+use super::{ResponseCreateRequest, ResponseItem};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ResponseWebSocketRequest {
     ResponseCreate(Box<ResponseCreateWebSocketRequest>),
+    ResponseInject(ResponseInjectWebSocketRequest),
     Unknown(Value),
 }
 
@@ -32,4 +33,49 @@ pub struct ResponseCreateWebSocketRequest {
 pub enum ResponseCreateWebSocketRequestType {
     #[serde(rename = "response.create")]
     ResponseCreate,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseInjectWebSocketRequest {
+    #[serde(rename = "type")]
+    pub type_: ResponseInjectWebSocketRequestType,
+    pub response_id: String,
+    pub input: Vec<ResponseItem>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ResponseInjectWebSocketRequestType {
+    #[serde(rename = "response.inject")]
+    ResponseInject,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseInjectCreatedEvent {
+    pub response_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence_number: Option<u64>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseInjectFailedEvent {
+    pub response_id: String,
+    pub input: Vec<ResponseItem>,
+    pub error: ResponseInjectError,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence_number: Option<u64>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseInjectError {
+    pub code: String,
+    pub message: String,
+    #[serde(default, flatten)]
+    pub rest: Rest,
 }

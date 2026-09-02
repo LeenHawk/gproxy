@@ -342,6 +342,13 @@ impl UpstreamTransport for MemoryHost {
 
 impl WsDuplex for MemoryHost {
     fn send<'a>(&'a mut self, frame: WsFrame) -> BoxFuture<'a, Result<(), TransportError>> {
+        if let WsFrame::Text(text) = &frame {
+            self.state
+                .lock()
+                .expect("state lock")
+                .socket_sent
+                .push(text.clone());
+        }
         if matches!(frame, WsFrame::Close(_)) {
             self.state.lock().expect("state lock").socket_closed = true;
         }

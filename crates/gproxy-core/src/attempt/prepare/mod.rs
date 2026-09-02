@@ -61,7 +61,7 @@ pub(crate) async fn prepare<H: Host>(
     .await?;
     let support = channel
         .select_support(classified.key, &credential.secret)
-        .filter(|selected| channel.descriptor().supports.contains(selected))
+        .filter(|selected| executable(channel, selected))
         .and_then(|support| route_support(target, support))
         .ok_or(CoreError::Unsupported)?;
     if !admission.admitted && support.source != support.target {
@@ -71,8 +71,11 @@ pub(crate) async fn prepare<H: Host>(
         || support.target.operation == gproxy_protocol::Operation::StreamGenerateContent;
     let mut method = ctx.method.clone();
     let mut path = ctx.path.clone();
+    let mut query = ctx.query.clone();
     let mut body = ctx.body.clone();
+    let mut normalized_media = false;
     if support.source != support.target {
+        (body, normalized_media) = super::media::normalize(&ctx.headers, body)?;
         body = gproxy_transform::request(
             support.source,
             support.target,
@@ -81,10 +84,17 @@ pub(crate) async fn prepare<H: Host>(
             stream,
         )
         .map_err(|error| CoreError::Transform(error.to_string()))?;
-        (method, path) = gproxy_protocol::request_target(support.target, &target.upstream_model)
+        let target_parameter = classified
+            .resource()
+            .map(|(_, id)| id)
+            .unwrap_or(&target.upstream_model);
+        (method, path) = gproxy_protocol::request_target(support.target, target_parameter)
             .ok_or_else(|| {
                 CoreError::Transform(format!("no request target for {:?}", support.target))
             })?;
+        query =
+            gproxy_transform::request_query(support.source, support.target, ctx.query.as_deref())
+                .map_err(|error| CoreError::Transform(error.to_string()))?;
     }
     let mutation = crate::process::apply_request(
         &target.rules.process,
@@ -122,13 +132,23 @@ pub(crate) async fn prepare<H: Host>(
         .effective_traffic_policy(&target.provider.settings)
         .map_err(|error| CoreError::Channel(ChannelError::Prepare(error)))?;
     let source_headers = mutation.headers.as_ref().unwrap_or(&ctx.headers);
-    let request_headers = crate::execution::forwarding::request_headers(
+    let mut request_headers = crate::execution::forwarding::request_headers(
         source_headers,
         &traffic_policy,
         &target.provider.traffic_blacklist,
     );
+    if normalized_media {
+        request_headers.insert(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static("application/json"),
+        );
+        request_headers.remove(http::header::CONTENT_LENGTH);
+    }
+    if support.source != support.target {
+        body = super::media::restore(support.target, &mut request_headers, body)?;
+    }
     let request_query = crate::execution::forwarding::request_query(
-        ctx.query.as_deref(),
+        query.as_deref(),
         &traffic_policy,
         &target.provider.traffic_blacklist,
     );
@@ -196,9 +216,6 @@ pub(crate) async fn prepare<H: Host>(
     }
     let mut prepared =
         health::result(core, target, credential.version, channel.prepare(context())).await?;
-    if prepared.websocket {
-        return Err(CoreError::Unsupported);
-    }
     crate::fingerprint::apply_prepared(&mut prepared, &target.provider)?;
     let target_framing = prepared
         .framing
@@ -214,8 +231,22 @@ pub(crate) async fn prepare<H: Host>(
         stream,
         downstream_stream: classified.stream,
         facts,
-        egress: Egress::Http(Box::new(prepared.request)),
+        egress: if prepared.websocket {
+            Egress::WebSocket(Box::new(prepared.request))
+        } else {
+            Egress::Http(Box::new(prepared.request))
+        },
     })
+}
+
+fn executable(channel: &dyn Channel, selected: &ChannelSupport) -> bool {
+    channel.descriptor().supports.contains(selected)
+        || (selected.action == ChannelRouteAction::TransformTo
+            && channel.descriptor().supports.iter().any(|support| {
+                support.source == selected.target
+                    && support.target == selected.target
+                    && support.action == ChannelRouteAction::Passthrough
+            }))
 }
 
 fn route_support(target: &Target, support: ChannelSupport) -> Option<ChannelSupport> {

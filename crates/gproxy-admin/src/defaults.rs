@@ -20,18 +20,18 @@ async fn seed_routing_defaults(
 ) -> Result<(), AdminError> {
     for (sort_order, support) in channel.routing_defaults.iter().enumerate() {
         let transform = support.implementation == RoutingImplementationDto::TransformTo;
-        store
-            .insert_routing_default(&gproxy_store::records::RoutingRuleInput {
-                provider_id,
-                operation: support.operation.clone(),
-                kind: support.source.clone(),
-                implementation: implementation(support.implementation).into(),
-                dest_operation: transform.then(|| support.target_operation.clone()),
-                dest_kind: transform.then(|| support.target.clone()),
-                sort_order: sort_order.try_into().unwrap_or(i64::MAX),
-                enabled: true,
-            })
-            .await?;
+        let input = gproxy_store::records::RoutingRuleInput {
+            provider_id,
+            operation: support.operation.clone(),
+            kind: support.source.clone(),
+            implementation: implementation(support.implementation).into(),
+            dest_operation: transform.then(|| support.target_operation.clone()),
+            dest_kind: transform.then(|| support.target.clone()),
+            sort_order: sort_order.try_into().unwrap_or(i64::MAX),
+            enabled: true,
+        };
+        store.update_routing_default(&input).await?;
+        store.insert_routing_default(&input).await?;
     }
     Ok(())
 }

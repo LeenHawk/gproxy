@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::openai::common::{
     ImageBackground, ImageEditQuality, ImageEditSize, ImageInputFidelity, ImageModeration,
@@ -41,6 +41,7 @@ pub struct CreateImageRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EditImageRequest {
+    #[serde(alias = "image")]
     pub images: Vec<ImageReference>,
     pub prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -73,7 +74,7 @@ pub struct EditImageRequest {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ImageReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_id: Option<String>,
@@ -81,4 +82,41 @@ pub struct ImageReference {
     pub image_url: Option<String>,
     #[serde(default, flatten)]
     pub rest: Rest,
+}
+
+impl<'de> Deserialize<'de> for ImageReference {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if let serde_json::Value::String(value) = value {
+            if value.trim().is_empty() {
+                return Err(de::Error::custom("image reference must not be empty"));
+            }
+            let image_url = value.starts_with("http://")
+                || value.starts_with("https://")
+                || value.starts_with("data:");
+            return Ok(Self {
+                file_id: (!image_url).then_some(value.clone()),
+                image_url: image_url.then_some(value),
+                rest: Default::default(),
+            });
+        }
+        #[derive(Deserialize)]
+        struct Object {
+            file_id: Option<String>,
+            image_url: Option<String>,
+            #[serde(default, flatten)]
+            rest: Rest,
+        }
+        let object: Object = serde_json::from_value(value).map_err(de::Error::custom)?;
+        if object.file_id.is_some() == object.image_url.is_some() {
+            return Err(de::Error::custom(
+                "image reference requires exactly one of file_id or image_url",
+            ));
+        }
+        Ok(Self {
+            file_id: object.file_id,
+            image_url: object.image_url,
+            rest: object.rest,
+        })
+    }
 }

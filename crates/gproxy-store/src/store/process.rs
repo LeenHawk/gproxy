@@ -30,6 +30,13 @@ impl Store {
             > 0)
     }
 
+    pub async fn update_routing_default(&self, input: &RoutingRuleInput) -> Result<(), StoreError> {
+        self.backend()
+            .execute(control::update_routing_default(input)?)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete_provider_routing_rules(&self, provider_id: i64) -> Result<(), StoreError> {
         self.backend()
             .execute(control::delete_provider_routing_rules(provider_id)?)

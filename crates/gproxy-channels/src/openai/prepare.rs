@@ -1,7 +1,7 @@
 use gproxy_channel_api::{ChannelError, PrepareCtx, PreparedRequest};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
 use http::Uri;
-use http::header::{AUTHORIZATION, HeaderValue};
+use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 
 const DEFAULT_BASE_URL: &str = "https://api.openai.com";
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -14,7 +14,12 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = upstream_path(&ctx);
     let query = crate::policy::request_query(crate::policy::OPENAI_API, &ctx)?;
-    let uri = endpoint(&ctx, &path, query.as_deref())?;
+    let websocket = ctx.key.kind
+        == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponsesWebSocket);
+    let mut uri = endpoint(&ctx, &path, query.as_deref())?;
+    if websocket {
+        uri = websocket_uri(uri)?;
+    }
     let headers = crate::policy::request_headers(crate::policy::OPENAI_API, &ctx)?;
     let body = openai_cache(&ctx)?;
     let body = super::model::shape(ctx.key, ctx.stream, ctx.upstream_model, ctx.headers, &body)?;
@@ -29,12 +34,38 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         HeaderValue::from_str(&format!("Bearer {key}"))
             .map_err(|error| ChannelError::Secret(format!("api_key is invalid: {error}")))?,
     );
+    if websocket {
+        request.headers_mut().append(
+            HeaderName::from_static("openai-beta"),
+            HeaderValue::from_static("responses_websockets=2026-02-06"),
+        );
+        request.headers_mut().append(
+            HeaderName::from_static("openai-beta"),
+            HeaderValue::from_static("responses_multi_agent=v1"),
+        );
+    }
     Ok(PreparedRequest {
         request,
         framing: None,
-        websocket: false,
+        websocket,
         profile: None,
     })
+}
+
+fn websocket_uri(uri: Uri) -> Result<Uri, ChannelError> {
+    let value = uri.to_string();
+    let value = value
+        .strip_prefix("https://")
+        .map(|rest| format!("wss://{rest}"))
+        .or_else(|| {
+            value
+                .strip_prefix("http://")
+                .map(|rest| format!("ws://{rest}"))
+        })
+        .unwrap_or(value);
+    value
+        .parse()
+        .map_err(|error| ChannelError::Prepare(format!("bad websocket URI: {error}")))
 }
 
 fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<bytes::Bytes, ChannelError> {
@@ -98,8 +129,8 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         return match kind {
             ContentGenerationKind::OpenAiChat => Some("openai_chat_completions"),
             ContentGenerationKind::OpenAiResponses => Some("openai_responses"),
-            ContentGenerationKind::OpenAiResponsesWebSocket
-            | ContentGenerationKind::ClaudeMessages
+            ContentGenerationKind::OpenAiResponsesWebSocket => Some("openai_responses_websocket"),
+            ContentGenerationKind::ClaudeMessages
             | ContentGenerationKind::GeminiGenerateContent => None,
         };
     }
@@ -136,6 +167,7 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         | StreamGenerateContent
         | GuardianReview
         | GuardianClassify
+        | CreateConversation
         | Rerank
         | WebSearch
         | CreateRealtimeCall

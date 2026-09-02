@@ -13,6 +13,7 @@ mod surface;
 mod surface_engine;
 mod surface_harness;
 mod traffic;
+mod websocket;
 
 use std::future::Future;
 use std::task::{Context, Poll, Waker};

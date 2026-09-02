@@ -4,6 +4,10 @@ use http::{HeaderValue, Uri};
 use serde_json::Value;
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
+    let websocket = ctx.key.kind
+        == gproxy_protocol::OperationKind::ContentGeneration(
+            gproxy_protocol::ContentGenerationKind::OpenAiResponsesWebSocket,
+        );
     if ctx.stream
         && matches!(
             ctx.key.operation,
@@ -16,7 +20,10 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     }
     let path = upstream_path(ctx.key.operation, ctx.upstream_model);
     let query = query(&ctx)?;
-    let uri = endpoint(&ctx, &path, query.as_deref())?;
+    let mut uri = endpoint(&ctx, &path, query.as_deref())?;
+    if websocket {
+        uri = websocket_uri(uri)?;
+    }
     let mut headers = crate::policy::request_headers(crate::policy::CODEX, &ctx)?;
     let content_type = ctx.headers.get(http::header::CONTENT_TYPE).cloned();
     let session_id = super::auth::session_id(ctx.secret, &headers);
@@ -35,6 +42,16 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             _ => "application/json",
         }),
     );
+    if websocket {
+        headers.append(
+            http::HeaderName::from_static("openai-beta"),
+            HeaderValue::from_static("responses_websockets=2026-02-06"),
+        );
+        headers.append(
+            http::HeaderName::from_static("openai-beta"),
+            HeaderValue::from_static("responses_multi_agent=v1"),
+        );
+    }
     let body = openai_cache(&ctx)?;
     let body = super::shape::request(ctx.key.operation, ctx.headers, &body, ctx.upstream_model)?;
     let mut request = http::Request::builder()
@@ -46,7 +63,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     Ok(PreparedRequest {
         request,
         framing: None,
-        websocket: false,
+        websocket,
         profile: Some(&super::profile::CLIENT_PROFILE),
     })
 }

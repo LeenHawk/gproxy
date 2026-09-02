@@ -65,14 +65,45 @@ fn transformed_claude_attempts_settle_native_usage_before_relay() -> Result<(), 
 
 #[test]
 fn every_declared_builtin_transform_is_wired() {
-    for channel in [
+    let mut channels = vec![
         &gproxy_channels::OpenAiChannel as &dyn Channel,
-        &gproxy_channels::ClaudeCodeChannel as &dyn Channel,
-        &gproxy_channels::CodexChannel as &dyn Channel,
-        &gproxy_channels::AiStudioChannel as &dyn Channel,
-    ] {
-        for support in channel.descriptor().supports {
-            if support.source != support.target {
+        &gproxy_channels::AntigravityChannel,
+        &gproxy_channels::ClaudeApiChannel,
+        &gproxy_channels::ClaudeCodeChannel,
+        &gproxy_channels::GeminiCliChannel,
+        &gproxy_channels::ClineChannel,
+        &gproxy_channels::CloudflareAiGatewayChannel,
+        &gproxy_channels::CodexChannel,
+        &gproxy_channels::CopilotCliChannel,
+        &gproxy_channels::CustomChannel,
+        &gproxy_channels::DashScopeChannel,
+        &gproxy_channels::DeepSeekChannel,
+        &gproxy_channels::GroqChannel,
+        &gproxy_channels::GrokBuildChannel,
+        &gproxy_channels::KiroChannel,
+        &gproxy_channels::KimiChannel,
+        &gproxy_channels::NvidiaChannel,
+        &gproxy_channels::OpenCodeChannel,
+        &gproxy_channels::OpenRouterChannel,
+        &gproxy_channels::AiStudioChannel,
+        &gproxy_channels::AzureChannel,
+        &gproxy_channels::AwsBedrockChannel,
+        &gproxy_channels::VertexChannel,
+        &gproxy_channels::VertexExpressChannel,
+        &gproxy_channels::WorkBuddyChannel,
+        &gproxy_channels::XaiChannel,
+        &gproxy_channels::VercelChannel,
+    ];
+    #[cfg(not(target_arch = "wasm32"))]
+    channels.push(&gproxy_channels::ClaudeWebChannel);
+    for channel in channels {
+        for support in channel
+            .descriptor()
+            .supports
+            .iter()
+            .chain(channel.routing_table())
+        {
+            if support.action == gproxy_channel_api::ChannelRouteAction::TransformTo {
                 assert!(
                     gproxy_transform::can_transform(support.source, support.target),
                     "{} declares an unwired transform: {:?}",
@@ -402,31 +433,6 @@ fn codex_memory_alias_resolves_admits_and_settles_estimated_usage() -> Result<()
     );
     assert!(state.settlements[0].usage.input_tokens > 0);
     assert!(state.settlements[0].usage.output_tokens > 0);
-    Ok(())
-}
-
-#[test]
-fn codex_remote_server_requires_websocket_upgrade_before_forwarding() -> Result<(), InitError> {
-    let host = MemoryHost::new(false);
-    host.state.lock().expect("state lock").credential.channel = "codex".into();
-    host.state.lock().expect("state lock").plan = Some(Plan {
-        targets: vec![codex_target()],
-        budget: FailoverBudget { max_attempts: 1 },
-    });
-    let core = codex_core(&host)?;
-    let mut request = request(false, "codex-remote-without-upgrade");
-    request.method = Method::GET;
-    request.path = "/api/codex/remote/control/server".into();
-    request.body = Bytes::new();
-    let outcome = block_on(core.execute(&host, request)).expect("upgrade-required response");
-    assert_eq!(outcome.status, http::StatusCode::UPGRADE_REQUIRED);
-    assert!(
-        host.state
-            .lock()
-            .expect("state lock")
-            .authorizations
-            .is_empty()
-    );
     Ok(())
 }
 

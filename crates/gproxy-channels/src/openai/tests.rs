@@ -34,13 +34,17 @@ fn descriptor_and_disposition_are_explicit() {
             .iter()
             .filter(|support| support.source == support.target)
             .count(),
-        28
+        29
     );
     for key in [
         OperationKey::family(Operation::ListModels, WireFamily::OpenAi),
         OperationKey::family(Operation::ExtendVideo, WireFamily::OpenAi),
         CHAT,
         RESPONSES,
+        OperationKey::content(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::OpenAiResponsesWebSocket,
+        ),
     ] {
         assert!(
             descriptor

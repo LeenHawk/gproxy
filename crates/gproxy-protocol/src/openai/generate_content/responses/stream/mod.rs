@@ -77,6 +77,8 @@ impl KnownResponseStreamEvent {
             Self::ResponseFailed(_) => T::ResponseFailed,
             Self::ResponseIncomplete(_) => T::ResponseIncomplete,
             Self::ResponseQueued(_) => T::ResponseQueued,
+            Self::ResponseInjectCreated(_) => T::ResponseInjectCreated,
+            Self::ResponseInjectFailed(_) => T::ResponseInjectFailed,
             Self::ResponseOutputItemAdded(_) => T::ResponseOutputItemAdded,
             Self::ResponseOutputItemDone(_) => T::ResponseOutputItemDone,
             Self::ResponseContentPartAdded(_) => T::ResponseContentPartAdded,

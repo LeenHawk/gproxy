@@ -7,7 +7,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         crate::generate_content::openai_responses_to_claude_messages::response::claude_to_responses(
             body,
         )?;
-    let input: openai::ResponseObject = serde_json::from_slice(&converted)?;
+    from_responses(converted)
+}
+
+pub(crate) fn from_responses(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
+    let input: openai::ResponseObject = serde_json::from_slice(&body)?;
     let usage = input.usage.unwrap_or_else(empty_usage);
     let incomplete = input.status == Some(openai::ResponseStatus::Incomplete);
     let mut items = input

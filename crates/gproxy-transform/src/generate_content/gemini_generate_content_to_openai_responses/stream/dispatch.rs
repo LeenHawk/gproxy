@@ -50,6 +50,8 @@ impl State {
                 event.message,
             )),
             E::ResponseContentPartAdded(_)
+            | E::ResponseInjectCreated(_)
+            | E::ResponseInjectFailed(_)
             | E::ResponseContentPartDone(_)
             | E::ResponseOutputTextDone(_)
             | E::ResponseOutputTextAnnotationAdded(_)

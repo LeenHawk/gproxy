@@ -144,6 +144,8 @@ extensible_string_enum!(ResponseStreamEventType, ResponseStreamEventTypeKnown {
     ResponseFailed => "response.failed",
     ResponseIncomplete => "response.incomplete",
     ResponseQueued => "response.queued",
+    ResponseInjectCreated => "response.inject.created",
+    ResponseInjectFailed => "response.inject.failed",
     ResponseOutputItemAdded => "response.output_item.added",
     ResponseOutputItemDone => "response.output_item.done",
     ResponseContentPartAdded => "response.content_part.added",

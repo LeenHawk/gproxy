@@ -105,6 +105,24 @@ fn models_and_count_tokens_keep_unknown_resource_data() {
 
 #[test]
 fn remaining_family_models_preserve_documented_and_future_fields() {
+    roundtrip::<CachedContent>(json!({
+        "name":"cachedContents/cache-1",
+        "model":"models/gemini-test",
+        "contents":[{"parts":[{"text":"stable context"}]}],
+        "ttl":"3600s",
+        "futureCacheField":true
+    }));
+    roundtrip::<BatchGenerateContentRequest>(json!({
+        "batch":{
+            "model":"models/gemini-test",
+            "displayName":"nightly",
+            "inputConfig":{"requests":{"requests":[{
+                "request":{"contents":[{"parts":[{"text":"hello"}]}]},
+                "metadata":{"request":"one"}
+            }]}}
+        },
+        "futureBatchField":1
+    }));
     roundtrip::<BatchEmbedContentsRequest>(json!({
         "requests":[{
             "model":"models/gemini-embedding-001",

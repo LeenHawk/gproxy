@@ -16,6 +16,20 @@ pub(crate) struct Classified {
 }
 
 impl Classified {
+    pub(super) fn responses_websocket(model: Option<String>) -> Self {
+        Self {
+            key: OperationKey::content(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::OpenAiResponsesWebSocket,
+            ),
+            stream: true,
+            framing: StreamFraming::WebSocket,
+            model,
+            resource: None,
+            session: None,
+        }
+    }
+
     pub(crate) fn routing_affinity(&self, user_key_id: i64) -> i64 {
         if self.key.operation.spec().affinity == Affinity::Session {
             super::session::selection_key(self.session, user_key_id)

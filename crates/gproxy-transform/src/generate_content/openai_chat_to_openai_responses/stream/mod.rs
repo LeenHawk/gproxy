@@ -98,6 +98,8 @@ impl State {
                 self.reasoning_part_done(event)
             }
             openai::KnownResponseStreamEvent::ResponseQueued(_)
+            | openai::KnownResponseStreamEvent::ResponseInjectCreated(_)
+            | openai::KnownResponseStreamEvent::ResponseInjectFailed(_)
             | openai::KnownResponseStreamEvent::ResponseOutputTextAnnotationAdded(_)
             | openai::KnownResponseStreamEvent::ResponseAudioDelta(_)
             | openai::KnownResponseStreamEvent::ResponseAudioDone(_)

@@ -191,6 +191,31 @@ pub(crate) fn insert_routing_default(input: &RoutingRuleInput) -> Result<Stateme
     Statement::query(&query)
 }
 
+pub(crate) fn update_routing_default(input: &RoutingRuleInput) -> Result<Statement, StoreError> {
+    let mut query = Query::update();
+    query
+        .table(Alias::new("routing_rules"))
+        .values([
+            (
+                Alias::new("implementation"),
+                value(input.implementation.clone()),
+            ),
+            (
+                Alias::new("dest_operation"),
+                value(input.dest_operation.clone()),
+            ),
+            (Alias::new("dest_kind"), value(input.dest_kind.clone())),
+            (Alias::new("sort_order"), value(input.sort_order)),
+            (Alias::new("enabled"), value(input.enabled)),
+            (Alias::new("updated_at"), value(now())),
+        ])
+        .and_where(Expr::col(Alias::new("provider_id")).eq(input.provider_id))
+        .and_where(Expr::col(Alias::new("operation")).eq(input.operation.clone()))
+        .and_where(Expr::col(Alias::new("kind")).eq(input.kind.clone()))
+        .and_where(Expr::col(Alias::new("origin")).eq("channel_default"));
+    Statement::query(&query)
+}
+
 pub(crate) fn delete_provider_routing_rules(provider_id: i64) -> Result<Statement, StoreError> {
     let mut query = Query::delete();
     query

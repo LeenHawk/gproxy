@@ -13,7 +13,7 @@ pub fn endpoint_override_key(key: OperationKey) -> Option<&'static str> {
                     Some("gemini_generate_content")
                 }
             }
-            ContentGenerationKind::OpenAiResponsesWebSocket => None,
+            ContentGenerationKind::OpenAiResponsesWebSocket => Some("openai_responses_websocket"),
         };
     }
     use Operation::*;
@@ -36,6 +36,7 @@ pub fn endpoint_override_key(key: OperationKey) -> Option<&'static str> {
         (CreateTranscription, _) => "openai_audio_transcriptions",
         (CreateTranslation, _) => "openai_audio_translations",
         (CompactContent, _) => "openai_compact",
+        (CreateConversation, _) => "openai_conversations",
         (CreateVideo, _) => "openai_video_create",
         (RetrieveVideo, _) => "openai_video_retrieve",
         (ListVideos, _) => "openai_video_list",

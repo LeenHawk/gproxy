@@ -7,6 +7,7 @@ use crate::{ResponseStream, can_transform, request, response};
 
 mod buffered_responses;
 mod native_tools;
+mod ported_surface;
 mod request_parity;
 mod stream_lifecycle;
 mod support;

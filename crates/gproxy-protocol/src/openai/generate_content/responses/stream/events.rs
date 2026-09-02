@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::super::{ResponseInjectCreatedEvent, ResponseInjectFailedEvent};
 use super::payloads::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -18,6 +19,10 @@ pub enum KnownResponseStreamEvent {
     ResponseIncomplete(ResponseLifecycleEvent),
     #[serde(rename = "response.queued")]
     ResponseQueued(ResponseLifecycleEvent),
+    #[serde(rename = "response.inject.created")]
+    ResponseInjectCreated(ResponseInjectCreatedEvent),
+    #[serde(rename = "response.inject.failed")]
+    ResponseInjectFailed(ResponseInjectFailedEvent),
     #[serde(rename = "response.output_item.added")]
     ResponseOutputItemAdded(ResponseOutputItemEvent),
     #[serde(rename = "response.output_item.done")]

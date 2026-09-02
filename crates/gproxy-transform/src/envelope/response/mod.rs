@@ -126,6 +126,10 @@ fn converter(
         TransformPair::OpenAiResponsesToChat => {
             crate::generate_content::openai_responses_to_openai_chat::stream::converter()
         }
+        TransformPair::OpenAiCreateImageToGemini => crate::images::stream::from_gemini(false),
+        TransformPair::OpenAiEditImageToGemini => crate::images::stream::from_gemini(true),
+        TransformPair::OpenAiCreateImageToResponses => crate::images::stream::from_responses(false),
+        TransformPair::OpenAiEditImageToResponses => crate::images::stream::from_responses(true),
         _ => {
             return Err(TransformError::UnsupportedPair {
                 source_key: source,

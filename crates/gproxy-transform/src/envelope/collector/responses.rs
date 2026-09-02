@@ -21,6 +21,8 @@ impl ResponsesCollector {
                 openai::KnownResponseStreamEvent::ResponseCreated(_)
                 | openai::KnownResponseStreamEvent::ResponseInProgress(_)
                 | openai::KnownResponseStreamEvent::ResponseQueued(_)
+                | openai::KnownResponseStreamEvent::ResponseInjectCreated(_)
+                | openai::KnownResponseStreamEvent::ResponseInjectFailed(_)
                 | openai::KnownResponseStreamEvent::ResponseOutputItemAdded(_)
                 | openai::KnownResponseStreamEvent::ResponseOutputItemDone(_)
                 | openai::KnownResponseStreamEvent::ResponseContentPartAdded(_)

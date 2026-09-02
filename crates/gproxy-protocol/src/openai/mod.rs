@@ -3,6 +3,7 @@
 pub mod audio;
 pub mod common;
 pub mod compact;
+pub mod conversation;
 pub mod count_tokens;
 pub mod embeddings;
 pub mod files;

@@ -2,15 +2,31 @@ use bytes::Bytes;
 use gproxy_channel_api::ChannelError;
 use gproxy_protocol::openai::common::OpenAiModelId;
 use gproxy_protocol::openai::generate_content::responses::{
-    ResponseCreateRequest, ResponseEasyInputContent, ResponseEasyInputMessageItem,
-    ResponseEasyInputMessageRole, ResponseInput, ResponseInputContentPart,
-    ResponseInputMessageRole, ResponseItem, ResponseMessageItem, ResponseMessageItemType,
-    TypedResponseItem,
+    ResponseCreateRequest, ResponseCreateWebSocketRequest, ResponseEasyInputContent,
+    ResponseEasyInputMessageItem, ResponseEasyInputMessageRole, ResponseInput,
+    ResponseInputContentPart, ResponseInputMessageRole, ResponseItem, ResponseMessageItem,
+    ResponseMessageItemType, TypedResponseItem,
 };
 
 pub(super) fn request(body: &Bytes, model: &str) -> Result<Bytes, ChannelError> {
-    let mut request: ResponseCreateRequest = serde_json::from_slice(body)
+    if let Ok(mut websocket) = serde_json::from_slice::<ResponseCreateWebSocketRequest>(body) {
+        websocket.response = normalize(websocket.response, model)?;
+        return serde_json::to_vec(&websocket)
+            .map(Bytes::from)
+            .map_err(|error| ChannelError::Prepare(error.to_string()));
+    }
+    let request: ResponseCreateRequest = serde_json::from_slice(body)
         .map_err(|error| ChannelError::Prepare(format!("Responses request JSON: {error}")))?;
+    let request = normalize(request, model)?;
+    serde_json::to_vec(&request)
+        .map(Bytes::from)
+        .map_err(|error| ChannelError::Prepare(error.to_string()))
+}
+
+fn normalize(
+    mut request: ResponseCreateRequest,
+    model: &str,
+) -> Result<ResponseCreateRequest, ChannelError> {
     request.model = Some(OpenAiModelId::from(model));
     request.stream = Some(true);
     request.store = Some(false);
@@ -53,9 +69,7 @@ pub(super) fn request(body: &Bytes, model: &str) -> Result<Bytes, ChannelError> 
     }
     super::tools::normalize_definitions(&mut request.tools, &mut request.tool_choice);
     request.instructions = instructions;
-    serde_json::to_vec(&request)
-        .map(Bytes::from)
-        .map_err(|error| ChannelError::Prepare(error.to_string()))
+    Ok(request)
 }
 
 fn system_text(item: &ResponseItem) -> Option<String> {

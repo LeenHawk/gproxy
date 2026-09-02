@@ -149,6 +149,24 @@ fn compact_keeps_session_affinity() {
 }
 
 #[test]
+fn conversation_metadata_is_free_and_classified() {
+    let matched = match_ingress(&Method::POST, "/v1/conversations").expect("conversation path");
+    assert_eq!(matched.operation, Operation::CreateConversation);
+    assert_eq!(
+        Operation::CreateConversation.group(),
+        OperationGroup::Conversation
+    );
+    assert_eq!(
+        Operation::CreateConversation.spec().settle,
+        SettleMode::Free
+    );
+    assert_eq!(
+        Operation::CreateConversation.spec().affinity,
+        Affinity::None
+    );
+}
+
+#[test]
 fn shared_model_paths_honor_the_wire_family_preference() {
     let default = match_ingress(&Method::GET, "/v1/models").expect("default model list");
     assert_eq!(default.kind, OperationKind::Family(WireFamily::OpenAi));

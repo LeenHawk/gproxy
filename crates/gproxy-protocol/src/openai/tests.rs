@@ -203,6 +203,19 @@ fn chat_and_responses_stream_events_round_trip_future_data() {
         "model":"gpt-future",
         "input":"hello"
     }));
+    round_trip::<ResponseWebSocketRequest>(json!({
+        "type":"response.inject",
+        "response_id":"resp_1",
+        "input":[{"type":"function_call_output","call_id":"call_1","output":"ok"}],
+        "futureInject":true
+    }));
+    let created = round_trip::<ResponseStreamEvent>(json!({
+        "type":"response.inject.created",
+        "sequence_number":9,
+        "response_id":"resp_1",
+        "futureAck":true
+    }));
+    assert!(matches!(created, ResponseStreamEvent::Known(_)));
     let future = round_trip::<ResponseWebSocketRequest>(json!({
         "type":"response.future",
         "payload":{"x":1}

@@ -10,22 +10,24 @@ use crate::funnel::{self, FunnelCtx};
 use crate::host::{Host, UpstreamTransport};
 
 pub(crate) mod body;
+mod media;
 mod prepare;
 mod transform;
 
 pub(crate) use prepare::{native_support, prepare, support};
 
-enum Egress {
+pub(crate) enum Egress {
     Http(Box<http::Request<Bytes>>),
+    WebSocket(Box<http::Request<Bytes>>),
     Orchestrated(Box<dyn OperationDriver>),
 }
 
 pub(crate) struct Prepared {
-    channel: &'static str,
-    egress: Egress,
-    stream: bool,
-    downstream_stream: bool,
-    facts: FunnelCtx,
+    pub(crate) channel: &'static str,
+    pub(crate) egress: Egress,
+    pub(crate) stream: bool,
+    pub(crate) downstream_stream: bool,
+    pub(crate) facts: FunnelCtx,
 }
 
 pub(crate) struct Completed {
@@ -91,6 +93,11 @@ pub(crate) async fn send<H: Host>(
                 return Err(Box::new(Failure::Transport { facts, error }));
             }
         },
+        Egress::WebSocket(_) => {
+            return Err(Box::new(Failure::Committed {
+                error: CoreError::Unsupported,
+            }));
+        }
         Egress::Orchestrated(driver) => {
             match crate::orchestration::run(core, channel, driver, &mut facts).await {
                 Ok(response) => response,
@@ -148,22 +155,17 @@ pub(crate) async fn send<H: Host>(
         let source = facts
             .source_key
             .expect("operation attempt has a source key");
-        if source.kind != key.kind || facts.source_framing != facts.target_framing {
-            let source_framing = if downstream_stream {
-                facts.source_framing
-            } else {
-                gproxy_protocol::StreamFraming::Sse
-            };
-            decoder = Some(Box::new(transform::TransformDecoder::new(
-                source,
-                key,
-                source_framing,
-                facts.target_framing,
-                decoder,
-            )));
-        }
         if !downstream_stream {
-            let gproxy_protocol::OperationKind::ContentGeneration(kind) = source.kind else {
+            if facts.target_framing != gproxy_protocol::StreamFraming::Sse {
+                decoder = Some(Box::new(transform::TransformDecoder::new(
+                    key,
+                    key,
+                    gproxy_protocol::StreamFraming::Sse,
+                    facts.target_framing,
+                    decoder,
+                )));
+            }
+            let gproxy_protocol::OperationKind::ContentGeneration(kind) = key.kind else {
                 let (parts, _) = response.into_parts();
                 return Err(Box::new(Failure::Interrupted {
                     channel: channel.descriptor().id,
@@ -172,23 +174,44 @@ pub(crate) async fn send<H: Host>(
                     headers: parts.headers,
                     body: Bytes::new(),
                     error: TransportError::Interrupted(
-                        "buffered stream source is not content generation".into(),
+                        "buffered stream target is not content generation".into(),
                     ),
                 }));
             };
             return match body::collect_stream(response, decoder, kind).await {
-                Ok(collected) => Ok(Completed {
-                    channel: channel.descriptor().id,
-                    facts,
-                    disposition,
-                    body: AttemptBody::Buffered(funnel::BufferedRelay {
-                        response: collected.response,
-                        usage: collected.usage,
-                        actual_service_tier: collected.actual_service_tier,
-                        capture_body: Some(collected.capture_body),
-                        outward_ready: true,
-                    }),
-                }),
+                Ok(mut collected) => {
+                    if source != key {
+                        match gproxy_transform::response(
+                            source,
+                            key,
+                            collected.response.body().clone(),
+                        ) {
+                            Ok(body) => *collected.response.body_mut() = body,
+                            Err(error) => {
+                                return Err(Box::new(Failure::Interrupted {
+                                    channel: channel.descriptor().id,
+                                    facts,
+                                    status: collected.response.status(),
+                                    headers: collected.response.headers().clone(),
+                                    body: collected.capture_body,
+                                    error: TransportError::Interrupted(error.to_string()),
+                                }));
+                            }
+                        }
+                    }
+                    Ok(Completed {
+                        channel: channel.descriptor().id,
+                        facts,
+                        disposition,
+                        body: AttemptBody::Buffered(funnel::BufferedRelay {
+                            response: collected.response,
+                            usage: collected.usage,
+                            actual_service_tier: collected.actual_service_tier,
+                            capture_body: Some(collected.capture_body),
+                            outward_ready: true,
+                        }),
+                    })
+                }
                 Err(failure) => {
                     crate::funnel::health::degraded(
                         core.host.as_ref(),
@@ -208,6 +231,15 @@ pub(crate) async fn send<H: Host>(
                     }))
                 }
             };
+        }
+        if source.kind != key.kind || facts.source_framing != facts.target_framing {
+            decoder = Some(Box::new(transform::TransformDecoder::new(
+                source,
+                key,
+                facts.source_framing,
+                facts.target_framing,
+                decoder,
+            )));
         }
         return Ok(Completed {
             channel: channel.descriptor().id,

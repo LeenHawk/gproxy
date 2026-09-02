@@ -13,7 +13,9 @@ pub(super) fn response(event: &Known) -> Option<&ResponseObject> {
         | Known::ResponseFailed(event)
         | Known::ResponseIncomplete(event)
         | Known::ResponseQueued(event) => Some(&event.response),
-        Known::ResponseOutputItemAdded(_)
+        Known::ResponseInjectCreated(_)
+        | Known::ResponseInjectFailed(_)
+        | Known::ResponseOutputItemAdded(_)
         | Known::ResponseOutputItemDone(_)
         | Known::ResponseContentPartAdded(_)
         | Known::ResponseContentPartDone(_)
