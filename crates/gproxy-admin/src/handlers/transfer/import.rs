@@ -54,6 +54,12 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
     }
     for mut value in data.teams {
         value.organization_id = mapped(&maps.organizations, value.organization_id)?;
+        if let Some(current) = existing.teams.iter().find(|current| {
+            current.organization_id == value.organization_id && current.name == value.name
+        }) {
+            maps.teams.insert(value.id, current.id);
+            continue;
+        }
         map_create(state, Entity::Teams, value.id, &value, &mut maps.teams).await?;
         imported += 1;
     }
