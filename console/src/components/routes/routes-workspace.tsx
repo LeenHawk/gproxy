@@ -50,7 +50,7 @@ export function RoutesWorkspace(props: Props) {
       getSearchText={(route) => route.name}
       renderTitle={(route) => route.name}
       renderSummary={(route) => t("routes.summary", { attempts: route.max_attempts })}
-      renderAction={(route) => <div className="flex items-center gap-1"><EnabledSwitch checked={route.enabled} label={`${route.name}: ${t("routes.fields.enabled")}`} errorMessage={t("routes.form.updateError")} onChange={(enabled) => saveRoute({ name: route.name, max_attempts: route.max_attempts, enabled }, route.id)} onChanged={props.onRoutesChanged} /><EntityDeleteButton entity="routes" id={route.id} label={route.name} queryKeys={["routes", "route-members", "model-aliases"]} onDeleted={route.id === selected?.id ? back : undefined} /></div>}
+      renderAction={(route) => <EnabledSwitch checked={route.enabled} label={`${route.name}: ${t("routes.fields.enabled")}`} errorMessage={t("routes.form.updateError")} onChange={(enabled) => saveRoute({ name: route.name, max_attempts: route.max_attempts, enabled }, route.id)} onChanged={props.onRoutesChanged} />}
       onSelect={(route) => navigateAdminPath(`/admin/routes/${route.id}/members`)}
       onBack={back}
       searchPlaceholder={t("routes.search")}

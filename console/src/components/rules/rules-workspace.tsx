@@ -94,9 +94,6 @@ export function RulesWorkspace(props: Props) {
   </div> : <Button size="icon-sm" aria-label={t("rules.sets.add")} onClick={() => navigateAdminPath("/admin/rules/new/settings")}><PlusIcon aria-hidden /></Button>
 
   const back = () => embedded ? setLocalSelectedId(null) : navigateAdminPath(adminPath("rules"))
-  const cannotDelete = (set: RuleSetDto) => props.rules.some((rule) => rule.rule_set_id === set.id)
-    || props.attachments.some((attachment) => attachment.rule_set_id === set.id)
-
   return <WorkspaceLayout
     storageKey={embedded ? `gproxy.workspace.provider-${props.scopeProviderId}-rules.width` : "gproxy.workspace.rules.width"}
     title={t("rules.sets.title")}
@@ -105,7 +102,7 @@ export function RulesWorkspace(props: Props) {
     getSearchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`}
     renderTitle={(set) => ruleSetText(set, "name", t)}
     renderSummary={(set) => ruleSetText(set, "description", t)}
-    renderAction={(set) => <div className="flex items-center gap-1"><Badge variant="secondary" aria-label={t("rules.fields.scope")}>{scopeLabel(props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length, t)}</Badge>{embedded ? null : <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} disabled={cannotDelete(set)} onDeleted={set.id === selected?.id ? back : undefined} />}</div>}
+    renderAction={(set) => <Badge variant="secondary" aria-label={t("rules.fields.scope")}>{scopeLabel(props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length, t)}</Badge>}
     onSelect={(set) => embedded ? setLocalSelectedId(set.id) : navigateAdminPath(`/admin/rules/${set.id}/rules`)}
     onBack={back}
     searchPlaceholder={t("rules.sets.search")}
