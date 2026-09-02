@@ -27,6 +27,14 @@ pub(super) async fn settings(
             Value::from(settings.file_upload_max_in_flight),
         ),
         setting(INHERIT_SYSTEM_PROXY, Value::Bool(false)),
+        setting(
+            UPDATE_CHANNEL,
+            option_text(settings.update_channel.as_deref()),
+        ),
+        setting(
+            ENABLE_AUTO_UPDATE_CHECK,
+            Value::Bool(settings.enable_auto_update_check),
+        ),
         setting(RETENTION_DAYS, positive(settings.retention_days)),
         setting(
             MAX_DATABASE_SIZE_MB,

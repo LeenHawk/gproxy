@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react"
 
-export type AdminRoute = "overview" | "providers" | "routes" | "rules" | "identity" | "usage" | "audit" | "logs" | "pricing" | "tokenizers" | "settings"
+export type AdminRoute = "overview" | "providers" | "routes" | "rules" | "identity" | "usage" | "audit" | "logs" | "pricing" | "tokenizers" | "update" | "settings"
 export type AdminLocation = { route: AdminRoute; segments: Array<string> }
 
-const routes = new Set<AdminRoute>(["overview", "providers", "routes", "rules", "identity", "usage", "audit", "logs", "pricing", "tokenizers", "settings"])
+const routes = new Set<AdminRoute>(["overview", "providers", "routes", "rules", "identity", "usage", "audit", "logs", "pricing", "tokenizers", "update", "settings"])
 const serverLocation: AdminLocation = { route: "overview", segments: [] }
 let cachedPath = ""
 let cachedLocation = serverLocation

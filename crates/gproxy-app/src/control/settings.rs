@@ -4,7 +4,8 @@ use gproxy_store::records::{
     INHERIT_SYSTEM_PROXY,
 };
 use gproxy_store::records::{
-    ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SettingRecord, TRAFFIC_BLACKLIST,
+    ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT, INSTANCE_NAME, PROXY, SettingRecord,
+    TRAFFIC_BLACKLIST, UPDATE_CHANNEL,
 };
 
 #[derive(Clone)]
@@ -54,6 +55,7 @@ pub(crate) struct EffectiveSettings {
     pub max_attempts: u32,
     pub instance_id: u64,
     pub traffic_blacklist: gproxy_channel_api::TrafficBlacklistConfig,
+    pub update_channel: Option<String>,
 }
 
 impl EffectiveSettings {
@@ -78,6 +80,7 @@ impl EffectiveSettings {
             max_attempts: runtime.max_attempts,
             instance_id: runtime.instance_id,
             traffic_blacklist: traffic_blacklist(values),
+            update_channel: text(values, UPDATE_CHANNEL),
         }
     }
 

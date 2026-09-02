@@ -1,1 +1,67 @@
-{}
+{
+  "update": {
+    "title": "更新",
+    "subtitle": "选择发布通道、检查签名清单并更新此 GPROXY 原生安装。",
+    "preferences": {
+      "title": "更新设置",
+      "description": "这些设置由此实例的所有管理员共享。",
+      "channel": "更新通道",
+      "channelHint": "构建默认跟随当前二进制内置的通道；alpha 构建留在 Dev，预发布通道跟踪持续替换的构建。",
+      "automatic": "自动检查更新",
+      "automaticHint": "Console 打开时检查更新，仅在有新构建时提示；默认关闭。",
+      "channels": {
+        "default": "构建默认",
+        "dev": "Dev（alpha）",
+        "releases": "稳定版",
+        "staging": "预发布版"
+      },
+      "channelSaved": "已保存更新通道。",
+      "automaticSaved": "已保存自动检查更新设置。",
+      "saveError": "无法保存更新设置。",
+      "loadError": "无法加载更新设置。"
+    },
+    "check": {
+      "title": "签名更新",
+      "description": "安装前会验证清单签名、归档摘要、构建目标和数据版本下限。",
+      "button": "检查更新",
+      "idle": "此页面尚未执行检查。",
+      "error": "无法检查更新",
+      "current": "已安装",
+      "latest": "最新版本",
+      "channel": "实际通道",
+      "target": "构建目标",
+      "restart": "重启方式",
+      "available": "有可用更新",
+      "availableHint": "版本 {{version}} 已可验证并安装。",
+      "currentStatus": "已是最新",
+      "currentHint": "当前安装与所选通道的最新构建一致。"
+    },
+    "restart": {
+      "none": "手动重启",
+      "supervisor": "进程守护器",
+      "re-exec": "重启进程"
+    },
+    "actions": {
+      "apply": "验证并应用",
+      "current": "已是最新",
+      "rollback": "回滚",
+      "applied": "已应用版本 {{version}}。",
+      "applyError": "更新被拒绝或无法应用。",
+      "rolledBack": "已恢复上一版可执行文件（{{version}}）。",
+      "rollbackError": "没有可恢复的有效回滚可执行文件。",
+      "applyConfirmTitle": "应用此更新？",
+      "applyConfirmDescription": "GPROXY 将下载并验证所选构建、替换可执行文件，然后按配置的方式重启。",
+      "rollbackConfirmTitle": "恢复上一版可执行文件？",
+      "rollbackConfirmDescription": "GPROXY 将用保留的备份替换当前可执行文件，然后按配置的方式重启。"
+    },
+    "notes": {
+      "title": "发布说明"
+    },
+    "banner": {
+      "title": "GPROXY {{version}} 可更新",
+      "description": "所选通道已有签名更新。",
+      "action": "查看更新",
+      "dismiss": "关闭此次更新提示"
+    }
+  }
+}

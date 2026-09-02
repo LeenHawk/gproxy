@@ -167,6 +167,7 @@ export * from "./TransformActionDto";
 export * from "./TransformLocateDto";
 export * from "./TransformPhaseDto";
 export * from "./UpdateAppliedDto";
+export * from "./UpdateChannelDto";
 export * from "./UpdateStatusDto";
 export * from "./UsageGroupByDto";
 export * from "./UsageQueryDto";

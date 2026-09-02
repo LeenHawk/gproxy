@@ -1,15 +1,15 @@
 use bytes::Bytes;
 use gproxy_store::records::{
-    DEFAULT_TOKENIZER_VOCAB, DISABLE_LOG_REDACTION, ENABLE_DOWNSTREAM_LOG,
-    ENABLE_DOWNSTREAM_LOG_BODY, ENABLE_TOKENIZER_DOWNLOAD, ENABLE_TOKENIZER_VOCABS,
-    ENABLE_UPSTREAM_LOG, ENABLE_UPSTREAM_LOG_BODY, ENABLE_USAGE, FILE_UPLOAD_MAX_IN_FLIGHT,
-    INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY, RETENTION_DAYS, SettingInput,
-    SettingRecord, TRAFFIC_BLACKLIST,
+    DEFAULT_TOKENIZER_VOCAB, DISABLE_LOG_REDACTION, ENABLE_AUTO_UPDATE_CHECK,
+    ENABLE_DOWNSTREAM_LOG, ENABLE_DOWNSTREAM_LOG_BODY, ENABLE_TOKENIZER_DOWNLOAD,
+    ENABLE_TOKENIZER_VOCABS, ENABLE_UPSTREAM_LOG, ENABLE_UPSTREAM_LOG_BODY, ENABLE_USAGE,
+    FILE_UPLOAD_MAX_IN_FLIGHT, INHERIT_SYSTEM_PROXY, INSTANCE_NAME, MAX_DATABASE_SIZE_MB, PROXY,
+    RETENTION_DAYS, SettingInput, SettingRecord, TRAFFIC_BLACKLIST, UPDATE_CHANNEL,
 };
 use http::{Response, StatusCode};
 use serde_json::Value;
 
-use crate::dto::InstanceSettingsDto;
+use crate::dto::{InstanceSettingsDto, UpdateChannelDto};
 use crate::handlers::util;
 use crate::{AdminError, State, response};
 
@@ -69,6 +69,11 @@ pub(super) async fn update(
             boolean(ENABLE_UPSTREAM_LOG, request.enable_upstream_log),
             boolean(ENABLE_UPSTREAM_LOG_BODY, request.enable_upstream_log_body),
             boolean(DISABLE_LOG_REDACTION, request.disable_log_redaction),
+            string(
+                UPDATE_CHANNEL,
+                request.update_channel.map(UpdateChannelDto::as_str),
+            ),
+            boolean(ENABLE_AUTO_UPDATE_CHECK, request.enable_auto_update_check),
             json(TRAFFIC_BLACKLIST, traffic_blacklist),
         ])
         .await?;
@@ -93,6 +98,10 @@ fn read(values: &[SettingRecord]) -> InstanceSettingsDto {
         enable_upstream_log: enabled(values, ENABLE_UPSTREAM_LOG),
         enable_upstream_log_body: enabled(values, ENABLE_UPSTREAM_LOG_BODY),
         disable_log_redaction: enabled(values, DISABLE_LOG_REDACTION),
+        update_channel: text(values, UPDATE_CHANNEL)
+            .as_deref()
+            .and_then(UpdateChannelDto::from_stored),
+        enable_auto_update_check: enabled(values, ENABLE_AUTO_UPDATE_CHECK),
         traffic_blacklist: traffic_blacklist(values).into(),
         traffic_blacklist_defaults: gproxy_channel_api::TrafficBlacklistConfig::defaults().into(),
     }

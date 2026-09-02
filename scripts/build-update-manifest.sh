@@ -9,12 +9,24 @@ assets_dir="${ASSETS_DIR:-dist/native}"
 output="${OUT:-dist/release/manifest.json}"
 notes_url="${NOTES_URL:-}"
 version="${VERSION:-${TAG#v}}"
+channel="${CHANNEL:-releases}"
 
-scripts/release-metadata.sh verify-tag "$TAG"
-if [ "$version" != "$(scripts/release-metadata.sh version)" ]; then
-  echo "manifest version $version does not match workspace version" >&2
-  exit 1
-fi
+case "$channel" in
+  releases | dev)
+    scripts/release-metadata.sh verify-tag "$TAG"
+    if [ "$version" != "$(scripts/release-metadata.sh version)" ]; then
+      echo "manifest version $version does not match workspace version" >&2
+      exit 1
+    fi
+    ;;
+  staging)
+    test -n "$version" || { echo "staging manifest version is required" >&2; exit 1; }
+    ;;
+  *)
+    echo "unsupported update channel: $channel" >&2
+    exit 1
+    ;;
+esac
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 command -v openssl >/dev/null || { echo "openssl is required" >&2; exit 1; }
 
@@ -28,7 +40,7 @@ fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 payload="$work/payload"
-printf 'releases\n%s\n%s\n%s\n' "$version" "$notes_url" "$minimum" > "$payload"
+printf '%s\n%s\n%s\n%s\n' "$channel" "$version" "$notes_url" "$minimum" > "$payload"
 artifacts='[]'
 
 while IFS=$'\t' read -r target artifact os; do
@@ -78,7 +90,7 @@ openssl pkeyutl -verify -rawin -pubin -inkey "$work/public.pem" \
   -sigfile "$work/signature.bin" -in "$payload" >/dev/null
 
 mkdir -p "$(dirname "$output")"
-jq -n --arg channel releases --arg version "$version" --arg notes "$notes_url" \
+jq -n --arg channel "$channel" --arg version "$version" --arg notes "$notes_url" \
   --argjson minimum "$minimum" --argjson artifacts "$artifacts" --arg signature "$signature" \
   '{channel:$channel,version:$version,notes_url:(if $notes=="" then null else $notes end),
     min_compatible_data_version:$minimum,artifacts:$artifacts,signature:$signature}' > "$output"

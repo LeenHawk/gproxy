@@ -85,20 +85,6 @@
         "unsupported": "此安裝不支援登入啟動。"
       }
     },
-    "update": {
-      "title": "原生更新",
-      "description": "檢查維護者簽署的清單。封存檔在解壓前完成驗證，並保留上一版執行檔用於回復。",
-      "loadError": "無法驗證更新資訊。",
-      "versions": "已安裝 {{current}} · 可用 {{latest}}",
-      "target": "{{channel}} · {{target}} · 重新啟動方式 {{restart}}",
-      "apply": "驗證並套用",
-      "current": "已是最新",
-      "applied": "已套用版本 {{version}}。",
-      "applyError": "更新遭拒絕或無法套用。",
-      "rollback": "回復",
-      "rolledBack": "已還原上一版執行檔。",
-      "rollbackError": "沒有可還原的有效回復執行檔。"
-    },
     "tokenizers": {
       "title": "分詞器詞表",
       "description": "查看、取得和刪除此執行個體快取的詞表。",

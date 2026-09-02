@@ -21,21 +21,13 @@ type Result<T> = std::result::Result<T, Error>;
 pub(crate) struct Manager {
     client: wreq::Client,
     data_dir: PathBuf,
-    channel: &'static str,
-    manifest_url: String,
+    manifest_url: Option<String>,
     restart: Restart,
 }
 
 impl Manager {
     pub(crate) fn new(data_dir: PathBuf, proxy: Option<&str>) -> Result<Self> {
-        let channel = channel()?;
-        let manifest_url = std::env::var("GPROXY_UPDATE_SERVE").unwrap_or_else(|_| {
-            if channel == "staging" {
-                "https://github.com/LeenHawk/gproxy/releases/download/staging/manifest.json".into()
-            } else {
-                "https://github.com/LeenHawk/gproxy/releases/latest/download/manifest.json".into()
-            }
-        });
+        let manifest_url = std::env::var("GPROXY_UPDATE_SERVE").ok();
         let mut builder = wreq::Client::builder()
             .user_agent(concat!("gproxy-selfupdate/", env!("CARGO_PKG_VERSION")));
         builder = match proxy {
@@ -45,21 +37,21 @@ impl Manager {
         Ok(Self {
             client: builder.build().map_err(|_| Error::Configuration)?,
             data_dir,
-            channel,
             manifest_url,
             restart: restart()?,
         })
     }
 
-    async fn check(&self) -> Result<UpdateStatusDto> {
-        let manifest = download::manifest(&self.client, &self.manifest_url).await?;
-        if manifest.channel != self.channel {
+    async fn check(&self, selected_channel: Option<&str>) -> Result<UpdateStatusDto> {
+        let channel = channel(selected_channel)?;
+        let manifest = download::manifest(&self.client, &self.manifest_url(&channel)).await?;
+        if manifest.channel != channel {
             return Err(Error::Manifest);
         }
         let target = version::target();
         let _artifact = manifest.artifact(&target)?;
-        let (current, available) = version::available(self.channel, &manifest.version)?;
-        let notes = if available && self.channel == "releases" && manifest.notes_url.is_some() {
+        let (current, available) = version::available(&channel, &manifest.version)?;
+        let notes = if available && channel != "staging" && manifest.notes_url.is_some() {
             notes::fetch(&self.client, &manifest.version).await
         } else {
             None
@@ -68,7 +60,7 @@ impl Manager {
             current,
             latest: manifest.version,
             available,
-            channel: self.channel.into(),
+            channel,
             target,
             notes,
             rollback_available: swap::rollback_available(),
@@ -76,16 +68,17 @@ impl Manager {
         })
     }
 
-    async fn apply(&self) -> Result<(UpdateAppliedDto, bool)> {
-        let manifest = download::manifest(&self.client, &self.manifest_url).await?;
-        if manifest.channel != self.channel {
+    async fn apply(&self, selected_channel: Option<&str>) -> Result<(UpdateAppliedDto, bool)> {
+        let channel = channel(selected_channel)?;
+        let manifest = download::manifest(&self.client, &self.manifest_url(&channel)).await?;
+        if manifest.channel != channel {
             return Err(Error::Manifest);
         }
         version::compatible(
             manifest.min_compatible_data_version,
             gproxy_store::schema::SchemaVersion::LATEST.number() as u32,
         )?;
-        let (_, available) = version::available(self.channel, &manifest.version)?;
+        let (_, available) = version::available(&channel, &manifest.version)?;
         if available {
             let target = version::target();
             let bytes = download::artifact(&self.client, manifest.artifact(&target)?).await?;
@@ -105,12 +98,17 @@ impl Manager {
         ))
     }
 
-    pub(crate) async fn dispatch(&self, method: &Method, path: &str) -> Response<Bytes> {
+    pub(crate) async fn dispatch(
+        &self,
+        method: &Method,
+        path: &str,
+        selected_channel: Option<&str>,
+    ) -> Response<Bytes> {
         let (result, restart_after) = match (method, path) {
             (&Method::GET | &Method::HEAD, "/admin/api/native/update") => {
-                (self.check().await.and_then(to_value), false)
+                (self.check(selected_channel).await.and_then(to_value), false)
             }
-            (&Method::POST, "/admin/api/native/update/apply") => match self.apply().await {
+            (&Method::POST, "/admin/api/native/update/apply") => match self.apply(selected_channel).await {
                 Ok((applied, changed)) => (to_value(applied), changed),
                 Err(error) => (Err(error), false),
             },
@@ -134,6 +132,18 @@ impl Manager {
                 serde_json::json!({"error": {"message": error.to_string()}}),
             ),
         }
+    }
+
+    fn manifest_url(&self, channel: &str) -> String {
+        self.manifest_url.clone().unwrap_or_else(|| match channel {
+            "dev" => {
+                "https://github.com/LeenHawk/gproxy/releases/download/dev/manifest.json".into()
+            }
+            "staging" => {
+                "https://github.com/LeenHawk/gproxy/releases/download/staging/manifest.json".into()
+            }
+            _ => "https://github.com/LeenHawk/gproxy/releases/latest/download/manifest.json".into(),
+        })
     }
 }
 

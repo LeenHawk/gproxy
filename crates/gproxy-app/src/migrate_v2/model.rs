@@ -122,6 +122,8 @@ pub(super) struct Settings {
     pub enable_downstream_log_body: bool,
     pub disable_log_redaction: bool,
     pub enable_tokenizer_download: bool,
+    pub update_channel: Option<String>,
+    pub enable_auto_update_check: bool,
     pub retention_days: Option<i64>,
     pub max_database_size_mb: Option<i64>,
     pub file_upload_max_in_flight: i64,

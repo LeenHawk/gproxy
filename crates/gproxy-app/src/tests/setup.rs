@@ -252,6 +252,19 @@ async fn v2_digest_crossing_authenticates_the_unreissued_key() {
     let identity = crate::host::authenticate_headers(&app.inner.host, &headers)
         .expect("migrated key authenticates");
     assert_eq!(identity.user_id, 1);
+    assert_eq!(app.update_channel().as_deref(), Some("staging"));
+    assert!(
+        app.inner
+            .host
+            .services
+            .control
+            .current()
+            .settings
+            .iter()
+            .any(
+                |setting| setting.key == "enable_auto_update_check" && setting.value == json!(true)
+            )
+    );
     // v2 and v3 store capability at the same grain, so the rows carry across unchanged —
     // including variants, which stay named against the member's own upstream model.
     let model = app.inner.host.services.control.current().provider_models[0].clone();
@@ -415,6 +428,7 @@ fn v2_database(
         )
         .unwrap();
     connection.execute("INSERT INTO provider_models VALUES(1,1,'upstream-model','Upstream model','[\"upstream-model-thinking-high\"]',128000,16384,1,1,1,1)", []).unwrap();
+    connection.execute("INSERT INTO instance_settings(id,instance_name,proxy,spoof_emulation,enable_usage,enable_upstream_log,enable_upstream_log_body,enable_downstream_log,enable_downstream_log_body,disable_log_redaction,enable_tokenizer_download,update_channel,enable_auto_update_check,retention_days,max_database_size_mb,file_upload_max_in_flight) VALUES(1,'default',NULL,NULL,1,0,0,0,0,0,0,'staging',1,NULL,NULL,0)", []).unwrap();
     connection
         .execute(
             "INSERT INTO credentials VALUES(1,1,NULL,'api_key',?,100,NULL,NULL,NULL,NULL,1)",
@@ -487,6 +501,6 @@ CREATE TABLE routing_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,operation 
 CREATE TABLE rule_sets(id INTEGER PRIMARY KEY,name TEXT,description TEXT,enabled INTEGER);
 CREATE TABLE rules(id INTEGER PRIMARY KEY,rule_set_id INTEGER,kind TEXT,config_json TEXT,filter_model_pattern TEXT,filter_operation_keys TEXT,filter_header_pattern TEXT,sort_order INTEGER,enabled INTEGER);
 CREATE TABLE provider_rule_sets(id INTEGER PRIMARY KEY,provider_id INTEGER,rule_set_id INTEGER,sort_order INTEGER,enabled INTEGER);
-CREATE TABLE instance_settings(id INTEGER PRIMARY KEY,instance_name TEXT,proxy TEXT,spoof_emulation INTEGER,enable_usage INTEGER,enable_upstream_log INTEGER,enable_upstream_log_body INTEGER,enable_downstream_log INTEGER,enable_downstream_log_body INTEGER,disable_log_redaction INTEGER,enable_tokenizer_download INTEGER,retention_days INTEGER,max_database_size_mb INTEGER,file_upload_max_in_flight INTEGER);
+CREATE TABLE instance_settings(id INTEGER PRIMARY KEY,instance_name TEXT,proxy TEXT,spoof_emulation INTEGER,enable_usage INTEGER,enable_upstream_log INTEGER,enable_upstream_log_body INTEGER,enable_downstream_log INTEGER,enable_downstream_log_body INTEGER,disable_log_redaction INTEGER,enable_tokenizer_download INTEGER,update_channel TEXT,enable_auto_update_check INTEGER,retention_days INTEGER,max_database_size_mb INTEGER,file_upload_max_in_flight INTEGER);
 CREATE TABLE usages(id INTEGER PRIMARY KEY,request_id TEXT,at INTEGER,route_name TEXT,provider_id INTEGER,credential_id INTEGER,org_id INTEGER,team_id INTEGER,user_id INTEGER,user_key_id INTEGER,thread_id TEXT,operation TEXT,kind TEXT,model TEXT,input_tokens INTEGER,output_tokens INTEGER,image_output_tokens INTEGER,cache_read_tokens INTEGER,cache_creation_5m_tokens INTEGER,cache_creation_30m_tokens INTEGER,cache_creation_1h_tokens INTEGER,metrics_json TEXT,cost TEXT,latency_ms INTEGER,usage_source TEXT,ended TEXT);
 "#;

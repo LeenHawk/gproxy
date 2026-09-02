@@ -7,7 +7,6 @@ import { QueryState } from "@/components/query-state"
 import { INSTANCE_SETTINGS_FORM_ID, INSTANCE_SETTINGS_MUTATION_KEY, InstanceSettingsForm } from "@/components/settings/instance-settings-form"
 import { ConfigurationTransferCard } from "@/components/settings/configuration-transfer-card"
 import { AutostartCard } from "@/components/settings/autostart-card"
-import { UpdateCard } from "@/components/settings/update-card"
 import { PortalSettingsCard } from "@/components/settings/portal-settings-card"
 
 export function SettingsPage() {
@@ -27,7 +26,6 @@ export function SettingsPage() {
       <ConfigurationTransferCard />
       <PortalSettingsCard />
       <AutostartCard />
-      <UpdateCard />
       </div>
     </PageLayout>
   )

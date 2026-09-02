@@ -109,6 +109,10 @@ impl AppHandle {
         self.inner.host.services.control.settings().instance_name
     }
 
+    pub fn update_channel(&self) -> Option<String> {
+        self.inner.host.services.control.settings().update_channel
+    }
+
     pub fn shutdown(&self) {
         #[cfg(not(target_arch = "wasm32"))]
         self.inner.shutdown.send_replace(true);

@@ -19,6 +19,7 @@ const LogsPage = lazy(() => import("@/pages/logs").then((module) => ({ default: 
 const PricingPage = lazy(() => import("@/pages/pricing").then((module) => ({ default: module.PricingPage })))
 const RulesPage = lazy(() => import("@/pages/rules").then((module) => ({ default: module.RulesPage })))
 const TokenizersPage = lazy(() => import("@/pages/tokenizers").then((module) => ({ default: module.TokenizersPage })))
+const UpdatePage = lazy(() => import("@/pages/update").then((module) => ({ default: module.UpdatePage })))
 const SettingsPage = lazy(() => import("@/pages/settings").then((module) => ({ default: module.SettingsPage })))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } })
@@ -58,6 +59,7 @@ function ConsoleApp() {
     logs: <LogsPage />,
     pricing: <PricingPage />,
     tokenizers: <TokenizersPage />,
+    update: <UpdatePage />,
     settings: <SettingsPage />,
   }[route]
   return (

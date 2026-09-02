@@ -20,12 +20,17 @@ jobs:
     outputs:
       matrix: ${{ steps.metadata.outputs.matrix }}
       version: ${{ steps.metadata.outputs.version }}
+      channel: ${{ steps.metadata.outputs.channel }}
     steps:
       - uses: actions/checkout@v7
       - id: metadata
         run: |
           scripts/release-metadata.sh verify-tag "$GITHUB_REF_NAME"
-          echo "version=$(scripts/release-metadata.sh version)" >> "$GITHUB_OUTPUT"
+          version="$(scripts/release-metadata.sh version)"
+          channel=releases
+          if [[ "$version" == *-* ]]; then channel=dev; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "matrix=$(jq -c . scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
 
   container:
@@ -56,6 +61,7 @@ jobs:
             --build-arg "GPROXY_VERSION=${{ needs.prepare.outputs.version }}" \
             --build-arg "GPROXY_REVISION=$GITHUB_SHA" \
             --build-arg "GPROXY_BUILD_VERSION=${{ needs.prepare.outputs.version }}" \
+            --build-arg "GPROXY_BUILD_CHANNEL=${{ needs.prepare.outputs.channel }}" \
             --build-arg "GPROXY_BUILD_HASH=$GITHUB_SHA" \
             --tag "$image" .
           mkdir -p dist/container
@@ -134,7 +140,7 @@ jobs:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
           GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
-          GPROXY_BUILD_CHANNEL: releases
+          GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
           GPROXY_BUILD_HASH: ${{ github.sha }}
           GPROXY_INSTALLATION_KIND: ${{ matrix.os == 'android' && 'android-apk' || 'standalone' }}
         run: |
@@ -211,6 +217,7 @@ jobs:
           UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
           TAG: ${{ github.ref_name }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
           REPO: ${{ github.repository }}
           NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
         run: scripts/build-update-manifest.sh
@@ -284,7 +291,7 @@ jobs:
 
   publish:
     name: Publish release
-    needs: [manifest, edge, container]
+    needs: [prepare, manifest, edge, container]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -308,12 +315,38 @@ jobs:
       - name: Publish GitHub Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_CHANNEL: ${{ needs.prepare.outputs.channel }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           mapfile -d '' files < <(find dist/publish -maxdepth 1 -type f -print0 | sort -z)
           test "${#files[@]}" -gt 0
+          release_flags=()
+          if [[ "$VERSION" == *-* ]]; then release_flags+=(--prerelease); fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+            if [[ "$VERSION" == *-* ]]; then gh release edit "$GITHUB_REF_NAME" --prerelease; fi
           else
             gh release create "$GITHUB_REF_NAME" "${files[@]}" \
-              --verify-tag --title "gproxy $GITHUB_REF_NAME" --generate-notes
+              --verify-tag --title "gproxy $GITHUB_REF_NAME" --generate-notes "${release_flags[@]}"
+          fi
+          if [ "$PUBLISH_CHANNEL" = dev ]; then
+            latest_dev_version="$(gh release list --limit 100 \
+              --json tagName,isDraft,isPrerelease \
+              --jq '.[] | select(.isPrerelease and (.isDraft | not)) | .tagName' \
+              | sed -n 's/^v\(3\..*\)$/\1/p' | sort -V | tail -1)"
+            if [ -n "$latest_dev_version" ] && [ "$latest_dev_version" != "$VERSION" ]; then
+              echo "Skipping stale dev pointer update for $VERSION; latest prerelease is $latest_dev_version."
+              exit 0
+            fi
+            git tag -f dev "$GITHUB_SHA"
+            git push -f origin refs/tags/dev
+            notes="Latest signed manifest for the GPROXY v3 alpha channel ($GITHUB_REF_NAME)."
+            if gh release view dev >/dev/null 2>&1; then
+              gh release edit dev --target "$GITHUB_SHA" --title "gproxy v3 dev" \
+                --notes "$notes" --prerelease
+            else
+              gh release create dev --verify-tag --title "gproxy v3 dev" \
+                --notes "$notes" --prerelease
+            fi
+            gh release upload dev dist/publish/manifest.json --clobber
           fi

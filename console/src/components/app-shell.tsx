@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, TypeIcon, UsersIcon, WorkflowIcon } from "lucide-react"
+import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, DownloadCloudIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, TypeIcon, UsersIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AnnouncementFeed } from "@/components/announcement-feed"
+import { UpdateBanner } from "@/components/update/update-banner"
 import { LocaleControls } from "@/components/locale-controls"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
 import { useSidebarPreferences } from "@/components/use-sidebar-preferences"
@@ -19,6 +20,7 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "usage", icon: ChartNoAxesCombinedIcon },
   { route: "pricing", icon: CircleDollarSignIcon },
   { route: "tokenizers", icon: TypeIcon },
+  { route: "update", icon: DownloadCloudIcon },
   { route: "settings", icon: SettingsIcon },
 ]
 
@@ -68,7 +70,7 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
         </div>
         {!sidebar.collapsed ? <SidebarResizeHandle label={t("nav.resize")} width={sidebar.width} minWidth={sidebar.minWidth} maxWidth={sidebar.maxWidth} onWidth={sidebar.setWidth} onReset={sidebar.resetWidth} /> : null}
       </aside>
-      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><AnnouncementFeed />{children}</main>
+      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><UpdateBanner /><AnnouncementFeed />{children}</main>
     </div>
   )
 }

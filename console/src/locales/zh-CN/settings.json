@@ -85,20 +85,6 @@
         "unsupported": "此安装不支持登录启动。"
       }
     },
-    "update": {
-      "title": "原生更新",
-      "description": "检查维护者签名的清单。归档在解压前完成验证，并保留上一版可执行文件用于回滚。",
-      "loadError": "无法验证更新信息。",
-      "versions": "已安装 {{current}} · 可用 {{latest}}",
-      "target": "{{channel}} · {{target}} · 重启方式 {{restart}}",
-      "apply": "验证并应用",
-      "current": "已是最新",
-      "applied": "已应用版本 {{version}}。",
-      "applyError": "更新被拒绝或无法应用。",
-      "rollback": "回滚",
-      "rolledBack": "已恢复上一版可执行文件。",
-      "rollbackError": "没有可恢复的有效回滚可执行文件。"
-    },
     "tokenizers": {
       "title": "分词器词表",
       "description": "查看、获取和删除此实例缓存的词表。",

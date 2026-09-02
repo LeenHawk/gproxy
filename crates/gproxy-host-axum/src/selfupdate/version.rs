@@ -58,6 +58,14 @@ pub(super) fn target() -> String {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn dev_channel_uses_versioned_alpha_ordering() {
+        assert_eq!(
+            super::available("dev", "999.0.0-alpha.1").unwrap(),
+            super::available("releases", "999.0.0-alpha.1").unwrap()
+        );
+    }
+
+    #[test]
     fn compatibility_gate_refuses_a_newer_required_data_floor() {
         assert!(super::compatible(10, 9).is_err());
         assert!(super::compatible(9, 9).is_ok());

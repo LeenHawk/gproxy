@@ -93,7 +93,10 @@ async fn handle_request(
             return crate::response::buffered_response(*response, permit, &request_id);
         }
         let response = match state.selfupdate.as_deref() {
-            Some(manager) => manager.dispatch(&method, &path).await,
+            Some(manager) => {
+                let channel = state.app.update_channel();
+                manager.dispatch(&method, &path, channel.as_deref()).await
+            }
             None => crate::selfupdate::unavailable(),
         };
         return crate::response::buffered_response(response, permit, &request_id);

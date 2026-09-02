@@ -173,6 +173,7 @@ fn export_console_types() {
         LogDetailDto,
         LogSettingsDto,
         LogSettingsUpdateDto,
+        UpdateChannelDto,
         InstanceSettingsDto,
         TokenizerVocabDto,
         TokenizerFetchRequest,

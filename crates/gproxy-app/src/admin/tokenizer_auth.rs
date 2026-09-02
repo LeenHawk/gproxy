@@ -6,7 +6,10 @@ use crate::AppHandle;
 pub(super) fn configured(app: &AppHandle) -> BoxFuture<'_, Result<bool, AdminError>> {
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
-        return Err(AdminError::Forbidden);
+        {
+            let _ = app;
+            return Err(AdminError::Forbidden);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         Ok(app
             .inner
@@ -26,7 +29,7 @@ pub(super) fn update<'a>(
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
         {
-            let _ = token;
+            let _ = (app, token);
             return Err(AdminError::Forbidden);
         }
         #[cfg(not(target_arch = "wasm32"))]
@@ -64,7 +67,10 @@ pub(super) fn update<'a>(
 pub(super) fn reveal(app: &AppHandle) -> BoxFuture<'_, Result<String, AdminError>> {
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
-        return Err(AdminError::Forbidden);
+        {
+            let _ = app;
+            return Err(AdminError::Forbidden);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         crate::host::tokenizers::hugging_face_token(
             &app.inner.host.services.store,
