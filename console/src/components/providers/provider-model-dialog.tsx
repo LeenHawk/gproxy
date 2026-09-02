@@ -28,13 +28,7 @@ export function ProviderModelDialog({ open, onOpenChange, providerId, model, sav
       setError(t("common.errors.required"))
       return
     }
-    let fields
-    try {
-      fields = providerModelRequest(metadata)
-    } catch {
-      setError(t("providers.models.variantsInvalid"))
-      return
-    }
+    const fields = providerModelRequest(metadata)
     setError("")
     await onSave({ provider_id: providerId, model_id: modelId.trim(), enabled: model?.enabled ?? true, ...fields }, model?.id)
     onOpenChange(false)
@@ -51,7 +45,7 @@ export function ProviderModelDialog({ open, onOpenChange, providerId, model, sav
                 <FieldLabel htmlFor="provider-model-id">{t("providers.models.modelId")}</FieldLabel>
                 <Input id="provider-model-id" className="machine-text" value={modelId} onChange={(event) => setModelId(event.target.value)} />
               </Field>
-              <ProviderModelFields value={metadata} onChange={setMetadata} />
+              <ProviderModelFields modelId={modelId} value={metadata} onChange={setMetadata} />
             </FieldGroup>
             {error ? <FieldError>{error}</FieldError> : null}
           </DialogBody>

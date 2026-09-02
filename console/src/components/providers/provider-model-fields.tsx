@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import type { ModelMetadataState } from "@/components/providers/provider-model-state"
+import { ProviderModelVariants } from "@/components/providers/provider-model-variants"
 
-export function ProviderModelFields({ value, onChange }: { value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
+export function ProviderModelFields({ modelId, value, onChange }: { modelId: string; value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
   const { t } = useTranslation()
   const id = useId()
   const set = <K extends keyof ModelMetadataState>(key: K, next: ModelMetadataState[K]) => onChange({ ...value, [key]: next })
@@ -32,11 +32,13 @@ export function ProviderModelFields({ value, onChange }: { value: ModelMetadataS
         <ThinkingField label={t("providers.models.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
       </div>
     </FieldSet>
-    <Field>
-      <FieldLabel htmlFor={`${id}-variants`}>{t("providers.models.variants")}</FieldLabel>
-      <Textarea id={`${id}-variants`} className="font-mono text-xs" rows={4} value={value.variants} onChange={(event) => set("variants", event.target.value)} />
-      <FieldDescription>{t("providers.models.variantsHint")}</FieldDescription>
-    </Field>
+    <ProviderModelVariants
+      modelId={modelId}
+      names={value.variants}
+      exposeBase={value.exposeBase}
+      onNamesChange={(names) => set("variants", names)}
+      onExposeBaseChange={(expose) => set("exposeBase", expose)}
+    />
   </>
 }
 
