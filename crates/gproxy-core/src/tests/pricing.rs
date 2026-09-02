@@ -115,7 +115,7 @@ fn actual_serving_tier_overrides_the_requested_tier() {
     );
 }
 
-/// The composition rule from design/architecture.md, "Tiered pricing":
+/// Tiered pricing composes the service and prompt axes independently:
 /// a tier's `multiplier` composes with the prompt ladder, an explicit tier
 /// price replaces it. The middle case undercharges by design — an explicit
 /// tier price must declare the thresholds it means to cover.

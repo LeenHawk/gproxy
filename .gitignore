@@ -28,3 +28,8 @@ probe-out/
 /deploy/netlify/pkg/
 /deploy/netlify/public/
 .codex-review-*.md
+
+# local development instructions and design notes
+/AGENTS.md
+/CLAUDE.md
+/design/

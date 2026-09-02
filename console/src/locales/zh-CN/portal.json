@@ -194,8 +194,7 @@
     "footer": {
       "label": "项目链接",
       "license": "AGPL-3.0",
-      "source": "源代码",
-      "architecture": "架构"
+      "source": "源代码"
     }
   }
 }

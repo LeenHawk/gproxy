@@ -194,8 +194,7 @@
     "footer": {
       "label": "Project links",
       "license": "AGPL-3.0",
-      "source": "Source",
-      "architecture": "Architecture"
+      "source": "Source"
     }
   }
 }

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Records what a build actually resolved. Image tags float within a pinned
-# line (design/beta-gate.md §1.4), so the tag alone does not identify a
-# build six months later — this record does. One per artifact.
+# line, so the tag alone does not identify a build six months later — this
+# record does. One per artifact.
 
 : "${ARTIFACT_NAME:?ARTIFACT_NAME is required}"
 : "${GPROXY_VERSION:?GPROXY_VERSION is required}"

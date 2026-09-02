@@ -9,6 +9,7 @@ import { LocaleControls } from "@/components/locale-controls"
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle"
 import { useSidebarPreferences } from "@/components/use-sidebar-preferences"
 import { adminPath, navigateAdminPath, type AdminRoute } from "@/lib/admin-route"
+import { DOCS_URL } from "@/lib/project-links"
 import { cn } from "@/lib/utils"
 
 const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
@@ -59,7 +60,7 @@ export function AppShell({ route, username, children, onLogout }: { route: Admin
           <div className="hidden flex-col gap-2 border-t p-3 lg:flex">
             <div className={cn("flex items-center justify-between gap-1", sidebar.collapsed && "flex-col")}>
               <LocaleControls />
-              <Button asChild size="icon-sm" variant="ghost"><a href="https://gproxy.leenhawk.com" target="_blank" rel="noreferrer" aria-label={t("common.documentation")}><BookOpenIcon aria-hidden /></a></Button>
+              <Button asChild size="icon-sm" variant="ghost"><a href={DOCS_URL} target="_blank" rel="noreferrer" aria-label={t("common.documentation")}><BookOpenIcon aria-hidden /></a></Button>
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className={cn("truncate font-mono text-xs text-muted-foreground", sidebar.collapsed && "sr-only")}>{username}</span>
