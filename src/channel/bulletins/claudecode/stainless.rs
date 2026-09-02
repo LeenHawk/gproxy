@@ -1,4 +1,4 @@
-//! Anthropic JS SDK 0.81.0 runtime fingerprint used by Claude Code 2.1.112.
+//! Anthropic JS SDK runtime fingerprint used by Claude Code 2.1.258.
 
 use http::HeaderMap;
 use http::header::{HeaderName, HeaderValue};
@@ -9,9 +9,9 @@ const STATIC_HEADERS: &[(&str, &str)] = &[
     ("x-stainless-retry-count", "0"),
     ("x-stainless-timeout", "86400"),
     ("x-stainless-lang", "js"),
-    ("x-stainless-package-version", "0.81.0"),
+    ("x-stainless-package-version", "0.112.1"),
     ("x-stainless-runtime", "node"),
-    ("x-stainless-runtime-version", "v22.20.0"),
+    ("x-stainless-runtime-version", "v26.3.0"),
 ];
 
 pub(super) fn apply(headers: &mut HeaderMap) -> Result<(), ChannelError> {

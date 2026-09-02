@@ -1,13 +1,12 @@
 //! ClaudeCode CCH — the `x-anthropic-billing-header` checksum Claude Code embeds
 //! in `system[0]` of every `/v1/messages` body. See `docs/claudecode-cch.md`.
 //!
-//! This intentionally matches the gproxy v1 / Claude Code 2.1.112 behavior:
+//! This matches Claude Code 2.1.258 behavior:
 //! 1. Inject `metadata.user_id` = the JSON-string `{device_id, account_uuid,
 //!    session_id}` the CLI sends.
 //! 2. Prepend a `system[0]` text block holding the billing header with a dynamic
 //!    `cc_version` suffix derived from the first user text.
-//! 3. Keep `cch=00000;` unchanged; this client version does not apply a
-//!    post-serialization checksum rewrite.
+//! 3. Keep `cch=00000;` unchanged.
 
 use std::sync::OnceLock;
 
@@ -16,13 +15,13 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 /// Keep in lockstep with the channel User-Agent version.
-const CLI_VERSION: &str = "2.1.112";
+const CLI_VERSION: &str = "2.1.258";
 const CLI_ENTRYPOINT: &str = "cli";
 /// Salt used by Claude Code to derive the three-hex `cc_version` suffix.
 const CC_VERSION_SUFFIX_SALT: &str = "59cf53e54c78";
 
 /// Rewrite the outbound `/v1/messages` body to carry the CLI's billing header +
-/// `metadata.user_id`, with the v1-compatible literal `cch=00000`. `session_id`
+/// `metadata.user_id`, with the literal `cch=00000`. `session_id`
 /// is the value also sent as `x-claude-code-session-id`. Non-object bodies are
 /// returned unchanged.
 pub(super) fn apply(body: &[u8], device_id: &str, account_uuid: &str, session_id: &str) -> Vec<u8> {
@@ -47,7 +46,7 @@ pub(super) fn apply(body: &[u8], device_id: &str, account_uuid: &str, session_id
         m.insert("user_id".into(), Value::String(user_id));
     }
 
-    // 2. Prepend the billing-header block to `system` (literal v1 cch).
+    // 2. Prepend the billing-header block to `system`.
     let cc_version = cc_version(body);
     let billing = json!({
         "type": "text",
@@ -72,7 +71,7 @@ pub(super) fn apply(body: &[u8], device_id: &str, account_uuid: &str, session_id
         }
     }
 
-    // 3. Claude Code 2.1.112 sends the five zeroes unchanged.
+    // 3. Claude Code sends the five zeroes unchanged.
     serde_json::to_vec(&v).unwrap_or_else(|_| body.to_vec())
 }
 
@@ -82,11 +81,12 @@ fn cc_version(body: &[u8]) -> String {
 
 fn cc_version_suffix(body: &[u8]) -> String {
     let text = first_user_text(body);
-    let chars: Vec<char> = text.chars().collect();
-    let picked: String = [4usize, 7, 20]
+    let code_units = text.encode_utf16().collect::<Vec<_>>();
+    let picked = [4usize, 7, 20]
         .into_iter()
-        .map(|idx| chars.get(idx).copied().unwrap_or('0'))
-        .collect();
+        .map(|idx| code_units.get(idx).copied().unwrap_or(u16::from(b'0')))
+        .collect::<Vec<_>>();
+    let picked = String::from_utf16_lossy(&picked);
     let mut hasher = Sha256::new();
     hasher.update(CC_VERSION_SUFFIX_SALT.as_bytes());
     hasher.update(picked.as_bytes());
@@ -172,9 +172,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cc_version_matches_v1_vector() {
-        let body = br#"{"messages":[{"role":"user","content":"reply with exactly: ok"}]}"#;
-        assert_eq!(cc_version(body), "2.1.112.b57");
+    fn cc_version_matches_utf16_vector() {
+        let body =
+            "{\"messages\":[{\"role\":\"user\",\"content\":\"aaaa😀 reply with exactly: ok\"}]}";
+        assert_eq!(cc_version(body.as_bytes()), "2.1.258.5e8");
     }
 
     #[test]
@@ -192,9 +193,9 @@ mod tests {
         assert_eq!(ids["device_id"], "devhash");
         assert_eq!(ids["account_uuid"], "acct-1");
         assert_eq!(ids["session_id"], "sess-uuid");
-        // system[0] carries the v1 billing header with its literal zero cch.
+        // system[0] carries the billing header with its literal zero cch.
         let txt = v["system"][0]["text"].as_str().unwrap();
-        assert!(txt.contains("cc_version=2.1.112.b02"));
+        assert!(txt.contains("cc_version=2.1.258.1e2"));
         assert!(txt.contains("cc_entrypoint=cli"));
         assert!(txt.contains("cch=00000;"));
     }
@@ -230,11 +231,11 @@ mod tests {
         assert_eq!(sys.iter().filter(|b| is_billing_block(b)).count(), 1);
         // The original non-billing block survives.
         assert!(sys.iter().any(|b| b["text"] == "real system"));
-        // Our version replaces the stale block with the v1 billing shape.
+        // Our version replaces the stale block with the current billing shape.
         let txt = sys.iter().find(|b| is_billing_block(b)).unwrap()["text"]
             .as_str()
             .unwrap();
-        assert!(txt.contains("cc_version=2.1.112.b02"));
+        assert!(txt.contains("cc_version=2.1.258.1e2"));
         assert!(txt.contains("cch=00000"));
         assert!(!txt.contains("cch=fffff"));
     }

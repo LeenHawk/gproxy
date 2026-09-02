@@ -293,7 +293,7 @@ mod tests {
 
     fn claude_fp() -> Value {
         json!({
-            "headers": { "user-agent": "claude-cli/2.1.112 (external, cli)" },
+            "headers": { "user-agent": "claude-cli/2.1.258 (external, cli)" },
             "tls": {
                 "alpn_protocols": ["http/1.1"],
                 "grease_enabled": false,
