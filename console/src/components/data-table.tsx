@@ -1,6 +1,6 @@
 import { useDeferredValue, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { DataTablePagination } from "@/components/data-table-pagination"
+import { DataTablePagination, type PageSize } from "@/components/data-table-pagination"
 import { useColumnVisibility } from "@/components/data-table-state"
 import { DataTableToolbar } from "@/components/data-table-toolbar"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,7 +30,7 @@ export type DataTableProps<T> = {
   selectable?: boolean
   batchActions?: (selectedRows: Array<T>, onApplied: () => void) => ReactNode
   createAction?: ReactNode
-  pageSize?: number
+  pageSize?: PageSize
 }
 
 const INTERACTIVE = "button, a, input, select, textarea, [role=switch], [role=checkbox], [role=menuitem]"
@@ -52,12 +52,13 @@ export function DataTable<T>({
   selectable = false,
   batchActions,
   createAction,
-  pageSize = 10,
+  pageSize: initialPageSize = 10,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase())
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(initialPageSize)
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<Set<string | number>>(() => new Set())
   const { hidden, toggle } = useColumnVisibility(`gproxy.table.${storageKey}.columns`)
@@ -151,7 +152,7 @@ export function DataTable<T>({
           })}</div>
         </>
       )}
-      <DataTablePagination page={currentPage} pages={pages} onPage={setPage} />
+      {filtered.length > 0 ? <DataTablePagination page={currentPage} pages={pages} pageSize={pageSize} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1) }} /> : null}
       {selecting ? (
         <div className="sticky bottom-3 flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
           <span className="px-2 text-sm text-muted-foreground">{t("common.dataTable.selected", { count: selectedRows.length })}</span>

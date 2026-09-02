@@ -9,5 +9,6 @@ class TestResizeObserver {
 }
 
 Object.defineProperty(globalThis, "ResizeObserver", { value: TestResizeObserver, writable: true })
+Object.defineProperty(Element.prototype, "scrollIntoView", { value() {}, writable: true })
 
 afterEach(cleanup)

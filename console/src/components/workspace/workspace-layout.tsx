@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import { DataTablePagination, type PageSize } from "@/components/data-table-pagination"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -35,6 +36,8 @@ type Props<T extends { id: number }> = {
 export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
   const { t } = useTranslation()
   const [query, setQuery] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(10)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const pane = useWorkspacePaneWidth(props.storageKey)
@@ -42,6 +45,9 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
   const filtered = needle
     ? props.items.filter((item) => props.getSearchText(item).toLocaleLowerCase().includes(needle))
     : props.items
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const currentPage = Math.min(page, pages)
+  const visibleItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const selectedItems = props.items.filter((item) => selectedIds.has(item.id))
   const allSelected = filtered.length > 0 && filtered.every((item) => selectedIds.has(item.id))
 
@@ -79,7 +85,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
               {!batchMode ? props.createAction : null}
             </div>
           </div>
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder} aria-label={props.searchPlaceholder} />
+          <Input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder={props.searchPlaceholder} aria-label={props.searchPlaceholder} />
           {batchMode ? (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox checked={allSelected} onCheckedChange={(checked) => toggleAll(checked === true)} aria-label={props.selectAllLabel} />
@@ -90,7 +96,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-2">
           {filtered.length === 0 ? <p className="p-3 text-sm text-muted-foreground">{props.emptyLabel}</p> : null}
           <ul className="grid gap-1">
-            {filtered.map((item) => (
+            {visibleItems.map((item) => (
               <li key={item.id} className={cn("flex min-h-14 items-center gap-2 rounded-md border border-transparent", item.id === props.selectedId ? "bg-accent text-accent-foreground" : "hover:bg-muted/60")}>
                 {batchMode ? <Checkbox className="ml-3" checked={selectedIds.has(item.id)} onCheckedChange={(checked) => toggle(item.id, checked === true)} aria-label={props.selectRowLabel(item)} /> : null}
                 <button type="button" className="min-w-0 flex-1 px-3 py-2 text-left" onClick={() => batchMode ? toggle(item.id, !selectedIds.has(item.id)) : props.onSelect(item)}>
@@ -102,6 +108,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
             ))}
           </ul>
         </div>
+        {filtered.length > 0 ? <div className="border-t p-2"><DataTablePagination page={currentPage} pages={pages} pageSize={pageSize} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1) }} /></div> : null}
         {batchMode && props.batchActions ? (
           <div className="flex items-center justify-between gap-2 border-t p-2">
             <span className="text-xs text-muted-foreground">{props.selectedLabel(selectedItems.length)}</span>

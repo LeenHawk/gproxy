@@ -74,6 +74,7 @@
       "previous": "上一頁",
       "next": "下一頁",
       "page": "第 {{page}} / {{pages}} 頁",
+      "itemsPerPage": "每頁項數",
       "selected": "已選擇 {{count}} 項",
       "selectAll": "選擇所有列",
       "selectRow": "選擇此列"

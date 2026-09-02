@@ -9,7 +9,7 @@ vi.mock("react-i18next", () => ({
   }),
 }))
 
-describe("DataTable mobile contract", () => {
+describe("DataTable", () => {
   it("requires a renderCard phone representation", () => {
     const invalidTable = () => (
       // @ts-expect-error renderCard is required so a table cannot ship without its phone form.
@@ -60,5 +60,35 @@ describe("DataTable mobile contract", () => {
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument()
     await user.click(screen.getByRole("row", { name: /Alpha/ }))
     expect(onRowClick).toHaveBeenCalledTimes(1)
+  })
+
+  it("changes the number of visible items and resets to the first page", async () => {
+    const user = userEvent.setup()
+    const rows = Array.from({ length: 21 }, (_, index) => ({ id: index + 1, name: `Item ${index + 1}` }))
+    render(
+      <DataTable
+        columns={[{ key: "name", label: "Name", header: "Name", cell: (row) => row.name }]}
+        rows={rows}
+        rowKey={(row) => row.id}
+        searchText={(row) => row.name}
+        renderCard={(row) => row.name}
+        empty={null}
+        storageKey="page-size"
+      />,
+    )
+
+    expect(screen.queryByText("Item 11")).not.toBeInTheDocument()
+    screen.getByRole("combobox", { name: "common.dataTable.itemsPerPage" }).focus()
+    await user.keyboard("{Enter}{ArrowDown}{Enter}")
+    expect(screen.getAllByText("Item 20")).toHaveLength(2)
+    expect(screen.queryByText("Item 21")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "common.dataTable.next" }))
+    expect(screen.getAllByText("Item 21")).toHaveLength(2)
+
+    screen.getByRole("combobox", { name: "common.dataTable.itemsPerPage" }).focus()
+    await user.keyboard("{Enter}{Home}{Enter}")
+    expect(screen.getAllByText("Item 1")).toHaveLength(2)
+    expect(screen.queryByText("Item 11")).not.toBeInTheDocument()
   })
 })
