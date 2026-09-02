@@ -1,7 +1,6 @@
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
-const CLI_VERSION: &str = "2.1.252";
 const SUFFIX_SALT: &str = "59cf53e54c78";
 
 pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
@@ -56,7 +55,8 @@ pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
     let billing = json!({
         "type": "text",
         "text": format!(
-            "x-anthropic-billing-header: cc_version={CLI_VERSION}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;"
+            "x-anthropic-billing-header: cc_version={}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;",
+            super::auth::CLI_VERSION,
         ),
     });
     if let Some(index) = existing {
@@ -102,15 +102,16 @@ fn first_user_text(body: &Value) -> &str {
 }
 
 fn version_suffix(text: &str) -> String {
-    let chars = text.chars().collect::<Vec<_>>();
+    let code_units = text.encode_utf16().collect::<Vec<_>>();
     let selected = [4_usize, 7, 20]
         .into_iter()
-        .map(|index| chars.get(index).copied().unwrap_or('0'))
-        .collect::<String>();
+        .map(|index| code_units.get(index).copied().unwrap_or(u16::from(b'0')))
+        .collect::<Vec<_>>();
+    let selected = String::from_utf16_lossy(&selected);
     let mut hasher = Sha256::new();
     hasher.update(SUFFIX_SALT.as_bytes());
     hasher.update(selected.as_bytes());
-    hasher.update(CLI_VERSION.as_bytes());
+    hasher.update(super::auth::CLI_VERSION.as_bytes());
     let digest = hasher.finalize();
     format!("{:02x}{:02x}", digest[0], digest[1])
         .chars()

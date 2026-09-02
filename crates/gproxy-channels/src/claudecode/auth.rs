@@ -17,7 +17,8 @@ pub(super) const LOGIN_SCOPE: &str = concat!(
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
 );
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
-pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.252 (external, cli)";
+pub(super) const CLI_VERSION: &str = "2.1.258";
+pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.258 (external, cli)";
 pub(super) const ANTHROPIC_VERSION: &str = "2023-06-01";
 const EXPIRY_SKEW_SECONDS: i64 = 30 * 60;
 
@@ -199,7 +200,10 @@ pub(super) fn apply_headers(
 
 fn valid_cli_user_agent(value: &str) -> bool {
     value
-        .strip_prefix("claude-cli/2.1.252 (external, ")
+        .strip_prefix("claude-cli/")
+        .and_then(|value| value.split_once(" (external, "))
+        .filter(|(version, _)| *version == CLI_VERSION)
+        .map(|(_, entrypoint)| entrypoint)
         .and_then(|value| value.strip_suffix(')'))
         .is_some_and(|entrypoint| {
             !entrypoint.is_empty()

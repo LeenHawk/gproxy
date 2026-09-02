@@ -115,7 +115,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     headers.insert("authorization", "Bearer downstream".parse().unwrap());
     headers.insert(
         http::header::USER_AGENT,
-        "claude-cli/2.1.252 (external, sdk-cli)".parse().unwrap(),
+        "claude-cli/2.1.258 (external, sdk-cli)".parse().unwrap(),
     );
     let body = Bytes::from(
         json!({
@@ -125,12 +125,12 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
             "top_p": 0.9,
             "top_k": 40,
             "system": [
-                {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.252.abc; cc_entrypoint=sdk-cli;"},
+                {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.258.abc; cc_entrypoint=sdk-cli;"},
                 {"type":"text", "text":" policy "},
                 {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
             ],
             "messages": [
-                {"role":"user", "content":"reply with exactly: ok"},
+                {"role":"user", "content":"aaaa😀 reply with exactly: ok"},
                 {"role":"assistant", "content":"prefix"}
             ]
         })
@@ -162,7 +162,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     assert_eq!(prepared.request.headers()["x-app"], "cli");
     assert_eq!(
         prepared.request.headers()[http::header::USER_AGENT],
-        "claude-cli/2.1.252 (external, sdk-cli)"
+        "claude-cli/2.1.258 (external, sdk-cli)"
     );
     assert_eq!(
         prepared.request.headers()["x-claude-code-session-id"],
@@ -186,7 +186,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     assert_eq!(shaped["system"][1]["cache_control"]["type"], "ephemeral");
     assert_eq!(
         shaped["system"][0]["text"],
-        "x-anthropic-billing-header: cc_version=2.1.252.489; cc_entrypoint=sdk-cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.258.5e8; cc_entrypoint=sdk-cli; cch=00000;"
     );
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
     assert_eq!(ids["device_id"], "device-1");
