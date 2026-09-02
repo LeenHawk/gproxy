@@ -32,3 +32,21 @@ fn chat_collector_keeps_all_choices_refusal_and_legacy_calls() {
     );
     assert_eq!(response.choices[1].message.refusal.as_deref(), Some("no"));
 }
+
+#[test]
+fn responses_collector_keeps_partial_web_search_call_typed() {
+    let mut collector = ResponseCollector::new(Kind::OpenAiResponses).unwrap();
+    collector
+        .push(Bytes::from_static(
+            b"data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"web_search_call\",\"id\":\"ws_1\",\"status\":\"in_progress\"}}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"output\":[{\"type\":\"web_search_call\",\"id\":\"ws_1\",\"status\":\"completed\"}]}}\n\n",
+        ))
+        .unwrap();
+    let BufferedResponse::OpenAiResponses(response) = collector.finish().unwrap() else {
+        panic!("wrong response family");
+    };
+    assert!(matches!(
+        &response.output[0],
+        gproxy_protocol::openai::ResponseItem::Typed(item)
+            if matches!(item.as_ref(), gproxy_protocol::openai::TypedResponseItem::WebSearchCall { action: None, .. })
+    ));
+}

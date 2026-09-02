@@ -51,7 +51,8 @@ pub enum TypedResponseItem {
     #[serde(rename = "web_search_call")]
     WebSearchCall {
         id: String,
-        action: WebSearchAction,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        action: Option<WebSearchAction>,
         status: ResponseWebSearchCallStatus,
         #[serde(default, flatten)]
         rest: Rest,

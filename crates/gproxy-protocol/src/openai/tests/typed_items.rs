@@ -58,3 +58,16 @@ fn typed_response_items_preserve_required_nullable_fields() {
         )
     ));
 }
+
+#[test]
+fn partial_web_search_call_stays_typed() {
+    let item = round_trip::<TypedResponseItem>(json!({
+        "type": "web_search_call",
+        "id": "ws_partial",
+        "status": "in_progress"
+    }));
+    assert!(matches!(
+        item,
+        TypedResponseItem::WebSearchCall { action: None, .. }
+    ));
+}

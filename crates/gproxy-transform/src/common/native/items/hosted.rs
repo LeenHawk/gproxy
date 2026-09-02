@@ -7,14 +7,19 @@ use super::ClaudeCall;
 
 pub(super) fn web_search(
     id: String,
-    action: openai::WebSearchAction,
+    action: Option<openai::WebSearchAction>,
     mut rest: openai::Rest,
 ) -> Result<ClaudeCall, TransformError> {
     rest.insert("openai_native_tool".into(), "web_search_call".into());
+    let input = action
+        .map(serde_json::to_value)
+        .transpose()?
+        .map(shape::value_object)
+        .unwrap_or_default();
     Ok(ClaudeCall {
         id: id.clone(),
         name: "web_search".into(),
-        input: shape::value_object(serde_json::to_value(action)?),
+        input,
         item_id: Some(id),
         rest,
     })
