@@ -6,9 +6,13 @@ use crate::transform::{TransformContext, TransformError};
 use super::common;
 
 pub fn request(
-    input: claude::CountTokensRequestBody,
+    mut input: claude::CountTokensRequestBody,
     _: &TransformContext,
 ) -> Result<openai::ResponseInputTokensRequest, TransformError> {
+    crate::transform::common::apply_claude_message_controls(
+        &mut input.messages,
+        &mut input.output_config,
+    );
     let tool_choice = input.tool_choice;
     let output_config = input.output_config;
     #[allow(deprecated)]

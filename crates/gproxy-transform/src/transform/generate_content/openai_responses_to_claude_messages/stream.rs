@@ -187,6 +187,7 @@ fn message_delta_from_response(response: openai::ResponseObject) -> claude::Stre
                 stop_details: None,
                 extra: Default::default(),
             })),
+            input_transformations: None,
             usage: response
                 .usage
                 .map(|usage| response_usage_to_claude(Some(usage)))

@@ -831,6 +831,7 @@ mod tests {
                         stop_details: None,
                         extra: Default::default(),
                     })),
+                    input_transformations: None,
                     usage: None,
                     context_management: None,
                     extra: Default::default(),

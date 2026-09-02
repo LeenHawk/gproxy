@@ -11,9 +11,13 @@ use super::tools::{claude_tool_choice_to_chat, claude_tools_to_chat};
 
 #[allow(deprecated)]
 pub fn request(
-    input: claude::CreateMessageRequestBody,
+    mut input: claude::CreateMessageRequestBody,
     _: &TransformContext,
 ) -> Result<openai::ChatCompletionRequest, TransformError> {
+    crate::transform::common::apply_claude_message_controls(
+        &mut input.messages,
+        &mut input.output_config,
+    );
     let prompt_cache_key = common::claude_prompt_cache_key(&input);
     let mut messages = Vec::new();
     if let Some(system) = claude_system_to_chat_content(input.system) {

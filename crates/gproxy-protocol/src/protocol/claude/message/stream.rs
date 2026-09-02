@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::protocol::claude::common::{
     AssistantRole, Citation, ClaudeModel, Container, ContentBlock, ContextManagementResponse,
-    JsonObject, MessageObjectType, StopDetails, StopReason, TypedObject, Usage,
+    InputTransformation, JsonObject, MessageObjectType, StopDetails, StopReason, TypedObject,
+    Usage,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -60,6 +61,8 @@ pub enum KnownStreamEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         context_management: Option<Box<ContextManagementResponse>>,
         delta: Box<MessageDelta>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_transformations: Option<Vec<InputTransformation>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         usage: Option<Box<Usage>>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
@@ -164,6 +167,8 @@ pub struct CreateMessageStartBody {
     pub stop_reason: Option<StopReason>,
     pub stop_sequence: Option<String>,
     pub usage: Usage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_transformations: Option<Vec<InputTransformation>>,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: JsonObject,
 }
