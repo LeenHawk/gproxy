@@ -217,6 +217,7 @@ fn message_delta(
                 stop_details: None,
                 extra: Default::default(),
             })),
+            input_transformations: None,
             usage,
             extra: Default::default(),
         }

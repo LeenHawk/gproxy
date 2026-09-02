@@ -6,9 +6,13 @@ use crate::transform::{TransformContext, TransformError};
 use super::common;
 
 pub fn request(
-    input: claude::CountTokensRequestBody,
+    mut input: claude::CountTokensRequestBody,
     _: &TransformContext,
 ) -> Result<gemini::CountTokensRequest, TransformError> {
+    crate::transform::common::apply_claude_message_controls(
+        &mut input.messages,
+        &mut input.output_config,
+    );
     let model = common::claude_model_string(&input.model);
     let contents = common::text_to_gemini_contents(common::claude_messages_to_text(input.messages));
     let system_instruction = common::claude_system_to_text(input.system).map(|text| {

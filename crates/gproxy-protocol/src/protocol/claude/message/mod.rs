@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use super::common::{
     AnthropicBetaHeaders, AssistantRole, CacheControl, ClaudeModel, Container, ContainerParam,
     ContentBlock, ContextManagementConfig, ContextManagementResponse, Diagnostics,
-    DiagnosticsParam, FallbackCreditTokenParam, FallbacksParam, InferenceGeo, JsonObject,
-    JsonSchemaFormat, McpServer, MessageObjectType, MessageParam, Metadata, OutputConfig,
-    RequestServiceTier, Speed, StopDetails, StopReason, SystemPrompt, ThinkingConfig, Tool,
-    ToolChoice, Usage,
+    DiagnosticsParam, FallbackCreditTokenParam, FallbacksParam, InferenceGeo, InputTransformation,
+    JsonObject, JsonSchemaFormat, McpServer, MessageObjectType, MessageParam, Metadata,
+    OutputConfig, RequestServiceTier, Speed, StopDetails, StopReason, SystemPrompt, ThinkingConfig,
+    Tool, ToolChoice, Usage,
 };
 
 pub mod stream;
@@ -95,6 +95,8 @@ pub struct CreateMessageResponseBody {
     pub context_management: Option<ContextManagementResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Diagnostics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_transformations: Option<Vec<InputTransformation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_details: Option<StopDetails>,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
@@ -186,5 +188,63 @@ mod tests {
             tools[1],
             Tool::WebFetch(WebFetchTool::WebFetch20260318(_))
         ));
+    }
+
+    #[test]
+    fn parses_fable_5_1_message_controls_and_transformations() {
+        let request: CreateMessageRequestBody = serde_json::from_value(json!({
+            "model": "claude-fable-5-1",
+            "max_tokens": 1024,
+            "thinking": {
+                "type": "adaptive",
+                "display": "updates",
+                "block_binding": {"prefix_mismatch_behavior": "drop_block"}
+            },
+            "messages": [
+                {"role": "system", "content": [], "output_config": {"effort": "low"}},
+                {"role": "user", "content": "hello"},
+                {"role": "system", "content": "one turn", "clear_at": "next_user_message"}
+            ]
+        }))
+        .unwrap();
+        assert!(matches!(
+            request.model,
+            ClaudeModel::Known(super::super::common::ClaudeModelKnown::ClaudeFable51)
+        ));
+        assert!(matches!(
+            request.messages[2].clear_at,
+            Some(super::super::common::MessageClearAt::Known(
+                super::super::common::MessageClearAtKnown::NextUserMessage
+            ))
+        ));
+
+        let response: CreateMessageResponseBody = serde_json::from_value(json!({
+            "id": "msg_1", "type": "message", "role": "assistant", "content": [],
+            "model": "claude-fable-5-1", "stop_reason": "end_turn", "stop_sequence": null,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+            "input_transformations": [{
+                "type": "thinking_dropped", "path": "messages.1.content.0",
+                "reason": "prefix_binding_mismatch"
+            }]
+        }))
+        .unwrap();
+        assert!(matches!(
+            response.input_transformations.as_deref(),
+            Some([super::super::common::InputTransformation::ThinkingDropped(
+                _
+            )])
+        ));
+
+        let event: StreamEvent = serde_json::from_value(json!({
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": null},
+            "usage": {"output_tokens": 1},
+            "input_transformations": [{
+                "type": "thinking_dropped", "path": "messages.1.content.0",
+                "reason": "model_binding_mismatch"
+            }]
+        }))
+        .unwrap();
+        assert!(matches!(event, StreamEvent::Known(_)));
     }
 }

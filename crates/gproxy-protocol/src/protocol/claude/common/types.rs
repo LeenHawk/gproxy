@@ -50,7 +50,8 @@ macro_rules! extensible_string_enum {
 }
 
 extensible_string_enum!(ClaudeModel, ClaudeModelKnown {
-    ClaudeSonnet5 => "claude-sonnet-5", ClaudeFable5 => "claude-fable-5",
+    ClaudeSonnet5 => "claude-sonnet-5", ClaudeFable51 => "claude-fable-5-1",
+    ClaudeMythos51 => "claude-mythos-5-1", ClaudeFable5 => "claude-fable-5",
     ClaudeMythos5 => "claude-mythos-5", ClaudeOpus5 => "claude-opus-5",
     ClaudeOpus48 => "claude-opus-4-8", ClaudeOpus47 => "claude-opus-4-7",
     ClaudeMythosPreview => "claude-mythos-preview", ClaudeOpus46 => "claude-opus-4-6",
@@ -102,6 +103,10 @@ extensible_string_enum!(AnthropicBeta, AnthropicBetaKnown {
     FallbackCredit20260701 => "fallback-credit-2026-07-01",
     MidConversationToolChanges20260701 => "mid-conversation-tool-changes-2026-07-01",
     AgentMemory20260722 => "agent-memory-2026-07-22",
+    MidConversationOutputConfig20260701 => "mid-conversation-output-config-2026-07-01",
+    ThinkingBindingControls20260801 => "thinking-binding-controls-2026-08-01",
+    ThinkingDisplayUpdates20260818 => "thinking-display-updates-2026-08-18",
+    MidConversationSystemClearAt20260821 => "mid-conversation-system-clear-at-2026-08-21",
 });
 
 extensible_string_enum!(MessageRole, MessageRoleKnown { User => "user", Assistant => "assistant", System => "system" });
@@ -115,7 +120,15 @@ extensible_string_enum!(RequestServiceTier, RequestServiceTierKnown { Auto => "a
 extensible_string_enum!(UsageServiceTier, UsageServiceTierKnown { Standard => "standard", Priority => "priority", Batch => "batch" });
 extensible_string_enum!(Speed, SpeedKnown { Standard => "standard", Fast => "fast" });
 extensible_string_enum!(CacheTtl, CacheTtlKnown { FiveMinutes => "5m", OneHour => "1h" });
-extensible_string_enum!(ThinkingDisplay, ThinkingDisplayKnown { Summarized => "summarized", Omitted => "omitted" });
+extensible_string_enum!(ThinkingDisplay, ThinkingDisplayKnown { Summarized => "summarized", Omitted => "omitted", Updates => "updates" });
+extensible_string_enum!(MessageClearAt, MessageClearAtKnown { NextUserMessage => "next_user_message", Never => "never" });
+extensible_string_enum!(ThinkingPrefixMismatchBehavior, ThinkingPrefixMismatchBehaviorKnown { Error => "error", DropBlock => "drop_block" });
+extensible_string_enum!(ThinkingDroppedReason, ThinkingDroppedReasonKnown {
+    ModelBindingMismatch => "model_binding_mismatch",
+    PrefixBindingMismatch => "prefix_binding_mismatch",
+    OrganizationBindingMismatch => "organization_binding_mismatch",
+    EndUserBindingMismatch => "end_user_binding_mismatch",
+});
 extensible_string_enum!(OutputEffort, OutputEffortKnown { Low => "low", Medium => "medium", High => "high", XHigh => "xhigh", Max => "max" });
 extensible_string_enum!(ServerToolUseName, ServerToolUseNameKnown {
     Advisor => "advisor", WebSearch => "web_search", WebFetch => "web_fetch",

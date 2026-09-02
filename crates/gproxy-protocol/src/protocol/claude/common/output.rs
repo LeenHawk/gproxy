@@ -19,6 +19,15 @@ pub struct OutputConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[non_exhaustive]
+pub struct SystemMessageOutputConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<OutputEffort>,
+    #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: JsonObject,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TokenTaskBudget {
     pub total: u64,
     #[serde(rename = "type")]

@@ -9,6 +9,11 @@ pub fn response(
     _: &TransformContext,
 ) -> Result<openai::ChatCompletionResponse, TransformError> {
     let service_tier = common::claude_usage_to_openai_service_tier(&input.usage);
+    let mut extra = Default::default();
+    crate::transform::common::preserve_claude_input_transformations(
+        &mut extra,
+        input.input_transformations,
+    );
     Ok(crate::protocol::wire!(openai::ChatCompletionResponse {
         id: input.id,
         choices: vec![crate::protocol::wire!(openai::ChatCompletionChoice {
@@ -25,7 +30,7 @@ pub fn response(
         service_tier,
         system_fingerprint: None,
         usage: Some(common::claude_usage_to_completion(input.usage)),
-        extra: Default::default(),
+        extra,
     }))
 }
 

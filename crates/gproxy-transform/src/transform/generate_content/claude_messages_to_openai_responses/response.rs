@@ -18,6 +18,11 @@ pub fn response(
     let usage = Some(claude_usage_to_response(input.usage));
     let (output, output_text) = claude_content_to_openai_output(id.clone(), input.content);
     let (status, incomplete_details) = response_status(input.stop_reason);
+    let mut extra = Default::default();
+    crate::transform::common::preserve_claude_input_transformations(
+        &mut extra,
+        input.input_transformations,
+    );
 
     Ok(crate::protocol::wire!(openai::ResponseObject {
         id,
@@ -57,7 +62,7 @@ pub fn response(
         truncation: None,
         usage,
         user: None,
-        extra: Default::default(),
+        extra,
     }))
 }
 

@@ -8,6 +8,11 @@ pub fn response(
     input: claude::CreateMessageResponseBody,
     _: &TransformContext,
 ) -> Result<gemini::GenerateContentResponse, TransformError> {
+    let mut extra = Default::default();
+    crate::transform::common::preserve_claude_input_transformations(
+        &mut extra,
+        input.input_transformations,
+    );
     Ok(crate::protocol::wire!(gemini::GenerateContentResponse {
         candidates: vec![crate::protocol::wire!(gemini::Candidate {
             content: Some(claude_response_blocks_to_gemini_content(input.content)),
@@ -28,7 +33,7 @@ pub fn response(
         model_version: Some(common::claude_model_string(input.model)),
         response_id: Some(input.id),
         model_status: None,
-        extra: Default::default(),
+        extra,
     }))
 }
 

@@ -194,6 +194,7 @@ fn message_delta(
                 stop_details: None,
                 extra: Default::default(),
             })),
+            input_transformations: None,
             usage: usage.map(Box::new),
             extra: Default::default(),
         }

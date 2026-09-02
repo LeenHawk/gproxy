@@ -6,9 +6,13 @@ use super::tools::{claude_tool_choice_to_responses, claude_tools_to_responses};
 use crate::transform::compact::claude_to_openai::claude_messages_to_openai_items;
 
 pub fn request(
-    input: claude::CreateMessageRequestBody,
+    mut input: claude::CreateMessageRequestBody,
     _: &TransformContext,
 ) -> Result<openai::ResponseCreateRequest, TransformError> {
+    crate::transform::common::apply_claude_message_controls(
+        &mut input.messages,
+        &mut input.output_config,
+    );
     let prompt_cache_key = common::claude_prompt_cache_key(&input);
     let effort = input
         .output_config

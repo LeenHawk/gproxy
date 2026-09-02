@@ -7,9 +7,13 @@ use super::tools::{claude_tool_choice_to_gemini, claude_tools_to_gemini};
 
 #[allow(deprecated)]
 pub fn request(
-    input: claude::CreateMessageRequestBody,
+    mut input: claude::CreateMessageRequestBody,
     _: &TransformContext,
 ) -> Result<gemini::GenerateContentRequest, TransformError> {
+    crate::transform::common::apply_claude_message_controls(
+        &mut input.messages,
+        &mut input.output_config,
+    );
     let output_format = input
         .output_config
         .as_ref()
