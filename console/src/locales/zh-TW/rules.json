@@ -49,11 +49,6 @@
       "applied": "相容性預設已套用",
       "applyError": "無法套用相容性預設。"
     },
-    "scope": {
-      "unused": "未使用",
-      "private": "一個 Provider",
-      "shared": "共用"
-    },
     "routing": {
       "tab": "路由規則",
       "title": "路由",
@@ -78,7 +73,6 @@
       "enabled": "啟用",
       "provider": "Provider",
       "ruleSet": "規則集",
-      "scope": "範圍",
       "kind": "類型",
       "text": "文字",
       "position": "位置",

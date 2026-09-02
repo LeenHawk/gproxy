@@ -102,7 +102,10 @@ export function RulesWorkspace(props: Props) {
     getSearchText={(set) => `${ruleSetText(set, "name", t)} ${ruleSetText(set, "description", t)}`}
     renderTitle={(set) => ruleSetText(set, "name", t)}
     renderSummary={(set) => ruleSetText(set, "description", t)}
-    renderAction={(set) => <Badge variant="secondary" aria-label={t("rules.fields.scope")}>{scopeLabel(props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length, t)}</Badge>}
+    renderAction={(set) => {
+      const count = props.attachments.filter((attachment) => attachment.rule_set_id === set.id).length
+      return <Badge variant="secondary" aria-label={`${t("rules.attachments.title")}: ${count}`}>{count}</Badge>
+    }}
     onSelect={(set) => embedded ? setLocalSelectedId(set.id) : navigateAdminPath(`/admin/rules/${set.id}/rules`)}
     onBack={back}
     searchPlaceholder={t("rules.sets.search")}
@@ -204,14 +207,8 @@ function RuleSetSummary({ set, attachments, scopedAttachment, deleteDisabled, on
   const { t } = useTranslation()
   return <header className="flex flex-wrap items-start justify-between gap-3">
     <div><h2 className="text-xl font-semibold">{ruleSetText(set, "name", t)}</h2><p className="mt-1 text-sm text-muted-foreground">{ruleSetText(set, "description", t)}</p></div>
-    <div className="flex flex-wrap items-center gap-2"><Badge>{scopeLabel(attachments.length, t)}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}{onDeleted ? <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} disabled={deleteDisabled} onDeleted={onDeleted} /> : null}</div>
+    <div className="flex flex-wrap items-center gap-2"><Badge aria-label={`${t("rules.attachments.title")}: ${attachments.length}`}>{attachments.length}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}{onDeleted ? <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} disabled={deleteDisabled} onDeleted={onDeleted} /> : null}</div>
   </header>
-}
-
-function scopeLabel(count: number, t: (key: string) => string) {
-  if (count === 0) return t("rules.scope.unused")
-  if (count === 1) return t("rules.scope.private")
-  return t("rules.scope.shared")
 }
 
 function ruleSetText(set: RuleSetDto, field: "name" | "description", t: (key: string) => string) {

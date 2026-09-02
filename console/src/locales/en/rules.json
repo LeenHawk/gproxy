@@ -49,11 +49,6 @@
       "applied": "Compatibility preset applied",
       "applyError": "Could not apply the compatibility preset."
     },
-    "scope": {
-      "unused": "Unused",
-      "private": "One provider",
-      "shared": "Shared"
-    },
     "routing": {
       "tab": "Routing rules",
       "title": "Routing",
@@ -78,7 +73,6 @@
       "enabled": "Enabled",
       "provider": "Provider",
       "ruleSet": "Rule set",
-      "scope": "Scope",
       "kind": "Kind",
       "text": "Text",
       "position": "Position",
