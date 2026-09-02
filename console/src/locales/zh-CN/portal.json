@@ -9,15 +9,8 @@
       "logout": "退出登录"
     },
     "login": {
-      "title": "打开你的门户",
       "description": "使用管理员创建的用户账户登录。",
-      "username": "用户名",
-      "password": "密码",
-      "passwordHint": "登录状态保存在安全的浏览器 Cookie 中。",
-      "checking": "正在检查登录状态…",
-      "action": "继续",
-      "submitting": "正在登录…",
-      "error": "无法验证此账户。请检查后重试。"
+      "checking": "正在检查登录状态…"
     },
     "keys": {"title":"API 密钥","description":"为 API 客户端或 Codex access-token 登录创建密钥。","label":"标签","create":"创建密钥","created":"请立即复制该密钥，之后不会再次显示。","unnamed":"未命名密钥","revoke":"撤销","empty":"暂无密钥"},
     "password": {"title":"密码","description":"修改登录用户门户所使用的密码。","current":"当前密码","new":"新密码","action":"修改密码","saved":"密码已修改。"},
@@ -117,7 +110,7 @@
     "nav": {
       "label": "公共站点导航",
       "admin": "管理控制台",
-      "portal": "使用密钥"
+      "portal": "用户登录"
     },
     "hero": {
       "title": "一次请求。每种供应商协议。信息不丢失。",

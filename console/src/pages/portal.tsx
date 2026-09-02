@@ -11,8 +11,8 @@ import {
   portalUsage,
   portalSession,
 } from "@/api/portal"
+import { AuthPanel } from "@/components/auth/auth-panel"
 import { PortalDashboard } from "@/components/portal/portal-dashboard"
-import { PortalLogin } from "@/components/portal/portal-login"
 import { PortalShell } from "@/components/portal/portal-shell"
 import type { UsageDays } from "@/components/portal/usage-panel"
 
@@ -85,21 +85,26 @@ export function PortalPage() {
   }
 
   async function logout() {
-    await portalLogout().catch(() => undefined)
-    setSession(null)
-    setUsageDays(7)
-    setLoginFailed(false)
-    void queryClient.cancelQueries({ queryKey: ["portal"] })
-    queryClient.removeQueries({ queryKey: ["portal"] })
+    try {
+      await portalLogout()
+      queryClient.clear()
+      window.location.assign("/")
+    } catch {
+      return
+    }
   }
 
   if (sessionLoading) return <PortalShell context={null}><p>{t("portal.login.checking")}</p></PortalShell>
 
   if (!session) {
     return (
-      <PortalShell context={null}>
-        <PortalLogin pending={loginPending} failed={loginFailed} onSubmit={(username, password) => void login(username, password)} />
-      </PortalShell>
+      <AuthPanel
+        setup={false}
+        audience="portal"
+        pending={loginPending}
+        failed={loginFailed}
+        onSubmit={(username, password) => void login(username, password)}
+      />
     )
   }
 

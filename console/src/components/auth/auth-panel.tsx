@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { LoaderCircleIcon } from "lucide-react"
+import { ArrowLeftIcon, LoaderCircleIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,7 +8,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { LocaleControls } from "@/components/locale-controls"
 
-export function AuthPanel({ setup, pending, failed, onSubmit }: { setup: boolean; pending: boolean; failed: boolean; onSubmit: (username: string, password: string) => void }) {
+export function AuthPanel({ setup, audience = "admin", pending, failed, onSubmit }: { setup: boolean; audience?: "admin" | "portal"; pending: boolean; failed: boolean; onSubmit: (username: string, password: string) => void }) {
   const { t } = useTranslation()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -21,12 +21,17 @@ export function AuthPanel({ setup, pending, failed, onSubmit }: { setup: boolean
   return (
     <main className="grid min-h-screen place-items-center px-5 py-10">
       <div className="flex w-full max-w-md flex-col gap-4">
-        <div className="flex justify-end"><LocaleControls /></div>
+        <div className="flex items-center justify-between">
+          <Button asChild variant="ghost" size="sm" className="-ml-3">
+            <a href="/"><ArrowLeftIcon />{t("auth.home")}</a>
+          </Button>
+          <LocaleControls />
+        </div>
         <Card>
           <CardHeader>
             <p className="font-mono text-xs text-muted-foreground">{t("common.product")}</p>
             <CardTitle headingLevel={1}>{t(setup ? "auth.setup.title" : "auth.login.title")}</CardTitle>
-            <CardDescription>{t(setup ? "auth.setup.description" : "auth.login.description")}</CardDescription>
+            <CardDescription>{t(audience === "portal" ? "portal.login.description" : setup ? "auth.setup.description" : "auth.login.description")}</CardDescription>
           </CardHeader>
           <form onSubmit={submit}>
             <CardContent>

@@ -116,6 +116,7 @@
     }
   },
   "auth": {
+    "home": "Back to home",
     "username": "Username",
     "password": "Password",
     "logout": "Sign out",

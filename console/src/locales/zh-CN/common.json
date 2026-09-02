@@ -116,6 +116,7 @@
     }
   },
   "auth": {
+    "home": "返回首页",
     "username": "用户名",
     "password": "密码",
     "logout": "退出登录",

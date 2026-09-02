@@ -27,21 +27,22 @@ export function ConnectionGuide({
 }) {
   const { t } = useTranslation()
   const selected = models.find((model) => model.name === selectedModel)
+  const target = connectionTarget(origin, selectedModel)
   const snippets = useMemo(() => {
     if (!selectedModel || !selected) return []
     const sources = new Set(selected.capabilities.map((capability) => capability.source))
     return connectionSnippets({
-      origin,
-      model: selectedModel,
+      origin: target.origin,
+      model: target.model,
       key: apiKey,
       keyPlaceholder: t("portal.connect.keyPlaceholder"),
       prompt: t("portal.connect.prompt"),
     }).filter((snippet) => sources.has(connectionSource[snippet.method]))
-  }, [apiKey, origin, selected, selectedModel, t])
+  }, [apiKey, selected, selectedModel, t, target.model, target.origin])
 
   async function copyOrigin() {
     try {
-      await copyText(origin)
+      await copyText(target.origin)
       toast.success(t("portal.connect.copied"))
     } catch {
       toast.error(t("portal.connect.copyError"))
@@ -62,7 +63,7 @@ export function ConnectionGuide({
       <CardContent className="flex flex-col gap-5">
         <dl className="grid gap-1">
           <dt className="text-xs text-muted-foreground">{t("portal.connect.baseUrl")}</dt>
-          <dd className="break-all font-mono text-sm">{origin}</dd>
+          <dd className="break-all font-mono text-sm">{target.origin}</dd>
         </dl>
         {selectedModel ? (
           <>
@@ -107,4 +108,11 @@ export function ConnectionGuide({
       </CardContent>
     </Card>
   )
+}
+
+function connectionTarget(origin: string, model: string | null) {
+  const separator = model?.indexOf("/") ?? -1
+  return model && separator > 0 && separator < model.length - 1
+    ? { origin: `${origin}/${model.slice(0, separator)}`, model: model.slice(separator + 1) }
+    : { origin, model: model ?? "" }
 }

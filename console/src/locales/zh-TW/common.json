@@ -116,6 +116,7 @@
     }
   },
   "auth": {
+    "home": "返回首頁",
     "username": "使用者名稱",
     "password": "密碼",
     "logout": "登出",

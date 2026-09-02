@@ -69,7 +69,7 @@ export function IdentityForm(props: Props) {
           <Input id={`${id}-name`} value={name} required onChange={(event) => setName(event.target.value)} />
         </Field>
         {props.kind === "user" ? <Field>
-          <FieldLabel htmlFor={`${id}-password`}>{t("portal.login.password")}</FieldLabel>
+          <FieldLabel htmlFor={`${id}-password`}>{t("auth.password")}</FieldLabel>
           <Input id={`${id}-password`} type="password" autoComplete="new-password" value={password} required onChange={(event) => setPassword(event.target.value)} />
         </Field> : null}
       </FieldGroup>

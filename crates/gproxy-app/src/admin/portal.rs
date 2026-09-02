@@ -17,11 +17,10 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
         .channel_descriptors()
         .map(|descriptor| (descriptor.id, descriptor))
         .collect::<BTreeMap<_, _>>();
-    let mut names = snapshot
-        .exposed_models
-        .iter()
-        .filter(|model| model.enabled)
-        .map(|model| model.name.clone())
+    let mut names = control
+        .exposed_models()
+        .into_iter()
+        .map(|model| model.id)
         .collect::<BTreeSet<_>>();
     names.extend(
         snapshot
@@ -30,16 +29,27 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
             .filter(|alias| alias.enabled && alias.provider_id.is_none())
             .map(|alias| alias.alias.clone()),
     );
+    names.extend(
+        control
+            .provider_catalogue()
+            .into_iter()
+            .map(|model| model.id),
+    );
 
     names
         .into_iter()
         .filter_map(|name| {
+            let (model, mode) = match name.split_once('/') {
+                Some((target, model)) => (
+                    model,
+                    RoutingMode::Named {
+                        name: target.into(),
+                    },
+                ),
+                None => (name.as_str(), RoutingMode::Aggregated),
+            };
             let plan = control
-                .resolve(
-                    Some(&name),
-                    &RoutingMode::Aggregated,
-                    Some(caller.user_key_id),
-                )
+                .resolve(Some(model), &mode, Some(caller.user_key_id))
                 .ok()?;
             let mut capabilities = BTreeMap::new();
             for target in &plan.targets {

@@ -33,7 +33,7 @@ function ConsoleApp() {
     mutationFn: ({ username, password, firstBoot }: { username: string; password: string; firstBoot: boolean }) => firstBoot ? setup({ username, password }) : login({ username, password }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["session"] }),
   })
-  const signOut = useMutation({ mutationFn: logout, onSuccess: () => { client.clear(); void client.invalidateQueries({ queryKey: ["session"] }) } })
+  const signOut = useMutation({ mutationFn: logout, onSuccess: () => { client.clear(); window.location.assign("/") } })
 
   useEffect(() => {
     const unauthorized = () => void client.invalidateQueries({ queryKey: ["session"] })

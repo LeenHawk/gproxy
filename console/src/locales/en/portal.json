@@ -9,15 +9,8 @@
       "logout": "Sign out"
     },
     "login": {
-      "title": "Open your portal",
       "description": "Sign in with the account created by your administrator.",
-      "username": "Username",
-      "password": "Password",
-      "passwordHint": "Your session is stored in a secure browser cookie.",
-      "checking": "Checking your session…",
-      "action": "Continue",
-      "submitting": "Signing in…",
-      "error": "This account could not be authenticated. Check it and try again."
+      "checking": "Checking your session…"
     },
     "keys": {"title":"API keys","description":"Create keys for API clients or Codex access-token login.","label":"Label","create":"Create key","created":"Copy this key now. It will not be shown again.","unnamed":"Unnamed key","revoke":"Revoke","empty":"No keys yet"},
     "password": {"title":"Password","description":"Change the password used to sign in to this portal.","current":"Current password","new":"New password","action":"Change password","saved":"Password changed."},
@@ -117,7 +110,7 @@
     "nav": {
       "label": "Public site navigation",
       "admin": "Admin console",
-      "portal": "Use your key"
+      "portal": "User login"
     },
     "hero": {
       "title": "One request. Every provider dialect. Nothing dropped.",
