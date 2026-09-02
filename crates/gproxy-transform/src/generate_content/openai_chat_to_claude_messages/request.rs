@@ -237,6 +237,8 @@ fn push_message(
         messages.push(claude::MessageParam {
             role: claude::MessageRole::Known(role),
             content: claude::StringOrArray::Array(blocks),
+            clear_at: None,
+            output_config: None,
             rest,
         });
     }

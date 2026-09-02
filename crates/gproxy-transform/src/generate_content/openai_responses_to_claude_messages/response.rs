@@ -15,6 +15,10 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
     let id = input.id;
     let mut rest = input.rest;
+    crate::common::claude_message_controls::preserve_input_transformations(
+        &mut rest,
+        input.input_transformations,
+    )?;
     let created_at = take(&mut rest, "openai_created_at")?;
     let completed_at = take(&mut rest, "openai_completed_at")?;
     let service_tier = claude_service_tier(&input.usage)?;

@@ -58,7 +58,7 @@ impl State {
                     ));
                 }
                 self.started = true;
-                let message = *message;
+                let mut message = *message;
                 if !message.content.is_empty()
                     || message.stop_reason.is_some()
                     || message.stop_sequence.is_some()
@@ -68,6 +68,10 @@ impl State {
                         "nonempty content or terminal fields",
                     ));
                 }
+                crate::common::claude_message_controls::preserve_input_transformations(
+                    &mut message.rest,
+                    message.input_transformations.take(),
+                )?;
                 Some(chunks::metadata(
                     message.id,
                     wire_string(&message.model)?,
@@ -92,8 +96,9 @@ impl State {
             claude::KnownStreamEvent::MessageDelta {
                 context_management,
                 delta,
+                input_transformations,
                 usage,
-                rest,
+                mut rest,
             } => {
                 if delta.stop_reason.is_some() {
                     if self.saw_finish {
@@ -104,6 +109,10 @@ impl State {
                     }
                     self.saw_finish = true;
                 }
+                crate::common::claude_message_controls::preserve_input_transformations(
+                    &mut rest,
+                    input_transformations,
+                )?;
                 Some(chunks::message_delta(
                     *delta,
                     context_management,

@@ -46,6 +46,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         container: None,
         context_management: None,
         diagnostics: None,
+        input_transformations: None,
         stop_details: None,
         rest,
     };

@@ -8,7 +8,8 @@ pub(crate) fn transform(
     model: &str,
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
-    let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let mut input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let mut messages = Vec::new();
     if let Some(system) = input.system {
         messages.push(openai::ChatCompletionMessageParam::System(

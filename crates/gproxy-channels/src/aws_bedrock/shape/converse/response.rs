@@ -40,6 +40,7 @@ pub(super) fn convert(body: &Bytes) -> Result<Bytes, ChannelError> {
         container: None,
         context_management: None,
         diagnostics: None,
+        input_transformations: None,
         stop_details: None,
         rest: output_rest,
     };

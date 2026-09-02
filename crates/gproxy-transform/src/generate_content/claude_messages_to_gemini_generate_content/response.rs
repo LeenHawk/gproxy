@@ -7,6 +7,11 @@ use super::{content, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
+    let mut rest = input.rest;
+    crate::common::claude_message_controls::preserve_input_transformations(
+        &mut rest,
+        input.input_transformations,
+    )?;
     let output_tokens = input.usage.output_tokens.map(to_i32).transpose()?;
     let output = gemini::GenerateContentResponse {
         candidates: vec![gemini::Candidate {
@@ -28,7 +33,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         model_version: Some(wire_string(&input.model)?),
         response_id: Some(input.id),
         model_status: None,
-        rest: input.rest,
+        rest,
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }

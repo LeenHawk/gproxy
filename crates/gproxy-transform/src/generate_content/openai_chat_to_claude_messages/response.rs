@@ -7,6 +7,10 @@ use crate::models::common::wire_string;
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
     let mut rest = input.rest;
+    crate::common::claude_message_controls::preserve_input_transformations(
+        &mut rest,
+        input.input_transformations,
+    )?;
     let created = rest
         .remove("openai_created")
         .map(serde_json::from_value)

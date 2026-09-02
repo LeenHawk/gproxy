@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use super::common::{
     AnthropicBetaHeaders, AssistantRole, CacheControl, ClaudeModel, Container, ContainerParam,
     ContentBlock, ContextManagementConfig, ContextManagementResponse, Diagnostics,
-    DiagnosticsParam, FallbackCreditTokenParam, FallbacksParam, InferenceGeo, JsonSchemaFormat,
-    McpServer, MessageObjectType, MessageParam, Metadata, OutputConfig, RequestServiceTier, Speed,
-    StopDetails, StopReason, SystemPrompt, ThinkingConfig, Tool, ToolChoice, Usage,
+    DiagnosticsParam, FallbackCreditTokenParam, FallbacksParam, InferenceGeo, InputTransformation,
+    JsonSchemaFormat, McpServer, MessageObjectType, MessageParam, Metadata, OutputConfig,
+    RequestServiceTier, Speed, StopDetails, StopReason, SystemPrompt, ThinkingConfig, Tool,
+    ToolChoice, Usage,
 };
 
 pub mod stream;
@@ -90,6 +91,8 @@ pub struct CreateMessageResponseBody {
     pub context_management: Option<ContextManagementResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Diagnostics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_transformations: Option<Vec<InputTransformation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_details: Option<StopDetails>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

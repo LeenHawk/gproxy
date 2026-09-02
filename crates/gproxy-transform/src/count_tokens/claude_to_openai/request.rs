@@ -4,6 +4,7 @@ use crate::TransformError;
 
 pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes, TransformError> {
     let mut input: claude::CountTokensRequestBody = serde_json::from_slice(&body)?;
+    crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let text = messages_text(std::mem::take(&mut input.messages));
     input.cache_control = None;
     input.context_management = None;

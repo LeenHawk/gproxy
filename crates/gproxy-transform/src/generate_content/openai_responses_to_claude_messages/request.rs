@@ -189,6 +189,8 @@ fn message(
     claude::MessageParam {
         role: claude::MessageRole::Known(role),
         content: claude::StringOrArray::Array(content),
+        clear_at: None,
+        output_config: None,
         rest,
     }
 }

@@ -21,6 +21,8 @@ pub(crate) fn request_messages(
             output.push(claude::MessageParam {
                 role,
                 content: claude::StringOrArray::Array(blocks),
+                clear_at: None,
+                output_config: None,
                 rest: Default::default(),
             });
         }

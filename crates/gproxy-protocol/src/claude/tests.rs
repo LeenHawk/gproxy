@@ -183,6 +183,52 @@ fn models_count_files_and_skill_versions_keep_extension_data() {
     }));
 }
 
+#[test]
+fn fable_5_1_message_controls_and_transformations_roundtrip() {
+    let request = roundtrip::<CreateMessageRequestBody>(json!({
+        "model":"claude-fable-5-1",
+        "max_tokens":1024,
+        "thinking":{
+            "type":"adaptive",
+            "display":"updates",
+            "block_binding":{"prefix_mismatch_behavior":"drop_block"}
+        },
+        "messages":[
+            {"role":"system","content":[],"output_config":{"effort":"low"}},
+            {"role":"user","content":"hello"},
+            {"role":"system","content":"one turn","clear_at":"next_user_message"}
+        ]
+    }));
+    assert!(matches!(
+        request.model,
+        ClaudeModel::Known(ClaudeModelKnown::ClaudeFable51)
+    ));
+
+    let response = roundtrip::<CreateMessageResponseBody>(json!({
+        "id":"msg_1","type":"message","role":"assistant","content":[],
+        "model":"claude-fable-5-1","stop_reason":"end_turn","stop_sequence":null,
+        "usage":{"input_tokens":3,"output_tokens":1},
+        "input_transformations":[{
+            "type":"thinking_dropped","path":"messages.1.content.0",
+            "reason":"prefix_binding_mismatch"
+        }]
+    }));
+    assert!(matches!(
+        response.input_transformations.as_deref(),
+        Some([InputTransformation::ThinkingDropped(_)])
+    ));
+
+    roundtrip::<StreamEvent>(json!({
+        "type":"message_delta",
+        "delta":{"stop_reason":"end_turn"},
+        "usage":{"output_tokens":1},
+        "input_transformations":[{
+            "type":"thinking_dropped","path":"messages.1.content.0",
+            "reason":"model_binding_mismatch"
+        }]
+    }));
+}
+
 fn roundtrip<T>(wire: Value) -> T
 where
     T: DeserializeOwned + Serialize,

@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::super::server_tools::*;
-use super::super::{JsonObject, MessageRole, StringOrArray};
+use super::super::{
+    JsonObject, MessageClearAt, MessageRole, StringOrArray, SystemMessageOutputConfig,
+};
 use super::*;
 use crate::claude::extensible::type_tag_union_deserialize;
 
@@ -13,6 +15,10 @@ pub type ContentBlock = ResponseContentBlock;
 pub struct MessageParam {
     pub role: MessageRole,
     pub content: MessageContent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clear_at: Option<MessageClearAt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_config: Option<SystemMessageOutputConfig>,
     #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }

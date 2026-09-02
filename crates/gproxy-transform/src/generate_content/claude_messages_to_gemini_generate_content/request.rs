@@ -9,7 +9,8 @@ pub(crate) fn transform(
     model: &str,
     _stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
-    let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let mut input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let generation_config = config::generation(&input)?;
     let tool_config = tools::choice(input.tool_choice);
     let output = gemini::GenerateContentRequest {

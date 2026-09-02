@@ -24,6 +24,7 @@ pub(super) fn start(
             stop_reason: None,
             stop_sequence: None,
             usage: None,
+            input_transformations: None,
             rest: Default::default(),
         }),
         rest,
@@ -68,6 +69,7 @@ pub(super) fn message_delta(
             stop_details: None,
             rest: Default::default(),
         }),
+        input_transformations: None,
         usage: usage.map(Box::new),
         rest,
     }

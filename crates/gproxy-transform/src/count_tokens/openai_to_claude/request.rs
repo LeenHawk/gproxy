@@ -17,6 +17,8 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
                 gproxy_protocol::claude::MessageRoleKnown::User,
             ),
             content: gproxy_protocol::claude::StringOrArray::String(text),
+            clear_at: None,
+            output_config: None,
             rest: Default::default(),
         }]
     };

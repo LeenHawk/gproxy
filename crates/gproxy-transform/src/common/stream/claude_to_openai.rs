@@ -51,7 +51,12 @@ impl State {
         match event {
             claude::StreamEvent::Known(event) => match *event {
                 claude::KnownStreamEvent::MessageStart { message, rest } => {
-                    self.start(*message, rest)
+                    let mut message = *message;
+                    crate::common::claude_message_controls::preserve_input_transformations(
+                        &mut message.rest,
+                        message.input_transformations.take(),
+                    )?;
+                    self.start(message, rest)
                 }
                 claude::KnownStreamEvent::ContentBlockStart {
                     index,
@@ -65,8 +70,18 @@ impl State {
                     self.block_stop(index, rest)
                 }
                 claude::KnownStreamEvent::MessageDelta {
-                    delta, usage, rest, ..
-                } => self.message_delta(*delta, usage.map(|usage| *usage), rest),
+                    delta,
+                    input_transformations,
+                    usage,
+                    mut rest,
+                    ..
+                } => {
+                    crate::common::claude_message_controls::preserve_input_transformations(
+                        &mut rest,
+                        input_transformations,
+                    )?;
+                    self.message_delta(*delta, usage.map(|usage| *usage), rest)
+                }
                 claude::KnownStreamEvent::MessageStop { rest } => self.message_stop(rest),
                 claude::KnownStreamEvent::Ping { rest } => match self.output {
                     Output::Chat => (!rest.is_empty())

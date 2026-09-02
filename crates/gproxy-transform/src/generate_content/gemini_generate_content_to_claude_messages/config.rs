@@ -54,6 +54,7 @@ pub(super) fn thinking(
             claude::ThinkingEnabled {
                 budget_tokens,
                 type_: claude::ThinkingEnabledType::Enabled,
+                block_binding: None,
                 display: None,
                 rest: thinking.rest.clone(),
             },
@@ -62,6 +63,7 @@ pub(super) fn thinking(
     Ok(Some(claude::ThinkingConfig::Adaptive(
         claude::ThinkingAdaptive {
             type_: claude::ThinkingAdaptiveType::Adaptive,
+            block_binding: None,
             display: None,
             rest: thinking.rest.clone(),
         },

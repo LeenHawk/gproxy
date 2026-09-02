@@ -18,7 +18,8 @@ pub(crate) fn transform(
     model: &str,
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
-    let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let mut input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let mut response_items = system_items(input.system);
     let mut native_calls = BTreeMap::new();
     for message in input.messages {
@@ -158,9 +159,10 @@ fn system_items(system: Option<claude::SystemPrompt>) -> Vec<openai::ResponseIte
 
 #[allow(deprecated)]
 pub(crate) fn count_tokens(
-    input: claude::CountTokensRequestBody,
+    mut input: claude::CountTokensRequestBody,
     model: &str,
 ) -> Result<openai::ResponseInputTokensRequest, TransformError> {
+    crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     if input.cache_control.is_some()
         || input.context_management.is_some()
         || input.mcp_servers.is_some()

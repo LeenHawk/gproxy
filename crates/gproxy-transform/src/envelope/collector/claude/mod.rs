@@ -16,6 +16,7 @@ pub(super) struct ClaudeCollector {
     blocks: BTreeMap<u64, claude::ContentBlock>,
     json: BTreeMap<u64, String>,
     delta: Option<claude::MessageDelta>,
+    input_transformations: Option<Vec<claude::InputTransformation>>,
     usage: Option<claude::Usage>,
     rest: serde_json::Map<String, serde_json::Value>,
     pub(super) complete: bool,
@@ -52,9 +53,16 @@ impl ClaudeCollector {
                     self.rest.extend(rest);
                 }
                 claude::KnownStreamEvent::MessageDelta {
-                    delta, usage, rest, ..
+                    delta,
+                    input_transformations,
+                    usage,
+                    rest,
+                    ..
                 } => {
                     self.delta = Some(*delta);
+                    if input_transformations.is_some() {
+                        self.input_transformations = input_transformations;
+                    }
                     if let Some(usage) = usage {
                         let current = self.usage.take().or_else(|| {
                             self.message
@@ -118,6 +126,7 @@ impl ClaudeCollector {
             container: delta.container,
             context_management: None,
             diagnostics: None,
+            input_transformations: self.input_transformations.or(message.input_transformations),
             stop_details: delta.stop_details,
             rest: self.rest,
         })
