@@ -1,3 +1,13 @@
+pub const PRICING_SERVICE_TIERS: [&str; 7] = [
+    "standard",
+    "priority",
+    "flex",
+    "scale",
+    "ultrafast",
+    "batch",
+    "reserved",
+];
+
 pub(super) fn request_service_tier(body: &[u8]) -> Option<String> {
     let value = serde_json::from_slice::<serde_json::Value>(body).ok()?;
     let object = value.as_object()?;

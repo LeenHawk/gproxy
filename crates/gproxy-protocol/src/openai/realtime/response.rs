@@ -96,6 +96,20 @@ pub struct RealtimeInputTokenDetails {
     pub image_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cached_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_tokens_details: Option<RealtimeCachedTokenDetails>,
+    #[serde(default, flatten)]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RealtimeCachedTokenDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_tokens: Option<u64>,
     #[serde(default, flatten)]
     pub rest: Rest,
 }

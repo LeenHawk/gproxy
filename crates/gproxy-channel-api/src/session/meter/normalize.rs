@@ -40,6 +40,13 @@ pub(super) fn realtime(usage: &RealtimeUsage) -> Result<NormalizedUsage, Channel
         ] {
             metric(&mut normalized, name, value);
         }
+        if let Some(cached) = details.cached_tokens_details.as_ref() {
+            metric(
+                &mut normalized,
+                "cached_audio_input_tokens",
+                cached.audio_tokens,
+            );
+        }
     }
     if let Some(details) = usage.output_token_details.as_ref() {
         metric(&mut normalized, "text_output_tokens", details.text_tokens);

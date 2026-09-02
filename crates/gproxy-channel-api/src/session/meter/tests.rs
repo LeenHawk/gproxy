@@ -32,7 +32,7 @@ fn response_done_preserves_every_token_detail() {
         SessionObservation::None
     ));
     assert!(meter.ready());
-    let done = r#"{"type":"response.done","response":{"id":"resp_1","usage":{"total_tokens":18,"input_tokens":11,"output_tokens":7,"input_token_details":{"text_tokens":3,"audio_tokens":5,"image_tokens":2,"cached_tokens":1},"output_token_details":{"text_tokens":4,"audio_tokens":3}}}}"#;
+    let done = r#"{"type":"response.done","response":{"id":"resp_1","usage":{"total_tokens":18,"input_tokens":11,"output_tokens":7,"input_token_details":{"text_tokens":3,"audio_tokens":5,"image_tokens":2,"cached_tokens":1,"cached_tokens_details":{"audio_tokens":1}},"output_token_details":{"text_tokens":4,"audio_tokens":3}}}}"#;
     let sample = usage(meter.observe(&text(done)));
     assert_eq!(sample.kind, SessionUsageKind::Primary);
     assert_eq!(sample.model, "gpt-realtime-actual");
@@ -43,6 +43,10 @@ fn response_done_preserves_every_token_detail() {
     assert_eq!(sample.usage.metrics["text_input_tokens"], Decimal::from(3));
     assert_eq!(sample.usage.metrics["audio_input_tokens"], Decimal::from(5));
     assert_eq!(sample.usage.metrics["image_input_tokens"], Decimal::from(2));
+    assert_eq!(
+        sample.usage.metrics["cached_audio_input_tokens"],
+        Decimal::ONE
+    );
     assert_eq!(sample.usage.metrics["text_output_tokens"], Decimal::from(4));
     assert_eq!(
         sample.usage.metrics["audio_output_tokens"],

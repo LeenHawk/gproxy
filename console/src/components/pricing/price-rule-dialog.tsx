@@ -2,11 +2,11 @@ import type { ReactElement } from "react"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { PriceRuleWriteRequest } from "@/generated/PriceRuleWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { savePriceRule } from "@/api/control"
+import { priceCatalog, savePriceRule } from "@/api/control"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,8 @@ export function PriceRuleDialog({ rule, providers, trigger, fixedProviderId, ini
   const [priority, setPriority] = useState(String(rule?.priority ?? 0))
   const [enabled, setEnabled] = useState(rule?.enabled ?? true)
   const [tiers, setTiers] = useState(() => tierDrafts(rule?.tiers))
+  const catalog = useQuery({ queryKey: ["price-catalog"], queryFn: priceCatalog, enabled: open })
+  const serviceTiers = catalog.data?.service_tiers ?? [...new Set(tiers.map((tier) => tier.serviceTier).filter(Boolean))]
   const mutation = useMutation({
     mutationFn: (value: PriceRuleWriteRequest) => savePriceRule(value, rule?.id),
     onSuccess: async () => {
@@ -77,7 +79,7 @@ export function PriceRuleDialog({ rule, providers, trigger, fixedProviderId, ini
               <Field><FieldLabel htmlFor="price-priority">{t("pricing.rules.priority")}</FieldLabel><Input id="price-priority" type="number" step={1} required value={priority} onChange={(event) => setPriority(event.target.value)} /></Field>
               <Field orientation="horizontal"><FieldLabel htmlFor="price-enabled">{t("pricing.rules.enabled")}</FieldLabel><Switch id="price-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>
             </div>
-            <TierEditor rows={tiers} onChange={setTiers} />
+            <TierEditor rows={tiers} serviceTiers={serviceTiers} onChange={setTiers} />
             {losesLongContextStep(tiers) ? <Alert><AlertTitle>{t("pricing.warning.title")}</AlertTitle><AlertDescription>{t("pricing.warning.longContext")}</AlertDescription></Alert> : null}
           </FieldGroup></DialogBody>
           <DialogFooter>

@@ -22,18 +22,22 @@ function conditionRows(value: unknown): Array<Condition> {
     typeof item === "string" ? [{ key, value: item }] : [])
 }
 
-export function PriceRateDialog({ rate, rules, initialRuleId, trigger }: {
+export function PriceRateDialog({ rate, rules, initialRuleId, fixedRuleId, initialMetric, initialUnitSize, lockedMetric = false, trigger }: {
   rate?: PriceRateDto
   rules: Array<PriceRuleDto>
   initialRuleId?: number
+  fixedRuleId?: number
+  initialMetric?: string
+  initialUnitSize?: number
+  lockedMetric?: boolean
   trigger: ReactElement
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [ruleId, setRuleId] = useState(String(rate?.rule_id ?? initialRuleId ?? rules[0]?.id ?? 0))
-  const [metric, setMetric] = useState(rate?.metric ?? "")
-  const [unitSize, setUnitSize] = useState(String(rate?.unit_size ?? 1))
+  const [ruleId, setRuleId] = useState(String(rate?.rule_id ?? fixedRuleId ?? initialRuleId ?? rules[0]?.id ?? 0))
+  const [metric, setMetric] = useState(rate?.metric ?? initialMetric ?? "")
+  const [unitSize, setUnitSize] = useState(String(rate?.unit_size ?? initialUnitSize ?? 1))
   const [price, setPrice] = useState(rate?.price ?? "")
   const [priority, setPriority] = useState(String(rate?.priority ?? 0))
   const [conditions, setConditions] = useState(() => conditionRows(rate?.conditions))
@@ -66,9 +70,9 @@ export function PriceRateDialog({ rate, rules, initialRuleId, trigger }: {
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader><DialogTitle>{t(rate ? "pricing.rates.edit" : "pricing.rates.add")}</DialogTitle></DialogHeader>
           <DialogBody><FieldGroup>
-            <Field><FieldLabel htmlFor="rate-rule">{t("pricing.rates.rule")}</FieldLabel><SearchableSelect id="rate-rule" value={ruleId} options={rules.map((rule) => ({ value: String(rule.id), label: rule.model_pattern }))} placeholder={t("common.none")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("pricing.rates.rule")} onChange={setRuleId} /></Field>
+            {fixedRuleId == null ? <Field><FieldLabel htmlFor="rate-rule">{t("pricing.rates.rule")}</FieldLabel><SearchableSelect id="rate-rule" value={ruleId} options={rules.map((rule) => ({ value: String(rule.id), label: rule.model_pattern }))} placeholder={t("common.none")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("pricing.rates.rule")} onChange={setRuleId} /></Field> : null}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field><FieldLabel htmlFor="rate-metric">{t("pricing.rates.metric")}</FieldLabel><Input id="rate-metric" className="font-mono" required value={metric} onChange={(event) => setMetric(event.target.value)} /></Field>
+              <Field><FieldLabel htmlFor="rate-metric">{t("pricing.rates.metric")}</FieldLabel><Input id="rate-metric" className="font-mono" required readOnly={lockedMetric} value={metric} onChange={(event) => setMetric(event.target.value)} /></Field>
               <Field><FieldLabel htmlFor="rate-price">{t("pricing.rates.price")}</FieldLabel><Input id="rate-price" inputMode="decimal" required value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
               <Field><FieldLabel htmlFor="rate-unit">{t("pricing.rates.unitSize")}</FieldLabel><Input id="rate-unit" type="number" min={1} step={1} required value={unitSize} onChange={(event) => setUnitSize(event.target.value)} /></Field>
               <Field><FieldLabel htmlFor="rate-priority">{t("pricing.rates.priority")}</FieldLabel><Input id="rate-priority" type="number" step={1} required value={priority} onChange={(event) => setPriority(event.target.value)} /></Field>

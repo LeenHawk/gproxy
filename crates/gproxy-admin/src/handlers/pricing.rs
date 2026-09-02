@@ -2,10 +2,92 @@ use bytes::Bytes;
 use gproxy_store::records::{PriceRateInput, PriceRuleInput};
 use http::{Response, StatusCode};
 
-use crate::dto::{PriceRateDto, PriceRateWriteRequest, PriceRuleDto, PriceRuleWriteRequest};
+use crate::dto::{
+    PriceCatalogDto, PriceMetricDto, PriceProfileDto, PriceProfileKindDto, PriceRateDto,
+    PriceRateWriteRequest, PriceRuleDto, PriceRuleWriteRequest,
+};
 use crate::handlers::util;
 use crate::route::Entity;
 use crate::{AdminError, State, response};
+
+const MILLION: u64 = 1_000_000;
+
+pub(super) fn catalog() -> Result<Response<Bytes>, AdminError> {
+    use PriceProfileKindDto::*;
+    let profile = |kind, metrics: &[(&str, u64)]| PriceProfileDto {
+        kind,
+        metrics: metrics
+            .iter()
+            .map(|(metric, unit_size)| PriceMetricDto {
+                metric: (*metric).into(),
+                unit_size: *unit_size,
+            })
+            .collect(),
+    };
+    response::json(
+        StatusCode::OK,
+        &PriceCatalogDto {
+            service_tiers: gproxy_core::PRICING_SERVICE_TIERS
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            profiles: vec![
+                profile(
+                    Generation,
+                    &[
+                        ("input_tokens", MILLION),
+                        ("output_tokens", MILLION),
+                        ("cached_input_tokens", MILLION),
+                        ("cache_creation_5m_tokens", MILLION),
+                        ("cache_creation_30m_tokens", MILLION),
+                        ("cache_creation_1h_tokens", MILLION),
+                        ("reasoning_tokens", MILLION),
+                    ],
+                ),
+                profile(
+                    Embedding,
+                    &[
+                        ("input_tokens", MILLION),
+                        ("audio_input_tokens", MILLION),
+                        ("image_input_tokens", MILLION),
+                        ("video_input_tokens", MILLION),
+                    ],
+                ),
+                profile(Rerank, &[("input_tokens", MILLION), ("search_units", 1)]),
+                profile(
+                    Image,
+                    &[
+                        ("input_tokens", MILLION),
+                        ("image_input_tokens", MILLION),
+                        ("image_output_tokens", MILLION),
+                        ("image_outputs", 1),
+                    ],
+                ),
+                profile(
+                    Audio,
+                    &[
+                        ("input_tokens", MILLION),
+                        ("output_tokens", MILLION),
+                        ("audio_input_tokens", MILLION),
+                        ("cached_audio_input_tokens", MILLION),
+                        ("audio_output_tokens", MILLION),
+                        ("audio_seconds", 1),
+                    ],
+                ),
+                profile(
+                    Video,
+                    &[
+                        ("video_input_tokens", MILLION),
+                        ("video_tokens", MILLION),
+                        ("video_seconds", 1),
+                        ("video_outputs", 1),
+                    ],
+                ),
+                profile(Tools, &[("web_searches", 1), ("web_fetches", 1)]),
+            ],
+        },
+    )
+}
 
 pub(super) async fn list(
     state: &impl State,
@@ -140,4 +222,42 @@ fn rate(request: PriceRateWriteRequest) -> Result<PriceRateInput, AdminError> {
         conditions: request.conditions,
         priority: request.priority,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn price_catalog_covers_model_and_hosted_tool_usage_shapes() {
+        let response = catalog().expect("price catalog");
+        let catalog: PriceCatalogDto =
+            serde_json::from_slice(response.body()).expect("catalog body");
+        assert_eq!(catalog.service_tiers, gproxy_core::PRICING_SERVICE_TIERS);
+        assert_eq!(catalog.profiles.len(), 7);
+        for kind in [
+            PriceProfileKindDto::Generation,
+            PriceProfileKindDto::Embedding,
+            PriceProfileKindDto::Rerank,
+            PriceProfileKindDto::Image,
+            PriceProfileKindDto::Audio,
+            PriceProfileKindDto::Video,
+            PriceProfileKindDto::Tools,
+        ] {
+            assert!(catalog.profiles.iter().any(|profile| profile.kind == kind));
+        }
+        let tools = catalog
+            .profiles
+            .iter()
+            .find(|profile| profile.kind == PriceProfileKindDto::Tools)
+            .expect("tools profile");
+        assert_eq!(
+            tools
+                .metrics
+                .iter()
+                .map(|metric| metric.metric.as_str())
+                .collect::<Vec<_>>(),
+            ["web_searches", "web_fetches"]
+        );
+    }
 }

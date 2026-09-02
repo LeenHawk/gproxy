@@ -38,6 +38,7 @@ pub(crate) enum Route {
     ConfigurationExport,
     ConfigurationImport,
     DefaultModelCatalog,
+    PriceCatalog,
     ApplyDefaultModelPrices,
     ConnectivityTest,
     ModelTest,
@@ -205,6 +206,7 @@ fn special(method: &Method, name: &str) -> Option<Route> {
         (&Method::POST, "export") => Some(Route::ConfigurationExport),
         (&Method::POST, "import") => Some(Route::ConfigurationImport),
         (&Method::GET, "default-model-catalog") => Some(Route::DefaultModelCatalog),
+        (&Method::GET, "price-catalog") => Some(Route::PriceCatalog),
         _ => None,
     }
 }
@@ -297,6 +299,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::List(_)
         | Route::ConfigurationExport
         | Route::DefaultModelCatalog
+        | Route::PriceCatalog
         | Route::ConnectivityTest
         | Route::Usage
         | Route::QuotaWindows

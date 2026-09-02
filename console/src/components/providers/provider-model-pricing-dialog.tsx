@@ -48,6 +48,7 @@ export function ProviderModelPricingDialog({ provider, model, rules, rates, trig
           scopeProviderId={provider.id}
           tab={tab}
           onTab={setTab}
+          modelId={model.model_id}
         />
       </DialogBody>
     </DialogContent>

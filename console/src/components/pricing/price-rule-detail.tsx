@@ -10,8 +10,10 @@ import { BatchActions } from "@/components/batch-actions"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { PriceRateDialog } from "@/components/pricing/price-rate-dialog"
+import { PriceRateProfiles } from "@/components/pricing/price-rate-profiles"
 import { PriceRuleDialog } from "@/components/pricing/price-rule-dialog"
-import { PRICE_FIELDS, tierDrafts } from "@/components/pricing/tier-values"
+import { TierSummary } from "@/components/pricing/tier-summary"
+import { tierDrafts } from "@/components/pricing/tier-values"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +28,7 @@ type Props = {
   scopeProviderId?: number | null
   tab: string
   onTab: (tab: string) => void
+  modelId?: string
 }
 
 export function PriceRuleDetail(props: Props) {
@@ -44,6 +47,7 @@ export function PriceRuleDetail(props: Props) {
     rule={props.rule}
     providers={props.providers}
     fixedProviderId={props.scopeProviderId}
+    lockedPattern={props.modelId != null}
     trigger={<Button size="sm" variant="outline">{t("common.actions.edit")}</Button>}
   />
   const rateActions = (rate: PriceRateDto) => <div className="flex items-center justify-end gap-2">
@@ -91,7 +95,7 @@ export function PriceRuleDetail(props: Props) {
         </Card>
       </TabsContent>
       <TabsContent value="rates" className="pt-4">
-        <Card>
+        {props.modelId ? <PriceRateProfiles modelId={props.modelId} rule={props.rule} rules={props.rules} rates={props.rates} deleting={removeRate.isPending} onDelete={(id) => removeRate.mutate(id)} /> : <Card>
           <CardHeader>
             <CardTitle>{t("pricing.rates.title")}</CardTitle>
             <CardAction><PriceRateDialog rules={props.rules} initialRuleId={props.rule.id} trigger={<Button size="sm" variant="outline">{t("pricing.rates.add")}</Button>} /></CardAction>
@@ -99,23 +103,12 @@ export function PriceRuleDetail(props: Props) {
           <CardContent>
             <DataTable columns={rateColumns} rows={props.rates} rowKey={(rate) => rate.id} searchText={(rate) => `${rate.metric} ${rate.price}`} renderCard={(rate) => <div className="flex flex-col gap-3"><div><p className="font-mono text-xs">{rate.metric}</p><p className="text-xs text-muted-foreground">{t("pricing.rates.summary", { price: rate.price, units: rate.unit_size })}</p></div>{rateActions(rate)}</div>} empty={t("pricing.rates.empty")} storageKey={`price-rule-${props.rule.id}-rates`} selectable batchActions={(rows, done) => <BatchActions entity="price-rates" rows={rows} queryKeys={["price-rates"]} toggle={false} remove onApplied={done} />} />
           </CardContent>
-        </Card>
+        </Card>}
       </TabsContent>
       <TabsContent value="tiers" className="pt-4">
         <Card>
           <CardHeader><CardTitle>{t("pricing.tiers.title")}</CardTitle><CardAction>{editRule()}</CardAction></CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {tiers.length ? tiers.map((tier, index) => <div key={index} className="flex flex-col gap-3 rounded-md border p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>{tier.serviceTier || t("pricing.tiers.base")}</Badge>
-                {tier.threshold ? <span className="text-xs text-muted-foreground">{t("pricing.tiers.threshold")}: {tier.threshold}</span> : null}
-                {tier.multiplier ? <span className="text-xs text-muted-foreground">{t("pricing.tiers.multiplier")}: {tier.multiplier}</span> : null}
-              </div>
-              <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                {PRICE_FIELDS.filter((field) => tier.prices[field]).map((field) => <p key={field}>{t(`pricing.tiers.${field}`)}: <span className="font-mono">{tier.prices[field]}</span></p>)}
-              </div>
-            </div>) : <p className="text-sm text-muted-foreground">{t("pricing.tiers.empty")}</p>}
-          </CardContent>
+          <CardContent><TierSummary tiers={tiers} /></CardContent>
         </Card>
       </TabsContent>
     </Tabs>

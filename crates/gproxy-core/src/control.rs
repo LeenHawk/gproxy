@@ -14,7 +14,7 @@ mod pricing;
 mod service_tier;
 
 pub use pricing::{ConditionalMetricRate, Pricing, PricingTier};
-pub use service_tier::{normalize_service_tier, response_service_tier};
+pub use service_tier::{PRICING_SERVICE_TIERS, normalize_service_tier, response_service_tier};
 
 /// Read-only view of routing and pricing state. Synchronous by design:
 /// implementations answer from an in-memory snapshot, never from I/O on

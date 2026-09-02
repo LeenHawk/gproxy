@@ -42,6 +42,7 @@ pub(crate) async fn dispatch(
         Route::ConfigurationExport => transfer::export(state, body).await,
         Route::ConfigurationImport => transfer::import(state, body).await,
         Route::DefaultModelCatalog => default_models::list(),
+        Route::PriceCatalog => pricing::catalog(),
         Route::ApplyDefaultModelPrices => default_models::apply(state, body).await,
         Route::ConnectivityTest => connectivity::test(state, body).await,
         Route::ModelTest => connectivity::model_test(state, admin.id, body).await,

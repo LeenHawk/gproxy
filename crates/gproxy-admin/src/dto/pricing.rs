@@ -45,3 +45,34 @@ pub struct PriceRateWriteRequest {
     pub conditions: Option<Value>,
     pub priority: i64,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct PriceCatalogDto {
+    pub service_tiers: Vec<String>,
+    pub profiles: Vec<PriceProfileDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct PriceProfileDto {
+    pub kind: PriceProfileKindDto,
+    pub metrics: Vec<PriceMetricDto>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum PriceProfileKindDto {
+    Generation,
+    Embedding,
+    Rerank,
+    Image,
+    Audio,
+    Video,
+    Tools,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct PriceMetricDto {
+    pub metric: String,
+    pub unit_size: u64,
+}

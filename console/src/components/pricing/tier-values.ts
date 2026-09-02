@@ -20,10 +20,11 @@ export function tierDrafts(value: unknown): Array<TierDraft> {
   return value.flatMap((item) => {
     if (item == null || typeof item !== "object" || Array.isArray(item)) return []
     const row = item as Record<string, unknown>
+    const serviceTier = text(row.service_tier)
     const prices = Object.fromEntries(PRICE_FIELDS.map((field) => [field, text(row[field])])) as TierDraft["prices"]
     return [{
-      serviceTier: text(row.service_tier),
-      threshold: row.min_prompt_tokens == null ? "" : text(row.min_prompt_tokens),
+      serviceTier,
+      threshold: row.min_prompt_tokens == null ? serviceTier ? "0" : "" : text(row.min_prompt_tokens),
       multiplier: text(row.multiplier),
       prices,
     }]
@@ -53,10 +54,10 @@ export function losesLongContextStep(rows: Array<TierDraft>) {
   })
 }
 
-export function emptyTier(): TierDraft {
+export function emptyTier(serviceTier = "", threshold = ""): TierDraft {
   return {
-    serviceTier: "",
-    threshold: "",
+    serviceTier,
+    threshold,
     multiplier: "",
     prices: Object.fromEntries(PRICE_FIELDS.map((field) => [field, ""])) as TierDraft["prices"],
   }

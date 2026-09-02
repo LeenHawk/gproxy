@@ -16,6 +16,7 @@ import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { PriceRateWriteRequest } from "@/generated/PriceRateWriteRequest"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { PriceRuleWriteRequest } from "@/generated/PriceRuleWriteRequest"
+import type { PriceCatalogDto } from "@/generated/PriceCatalogDto"
 import type { ApplyDefaultModelPricesRequest } from "@/generated/ApplyDefaultModelPricesRequest"
 import type { ApplyDefaultModelPricesResponse } from "@/generated/ApplyDefaultModelPricesResponse"
 import type { DefaultModelCatalogDto } from "@/generated/DefaultModelCatalogDto"
@@ -108,6 +109,7 @@ export const savePriceRule = (value: PriceRuleWriteRequest, id?: number) =>
 export const priceRates = () => api<Array<PriceRateDto>>("/admin/api/price-rates")
 export const savePriceRate = (value: PriceRateWriteRequest, id?: number) =>
   save("/admin/api/price-rates", value, id)
+export const priceCatalog = () => api<PriceCatalogDto>("/admin/api/price-catalog")
 export const defaultModelCatalog = () =>
   api<DefaultModelCatalogDto>("/admin/api/default-model-catalog")
 export const applyDefaultModelPrices = (value: ApplyDefaultModelPricesRequest) =>
