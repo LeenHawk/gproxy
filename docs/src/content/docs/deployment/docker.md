@@ -9,10 +9,10 @@ release tag such as `v3.0.0-alpha.0`. The release workflow builds one
 tag and no `-musl` variant. Pin the tag you tested. Versions are listed on
 [Downloads](/getting-started/downloads/).
 
-The multi-stage `Dockerfile` builds the console in a Node stage, embeds it
-and compiles `gproxy` in a Rust stage, and ships a `debian:trixie-slim`
-runtime with only `ca-certificates`. The binary is the native release binary
-compiled with installation kind `container`.
+The multi-stage `deploy/container/Dockerfile` builds the console in a Node
+stage, embeds it and compiles `gproxy` in a Rust stage, and ships a
+`debian:trixie-slim` runtime with only `ca-certificates`. The binary is the
+native release binary compiled with installation kind `container`.
 
 ## Image Defaults
 
@@ -37,7 +37,6 @@ directory must be writable by the `gproxy` user.
 docker run -d --name gproxy \
   -p 8787:8787 \
   -v gproxy-data:/var/lib/gproxy \
-  --stop-signal SIGINT \
   ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
 ```
 
@@ -49,7 +48,6 @@ page. To skip the form, pass the first-run variables:
 docker run -d --name gproxy \
   -p 8787:8787 \
   -v gproxy-data:/var/lib/gproxy \
-  --stop-signal SIGINT \
   -e GPROXY_ADMIN_USER=admin \
   -e GPROXY_ADMIN_PASSWORD='<choose-a-password>' \
   ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
@@ -72,7 +70,6 @@ services:
   gproxy:
     image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
     restart: unless-stopped
-    stop_signal: SIGINT
     ports:
       - "8787:8787"
     environment:
@@ -117,7 +114,6 @@ holds `.env`. See [Storage & Cache Backends](/reference/database/).
 services:
   gproxy:
     image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
-    stop_signal: SIGINT
     ports:
       - "8787:8787"
     environment:
@@ -174,18 +170,16 @@ the database, not in the log; see
 
 ## Graceful Stop
 
-The binary shuts down cleanly on `SIGINT`: it stops accepting connections
-and lets in-flight requests finish. It does not handle `SIGTERM`, and the
-image sets no `STOPSIGNAL`, so a plain `docker stop` ends the process at
-once and cuts open streams. Start containers with `--stop-signal SIGINT`
-(or `stop_signal: SIGINT` in compose) as shown above; for a running
-container use `docker kill --signal SIGINT gproxy`.
+The binary shuts down cleanly on `SIGINT` and `SIGTERM`: it stops accepting
+connections and lets in-flight requests finish. The image declares
+`STOPSIGNAL SIGTERM`, so an ordinary `docker stop gproxy` uses this graceful
+path.
 
 ## Upgrade
 
 ```sh
 docker pull ghcr.io/leenhawk/gproxy:<new-tag>
-docker kill --signal SIGINT gproxy && docker rm gproxy
+docker stop gproxy && docker rm gproxy
 # recreate the container with the same volume and environment
 ```
 
@@ -204,14 +198,15 @@ docker run --rm \
 
 ## Build the Image Locally
 
-The Dockerfile refuses to build without `GPROXY_UPDATE_PUBKEY`, and the
-value must decode to exactly 32 bytes. For a local image, generate a
-throwaway key:
+The Dockerfile at `deploy/container/Dockerfile` refuses to build without
+`GPROXY_UPDATE_PUBKEY`, and the value must decode to exactly 32 bytes. For a
+local image, generate a throwaway key:
 
 ```sh
 PUBKEY="$(openssl genpkey -algorithm ed25519 \
   | openssl pkey -pubout -outform DER | tail -c 32 | base64 -w0)"
 docker buildx build \
+  -f deploy/container/Dockerfile \
   --build-arg GPROXY_UPDATE_PUBKEY="$PUBKEY" \
   --build-arg GPROXY_BUILD_VERSION=3.0.0-local \
   --build-arg GPROXY_BUILD_CHANNEL=dev \
@@ -229,7 +224,7 @@ docker buildx build \
 | `CARGO_NET_OFFLINE` | `false` | Build from a warmed cargo cache |
 
 The build needs no prebuilt console; the first stage compiles it.
-`docker buildx build --target console-dist --output type=local,dest=dist/console .`
+`docker buildx build -f deploy/container/Dockerfile --target console-dist --output type=local,dest=dist/console .`
 exports only the console bundle; the release workflow uses it to build the
 console once for every other job.
 

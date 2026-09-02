@@ -8,9 +8,10 @@ description: "使用 ghcr.io/leenhawk/gproxy 镜像运行，配置持久化 volu
 推送其他内容：没有 `latest` tag，也没有 `-musl` 变体。固定使用你测试过的 tag。
 版本列表见[下载](/zh-cn/getting-started/downloads/)。
 
-镜像由多阶段 `Dockerfile` 从源码构建：Node 阶段构建控制台，Rust 阶段嵌入控制台并
-编译 `gproxy`，运行阶段是只带 `ca-certificates` 的 `debian:trixie-slim`。镜像内的
-二进制与原生 release 发布的是同一份，只是以安装类型 `container` 编译。
+镜像由多阶段 `deploy/container/Dockerfile` 从源码构建：Node 阶段构建控制台，Rust
+阶段嵌入控制台并编译 `gproxy`，运行阶段是只带 `ca-certificates` 的
+`debian:trixie-slim`。镜像内的二进制与原生 release 发布的是同一份，只是以安装类型
+`container` 编译。
 
 ## 镜像默认值
 
@@ -34,7 +35,6 @@ description: "使用 ghcr.io/leenhawk/gproxy 镜像运行，配置持久化 volu
 docker run -d --name gproxy \
   -p 8787:8787 \
   -v gproxy-data:/var/lib/gproxy \
-  --stop-signal SIGINT \
   ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
 ```
 
@@ -45,7 +45,6 @@ docker run -d --name gproxy \
 docker run -d --name gproxy \
   -p 8787:8787 \
   -v gproxy-data:/var/lib/gproxy \
-  --stop-signal SIGINT \
   -e GPROXY_ADMIN_USER=admin \
   -e GPROXY_ADMIN_PASSWORD='<choose-a-password>' \
   ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
@@ -67,7 +66,6 @@ services:
   gproxy:
     image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
     restart: unless-stopped
-    stop_signal: SIGINT
     ports:
       - "8787:8787"
     environment:
@@ -109,7 +107,6 @@ PostgreSQL 连接不使用 TLS，请把数据库放在私有网络内。libSQL U
 services:
   gproxy:
     image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
-    stop_signal: SIGINT
     ports:
       - "8787:8787"
     environment:
@@ -161,17 +158,15 @@ services:
 
 ## 优雅停止
 
-二进制收到 `SIGINT` 时会干净地关闭：停止接受连接，并让进行中的请求完成。它不处理
-`SIGTERM`，镜像也没有设置 `STOPSIGNAL`，因此直接 `docker stop` 会立刻结束进程并
-切断打开的流。按上文示例用 `--stop-signal SIGINT`（compose 中为
-`stop_signal: SIGINT`）启动容器；对已运行的容器使用
-`docker kill --signal SIGINT gproxy`。
+二进制收到 `SIGINT` 或 `SIGTERM` 时会干净地关闭：停止接受连接，并让进行中的请求
+完成。镜像声明了 `STOPSIGNAL SIGTERM`，所以普通的 `docker stop gproxy` 会走这条
+优雅关闭路径。
 
 ## 升级
 
 ```sh
 docker pull ghcr.io/leenhawk/gproxy:<new-tag>
-docker kill --signal SIGINT gproxy && docker rm gproxy
+docker stop gproxy && docker rm gproxy
 # 用同一个 volume 和环境变量重新创建容器
 ```
 
@@ -189,13 +184,14 @@ docker run --rm \
 
 ## 本地构建镜像
 
-Dockerfile 在没有 `GPROXY_UPDATE_PUBKEY` 时拒绝构建，且该值必须恰好解码为 32
-字节。构建本地镜像时可生成一把临时密钥：
+`deploy/container/Dockerfile` 在没有 `GPROXY_UPDATE_PUBKEY` 时拒绝构建，且该值必须
+恰好解码为 32 字节。构建本地镜像时可生成一把临时密钥：
 
 ```sh
 PUBKEY="$(openssl genpkey -algorithm ed25519 \
   | openssl pkey -pubout -outform DER | tail -c 32 | base64 -w0)"
 docker buildx build \
+  -f deploy/container/Dockerfile \
   --build-arg GPROXY_UPDATE_PUBKEY="$PUBKEY" \
   --build-arg GPROXY_BUILD_VERSION=3.0.0-local \
   --build-arg GPROXY_BUILD_CHANNEL=dev \
@@ -213,7 +209,7 @@ docker buildx build \
 | `CARGO_NET_OFFLINE` | `false` | 从预热的 cargo 缓存构建 |
 
 构建不需要预先编译控制台；第一阶段会编译它。
-`docker buildx build --target console-dist --output type=local,dest=dist/console .`
+`docker buildx build -f deploy/container/Dockerfile --target console-dist --output type=local,dest=dist/console .`
 只导出控制台 bundle，release workflow 正是用它为其他所有 job 构建一次控制台。
 
 ## 加载 Release 归档

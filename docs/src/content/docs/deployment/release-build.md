@@ -130,8 +130,8 @@ The tag push runs `.github/workflows/release.yml`. Jobs, in order:
 1. **Release metadata** — verifies the tag equals `v<workspace version>`,
    derives the channel, and loads the target matrix from
    `scripts/release-targets.json`.
-2. **Console and container image** — builds the console once through the
-   Dockerfile's `console-dist` stage, builds and pushes
+2. **Console and container image** — builds the console once through
+   `deploy/container/Dockerfile`'s `console-dist` stage, builds and pushes
    `ghcr.io/leenhawk/gproxy:<tag>` (linux/amd64, with BuildKit provenance
    and SBOM attestations), and saves the same image as
    `gproxy-container-linux-amd64.tar.gz`. The console output is passed to
@@ -209,8 +209,9 @@ The docs deploy additionally needs `CLOUDFLARE_API_TOKEN`,
 
 `scripts/build-provenance.sh` writes one `<artifact>.provenance.json` per
 artifact: `version`, `commit`, `tag`, `target`, `builder`, the `rustc`,
-`node`, and `pnpm` versions that ran, and, for every `FROM` line in the
-Dockerfile, the image reference and the digest it resolved to at build time.
+`node`, and `pnpm` versions that ran, and, for every `FROM` line in
+`deploy/container/Dockerfile`, the image reference and the digest it resolved
+to at build time.
 Image tags float inside a pinned line; this record is what identifies a
 build later.
 

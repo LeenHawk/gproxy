@@ -13,6 +13,7 @@ pub struct AppHandle {
 pub(crate) struct AppInner {
     pub core: Core<AppHost>,
     pub host: AppHost,
+    pub invalidation_version: std::sync::atomic::AtomicI64,
     #[cfg(not(target_arch = "wasm32"))]
     pub shutdown: tokio::sync::watch::Sender<bool>,
     #[cfg(target_arch = "wasm32")]
@@ -60,6 +61,33 @@ impl AppHandle {
     }
 
     pub async fn reload(&self) -> Result<(), AppError> {
+        let version = crate::invalidation::bump(&self.inner.host.services.cache).await;
+        self.reload_local().await?;
+        let version = version?;
+        self.inner
+            .invalidation_version
+            .store(version, std::sync::atomic::Ordering::Release);
+        Ok(())
+    }
+
+    pub async fn sync_invalidation(&self) -> Result<(), AppError> {
+        let version = crate::invalidation::current(&self.inner.host.services.cache).await?;
+        if version
+            == self
+                .inner
+                .invalidation_version
+                .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Ok(());
+        }
+        self.reload_local().await?;
+        self.inner
+            .invalidation_version
+            .store(version, std::sync::atomic::Ordering::Release);
+        Ok(())
+    }
+
+    async fn reload_local(&self) -> Result<(), AppError> {
         self.inner.host.services.control.reload().await?;
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -86,13 +114,6 @@ impl AppHandle {
                 .await?,
             );
         }
-        self.inner
-            .host
-            .services
-            .cache
-            .incr("gproxy:invalidate", 1, None)
-            .await
-            .map_err(|error| AppError::Cache(error.to_string()))?;
         Ok(())
     }
 

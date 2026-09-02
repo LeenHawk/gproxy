@@ -19,7 +19,7 @@ description: "把 gproxy edge bundle 部署到 Cloudflare Workers、Deno Deploy 
 | `GPROXY_MASTER_KEY` | 否 | 标准 base64，32 字节。用 AES-256-GCM 加密保存凭证和用户密钥；不设置则为明文。 |
 | `GPROXY_MASTER_KEY_NEXT` | 否 | 轮换目标；空值表示轮换回明文。 |
 | `GPROXY_MASTER_KEY_ROTATE` | 否 | `1`、`true`、`yes` 或 `on` 为一次部署启用轮换。 |
-| `UPSTASH_URL`、`UPSTASH_TOKEN` | 否 | Upstash REST 缓存。`EdgeConfig` 的构造函数把它们作为最后两个参数接收，但随附的入口没有传入；要使用 Upstash 需自行扩展入口。 |
+| `UPSTASH_URL`、`UPSTASH_TOKEN` | 否 | Upstash REST 缓存。随附的 Cloudflare、Deno 和 Netlify 入口会把这两个绑定传给 `EdgeConfig`；必须同时设置或同时不设。 |
 
 把这些值保存为平台 secret。edge 上不读取 `.env` 文件，`GPROXY_ADMIN_*` 首次运行
 变量也仅原生可用。

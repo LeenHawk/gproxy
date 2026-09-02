@@ -14,6 +14,8 @@ async function host() {
     Deno.env.get("GPROXY_MASTER_KEY"),
     Deno.env.get("GPROXY_MASTER_KEY_NEXT"),
     rotationArmed(Deno.env.get("GPROXY_MASTER_KEY_ROTATE")),
+    Deno.env.get("UPSTASH_URL"),
+    Deno.env.get("UPSTASH_TOKEN"),
   )
   hostPromise ??= start(config)
   return hostPromise

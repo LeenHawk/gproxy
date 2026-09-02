@@ -36,8 +36,9 @@ impl App {
             .await
             .map_err(|error| AppError::Bootstrap(error.to_string()))?;
         let runtime = crate::control::RuntimeOverrides::from_config(&config);
-        let control = SnapshotControl::new(store.clone(), runtime).await?;
         let cache = cache(&config, store.clone()).await?;
+        let invalidation_version = crate::invalidation::current(&cache).await?;
+        let control = SnapshotControl::new(store.clone(), runtime).await?;
         #[cfg(not(target_arch = "wasm32"))]
         let transport = {
             let settings = control.settings();
@@ -84,13 +85,17 @@ impl App {
         let shutdown = tokio::sync::watch::channel(false).0;
         #[cfg(target_arch = "wasm32")]
         let shutdown = std::sync::atomic::AtomicBool::new(false);
-        Ok(AppHandle {
+        let handle = AppHandle {
             inner: Shared::new(AppInner {
                 core,
                 host,
+                invalidation_version: std::sync::atomic::AtomicI64::new(invalidation_version),
                 shutdown,
             }),
-        })
+        };
+        handle.sync_invalidation().await?;
+        crate::invalidation::schedule(&handle);
+        Ok(handle)
     }
 }
 

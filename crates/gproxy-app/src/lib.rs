@@ -9,6 +9,7 @@ mod control;
 mod error;
 mod host;
 pub mod ingress;
+mod invalidation;
 mod key_rotation;
 mod lifecycle;
 mod logging;

@@ -118,10 +118,10 @@ pub(super) struct Cli {
     /// Native log format: text or newline-delimited json [default: text]
     #[arg(long, env = LOG_FORMAT, value_name = "FORMAT")]
     log_format: Option<String>,
-    /// First-run administrator username [default: admin]
+    /// Administrator username [default: admin]
     #[arg(long, env = ADMIN_USER, value_name = "USER")]
     admin_user: Option<String>,
-    /// First-run administrator password. Existing accounts are never changed
+    /// Administrator password. Resets this user when the account already exists
     #[arg(long, env = ADMIN_PASSWORD, value_name = "PASSWORD", hide_env_values = true)]
     admin_password: Option<String>,
     /// First-run administrator API key. Existing stores are never changed

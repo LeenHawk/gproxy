@@ -119,8 +119,9 @@ scripts/release.sh
 
 1. **Release metadata** —— 校验 tag 等于 `v<workspace version>`，推导 channel，
    并从 `scripts/release-targets.json` 载入 target 矩阵。
-2. **Console and container image** —— 通过 Dockerfile 的 `console-dist` 阶段只
-   构建一次控制台，构建并推送 `ghcr.io/leenhawk/gproxy:<tag>`（linux/amd64，带
+2. **Console and container image** —— 通过 `deploy/container/Dockerfile` 的
+   `console-dist` 阶段只构建一次控制台，构建并推送
+   `ghcr.io/leenhawk/gproxy:<tag>`（linux/amd64，带
    BuildKit provenance 与 SBOM attestation），并把同一镜像保存为
    `gproxy-container-linux-amd64.tar.gz`。控制台产物作为 workflow artifact 传给
    后续 job。
@@ -191,8 +192,8 @@ openssl pkey -in update.pem -pubout -outform DER \
 
 `scripts/build-provenance.sh` 为每个产物写一个 `<artifact>.provenance.json`：
 `version`、`commit`、`tag`、`target`、`builder`，实际运行的 `rustc`、`node`、`pnpm`
-版本，以及 Dockerfile 中每一行 `FROM` 的镜像引用和构建时解析到的 digest。镜像
-tag 在固定的版本线内会漂移；这份记录才是日后识别一次构建的依据。
+版本，以及 `deploy/container/Dockerfile` 中每一行 `FROM` 的镜像引用和构建时解析到
+的 digest。镜像 tag 在固定的版本线内会漂移；这份记录才是日后识别一次构建的依据。
 
 ## 更新 Channel
 

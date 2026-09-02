@@ -24,9 +24,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = gproxy_app::App::start(config).await?;
     tracing::info!(instance_name = %app.instance_name(), %address, "GPROXY listening");
     let server = gproxy_host_axum::AxumServer::bind_with_config(app, address, host).await?;
-    tokio::signal::ctrl_c().await?;
+    shutdown_signal().await?;
     server.shutdown().await?;
     Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn shutdown_signal() -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result,
+            _ = terminate.recv() => Ok(()),
+        }
+    }
+    #[cfg(not(unix))]
+    tokio::signal::ctrl_c().await
 }
 
 #[cfg(not(target_arch = "wasm32"))]

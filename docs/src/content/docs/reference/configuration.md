@@ -227,10 +227,7 @@ database.
 
 ## Shutdown
 
-The native binary waits for `Ctrl-C` (SIGINT). On that signal it stops
-accepting connections and lets in-flight requests and streams finish
-before it exits; there is no drain deadline. No other signal is handled:
-SIGTERM ends the process immediately with the default action. Stop GPROXY
-with SIGINT from supervisors and containers — for example
-`docker kill --signal SIGINT <container>` — because the published image
-does not set a `STOPSIGNAL`.
+The native binary handles `Ctrl-C` (SIGINT) and SIGTERM. On either signal it
+stops accepting connections and lets in-flight requests and streams finish
+before it exits; there is no drain deadline. The container image declares
+`STOPSIGNAL SIGTERM`, so the normal `docker stop` path is graceful.

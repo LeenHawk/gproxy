@@ -54,4 +54,5 @@ ENV GPROXY_HOST=0.0.0.0 \
     GPROXY_PORT=8787 \
     GPROXY_DATA_DIR=/var/lib/gproxy \
     GPROXY_PERSISTENCE=sqlite
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/gproxy"]

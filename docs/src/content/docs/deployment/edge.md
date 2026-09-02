@@ -21,7 +21,7 @@ in `deploy/cloudflare`, `deploy/deno`, and `deploy/netlify`.
 | `GPROXY_MASTER_KEY` | no | Standard base64, 32 bytes. Seals credentials and user keys with AES-256-GCM; unset means plaintext. |
 | `GPROXY_MASTER_KEY_NEXT` | no | Rotation target; an empty value rotates back to plaintext. |
 | `GPROXY_MASTER_KEY_ROTATE` | no | `1`, `true`, `yes`, or `on` arms the rotation for one deploy. |
-| `UPSTASH_URL`, `UPSTASH_TOKEN` | no | Upstash REST cache. `EdgeConfig` accepts them as its last two constructor arguments, but the shipped entries do not pass them; extend the entry if you want Upstash. |
+| `UPSTASH_URL`, `UPSTASH_TOKEN` | no | Upstash REST cache. The shipped Cloudflare, Deno and Netlify entries pass both bindings to `EdgeConfig`; set both or neither. |
 
 Store the values as platform secrets. Nothing is read from a `.env` file on
 edge, and the `GPROXY_ADMIN_*` first-run variables are native-only.

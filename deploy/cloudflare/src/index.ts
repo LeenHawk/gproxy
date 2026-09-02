@@ -7,6 +7,8 @@ interface Env {
   GPROXY_MASTER_KEY?: string
   GPROXY_MASTER_KEY_NEXT?: string
   GPROXY_MASTER_KEY_ROTATE?: string
+  UPSTASH_URL?: string
+  UPSTASH_TOKEN?: string
 }
 
 let hostPromise: ReturnType<typeof start> | undefined
@@ -18,6 +20,8 @@ function host(env: Env) {
     env.GPROXY_MASTER_KEY,
     env.GPROXY_MASTER_KEY_NEXT,
     rotationArmed(env.GPROXY_MASTER_KEY_ROTATE),
+    env.UPSTASH_URL,
+    env.UPSTASH_TOKEN,
   )
   hostPromise ??= start(config)
   return hostPromise

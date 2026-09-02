@@ -12,7 +12,7 @@ mkdir -p dist/release
 
 version_of() { "$@" 2>/dev/null | head -1 || echo unknown; }
 
-# Base images come from the Dockerfile so the record cannot drift from the
+# Base images come from the container Dockerfile so the record cannot drift from the
 # build. `docker image inspect` reports what the tag resolved to locally,
 # which is the fact worth keeping.
 images='[]'
@@ -22,7 +22,7 @@ if command -v docker >/dev/null 2>&1; then
       '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$ref" 2>/dev/null || true)"
     images="$(jq --arg ref "$ref" --arg resolved "${resolved:-unresolved}" \
       '. + [{ref: $ref, resolved: $resolved}]' <<<"$images")"
-  done < <(awk '/^FROM /  && $2 != "scratch" { print $2 }' Dockerfile)
+  done < <(awk '/^FROM /  && $2 != "scratch" { print $2 }' deploy/container/Dockerfile)
 fi
 
 jq -n \

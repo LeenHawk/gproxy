@@ -208,8 +208,6 @@ Hugging Face Token 密封存放在单独的表（`tokenizer_auth`）中，不在
 
 ## 关闭
 
-原生二进制等待 `Ctrl-C`（SIGINT）。收到信号后停止接受连接，让进行中的
-请求和流式响应完成后退出；没有排空超时。不处理其他信号：SIGTERM 会按默认
-动作立即结束进程。守护进程和容器请用 SIGINT 停止 GPROXY——例如
-`docker kill --signal SIGINT <container>`——因为发布的镜像没有设置
-`STOPSIGNAL`。
+原生二进制处理 `Ctrl-C`（SIGINT）和 SIGTERM。收到任一信号后都会停止接受连接，让
+进行中的请求和流式响应完成后退出；没有排空超时。容器镜像声明了
+`STOPSIGNAL SIGTERM`，所以普通的 `docker stop` 会优雅关闭。

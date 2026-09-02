@@ -17,6 +17,8 @@ async function host() {
     Netlify.env.get("GPROXY_MASTER_KEY"),
     Netlify.env.get("GPROXY_MASTER_KEY_NEXT"),
     rotationArmed(Netlify.env.get("GPROXY_MASTER_KEY_ROTATE")),
+    Netlify.env.get("UPSTASH_URL"),
+    Netlify.env.get("UPSTASH_TOKEN"),
   )
   hostPromise ??= start(config)
   return hostPromise

@@ -98,6 +98,7 @@ impl EdgeHost {
         request: Request,
         client_source: String,
     ) -> Result<EdgeReply, JsValue> {
+        self.app.sync_invalidation().await.map_err(js_error)?;
         let request_id = request_id()?;
         let client_ip = client_source.parse().ok();
         let mut incoming = match crate::request::read(&request, client_source).await {

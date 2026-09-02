@@ -12,9 +12,10 @@ pnpm run dev
 Configure `GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN` as sensitive
 Netlify bindings. Optional `GPROXY_MASTER_KEY`, `GPROXY_MASTER_KEY_NEXT`, and
 `GPROXY_MASTER_KEY_ROTATE` bindings control secret-at-rest encryption and
-rotation. The host builds a typed edge config from these bindings. The build
-publishes the generated `public/` directory and packages the ignored `pkg/`
-wasm output with the Edge Function.
+rotation. `UPSTASH_URL` and `UPSTASH_TOKEN` optionally select the shared
+Upstash cache; set both or neither. The host builds a typed edge config from
+these bindings. The build publishes the generated `public/` directory and
+packages the ignored `pkg/` wasm output with the Edge Function.
 
 The Edge Function is configured for all non-static paths; the public root,
 exact admin and portal roots, `/assets/**`, and `/favicon.svg` stay on Netlify's

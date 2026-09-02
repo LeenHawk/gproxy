@@ -89,9 +89,10 @@ session-affinity pins. Two instances with separate in-process caches would
 each enforce limits alone and each refresh the same OAuth token, so a
 multi-instance deployment needs Redis, Upstash or the libSQL table.
 
-Control-plane snapshots are rebuilt by the instance that made a change.
-An admin edit on one instance is not pushed to the others; they see it
-after their own next rebuild, that is after a restart.
+Control-plane snapshots are rebuilt by the instance that made a change. The
+instance then increments `gproxy:invalidate` in the shared cache; native
+instances poll it once per second and edge isolates check it on each request,
+reloading their snapshot when the version changes.
 
 ## Backups
 

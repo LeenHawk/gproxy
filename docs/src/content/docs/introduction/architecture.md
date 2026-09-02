@@ -332,9 +332,9 @@ are numbered and monotonic, and a database migrated from the first version
 converges with a fresh one.
 
 Control-plane reads go through a snapshot rebuilt on writes and swapped
-atomically. A write also bumps an invalidation counter in the shared cache,
-but no instance consumes it yet: another instance picks up a control-plane
-change when it next rebuilds its own snapshot, which today means a restart.
+atomically. A write also bumps an invalidation counter in the shared cache;
+native instances poll it once per second and edge isolates check it on each
+request, then rebuild their snapshot when the version changes.
 
 ## Admin Plane and Web Surfaces
 

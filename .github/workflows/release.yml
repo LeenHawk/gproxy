@@ -47,7 +47,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build console once
         run: |
-          docker buildx build --target console-dist \
+          docker buildx build -f deploy/container/Dockerfile --target console-dist \
             --output type=local,dest=dist/console .
       - name: Build, archive, and push container
         env:
@@ -55,7 +55,7 @@ jobs:
         run: |
           test -n "$GPROXY_UPDATE_PUBKEY" || { echo "missing update signing public key" >&2; exit 1; }
           image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}"
-          docker buildx build --load \
+          docker buildx build -f deploy/container/Dockerfile --load \
             --provenance=mode=max --sbom=true \
             --build-arg "GPROXY_UPDATE_PUBKEY=$GPROXY_UPDATE_PUBKEY" \
             --build-arg "GPROXY_VERSION=${{ needs.prepare.outputs.version }}" \
