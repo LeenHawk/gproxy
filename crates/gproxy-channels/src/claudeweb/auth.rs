@@ -45,33 +45,39 @@ impl Auth {
         base: &str,
         referer: &str,
     ) -> Result<http::HeaderMap, ChannelError> {
-        let mut headers = http::HeaderMap::new();
-        insert(&mut headers, COOKIE, &cookie_header(&self.cookie))?;
-        insert(&mut headers, ORIGIN, base)?;
-        insert(&mut headers, REFERER, referer)?;
-        headers.insert(ACCEPT_LANGUAGE, "en-US,en;q=0.9".parse().expect("static"));
-        headers.insert(CACHE_CONTROL, "no-cache".parse().expect("static"));
-        headers.insert(
-            "anthropic-client-platform",
-            "web_claude_ai".parse().expect("static"),
-        );
-        if let Some(device) = self.device_id.as_deref() {
-            insert(
-                &mut headers,
-                "anthropic-device-id".parse().expect("static"),
-                device,
-            )?;
-            insert(
-                &mut headers,
-                COOKIE,
-                &format!(
-                    "{}; anthropic-device-id={device}",
-                    cookie_header(&self.cookie)
-                ),
-            )?;
-        }
-        Ok(headers)
+        browser_headers(&self.cookie, self.device_id.as_deref(), base, referer)
     }
+}
+
+fn browser_headers(
+    cookie: &str,
+    device_id: Option<&str>,
+    base: &str,
+    referer: &str,
+) -> Result<http::HeaderMap, ChannelError> {
+    let mut headers = http::HeaderMap::new();
+    insert(&mut headers, COOKIE, &cookie_header(cookie))?;
+    insert(&mut headers, ORIGIN, base)?;
+    insert(&mut headers, REFERER, referer)?;
+    headers.insert(ACCEPT_LANGUAGE, "en-US,en;q=0.9".parse().expect("static"));
+    headers.insert(CACHE_CONTROL, "no-cache".parse().expect("static"));
+    headers.insert(
+        "anthropic-client-platform",
+        "web_claude_ai".parse().expect("static"),
+    );
+    if let Some(device) = device_id {
+        insert(
+            &mut headers,
+            "anthropic-device-id".parse().expect("static"),
+            device,
+        )?;
+        insert(
+            &mut headers,
+            COOKIE,
+            &format!("{}; anthropic-device-id={device}", cookie_header(cookie)),
+        )?;
+    }
+    Ok(headers)
 }
 
 pub(super) fn refresh_due(secret: &Value) -> Option<i64> {
@@ -110,7 +116,24 @@ fn validation_request(
     secret: &Value,
     settings: &Value,
 ) -> Result<http::Request<Bytes>, ChannelError> {
-    let auth = Auth::read(secret)?;
+    let cookie = field(secret, "cookie")
+        .or_else(|| field(secret, "session_key"))
+        .ok_or_else(|| ChannelError::Refresh("Claude sessionKey cookie missing".into()))?;
+    bootstrap_request(cookie, field(secret, "device_id"), settings)
+}
+
+pub(super) fn login_request(
+    cookie: &str,
+    settings: &Value,
+) -> Result<http::Request<Bytes>, ChannelError> {
+    bootstrap_request(cookie, None, settings)
+}
+
+fn bootstrap_request(
+    cookie: &str,
+    device_id: Option<&str>,
+    settings: &Value,
+) -> Result<http::Request<Bytes>, ChannelError> {
     let base = base(settings);
     let url = settings
         .pointer("/endpoints/claudeweb_bootstrap")
@@ -122,7 +145,7 @@ fn validation_request(
     let mut request = http::Request::get(url)
         .body(Bytes::new())
         .map_err(|error| ChannelError::Refresh(error.to_string()))?;
-    *request.headers_mut() = auth.headers(base, &format!("{base}/new"))?;
+    *request.headers_mut() = browser_headers(cookie, device_id, base, &format!("{base}/new"))?;
     request
         .headers_mut()
         .insert(ACCEPT, "application/json".parse().expect("static"));

@@ -35,8 +35,9 @@ pub use disposition::Disposition;
 pub use endpoint::endpoint_override_key;
 pub use login::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, ChannelLogin, ChannelLoginRef,
-    CookieExchangeCtx, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, LoginDescriptor,
-    LoginMode, LoginParam, LoginParamKind,
+    CookieExchangeCtx, CredentialAcquisition, CredentialKind, DeviceInit, DevicePoll,
+    DevicePollCtx, DeviceStartCtx, LoginDescriptor, LoginMode, LoginParam, LoginParamCondition,
+    LoginParamKind,
 };
 pub use oauth::*;
 pub use operation::{

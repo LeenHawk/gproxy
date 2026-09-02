@@ -284,6 +284,10 @@ pub trait SimpleHttp: MaybeSync {
         &'a self,
         request: Request<Bytes>,
     ) -> BoxFuture<'a, Result<http::Response<Bytes>, ChannelError>>;
+
+    fn wait<'a>(&'a self, _duration: std::time::Duration) -> BoxFuture<'a, ()> {
+        Box::pin(async {})
+    }
 }
 
 /// The contract. Synchronous and object-safe on purpose: adapters are pure

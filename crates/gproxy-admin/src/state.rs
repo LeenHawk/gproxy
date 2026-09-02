@@ -160,7 +160,7 @@ pub trait State: MaybeSend + MaybeSync {
         verifier: &'a str,
         redirect_uri: &'a str,
         extra: Option<&'a serde_json::Value>,
-    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>>;
+    ) -> BoxFuture<'a, Result<gproxy_channel_api::CredentialAcquisition, AdminError>>;
 
     fn login_device_start<'a>(
         &'a self,
@@ -181,7 +181,7 @@ pub trait State: MaybeSend + MaybeSync {
         channel: &'a str,
         provider_id: i64,
         cookie: &'a str,
-    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>>;
+    ) -> BoxFuture<'a, Result<gproxy_channel_api::CredentialAcquisition, AdminError>>;
 
     fn channel_catalogue(&self) -> Vec<ChannelDto>;
 

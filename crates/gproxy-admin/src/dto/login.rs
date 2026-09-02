@@ -22,7 +22,8 @@ pub struct AuthCodeStartResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct AuthCodeCompleteRequest {
     pub login_session_id: String,
-    pub callback_url: String,
+    pub callback_url: Option<String>,
+    pub code: Option<String>,
     pub label: Option<String>,
 }
 

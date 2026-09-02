@@ -17,6 +17,53 @@ pub enum LoginParamKind {
     Select,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CredentialKind {
+    ApiKey,
+    Oauth,
+    Cookie,
+}
+
+impl CredentialKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ApiKey => "api_key",
+            Self::Oauth => "oauth",
+            Self::Cookie => "cookie",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CredentialAcquisition {
+    pub kind: CredentialKind,
+    pub secret: Value,
+}
+
+impl CredentialAcquisition {
+    pub const fn new(kind: CredentialKind, secret: Value) -> Self {
+        Self { kind, secret }
+    }
+
+    pub const fn oauth(secret: Value) -> Self {
+        Self::new(CredentialKind::Oauth, secret)
+    }
+
+    pub const fn api_key(secret: Value) -> Self {
+        Self::new(CredentialKind::ApiKey, secret)
+    }
+
+    pub const fn cookie(secret: Value) -> Self {
+        Self::new(CredentialKind::Cookie, secret)
+    }
+}
+
+#[derive(Debug)]
+pub struct LoginParamCondition {
+    pub param: &'static str,
+    pub equals: &'static str,
+}
+
 #[derive(Debug)]
 pub struct LoginParam {
     pub name: &'static str,
@@ -25,6 +72,7 @@ pub struct LoginParam {
     pub default_value: Option<&'static str>,
     pub options: &'static [&'static str],
     pub modes: &'static [LoginMode],
+    pub condition: Option<LoginParamCondition>,
 }
 
 #[derive(Debug)]
@@ -54,7 +102,7 @@ pub struct DeviceInit {
 #[derive(Debug)]
 pub enum DevicePoll {
     Pending,
-    Ready(Value),
+    Ready(CredentialAcquisition),
     Denied,
 }
 
@@ -103,7 +151,7 @@ pub trait ChannelLogin: Send + Sync {
         &'a self,
         _http: &'a dyn SimpleHttp,
         _ctx: AuthCodeExchangeCtx<'a>,
-    ) -> BoxFuture<'a, Result<Value, ChannelError>> {
+    ) -> BoxFuture<'a, Result<CredentialAcquisition, ChannelError>> {
         Box::pin(async { Err(ChannelError::Unsupported("authcode login")) })
     }
 
@@ -127,7 +175,7 @@ pub trait ChannelLogin: Send + Sync {
         &'a self,
         _http: &'a dyn SimpleHttp,
         _ctx: CookieExchangeCtx<'a>,
-    ) -> BoxFuture<'a, Result<Value, ChannelError>> {
+    ) -> BoxFuture<'a, Result<CredentialAcquisition, ChannelError>> {
         Box::pin(async { Err(ChannelError::Unsupported("cookie login")) })
     }
 }

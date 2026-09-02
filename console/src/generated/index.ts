@@ -70,6 +70,7 @@ export * from "./LogQueryDto";
 export * from "./LogSettingsDto";
 export * from "./LogSettingsUpdateDto";
 export * from "./LoginModeDto";
+export * from "./LoginParamConditionDto";
 export * from "./LoginParamDto";
 export * from "./LoginParamKindDto";
 export * from "./LoginRequest";

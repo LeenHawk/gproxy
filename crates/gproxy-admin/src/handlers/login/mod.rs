@@ -4,7 +4,7 @@ use bytes::Bytes;
 use gproxy_channel_api::DevicePoll;
 use gproxy_store::records::CredentialInput;
 use http::{Response, StatusCode};
-use serde_json::{Value, json};
+use serde_json::json;
 
 use crate::dto::{
     AuthCodeCompleteRequest, AuthCodeStartRequest, AuthCodeStartResponse, CookieExchangeRequest,
@@ -62,13 +62,8 @@ pub(crate) async fn authcode_complete(
 ) -> Result<Response<Bytes>, AdminError> {
     let request: AuthCodeCompleteRequest = util::parse(body)?;
     let session = state::authcode(app, &request.login_session_id).await?;
-    let (code, callback_state) = callback(&request.callback_url)?;
-    if callback_state != session.flow_state {
-        return Err(AdminError::BadRequest(
-            "login callback state mismatch".into(),
-        ));
-    }
-    let secret = app
+    let code = completion_code(&request, &session.flow_state)?;
+    let acquired = app
         .login_authcode_exchange(
             &session.channel,
             session.provider_id,
@@ -79,7 +74,7 @@ pub(crate) async fn authcode_complete(
         )
         .await?;
     state::delete(app, &request.login_session_id).await?;
-    created(app, session.provider_id, request.label, "oauth", &secret).await
+    created(app, session.provider_id, request.label, acquired).await
 }
 
 pub(crate) async fn device_start(
@@ -130,10 +125,9 @@ pub(crate) async fn device_poll(
             state::delete(app, &request.login_session_id).await?;
             response::json(StatusCode::OK, &DevicePollResponse::Denied)
         }
-        DevicePoll::Ready(secret) => {
+        DevicePoll::Ready(acquired) => {
             state::delete(app, &request.login_session_id).await?;
-            let credential =
-                insert(app, session.provider_id, session.label, "oauth", &secret).await?;
+            let credential = insert(app, session.provider_id, session.label, acquired).await?;
             response::json(StatusCode::OK, &DevicePollResponse::Ready { credential })
         }
     }
@@ -145,20 +139,19 @@ pub(crate) async fn cookie_exchange(
 ) -> Result<Response<Bytes>, AdminError> {
     let request: CookieExchangeRequest = util::parse(body)?;
     let channel = provider_channel(app, request.provider_id).await?;
-    let secret = app
+    let acquired = app
         .login_cookie_exchange(&channel, request.provider_id, &request.cookie)
         .await?;
-    created(app, request.provider_id, request.label, "cookie", &secret).await
+    created(app, request.provider_id, request.label, acquired).await
 }
 
 async fn created(
     app: &impl State,
     provider_id: i64,
     label: Option<String>,
-    kind: &str,
-    secret: &Value,
+    acquired: gproxy_channel_api::CredentialAcquisition,
 ) -> Result<Response<Bytes>, AdminError> {
-    let credential = insert(app, provider_id, label, kind, secret).await?;
+    let credential = insert(app, provider_id, label, acquired).await?;
     response::json(StatusCode::CREATED, &credential)
 }
 
@@ -166,9 +159,10 @@ async fn insert(
     app: &impl State,
     provider_id: i64,
     label: Option<String>,
-    kind: &str,
-    secret: &Value,
+    acquired: gproxy_channel_api::CredentialAcquisition,
 ) -> Result<IdResponse, AdminError> {
+    let kind = acquired.kind.as_str();
+    let secret = &acquired.secret;
     let label = label.or_else(|| crate::default_credential_label(kind, secret));
     let id = app
         .store()
@@ -215,4 +209,78 @@ fn callback(url: &str) -> Result<(String, String), AdminError> {
             .ok_or_else(|| AdminError::BadRequest("invalid login callback".into()))
     };
     Ok((required("code")?, required("state")?))
+}
+
+fn completion_code(
+    request: &AuthCodeCompleteRequest,
+    expected_state: &str,
+) -> Result<String, AdminError> {
+    let callback_url = request
+        .callback_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let code = request
+        .code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    match (callback_url, code) {
+        (Some(url), None) => {
+            let (code, state) = callback(url)?;
+            if state != expected_state {
+                return Err(AdminError::BadRequest(
+                    "login callback state mismatch".into(),
+                ));
+            }
+            Ok(code)
+        }
+        (None, Some(code)) => Ok(code.into()),
+        _ => Err(AdminError::BadRequest(
+            "provide either callback_url or authorization code".into(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authcode_completion_accepts_callback_or_bare_code() {
+        let callback = AuthCodeCompleteRequest {
+            login_session_id: "session".into(),
+            callback_url: Some("http://localhost/callback?code=callback-code&state=flow".into()),
+            code: None,
+            label: None,
+        };
+        assert_eq!(completion_code(&callback, "flow").unwrap(), "callback-code");
+
+        let bare = AuthCodeCompleteRequest {
+            login_session_id: "session".into(),
+            callback_url: None,
+            code: Some(" bare-code ".into()),
+            label: None,
+        };
+        assert_eq!(completion_code(&bare, "flow").unwrap(), "bare-code");
+    }
+
+    #[test]
+    fn authcode_completion_rejects_ambiguous_or_wrong_state() {
+        let ambiguous = AuthCodeCompleteRequest {
+            login_session_id: "session".into(),
+            callback_url: Some("http://localhost/?code=a&state=flow".into()),
+            code: Some("b".into()),
+            label: None,
+        };
+        assert!(completion_code(&ambiguous, "flow").is_err());
+
+        let wrong_state = AuthCodeCompleteRequest {
+            login_session_id: "session".into(),
+            callback_url: Some("http://localhost/?code=a&state=wrong".into()),
+            code: None,
+            label: None,
+        };
+        assert!(completion_code(&wrong_state, "flow").is_err());
+    }
 }

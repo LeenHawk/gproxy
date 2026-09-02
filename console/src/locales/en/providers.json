@@ -299,6 +299,26 @@
       "callbackLabel": "Callback URL",
       "callbackHint": "Approve in the browser, then paste the full callback URL from the address bar here.",
       "callbackInvalid": "Not a callback URL — it must contain code and state from this authorization, and must not be the authorization URL itself.",
+      "codeLabel": "Authorization code",
+      "codeHint": "Copy the authorization code shown by Google and paste it here.",
+      "codeInvalid": "Enter the authorization code shown after approval.",
+      "params": {
+        "project_id": { "label": "Google Cloud project (optional)" },
+        "code_only": {
+          "label": "Completion method",
+          "options": { "true": "Paste authorization code", "false": "Paste callback URL" }
+        },
+        "login_provider": {
+          "label": "Identity provider",
+          "options": { "github": "GitHub", "google": "Google" }
+        },
+        "auth_method": {
+          "label": "AWS identity",
+          "options": { "builder_id": "AWS Builder ID", "idc": "IAM Identity Center" }
+        },
+        "start_url": { "label": "IAM Identity Center start URL" },
+        "region": { "label": "AWS region" }
+      },
       "complete": "Complete sign-in",
       "completing": "Completing…",
       "openVerification": "Open verification page",
@@ -308,6 +328,7 @@
       "restart": "Start again",
       "cookieLabel": "Browser session cookie",
       "cookieHint": "Paste the full Cookie header or sessionKey. It is stored encrypted for the initial OAuth exchange and cookie-only re-login, and omitted from ordinary credential responses.",
+      "claudeWebCookieHint": "Paste the full Cookie header or sessionKey. The server validates the session and discovers the chat-capable account UUID; the cookie and derived account data are stored encrypted.",
       "errors": {
         "startTitle": "Could not start sign-in",
         "startDescription": "The provider rejected the start step. Check the provider settings and retry.",

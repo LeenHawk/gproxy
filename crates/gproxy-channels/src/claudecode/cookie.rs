@@ -23,7 +23,7 @@ pub(super) fn exchange<'a>(
     input: &'a str,
 ) -> BoxFuture<'a, Result<Value, ChannelError>> {
     Box::pin(async move {
-        let cookie = normalize_cookie(input)
+        let cookie = crate::shared::claude::cookie::normalize(input)
             .ok_or_else(|| ChannelError::Login("cookie is missing sessionKey".into()))?;
         let organization = discover_organization(http, &cookie).await?;
         let (verifier, challenge, state) = pkce()?;
@@ -53,33 +53,6 @@ pub(super) fn refresh<'a>(
             .map_err(|error| ChannelError::Refresh(error.to_string()))?;
         Ok(overlay(secret, &minted))
     })
-}
-
-fn normalize_cookie(input: &str) -> Option<String> {
-    let mut text = input.trim();
-    if let Some((name, value)) = text.split_once(':')
-        && name.trim().eq_ignore_ascii_case("cookie")
-    {
-        text = value.trim();
-    }
-    let session_key = text.split(';').find_map(|part| {
-        part.trim()
-            .strip_prefix("sessionKey=")
-            .map(str::trim)
-            .filter(|value| value.starts_with("sk-ant-sid"))
-    });
-    let session_key = session_key.or_else(|| {
-        (text.starts_with("sk-ant-sid") && !text.contains(['=', ';'])).then_some(text)
-    })?;
-    if !text.contains("sessionKey=") {
-        return Some(format!("sessionKey={session_key}"));
-    }
-    let pairs = text
-        .split(';')
-        .map(str::trim)
-        .filter(|part| !part.is_empty() && part.contains('='))
-        .collect::<Vec<_>>();
-    (!pairs.is_empty()).then(|| pairs.join("; "))
 }
 
 async fn discover_organization(

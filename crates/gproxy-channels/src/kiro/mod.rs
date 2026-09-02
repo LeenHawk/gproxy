@@ -3,6 +3,7 @@ mod routes;
 mod auth;
 mod decoder;
 mod endpoint;
+mod login;
 mod model_list;
 mod prepare;
 mod profile;
@@ -13,7 +14,8 @@ mod tool_stream;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
+    BoxFuture, Channel, ChannelDescriptor, ChannelLoginRef, ChannelSupport, Disposition,
+    LoginDescriptor, LoginMode, LoginParam, LoginParamCondition, LoginParamKind, NormalizedUsage,
     PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
     StreamDecoder, UsageCtx,
 };
@@ -94,12 +96,68 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     display_name: "Kiro",
     supports: &SUPPORTS,
     provider_fields: crate::metadata::KIRO,
-    credential_fields: crate::metadata::OAUTH,
+    credential_fields: crate::metadata::KIRO_CREDENTIAL,
     endpoint_overrides: true,
     traffic_policy: crate::policy::KIRO,
 };
 
+static LOGIN_PARAMS: &[LoginParam] = &[
+    LoginParam {
+        name: "login_provider",
+        kind: LoginParamKind::Select,
+        required: true,
+        default_value: Some("github"),
+        options: &["github", "google"],
+        modes: &[LoginMode::Device],
+        condition: None,
+    },
+    LoginParam {
+        name: "auth_method",
+        kind: LoginParamKind::Select,
+        required: true,
+        default_value: Some("builder_id"),
+        options: &["builder_id", "idc"],
+        modes: &[LoginMode::AuthCode],
+        condition: None,
+    },
+    LoginParam {
+        name: "start_url",
+        kind: LoginParamKind::Text,
+        required: true,
+        default_value: None,
+        options: &[],
+        modes: &[LoginMode::AuthCode],
+        condition: Some(LoginParamCondition {
+            param: "auth_method",
+            equals: "idc",
+        }),
+    },
+    LoginParam {
+        name: "region",
+        kind: LoginParamKind::Text,
+        required: true,
+        default_value: None,
+        options: &[],
+        modes: &[LoginMode::AuthCode],
+        condition: Some(LoginParamCondition {
+            param: "auth_method",
+            equals: "idc",
+        }),
+    },
+];
+
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::Device, LoginMode::AuthCode],
+    params: LOGIN_PARAMS,
+};
+
 impl Channel for KiroChannel {
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
+    }
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

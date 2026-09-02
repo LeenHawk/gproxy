@@ -299,6 +299,26 @@
       "callbackLabel": "回调 URL",
       "callbackHint": "在浏览器中授权后，将地址栏中的完整回调 URL 粘贴到这里。",
       "callbackInvalid": "这不是回调 URL——必须包含本次授权的 code 与 state，且不能是授权 URL 本身。",
+      "codeLabel": "授权代码",
+      "codeHint": "复制 Google 授权完成后显示的代码并粘贴到这里。",
+      "codeInvalid": "请输入授权完成后显示的授权代码。",
+      "params": {
+        "project_id": { "label": "Google Cloud 项目（可选）" },
+        "code_only": {
+          "label": "完成方式",
+          "options": { "true": "粘贴授权代码", "false": "粘贴回调 URL" }
+        },
+        "login_provider": {
+          "label": "身份提供商",
+          "options": { "github": "GitHub", "google": "Google" }
+        },
+        "auth_method": {
+          "label": "AWS 身份",
+          "options": { "builder_id": "AWS Builder ID", "idc": "IAM Identity Center" }
+        },
+        "start_url": { "label": "IAM Identity Center 启动 URL" },
+        "region": { "label": "AWS 区域" }
+      },
       "complete": "完成登录",
       "completing": "正在完成…",
       "openVerification": "打开验证页面",
@@ -308,6 +328,7 @@
       "restart": "重新开始",
       "cookieLabel": "浏览器会话 Cookie",
       "cookieHint": "粘贴完整 Cookie Header 或 sessionKey。它会加密保存，用于首次换取 OAuth 凭据及仅 Cookie 的重新登录；普通凭据响应不会返回。",
+      "claudeWebCookieHint": "粘贴完整 Cookie Header 或 sessionKey。服务器会验证会话并自动发现具有聊天权限的账号 UUID；Cookie 与派生账号信息会加密保存。",
       "errors": {
         "startTitle": "无法开始登录",
         "startDescription": "供应商拒绝了启动步骤。请检查供应商设置后重试。",

@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { AuthcodeFlow } from "@/components/providers/authcode-flow"
 import { CookieFlow } from "@/components/providers/cookie-flow"
 import { DeviceFlow } from "@/components/providers/device-flow"
-import { loginParams, loginParamValues } from "@/components/providers/login-param-values"
+import { loginParamApplies, loginParams, loginParamValues } from "@/components/providers/login-param-values"
 import { LoginParams } from "@/components/providers/login-params"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -37,7 +37,7 @@ export function CredentialWizard({ providerId, channel, onDone }: Props) {
   }
   const params = loginParams(values)
   const paramsReady = login.params
-    .filter((param) => param.required && (!param.modes.length || param.modes.includes(mode)))
+    .filter((param) => param.required && loginParamApplies(param, mode, values))
     .every((param) => Boolean(values[param.name]?.trim()))
 
   return (
@@ -70,9 +70,19 @@ export function CredentialWizard({ providerId, channel, onDone }: Props) {
         values={values}
         onChange={(name, value) => setValues((current) => ({ ...current, [name]: value }))}
       />
-      {mode === "authcode" ? <AuthcodeFlow providerId={providerId} label={label} params={params} disabled={!paramsReady} onDone={done} /> : null}
+      {mode === "authcode" ? (
+        <AuthcodeFlow
+          key={`${mode}-${params.code_only ?? "callback"}`}
+          providerId={providerId}
+          label={label}
+          params={params}
+          codeOnly={channel.id === "geminicli" && params.code_only !== "false"}
+          disabled={!paramsReady}
+          onDone={done}
+        />
+      ) : null}
       {mode === "device" ? <DeviceFlow providerId={providerId} label={label} params={params} disabled={!paramsReady} onDone={done} /> : null}
-      {mode === "cookie" ? <CookieFlow providerId={providerId} label={label} onDone={done} /> : null}
+      {mode === "cookie" ? <CookieFlow providerId={providerId} channelId={channel.id} label={label} onDone={done} /> : null}
     </div>
   )
 }

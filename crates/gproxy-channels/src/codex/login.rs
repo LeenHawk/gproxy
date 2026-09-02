@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, BoxFuture, ChannelError, ChannelLogin,
-    DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, SimpleHttp,
+    CredentialAcquisition, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, SimpleHttp,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -51,7 +51,7 @@ impl ChannelLogin for CodexChannel {
         &'a self,
         http: &'a dyn SimpleHttp,
         ctx: AuthCodeExchangeCtx<'a>,
-    ) -> BoxFuture<'a, Result<Value, ChannelError>> {
+    ) -> BoxFuture<'a, Result<CredentialAcquisition, ChannelError>> {
         exchange(http, ctx.code, ctx.verifier, ctx.redirect_uri)
     }
 
@@ -131,7 +131,7 @@ fn exchange<'a>(
     code: &'a str,
     verifier: &'a str,
     redirect: &'a str,
-) -> BoxFuture<'a, Result<Value, ChannelError>> {
+) -> BoxFuture<'a, Result<CredentialAcquisition, ChannelError>> {
     let body = crate::shared::http::form(&[
         ("grant_type", "authorization_code"),
         ("code", code),
@@ -163,7 +163,7 @@ fn exchange<'a>(
         }
         let token = serde_json::from_slice(response.body())
             .map_err(|_| ChannelError::Login("invalid token response".into()))?;
-        auth::login_secret(&token)
+        auth::login_secret(&token).map(CredentialAcquisition::oauth)
     })
 }
 

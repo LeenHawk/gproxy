@@ -189,7 +189,7 @@ impl State for TestState {
         _: &'a str,
         _: &'a str,
         _: Option<&'a serde_json::Value>,
-    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+    ) -> BoxFuture<'a, Result<gproxy_channel_api::CredentialAcquisition, AdminError>> {
         Box::pin(async { Err(AdminError::BadRequest("unsupported".into())) })
     }
 
@@ -226,7 +226,7 @@ impl State for TestState {
         _: &'a str,
         _: i64,
         _: &'a str,
-    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+    ) -> BoxFuture<'a, Result<gproxy_channel_api::CredentialAcquisition, AdminError>> {
         Box::pin(async { Err(AdminError::BadRequest("unsupported".into())) })
     }
 
@@ -367,7 +367,9 @@ async fn device_poll_keeps_pending_then_creates_ready_and_clears_denied() {
         .expect("insert provider");
     state.device_polls.lock().unwrap().extend([
         DevicePoll::Pending,
-        DevicePoll::Ready(serde_json::json!({})),
+        DevicePoll::Ready(gproxy_channel_api::CredentialAcquisition::oauth(
+            serde_json::json!({}),
+        )),
     ]);
 
     let session = start_device(&state, provider_id).await;

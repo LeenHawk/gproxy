@@ -415,7 +415,7 @@ impl State for AppHandle {
         verifier: &'a str,
         redirect_uri: &'a str,
         extra: Option<&'a serde_json::Value>,
-    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+    ) -> BoxFuture<'a, Result<gproxy_channel_api::CredentialAcquisition, AdminError>> {
         Box::pin(async move {
             let provider = self.login_provider(provider_id, channel)?;
             self.inner
@@ -463,7 +463,7 @@ impl State for AppHandle {
         channel: &'a str,
         provider_id: i64,
         cookie: &'a str,
-    ) -> BoxFuture<'a, Result<serde_json::Value, AdminError>> {
+    ) -> BoxFuture<'a, Result<gproxy_channel_api::CredentialAcquisition, AdminError>> {
         Box::pin(async move {
             let provider = self.login_provider(provider_id, channel)?;
             self.inner

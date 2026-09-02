@@ -4,6 +4,7 @@ mod auth;
 mod bootstrap;
 mod endpoint;
 mod id;
+mod login;
 mod media;
 mod orchestrator;
 mod prepare;
@@ -13,9 +14,9 @@ mod request;
 mod stream;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelSupport, Disposition,
-    NormalizedUsage, OperationDriver, PrepareCtx, PreparedRequest, ResponseView, SimpleHttp,
-    StreamCtx, StreamDecoder, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelError, ChannelLoginRef, ChannelSupport,
+    Disposition, LoginDescriptor, LoginMode, NormalizedUsage, OperationDriver, PrepareCtx,
+    PreparedRequest, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 use serde_json::Value;
@@ -107,6 +108,11 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     traffic_policy: crate::policy::CLAUDE_WEB,
 };
 
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::Cookie],
+    params: &[],
+};
+
 impl Channel for ClaudeWebChannel {
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
@@ -114,6 +120,13 @@ impl Channel for ClaudeWebChannel {
 
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
+    }
+
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
     }
 
     fn prepare(&self, _ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {

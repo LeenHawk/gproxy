@@ -299,6 +299,26 @@
       "callbackLabel": "回呼 URL",
       "callbackHint": "在瀏覽器中授權後，將網址列中的完整回呼 URL 貼到這裡。",
       "callbackInvalid": "這不是回呼 URL——必須包含本次授權的 code 與 state，且不能是授權 URL 本身。",
+      "codeLabel": "授權代碼",
+      "codeHint": "複製 Google 授權完成後顯示的代碼並貼到這裡。",
+      "codeInvalid": "請輸入授權完成後顯示的授權代碼。",
+      "params": {
+        "project_id": { "label": "Google Cloud 專案（可選）" },
+        "code_only": {
+          "label": "完成方式",
+          "options": { "true": "貼上授權代碼", "false": "貼上回呼 URL" }
+        },
+        "login_provider": {
+          "label": "身分提供者",
+          "options": { "github": "GitHub", "google": "Google" }
+        },
+        "auth_method": {
+          "label": "AWS 身分",
+          "options": { "builder_id": "AWS Builder ID", "idc": "IAM Identity Center" }
+        },
+        "start_url": { "label": "IAM Identity Center 啟動 URL" },
+        "region": { "label": "AWS 區域" }
+      },
       "complete": "完成登入",
       "completing": "正在完成…",
       "openVerification": "開啟驗證頁面",
@@ -308,6 +328,7 @@
       "restart": "重新開始",
       "cookieLabel": "瀏覽器工作階段 Cookie",
       "cookieHint": "貼上完整 Cookie Header 或 sessionKey。它會加密儲存，用於首次換取 OAuth 憑證及僅 Cookie 的重新登入；一般憑證回應不會傳回。",
+      "claudeWebCookieHint": "貼上完整 Cookie Header 或 sessionKey。伺服器會驗證工作階段並自動探索具有聊天權限的帳號 UUID；Cookie 與衍生帳號資訊會加密儲存。",
       "errors": {
         "startTitle": "無法開始登入",
         "startDescription": "供應商拒絕了啟動步驟。請檢查供應商設定後重試。",

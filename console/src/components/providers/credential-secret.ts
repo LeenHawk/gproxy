@@ -1,7 +1,36 @@
 import type { ChannelFieldDto } from "@/generated/ChannelFieldDto"
 
-// A credential's secret is one thing to the operator — a key, or the JSON a vendor hands out.
-// Rendering one input per declared field turns a paste into a transcription exercise.
+const COOKIE_FIELD: ChannelFieldDto = {
+  key: "cookie",
+  i18n_key: "cookie",
+  control: "secret",
+  required: true,
+  advanced: false,
+  default_value: null,
+  options: [],
+}
+
+export function defaultCredentialKind(fields: Array<ChannelFieldDto>) {
+  if (fields.some((field) => field.key === "cookie")) return "cookie"
+  if (fields.some((field) => field.key === "access_token")
+    && !fields.some((field) => ["api_key", "private_key"].includes(field.key))) return "oauth"
+  return "api_key"
+}
+
+export function fieldsForCredentialKind(fields: Array<ChannelFieldDto>, kind: string) {
+  if (kind === "cookie") {
+    const cookie = fields.find((field) => field.key === "cookie")
+    return [cookie ?? COOKIE_FIELD]
+  }
+  if (kind === "api_key" && fields.some((field) => field.key === "api_key")) {
+    return fields.filter((field) => field.key === "api_key")
+  }
+  if (kind === "oauth" && fields.some((field) => field.key === "api_key")) {
+    return fields.filter((field) => field.key !== "api_key")
+  }
+  return fields
+}
+
 export function isSingleKey(fields: Array<ChannelFieldDto>) {
   return fields.length === 1 && fields[0].control === "secret"
 }

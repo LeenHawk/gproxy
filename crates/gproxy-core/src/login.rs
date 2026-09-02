@@ -2,7 +2,7 @@ use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt;
 use gproxy_channel_api::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, ChannelError, CookieExchangeCtx,
-    DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, SimpleHttp,
+    CredentialAcquisition, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx, SimpleHttp,
 };
 use serde_json::Value;
 
@@ -22,7 +22,7 @@ impl<H: Host> Core<H> {
         login
             .adapter
             .authcode_start(
-                &LoginHttp(self.host.transport(), provider),
+                &LoginHttp(self.host.as_ref(), provider),
                 AuthCodeStartCtx {
                     provider_settings: &provider.settings,
                     params,
@@ -42,11 +42,11 @@ impl<H: Host> Core<H> {
         verifier: &str,
         redirect_uri: &str,
         extra: Option<&Value>,
-    ) -> Result<Value, ChannelError> {
+    ) -> Result<CredentialAcquisition, ChannelError> {
         self.login(channel, provider)?
             .adapter
             .authcode_exchange(
-                &LoginHttp(self.host.transport(), provider),
+                &LoginHttp(self.host.as_ref(), provider),
                 AuthCodeExchangeCtx {
                     provider_settings: &provider.settings,
                     code,
@@ -67,7 +67,7 @@ impl<H: Host> Core<H> {
         self.login(channel, provider)?
             .adapter
             .device_start(
-                &LoginHttp(self.host.transport(), provider),
+                &LoginHttp(self.host.as_ref(), provider),
                 DeviceStartCtx {
                     provider_settings: &provider.settings,
                     params,
@@ -85,7 +85,7 @@ impl<H: Host> Core<H> {
         self.login(channel, provider)?
             .adapter
             .device_poll(
-                &LoginHttp(self.host.transport(), provider),
+                &LoginHttp(self.host.as_ref(), provider),
                 DevicePollCtx {
                     provider_settings: &provider.settings,
                     device_code,
@@ -99,11 +99,11 @@ impl<H: Host> Core<H> {
         channel: &str,
         provider: &ProviderRef,
         cookie: &str,
-    ) -> Result<Value, ChannelError> {
+    ) -> Result<CredentialAcquisition, ChannelError> {
         self.login(channel, provider)?
             .adapter
             .cookie_exchange(
-                &LoginHttp(self.host.transport(), provider),
+                &LoginHttp(self.host.as_ref(), provider),
                 CookieExchangeCtx {
                     provider_settings: &provider.settings,
                     cookie,
@@ -130,7 +130,7 @@ impl<H: Host> Core<H> {
 
 struct LoginHttp<'a, T: ?Sized>(&'a T, &'a ProviderRef);
 
-impl<T: UpstreamTransport + ?Sized> SimpleHttp for LoginHttp<'_, T> {
+impl<H: Host> SimpleHttp for LoginHttp<'_, H> {
     fn send<'a>(
         &'a self,
         mut request: http::Request<Bytes>,
@@ -138,7 +138,7 @@ impl<T: UpstreamTransport + ?Sized> SimpleHttp for LoginHttp<'_, T> {
         if let Err(error) = crate::fingerprint::apply_request(&mut request, self.1) {
             return Box::pin(async move { Err(ChannelError::Login(error.to_string())) });
         }
-        let send = self.0.send(request);
+        let send = self.0.transport().send(request);
         Box::pin(async move {
             let response = send
                 .await
@@ -152,5 +152,9 @@ impl<T: UpstreamTransport + ?Sized> SimpleHttp for LoginHttp<'_, T> {
             }
             Ok(http::Response::from_parts(parts, body.freeze()))
         })
+    }
+
+    fn wait<'a>(&'a self, duration: std::time::Duration) -> BoxFuture<'a, ()> {
+        self.0.wait(duration)
     }
 }

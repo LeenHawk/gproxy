@@ -10,12 +10,14 @@ use super::*;
 #[test]
 fn preserves_full_cookie_headers_and_normalizes_bare_keys() {
     assert_eq!(
-        normalize_cookie("Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example; __cf_bm=bm")
-            .as_deref(),
+        crate::shared::claude::cookie::normalize(
+            "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example; __cf_bm=bm"
+        )
+        .as_deref(),
         Some("cf_clearance=clear; sessionKey=sk-ant-sid01-example; __cf_bm=bm")
     );
     assert_eq!(
-        normalize_cookie("sk-ant-sid02-example").as_deref(),
+        crate::shared::claude::cookie::normalize("sk-ant-sid02-example").as_deref(),
         Some("sessionKey=sk-ant-sid02-example")
     );
 }

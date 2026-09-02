@@ -69,6 +69,12 @@ pub enum LoginParamKindDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct LoginParamConditionDto {
+    pub param: String,
+    pub equals: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct LoginParamDto {
     pub name: String,
     pub kind: LoginParamKindDto,
@@ -76,6 +82,7 @@ pub struct LoginParamDto {
     pub default_value: Option<String>,
     pub options: Vec<String>,
     pub modes: Vec<LoginModeDto>,
+    pub condition: Option<LoginParamConditionDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -124,6 +131,13 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
                     default_value: param.default_value.map(Into::into),
                     options: param.options.iter().map(|value| (*value).into()).collect(),
                     modes: param.modes.iter().copied().map(login_mode).collect(),
+                    condition: param
+                        .condition
+                        .as_ref()
+                        .map(|condition| LoginParamConditionDto {
+                            param: condition.param.into(),
+                            equals: condition.equals.into(),
+                        }),
                 })
                 .collect(),
         }),

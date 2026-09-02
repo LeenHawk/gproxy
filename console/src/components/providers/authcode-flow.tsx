@@ -13,15 +13,16 @@ type Props = {
   providerId: number
   label: string
   params: Record<string, string>
+  codeOnly?: boolean
   disabled?: boolean
   onDone: () => void
 }
 
-export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Props) {
+export function AuthcodeFlow({ providerId, label, params, codeOnly = false, disabled, onDone }: Props) {
   const { t } = useTranslation()
   const id = useId()
   const [session, setSession] = useState<AuthCodeStartResponse | null>(null)
-  const [callbackUrl, setCallbackUrl] = useState("")
+  const [completion, setCompletion] = useState("")
   const [touched, setTouched] = useState(false)
   const start = useMutation({
     mutationFn: () => startAuthcode({ provider_id: providerId, params, redirect_uri: null }),
@@ -33,13 +34,16 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
   const complete = useMutation({
     mutationFn: () => completeAuthcode({
       login_session_id: session?.login_session_id ?? "",
-      callback_url: callbackUrl.trim(),
+      callback_url: codeOnly ? null : completion.trim(),
+      code: codeOnly ? completion.trim() : null,
       label: label.trim() || null,
     }),
     onSuccess: onDone,
   })
 
-  const valid = session !== null && validateCallbackUrl(callbackUrl, session.authorize_url)
+  const valid = session !== null && (codeOnly
+    ? completion.trim().length > 0
+    : validateCallbackUrl(completion, session.authorize_url))
 
   if (!session) {
     return (
@@ -57,20 +61,22 @@ export function AuthcodeFlow({ providerId, label, params, disabled, onDone }: Pr
       <Button type="button" variant="outline" onClick={() => window.open(session.authorize_url, "_blank", "noopener,noreferrer")}>
         {t("providers.login.openAuthorize")}
       </Button>
-      <Field data-invalid={touched && callbackUrl.trim() !== "" && !valid ? true : undefined}>
-        <FieldLabel htmlFor={`${id}-callback`}>{t("providers.login.callbackLabel")}</FieldLabel>
+      <Field data-invalid={touched && completion.trim() !== "" && !valid ? true : undefined}>
+        <FieldLabel htmlFor={`${id}-callback`}>
+          {t(codeOnly ? "providers.login.codeLabel" : "providers.login.callbackLabel")}
+        </FieldLabel>
         <Textarea
           id={`${id}-callback`}
           className="machine-text"
-          value={callbackUrl}
-          onChange={(event) => setCallbackUrl(event.target.value)}
+          value={completion}
+          onChange={(event) => setCompletion(event.target.value)}
           onBlur={() => setTouched(true)}
           autoComplete="off"
           spellCheck={false}
         />
-        {touched && callbackUrl.trim() !== "" && !valid
-          ? <FieldError>{t("providers.login.callbackInvalid")}</FieldError>
-          : <FieldDescription>{t("providers.login.callbackHint")}</FieldDescription>}
+        {touched && completion.trim() !== "" && !valid
+          ? <FieldError>{t(codeOnly ? "providers.login.codeInvalid" : "providers.login.callbackInvalid")}</FieldError>
+          : <FieldDescription>{t(codeOnly ? "providers.login.codeHint" : "providers.login.callbackHint")}</FieldDescription>}
       </Field>
       {complete.isError ? <StepError step="complete" /> : null}
       <Button type="button" onClick={() => complete.mutate()} disabled={!valid || complete.isPending}>

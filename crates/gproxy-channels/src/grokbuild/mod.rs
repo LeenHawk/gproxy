@@ -1,6 +1,7 @@
 mod routes;
 
 mod auth;
+mod login;
 mod multipart;
 mod prepare;
 mod quota;
@@ -10,9 +11,10 @@ mod sse;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResourceCtx, ResourceMutation, ResponseShapeCtx, ResponseView,
-    SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelLoginRef, ChannelSupport, Disposition,
+    LoginDescriptor, LoginMode, NormalizedUsage, PrepareCtx, PreparedRequest, ResourceCtx,
+    ResourceMutation, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder,
+    UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
@@ -119,7 +121,18 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     traffic_policy: crate::policy::GROK_BUILD,
 };
 
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::Device],
+    params: &[],
+};
+
 impl Channel for GrokBuildChannel {
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
+    }
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

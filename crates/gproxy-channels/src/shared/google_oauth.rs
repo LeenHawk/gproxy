@@ -21,8 +21,16 @@ pub(crate) fn refresh<'a>(
     settings: &'a Value,
     http: &'a dyn SimpleHttp,
     profile: &'static ClientProfile,
+    default_client_id: &'static str,
+    default_client_secret: &'static str,
 ) -> BoxFuture<'a, Result<Value, ChannelError>> {
-    let request = match build_refresh(secret, settings, profile) {
+    let request = match build_refresh(
+        secret,
+        settings,
+        profile,
+        default_client_id,
+        default_client_secret,
+    ) {
         Ok(request) => request,
         Err(error) => return Box::pin(async move { Err(error) }),
     };
@@ -45,14 +53,16 @@ fn build_refresh(
     secret: &Value,
     settings: &Value,
     profile: &'static ClientProfile,
+    default_client_id: &'static str,
+    default_client_secret: &'static str,
 ) -> Result<http::Request<Bytes>, ChannelError> {
     let refresh = required(secret, "refresh_token")?;
     let client_id = field(settings, "oauth_client_id")
         .or_else(|| field(secret, "client_id"))
-        .ok_or_else(|| ChannelError::Secret("Google OAuth client_id missing".into()))?;
+        .unwrap_or(default_client_id);
     let client_secret = field(settings, "oauth_client_secret")
         .or_else(|| field(secret, "client_secret"))
-        .ok_or_else(|| ChannelError::Secret("Google OAuth client_secret missing".into()))?;
+        .unwrap_or(default_client_secret);
     let url = field(settings, "oauth_token_url")
         .or_else(|| field(secret, "oauth_token_url"))
         .unwrap_or(TOKEN_URL);

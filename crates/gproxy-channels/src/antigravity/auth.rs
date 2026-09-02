@@ -18,7 +18,14 @@ pub(super) fn refresh<'a>(
     settings: &'a Value,
     http: &'a dyn SimpleHttp,
 ) -> BoxFuture<'a, Result<Value, ChannelError>> {
-    crate::shared::google_oauth::refresh(secret, settings, http, &super::profile::PROFILE)
+    crate::shared::google_oauth::refresh(
+        secret,
+        settings,
+        http,
+        &super::profile::PROFILE,
+        "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+        "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",
+    )
 }
 
 fn field<'a>(value: &'a Value, name: &str) -> Option<&'a str> {

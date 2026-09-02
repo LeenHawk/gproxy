@@ -266,3 +266,32 @@ fn channels() -> Result<ChannelRegistry, gproxy_channel_api::registry::Duplicate
     };
     ChannelRegistry::new(channels)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn every_interactive_channel_advertises_login() {
+        let channels = super::channels().expect("built-in channels are unique");
+        let expected = [
+            "antigravity",
+            "claudecode",
+            "cline",
+            "codex",
+            "copilotcli",
+            "geminicli",
+            "grokbuild",
+            "kimi",
+            "kiro",
+            "opencode",
+            "workbuddy",
+        ];
+        for id in expected {
+            assert!(channels.login_for(id).is_some(), "{id} login is missing");
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        assert!(
+            channels.login_for("claudeweb").is_some(),
+            "claudeweb login is missing"
+        );
+    }
+}

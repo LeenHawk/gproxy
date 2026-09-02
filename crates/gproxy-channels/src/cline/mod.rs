@@ -1,6 +1,7 @@
 mod routes;
 
 mod auth;
+mod login;
 mod model;
 mod prepare;
 mod refresh;
@@ -9,9 +10,9 @@ mod sse;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelLoginRef, ChannelSupport, Disposition,
+    LoginDescriptor, LoginMode, NormalizedUsage, PrepareCtx, PreparedRequest, ResponseShapeCtx,
+    ResponseView, SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
@@ -92,7 +93,18 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     traffic_policy: crate::policy::CLINE,
 };
 
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::Device],
+    params: &[],
+};
+
 impl Channel for ClineChannel {
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
+    }
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

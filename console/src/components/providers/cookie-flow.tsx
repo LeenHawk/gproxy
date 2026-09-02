@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 
-type Props = { providerId: number; label: string; onDone: () => void }
+type Props = { providerId: number; channelId: string; label: string; onDone: () => void }
 
-export function CookieFlow({ providerId, label, onDone }: Props) {
+export function CookieFlow({ providerId, channelId, label, onDone }: Props) {
   const { t } = useTranslation()
   const id = useId()
   const [cookie, setCookie] = useState("")
@@ -34,7 +34,7 @@ export function CookieFlow({ providerId, label, onDone }: Props) {
           autoComplete="off"
           spellCheck={false}
         />
-        <FieldDescription>{t("providers.login.cookieHint")}</FieldDescription>
+        <FieldDescription>{t(channelId === "claudeweb" ? "providers.login.claudeWebCookieHint" : "providers.login.cookieHint")}</FieldDescription>
       </Field>
       {exchange.isError ? (
         <Alert variant="destructive">

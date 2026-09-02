@@ -75,6 +75,10 @@ pub(crate) const KIRO: &[ChannelField] = &[
     field("profile_arn", Text, false, true),
     field("auth_base_url", Url, false, true),
 ];
+pub(crate) const KIMI: &[ChannelField] = &[
+    field("base_url", Url, false, false),
+    field("oauth_host", Url, false, true),
+];
 pub(crate) const OPENCODE: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("tier", Text, false, false),
@@ -94,6 +98,29 @@ pub(crate) const API_KEY_OR_OAUTH: &[ChannelField] = &[
     field("access_token", Secret, false, false),
     field("refresh_token", Secret, false, true),
 ];
+pub(crate) const KIMI_CREDENTIAL: &[ChannelField] = &[
+    field("api_key", Secret, false, false),
+    field("access_token", Secret, false, false),
+    field("refresh_token", Secret, false, true),
+    field("device_id", Text, true, true),
+];
+pub(crate) const WORKBUDDY_CREDENTIAL: &[ChannelField] = &[
+    field("access_token", Secret, true, false),
+    field("refresh_token", Secret, false, true),
+    field("user_id", Text, true, false),
+    field("enterprise_id", Text, false, true),
+    field("department_full_name", Text, false, true),
+    field("domain", Text, false, true),
+];
+pub(crate) const KIRO_CREDENTIAL: &[ChannelField] = &[
+    field("access_token", Secret, true, false),
+    field("refresh_token", Secret, true, false),
+    field("profile_arn", Text, false, true),
+    field("client_id", Text, false, true),
+    field("client_secret", Secret, false, true),
+    field("region", Text, false, true),
+    field("start_url", Url, false, true),
+];
 pub(crate) const SERVICE_ACCOUNT: &[ChannelField] = &[
     field("client_email", Text, true, false),
     field("private_key", Secret, true, false),
@@ -106,10 +133,7 @@ pub(crate) const GOOGLE_OAUTH: &[ChannelField] = &[
     field("project_id", Text, true, false),
 ];
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const CLAUDE_WEB: &[ChannelField] = &[
-    field("cookie", Secret, true, false),
-    field("account_uuid", Text, true, false),
-];
+pub(crate) const CLAUDE_WEB: &[ChannelField] = &[field("cookie", Secret, true, false)];
 pub(crate) const GITHUB: &[ChannelField] = &[field("github_token", Secret, true, false)];
 pub(crate) const AWS: &[ChannelField] = &[
     field("api_key", Secret, false, false),

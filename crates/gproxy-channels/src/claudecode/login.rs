@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use gproxy_channel_api::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, BoxFuture, ChannelError, ChannelLogin,
-    CookieExchangeCtx, SimpleHttp,
+    CookieExchangeCtx, CredentialAcquisition, SimpleHttp,
 };
 use serde_json::{Value, json};
 
@@ -42,7 +42,7 @@ impl ChannelLogin for ClaudeCodeChannel {
         &'a self,
         http: &'a dyn SimpleHttp,
         ctx: AuthCodeExchangeCtx<'a>,
-    ) -> BoxFuture<'a, Result<Value, ChannelError>> {
+    ) -> BoxFuture<'a, Result<CredentialAcquisition, ChannelError>> {
         let state = ctx
             .extra
             .and_then(|extra| extra.get("state"))
@@ -86,7 +86,7 @@ impl ChannelLogin for ClaudeCodeChannel {
                 .map_err(|_| ChannelError::Login("invalid token response".into()))?;
             let mut secret = login_secret(&token)?;
             account::enrich(http, &mut secret).await;
-            Ok(secret)
+            Ok(CredentialAcquisition::oauth(secret))
         })
     }
 
@@ -94,8 +94,12 @@ impl ChannelLogin for ClaudeCodeChannel {
         &'a self,
         http: &'a dyn SimpleHttp,
         ctx: CookieExchangeCtx<'a>,
-    ) -> BoxFuture<'a, Result<Value, ChannelError>> {
-        cookie::exchange(http, ctx.cookie)
+    ) -> BoxFuture<'a, Result<CredentialAcquisition, ChannelError>> {
+        Box::pin(async move {
+            cookie::exchange(http, ctx.cookie)
+                .await
+                .map(CredentialAcquisition::oauth)
+        })
     }
 }
 

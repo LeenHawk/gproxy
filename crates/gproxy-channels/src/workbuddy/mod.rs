@@ -2,6 +2,7 @@ mod routes;
 
 mod auth;
 mod identity;
+mod login;
 mod model;
 mod prepare;
 mod quota;
@@ -11,9 +12,9 @@ mod sse;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelLoginRef, ChannelSupport, Disposition,
+    LoginDescriptor, LoginMode, NormalizedUsage, PrepareCtx, PreparedRequest, ResponseShapeCtx,
+    ResponseView, SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
@@ -111,12 +112,23 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     display_name: "WorkBuddy",
     supports: &SUPPORTS,
     provider_fields: crate::metadata::BASE_URL,
-    credential_fields: crate::metadata::OAUTH,
+    credential_fields: crate::metadata::WORKBUDDY_CREDENTIAL,
     endpoint_overrides: true,
     traffic_policy: crate::policy::WORKBUDDY,
 };
 
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::Device],
+    params: &[],
+};
+
 impl Channel for WorkBuddyChannel {
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
+    }
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

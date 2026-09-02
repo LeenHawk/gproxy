@@ -4,7 +4,7 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { ChevronDownIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { revealCredentialSecret } from "@/api/control"
@@ -12,7 +12,7 @@ import { ConnectivityTest } from "@/components/connectivity-test"
 import { proxyProbe } from "@/lib/connectivity-probe"
 import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "./fingerprint"
 import { FingerprintField } from "./fingerprint-field"
-import { buildSecret, isSingleKey } from "@/components/providers/credential-secret"
+import { buildSecret, defaultCredentialKind, fieldsForCredentialKind, isSingleKey } from "@/components/providers/credential-secret"
 import { CredentialSecretField } from "@/components/providers/credential-secret-field"
 import { prettyJson } from "./json"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
 }) {
   const { t } = useTranslation()
   const [label, setLabel] = useState(credential?.label ?? "")
-  const [kind, setKind] = useState(credential?.kind ?? "api_key")
+  const [kind, setKind] = useState(credential?.kind ?? defaultCredentialKind(channel.credential_fields))
   const [secretText, setSecretText] = useState("")
   const [weight, setWeight] = useState(String(credential?.weight ?? 100))
   const [rpm, setRpm] = useState(credential?.rpm_limit?.toString() ?? "")
@@ -52,9 +52,12 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
   const [enabled, setEnabled] = useState(credential?.enabled ?? true)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
-  const fields = credential
-    ? channel.credential_fields.map((field) => ({ ...field, required: false }))
-    : channel.credential_fields
+  const fields = useMemo(() => fieldsForCredentialKind(
+    credential
+      ? channel.credential_fields.map((field) => ({ ...field, required: false }))
+      : channel.credential_fields,
+    kind,
+  ), [channel.credential_fields, credential, kind])
 
   /* v2 parity: editing prefills the stored secret so the operator sees what
      the credential holds. A failed reveal leaves the box empty, where blank

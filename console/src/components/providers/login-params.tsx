@@ -3,6 +3,7 @@ import type { LoginParamDto } from "@/generated/LoginParamDto"
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { loginParamApplies } from "@/components/providers/login-param-values"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -23,7 +24,7 @@ type Props = {
 export function LoginParams({ mode, params, values, onChange }: Props) {
   const { t } = useTranslation()
   const id = useId()
-  const visible = params.filter((param) => !param.modes.length || param.modes.includes(mode))
+  const visible = params.filter((param) => loginParamApplies(param, mode, values))
   if (!visible.length) return null
 
   return (

@@ -1,6 +1,7 @@
 mod routes;
 
 mod auth;
+mod login;
 mod models;
 mod prepare;
 mod profile;
@@ -10,9 +11,10 @@ mod sse;
 mod usage;
 
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage,
-    PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, UsageCtx,
+    BoxFuture, Channel, ChannelDescriptor, ChannelLoginRef, ChannelSupport, Disposition,
+    LoginDescriptor, LoginMode, LoginParam, LoginParamKind, NormalizedUsage, PrepareCtx,
+    PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder,
+    UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
@@ -90,7 +92,39 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     traffic_policy: crate::policy::GEMINI_CLI,
 };
 
+static LOGIN_PARAMS: &[LoginParam] = &[
+    LoginParam {
+        name: "code_only",
+        kind: LoginParamKind::Select,
+        required: true,
+        default_value: Some("true"),
+        options: &["true", "false"],
+        modes: &[LoginMode::AuthCode],
+        condition: None,
+    },
+    LoginParam {
+        name: "project_id",
+        kind: LoginParamKind::Text,
+        required: false,
+        default_value: None,
+        options: &[],
+        modes: &[LoginMode::AuthCode],
+        condition: None,
+    },
+];
+
+static LOGIN: LoginDescriptor = LoginDescriptor {
+    modes: &[LoginMode::AuthCode],
+    params: LOGIN_PARAMS,
+};
+
 impl Channel for GeminiCliChannel {
+    fn login(&self) -> Option<ChannelLoginRef<'_>> {
+        Some(ChannelLoginRef {
+            adapter: self,
+            descriptor: &LOGIN,
+        })
+    }
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

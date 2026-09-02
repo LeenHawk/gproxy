@@ -1,6 +1,11 @@
+use std::future::Future;
+use std::sync::Mutex;
+use std::task::{Context, Poll, Waker};
+
 use bytes::Bytes;
 use gproxy_channel_api::{
-    Channel, ChannelSupport, DriverInput, OperationStep, OperationStream, PrepareCtx, StepResponse,
+    BoxFuture, Channel, ChannelError, ChannelSupport, CookieExchangeCtx, DriverInput,
+    OperationStep, OperationStream, PrepareCtx, SimpleHttp, StepResponse,
 };
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey};
 use http::{HeaderMap, Method, StatusCode};
@@ -59,6 +64,51 @@ fn declares_eight_transform_after_content_operations() {
     ];
     assert_eq!(ClaudeWebChannel.descriptor().supports, expected);
     assert!(ClaudeWebChannel.requires_continuations());
+}
+
+#[test]
+fn cookie_login_discovers_the_account_uuid() {
+    let http = LoginHttp::default();
+    let settings = json!({ "base_url": "https://claude.example" });
+    let login = ClaudeWebChannel.login().unwrap();
+    let secret = ready(login.adapter.cookie_exchange(
+        &http,
+        CookieExchangeCtx {
+            provider_settings: &settings,
+            cookie: "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example",
+        },
+    ))
+    .unwrap();
+
+    assert_eq!(
+        login.descriptor.modes,
+        [gproxy_channel_api::LoginMode::Cookie]
+    );
+    assert_eq!(secret.kind, gproxy_channel_api::CredentialKind::Cookie);
+    assert_eq!(secret.secret["account_uuid"], "org-chat");
+    assert_eq!(secret.secret["user_email"], "user@example.com");
+    assert_eq!(
+        secret.secret["cookie"],
+        "cf_clearance=clear; sessionKey=sk-ant-sid01-example"
+    );
+    let request = http.request.lock().unwrap();
+    let request = request.as_ref().unwrap();
+    assert_eq!(request.uri(), "https://claude.example/api/bootstrap");
+    assert_eq!(
+        request.headers()["cookie"],
+        secret.secret["cookie"].as_str().unwrap()
+    );
+    assert!(
+        request
+            .extensions()
+            .get::<gproxy_channel_api::ClientProfile>()
+            .is_some()
+    );
+    assert_eq!(ClaudeWebChannel.descriptor().credential_fields.len(), 1);
+    assert_eq!(
+        ClaudeWebChannel.descriptor().credential_fields[0].key,
+        "cookie"
+    );
 }
 
 #[test]
@@ -184,4 +234,32 @@ fn shapes_web_turn_and_parks_then_resumes_tool_stream() {
     assert!(text.contains("message_start"));
     assert!(text.contains("Sunny"));
     assert!(!text.contains("tool_result"));
+}
+
+#[derive(Default)]
+struct LoginHttp {
+    request: Mutex<Option<http::Request<Bytes>>>,
+}
+
+impl SimpleHttp for LoginHttp {
+    fn send<'a>(
+        &'a self,
+        request: http::Request<Bytes>,
+    ) -> BoxFuture<'a, Result<http::Response<Bytes>, ChannelError>> {
+        *self.request.lock().unwrap() = Some(request);
+        Box::pin(async {
+            Ok(http::Response::new(Bytes::from_static(
+                br#"{"account":{"email_address":"user@example.com","memberships":[{"organization":{"uuid":"org-api","capabilities":["api"]}},{"organization":{"uuid":"org-chat","capabilities":["chat","claude_pro"]}}]}}"#,
+            )))
+        })
+    }
+}
+
+fn ready<F: Future>(future: F) -> F::Output {
+    let mut future = std::pin::pin!(future);
+    let mut context = Context::from_waker(Waker::noop());
+    match future.as_mut().poll(&mut context) {
+        Poll::Ready(value) => value,
+        Poll::Pending => panic!("test future unexpectedly pending"),
+    }
 }

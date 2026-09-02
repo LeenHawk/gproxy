@@ -58,6 +58,7 @@ fn export_console_types() {
         TrafficBlacklistDto,
         LoginModeDto,
         LoginParamKindDto,
+        LoginParamConditionDto,
         LoginParamDto,
         ChannelLoginDto,
         AuthCodeStartRequest,
