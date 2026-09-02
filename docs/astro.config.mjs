@@ -2,8 +2,47 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+// Markdown renders a soft line break as a space. That is right between Latin
+// words and wrong between CJK characters, where the hard-wrapped zh-cn sources
+// would otherwise show a stray space at every wrap. Drop the newline only when
+// both sides are CJK; a Latin word or code span on either side keeps its space.
+const CJK =
+  /[⺀-⿿　-〿぀-ヿ㄀-ㄯ㈀-鿿豈-﫿︰-﹏＀-￯\u{20000}-\u{2FFFF}]/u;
+const edgeChar = (node, first) => {
+  if (!node) return '';
+  if (node.type === 'text') return first ? node.value.charAt(0) : node.value.slice(-1);
+  if (!node.children?.length) return '';
+  return edgeChar(node.children[first ? 0 : node.children.length - 1], first);
+};
+function joinCjkLines() {
+  const walk = (node) => {
+    if (!node.children) return;
+    node.children.forEach((child, index, siblings) => {
+      if (child.type !== 'text') return walk(child);
+      child.value = child.value.replace(
+        /(.)[ \t]*\n[ \t]*(.)/gsu,
+        (match, before, after) => (CJK.test(before) && CJK.test(after) ? before + after : match),
+      );
+      if (/\n[ \t]*$/.test(child.value)) {
+        const before = child.value.replace(/[ \t]*\n[ \t]*$/, '').slice(-1);
+        if (CJK.test(before) && CJK.test(edgeChar(siblings[index + 1], true))) {
+          child.value = child.value.replace(/[ \t]*\n[ \t]*$/, '');
+        }
+      }
+      if (/^[ \t]*\n/.test(child.value)) {
+        const after = child.value.replace(/^[ \t]*\n[ \t]*/, '').charAt(0);
+        if (CJK.test(after) && CJK.test(edgeChar(siblings[index - 1], false))) {
+          child.value = child.value.replace(/^[ \t]*\n[ \t]*/, '');
+        }
+      }
+    });
+  };
+  return walk;
+}
+
 export default defineConfig({
   site: 'https://gproxy.leenhawk.com',
+  markdown: { remarkPlugins: [joinCjkLines] },
   integrations: [
     starlight({
       title: 'GPROXY',
