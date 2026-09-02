@@ -58,3 +58,34 @@ pub(crate) fn aggregate(
     }
     Statement::query(&query)
 }
+
+pub(crate) fn trend(
+    from: i64,
+    to: i64,
+    after_id: i64,
+    limit: u64,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::select();
+    query
+        .column(Alias::new("id"))
+        .columns(
+            [
+                "bucket_start",
+                "requests",
+                "input_tokens",
+                "output_tokens",
+                "cached_input_tokens",
+                "cost",
+            ]
+            .into_iter()
+            .map(Alias::new),
+        )
+        .from(Alias::new("usage_rollups"))
+        .and_where(Expr::col(Alias::new("granularity")).eq("hour"))
+        .and_where(Expr::col(Alias::new("bucket_start")).gte(from))
+        .and_where(Expr::col(Alias::new("bucket_start")).lt(to))
+        .and_where(Expr::col(Alias::new("id")).gt(after_id))
+        .order_by(Alias::new("id"), Order::Asc)
+        .limit(limit);
+    Statement::query(&query)
+}

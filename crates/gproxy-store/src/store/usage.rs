@@ -1,7 +1,8 @@
 use crate::backend::Row;
 use crate::query::usage;
 use crate::records::{
-    UsageAggregateQuery, UsageAggregateRecord, UsageInput, UsageRecord, UsageWindow,
+    UsageAggregateQuery, UsageAggregateRecord, UsageInput, UsageRecord, UsageTrendPoint,
+    UsageWindow,
 };
 use crate::{Store, StoreError};
 use rust_decimal::prelude::ToPrimitive as _;
@@ -64,6 +65,44 @@ impl Store {
         Ok(values)
     }
 
+    pub async fn usage_trend(
+        &self,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<UsageTrendPoint>, StoreError> {
+        const PAGE_SIZE: u64 = 5_000;
+        const MAX_PAGES: usize = 20;
+        let mut buckets = std::collections::BTreeMap::<i64, UsageTrendPoint>::new();
+        let mut after_id = 0;
+        for page in 0..MAX_PAGES {
+            let page_limit = if page + 1 == MAX_PAGES {
+                PAGE_SIZE + 1
+            } else {
+                PAGE_SIZE
+            };
+            let rows = self
+                .backend()
+                .execute(usage::trend(from, to, after_id, page_limit)?)
+                .await?
+                .rows;
+            let row_count = rows.len();
+            if page + 1 == MAX_PAGES && row_count > PAGE_SIZE as usize {
+                return Err(StoreError::InvalidData {
+                    field: "usage trend",
+                    message: "range exceeds 100000 rollup rows; narrow the time range".into(),
+                });
+            }
+            for row in rows {
+                after_id = row.i64("id")?;
+                accumulate_trend(&mut buckets, row)?;
+            }
+            if row_count < page_limit as usize {
+                break;
+            }
+        }
+        Ok(buckets.into_values().collect())
+    }
+
     pub async fn record_usage(&self, input: &UsageInput) -> Result<bool, StoreError> {
         let results = self
             .backend()
@@ -108,6 +147,31 @@ impl Store {
             output_tokens: unsigned(row.i64("output_tokens")?, "output_tokens")?,
         })
     }
+}
+
+fn accumulate_trend(
+    buckets: &mut std::collections::BTreeMap<i64, UsageTrendPoint>,
+    row: Row,
+) -> Result<(), StoreError> {
+    let bucket_start = row.i64("bucket_start")?;
+    let value = buckets.entry(bucket_start).or_insert(UsageTrendPoint {
+        bucket_start,
+        requests: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cached_input_tokens: 0,
+        cost: rust_decimal::Decimal::ZERO,
+    });
+    for (target, column) in [
+        (&mut value.requests, "requests"),
+        (&mut value.input_tokens, "input_tokens"),
+        (&mut value.output_tokens, "output_tokens"),
+        (&mut value.cached_input_tokens, "cached_input_tokens"),
+    ] {
+        checked_add(target, unsigned(row.i64(column)?, column)?, column)?;
+    }
+    value.cost += decimal(row.text("cost")?, "cost")?;
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

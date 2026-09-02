@@ -156,6 +156,8 @@ fn export_console_types() {
         UsageGroupByDto,
         UsageQueryDto,
         UsageStatisticsDto,
+        UsageTrendQueryDto,
+        UsageTrendPointDto,
         QuotaWindowDto,
         BoundarySourceDto,
         BoundaryConfidenceDto,

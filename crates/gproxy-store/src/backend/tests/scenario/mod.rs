@@ -15,6 +15,7 @@ pub(super) struct Outcome {
     credential: CredentialRecord,
     usage: UsageRecord,
     statistics: Vec<UsageAggregateRecord>,
+    trend: Vec<UsageTrendPoint>,
     window: UsageWindow,
     quota: QuotaWindowRecord,
     cycle: cycle::Outcome,
@@ -178,6 +179,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             model: None,
         })
         .await?;
+    let trend = store.usage_trend(0, 4_000).await?;
     let cycle = cycle::run(store, credential.id).await?;
     let mut binding = seed_binding(store, provider, credential.id).await?;
     binding.items[0].created_at = 0;
@@ -219,6 +221,13 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(statistics[0].cache_creation_30m_tokens, 4);
     assert_eq!(statistics[0].cache_creation_1h_tokens, 5);
     assert_eq!(filtered_statistics, statistics);
+    assert_eq!(trend.len(), 1);
+    assert_eq!(trend[0].bucket_start, 3_600);
+    assert_eq!(trend[0].requests, 2);
+    assert_eq!(trend[0].input_tokens, 17);
+    assert_eq!(trend[0].output_tokens, 8);
+    assert_eq!(trend[0].cached_input_tokens, 3);
+    assert_eq!(trend[0].cost, Decimal::new(3, 5));
     assert_eq!(window.input_tokens, 10);
     assert_eq!(window.output_tokens, 5);
     assert_eq!(quota.cost_used, Decimal::new(15, 4));
@@ -242,6 +251,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         credential,
         usage,
         statistics,
+        trend,
         window,
         quota,
         cycle,

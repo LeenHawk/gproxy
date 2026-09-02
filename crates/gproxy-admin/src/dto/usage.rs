@@ -41,6 +41,22 @@ pub struct UsageStatisticsDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct UsageTrendQueryDto {
+    pub from: i64,
+    pub to: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct UsageTrendPointDto {
+    pub bucket_start: i64,
+    pub requests: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cached_input_tokens: u64,
+    pub cost: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct QuotaWindowDto {
     pub id: Option<i64>,
     pub quota_id: i64,

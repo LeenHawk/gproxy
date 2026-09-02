@@ -4,10 +4,12 @@ import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDt
 import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
+import type { UsageTrendPointDto } from "@/generated/UsageTrendPointDto"
 import { CycleWindow } from "@/components/cycle-window"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { QuotaWindowBar } from "@/components/usage/quota-window"
+import { UsageTrendChart } from "@/components/overview/usage-trend-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { navigateAdminPath } from "@/lib/admin-route"
@@ -20,7 +22,7 @@ function percent(value: string | null) {
 
 type ProviderUsage = { providerId: number; requests: number; cost: number }
 
-export function OverviewDashboard({ providers, credentials, usage, quotas, cycles }: { providers: Array<ProviderDto>; credentials: Array<CredentialDto>; usage: Array<UsageStatisticsDto>; quotas: Array<QuotaWindowDto>; cycles: Array<CredentialQuotaCycleDto> }) {
+export function OverviewDashboard({ providers, credentials, usage, quotas, cycles, trend, trendFrom, trendTo, trendLoading, trendError }: { providers: Array<ProviderDto>; credentials: Array<CredentialDto>; usage: Array<UsageStatisticsDto>; quotas: Array<QuotaWindowDto>; cycles: Array<CredentialQuotaCycleDto>; trend: Array<UsageTrendPointDto>; trendFrom: number; trendTo: number; trendLoading: boolean; trendError: boolean }) {
   const { t, i18n } = useTranslation()
   const enabled = credentials.filter((credential) => credential.enabled)
   const healthy = enabled.filter((credential) => credential.health === "healthy")
@@ -63,6 +65,7 @@ export function OverviewDashboard({ providers, credentials, usage, quotas, cycle
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("overview.metrics.label")}>
         {metrics.map(({ key, label, value }) => <Card key={key} size="sm"><CardContent><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-xl font-semibold">{value}</p></CardContent></Card>)}
       </section>
+      <UsageTrendChart data={trend} from={trendFrom} to={trendTo} loading={trendLoading} error={trendError} />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="flex min-w-0 flex-col gap-5">
           <Card><CardHeader><CardTitle>{t("overview.attention.title")}</CardTitle><CardDescription>{t("overview.attention.description")}</CardDescription></CardHeader><CardContent><DataTable columns={credentialColumns} rows={attention} rowKey={(credential) => credential.id} searchText={(credential) => `${credential.label ?? ""} ${credential.health} ${credential.health_detail ?? ""}`} renderCard={(credential) => <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="text-xs text-muted-foreground">{credential.health_detail ?? t("common.none")}</p></div><StatusBadge status={credential.health} /></div>} empty={t("overview.attention.empty")} storageKey="overview-attention" onRowClick={(credential) => navigateAdminPath(`/admin/providers/${credential.provider_id}/credentials/${credential.id}`)} /></CardContent></Card>

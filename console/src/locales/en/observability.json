@@ -152,6 +152,12 @@
     }
   },
   "overview": {
+    "trend": {
+      "title": "Usage trend",
+      "description": "Hourly totals over the last 7 days.",
+      "empty": "No usage was recorded during the last 7 days.",
+      "error": "Could not load the usage trend."
+    },
     "metrics": {
       "label": "Instance health summary",
       "healthy": "Healthy credentials",

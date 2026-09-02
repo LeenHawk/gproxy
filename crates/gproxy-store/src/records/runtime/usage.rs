@@ -92,3 +92,13 @@ pub struct UsageAggregateRecord {
     pub cache_creation_1h_tokens: u64,
     pub cost: Decimal,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UsageTrendPoint {
+    pub bucket_start: i64,
+    pub requests: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cached_input_tokens: u64,
+    pub cost: Decimal,
+}

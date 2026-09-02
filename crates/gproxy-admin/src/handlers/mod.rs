@@ -54,6 +54,7 @@ pub(crate) async fn dispatch(
         Route::RevealUserKey(id) => identity::reveal(state, id).await,
         Route::UserPassword(id) => identity::password(state, id, body).await,
         Route::Usage => observability::usage(state, parts).await,
+        Route::UsageTrend => observability::usage_trend(state, parts).await,
         Route::QuotaWindows => observability::quota_windows(state, parts).await,
         Route::CredentialCycles => observability::credential_cycles(state, parts).await,
         Route::Channels => catalogue::channels(state),

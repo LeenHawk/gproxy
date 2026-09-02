@@ -5,6 +5,8 @@ import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import type { UsageQueryDto } from "@/generated/UsageQueryDto"
 import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
+import type { UsageTrendPointDto } from "@/generated/UsageTrendPointDto"
+import type { UsageTrendQueryDto } from "@/generated/UsageTrendQueryDto"
 import type { LogDetailDto } from "@/generated/LogDetailDto"
 import type { LogPageDto } from "@/generated/LogPageDto"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
@@ -22,6 +24,8 @@ export const channels = () => api<Array<ChannelDto>>("/admin/api/channels")
 export const tlsPresets = () => api<Array<TlsPresetDto>>("/admin/api/tls-presets")
 export const usage = (value: UsageQueryDto) =>
   api<Array<UsageStatisticsDto>>(`/admin/api/usage?${queryString(value)}`)
+export const usageTrend = (value: UsageTrendQueryDto) =>
+  api<Array<UsageTrendPointDto>>(`/admin/api/usage-trend?${queryString(value)}`)
 export const quotaWindows = (subjectKind?: string, subjectId?: number) =>
   api<Array<QuotaWindowDto>>(
     `/admin/api/quota-windows?${queryString({ subject_kind: subjectKind ?? "", subject_id: subjectId ?? null })}`,

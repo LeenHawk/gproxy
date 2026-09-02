@@ -152,6 +152,12 @@
     }
   },
   "overview": {
+    "trend": {
+      "title": "用量趋势",
+      "description": "过去 7 天的每小时汇总。",
+      "empty": "过去 7 天没有用量记录。",
+      "error": "无法加载用量趋势。"
+    },
     "metrics": {
       "label": "实例健康摘要",
       "healthy": "健康凭据",

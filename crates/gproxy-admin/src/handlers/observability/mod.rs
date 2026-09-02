@@ -7,7 +7,10 @@ use gproxy_store::records::{QuotaRecord, QuotaWindowKind, UsageAggregateQuery, U
 use http::request::Parts;
 use http::{Response, StatusCode};
 
-use crate::dto::{QuotaWindowDto, UsageGroupByDto, UsageQueryDto, UsageStatisticsDto};
+use crate::dto::{
+    QuotaWindowDto, UsageGroupByDto, UsageQueryDto, UsageStatisticsDto, UsageTrendPointDto,
+    UsageTrendQueryDto,
+};
 use crate::handlers::util;
 use crate::{AdminError, State, response};
 
@@ -62,6 +65,31 @@ pub(super) async fn usage(
         })
         .collect::<Vec<_>>();
     response::json(StatusCode::OK, &records)
+}
+
+pub(super) async fn usage_trend(
+    state: &impl State,
+    parts: &Parts,
+) -> Result<Response<Bytes>, AdminError> {
+    let query =
+        serde_urlencoded::from_str::<UsageTrendQueryDto>(parts.uri.query().unwrap_or_default())
+            .map_err(|error| AdminError::BadRequest(error.to_string()))?;
+    let (from, to) = range(query.from, query.to)?;
+    let points = state
+        .store()
+        .usage_trend(from, to)
+        .await?
+        .into_iter()
+        .map(|point| UsageTrendPointDto {
+            bucket_start: point.bucket_start,
+            requests: point.requests,
+            input_tokens: point.input_tokens,
+            output_tokens: point.output_tokens,
+            cached_input_tokens: point.cached_input_tokens,
+            cost: point.cost.normalize().to_string(),
+        })
+        .collect::<Vec<_>>();
+    response::json(StatusCode::OK, &points)
 }
 
 pub(super) async fn quota_windows(

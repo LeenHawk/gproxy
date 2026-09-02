@@ -171,6 +171,8 @@ export * from "./UpdateStatusDto";
 export * from "./UsageGroupByDto";
 export * from "./UsageQueryDto";
 export * from "./UsageStatisticsDto";
+export * from "./UsageTrendPointDto";
+export * from "./UsageTrendQueryDto";
 export * from "./UserDto";
 export * from "./UserKeyCreateRequest";
 export * from "./UserKeyCreateResponse";
