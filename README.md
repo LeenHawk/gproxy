@@ -34,6 +34,18 @@ one database transaction; after success, move the target into
 The stored fingerprint is never a key, and startup refuses a sealed store when
 the required fingerprint is not supplied.
 
+## Documentation
+
+The documentation site lives under `docs/` (Astro + Starlight) and is
+published to <https://gproxy.leenhawk.com> by CI. It also hosts the signed
+announcement feed the native binary polls. Run it locally with:
+
+```sh
+cd docs
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
 ## Release
 
 Configure the Android and update-signing CI secrets named in

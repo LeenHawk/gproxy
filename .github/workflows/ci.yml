@@ -47,3 +47,75 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm i18n:check
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: docs/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: docs/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: docs-dist
+          path: docs/dist
+          retention-days: 1
+
+  # The site is also the host of the signed announcement feed the native
+  # binary polls (notifications.json + .sig), so the deploy signs the feed
+  # with the same Ed25519 identity the release workflow compiles into the
+  # binary. The Pages project's production-branch setting decides whether a
+  # branch deploy is production or a preview.
+  deploy-docs:
+    name: Deploy docs
+    needs: docs
+    if: ${{ github.event_name == 'push' && (github.ref_name == github.event.repository.default_branch || github.ref_name == '3.0') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: cloudflare
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: docs-dist
+          path: dist
+      - name: Sign notifications feed
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: |
+          if [ -z "$UPDATE_SIGNING_PRIVATE_KEY_B64" ]; then
+            echo "UPDATE_SIGNING_PRIVATE_KEY_B64 is empty; skipping notifications signature"
+            exit 0
+          fi
+          test -n "$UPDATE_SIGNING_PUBLIC_KEY_B64" || { echo "UPDATE_SIGNING_PUBLIC_KEY_B64 is empty" >&2; exit 1; }
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s' "$UPDATE_SIGNING_PRIVATE_KEY_B64" | base64 -d > "$work/priv.pem"
+          chmod 600 "$work/priv.pem"
+          derived="$(openssl pkey -in "$work/priv.pem" -pubout -outform DER | tail -c 32 | base64 -w0)"
+          test "$derived" = "$UPDATE_SIGNING_PUBLIC_KEY_B64" || {
+            echo "private key does not match UPDATE_SIGNING_PUBLIC_KEY_B64" >&2; exit 1; }
+          openssl pkeyutl -sign -rawin -inkey "$work/priv.pem" \
+            -in dist/notifications.json -out "$work/sig.bin"
+          base64 -w0 "$work/sig.bin" > dist/notifications.json.sig
+          openssl pkey -in "$work/priv.pem" -pubout -out "$work/pub.pem"
+          openssl pkeyutl -verify -rawin -pubin -inkey "$work/pub.pem" \
+            -sigfile "$work/sig.bin" -in dist/notifications.json >/dev/null || {
+            echo "self-verify of notifications signature failed" >&2; exit 1; }
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./dist --project-name=${{ secrets.CLOUDFLARE_PROJECT_ID }} --branch=${{ github.ref_name }}

@@ -1,0 +1,69 @@
+---
+title: GPROXY
+description: "Run one gateway in front of many LLM providers, with pairwise protocol conversion, pooled credentials, metering, and an embedded console."
+template: splash
+hero:
+  tagline: "One gateway for many LLM providers. Pairwise protocol conversion between OpenAI, Claude, and Gemini wire formats, pooled upstream credentials with failover, per-request metering and quotas, and three web surfaces served by the same binary — a public site, an operator console, and a user portal."
+  actions:
+    - text: Download GPROXY
+      link: /getting-started/downloads/
+      icon: download
+    - text: Quick start
+      link: /getting-started/quick-start/
+      icon: rocket
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/LeenHawk/gproxy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Documentation Map
+
+<CardGrid stagger>
+	<Card title="Introduction" icon="document">
+		See what GPROXY does, which wire formats it accepts, how a request is
+		routed, and how the core and its hosts fit together.
+	</Card>
+	<Card title="Getting Started" icon="rocket">
+		Pick a release asset, install it, create the administrator in the console,
+		and send the first request in each supported format.
+	</Card>
+	<Card title="Guides" icon="puzzle">
+		Configure providers and credentials, routes and aliases, users and keys,
+		permissions and quotas, rule sets, prompt caching, CLI clients, and
+		observability.
+	</Card>
+	<Card title="Reference" icon="seti:config">
+		Look up every flag and environment variable, the routing table, pricing
+		and tiers, storage and cache backends, and how to embed the core.
+	</Card>
+</CardGrid>
+
+## Primary Paths
+
+<LinkCard
+	title="Downloads"
+	description="Native installers, portable archives, the container image, edge bundles, checksums, and the signed update manifest."
+	href="/getting-started/downloads/"
+/>
+
+<LinkCard
+	title="Quick Start"
+	description="From a downloaded binary to a working gateway: start gproxy, create the administrator, add a provider and a route, issue a key, call it."
+	href="/getting-started/quick-start/"
+/>
+
+<LinkCard
+	title="Architecture"
+	description="Follow a request from ingress and classification through admission, transform, upstream delivery, settlement, and capture."
+	href="/introduction/architecture/"
+/>
+
+<LinkCard
+	title="v2 to v3 Migration"
+	description="Import a live v2 SQLite database with gproxy migrate, and see what changed in configuration and deployment."
+	href="/deployment/v2-to-v3/"
+/>

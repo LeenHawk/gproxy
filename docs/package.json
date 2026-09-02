@@ -1,0 +1,18 @@
+{
+  "name": "@gproxy/docs",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "node scripts/check-notifications.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.11",
+    "astro": "^7.2.10",
+    "sharp": "^0.35.3"
+  }
+}

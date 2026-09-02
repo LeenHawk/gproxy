@@ -1,0 +1,65 @@
+---
+title: GPROXY
+description: "用一个网关接入多个 LLM Provider：成对协议转换、凭证池、用量计量，以及内嵌控制台。"
+template: splash
+hero:
+  tagline: "一个网关，接入多个 LLM Provider。在 OpenAI、Claude、Gemini 线格式之间成对转换协议，池化上游凭证并自动故障转移，按请求计量与配额；同一个二进制还提供三个 Web 界面：公开站点、运维控制台和用户门户。"
+  actions:
+    - text: 下载 GPROXY
+      link: /zh-cn/getting-started/downloads/
+      icon: download
+    - text: 快速开始
+      link: /zh-cn/getting-started/quick-start/
+      icon: rocket
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/LeenHawk/gproxy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## 文档地图
+
+<CardGrid stagger>
+	<Card title="介绍" icon="document">
+		了解 GPROXY 能做什么、接受哪些线格式、请求如何路由，以及核心库与宿主如何组合。
+	</Card>
+	<Card title="快速上手" icon="rocket">
+		选择发布产物、完成安装、在控制台创建管理员，并用每种支持的格式发送第一个请求。
+	</Card>
+	<Card title="使用指南" icon="puzzle">
+		配置 Provider 与凭证、路由与别名、用户与密钥、权限与配额、规则集、提示缓存、CLI
+		客户端和可观测性。
+	</Card>
+	<Card title="参考手册" icon="seti:config">
+		查阅全部参数与环境变量、路由表、价格与分层、存储与缓存后端，以及如何嵌入核心库。
+	</Card>
+</CardGrid>
+
+## 主要入口
+
+<LinkCard
+	title="下载"
+	description="原生安装包、便携压缩包、容器镜像、Edge Bundle、校验值和签名更新清单。"
+	href="/zh-cn/getting-started/downloads/"
+/>
+
+<LinkCard
+	title="快速开始"
+	description="从下载的二进制到可用网关：启动 gproxy、创建管理员、添加 Provider 与路由、签发密钥、发起调用。"
+	href="/zh-cn/getting-started/quick-start/"
+/>
+
+<LinkCard
+	title="架构"
+	description="跟随一次请求，从入口与分类，经过准入、转换、上游调用，到结算与捕获。"
+	href="/zh-cn/introduction/architecture/"
+/>
+
+<LinkCard
+	title="v2 到 v3 迁移"
+	description="用 gproxy migrate 导入正在使用的 v2 SQLite 数据库，并了解配置与部署上的变化。"
+	href="/zh-cn/deployment/v2-to-v3/"
+/>
