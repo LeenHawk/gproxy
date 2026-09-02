@@ -52,22 +52,7 @@ fn local_route<H: Host>(core: &Core<H>, plan: &Plan, key: gproxy_protocol::Opera
         let Some(channel) = core.channels.get(&target.provider.channel) else {
             return false;
         };
-        let declared = channel
-            .routing_table()
-            .iter()
-            .find(|support| support.source == key);
-        if declared.is_some_and(|support| {
-            support.action == gproxy_channel_api::ChannelRouteAction::Unsupported
-        }) {
-            return false;
-        }
-        match crate::routing::decide(&target.rules.routing, key) {
-            Some(crate::routing::RoutingDecision::Local) => true,
-            Some(_) => false,
-            None => declared.is_some_and(|support| {
-                support.action == gproxy_channel_api::ChannelRouteAction::Local
-            }),
-        }
+        super::local_models::route_is_local(channel, target, key)
     })
 }
 
@@ -92,7 +77,15 @@ async fn serve<H: Host>(
     };
     let (status, body) = match classified.key.operation {
         Operation::ListModels => {
-            let mut models = control.exposed_models();
+            let scoped = matches!(&request.mode, crate::boundary::RoutingMode::Scoped { .. });
+            let mut models = if scoped {
+                Vec::new()
+            } else {
+                control.exposed_models()
+            };
+            if !scoped {
+                models.extend(control.provider_catalogue());
+            }
             models.extend(
                 super::model_refresh::run(core, control, request, plan, owner_user_id).await,
             );
@@ -104,12 +97,23 @@ async fn serve<H: Host>(
             )
         }
         Operation::GetModel => {
-            let found = classified.model.as_ref().and_then(|id| {
-                control
-                    .exposed_models()
-                    .into_iter()
-                    .find(|model| &model.id == id)
-            });
+            let models = if matches!(&request.mode, crate::boundary::RoutingMode::Scoped { .. }) {
+                super::model_refresh::for_local_get(
+                    core,
+                    control,
+                    request,
+                    plan,
+                    classified,
+                    owner_user_id,
+                )
+                .await
+            } else {
+                control.exposed_models()
+            };
+            let found = classified
+                .model
+                .as_ref()
+                .and_then(|id| models.into_iter().find(|model| &model.id == id));
             match found {
                 Some(model) => (
                     StatusCode::OK,
@@ -188,9 +192,7 @@ async fn serve<H: Host>(
 
 fn render_count(family: WireFamily, count: u64) -> Value {
     match family {
-        WireFamily::OpenAi => {
-            json!({ "object": "response.input_tokens", "input_tokens": count })
-        }
+        WireFamily::OpenAi => json!({ "object": "response.input_tokens", "input_tokens": count }),
         WireFamily::Claude => json!({ "input_tokens": count }),
         WireFamily::Gemini => json!({ "totalTokens": count }),
     }

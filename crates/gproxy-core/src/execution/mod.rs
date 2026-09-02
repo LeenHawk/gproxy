@@ -13,6 +13,7 @@ pub(crate) mod forwarding;
 pub(crate) mod ingress;
 pub(crate) mod invoke;
 mod local;
+mod local_models;
 mod model_catalogue;
 mod model_refresh;
 pub(crate) mod preprocess;

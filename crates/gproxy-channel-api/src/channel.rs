@@ -299,6 +299,11 @@ pub trait Channel: Send + Sync {
     /// materialize this table without changing operator-owned cells.
     fn routing_table(&self) -> &'static [ChannelSupport];
 
+    /// Models supplied by a local ListModels implementation for one credential.
+    fn local_models(&self, _secret: &Value) -> Option<Vec<crate::model::ModelInfo>> {
+        None
+    }
+
     /// First-time credential acquisition when this channel supports it.
     fn login(&self) -> Option<ChannelLoginRef<'_>> {
         None

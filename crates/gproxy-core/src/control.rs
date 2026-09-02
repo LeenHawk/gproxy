@@ -83,16 +83,7 @@ pub struct DiscoveredModel {
     pub max_output_tokens: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExposedModel {
-    pub id: String,
-    pub display_name: Option<String>,
-    pub context_window: Option<i64>,
-    pub max_output_tokens: Option<i64>,
-    pub thinking_supported: Option<bool>,
-    pub thinking_adaptive_supported: Option<bool>,
-    pub thinking_enabled_supported: Option<bool>,
-}
+pub use gproxy_channel_api::ModelInfo as ExposedModel;
 
 /// The ordered candidates one request may try, plus the failover budget.
 #[derive(Debug, Clone)]

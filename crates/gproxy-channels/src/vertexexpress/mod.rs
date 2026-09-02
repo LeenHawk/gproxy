@@ -1,5 +1,6 @@
 mod routes;
 
+mod catalog;
 mod model;
 mod prepare;
 mod shape;
@@ -91,6 +92,13 @@ impl Channel for VertexExpressChannel {
 
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
+    }
+
+    fn local_models(
+        &self,
+        _secret: &serde_json::Value,
+    ) -> Option<Vec<gproxy_channel_api::ModelInfo>> {
+        Some(catalog::models())
     }
 
     fn prepare(

@@ -17,13 +17,14 @@ pub(super) async fn run<H: Host>(
     owner_user_id: i64,
 ) -> Vec<ExposedModel> {
     let mut providers = BTreeMap::<i64, (String, Vec<Target>)>::new();
-    for target in plan.targets.iter().filter(|target| auto_refresh(target)) {
+    for target in &plan.targets {
         providers
             .entry(target.provider.id)
             .or_insert_with(|| (target.provider.name.clone(), Vec::new()))
             .1
             .push(target.clone());
     }
+    let namespace_models = !matches!(&request.mode, RoutingMode::Scoped { .. });
     let requests = providers
         .into_iter()
         .map(|(provider_id, (provider, targets))| {
@@ -37,6 +38,18 @@ pub(super) async fn run<H: Host>(
                 let OperationKind::Family(family) = classified.key.kind else {
                     return None;
                 };
+                let channel = core.channels.get(&targets.first()?.provider.channel)?;
+                if targets.iter().any(|target| {
+                    super::local_models::route_is_local(channel, target, classified.key)
+                }) {
+                    let models =
+                        super::local_models::run(core, channel, &targets, namespace_models).await;
+                    return Some((provider_id, provider.clone(), models));
+                }
+                let targets = targets.into_iter().filter(auto_refresh).collect::<Vec<_>>();
+                if targets.is_empty() {
+                    return None;
+                }
                 let budget = FailoverBudget {
                     max_attempts: plan
                         .budget
@@ -64,37 +77,49 @@ pub(super) async fn run<H: Host>(
                     (
                         provider_id,
                         provider.clone(),
-                        parse(family, &provider, &body),
+                        parse(family, &provider, &body, namespace_models),
                     )
                 })
             }
         });
     // Read-only: what a provider reports is shown, never written. Which models a
     // provider serves is the operator's decision, taken in the pull dialog.
-    let mut persisted = Vec::new();
+    let mut pulled = Vec::new();
     for (provider_id, provider, models) in join_all(requests).await.into_iter().flatten() {
         let _ = (provider_id, provider);
-        persisted.extend(models);
+        pulled.extend(models);
     }
-    // The operator's rows win: anything disabled there never reaches a client, and
-    // anything already recorded keeps the limits they set rather than the wire's.
-    let catalogue = control.provider_catalogue();
-    let known = catalogue
-        .iter()
-        .map(|model| model.id.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    catalogue
-        .iter()
-        .cloned()
-        .chain(
-            persisted
-                .into_iter()
-                .filter(|model| !known.contains(model.id.as_str())),
-        )
-        .collect()
+    pulled
 }
 
-fn parse(family: WireFamily, provider: &str, body: &[u8]) -> Vec<ExposedModel> {
+pub(super) async fn for_local_get<H: Host>(
+    core: &Core<H>,
+    control: &dyn ControlPlane,
+    request: &RequestCtx,
+    plan: &Plan,
+    classified: &super::request::Classified,
+    owner_user_id: i64,
+) -> Vec<ExposedModel> {
+    let models = run(core, control, request, plan, owner_user_id).await;
+    if !models.is_empty() {
+        return models;
+    }
+    let key = gproxy_protocol::OperationKey {
+        operation: gproxy_protocol::Operation::ListModels,
+        kind: classified.key.kind,
+    };
+    let Some((method, path)) = gproxy_protocol::request_target(key, "") else {
+        return Vec::new();
+    };
+    let mut list = request.clone();
+    list.method = method;
+    list.path = path;
+    list.query = None;
+    list.body = bytes::Bytes::new();
+    run(core, control, &list, plan, owner_user_id).await
+}
+
+fn parse(family: WireFamily, provider: &str, body: &[u8], namespace: bool) -> Vec<ExposedModel> {
     let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
         return Vec::new();
     };
@@ -105,14 +130,20 @@ fn parse(family: WireFamily, provider: &str, body: &[u8]) -> Vec<ExposedModel> {
     .and_then(serde_json::Value::as_array)
     .into_iter()
     .flatten();
-    models.filter_map(|model| entry(provider, model)).collect()
+    models
+        .filter_map(|model| entry(provider, model, namespace))
+        .collect()
 }
 
-fn entry(provider: &str, value: &serde_json::Value) -> Option<ExposedModel> {
+fn entry(provider: &str, value: &serde_json::Value, namespace: bool) -> Option<ExposedModel> {
     let raw_id = value.get("id").or_else(|| value.get("name"))?.as_str()?;
     let id = raw_id.strip_prefix("models/").unwrap_or(raw_id);
-    let entry = ExposedModel {
-        id: format!("{provider}/{id}"),
+    Some(ExposedModel {
+        id: if namespace {
+            format!("{provider}/{id}")
+        } else {
+            id.into()
+        },
         display_name: text(value, &["display_name", "displayName"]),
         context_window: integer(
             value,
@@ -134,9 +165,7 @@ fn entry(provider: &str, value: &serde_json::Value) -> Option<ExposedModel> {
         thinking_supported: boolean(value, "thinking_supported"),
         thinking_adaptive_supported: boolean(value, "thinking_adaptive_supported"),
         thinking_enabled_supported: boolean(value, "thinking_enabled_supported"),
-    };
-    let _ = id;
-    Some(entry)
+    })
 }
 
 fn text(value: &serde_json::Value, names: &[&str]) -> Option<String> {

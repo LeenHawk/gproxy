@@ -35,6 +35,9 @@ fn openai(model: &ExposedModel) -> Value {
         "created": 0,
         "owned_by": "GPROXY",
     });
+    if let Some(display_name) = &model.display_name {
+        value["display_name"] = json!(display_name);
+    }
     if let Some(limit) = model.context_window {
         value["context_length"] = json!(limit);
         value["context_window"] = json!(limit);

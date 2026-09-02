@@ -6,6 +6,7 @@ mod endpoint;
 mod id;
 mod login;
 mod media;
+mod models;
 mod orchestrator;
 mod prepare;
 mod profile;
@@ -120,6 +121,10 @@ impl Channel for ClaudeWebChannel {
 
     fn descriptor(&self) -> &'static ChannelDescriptor {
         &DESCRIPTOR
+    }
+
+    fn local_models(&self, secret: &Value) -> Option<Vec<gproxy_channel_api::ModelInfo>> {
+        Some(models::from_secret(secret))
     }
 
     fn login(&self) -> Option<ChannelLoginRef<'_>> {

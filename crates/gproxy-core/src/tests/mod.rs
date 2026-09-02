@@ -3,6 +3,7 @@ mod channel;
 mod channel_session;
 mod channels;
 mod memory;
+mod models;
 mod orchestration;
 mod pricing;
 mod process;
