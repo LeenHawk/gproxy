@@ -162,12 +162,6 @@
     "transformTemplate": {
       "fillFrom": "從範本填入"
     },
-    "channelDefaults": {
-      "claudeapi_system-cache": {
-        "name": "Claude 系統提示快取",
-        "description": "將穩定的系統提示前綴快取一小時。"
-      }
-    },
     "values": {
       "inherited": "繼承",
       "prepend": "前置",

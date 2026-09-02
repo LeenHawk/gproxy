@@ -11,7 +11,6 @@ fn channel(defaults: Vec<ChannelSupportDto>) -> ChannelDto {
         provider_fields: Vec::new(),
         credential_fields: Vec::new(),
         endpoint_kinds: Vec::new(),
-        default_rule_set: None,
         traffic_policy: crate::dto::TrafficPolicyDto {
             request_headers: Vec::new(),
             response_headers: Vec::new(),
@@ -65,6 +64,9 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
         })
         .await
         .expect("insert provider");
+    crate::seed_provider_rule_set(&state.store, id, "deletable-provider")
+        .await
+        .expect("seed provider rule set");
     seed_admin_key(&state).await;
 
     let response = crate::dispatch(
@@ -75,15 +77,10 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
     .await
     .expect("delete provider");
     assert_eq!(response.status(), StatusCode::OK);
-    assert!(
-        state
-            .store
-            .control_snapshot()
-            .await
-            .unwrap()
-            .providers
-            .is_empty()
-    );
+    let snapshot = state.store.control_snapshot().await.unwrap();
+    assert!(snapshot.providers.is_empty());
+    assert!(snapshot.rule_sets.is_empty());
+    assert!(snapshot.provider_rule_sets.is_empty());
     let audit = state.store.audit_events(1).await.unwrap();
     assert_eq!(audit[0].event.action, "providers.delete");
     assert_eq!(audit[0].event.target_id, Some(id));
@@ -97,6 +94,7 @@ async fn declared_local_route_is_seeded() {
     crate::seed_provider_defaults(
         &state.store,
         id,
+        "routing-provider",
         &channel(vec![route(RoutingImplementationDto::Local)]),
     )
     .await
@@ -111,6 +109,16 @@ async fn declared_local_route_is_seeded() {
         .remove(0);
     assert_eq!(row.implementation, "local");
     assert_eq!(row.origin, "channel_default");
+    let snapshot = state.store.control_snapshot().await.unwrap();
+    assert_eq!(snapshot.rule_sets.len(), 1);
+    assert_eq!(
+        snapshot.rule_sets[0].description.as_deref(),
+        Some(&*format!("gproxy:provider-default:{id}"))
+    );
+    assert!(snapshot.rules.is_empty());
+    assert_eq!(snapshot.provider_rule_sets.len(), 1);
+    assert_eq!(snapshot.provider_rule_sets[0].provider_id, id);
+    assert_eq!(snapshot.provider_rule_sets[0].origin, "operator");
 }
 
 #[tokio::test]

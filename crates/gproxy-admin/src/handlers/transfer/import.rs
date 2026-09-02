@@ -159,7 +159,20 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
         create(state, Entity::RoutingRules, &value).await?;
         imported += 1;
     }
+    let provider_defaults = state.store().control_snapshot().await?.rule_sets;
     for value in data.rule_sets {
+        if let Some(source_provider_id) = provider_default_owner(&value)
+            && let Some(provider_id) = maps.providers.get(&source_provider_id)
+        {
+            let sentinel = format!("gproxy:provider-default:{provider_id}");
+            if let Some(current) = provider_defaults
+                .iter()
+                .find(|set| set.description.as_deref() == Some(sentinel.as_str()))
+            {
+                maps.rule_sets.insert(value.id, current.id);
+                continue;
+            }
+        }
         map_create(
             state,
             Entity::RuleSets,
@@ -175,9 +188,16 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
         create(state, Entity::Rules, &value).await?;
         imported += 1;
     }
+    let existing_attachments = state.store().control_snapshot().await?.provider_rule_sets;
     for mut value in data.provider_rule_sets {
         value.provider_id = mapped(&maps.providers, value.provider_id)?;
         value.rule_set_id = mapped(&maps.rule_sets, value.rule_set_id)?;
+        if existing_attachments.iter().any(|attachment| {
+            attachment.provider_id == value.provider_id
+                && attachment.rule_set_id == value.rule_set_id
+        }) {
+            continue;
+        }
         create(state, Entity::ProviderRuleSets, &value).await?;
         imported += 1;
     }
@@ -190,4 +210,13 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
             skipped_user_keys,
         },
     )
+}
+
+fn provider_default_owner(rule_set: &RuleSetDto) -> Option<i64> {
+    rule_set
+        .description
+        .as_deref()?
+        .strip_prefix("gproxy:provider-default:")?
+        .parse()
+        .ok()
 }

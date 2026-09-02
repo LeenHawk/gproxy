@@ -14,7 +14,10 @@ mod state;
 
 pub use auth::AuthSource;
 pub use credential_label::auto_label as default_credential_label;
-pub use defaults::{backfill_provider_defaults, reset_provider_defaults, seed_provider_defaults};
+pub use defaults::{
+    backfill_provider_defaults, delete_provider_rule_set, reset_provider_defaults,
+    seed_provider_defaults, seed_provider_rule_set,
+};
 pub use dispatch::dispatch;
 pub use error::AdminError;
 pub use portal::{PortalIdentity, dispatch as portal_dispatch};

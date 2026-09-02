@@ -93,6 +93,7 @@ impl CompiledSnapshot {
             .map(|route| (route.name.clone(), route.id))
             .collect();
         let model_index = index::exposed(&stored, &routes)?;
+        let provider_model_variants = index::provider_variants(&stored.provider_models)?;
         let (global_aliases, provider_aliases) = index::aliases(&stored.aliases);
         let pricing = pricing::compile(&stored.price_rules, &stored.price_rates)?;
         let identities = index::identities(&stored);
@@ -111,6 +112,7 @@ impl CompiledSnapshot {
             model_catalogue: model_index.catalogue,
             provider_catalogue,
             model_variants: model_index.variants,
+            provider_model_variants,
             global_aliases,
             provider_aliases,
             pricing,

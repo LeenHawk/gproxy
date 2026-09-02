@@ -38,7 +38,13 @@ impl CompiledSnapshot {
             {
                 (format!("{name}/{model}"), Some(name.as_str()))
             }
-            _ => (model.to_owned(), None),
+            RoutingMode::Scoped { provider } => {
+                return self.provider_variant(provider, model);
+            }
+            RoutingMode::Named { name } if !self.route_names.contains_key(name) => {
+                return self.provider_variant(name, model);
+            }
+            RoutingMode::Aggregated | RoutingMode::Named { .. } => (model.to_owned(), None),
         };
         let base = self.model_variants.get(&lookup)?;
         match namespace {
@@ -48,6 +54,14 @@ impl CompiledSnapshot {
                 .map(str::to_owned),
             None => Some(base.clone()),
         }
+    }
+
+    fn provider_variant(&self, provider: &str, model: &str) -> Option<String> {
+        let provider = self.provider_names.get(provider)?;
+        self.provider_model_variants
+            .get(provider)?
+            .get(model)
+            .cloned()
     }
 
     pub(super) fn resolve_preprocessed(

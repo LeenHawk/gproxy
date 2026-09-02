@@ -215,10 +215,5 @@ function scopeLabel(count: number, t: (key: string) => string) {
 }
 
 function ruleSetText(set: RuleSetDto, field: "name" | "description", t: (key: string) => string) {
-  const marker = set.description?.startsWith("gproxy:channel-default:") ? set.description : null
-  if (marker) {
-    const key = marker.slice("gproxy:channel-default:".length).replaceAll(":", "_")
-    return t(`rules.channelDefaults.${key}.${field}`)
-  }
   return field === "name" ? set.name : set.description ?? t("rules.sets.noDescription")
 }

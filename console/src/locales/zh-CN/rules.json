@@ -162,12 +162,6 @@
     "transformTemplate": {
       "fillFrom": "从模板填充"
     },
-    "channelDefaults": {
-      "claudeapi_system-cache": {
-        "name": "Claude 系统提示缓存",
-        "description": "将稳定的系统提示前缀缓存一小时。"
-      }
-    },
     "values": {
       "inherited": "继承",
       "prepend": "前置",

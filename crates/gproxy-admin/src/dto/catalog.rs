@@ -24,25 +24,7 @@ pub struct ChannelDto {
     pub provider_fields: Vec<ChannelFieldDto>,
     pub credential_fields: Vec<ChannelFieldDto>,
     pub endpoint_kinds: Vec<String>,
-    pub default_rule_set: Option<ChannelDefaultRuleSetDto>,
     pub traffic_policy: super::TrafficPolicyDto,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-pub struct ChannelDefaultRuleSetDto {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub rules: Vec<ChannelDefaultRuleDto>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-pub struct ChannelDefaultRuleDto {
-    pub kind: String,
-    #[ts(type = "unknown")]
-    pub config: serde_json::Value,
-    pub filter_operations: Option<Vec<String>>,
-    pub sort_order: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -176,23 +158,6 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
         } else {
             Vec::new()
         },
-        default_rule_set: channel
-            .default_rule_set()
-            .map(|set| ChannelDefaultRuleSetDto {
-                id: set.id.into(),
-                name: set.name.into(),
-                description: set.description.into(),
-                rules: set
-                    .rules
-                    .into_iter()
-                    .map(|rule| ChannelDefaultRuleDto {
-                        kind: rule.kind.into(),
-                        config: rule.config,
-                        filter_operations: rule.filter_operations,
-                        sort_order: rule.sort_order,
-                    })
-                    .collect(),
-            }),
         traffic_policy: descriptor.traffic_policy.into(),
     }
 }

@@ -63,13 +63,6 @@ impl Store {
     ) -> Result<i64, StoreError> {
         self.insert(control::insert_provider_rule_set(input)?).await
     }
-    pub async fn insert_provider_rule_set_default(
-        &self,
-        input: &ProviderRuleSetInput,
-    ) -> Result<i64, StoreError> {
-        self.insert(control::insert_provider_rule_set_default(input)?)
-            .await
-    }
     pub async fn update_provider_rule_set(
         &self,
         id: i64,

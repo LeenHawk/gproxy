@@ -5,6 +5,7 @@ mod pressure;
 mod quota;
 mod setup;
 mod tokenizer;
+mod variants;
 
 use base64::Engine as _;
 use bytes::Bytes;

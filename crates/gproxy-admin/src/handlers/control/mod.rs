@@ -106,7 +106,13 @@ pub(super) async fn delete(
     id: i64,
 ) -> Result<Response<Bytes>, AdminError> {
     let applied = match entity {
-        Entity::Providers => state.store().delete_provider(id).await?,
+        Entity::Providers => {
+            let deleted = state.store().delete_provider(id).await?;
+            if deleted {
+                crate::delete_provider_rule_set(state.store(), id).await?;
+            }
+            deleted
+        }
         Entity::Credentials => state.store().delete_credential(id).await?,
         Entity::Routes => state.store().delete_route(id).await?,
         Entity::RouteMembers => state.store().delete_route_member(id).await?,

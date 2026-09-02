@@ -204,7 +204,7 @@ async fn seed_first_run(
             .await?;
     }
     for channel in &options.bootstrap_channels {
-        store
+        let provider_id = store
             .insert_provider(&gproxy_store::records::ProviderInput {
                 name: channel.clone(),
                 label: None,
@@ -216,6 +216,9 @@ async fn seed_first_run(
                 enabled: true,
             })
             .await?;
+        gproxy_admin::seed_provider_rule_set(store, provider_id, channel)
+            .await
+            .map_err(|error| AppError::Bootstrap(error.to_string()))?;
     }
     Ok(())
 }

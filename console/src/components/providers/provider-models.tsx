@@ -9,25 +9,40 @@ import type { PriceRateDto } from "@/generated/PriceRateDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
+import type { ProviderRuleSetDto } from "@/generated/ProviderRuleSetDto"
+import type { RuleDto } from "@/generated/RuleDto"
+import type { RuleSetDto } from "@/generated/RuleSetDto"
 import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { ModelPullDialog } from "@/components/providers/model-pull-dialog"
 import { ProviderModelDialog } from "@/components/providers/provider-model-dialog"
 import { ProviderModelPricingDialog } from "@/components/providers/provider-model-pricing-dialog"
+import { syncVariantRules, type VariantRuleChanges } from "@/components/providers/provider-model-variant-rules"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Section } from "@/components/section"
 import { Switch } from "@/components/ui/switch"
 
-export function ProviderModels({ provider, models, priceRules, priceRates }: { provider: ProviderDto; models: Array<ProviderModelDto>; priceRules: Array<PriceRuleDto>; priceRates: Array<PriceRateDto> }) {
+export function ProviderModels({ provider, models, priceRules, priceRates, ruleSets, rules, attachments }: {
+  provider: ProviderDto
+  models: Array<ProviderModelDto>
+  priceRules: Array<PriceRuleDto>
+  priceRates: Array<PriceRateDto>
+  ruleSets: Array<RuleSetDto>
+  rules: Array<RuleDto>
+  attachments: Array<ProviderRuleSetDto>
+}) {
   const { t, i18n } = useTranslation()
   const client = useQueryClient()
   const [editing, setEditing] = useState<ProviderModelDto>()
   const [open, setOpen] = useState(false)
   const mutation = useMutation({
-    mutationFn: ({ value, id }: { value: ProviderModelWriteRequest; id?: number }) => saveProviderModel(value, id),
+    mutationFn: async ({ value, changes, id }: { value: ProviderModelWriteRequest; changes?: VariantRuleChanges; id?: number }) => {
+      await saveProviderModel(value, id)
+      if (changes) await syncVariantRules(provider, changes, ruleSets, rules, attachments)
+    },
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ["provider-models"] })
+      await Promise.all(["provider-models", "rule-sets", "rules", "provider-rule-sets"].map((key) => client.invalidateQueries({ queryKey: [key] })))
       toast.success(t("providers.models.saved"))
     },
     onError: () => toast.error(t("providers.models.saveError")),
@@ -104,10 +119,13 @@ export function ProviderModels({ provider, models, priceRules, priceRates }: { p
         key={editing?.id ?? "new"}
         open={open}
         onOpenChange={(value) => { setOpen(value); if (!value) setEditing(undefined) }}
-        providerId={provider.id}
+        provider={provider}
         model={editing}
+        ruleSets={ruleSets}
+        rules={rules}
+        attachments={attachments}
         saving={mutation.isPending}
-        onSave={async (value, id) => { await mutation.mutateAsync({ value, id }) }}
+        onSave={async (value, changes, id) => { await mutation.mutateAsync({ value, changes, id }) }}
       />
     </Section>
   )

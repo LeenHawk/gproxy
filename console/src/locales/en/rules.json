@@ -162,12 +162,6 @@
     "transformTemplate": {
       "fillFrom": "Fill from template"
     },
-    "channelDefaults": {
-      "claudeapi_system-cache": {
-        "name": "Claude system cache",
-        "description": "Caches the stable system prefix for one hour."
-      }
-    },
     "values": {
       "inherited": "Inherited",
       "prepend": "Prepend",

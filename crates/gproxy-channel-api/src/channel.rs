@@ -172,22 +172,6 @@ impl ChannelTrafficPolicy {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ChannelDefaultRuleSet {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub description: &'static str,
-    pub rules: Vec<ChannelDefaultRule>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChannelDefaultRule {
-    pub kind: &'static str,
-    pub config: Value,
-    pub filter_operations: Option<Vec<String>>,
-    pub sort_order: i64,
-}
-
 /// Everything `prepare` may read. Borrowed views: preparation copies
 /// nothing it does not rewrite.
 pub struct PrepareCtx<'a> {
@@ -310,10 +294,6 @@ pub trait Channel: Send + Sync {
     /// Provider defaults are policy, not a capability inference. Hosts
     /// materialize this table without changing operator-owned cells.
     fn routing_table(&self) -> &'static [ChannelSupport];
-
-    fn default_rule_set(&self) -> Option<ChannelDefaultRuleSet> {
-        None
-    }
 
     /// First-time credential acquisition when this channel supports it.
     fn login(&self) -> Option<ChannelLoginRef<'_>> {

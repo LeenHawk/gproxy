@@ -21,7 +21,7 @@ pub(super) async fn create(
                 .into_iter()
                 .find(|channel| channel.id == input.channel)
                 .ok_or_else(|| AdminError::BadRequest("unknown channel".into()))?;
-            crate::seed_provider_defaults(state.store(), id, &channel).await?;
+            crate::seed_provider_defaults(state.store(), id, &input.name, &channel).await?;
             id
         }
         Entity::Credentials => {

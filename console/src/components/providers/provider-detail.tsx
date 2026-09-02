@@ -137,7 +137,7 @@ export function ProviderDetail(props: Props) {
             onCredentialOpen={props.onCredentialOpen}
           />}
         </TabsContent>
-        <TabsContent value="models" className="pt-4"><ProviderModels provider={props.provider} models={props.providerModels} priceRules={props.priceRules} priceRates={props.priceRates} /></TabsContent>
+        <TabsContent value="models" className="pt-4"><ProviderModels provider={props.provider} models={props.providerModels} priceRules={props.priceRules} priceRates={props.priceRates} ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} /></TabsContent>
         <TabsContent value="rules" className="pt-4"><RulesWorkspace ruleSets={props.ruleSets} rules={props.rules} attachments={props.attachments} providers={props.providers} scopeProviderId={props.provider.id} mutations={props.ruleMutations} /></TabsContent>
         <TabsContent value="routing" className="pt-4"><ProviderRoutingRules provider={props.provider} channel={props.channel} rules={props.routingRules} /></TabsContent>
         <TabsContent value="settings" className="pt-4">

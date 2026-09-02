@@ -18,8 +18,6 @@ export * from "./BatchRequest";
 export * from "./BatchResponse";
 export * from "./BoundaryConfidenceDto";
 export * from "./BoundarySourceDto";
-export * from "./ChannelDefaultRuleDto";
-export * from "./ChannelDefaultRuleSetDto";
 export * from "./ChannelDto";
 export * from "./ChannelFieldControlDto";
 export * from "./ChannelFieldDto";

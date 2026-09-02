@@ -300,33 +300,6 @@ pub(crate) fn update_rule(id: i64, input: &RuleInput) -> Result<Statement, Store
     )
 }
 
-pub(crate) fn insert_provider_rule_set_default(
-    input: &ProviderRuleSetInput,
-) -> Result<Statement, StoreError> {
-    let now = now();
-    insert(
-        "provider_rule_sets",
-        &[
-            "provider_id",
-            "rule_set_id",
-            "sort_order",
-            "enabled",
-            "origin",
-            "created_at",
-            "updated_at",
-        ],
-        vec![
-            value(input.provider_id),
-            value(input.rule_set_id),
-            value(input.sort_order),
-            value(input.enabled),
-            value("channel_default"),
-            value(now),
-            value(now),
-        ],
-    )
-}
-
 pub(crate) fn insert_provider_rule_set(
     input: &ProviderRuleSetInput,
 ) -> Result<Statement, StoreError> {

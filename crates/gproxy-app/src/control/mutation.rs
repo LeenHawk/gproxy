@@ -43,7 +43,11 @@ pub(crate) async fn apply(
     let services = &handle.inner.host.services;
     let result = match mutation {
         ControlMutation::Provider(input) => {
-            MutationResult::Id(services.store.insert_provider(&input).await?)
+            let id = services.store.insert_provider(&input).await?;
+            gproxy_admin::seed_provider_rule_set(&services.store, id, &input.name)
+                .await
+                .map_err(|error| AppError::Control(error.to_string()))?;
+            MutationResult::Id(id)
         }
         ControlMutation::Credential {
             provider_id,

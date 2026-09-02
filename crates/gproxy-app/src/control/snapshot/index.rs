@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use gproxy_channel_api::CallerIdentity;
-use gproxy_store::records::{AliasRecord, ControlSnapshot};
+use gproxy_store::records::{AliasRecord, ControlSnapshot, ProviderModelRecord};
 
 use super::types::{CompiledRoute, KeyIdentity};
 
@@ -120,6 +120,36 @@ pub(super) fn aliases(
         }
     }
     (global, providers)
+}
+
+pub(super) fn provider_variants(
+    models: &[ProviderModelRecord],
+) -> Result<BTreeMap<i64, BTreeMap<String, String>>, gproxy_store::StoreError> {
+    let mut providers: BTreeMap<i64, BTreeMap<String, String>> = BTreeMap::new();
+    for model in models.iter().filter(|model| model.enabled) {
+        let parsed = gproxy_store::records::parse_model_variants(model.variants.as_ref()).map_err(
+            |message| gproxy_store::StoreError::InvalidData {
+                field: "model variants",
+                message: format!("{}: {message}", model.model_id),
+            },
+        )?;
+        let variants = providers.entry(model.provider_id).or_default();
+        for variant in parsed.names {
+            if variant == model.model_id {
+                continue;
+            }
+            if variants
+                .insert(variant.clone(), model.model_id.clone())
+                .is_some()
+            {
+                return Err(gproxy_store::StoreError::InvalidData {
+                    field: "model variants",
+                    message: format!("duplicate provider model `{variant}`"),
+                });
+            }
+        }
+    }
+    Ok(providers)
 }
 
 pub(super) fn identities(stored: &ControlSnapshot) -> BTreeMap<(u32, Vec<u8>), KeyIdentity> {

@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch"
 import type { ModelMetadataState } from "@/components/providers/provider-model-state"
 import { ProviderModelVariants } from "@/components/providers/provider-model-variants"
 
-export function ProviderModelFields({ modelId, value, onChange }: { modelId: string; value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
+export function ProviderModelFields({ modelId, channel, value, onChange }: { modelId: string; channel: string; value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
   const { t } = useTranslation()
   const id = useId()
   const set = <K extends keyof ModelMetadataState>(key: K, next: ModelMetadataState[K]) => onChange({ ...value, [key]: next })
@@ -34,9 +34,10 @@ export function ProviderModelFields({ modelId, value, onChange }: { modelId: str
     </FieldSet>
     <ProviderModelVariants
       modelId={modelId}
-      names={value.variants}
+      channel={channel}
+      rows={value.variants}
       exposeBase={value.exposeBase}
-      onNamesChange={(names) => set("variants", names)}
+      onRowsChange={(rows) => set("variants", rows)}
       onExposeBaseChange={(expose) => set("exposeBase", expose)}
     />
   </>

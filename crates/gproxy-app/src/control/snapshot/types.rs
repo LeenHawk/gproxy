@@ -38,6 +38,7 @@ pub(super) struct CompiledSnapshot {
     /// The operator's per-provider list, namespaced `provider/model` the way a client sees it.
     pub provider_catalogue: Vec<gproxy_core::ExposedModel>,
     pub model_variants: BTreeMap<String, String>,
+    pub provider_model_variants: BTreeMap<i64, BTreeMap<String, String>>,
     pub global_aliases: BTreeMap<String, String>,
     pub provider_aliases: BTreeMap<i64, BTreeMap<String, String>>,
     pub pricing: Vec<CompiledPriceRule>,

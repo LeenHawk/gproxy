@@ -26,10 +26,10 @@ pub mod usage;
 pub mod wire;
 
 pub use channel::{
-    Channel, ChannelDefaultRule, ChannelDefaultRuleSet, ChannelDescriptor, ChannelError,
-    ChannelField, ChannelFieldControl, ChannelRouteAction, ChannelSupport, ChannelTrafficPolicy,
-    Frame, PrepareCtx, PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx,
-    StreamDecoder, StreamEnd, StreamTail, UsageCtx,
+    Channel, ChannelDescriptor, ChannelError, ChannelField, ChannelFieldControl,
+    ChannelRouteAction, ChannelSupport, ChannelTrafficPolicy, Frame, PrepareCtx, PreparedRequest,
+    ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, StreamEnd, StreamTail,
+    UsageCtx,
 };
 pub use disposition::Disposition;
 pub use endpoint::endpoint_override_key;
