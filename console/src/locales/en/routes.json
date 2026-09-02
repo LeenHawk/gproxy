@@ -20,7 +20,6 @@
     },
     "form": {
       "createTitle": "Add route",
-      "editTitle": "Edit route",
       "attemptsHint": "Includes the first attempt and any failover attempts.",
       "created": "Route created.",
       "updated": "Route updated.",

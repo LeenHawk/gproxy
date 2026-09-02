@@ -14,6 +14,7 @@ import type { UserKeyCreateResponse } from "@/generated/UserKeyCreateResponse"
 import type { UserKeyDto } from "@/generated/UserKeyDto"
 import type { UserKeyRevealResponse } from "@/generated/UserKeyRevealResponse"
 import type { UserKeyUpdateRequest } from "@/generated/UserKeyUpdateRequest"
+import type { UserPasswordRequest } from "@/generated/UserPasswordRequest"
 import type { UserWriteRequest } from "@/generated/UserWriteRequest"
 import { api, json } from "@/api/client"
 import { deleteEntity } from "@/api/control"
@@ -30,6 +31,8 @@ export const saveTeam = (value: TeamWriteRequest, id?: number) =>
 export const users = () => api<Array<UserDto>>("/admin/api/users")
 export const saveUser = (value: UserWriteRequest, id?: number) =>
   save("/admin/api/users", value, id)
+export const saveUserPassword = (id: number, value: UserPasswordRequest) =>
+  api(`/admin/api/users/${id}/password`, json("POST", value))
 export const userKeys = () => api<Array<UserKeyDto>>("/admin/api/user-keys")
 export const createUserKey = (value: UserKeyCreateRequest) =>
   api<UserKeyCreateResponse>("/admin/api/user-keys", json("POST", value))

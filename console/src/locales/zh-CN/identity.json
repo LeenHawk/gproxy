@@ -72,11 +72,11 @@
     "fields": {
       "organization": "组织",
       "team": "团队",
-      "role": "角色"
+      "enabled": "启用",
+      "passwordKeep": "留空则保持当前密码不变。"
     },
     "roles": {
-      "admin": "管理员",
-      "user": "用户"
+      "admin": "管理员"
     },
     "created": "已创建用户。",
     "updated": "已更新用户。",

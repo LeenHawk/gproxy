@@ -72,11 +72,11 @@
     "fields": {
       "organization": "Organization",
       "team": "Team",
-      "role": "Role"
+      "enabled": "Enabled",
+      "passwordKeep": "Leave blank to keep the current password."
     },
     "roles": {
-      "admin": "Administrator",
-      "user": "User"
+      "admin": "Administrator"
     },
     "created": "User created.",
     "updated": "User updated.",

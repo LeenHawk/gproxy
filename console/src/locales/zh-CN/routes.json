@@ -20,7 +20,6 @@
     },
     "form": {
       "createTitle": "添加路由",
-      "editTitle": "编辑路由",
       "attemptsHint": "包括首次请求和所有故障转移尝试。",
       "created": "已创建路由。",
       "updated": "已更新路由。",
