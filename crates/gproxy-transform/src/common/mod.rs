@@ -4,6 +4,7 @@ pub(crate) const DEFAULT_CLAUDE_MAX_TOKENS: u64 = 16_384;
 
 pub(crate) mod claude_message_controls;
 pub(crate) mod content;
+pub(crate) mod gemini_schema;
 pub(crate) mod native;
 pub(crate) mod responses;
 pub(crate) mod stop;

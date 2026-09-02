@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::openai::common::{ResponseAllowedTool, ResponseAllowedToolChoice};
+use crate::openai::common::{ResponseAllowedTool, ResponseAllowedToolChoice, ResponseToolChoice};
 use crate::openai::generate_content::responses::{
     CodeInterpreterContainer, CodeInterpreterNetworkPolicy, ResponseCreateRequest,
     ResponseShellContainerSkill, ResponseShellEnvironment, ResponseTool,
@@ -161,5 +161,17 @@ fn response_tool_runtime_unions_round_trip() {
             name: Some(name),
             rest,
         } if server_label == "srv" && name == "lookup" && rest["future"] == 3
+    ));
+}
+
+#[test]
+fn named_response_tool_choice_is_not_consumed_by_the_hosted_fallback() {
+    let choice = round_trip::<ResponseToolChoice>(json!({
+        "type":"function",
+        "name":"get_weather"
+    }));
+    assert!(matches!(
+        choice,
+        ResponseToolChoice::Function(choice) if choice.name == "get_weather"
     ));
 }

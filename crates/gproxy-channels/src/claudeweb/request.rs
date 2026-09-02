@@ -68,12 +68,11 @@ pub(super) fn build(
     let (model, suffix) = model
         .strip_suffix("-thinking")
         .map_or((model, false), |model| (model, true));
-    let attachment = json!({
-        "extracted_content":merged,
-        "file_name":"paste.txt",
-        "file_type":"txt",
-        "file_size":merged.len(),
-    });
+    let prompt = if prompt.trim().is_empty() {
+        merged
+    } else {
+        format!("{}\n\n{}", prompt.trim(), merged)
+    };
     let input_tokens = u64::try_from(request.to_string().chars().count())
         .unwrap_or(u64::MAX)
         .div_ceil(4)
@@ -81,7 +80,7 @@ pub(super) fn build(
     Ok(WebRequest {
         body: json!({
             "max_tokens_to_sample":request.get("max_tokens").and_then(Value::as_u64).unwrap_or(8192),
-            "attachments":[attachment],
+            "attachments":[],
             "files":[],
             "model":model,
             "rendering_mode":"messages",
@@ -90,7 +89,7 @@ pub(super) fn build(
             "locale":"en-US",
             "effort":"medium",
             "thinking_mode":if explicit||suffix{"auto"}else{"off"},
-            "tools":request.get("tools").cloned().unwrap_or_else(||json!([])),
+            "tools":web_tools(request),
             "turn_message_uuids":{
                 "human_message_uuid":super::id::uuid(),
                 "assistant_message_uuid":super::id::uuid(),
@@ -101,6 +100,23 @@ pub(super) fn build(
         input_tokens,
         model: model.into(),
     })
+}
+
+fn web_tools(request: &Value) -> Value {
+    let mut tools = request
+        .get("tools")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for tool in &mut tools {
+        let Some(tool) = tool.as_object_mut() else {
+            continue;
+        };
+        if tool.get("type").and_then(Value::as_str) == Some("custom") {
+            tool.remove("type");
+        }
+    }
+    Value::Array(tools)
 }
 
 pub(super) fn tool_results(request: &Value) -> Vec<Value> {

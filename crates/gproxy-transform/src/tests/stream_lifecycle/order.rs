@@ -83,6 +83,45 @@ fn responses_to_chat_forwards_source_order_without_terminal_replay() {
 }
 
 #[test]
+fn responses_sparse_tool_arguments_are_recovered_from_the_done_item() {
+    let cases = [
+        (Kind::OpenAiChat, "chat.completion.chunk"),
+        (Kind::ClaudeMessages, "input_json_delta"),
+    ];
+    for (target, marker) in cases {
+        let mut stream = ResponseStream::new(
+            content(Operation::StreamGenerateContent, target),
+            content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
+        )
+        .unwrap();
+        let inputs = [
+            r#"{"type":"response.created","response":{"id":"resp_tool","object":"response","created_at":1,"model":"gpt","status":"in_progress","output":[]}}"#,
+            r#"{"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"get_weather","arguments":"","status":"in_progress"}}"#,
+            r#"{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"get_weather","arguments":"{\"city\":\"Beijing\"}","status":"completed"}}"#,
+            r#"{"type":"response.completed","response":{"id":"resp_tool","object":"response","created_at":1,"model":"gpt","status":"completed","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"get_weather","arguments":"{\"city\":\"Beijing\"}","status":"completed"}]}}"#,
+        ];
+        let mut output = Vec::new();
+        for input in inputs {
+            for frame in stream
+                .push(Bytes::from(format!("data: {input}\n\n")))
+                .unwrap()
+            {
+                output.extend_from_slice(&frame);
+            }
+        }
+        for frame in stream.finish().unwrap() {
+            output.extend_from_slice(&frame);
+        }
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.contains(marker), "missing {marker}: {output}");
+        assert!(
+            output.contains("Beijing"),
+            "missing tool arguments: {output}"
+        );
+    }
+}
+
+#[test]
 fn chat_to_responses_emits_deltas_and_terminal_on_the_source_frames() {
     let mut stream = ResponseStream::new(
         content(Operation::StreamGenerateContent, Kind::OpenAiResponses),

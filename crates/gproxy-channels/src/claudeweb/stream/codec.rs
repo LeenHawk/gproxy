@@ -89,7 +89,7 @@ impl Codec {
         }
     }
 
-    fn message_start(&self) -> Bytes {
+    pub(super) fn message_start(&self) -> Bytes {
         encode(&json!({
             "type":"message_start",
             "message":{"id":self.state.message_id,"type":"message","role":"assistant",

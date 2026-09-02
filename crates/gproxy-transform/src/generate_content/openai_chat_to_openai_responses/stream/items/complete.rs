@@ -34,4 +34,18 @@ impl State {
             | openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
         }
     }
+
+    pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn done_item(
+        &mut self,
+        item: openai::ResponseItem,
+        output_index: u32,
+        event_rest: openai::Rest,
+    ) -> Result<Vec<Bytes>, TransformError> {
+        match item {
+            openai::ResponseItem::Typed(item) => {
+                self.complete_typed_item(*item, output_index, event_rest)
+            }
+            openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
+        }
+    }
 }

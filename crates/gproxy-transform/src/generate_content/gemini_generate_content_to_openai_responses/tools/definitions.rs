@@ -130,7 +130,9 @@ fn search_types(
 }
 
 fn typed_schema(schema: gemini::Schema) -> Result<openai::JsonSchema, TransformError> {
-    object_schema(serde_json::to_value(schema)?)
+    let mut value = serde_json::to_value(schema)?;
+    crate::common::gemini_schema::normalize(&mut value);
+    object_schema(value)
 }
 
 fn object_schema(value: serde_json::Value) -> Result<openai::JsonSchema, TransformError> {

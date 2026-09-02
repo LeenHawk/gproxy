@@ -45,7 +45,9 @@ impl State {
             openai::KnownResponseStreamEvent::ResponseOutputItemAdded(event) => {
                 self.add_item(*event.item, event.output_index, event.rest)
             }
-            openai::KnownResponseStreamEvent::ResponseOutputItemDone(_) => Ok(Vec::new()),
+            openai::KnownResponseStreamEvent::ResponseOutputItemDone(event) => {
+                self.done_item(*event.item, event.output_index, event.rest)
+            }
             openai::KnownResponseStreamEvent::ResponseContentPartAdded(event)
             | openai::KnownResponseStreamEvent::ResponseContentPartDone(event) => self
                 .complete_part(

@@ -25,6 +25,7 @@ pub(crate) struct State {
     pub(super) item_indices: BTreeMap<String, u64>,
     pub(super) response_indices: BTreeMap<(String, Option<u32>), u64>,
     pub(super) response_output_indices: BTreeMap<u32, Vec<u64>>,
+    pub(super) response_tool_inputs: BTreeMap<u64, String>,
     pub(super) open: BTreeSet<u64>,
     pub(super) pending_rest: openai::Rest,
 }
@@ -44,6 +45,7 @@ impl State {
             item_indices: BTreeMap::new(),
             response_indices: BTreeMap::new(),
             response_output_indices: BTreeMap::new(),
+            response_tool_inputs: BTreeMap::new(),
             open: BTreeSet::new(),
             pending_rest: Default::default(),
         }

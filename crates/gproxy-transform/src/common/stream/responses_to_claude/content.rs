@@ -139,6 +139,10 @@ impl State {
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
         let index = self.response_index(Some(&event.item_id), None)?;
+        self.response_tool_inputs
+            .get_mut(&index)
+            .ok_or_else(|| TransformError::shape("Responses stream", "tool input state missing"))?
+            .push_str(&event.delta);
         output.push(self.input_delta(index, event.delta, event.rest)?);
         Ok(output)
     }
@@ -159,11 +163,39 @@ impl State {
         &mut self,
         item_id: Option<&str>,
         output_index: u32,
+        full: String,
         rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let output = self.ensure_start(Default::default(), rest.clone())?;
-        self.response_index_for_output(item_id, output_index, None)?;
+        let mut output = self.ensure_start(Default::default(), rest.clone())?;
+        let index = self.response_index_for_output(item_id, output_index, None)?;
+        output.extend(self.response_tool_full(index, full)?);
         self.pending_rest.extend(rest);
         Ok(output)
+    }
+
+    pub(super) fn response_tool_full(
+        &mut self,
+        index: u64,
+        full: String,
+    ) -> Result<Vec<Bytes>, TransformError> {
+        let current = self
+            .response_tool_inputs
+            .get_mut(&index)
+            .ok_or_else(|| TransformError::shape("Responses stream", "tool input state missing"))?;
+        let delta = full
+            .strip_prefix(current.as_str())
+            .ok_or_else(|| {
+                TransformError::shape(
+                    "Responses stream",
+                    "tool input done value does not extend prior deltas",
+                )
+            })?
+            .to_owned();
+        *current = full;
+        if delta.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Ok(vec![self.input_delta(index, delta, Default::default())?])
+        }
     }
 }

@@ -12,6 +12,16 @@ impl State {
         event: openai::ResponseOutputItemEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let tool_input = match event.item.as_ref() {
+            openai::ResponseItem::Typed(item) => match item.as_ref() {
+                openai::TypedResponseItem::FunctionCall { arguments, .. } => {
+                    Some(arguments.clone())
+                }
+                openai::TypedResponseItem::CustomToolCall { input, .. } => Some(input.clone()),
+                _ => None,
+            },
+            openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
+        };
         let id = item_id(&event.item);
         let indices = if let Some(id) = id {
             self.response_indices
@@ -25,6 +35,13 @@ impl State {
         };
         if indices.is_empty() {
             return Ok(output);
+        }
+        if let Some(full) = tool_input {
+            for index in &indices {
+                if self.response_tool_inputs.contains_key(index) {
+                    output.extend(self.response_tool_full(*index, full.clone())?);
+                }
+            }
         }
         for (position, index) in indices.iter().enumerate() {
             let rest = if position + 1 == indices.len() {

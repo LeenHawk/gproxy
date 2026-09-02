@@ -6,6 +6,7 @@ use crate::common::tools::{callers_to_openai, merge};
 pub(super) fn convert(tool: claude::Tool) -> Result<openai::ResponseTool, TransformError> {
     let tool = normalize(tool)?;
     Ok(match tool {
+        claude::Tool::Custom(tool) => custom(tool)?,
         claude::Tool::Command(command) => match command {
             claude::CommandTool::Bash20241022(tool) => shell(tool.common, tool.rest),
             claude::CommandTool::Bash20250124(tool) => shell(tool.common, tool.rest),
@@ -49,6 +50,42 @@ pub(super) fn convert(tool: claude::Tool) -> Result<openai::ResponseTool, Transf
             rest: toolset.rest,
         },
         other => fallback(other)?,
+    })
+}
+
+fn custom(tool: claude::CustomTool) -> Result<openai::ResponseTool, TransformError> {
+    let parameters = serde_json::to_value(tool.input_schema)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| TransformError::shape("Claude custom tool", "schema must be an object"))?;
+    let mut rest = merge(tool.rest, tool.common.rest);
+    for key in [
+        "allowed_callers",
+        "cache_control",
+        "defer_loading",
+        "description",
+        "eager_input_streaming",
+        "input_examples",
+        "input_schema",
+        "name",
+        "strict",
+        "type",
+    ] {
+        rest.remove(key);
+    }
+    Ok(openai::ResponseTool::Function {
+        name: tool.name,
+        parameters: openai::ResponseFunctionParameters::Schema(parameters),
+        strict: tool
+            .common
+            .strict
+            .map(openai::ResponseFunctionStrict::Value)
+            .unwrap_or(openai::ResponseFunctionStrict::Absent),
+        defer_loading: tool.common.defer_loading,
+        description: tool.description,
+        output_schema: None,
+        allowed_callers: callers_to_openai(tool.common.allowed_callers),
+        rest,
     })
 }
 

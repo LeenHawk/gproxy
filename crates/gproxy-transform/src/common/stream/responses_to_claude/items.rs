@@ -183,6 +183,7 @@ impl State {
             event_rest,
         )?;
         self.response_indices.insert((item_id, None), index);
+        self.response_tool_inputs.insert(index, input.clone());
         self.response_output_indices
             .entry(output_index)
             .or_default()

@@ -3,7 +3,7 @@ use gproxy_protocol::claude;
 use crate::TransformError;
 
 pub(super) fn convert(mut value: serde_json::Value) -> Result<claude::JsonSchema, TransformError> {
-    normalize(&mut value);
+    crate::common::gemini_schema::normalize(&mut value);
     let serde_json::Value::Object(mut object) = value else {
         return Err(TransformError::shape(
             "Gemini tool schema",
@@ -43,25 +43,4 @@ fn take_object(
         .transpose()
         .map(|value| value.unwrap_or_else(Default::default))
         .map_err(Into::into)
-}
-
-fn normalize(value: &mut serde_json::Value) {
-    match value {
-        serde_json::Value::Object(map) => {
-            if let Some(kind) = map.get_mut("type") {
-                normalize_type(kind);
-            }
-            map.values_mut().for_each(normalize);
-        }
-        serde_json::Value::Array(values) => values.iter_mut().for_each(normalize),
-        _ => {}
-    }
-}
-
-fn normalize_type(value: &mut serde_json::Value) {
-    match value {
-        serde_json::Value::String(kind) => kind.make_ascii_lowercase(),
-        serde_json::Value::Array(values) => values.iter_mut().for_each(normalize_type),
-        _ => {}
-    }
 }

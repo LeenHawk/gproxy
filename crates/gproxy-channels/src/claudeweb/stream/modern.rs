@@ -38,6 +38,20 @@ impl Codec {
             }
             return Ok(None);
         }
+        if !self.started
+            && kind != "message_start"
+            && matches!(
+                kind.as_str(),
+                "content_block_start"
+                    | "content_block_delta"
+                    | "content_block_stop"
+                    | "message_delta"
+                    | "message_stop"
+            )
+        {
+            self.started = true;
+            frames.push(Frame(self.message_start()));
+        }
         match kind.as_str() {
             "message_start" => {
                 self.started = true;

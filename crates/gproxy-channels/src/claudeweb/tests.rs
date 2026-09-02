@@ -191,17 +191,15 @@ fn shapes_web_turn_and_parks_then_resumes_tool_stream() {
     let request = json!({
         "system":"be concise",
         "messages":[{"role":"user","content":"use weather"}],
-        "tools":[{"name":"weather","input_schema":{"type":"object"}}]
+        "tools":[{"type":"custom","name":"weather","input_schema":{"type":"object"}}]
     });
     let web = super::request::build(&request, "claude-opus-4-8-thinking", "", "UTC").unwrap();
     assert_eq!(web.body["model"], "claude-opus-4-8");
     assert_eq!(web.body["thinking_mode"], "auto");
-    assert!(
-        web.body["attachments"][0]["extracted_content"]
-            .as_str()
-            .unwrap()
-            .contains("use weather")
-    );
+    assert_eq!(web.body["tools"][0]["name"], "weather");
+    assert!(web.body["tools"][0].get("type").is_none());
+    assert!(web.body["attachments"].as_array().unwrap().is_empty());
+    assert!(web.body["prompt"].as_str().unwrap().contains("use weather"));
 
     let state = SessionState {
         conversation: "conversation-1".into(),
@@ -235,6 +233,31 @@ fn shapes_web_turn_and_parks_then_resumes_tool_stream() {
     assert!(text.contains("message_start"));
     assert!(text.contains("Sunny"));
     assert!(!text.contains("tool_result"));
+}
+
+#[test]
+fn modern_web_stream_without_message_start_gets_a_canonical_start() {
+    let state = SessionState {
+        conversation: "conversation-1".into(),
+        model: "claude-haiku-4-5-20251001".into(),
+        message_id: "msg-synthesized".into(),
+        input_tokens: 5,
+    };
+    let mut codec = Codec::new(state, false);
+    let output = codec
+        .push(Bytes::from_static(
+            b"data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n",
+        ))
+        .unwrap();
+    let text = output
+        .frames
+        .iter()
+        .map(|frame| String::from_utf8_lossy(&frame.0))
+        .collect::<String>();
+    assert!(text.starts_with("event: message_start"));
+    assert!(text.contains("msg-synthesized"));
+    assert!(text.contains("content_block_start"));
+    assert!(text.contains("hello"));
 }
 
 #[derive(Default)]

@@ -79,12 +79,20 @@ impl State {
             openai::KnownResponseStreamEvent::ResponseRefusalDone(event) => {
                 self.response_content_done(&event.item_id, Some(event.content_index), event.rest)
             }
-            openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDone(event) => {
-                self.response_tool_done(event.item_id.as_deref(), event.output_index, event.rest)
-            }
-            openai::KnownResponseStreamEvent::ResponseCustomToolCallInputDone(event) => {
-                self.response_tool_done(Some(&event.item_id), event.output_index, event.rest)
-            }
+            openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDone(event) => self
+                .response_tool_done(
+                    event.item_id.as_deref(),
+                    event.output_index,
+                    event.arguments,
+                    event.rest,
+                ),
+            openai::KnownResponseStreamEvent::ResponseCustomToolCallInputDone(event) => self
+                .response_tool_done(
+                    Some(&event.item_id),
+                    event.output_index,
+                    event.input,
+                    event.rest,
+                ),
             openai::KnownResponseStreamEvent::ResponseOutputTextAnnotationAdded(_)
             | openai::KnownResponseStreamEvent::ResponseInjectCreated(_)
             | openai::KnownResponseStreamEvent::ResponseInjectFailed(_)

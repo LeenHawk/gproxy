@@ -23,12 +23,12 @@ pub enum ChatToolChoice {
 pub enum ResponseToolChoice {
     Mode(ToolChoiceMode),
     Allowed(ResponseAllowedToolChoice),
-    Hosted(ResponseHostedToolChoice),
     Function(ResponseFunctionToolChoice),
     Mcp(ResponseMcpToolChoice),
     Custom(ResponseCustomToolChoice),
     ApplyPatch(ResponseApplyPatchToolChoice),
     Shell(ResponseShellToolChoice),
+    Hosted(ResponseHostedToolChoice),
     Unknown(Value),
 }
 

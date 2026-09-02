@@ -200,6 +200,128 @@ fn request_tool_definitions_map_or_drop_without_killing_text() {
 }
 
 #[test]
+fn named_responses_choice_and_gemini_schema_survive_claude_and_responses_pairs() {
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let claude = convert_request(
+        responses,
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        json!({
+            "model":"route",
+            "input":"weather",
+            "tools":[{"type":"function","name":"get_weather","parameters":{"type":"object"}}],
+            "tool_choice":{"type":"function","name":"get_weather"}
+        }),
+    );
+    assert_eq!(claude["tool_choice"]["type"], "tool");
+    assert_eq!(claude["tool_choice"]["name"], "get_weather");
+
+    let claude_source = content(Operation::GenerateContent, Kind::ClaudeMessages);
+    let responses_from_claude = convert_request(
+        claude_source,
+        responses,
+        json!({
+            "model":"route",
+            "max_tokens":64,
+            "messages":[{"role":"user","content":"weather"}],
+            "tools":[{
+                "name":"get_weather",
+                "description":"weather",
+                "strict":true,
+                "input_schema":{
+                    "type":"object",
+                    "properties":{"city":{"type":"string"}},
+                    "required":["city"]
+                }
+            }],
+            "tool_choice":{"type":"tool","name":"get_weather"}
+        }),
+    );
+    assert_eq!(responses_from_claude["tool_choice"]["type"], "function");
+    assert_eq!(responses_from_claude["tool_choice"]["name"], "get_weather");
+    assert_eq!(responses_from_claude["tools"][0]["strict"], true);
+    assert_eq!(
+        responses_from_claude["tools"][0]["parameters"]["properties"]["city"]["type"],
+        "string"
+    );
+    let wire = request(
+        claude_source,
+        responses,
+        Bytes::from(
+            serde_json::to_vec(&json!({
+                "model":"route",
+                "max_tokens":64,
+                "messages":[{"role":"user","content":"weather"}],
+                "tools":[{
+                    "name":"get_weather",
+                    "strict":true,
+                    "input_schema":{
+                        "type":"object",
+                        "properties":{"city":{"type":"string"}},
+                        "required":["city"]
+                    }
+                }]
+            }))
+            .unwrap(),
+        ),
+        "upstream-model",
+        false,
+    )
+    .unwrap();
+    serde_json::from_slice::<gproxy_protocol::openai::ResponseCreateRequest>(&wire)
+        .expect("converted Claude custom tool has no duplicate fields");
+
+    let chat_source = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let responses_from_chat = convert_request(
+        chat_source,
+        responses,
+        json!({
+            "model":"route",
+            "messages":[{"role":"user","content":"weather"}],
+            "tools":[{"type":"function","function":{
+                "name":"get_weather",
+                "strict":true,
+                "parameters":{
+                    "type":"object",
+                    "properties":{"city":{"type":"string"}},
+                    "required":["city"]
+                }
+            }}],
+            "tool_choice":{"type":"function","function":{"name":"get_weather"}}
+        }),
+    );
+    assert_eq!(responses_from_chat["tool_choice"]["type"], "function");
+    assert_eq!(responses_from_chat["tool_choice"]["name"], "get_weather");
+    assert_eq!(responses_from_chat["tools"][0]["strict"], true);
+    assert_eq!(
+        responses_from_chat["tools"][0]["parameters"]["properties"]["city"]["type"],
+        "string"
+    );
+
+    let gemini = content(Operation::GenerateContent, Kind::GeminiGenerateContent);
+    let responses = convert_request(
+        gemini,
+        responses,
+        json!({
+            "contents":[{"role":"user","parts":[{"text":"weather"}]}],
+            "tools":[{"functionDeclarations":[{
+                "name":"get_weather",
+                "description":"weather",
+                "parameters":{
+                    "type":"OBJECT",
+                    "properties":{"city":{"type":"STRING"}},
+                    "required":["city"]
+                }
+            }]}]
+        }),
+    );
+    assert_eq!(responses["tools"][0]["parameters"]["type"], "object");
+    assert_eq!(
+        responses["tools"][0]["parameters"]["properties"]["city"]["type"],
+        "string"
+    );
+}
+
+#[test]
 fn lossy_request_items_are_filtered_without_dropping_text() {
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
     let response_input = json!({
