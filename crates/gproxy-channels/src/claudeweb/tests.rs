@@ -4,8 +4,8 @@ use std::task::{Context, Poll, Waker};
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelError, ChannelSupport, CookieExchangeCtx, DriverInput,
-    OperationStep, OperationStream, PrepareCtx, SimpleHttp, StepResponse,
+    BoxFuture, Channel, ChannelError, ChannelSupport, ClientProfilePreset, CookieExchangeCtx,
+    DriverInput, OperationStep, OperationStream, PrepareCtx, SimpleHttp, StepResponse,
 };
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey};
 use http::{HeaderMap, Method, StatusCode};
@@ -98,11 +98,12 @@ fn cookie_login_discovers_the_account_uuid() {
         request.headers()["cookie"],
         secret.secret["cookie"].as_str().unwrap()
     );
-    assert!(
+    assert_eq!(
         request
             .extensions()
             .get::<gproxy_channel_api::ClientProfile>()
-            .is_some()
+            .and_then(|profile| profile.preset),
+        Some(ClientProfilePreset::Chrome148)
     );
     assert_eq!(ClaudeWebChannel.descriptor().credential_fields.len(), 1);
     assert_eq!(
