@@ -112,7 +112,7 @@ fn builds_documented_default_and_exact_override_urls() {
 }
 
 #[test]
-fn shapes_cache_sampling_prefill_and_fast_beta_together() {
+fn shapes_cache_sampling_prefill_and_feature_betas_together() {
     let secret = json!({"api_key":"key"});
     let settings = json!({});
     let mut headers = HeaderMap::new();
@@ -126,6 +126,7 @@ fn shapes_cache_sampling_prefill_and_fast_beta_together() {
         json!({
             "model":"route-model",
             "speed":"fast",
+            "thinking":{"type":"adaptive","display":"updates"},
             "temperature":0.7,
             "top_p":0.9,
             "top_k":40,
@@ -164,7 +165,7 @@ fn shapes_cache_sampling_prefill_and_fast_beta_together() {
     assert_eq!(shaped["future_request_field"]["kept"], true);
     assert_eq!(
         prepared.request.headers()["anthropic-beta"],
-        "files-api-2025-04-14,fast-mode-2026-02-01"
+        "files-api-2025-04-14,fast-mode-2026-02-01,thinking-display-updates-2026-08-18"
     );
 }
 

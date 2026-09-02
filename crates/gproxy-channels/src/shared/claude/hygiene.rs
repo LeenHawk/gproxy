@@ -4,6 +4,7 @@ use serde_json::Value;
 
 const FAST_MODE_BETA: &str = "fast-mode-2026-02-01";
 const CONTEXT_1M_BETA: &str = "context-1m-2025-08-07";
+const THINKING_DISPLAY_UPDATES_BETA: &str = "thinking-display-updates-2026-08-18";
 
 const SAMPLING_TOLERANT: &[&str] = &[
     "claude-sonnet-4-6",
@@ -32,11 +33,13 @@ pub(crate) fn messages(body: &mut Value, headers: &mut HeaderMap) {
     strip_sampling(body);
     coerce_prefill(body);
     append_fast_beta(body, headers);
+    append_thinking_display_beta(body, headers);
     strip_beta(headers, CONTEXT_1M_BETA);
 }
 
 pub(crate) fn count_tokens(body: &Value, headers: &mut HeaderMap) {
     append_fast_beta(body, headers);
+    append_thinking_display_beta(body, headers);
 }
 
 fn strip_sampling(body: &mut Value) {
@@ -100,6 +103,12 @@ fn coerce_prefill(body: &mut Value) {
 fn append_fast_beta(body: &Value, headers: &mut HeaderMap) {
     if body.get("speed").and_then(Value::as_str) == Some("fast") {
         append_beta(headers, FAST_MODE_BETA);
+    }
+}
+
+fn append_thinking_display_beta(body: &Value, headers: &mut HeaderMap) {
+    if body.pointer("/thinking/display").and_then(Value::as_str) == Some("updates") {
+        append_beta(headers, THINKING_DISPLAY_UPDATES_BETA);
     }
 }
 

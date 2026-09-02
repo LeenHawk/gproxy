@@ -3,10 +3,10 @@ import { GATEWAY_SOURCE_BY_CHANNEL, variantGroups } from "@/components/providers
 import { inferVariantSelection } from "@/components/providers/variant-presets/selection"
 
 describe("model variant presets", () => {
-  it("keeps the complete v2 protocol and gateway catalog", () => {
+  it("keeps the complete protocol and gateway preset catalog", () => {
     expect(variantGroups("openai_responses", "openai").map((group) => group.entries.length)).toEqual([5, 6, 3, 4])
     expect(variantGroups("openai_chat", "openai").map((group) => group.entries.length)).toEqual([5, 6, 3])
-    expect(variantGroups("claude", "claudeapi").map((group) => group.entries.length)).toEqual([5, 5])
+    expect(variantGroups("claude", "claudeapi").map((group) => group.entries.length)).toEqual([7, 5])
     expect(variantGroups("gemini", "aistudio").map((group) => group.entries.length)).toEqual([4])
     expect(GATEWAY_SOURCE_BY_CHANNEL.openrouter.entries).toHaveLength(15)
     expect(GATEWAY_SOURCE_BY_CHANNEL.vercel.entries).toHaveLength(11)
@@ -29,5 +29,14 @@ describe("model variant presets", () => {
     const minimal = variantGroups("gemini", "aistudio")[0].entries[0]
     expect(minimal.suffix).toBe("-thinking-none")
     expect(minimal.actions).toEqual([{ path: "generationConfig.thinkingConfig", value: { thinkingLevel: "MINIMAL" } }])
+  })
+
+  it("offers every Claude adaptive thinking display mode", () => {
+    const adaptive = variantGroups("claude", "claudeapi")[0].entries.slice(-3)
+    expect(adaptive.map((entry) => entry.actions[0].value)).toEqual([
+      { type: "adaptive", display: "omitted" },
+      { type: "adaptive", display: "summarized" },
+      { type: "adaptive", display: "updates" },
+    ])
   })
 })
