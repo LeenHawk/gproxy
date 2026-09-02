@@ -512,7 +512,7 @@ mod tests {
         let mut claude_code = http::HeaderMap::new();
         claude_code.insert(
             http::header::USER_AGENT,
-            "claude-cli/2.1.223 (external, cli)".parse().unwrap(),
+            "claude-cli/2.1.258 (external, cli)".parse().unwrap(),
         );
         assert!(!compiled[0].matches(op, "any-model", &claude_code));
         assert!(!compiled[0].matches(op, "any-model", &http::HeaderMap::new()));

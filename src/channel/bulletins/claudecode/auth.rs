@@ -35,8 +35,8 @@ pub(super) const OAUTH_SCOPE: &str =
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
-pub(super) const USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
-pub(super) const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.112";
+pub(super) const USER_AGENT: &str = "claude-cli/2.1.258 (external, cli)";
+pub(super) const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.258";
 
 /// Refresh OAuth access tokens thirty minutes before expiry.
 pub(super) const EXPIRY_SKEW_MS: i64 = 30 * 60 * 1000;

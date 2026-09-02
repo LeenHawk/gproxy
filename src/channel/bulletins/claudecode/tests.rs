@@ -148,7 +148,7 @@ fn prepare_injects_oauth_and_stainless() {
     assert_eq!(req.headers().get("x-stainless-lang").unwrap(), "js");
     assert_eq!(
         req.headers().get("x-stainless-package-version").unwrap(),
-        "0.81.0"
+        "0.112.1"
     );
     assert_eq!(req.headers().get("x-stainless-runtime").unwrap(), "node");
     assert_eq!(
@@ -169,11 +169,11 @@ fn prepare_injects_oauth_and_stainless() {
     );
     assert_eq!(
         req.headers().get("user-agent").unwrap(),
-        "claude-cli/2.1.112 (external, cli)"
+        "claude-cli/2.1.258 (external, cli)"
     );
     assert_eq!(
         req.headers().get("x-stainless-runtime-version").unwrap(),
-        "v22.20.0"
+        "v26.3.0"
     );
     assert_eq!(req.headers().get("accept-language").unwrap(), "*");
     assert_eq!(req.headers().get("sec-fetch-mode").unwrap(), "cors");
@@ -393,7 +393,7 @@ fn usage_uses_claude_code_wire_shape() {
     let request = usage::request(&json!({ "access_token": "tok" }), &json!({}))
         .unwrap()
         .unwrap();
-    assert_eq!(request.headers()["user-agent"], "claude-code/2.1.112");
+    assert_eq!(request.headers()["user-agent"], "claude-code/2.1.258");
     assert_eq!(
         request.headers()["accept"],
         "application/json, text/plain, */*"
