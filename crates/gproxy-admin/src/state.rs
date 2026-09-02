@@ -185,8 +185,6 @@ pub trait State: MaybeSend + MaybeSync {
 
     fn channel_catalogue(&self) -> Vec<ChannelDto>;
 
-    fn portal_identity(&self, headers: &http::HeaderMap) -> Result<PortalIdentity, AdminError>;
-
     fn portal_models(&self, identity: &PortalIdentity) -> Vec<PortalModelDto>;
 
     fn normalize_provider_settings(

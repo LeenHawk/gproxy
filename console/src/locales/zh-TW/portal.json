@@ -6,7 +6,6 @@
       "unknown": "未知"
     },
     "account": {
-      "maskedKey": "{{prefix}}••••••••",
       "logout": "登出"
     },
     "login": {
@@ -17,14 +16,14 @@
       "passwordHint": "登入狀態會保存在安全的瀏覽器 Cookie 中。",
       "checking": "正在檢查登入狀態…",
       "action": "繼續",
-      "submitting": "正在檢查金鑰…",
+      "submitting": "正在登入…",
       "error": "無法驗證此帳戶。請檢查後重試。"
     },
     "keys": {"title":"API 金鑰","description":"為 API 用戶端或 Codex access-token 登入建立金鑰。","label":"標籤","create":"建立金鑰","created":"請立即複製此金鑰，之後不會再次顯示。","unnamed":"未命名金鑰","revoke":"撤銷","empty":"尚無金鑰"},
     "password": {"title":"密碼","description":"變更登入使用者入口所使用的密碼。","current":"目前密碼","new":"新密碼","action":"變更密碼","saved":"密碼已變更。"},
     "overview": {
       "title": "歡迎，{{name}}",
-      "description": "連接你的工具、檢視此金鑰可呼叫的模型，並追蹤已結算支出。"
+      "description": "管理你的金鑰、連接工具，並追蹤已結算支出。"
     },
     "connect": {
       "title": "連接",
@@ -50,22 +49,21 @@
     },
     "models": {
       "title": "獲准使用的模型",
-      "description": "此金鑰可用的即時路由和功能。",
+      "description": "你的帳戶可用的即時路由和功能。",
       "model": "模型",
       "capabilities": "功能",
       "empty": "沒有可用模型",
-      "emptyDescription": "請讓營運方公開路由並授予此金鑰存取權限。",
+      "emptyDescription": "請讓營運方公開路由並授予你的帳戶存取權限。",
       "loadError": "無法載入獲准使用的模型，請重試。"
     },
     "quota": {
       "title": "配額視窗",
-      "description": "目前套用至此金鑰的支出視窗。",
+      "description": "目前套用至你的帳戶的支出視窗。",
       "loadError": "無法載入配額視窗，請重試。",
       "empty": "尚未分配支出配額",
-      "emptyDescription": "此金鑰目前沒有已設定的成本視窗。",
+      "emptyDescription": "你的帳戶目前沒有已設定的成本視窗。",
       "windowLabel": "{{scope}} · {{window}}",
       "scopes": {
-        "user_key": "金鑰",
         "user": "使用者",
         "organization": "組織",
         "team": "團隊"
@@ -81,7 +79,7 @@
     },
     "usage": {
       "title": "用量與成本",
-      "description": "所選範圍內此金鑰的已結算用量。",
+      "description": "所選範圍內你的帳戶已結算用量。",
       "rangeLabel": "用量範圍",
       "ranges": {
         "1": "1 天",
@@ -97,7 +95,7 @@
     },
     "recent": {
       "title": "最近結算請求",
-      "description": "此金鑰最近結算的請求。此處絕不會顯示請求或回應內文。",
+      "description": "你的帳戶最近結算的請求。此處絕不會顯示請求或回應內文。",
       "loadError": "無法載入最近請求，請重試。",
       "empty": "尚無結算請求",
       "time": "時間",

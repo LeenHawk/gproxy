@@ -6,7 +6,6 @@
       "unknown": "未知"
     },
     "account": {
-      "maskedKey": "{{prefix}}••••••••",
       "logout": "退出登录"
     },
     "login": {
@@ -17,14 +16,14 @@
       "passwordHint": "登录状态保存在安全的浏览器 Cookie 中。",
       "checking": "正在检查登录状态…",
       "action": "继续",
-      "submitting": "正在检查密钥…",
+      "submitting": "正在登录…",
       "error": "无法验证此账户。请检查后重试。"
     },
     "keys": {"title":"API 密钥","description":"为 API 客户端或 Codex access-token 登录创建密钥。","label":"标签","create":"创建密钥","created":"请立即复制该密钥，之后不会再次显示。","unnamed":"未命名密钥","revoke":"撤销","empty":"暂无密钥"},
     "password": {"title":"密码","description":"修改登录用户门户所使用的密码。","current":"当前密码","new":"新密码","action":"修改密码","saved":"密码已修改。"},
     "overview": {
       "title": "欢迎，{{name}}",
-      "description": "连接你的工具，查看此密钥可调用的模型，并跟踪已结算支出。"
+      "description": "管理你的密钥、连接工具，并跟踪已结算支出。"
     },
     "connect": {
       "title": "连接",
@@ -50,22 +49,21 @@
     },
     "models": {
       "title": "获准使用的模型",
-      "description": "此密钥可用的实时路由和能力。",
+      "description": "你的账户可用的实时路由和能力。",
       "model": "模型",
       "capabilities": "能力",
       "empty": "没有可用模型",
-      "emptyDescription": "请让运营方公开路由并授予此密钥访问权限。",
+      "emptyDescription": "请让运营方公开路由并授予你的账户访问权限。",
       "loadError": "无法加载获准使用的模型，请重试。"
     },
     "quota": {
       "title": "配额窗口",
-      "description": "当前应用于此密钥的支出窗口。",
+      "description": "当前应用于你的账户的支出窗口。",
       "loadError": "无法加载配额窗口，请重试。",
       "empty": "尚未分配支出配额",
-      "emptyDescription": "此密钥当前没有已配置的成本窗口。",
+      "emptyDescription": "你的账户当前没有已配置的成本窗口。",
       "windowLabel": "{{scope}} · {{window}}",
       "scopes": {
-        "user_key": "密钥",
         "user": "用户",
         "organization": "组织",
         "team": "团队"
@@ -81,7 +79,7 @@
     },
     "usage": {
       "title": "用量与成本",
-      "description": "所选范围内此密钥的已结算用量。",
+      "description": "所选范围内你的账户的已结算用量。",
       "rangeLabel": "用量范围",
       "ranges": {
         "1": "1 天",
@@ -97,7 +95,7 @@
     },
     "recent": {
       "title": "最近结算请求",
-      "description": "此密钥最近结算的请求。此处绝不会显示请求或响应正文。",
+      "description": "你的账户最近结算的请求。此处绝不会显示请求或响应正文。",
       "loadError": "无法加载最近请求，请重试。",
       "empty": "尚无结算请求",
       "time": "时间",

@@ -6,7 +6,6 @@
       "unknown": "Unknown"
     },
     "account": {
-      "maskedKey": "{{prefix}}••••••••",
       "logout": "Sign out"
     },
     "login": {
@@ -17,14 +16,14 @@
       "passwordHint": "Your session is stored in a secure browser cookie.",
       "checking": "Checking your session…",
       "action": "Continue",
-      "submitting": "Checking key…",
+      "submitting": "Signing in…",
       "error": "This account could not be authenticated. Check it and try again."
     },
     "keys": {"title":"API keys","description":"Create keys for API clients or Codex access-token login.","label":"Label","create":"Create key","created":"Copy this key now. It will not be shown again.","unnamed":"Unnamed key","revoke":"Revoke","empty":"No keys yet"},
     "password": {"title":"Password","description":"Change the password used to sign in to this portal.","current":"Current password","new":"New password","action":"Change password","saved":"Password changed."},
     "overview": {
       "title": "Welcome, {{name}}",
-      "description": "Connect your tools, check what this key can call, and track settled spend."
+      "description": "Manage your keys, connect your tools, and track settled spend."
     },
     "connect": {
       "title": "Connect",
@@ -50,22 +49,21 @@
     },
     "models": {
       "title": "Allowed models",
-      "description": "Live routes and capabilities available to this key.",
+      "description": "Live routes and capabilities available to your account.",
       "model": "Model",
       "capabilities": "Capabilities",
       "empty": "No models are available",
-      "emptyDescription": "Ask the operator to expose a route and grant this key access.",
+      "emptyDescription": "Ask the operator to expose a route and grant your account access.",
       "loadError": "Could not load allowed models. Retry."
     },
     "quota": {
       "title": "Quota windows",
-      "description": "The spending windows currently applied to this key.",
+      "description": "The spending windows currently applied to your account.",
       "loadError": "Could not load quota windows. Retry.",
       "empty": "No spending quota is assigned",
-      "emptyDescription": "This key currently has no configured cost window.",
+      "emptyDescription": "Your account currently has no configured cost window.",
       "windowLabel": "{{scope}} · {{window}}",
       "scopes": {
-        "user_key": "Key",
         "user": "User",
         "organization": "Organization",
         "team": "Team"
@@ -81,7 +79,7 @@
     },
     "usage": {
       "title": "Usage and cost",
-      "description": "Settled usage for this key over the selected range.",
+      "description": "Settled usage for your account over the selected range.",
       "rangeLabel": "Usage range",
       "ranges": {
         "1": "1 day",
@@ -97,7 +95,7 @@
     },
     "recent": {
       "title": "Recent settled requests",
-      "description": "The latest settled requests for this key. Request and response bodies are never shown here.",
+      "description": "The latest settled requests for your account. Request and response bodies are never shown here.",
       "loadError": "Could not load recent requests. Retry.",
       "empty": "No settled requests yet",
       "time": "Time",

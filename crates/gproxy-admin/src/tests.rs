@@ -234,26 +234,6 @@ impl State for TestState {
         Vec::new()
     }
 
-    fn portal_identity(&self, headers: &http::HeaderMap) -> Result<PortalIdentity, AdminError> {
-        let authenticated = headers
-            .get(http::header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            == Some("Bearer portal-test-key");
-        if !authenticated {
-            return Err(AdminError::Unauthorized);
-        }
-        Ok(PortalIdentity {
-            user_id: 11,
-            user_key_id: Some(12),
-            org_id: Some(13),
-            team_id: Some(14),
-            user_name: "portal-user".into(),
-            key_prefix: Some("sk-gp-test".into()),
-            key_label: None,
-            expires_at: None,
-        })
-    }
-
     fn portal_models(&self, _: &PortalIdentity) -> Vec<PortalModelDto> {
         Vec::new()
     }
@@ -274,7 +254,7 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
     let response = crate::portal_dispatch(&state, &portal, Bytes::new())
         .await
         .expect("portal context");
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     let admin_with_key = key_parts(Method::GET, "/admin/api/providers");
     let response = crate::dispatch(&state, &admin_with_key, Bytes::new())
@@ -286,7 +266,7 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
     let response = crate::portal_dispatch(&state, &scoped, Bytes::new())
         .await
         .expect("portal usage");
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     let providers = parts(Method::GET, "/admin/api/providers", None);
     let response = crate::dispatch(&state, &providers, Bytes::new())
@@ -325,6 +305,31 @@ async fn admin_and_portal_auth_boundaries_do_not_cross() {
         .await
         .expect("portal namespace");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let portal_login = parts(Method::POST, "/portal/api/login", None);
+    let response = crate::portal_dispatch(
+        &state,
+        &portal_login,
+        Bytes::from_static(br#"{"username":"admin","password":"secret"}"#),
+    )
+    .await
+    .expect("portal login");
+    assert_eq!(response.status(), StatusCode::OK);
+    let portal_cookie = response
+        .headers()
+        .get(http::header::SET_COOKIE)
+        .expect("portal session cookie")
+        .to_str()
+        .expect("cookie text")
+        .split(';')
+        .next()
+        .expect("cookie pair")
+        .to_owned();
+    let portal_context = parts(Method::GET, "/portal/api/context", Some(&portal_cookie));
+    let response = crate::portal_dispatch(&state, &portal_context, Bytes::new())
+        .await
+        .expect("password-authenticated portal context");
+    assert_eq!(response.status(), StatusCode::OK);
 
     let unknown = parts(Method::GET, "/admin/api/not-an-api", Some(&cookie));
     let response = crate::dispatch(&state, &unknown, Bytes::new())

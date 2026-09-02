@@ -1,40 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use gproxy_admin::PortalIdentity;
 use gproxy_admin::dto::{PortalModelCapabilityDto, PortalModelDto};
-use gproxy_admin::{AdminError, PortalIdentity};
 use gproxy_channel_api::CallerIdentity;
 use gproxy_core::{ControlPlane, RoutingMode};
 
 use crate::AppHandle;
-
-pub(super) fn identity(
-    handle: &AppHandle,
-    headers: &http::HeaderMap,
-) -> Result<PortalIdentity, AdminError> {
-    let caller = crate::host::authenticate_headers(&handle.inner.host, headers)
-        .map_err(|_| AdminError::Unauthorized)?;
-    let snapshot = handle.inner.host.services.control.current();
-    let key = snapshot
-        .user_keys
-        .iter()
-        .find(|key| key.id == caller.user_key_id)
-        .ok_or(AdminError::Unauthorized)?;
-    let user = snapshot
-        .users
-        .iter()
-        .find(|user| user.id == caller.user_id)
-        .ok_or(AdminError::Unauthorized)?;
-    Ok(PortalIdentity {
-        user_id: caller.user_id,
-        user_key_id: Some(caller.user_key_id),
-        org_id: caller.org_id,
-        team_id: caller.team_id,
-        user_name: user.name.clone(),
-        key_prefix: key.prefix.clone(),
-        key_label: key.label.clone(),
-        expires_at: key.expires_at,
-    })
-}
 
 pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<PortalModelDto> {
     let control = &handle.inner.host.services.control;
@@ -103,7 +74,7 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
 fn caller(identity: &PortalIdentity) -> CallerIdentity {
     CallerIdentity {
         user_id: identity.user_id,
-        user_key_id: identity.user_key_id.unwrap_or(-identity.user_id),
+        user_key_id: -identity.user_id,
         org_id: identity.org_id,
         team_id: identity.team_id,
     }

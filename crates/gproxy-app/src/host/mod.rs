@@ -20,7 +20,9 @@ use crate::cache::AppCache;
 use crate::control::SnapshotControl;
 
 use crate::secrets::EnvelopeCipher;
-pub(crate) use admission::{authenticate_headers, authorize};
+#[cfg(test)]
+pub(crate) use admission::authenticate_headers;
+pub(crate) use admission::authorize;
 
 pub(crate) struct Services {
     pub store: gproxy_store::Store,

@@ -6,9 +6,6 @@ use super::UserKeyPrefix;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct PortalContextDto {
     pub user_name: String,
-    pub key_prefix: Option<String>,
-    pub key_label: Option<String>,
-    pub expires_at: Option<i64>,
     pub recent_requests_enabled: bool,
 }
 
@@ -79,7 +76,6 @@ pub struct PortalUsageDto {
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 pub enum PortalQuotaScopeDto {
-    UserKey,
     User,
     Organization,
     Team,

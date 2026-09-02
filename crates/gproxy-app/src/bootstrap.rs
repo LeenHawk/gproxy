@@ -153,6 +153,18 @@ async fn seed_first_run(
             "unknown bootstrap channel: {channel}"
         )));
     }
+    if seeded
+        && store
+            .admin_by_username(&options.admin_user)
+            .await?
+            .is_none()
+    {
+        tracing::warn!(
+            user = options.admin_user.as_str(),
+            "configured administrator does not exist; leaving existing administrator credentials unchanged"
+        );
+        return Ok(());
+    }
     let admin_id = gproxy_admin::apply_admin_password(store, &options.admin_user, password)
         .await
         .map_err(|error| AppError::Bootstrap(error.to_string()))?;

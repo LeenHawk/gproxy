@@ -18,19 +18,14 @@ pub(crate) const RECENT_REQUESTS_SETTING: &str = "portal_recent_requests_enabled
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PortalIdentity {
     pub user_id: i64,
-    pub user_key_id: Option<i64>,
     pub org_id: Option<i64>,
     pub team_id: Option<i64>,
     pub user_name: String,
-    pub key_prefix: Option<String>,
-    pub key_label: Option<String>,
-    pub expires_at: Option<i64>,
 }
 
 impl PortalIdentity {
     fn quota_scope(&self, kind: &str, id: i64) -> Option<PortalQuotaScopeDto> {
         match kind {
-            "user_key" if Some(id) == self.user_key_id => Some(PortalQuotaScopeDto::UserKey),
             "user" if id == self.user_id => Some(PortalQuotaScopeDto::User),
             "organization" if Some(id) == self.org_id => Some(PortalQuotaScopeDto::Organization),
             "team" if Some(id) == self.team_id => Some(PortalQuotaScopeDto::Team),

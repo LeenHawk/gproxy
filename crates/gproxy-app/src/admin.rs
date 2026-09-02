@@ -487,10 +487,6 @@ impl State for AppHandle {
             .map_err(AdminError::BadRequest)
     }
 
-    fn portal_identity(&self, headers: &http::HeaderMap) -> Result<PortalIdentity, AdminError> {
-        portal::identity(self, headers)
-    }
-
     fn portal_models(&self, identity: &PortalIdentity) -> Vec<PortalModelDto> {
         portal::models(self, identity)
     }

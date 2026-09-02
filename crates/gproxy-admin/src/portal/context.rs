@@ -14,9 +14,6 @@ pub(super) async fn get(
         StatusCode::OK,
         &PortalContextDto {
             user_name: identity.user_name.clone(),
-            key_prefix: identity.key_prefix.clone(),
-            key_label: identity.key_label.clone(),
-            expires_at: identity.expires_at,
             recent_requests_enabled: recent_requests_enabled(&snapshot.settings),
         },
     )

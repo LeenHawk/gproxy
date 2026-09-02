@@ -25,16 +25,12 @@ pub(super) async fn identity(
             .ok_or(AdminError::Unauthorized)?;
         return Ok(PortalIdentity {
             user_id: user.id,
-            user_key_id: None,
             org_id: user.organization_id,
             team_id: user.team_id,
             user_name: user.name,
-            key_prefix: None,
-            key_label: None,
-            expires_at: None,
         });
     }
-    state.portal_identity(&parts.headers)
+    Err(AdminError::Unauthorized)
 }
 
 pub(super) async fn login(
@@ -63,13 +59,9 @@ pub(super) async fn login(
     let token = session::create(state, user.id).await?;
     let identity = PortalIdentity {
         user_id: user.id,
-        user_key_id: None,
         org_id: user.organization_id,
         team_id: user.team_id,
         user_name: user.name,
-        key_prefix: None,
-        key_label: None,
-        expires_at: None,
     };
     let mut response = response::json(StatusCode::OK, &context(state, &identity).await?)?;
     let secure = if parts.uri.scheme_str() == Some("https")
@@ -157,9 +149,6 @@ async fn context(
     let snapshot = state.store().control_snapshot().await?;
     Ok(PortalContextDto {
         user_name: identity.user_name.clone(),
-        key_prefix: identity.key_prefix.clone(),
-        key_label: identity.key_label.clone(),
-        expires_at: identity.expires_at,
         recent_requests_enabled: super::recent_requests_enabled(&snapshot.settings),
     })
 }
