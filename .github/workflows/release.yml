@@ -227,6 +227,22 @@ jobs:
           path: dist/release/manifest.json
           retention-days: 1
 
+  publish-crates:
+    name: Publish crates.io libraries
+    needs: [prepare, native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-crates
+      - name: Publish MIT crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: scripts/publish-crates.sh
+
   edge:
     name: Edge bundles
     needs: container
