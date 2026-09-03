@@ -24,6 +24,7 @@ import { useRuleMutations } from "@/components/rules/use-rule-mutations"
 import { useNow } from "@/lib/use-now"
 
 const MAX_CYCLE_RANGE_SECONDS = 366 * 24 * 60 * 60
+const PROVIDER_QUERY_KEYS = [["providers"], ["rule-sets"], ["provider-rule-sets"], ["routing-rules"]]
 
 type ProviderMutation = { value: ProviderWriteRequest; id?: number }
 type CredentialMutation = { value: CredentialWriteRequest; id?: number }
@@ -50,7 +51,9 @@ export function ProvidersPage() {
   const priceRateQuery = useQuery({ queryKey: ["price-rates"], queryFn: priceRates })
   const providerMutation = useMutation({
     mutationFn: ({ value, id }: ProviderMutation) => saveProvider(value, id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
+    onSuccess: () => Promise.all(
+      PROVIDER_QUERY_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    ),
   })
   const credentialMutation = useMutation({
     mutationFn: ({ value, id }: CredentialMutation) => saveCredential(value, id),

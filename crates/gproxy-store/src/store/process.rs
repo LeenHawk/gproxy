@@ -51,7 +51,17 @@ impl Store {
         self.update(control::update_rule_set(id, input)?).await
     }
     pub async fn delete_rule_set(&self, id: i64) -> Result<bool, StoreError> {
-        self.delete(control::delete_process("rule_sets", id)?).await
+        let mut results = self
+            .backend()
+            .batch(vec![
+                control::delete_provider_rule_sets_for_set(id)?,
+                control::delete_rules_for_set(id)?,
+                control::delete_process("rule_sets", id)?,
+            ])
+            .await?;
+        Ok(results
+            .pop()
+            .is_some_and(|result| result.affected_rows == 1))
     }
 
     pub async fn insert_rule(&self, input: &RuleInput) -> Result<i64, StoreError> {

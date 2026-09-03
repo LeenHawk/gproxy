@@ -386,6 +386,22 @@ pub(crate) fn delete_process(table: &'static str, id: i64) -> Result<Statement, 
     Statement::query(&query)
 }
 
+pub(crate) fn delete_rules_for_set(rule_set_id: i64) -> Result<Statement, StoreError> {
+    delete_for_set("rules", rule_set_id)
+}
+
+pub(crate) fn delete_provider_rule_sets_for_set(rule_set_id: i64) -> Result<Statement, StoreError> {
+    delete_for_set("provider_rule_sets", rule_set_id)
+}
+
+fn delete_for_set(table: &'static str, rule_set_id: i64) -> Result<Statement, StoreError> {
+    let query = Query::delete()
+        .from_table(Alias::new(table))
+        .and_where(Expr::col(Alias::new("rule_set_id")).eq(rule_set_id))
+        .to_owned();
+    Statement::query(&query)
+}
+
 fn now() -> i64 {
     web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)

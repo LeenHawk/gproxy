@@ -123,7 +123,8 @@ pub async fn delete_provider_rule_set(
     else {
         return Ok(());
     };
-    delete_rule_set(store, &snapshot, rule_set.id).await
+    store.delete_rule_set(rule_set.id).await?;
+    Ok(())
 }
 
 fn available_rule_set_name(
@@ -155,29 +156,7 @@ async fn remove_legacy_claude_default(store: &gproxy_store::Store) -> Result<(),
     else {
         return Ok(());
     };
-    delete_rule_set(store, &snapshot, rule_set.id).await
-}
-
-async fn delete_rule_set(
-    store: &gproxy_store::Store,
-    snapshot: &gproxy_store::records::ControlSnapshot,
-    rule_set_id: i64,
-) -> Result<(), AdminError> {
-    for attachment in snapshot
-        .provider_rule_sets
-        .iter()
-        .filter(|attachment| attachment.rule_set_id == rule_set_id)
-    {
-        store.delete_provider_rule_set(attachment.id).await?;
-    }
-    for rule in snapshot
-        .rules
-        .iter()
-        .filter(|rule| rule.rule_set_id == rule_set_id)
-    {
-        store.delete_rule(rule.id).await?;
-    }
-    store.delete_rule_set(rule_set_id).await?;
+    store.delete_rule_set(rule_set.id).await?;
     Ok(())
 }
 

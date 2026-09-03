@@ -132,8 +132,8 @@ export const providerRuleSets = () => api<Array<ProviderRuleSetDto>>("/admin/api
 export const saveProviderRuleSet = (value: ProviderRuleSetWriteRequest, id?: number) => save("/admin/api/provider-rule-sets", value, id)
 export const deleteProviderRuleSet = (id: number) => deleteEntity("provider-rule-sets", id)
 export const rulePresets = () => api<Array<RulePresetDto>>("/admin/api/rule-presets")
-export const applyRulePreset = (providerId: number, preset: string) =>
-  api<RuleSetDto>(`/admin/api/providers/${providerId}/rule-presets/${preset}`, json("POST", {}))
+export const applyRulePreset = (ruleSetId: number, preset: string) =>
+  api<RuleSetDto>(`/admin/api/rule-sets/${ruleSetId}/rule-presets/${preset}`, json("POST", {}))
 export const instanceSettings = () => api<InstanceSettingsDto>("/admin/api/instance-settings")
 export const saveInstanceSettings = (value: InstanceSettingsDto) =>
   api<InstanceSettingsDto>("/admin/api/instance-settings", json("PATCH", value))

@@ -136,18 +136,6 @@ pub(super) async fn delete(
     entity: Entity,
     id: i64,
 ) -> Result<Response<Bytes>, AdminError> {
-    let snapshot = state.store().control_snapshot().await?;
-    if entity_is_rule_set(entity)
-        && (snapshot.rules.iter().any(|rule| rule.rule_set_id == id)
-            || snapshot
-                .provider_rule_sets
-                .iter()
-                .any(|attachment| attachment.rule_set_id == id))
-    {
-        return Err(AdminError::Conflict(
-            "remove this rule set's rules and provider attachments first".into(),
-        ));
-    }
     let applied = match entity {
         Entity::RoutingRules => state.store().delete_routing_rule(id).await?,
         Entity::RuleSets => state.store().delete_rule_set(id).await?,
@@ -177,10 +165,6 @@ pub(super) async fn reset_routing_defaults(
         .ok_or(AdminError::NotFound)?;
     crate::reset_provider_defaults(state.store(), provider_id, &channel).await?;
     util::updated(state, true).await
-}
-
-fn entity_is_rule_set(entity: Entity) -> bool {
-    matches!(entity, Entity::RuleSets)
 }
 
 async fn routing_input(

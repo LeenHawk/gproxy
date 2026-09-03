@@ -61,9 +61,9 @@ pub(crate) async fn dispatch(
         Route::TlsPresets => catalogue::tls_presets(),
         Route::RulePresets => rule_presets::list(),
         Route::ApplyRulePreset {
-            provider_id,
+            rule_set_id,
             preset,
-        } => rule_presets::apply(state, provider_id, &preset).await,
+        } => rule_presets::apply(state, rule_set_id, &preset).await,
         Route::ResetRoutingDefaults(provider_id) => {
             rules::reset_routing_defaults(state, provider_id).await
         }

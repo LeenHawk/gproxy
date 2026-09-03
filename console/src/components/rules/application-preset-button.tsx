@@ -15,13 +15,13 @@ import {
 
 const RULE_QUERY_KEYS = [["rule-sets"], ["rules"], ["provider-rule-sets"]]
 
-export function ApplicationPresetButton({ providerId }: { providerId: number }) {
+export function ApplicationPresetButton({ ruleSetId }: { ruleSetId: number }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ["rule-presets"], queryFn: rulePresets })
   const presets = (query.data ?? []).filter((preset) => preset.category === "application")
   const mutation = useMutation({
-    mutationFn: (preset: string) => applyRulePreset(providerId, preset),
+    mutationFn: (preset: string) => applyRulePreset(ruleSetId, preset),
     onSuccess: async () => {
       await Promise.all(
         RULE_QUERY_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey })),

@@ -56,7 +56,7 @@ pub(crate) enum Route {
     Channels,
     TlsPresets,
     RulePresets,
-    ApplyRulePreset { provider_id: i64, preset: String },
+    ApplyRulePreset { rule_set_id: i64, preset: String },
     ResetRoutingDefaults(i64),
     Audit,
     Logs,
@@ -128,9 +128,9 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         if let ["users", user, "password"] = segments.as_slice() {
             return Some(Route::UserPassword(user.parse().ok()?));
         }
-        if let ["providers", provider, "rule-presets", preset] = segments.as_slice() {
+        if let ["rule-sets", rule_set, "rule-presets", preset] = segments.as_slice() {
             return Some(Route::ApplyRulePreset {
-                provider_id: provider.parse().ok()?,
+                rule_set_id: rule_set.parse().ok()?,
                 preset: (*preset).to_owned(),
             });
         }
@@ -265,8 +265,8 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         Route::UserPassword(id) => action("users.password", "users", Some(*id)),
         Route::ConfigurationImport => action("configuration.import", "configuration", None),
         Route::ApplyDefaultModelPrices => provider_action("default_prices.apply", body),
-        Route::ApplyRulePreset { provider_id, .. } => {
-            action("rule_preset.apply", "providers", Some(*provider_id))
+        Route::ApplyRulePreset { rule_set_id, .. } => {
+            action("rule_preset.apply", "rule_sets", Some(*rule_set_id))
         }
         Route::ResetRoutingDefaults(provider_id) => {
             action("routing_defaults.reset", "providers", Some(*provider_id))

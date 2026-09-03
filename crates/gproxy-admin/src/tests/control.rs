@@ -88,6 +88,103 @@ async fn delete_provider_reaches_non_rule_entity_handler() {
 }
 
 #[tokio::test]
+async fn delete_rule_set_removes_its_rules_and_provider_attachments() {
+    let state = state().await;
+    let provider_id = provider(&state).await;
+    let rule_set_id = state
+        .store
+        .insert_rule_set(&gproxy_store::records::RuleSetInput {
+            name: "deletable rules".into(),
+            description: None,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    state
+        .store
+        .insert_rule(&gproxy_store::records::RuleInput {
+            rule_set_id,
+            kind: "rewrite".into(),
+            config: serde_json::json!({"path":"metadata.test","action":"set","value":true}),
+            filter_model_pattern: None,
+            filter_operations: None,
+            filter_header_pattern: None,
+            sort_order: 0,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    state
+        .store
+        .insert_provider_rule_set(&gproxy_store::records::ProviderRuleSetInput {
+            provider_id,
+            rule_set_id,
+            sort_order: 0,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    seed_admin_key(&state).await;
+
+    let response = crate::dispatch(
+        &state,
+        &admin_parts(
+            Method::DELETE,
+            &format!("/admin/api/rule-sets/{rule_set_id}"),
+        ),
+        Bytes::new(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let snapshot = state.store.control_snapshot().await.unwrap();
+    assert!(snapshot.rule_sets.is_empty());
+    assert!(snapshot.rules.is_empty());
+    assert!(snapshot.provider_rule_sets.is_empty());
+}
+
+#[tokio::test]
+async fn compatibility_preset_populates_the_selected_rule_set_without_creating_another() {
+    let state = state().await;
+    let rule_set_id = state
+        .store
+        .insert_rule_set(&gproxy_store::records::RuleSetInput {
+            name: "client compatibility".into(),
+            description: None,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    seed_admin_key(&state).await;
+    let path = format!("/admin/api/rule-sets/{rule_set_id}/rule-presets/pi");
+
+    let response = crate::dispatch(&state, &admin_parts(Method::POST, &path), Bytes::new())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let snapshot = state.store.control_snapshot().await.unwrap();
+    assert_eq!(snapshot.rule_sets.len(), 1);
+    assert!(
+        snapshot
+            .rules
+            .iter()
+            .all(|rule| rule.rule_set_id == rule_set_id)
+    );
+    let applied = snapshot.rules.len();
+    assert!(applied > 0);
+
+    let response = crate::dispatch(&state, &admin_parts(Method::POST, &path), Bytes::new())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        state.store.control_snapshot().await.unwrap().rules.len(),
+        applied
+    );
+}
+
+#[tokio::test]
 async fn declared_local_route_is_seeded() {
     let state = state().await;
     let id = provider(&state).await;

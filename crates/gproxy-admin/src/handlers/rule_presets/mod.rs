@@ -3,6 +3,7 @@ mod opencode;
 
 use bytes::Bytes;
 use http::{Response, StatusCode};
+use std::collections::BTreeMap;
 
 use crate::dto::{RulePresetDto, RuleSetDto};
 use crate::{AdminError, State, response};
@@ -13,7 +14,7 @@ pub(super) fn list() -> Result<Response<Bytes>, AdminError> {
 
 pub(super) async fn apply(
     state: &impl State,
-    provider_id: i64,
+    rule_set_id: i64,
     preset_id: &str,
 ) -> Result<Response<Bytes>, AdminError> {
     let preset = catalog::all()
@@ -21,39 +22,20 @@ pub(super) async fn apply(
         .find(|preset| preset.id == preset_id)
         .ok_or(AdminError::NotFound)?;
     let snapshot = state.store().control_snapshot().await?;
-    if !snapshot
-        .providers
-        .iter()
-        .any(|value| value.id == provider_id)
-    {
-        return Err(AdminError::BadRequest("unknown provider".into()));
-    }
-    let set_input = gproxy_store::records::RuleSetInput {
-        name: format!("{} compatibility", preset.name),
-        description: Some(preset.description.clone()),
-        enabled: true,
-    };
-    let existing_set = snapshot
+    let rule_set = snapshot
         .rule_sets
         .iter()
-        .find(|value| value.description.as_deref() == Some(&preset.description));
-    let rule_set_id = match existing_set {
-        Some(value) => {
-            state.store().update_rule_set(value.id, &set_input).await?;
-            value.id
-        }
-        None => state.store().insert_rule_set(&set_input).await?,
-    };
+        .find(|value| value.id == rule_set_id)
+        .ok_or(AdminError::NotFound)?;
     upsert_rules(state, &snapshot, rule_set_id, &preset).await?;
-    upsert_attachment(state, &snapshot, provider_id, rule_set_id).await?;
     state.reload().await?;
     response::json(
         StatusCode::OK,
         &RuleSetDto {
             id: rule_set_id,
-            name: set_input.name,
-            description: set_input.description,
-            enabled: true,
+            name: rule_set.name.clone(),
+            description: rule_set.description.clone(),
+            enabled: rule_set.enabled,
         },
     )
 }
@@ -64,8 +46,17 @@ async fn upsert_rules(
     rule_set_id: i64,
     preset: &RulePresetDto,
 ) -> Result<(), AdminError> {
+    let mut next_orders = BTreeMap::<String, i64>::new();
+    for rule in snapshot
+        .rules
+        .iter()
+        .filter(|rule| rule.rule_set_id == rule_set_id)
+    {
+        let next = next_orders.entry(rule.kind.clone()).or_default();
+        *next = (*next).max(rule.sort_order + 1);
+    }
     for rule in &preset.rules {
-        let input = gproxy_store::records::RuleInput {
+        let mut input = gproxy_store::records::RuleInput {
             rule_set_id,
             kind: rule.config.kind().into(),
             config: rule.config.storage(),
@@ -77,15 +68,22 @@ async fn upsert_rules(
         };
         validate(&input)?;
         let existing = snapshot.rules.iter().find(|value| {
-            value.rule_set_id == rule_set_id
+            value.rule_set_id == input.rule_set_id
                 && value.kind == input.kind
-                && value.sort_order == input.sort_order
+                && value.config == input.config
+                && value.filter_model_pattern == input.filter_model_pattern
+                && value.filter_operations == input.filter_operations
+                && value.filter_header_pattern == input.filter_header_pattern
         });
         match existing {
             Some(value) => {
+                input.sort_order = value.sort_order;
                 state.store().update_rule(value.id, &input).await?;
             }
             None => {
+                let next = next_orders.entry(input.kind.clone()).or_default();
+                input.sort_order = *next;
+                *next += 1;
                 state.store().insert_rule(&input).await?;
             }
         }
@@ -106,46 +104,4 @@ fn validate(input: &gproxy_store::records::RuleInput) -> Result<(), AdminError> 
     })
     .map(|_| ())
     .map_err(AdminError::Internal)
-}
-
-async fn upsert_attachment(
-    state: &impl State,
-    snapshot: &gproxy_store::records::ControlSnapshot,
-    provider_id: i64,
-    rule_set_id: i64,
-) -> Result<(), AdminError> {
-    let existing = snapshot
-        .provider_rule_sets
-        .iter()
-        .find(|value| value.provider_id == provider_id && value.rule_set_id == rule_set_id);
-    let input = gproxy_store::records::ProviderRuleSetInput {
-        provider_id,
-        rule_set_id,
-        sort_order: existing.map_or_else(
-            || {
-                snapshot
-                    .provider_rule_sets
-                    .iter()
-                    .filter(|value| value.provider_id == provider_id)
-                    .map(|value| value.sort_order)
-                    .max()
-                    .unwrap_or(-1)
-                    + 1
-            },
-            |value| value.sort_order,
-        ),
-        enabled: true,
-    };
-    match existing {
-        Some(value) => {
-            state
-                .store()
-                .update_provider_rule_set(value.id, &input)
-                .await?;
-        }
-        None => {
-            state.store().insert_provider_rule_set(&input).await?;
-        }
-    }
-    Ok(())
 }

@@ -81,8 +81,7 @@ export function RulesWorkspace(props: Props) {
     }, attachment.id)
   }
 
-  const createAction = embedded ? <div className="flex items-center gap-1">
-    <ApplicationPresetButton providerId={props.scopeProviderId!} />
+  const createAction = embedded ?
     <AttachmentDialog
       providers={props.providers}
       ruleSets={unattached}
@@ -90,8 +89,7 @@ export function RulesWorkspace(props: Props) {
       saving={props.mutations.saving}
       onSave={props.mutations.attach}
       trigger={<Button size="icon-sm" disabled={!unattached.length} aria-label={t("rules.attachments.attachExisting")}><PlusIcon aria-hidden /></Button>}
-    />
-  </div> : <Button size="icon-sm" aria-label={t("rules.sets.add")} onClick={() => navigateAdminPath("/admin/rules/new/settings")}><PlusIcon aria-hidden /></Button>
+    /> : <Button size="icon-sm" aria-label={t("rules.sets.add")} onClick={() => navigateAdminPath("/admin/rules/new/settings")}><PlusIcon aria-hidden /></Button>
 
   const back = () => embedded ? setLocalSelectedId(null) : navigateAdminPath(adminPath("rules"))
   return <WorkspaceLayout
@@ -163,7 +161,7 @@ function RuleSetDetail(props: {
   </div>
 
   return <div className="flex flex-col gap-4">
-    <RuleSetSummary set={props.selected} attachments={props.attachments} deleteDisabled={selectedRules.length > 0 || props.attachments.length > 0} onDeleted={props.onDeleted} />
+    <RuleSetSummary set={props.selected} attachments={props.attachments} onDeleted={props.onDeleted} />
     <Tabs value={props.detailTab} onValueChange={(tab) => navigateAdminPath(`/admin/rules/${props.selected.id}/${tab}`, true)}>
       <TabsList variant="line">
         <TabsTrigger value="rules">{t("rules.entries.title")}</TabsTrigger>
@@ -197,17 +195,16 @@ function RuleSetDetail(props: {
   </div>
 }
 
-function RuleSetSummary({ set, attachments, scopedAttachment, deleteDisabled, onDeleted }: {
+function RuleSetSummary({ set, attachments, scopedAttachment, onDeleted }: {
   set: RuleSetDto
   attachments: Array<ProviderRuleSetDto>
   scopedAttachment?: ProviderRuleSetDto
-  deleteDisabled?: boolean
   onDeleted?: () => void
 }) {
   const { t } = useTranslation()
   return <header className="flex flex-wrap items-start justify-between gap-3">
     <div><h2 className="text-xl font-semibold">{ruleSetText(set, "name", t)}</h2><p className="mt-1 text-sm text-muted-foreground">{ruleSetText(set, "description", t)}</p></div>
-    <div className="flex flex-wrap items-center gap-2"><Badge aria-label={`${t("rules.attachments.title")}: ${attachments.length}`}>{attachments.length}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}{onDeleted ? <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} disabled={deleteDisabled} onDeleted={onDeleted} /> : null}</div>
+    <div className="flex flex-wrap items-center gap-2"><ApplicationPresetButton ruleSetId={set.id} /><Badge aria-label={`${t("rules.attachments.title")}: ${attachments.length}`}>{attachments.length}</Badge>{scopedAttachment?.inherited ? <Badge variant="secondary">{t("rules.values.inherited")}</Badge> : null}{!set.enabled || scopedAttachment?.enabled === false ? <Badge variant="secondary">{t("common.status.disabled")}</Badge> : null}{onDeleted ? <EntityDeleteButton entity="rule-sets" id={set.id} label={ruleSetText(set, "name", t)} queryKeys={["rule-sets", "rules", "provider-rule-sets"]} onDeleted={onDeleted} /> : null}</div>
   </header>
 }
 
