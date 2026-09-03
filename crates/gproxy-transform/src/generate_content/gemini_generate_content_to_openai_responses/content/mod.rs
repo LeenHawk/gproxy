@@ -44,7 +44,43 @@ impl ContentConverter {
         &mut self,
         content: gemini::Content,
     ) -> Result<Vec<openai::ResponseItem>, TransformError> {
-        self.content(content, true)
+        let mut output = Vec::new();
+        let mut buffered = Vec::new();
+        for part in content.parts {
+            let signature = matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
+                .then(|| part.thought_signature.clone())
+                .flatten();
+            if let Some(signature) = signature {
+                output.extend(self.content(
+                    gemini::Content {
+                        parts: std::mem::take(&mut buffered),
+                        role: content.role.clone(),
+                        rest: content.rest.clone(),
+                    },
+                    true,
+                )?);
+                output.push(self.reasoning(None, Some(signature), Default::default()));
+                output.extend(self.content(
+                    gemini::Content {
+                        parts: vec![part],
+                        role: content.role.clone(),
+                        rest: content.rest.clone(),
+                    },
+                    true,
+                )?);
+            } else {
+                buffered.push(part);
+            }
+        }
+        output.extend(self.content(
+            gemini::Content {
+                parts: buffered,
+                role: content.role,
+                rest: content.rest,
+            },
+            true,
+        )?);
+        Ok(output)
     }
 
     fn content(

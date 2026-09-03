@@ -66,6 +66,15 @@ impl GeminiStreamDecoder {
                         .as_ref()
                         .and_then(super::usage::tier_name);
                 }
+                // Code Assist can attach prompt-only usage to early thinking
+                // and tool-call frames. Later frames carry cumulative output
+                // counts, which remain subject to the strict usage checks.
+                if metadata.prompt_token_count.is_none()
+                    || metadata.candidates_token_count.is_none()
+                {
+                    self.terminal.observe(&chunk)?;
+                    continue;
+                }
                 let mut usage = super::usage::normalize(metadata)
                     .map_err(|error| ChannelError::Decode(format!("Gemini usage: {error}")))?;
                 if let Some(tier) = self.response_tier.as_ref() {

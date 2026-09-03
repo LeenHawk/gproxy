@@ -61,6 +61,70 @@ fn claude_to_responses_collects_text_after_non_text_and_maps_refusal_tier() {
 }
 
 #[test]
+fn empty_claude_thinking_does_not_create_forbidden_reasoning_content() {
+    let converted = request(
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        content(Operation::GenerateContent, Kind::OpenAiResponses),
+        Bytes::from(
+            serde_json::to_vec(&json!({
+                "model":"route","max_tokens":32,
+                "messages":[{"role":"assistant","content":[{
+                    "type":"thinking","thinking":"","signature":"opaque"
+                }]}]
+            }))
+            .unwrap(),
+        ),
+        "upstream-model",
+        false,
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&converted).unwrap();
+    assert!(value["input"][0].get("content").is_none());
+    assert_eq!(value["input"][0]["encrypted_content"], "opaque");
+}
+
+#[test]
+fn gemini_sdk_system_instruction_role_is_accepted_as_system_context() {
+    let converted = request(
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        Bytes::from_static(
+            br#"{"systemInstruction":{"role":"user","parts":[{"text":"system policy"}]},"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"topK":40,"thinkingConfig":{"includeThoughts":true}}}"#,
+        ),
+        "upstream-model",
+        false,
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&converted).unwrap();
+    assert_eq!(value["system"][0]["text"], "system policy");
+    assert_eq!(value["messages"][0]["content"][0]["text"], "hello");
+    assert!(value.get("top_k").is_none());
+    assert_eq!(value["thinking"]["type"], "enabled");
+    assert_eq!(value["thinking"]["budget_tokens"], 4096);
+}
+
+#[test]
+fn responses_custom_tool_does_not_leak_native_metadata_to_claude() {
+    let converted = request(
+        content(Operation::GenerateContent, Kind::OpenAiResponses),
+        content(Operation::GenerateContent, Kind::ClaudeMessages),
+        Bytes::from_static(
+            br#"{"model":"route","input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"system policy"}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}],"tools":[{"type":"custom","name":"raw","description":"raw input"},{"type":"web_search_preview","external_web_access":true,"allowed_callers":["direct","programmatic"]}]}"#,
+        ),
+        "upstream-model",
+        false,
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&converted).unwrap();
+    assert_eq!(value["tools"][0]["name"], "raw");
+    assert_eq!(value["system"], "system policy");
+    assert_eq!(value["messages"][0]["role"], "user");
+    assert!(value["tools"][1].get("allowed_callers").is_none());
+    assert!(!value.to_string().contains("openai_native_tool"));
+    assert!(!value.to_string().contains("external_web_access"));
+}
+
+#[test]
 fn gemini_candidates_become_ordered_responses_messages() {
     let converted = convert_response(
         content(Operation::GenerateContent, Kind::OpenAiResponses),

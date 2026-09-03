@@ -84,7 +84,7 @@ impl ContentConverter {
         })
     }
 
-    fn reasoning(
+    pub(super) fn reasoning(
         &mut self,
         text: Option<String>,
         signature: Option<String>,

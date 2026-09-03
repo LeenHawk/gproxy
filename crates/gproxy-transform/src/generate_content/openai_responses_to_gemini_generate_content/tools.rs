@@ -14,7 +14,6 @@ pub(super) fn to_gemini(
                 description,
                 parameters,
                 output_schema,
-                rest,
                 ..
             } => declarations.push(function(
                 name,
@@ -24,14 +23,11 @@ pub(super) fn to_gemini(
                     openai::ResponseFunctionParameters::Null => None,
                 },
                 output_schema,
-                rest,
+                Default::default(),
             )?),
             openai::ResponseTool::Custom {
-                name,
-                description,
-                rest,
-                ..
-            } => declarations.push(function(name, description, None, None, rest)?),
+                name, description, ..
+            } => declarations.push(function(name, description, None, None, Default::default())?),
             openai::ResponseTool::Namespace { tools, .. } => {
                 for nested in tools {
                     let (name, description, parameters, output_schema, rest) = match nested {
@@ -68,7 +64,6 @@ pub(super) fn to_gemini(
             openai::ResponseTool::FileSearch {
                 vector_store_ids,
                 max_num_results,
-                rest,
                 ..
             } => {
                 output.push(gemini::Tool {
@@ -76,52 +71,51 @@ pub(super) fn to_gemini(
                         file_search_store_names: vector_store_ids,
                         metadata_filter: None,
                         top_k: max_num_results.map(to_i32).transpose()?,
-                        rest,
+                        rest: Default::default(),
                     }),
                     ..Default::default()
                 });
             }
             openai::ResponseTool::CollectionsSearch {
-                vector_store_ids,
-                rest,
+                vector_store_ids, ..
             } => output.push(gemini::Tool {
                 file_search: Some(gemini::FileSearch {
                     file_search_store_names: vector_store_ids,
                     metadata_filter: None,
                     top_k: None,
-                    rest,
+                    rest: Default::default(),
                 }),
                 ..Default::default()
             }),
-            openai::ResponseTool::WebSearch { rest, .. }
-            | openai::ResponseTool::WebSearch20250826 { rest, .. } => {
+            openai::ResponseTool::WebSearch { .. }
+            | openai::ResponseTool::WebSearch20250826 { .. } => {
                 output.push(gemini::Tool {
                     google_search: Some(gemini::GoogleSearch::default()),
                     url_context: Some(gemini::UrlContext::default()),
-                    rest,
+                    rest: Default::default(),
                     ..Default::default()
                 });
             }
-            openai::ResponseTool::WebSearchPreview { rest, .. }
-            | openai::ResponseTool::WebSearchPreview20250311 { rest, .. }
-            | openai::ResponseTool::XSearch { rest } => output.push(gemini::Tool {
+            openai::ResponseTool::WebSearchPreview { .. }
+            | openai::ResponseTool::WebSearchPreview20250311 { .. }
+            | openai::ResponseTool::XSearch { .. } => output.push(gemini::Tool {
                 google_search: Some(gemini::GoogleSearch::default()),
-                rest,
+                rest: Default::default(),
                 ..Default::default()
             }),
-            openai::ResponseTool::CodeExecution { rest }
-            | openai::ResponseTool::CodeInterpreter { rest, .. }
-            | openai::ResponseTool::Shell { rest, .. }
-            | openai::ResponseTool::LocalShell { rest }
-            | openai::ResponseTool::ApplyPatch { rest, .. } => output.push(gemini::Tool {
+            openai::ResponseTool::CodeExecution { .. }
+            | openai::ResponseTool::CodeInterpreter { .. }
+            | openai::ResponseTool::Shell { .. }
+            | openai::ResponseTool::LocalShell { .. }
+            | openai::ResponseTool::ApplyPatch { .. } => output.push(gemini::Tool {
                 code_execution: Some(gemini::CodeExecution::default()),
-                rest,
+                rest: Default::default(),
                 ..Default::default()
             }),
-            openai::ResponseTool::Computer { rest }
-            | openai::ResponseTool::ComputerUsePreview { rest, .. } => output.push(gemini::Tool {
+            openai::ResponseTool::Computer { .. }
+            | openai::ResponseTool::ComputerUsePreview { .. } => output.push(gemini::Tool {
                 computer_use: Some(gemini::ComputerUse {
-                    rest,
+                    rest: Default::default(),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -130,13 +124,12 @@ pub(super) fn to_gemini(
                 server_label,
                 server_url,
                 headers,
-                rest,
                 ..
             } => output.push(gemini::Tool {
                 mcp_servers: Some(vec![gemini::McpServer {
                     name: Some(server_label),
                     streamable_http_transport: mcp_transport(server_url, headers),
-                    rest,
+                    rest: Default::default(),
                 }]),
                 ..Default::default()
             }),
@@ -226,7 +219,7 @@ fn function(
     description: Option<String>,
     parameters: Option<openai::JsonSchema>,
     output_schema: Option<openai::JsonSchema>,
-    rest: openai::Rest,
+    _rest: openai::Rest,
 ) -> Result<gemini::FunctionDeclaration, TransformError> {
     Ok(gemini::FunctionDeclaration {
         name,
@@ -237,7 +230,7 @@ fn function(
         parameters_json_schema: parameters.map(serde_json::Value::Object),
         response: None,
         response_json_schema: output_schema.map(serde_json::Value::Object),
-        rest,
+        rest: Default::default(),
     })
 }
 

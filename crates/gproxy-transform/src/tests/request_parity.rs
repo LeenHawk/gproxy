@@ -322,6 +322,76 @@ fn named_responses_choice_and_gemini_schema_survive_claude_and_responses_pairs()
 }
 
 #[test]
+fn cross_protocol_requests_do_not_leak_foreign_extension_fields() {
+    let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
+    let gemini = content(Operation::GenerateContent, Kind::GeminiGenerateContent);
+    let to_gemini = convert_request(
+        responses,
+        gemini,
+        json!({
+            "model":"route",
+            "client_metadata":{"client":"codex"},
+            "prompt_cache_key":"thread-not-a-gemini-cache",
+            "input":[
+                {"type":"message","role":"system","content":[{
+                    "type":"input_text","text":"system policy"
+                }]},
+                {"type":"message","id":"msg_1","role":"user","content":[{
+                    "type":"input_text","text":"hello"
+                }]}
+            ],
+            "tools":[
+                {
+                    "type":"function","name":"lookup","description":"lookup",
+                    "parameters":{"type":"object"},"external_web_access":true
+                },
+                {"type":"web_search_preview","external_web_access":true}
+            ]
+        }),
+    );
+    let wire = to_gemini.to_string();
+    assert!(!wire.contains("client_metadata"));
+    assert!(!wire.contains("openai_item_id"));
+    assert!(!wire.contains("external_web_access"));
+    assert!(to_gemini.get("cachedContent").is_none());
+    assert_eq!(to_gemini["systemInstruction"]["role"], "user");
+    assert_eq!(
+        to_gemini["toolConfig"]["includeServerSideToolInvocations"],
+        true
+    );
+    assert!(
+        !to_gemini["contents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|content| content["role"] == "system")
+    );
+
+    let to_responses = convert_request(
+        gemini,
+        responses,
+        json!({
+            "systemInstruction":{"role":"user","parts":[{"text":"system policy"}]},
+            "contents":[
+                {"role":"model","parts":[{"functionCall":{
+                    "id":"call_1","name":"lookup","args":{"path":"task.txt"}
+                },"thoughtSignature":"opaque"}]},
+                {"role":"user","parts":[{"functionResponse":{
+                    "id":"call_1","name":"lookup","response":{"output":"ok"}
+                }}]}
+            ]
+        }),
+    );
+    let wire = to_responses.to_string();
+    assert!(!wire.contains("functionCall"));
+    assert!(!wire.contains("functionResponse"));
+    assert!(!wire.contains("thought_signature"));
+    assert_eq!(to_responses["input"][0]["type"], "function_call");
+    assert_eq!(to_responses["input"][1]["type"], "function_call_output");
+    assert_eq!(to_responses["instructions"], "system policy");
+}
+
+#[test]
 fn lossy_request_items_are_filtered_without_dropping_text() {
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
     let response_input = json!({

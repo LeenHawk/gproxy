@@ -110,6 +110,20 @@ impl State {
 
     fn closed_part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
         let mut output = self.close_open()?;
+        if matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
+            && let Some(signature) = part.thought_signature.clone()
+        {
+            let index = self.next_index;
+            self.next_index = self.next_index.saturating_add(1);
+            let block =
+                claude::ResponseContentBlock::RedactedThinking(claude::RedactedThinkingBlock {
+                    data: signature,
+                    type_: claude::RedactedThinkingBlockType::RedactedThinking,
+                    rest: Default::default(),
+                });
+            output.push(events::encode(events::block_start(index, block))?);
+            output.push(events::encode(events::block_stop(index))?);
+        }
         let Some(block) = super::super::content::response_part(part, &mut self.correlation)? else {
             return Ok(output);
         };

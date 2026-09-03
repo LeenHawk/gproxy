@@ -29,7 +29,7 @@ pub(super) fn function_call(
                 },
                 rest: Default::default(),
             }),
-            rest: std::mem::take(rest),
+            rest: Default::default(),
             ..Default::default()
         }],
         Default::default(),
@@ -40,7 +40,7 @@ pub(super) fn function_result(
     call_id: String,
     name: String,
     output: openai::ResponseOutput,
-    rest: openai::Rest,
+    _rest: openai::Rest,
 ) -> Result<gemini::Content, TransformError> {
     let (response, parts) = wire::function_result(output)?;
     Ok(user_content(
@@ -57,7 +57,7 @@ pub(super) fn function_result(
                 },
                 rest: Default::default(),
             }),
-            rest,
+            rest: Default::default(),
             ..Default::default()
         }],
         Default::default(),

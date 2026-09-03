@@ -40,3 +40,26 @@ fn prepare_keeps_opt_in_cache_breakpoint_through_codex_shaping() {
     );
     assert!(!shaped.to_string().contains(CACHE_MAGIC));
 }
+
+#[test]
+fn prepare_strips_downstream_cache_breakpoints_without_opt_in() {
+    let body = Bytes::from_static(
+        br#"{"model":"route","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello","prompt_cache_breakpoint":{"mode":"explicit"}}]}]}"#,
+    );
+    let prepared = CodexChannel
+        .prepare(PrepareCtx {
+            key: RESPONSES,
+            stream: true,
+            method: &Method::POST,
+            path: "/v1/responses",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &body,
+            upstream_model: "gpt-5.6-luna",
+            provider_settings: &json!({}),
+            secret: &json!({"access_token":"token"}),
+        })
+        .unwrap();
+    let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+    assert!(!shaped.to_string().contains("prompt_cache_breakpoint"));
+}

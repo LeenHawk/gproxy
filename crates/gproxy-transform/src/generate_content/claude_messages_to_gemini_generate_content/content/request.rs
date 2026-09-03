@@ -72,8 +72,11 @@ pub(crate) fn request_messages(
             }
         };
         let mut parts = Vec::new();
+        let mut pending_signature = None;
         for block in blocks {
-            if let Some(part) = block_to_part(block, &mut names, &mut native_ids)? {
+            if let Some(part) =
+                block_to_part(block, &mut names, &mut native_ids, &mut pending_signature)?
+            {
                 parts.push(part);
             }
         }
@@ -88,7 +91,12 @@ fn block_to_part(
     block: claude::ContentBlockParam,
     names: &mut BTreeMap<String, String>,
     native_ids: &mut BTreeSet<String>,
+    pending_signature: &mut Option<String>,
 ) -> Result<Option<gemini::Part>, TransformError> {
+    if let claude::ContentBlockParam::RedactedThinking(block) = &block {
+        *pending_signature = Some(block.data.clone());
+        return Ok(None);
+    }
     Ok(Some(match block {
         claude::ContentBlockParam::Text(block) => super::text_part(block.text, block.rest),
         claude::ContentBlockParam::Thinking(block) => functions::thought(block),
@@ -104,14 +112,16 @@ fn block_to_part(
         }
         claude::ContentBlockParam::ToolUse(mut block) if tools::is_native_name(&block.name) => {
             native_ids.insert(block.id.clone());
-            let signature = functions::take_signature(&mut block.caller)?;
+            let signature =
+                functions::take_signature(&mut block.caller)?.or_else(|| pending_signature.take());
             let mut part = native::call(block.id, block.input, block.rest)?;
             part.thought_signature = signature;
             part
         }
         claude::ContentBlockParam::ToolUse(mut block) => {
             names.insert(block.id.clone(), block.name.clone());
-            let signature = functions::take_signature(&mut block.caller)?;
+            let signature =
+                functions::take_signature(&mut block.caller)?.or_else(|| pending_signature.take());
             functions::function_call(block, signature)
         }
         claude::ContentBlockParam::ServerToolUse(block)
@@ -128,7 +138,6 @@ fn block_to_part(
             native::request_bash_result(block)?
         }
         claude::ContentBlockParam::Raw(_)
-        | claude::ContentBlockParam::RedactedThinking(_)
         | claude::ContentBlockParam::ServerToolUse(_)
         | claude::ContentBlockParam::McpToolUse(_)
         | claude::ContentBlockParam::McpToolResult(_)

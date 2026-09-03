@@ -31,6 +31,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
                 ctx.upstream_model,
             )?;
             let body = crate::shared::code_assist::sanitize(&body)?;
+            let body = apply_model_defaults(&body, ctx.upstream_model)?;
             (
                 if stream {
                     "gemini_stream_generate_content"
@@ -76,6 +77,36 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         websocket: false,
         profile: Some(&super::profile::PROFILE),
     })
+}
+
+pub(super) fn apply_model_defaults(body: &Bytes, model: &str) -> Result<Bytes, ChannelError> {
+    if crate::shared::gemini::model::model_id(model) != "gemini-3.1-pro-high" {
+        return Ok(body.clone());
+    }
+    let mut value: Value = serde_json::from_slice(body)
+        .map_err(|error| ChannelError::Prepare(format!("Gemini body JSON: {error}")))?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| ChannelError::Prepare("Gemini body must be an object".into()))?;
+    let config = object
+        .entry("generationConfig")
+        .or_insert_with(|| Value::Object(serde_json::Map::new()))
+        .as_object_mut()
+        .ok_or_else(|| ChannelError::Prepare("generationConfig must be an object".into()))?;
+    let thinking = config
+        .entry("thinkingConfig")
+        .or_insert_with(|| Value::Object(serde_json::Map::new()))
+        .as_object_mut()
+        .ok_or_else(|| ChannelError::Prepare("thinkingConfig must be an object".into()))?;
+    // Antigravity exposes the high reasoning tier as a distinct model. Its
+    // catalogue supplies 10001 as the default, while explicit valid budgets
+    // remain caller-controlled.
+    thinking
+        .entry("thinkingBudget")
+        .or_insert_with(|| Value::from(10_001));
+    serde_json::to_vec(&value)
+        .map(Bytes::from)
+        .map_err(|error| ChannelError::Prepare(error.to_string()))
 }
 
 pub(super) fn endpoint_uri(

@@ -12,8 +12,16 @@ impl State {
         block: claude::ContentBlock,
         rest: gemini::JsonMap,
     ) -> Result<Option<gemini::GenerateContentResponse>, TransformError> {
-        if matches!(&block, claude::ResponseContentBlock::RedactedThinking(_)) {
-            return Ok(None);
+        if let claude::ResponseContentBlock::RedactedThinking(block) = block {
+            self.pending_signature = Some(block.data.clone());
+            let part =
+                super::super::content::signature_part(block.data, chunks::merge(block.rest, rest));
+            return Ok(Some(chunks::candidate(
+                Some(part),
+                None,
+                None,
+                Default::default(),
+            )));
         }
         if let claude::ResponseContentBlock::ToolUse(mut block) = block {
             block.rest.extend(rest);
@@ -26,7 +34,10 @@ impl State {
             );
             return Ok(None);
         }
-        let part = super::super::content::response_block(block)?;
+        let mut part = super::super::content::response_block(block)?;
+        if let Some(part) = part.as_mut() {
+            super::super::content::attach_signature(part, &mut self.pending_signature);
+        }
         Ok(Some(chunks::candidate(part, None, None, rest)))
     }
 
@@ -44,7 +55,10 @@ impl State {
         }
         pending.block.rest.extend(rest);
         let block = claude::ResponseContentBlock::ToolUse(pending.block);
-        let part = super::super::content::response_block(block)?;
+        let mut part = super::super::content::response_block(block)?;
+        if let Some(part) = part.as_mut() {
+            super::super::content::attach_signature(part, &mut self.pending_signature);
+        }
         Ok(Some(chunks::candidate(
             part,
             None,

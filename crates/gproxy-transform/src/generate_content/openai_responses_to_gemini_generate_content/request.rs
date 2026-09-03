@@ -43,7 +43,7 @@ pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes
         rest: Default::default(),
     };
     let generation_config = has_generation_fields(&generation).then_some(generation);
-    let system_instruction = input.instructions.map(|text| gemini::Content {
+    let mut system_instruction = input.instructions.map(|text| gemini::Content {
         parts: vec![gemini::Part {
             data: Some(gemini::PartData::Text {
                 text,
@@ -51,24 +51,105 @@ pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes
             }),
             ..Default::default()
         }],
-        role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)),
+        role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
         rest: Default::default(),
     });
     let mut converter = ContentConverter::new();
+    let mut contents = Vec::new();
+    for content in converter.input(input.input)? {
+        if matches!(
+            content.role,
+            Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System))
+        ) {
+            append_system(&mut system_instruction, system_content_text(content)?);
+        } else {
+            contents.push(content);
+        }
+    }
+    let tools = tools::to_gemini(input.tools)?;
+    let tool_config = mixed_tool_config(tools::choice_to_gemini(input.tool_choice), &tools);
     let output = gemini::GenerateContentRequest {
         model: Some(model.to_owned()),
-        contents: converter.input(input.input)?,
-        tools: tools::to_gemini(input.tools)?,
-        tool_config: tools::choice_to_gemini(input.tool_choice),
+        contents,
+        tools,
+        tool_config,
         safety_settings: None,
         system_instruction,
         generation_config,
-        cached_content: input.prompt_cache_key,
+        cached_content: input
+            .prompt_cache_key
+            .filter(|value| value.starts_with("cachedContents/")),
         service_tier: config::openai_service_tier(input.service_tier),
         store: input.store,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(Bytes::from(serde_json::to_vec(&output)?))
+}
+
+fn mixed_tool_config(
+    mut config: Option<gemini::ToolConfig>,
+    tools: &Option<Vec<gemini::Tool>>,
+) -> Option<gemini::ToolConfig> {
+    let functions = tools.as_ref().is_some_and(|tools| {
+        tools.iter().any(|tool| {
+            tool.function_declarations
+                .as_ref()
+                .is_some_and(|declarations| !declarations.is_empty())
+        })
+    });
+    let built_ins = tools.as_ref().is_some_and(|tools| {
+        tools.iter().any(|tool| {
+            tool.google_search.is_some()
+                || tool.google_search_retrieval.is_some()
+                || tool.code_execution.is_some()
+                || tool.computer_use.is_some()
+                || tool.url_context.is_some()
+                || tool.file_search.is_some()
+                || tool.google_maps.is_some()
+                || tool.mcp_servers.is_some()
+        })
+    });
+    if functions && built_ins {
+        config
+            .get_or_insert_with(gemini::ToolConfig::default)
+            .include_server_side_tool_invocations = Some(true);
+    }
+    config
+}
+
+fn append_system(system: &mut Option<gemini::Content>, text: String) {
+    if text.is_empty() {
+        return;
+    }
+    let system = system.get_or_insert_with(|| gemini::Content {
+        parts: Vec::new(),
+        role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
+        rest: Default::default(),
+    });
+    system.parts.push(gemini::Part {
+        data: Some(gemini::PartData::Text {
+            text,
+            rest: Default::default(),
+        }),
+        ..Default::default()
+    });
+}
+
+fn system_content_text(content: gemini::Content) -> Result<String, TransformError> {
+    let mut text = String::new();
+    for part in content.parts {
+        match part.data {
+            Some(gemini::PartData::Text { text: value, .. }) => text.push_str(&value),
+            None => {}
+            Some(_) => {
+                return Err(TransformError::unsupported(
+                    "Responses system content",
+                    "non-text part",
+                ));
+            }
+        }
+    }
+    Ok(text)
 }
 
 fn has_generation_fields(config: &gemini::GenerationConfig) -> bool {

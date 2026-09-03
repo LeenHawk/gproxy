@@ -20,11 +20,8 @@ pub(super) fn function_result(
     }
 }
 
-pub(super) fn openai_item_rest(mut rest: gemini::JsonMap, id: Option<String>) -> gemini::JsonMap {
-    if let Some(id) = id {
-        rest.insert("openai_item_id".into(), id.into());
-    }
-    rest
+pub(super) fn openai_item_rest(_: gemini::JsonMap, _: Option<String>) -> gemini::JsonMap {
+    Default::default()
 }
 
 fn multipart_result(

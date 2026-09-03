@@ -30,7 +30,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
                 },
                 ..Default::default()
             },
-            rest,
+            rest: strict_rest(rest),
         }),
         ref custom @ openai::ResponseTool::Custom {
             ref name,
@@ -56,29 +56,29 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             None,
             None,
         )?,
-        openai::ResponseTool::LocalShell { rest } => bash(None, rest),
+        openai::ResponseTool::LocalShell { rest } => bash(None, strict_rest(rest)),
         openai::ResponseTool::Shell {
             allowed_callers,
             rest,
             ..
-        } => bash(allowed_callers, rest),
+        } => bash(allowed_callers, strict_rest(rest)),
         openai::ResponseTool::ApplyPatch {
             allowed_callers,
             max_characters,
             rest,
-        } => text_editor(allowed_callers, max_characters, rest),
-        openai::ResponseTool::CodeExecution { rest } => code_execution(None, rest),
+        } => text_editor(allowed_callers, max_characters, strict_rest(rest)),
+        openai::ResponseTool::CodeExecution { rest } => code_execution(None, strict_rest(rest)),
         openai::ResponseTool::CodeInterpreter {
             allowed_callers,
             rest,
             ..
-        } => code_execution(allowed_callers, rest),
+        } => code_execution(allowed_callers, strict_rest(rest)),
         openai::ResponseTool::ComputerUsePreview {
             display_height,
             display_width,
             rest,
             ..
-        } => computer(display_width, display_height, rest),
+        } => computer(display_width, display_height, strict_rest(rest)),
         openai::ResponseTool::WebSearch {
             filters,
             max_uses,
@@ -92,7 +92,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             user_location,
             rest,
             ..
-        } => web_search(filters, max_uses, user_location, rest),
+        } => web_search(filters, max_uses, user_location, strict_rest(rest)),
         openai::ResponseTool::WebSearchPreview {
             user_location,
             rest,
@@ -102,7 +102,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             user_location,
             rest,
             ..
-        } => preview_search(user_location, rest),
+        } => preview_search(user_location, strict_rest(rest)),
         openai::ResponseTool::WebFetch {
             allowed_domains,
             blocked_domains,
@@ -114,12 +114,12 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             blocked_domains,
             max_content_tokens,
             max_uses,
-            rest,
+            strict_rest(rest),
         ),
-        openai::ResponseTool::Memory { rest } => memory(rest),
+        openai::ResponseTool::Memory { rest } => memory(strict_rest(rest)),
         openai::ResponseTool::ToolSearch {
             execution, rest, ..
-        } => tool_search(execution, rest),
+        } => tool_search(execution, strict_rest(rest)),
         openai::ResponseTool::Mcp {
             server_label,
             server_url: None,
@@ -131,7 +131,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             cache_control: None,
             configs: Default::default(),
             default_config: None,
-            rest,
+            rest: strict_rest(rest),
         }),
         unsupported @ (openai::ResponseTool::FileSearch { .. }
         | openai::ResponseTool::Computer { .. }
@@ -149,6 +149,13 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             ));
         }
     })
+}
+
+fn strict_rest(mut rest: openai::Rest) -> openai::Rest {
+    rest.remove("allowed_callers");
+    rest.remove("external_web_access");
+    rest.remove("openai_native_tool");
+    rest
 }
 
 fn bash(callers: Option<Vec<openai::ToolCaller>>, rest: openai::Rest) -> claude::Tool {
@@ -342,14 +349,12 @@ fn tool_search(execution: Option<openai::ToolSearchExecution>, rest: openai::Res
 }
 
 fn fallback(
-    tool: &openai::ResponseTool,
+    _tool: &openai::ResponseTool,
     name: String,
     description: Option<String>,
     defer_loading: Option<bool>,
     allowed_callers: Option<Vec<openai::ToolCaller>>,
 ) -> Result<claude::Tool, TransformError> {
-    let mut rest = claude::JsonObject::new();
-    rest.insert("openai_native_tool".into(), serde_json::to_value(tool)?);
     Ok(claude::Tool::Custom(claude::CustomTool {
         input_schema: claude::JsonSchema {
             type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
@@ -366,7 +371,7 @@ fn fallback(
             defer_loading,
             ..Default::default()
         },
-        rest,
+        rest: Default::default(),
     }))
 }
 

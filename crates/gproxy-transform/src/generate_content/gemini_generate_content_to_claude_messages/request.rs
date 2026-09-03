@@ -18,6 +18,19 @@ pub(crate) fn transform(
         .and_then(|tokens| u64::try_from(tokens).ok())
         .unwrap_or(crate::common::DEFAULT_CLAUDE_MAX_TOKENS);
     let (service_tier, speed) = config::request_tier(input.service_tier);
+    let thinking = config::thinking(input.generation_config.as_ref())?;
+    let top_k = (!matches!(
+        thinking,
+        Some(claude::ThinkingConfig::Enabled(_)) | Some(claude::ThinkingConfig::Adaptive(_))
+    ))
+    .then(|| {
+        input
+            .generation_config
+            .as_ref()
+            .and_then(|config| config.top_k)
+            .map(i64::from)
+    })
+    .flatten();
     let output = claude::CreateMessageRequestBody {
         model: model.to_owned().into(),
         messages: content::request_messages(input.contents)?,
@@ -49,14 +62,10 @@ pub(crate) fn transform(
             .generation_config
             .as_ref()
             .and_then(|config| config.temperature),
-        thinking: config::thinking(input.generation_config.as_ref())?,
+        thinking,
         tool_choice: tools::choice(input.tool_config)?,
         tools: tools::definitions(input.tools)?,
-        top_k: input
-            .generation_config
-            .as_ref()
-            .and_then(|config| config.top_k)
-            .map(i64::from),
+        top_k,
         top_p: input
             .generation_config
             .as_ref()

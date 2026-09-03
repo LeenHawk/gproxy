@@ -4,6 +4,8 @@ use crate::TransformError;
 
 use super::{Correlation, functions, media, native, request_meta};
 
+const SYNTHETIC_THOUGHT_SIGNATURE: &str = "skip_thought_signature_validator";
+
 pub(crate) fn request_messages(
     contents: Vec<gemini::Content>,
 ) -> Result<Vec<claude::MessageParam>, TransformError> {
@@ -12,8 +14,19 @@ pub(crate) fn request_messages(
     for content in contents {
         let role = request_meta::role(content.role)?;
         let mut blocks = Vec::new();
-        for part in content.parts {
-            if let Some(block) = part_to_block(part, &mut correlation)? {
+        let mut pending_signature = None;
+        for mut part in content.parts {
+            if matches!(part.data, Some(gemini::PartData::FunctionCall { .. })) {
+                let direct = part.thought_signature.take();
+                let inherited = pending_signature.take();
+                if let Some(signature) = direct
+                    .or(inherited)
+                    .filter(|value| value != SYNTHETIC_THOUGHT_SIGNATURE)
+                {
+                    blocks.push(signature_block(signature));
+                }
+            }
+            if let Some(block) = part_to_block(part, &mut correlation, &mut pending_signature)? {
                 blocks.push(block);
             }
         }
@@ -30,9 +43,18 @@ pub(crate) fn request_messages(
     Ok(output)
 }
 
+fn signature_block(signature: String) -> claude::ContentBlockParam {
+    claude::ContentBlockParam::RedactedThinking(claude::RedactedThinkingBlock {
+        data: signature,
+        type_: claude::RedactedThinkingBlockType::RedactedThinking,
+        rest: Default::default(),
+    })
+}
+
 pub(super) fn part_to_block(
     part: gemini::Part,
     correlation: &mut Correlation,
+    pending_signature: &mut Option<String>,
 ) -> Result<Option<claude::ContentBlockParam>, TransformError> {
     let gemini::Part {
         thought,
@@ -45,6 +67,20 @@ pub(super) fn part_to_block(
     } = part;
     let Some(data) = data else {
         return Ok(None);
+    };
+    if let gemini::PartData::Text { text, .. } = &data
+        && thought == Some(true)
+        && text.is_empty()
+        && signature.is_some()
+    {
+        *pending_signature = signature;
+        return Ok(None);
+    }
+    let inherited_signature = if matches!(data, gemini::PartData::FunctionCall { .. }) {
+        pending_signature.take()
+    } else {
+        *pending_signature = None;
+        None
     };
     Ok(Some(match data {
         gemini::PartData::Text { text, rest: data } if thought == Some(true) => {
@@ -72,7 +108,12 @@ pub(super) fn part_to_block(
         gemini::PartData::FunctionCall {
             function_call,
             rest: data,
-        } => functions::function_call_block(function_call, signature, data, correlation)?,
+        } => functions::function_call_block(
+            function_call,
+            signature.or(inherited_signature),
+            data,
+            correlation,
+        )?,
         gemini::PartData::FunctionResponse {
             function_response,
             rest: data,

@@ -34,6 +34,15 @@ fn sanitize_value(value: &mut Value) -> Result<(), ChannelError> {
             config.remove(name);
         }
     }
+    if let Some(tools) = object.get_mut("tools").and_then(Value::as_array_mut)
+        && tools.iter().any(|tool| {
+            tool.get("functionDeclarations")
+                .and_then(Value::as_array)
+                .is_some_and(|declarations| !declarations.is_empty())
+        })
+    {
+        tools.retain(|tool| tool.get("functionDeclarations").is_some());
+    }
     Ok(())
 }
 

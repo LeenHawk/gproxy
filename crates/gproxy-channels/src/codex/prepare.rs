@@ -72,20 +72,32 @@ fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<bytes::Bytes, ChannelError> {
     let gproxy_protocol::OperationKind::ContentGeneration(kind) = ctx.key.kind else {
         return Ok(ctx.body.clone());
     };
-    if ctx
+    let enabled = ctx
         .provider_settings
         .get("enable_openai_magic_cache")
         .and_then(Value::as_bool)
-        != Some(true)
-    {
-        return Ok(ctx.body.clone());
-    }
+        == Some(true);
     let mut value = serde_json::from_slice(ctx.body)
         .map_err(|error| ChannelError::Prepare(format!("request body JSON: {error}")))?;
-    crate::shared::openai::cache::apply(&mut value, kind);
+    if enabled {
+        crate::shared::openai::cache::apply(&mut value, kind);
+    } else {
+        strip_cache_breakpoints(&mut value);
+    }
     serde_json::to_vec(&value)
         .map(bytes::Bytes::from)
         .map_err(|error| ChannelError::Prepare(error.to_string()))
+}
+
+fn strip_cache_breakpoints(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            object.remove("prompt_cache_breakpoint");
+            object.values_mut().for_each(strip_cache_breakpoints);
+        }
+        Value::Array(values) => values.iter_mut().for_each(strip_cache_breakpoints),
+        _ => {}
+    }
 }
 
 pub(super) fn surface(

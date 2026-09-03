@@ -60,9 +60,41 @@ pub(super) fn thinking(
             },
         )));
     }
-    Ok(Some(claude::ThinkingConfig::Adaptive(
-        claude::ThinkingAdaptive {
-            type_: claude::ThinkingAdaptiveType::Adaptive,
+    if let Some(level) = thinking.thinking_level.as_ref() {
+        let budget_tokens = match level {
+            gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Minimal) => 1_024,
+            gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Low) => 2_048,
+            gemini::ThinkingLevel::Known(
+                gemini::ThinkingLevelKnown::Medium
+                | gemini::ThinkingLevelKnown::ThinkingLevelUnspecified,
+            ) => 4_096,
+            gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High) => 8_192,
+            gemini::ThinkingLevel::Unknown(_) => {
+                return Ok(Some(claude::ThinkingConfig::Adaptive(
+                    claude::ThinkingAdaptive {
+                        type_: claude::ThinkingAdaptiveType::Adaptive,
+                        block_binding: None,
+                        display: None,
+                        rest: thinking.rest.clone(),
+                    },
+                )));
+            }
+            _ => 4_096,
+        };
+        return Ok(Some(claude::ThinkingConfig::Enabled(
+            claude::ThinkingEnabled {
+                budget_tokens,
+                type_: claude::ThinkingEnabledType::Enabled,
+                block_binding: None,
+                display: None,
+                rest: thinking.rest.clone(),
+            },
+        )));
+    }
+    Ok(Some(claude::ThinkingConfig::Enabled(
+        claude::ThinkingEnabled {
+            budget_tokens: 4_096,
+            type_: claude::ThinkingEnabledType::Enabled,
             block_binding: None,
             display: None,
             rest: thinking.rest.clone(),

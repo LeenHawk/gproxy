@@ -12,6 +12,7 @@ use super::chunks;
 #[derive(Default)]
 pub(super) struct State {
     pub(super) tools: BTreeMap<u64, PendingTool>,
+    pub(super) pending_signature: Option<String>,
     pub(super) started: bool,
     pub(super) saw_finish: bool,
     pub(super) stopped: bool,
@@ -161,7 +162,10 @@ impl State {
             claude::KnownEventDelta::Signature {
                 signature,
                 rest: inner,
-            } => chunks::signature(signature, chunks::merge(inner, rest)),
+            } => {
+                self.pending_signature = Some(signature.clone());
+                chunks::signature(signature, chunks::merge(inner, rest))
+            }
             claude::KnownEventDelta::InputJson {
                 partial_json,
                 rest: inner,

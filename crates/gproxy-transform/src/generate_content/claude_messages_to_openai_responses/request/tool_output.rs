@@ -25,15 +25,18 @@ pub(super) fn reasoning_item(
     mut block: claude::ThinkingBlock,
 ) -> Result<openai::ResponseItem, TransformError> {
     let id = take_item_id(&mut block.rest)?;
+    let content = (!block.thinking.is_empty()).then(|| {
+        vec![openai::ResponseReasoningTextPart {
+            type_: openai::ResponseReasoningTextType::ReasoningText,
+            text: block.thinking,
+            rest: Default::default(),
+        }]
+    });
     Ok(openai::ResponseItem::Typed(Box::new(
         openai::TypedResponseItem::Reasoning {
             id,
             summary: Vec::new(),
-            content: Some(vec![openai::ResponseReasoningTextPart {
-                type_: openai::ResponseReasoningTextType::ReasoningText,
-                text: block.thinking,
-                rest: Default::default(),
-            }]),
+            content,
             encrypted_content: block.signature,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             rest: block.rest,

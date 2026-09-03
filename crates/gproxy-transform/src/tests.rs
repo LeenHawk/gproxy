@@ -11,6 +11,7 @@ mod ported_surface;
 mod request_parity;
 mod stream_lifecycle;
 mod support;
+mod thought_signature;
 use support::*;
 
 fn family(operation: Operation, family: WireFamily) -> OperationKey {

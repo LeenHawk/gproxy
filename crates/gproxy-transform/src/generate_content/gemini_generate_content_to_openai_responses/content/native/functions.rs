@@ -10,7 +10,7 @@ impl ContentConverter {
     pub(in crate::generate_content) fn function_call(
         &mut self,
         call: gemini::FunctionCall,
-        signature: Option<String>,
+        _signature: Option<String>,
         mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
         let call_id = self.allocate_named_call(call.id, &call.name);
@@ -19,9 +19,6 @@ impl ContentConverter {
             .or_default()
             .push_back(call_id.clone());
         rest.extend(call.rest);
-        if let Some(signature) = signature {
-            rest.insert("thought_signature".into(), signature.into());
-        }
         Ok(openai::ResponseItem::Typed(Box::new(
             openai::TypedResponseItem::FunctionCall {
                 arguments: wire::arguments(call.args)?,

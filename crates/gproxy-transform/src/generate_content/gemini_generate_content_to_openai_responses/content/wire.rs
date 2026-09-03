@@ -4,6 +4,19 @@ use crate::TransformError;
 
 pub(super) fn part_rest(part: &mut gemini::Part) -> Result<openai::Rest, TransformError> {
     let mut rest = std::mem::take(&mut part.rest);
+    for key in [
+        "codeExecutionResult",
+        "executableCode",
+        "fileData",
+        "functionCall",
+        "functionResponse",
+        "inlineData",
+        "text",
+        "toolCall",
+        "toolResponse",
+    ] {
+        rest.remove(key);
+    }
     preserve(&mut rest, "gemini_part_metadata", part.part_metadata.take())?;
     preserve(
         &mut rest,

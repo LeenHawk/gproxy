@@ -9,7 +9,9 @@ pub(crate) fn system(
     if !rest.is_empty()
         || !matches!(
             role,
-            None | Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System))
+            None | Some(gemini::ContentRole::Known(
+                gemini::ContentRoleKnown::System | gemini::ContentRoleKnown::User
+            ))
         )
     {
         return Err(TransformError::unsupported(
@@ -43,7 +45,8 @@ pub(super) fn role(
     }
 }
 
-fn system_part(part: gemini::Part) -> Result<claude::TextBlock, TransformError> {
+fn system_part(mut part: gemini::Part) -> Result<claude::TextBlock, TransformError> {
+    part.rest.remove("text");
     if part.thought.is_some()
         || part.thought_signature.is_some()
         || part.part_metadata.is_some()

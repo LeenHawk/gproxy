@@ -12,6 +12,7 @@ mod wire;
 pub(in crate::generate_content) struct ContentConverter {
     function_names: BTreeMap<String, String>,
     native_ids: BTreeMap<String, String>,
+    pending_signature: Option<String>,
 }
 
 impl ContentConverter {
@@ -19,6 +20,7 @@ impl ContentConverter {
         Self {
             function_names: BTreeMap::new(),
             native_ids: BTreeMap::new(),
+            pending_signature: None,
         }
     }
 
@@ -80,6 +82,10 @@ impl ContentConverter {
                 mut rest,
                 ..
             } => {
+                if let Some(signature) = self.pending_signature.take() {
+                    rest.entry("thought_signature")
+                        .or_insert_with(|| signature.into());
+                }
                 self.function_names.insert(call_id.clone(), name.clone());
                 Ok(Some(native::function_call(
                     call_id, name, arguments, &mut rest,
@@ -123,13 +129,24 @@ impl ContentConverter {
                 encrypted_content,
                 rest,
                 ..
-            } => Ok(Some(native::reasoning(
-                id,
-                summary,
-                content,
-                encrypted_content,
-                rest,
-            ))),
+            } => {
+                let empty = summary.is_empty()
+                    && content
+                        .as_ref()
+                        .is_none_or(|parts| parts.iter().all(|part| part.text.is_empty()));
+                if empty && encrypted_content.is_some() {
+                    self.pending_signature = encrypted_content;
+                    Ok(None)
+                } else {
+                    Ok(Some(native::reasoning(
+                        id,
+                        summary,
+                        content,
+                        encrypted_content,
+                        rest,
+                    )))
+                }
+            }
             other @ (openai::TypedResponseItem::FileSearchCall { .. }
             | openai::TypedResponseItem::ComputerCall { .. }
             | openai::TypedResponseItem::ComputerCallOutput { .. }

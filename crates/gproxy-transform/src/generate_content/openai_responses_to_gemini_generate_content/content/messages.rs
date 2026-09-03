@@ -21,7 +21,7 @@ pub(super) fn message(
                 }
                 openai::ResponseEasyInputContent::Unknown(raw) => vec![raw_part(raw)],
             };
-            Ok(content(role, parts, message.rest))
+            Ok(content(role, parts, Default::default()))
         }
         openai::ResponseMessageItem::Input(message) => {
             let role = match message.role {
@@ -29,8 +29,6 @@ pub(super) fn message(
                 openai::ResponseInputMessageRole::System
                 | openai::ResponseInputMessageRole::Developer => gemini::ContentRoleKnown::System,
             };
-            let mut rest = message.rest;
-            preserve_id(&mut rest, message.id);
             Ok(content(
                 role,
                 message
@@ -38,18 +36,14 @@ pub(super) fn message(
                     .into_iter()
                     .map(media::input_part)
                     .collect::<Result<_, _>>()?,
-                rest,
+                Default::default(),
             ))
         }
-        openai::ResponseMessageItem::Output(message) => {
-            let mut rest = message.rest;
-            preserve_id(&mut rest, Some(message.id));
-            Ok(content(
-                gemini::ContentRoleKnown::Model,
-                message.content.into_iter().map(output_part).collect(),
-                rest,
-            ))
-        }
+        openai::ResponseMessageItem::Output(message) => Ok(content(
+            gemini::ContentRoleKnown::Model,
+            message.content.into_iter().map(output_part).collect(),
+            Default::default(),
+        )),
         openai::ResponseMessageItem::Unknown(raw) => Ok(gemini::Content {
             parts: vec![raw_part(raw)],
             role: None,
@@ -77,14 +71,10 @@ pub(super) fn text_part(text: String, thought: bool, signature: Option<String>) 
 fn output_part(part: openai::ResponseMessageOutputContentPart) -> gemini::Part {
     match part {
         openai::ResponseMessageOutputContentPart::OutputText(part) => {
-            let mut output = text_part(part.text, false, None);
-            output.rest = part.rest;
-            output
+            text_part(part.text, false, None)
         }
         openai::ResponseMessageOutputContentPart::Refusal(part) => {
-            let mut output = text_part(part.refusal, false, None);
-            output.rest = part.rest;
-            output
+            text_part(part.refusal, false, None)
         }
         openai::ResponseMessageOutputContentPart::Unknown(raw) => raw_part(raw),
     }
@@ -115,11 +105,5 @@ fn content(
         parts,
         role: Some(gemini::ContentRole::Known(role)),
         rest,
-    }
-}
-
-fn preserve_id(rest: &mut gemini::JsonMap, id: Option<String>) {
-    if let Some(id) = id {
-        rest.insert("openai_item_id".into(), id.into());
     }
 }

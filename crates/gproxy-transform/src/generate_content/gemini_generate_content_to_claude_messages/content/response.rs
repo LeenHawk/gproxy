@@ -8,12 +8,26 @@ pub(crate) fn response_blocks(
     content: gemini::Content,
 ) -> Result<Vec<claude::ContentBlock>, TransformError> {
     let mut correlation = Correlation::default();
-    content
-        .parts
-        .into_iter()
-        .map(|part| response_part(part, &mut correlation))
-        .filter_map(|result| result.transpose())
-        .collect()
+    let mut output = Vec::new();
+    for part in content.parts {
+        if matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
+            && let Some(signature) = part.thought_signature.clone()
+        {
+            output.push(signature_block(signature));
+        }
+        if let Some(block) = response_part(part, &mut correlation)? {
+            output.push(block);
+        }
+    }
+    Ok(output)
+}
+
+fn signature_block(signature: String) -> claude::ContentBlock {
+    claude::ResponseContentBlock::RedactedThinking(claude::RedactedThinkingBlock {
+        data: signature,
+        type_: claude::RedactedThinkingBlockType::RedactedThinking,
+        rest: Default::default(),
+    })
 }
 
 pub(crate) fn response_part(

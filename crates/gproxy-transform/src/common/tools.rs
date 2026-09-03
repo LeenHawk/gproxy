@@ -334,17 +334,9 @@ fn schema_to_openai(schema: claude::JsonSchema) -> Result<openai::JsonSchema, Tr
 pub(crate) fn callers_to_claude(
     callers: Option<Vec<openai::ToolCaller>>,
 ) -> Option<Vec<claude::ToolCaller>> {
-    callers.map(|callers| {
-        callers
-            .into_iter()
-            .map(|caller| match caller {
-                openai::ToolCaller::Direct => claude::ToolCaller::Direct,
-                openai::ToolCaller::Programmatic | openai::ToolCaller::Unknown(_) => {
-                    claude::ToolCaller::CodeExecution20260120
-                }
-            })
-            .collect()
-    })
+    callers
+        .filter(|callers| !callers.is_empty())
+        .map(|_| vec![claude::ToolCaller::Direct])
 }
 
 pub(crate) fn callers_to_openai(

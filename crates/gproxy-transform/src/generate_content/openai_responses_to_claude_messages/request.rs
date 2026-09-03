@@ -16,7 +16,10 @@ pub(crate) fn transform(
         .max_output_tokens
         .map(u64::from)
         .unwrap_or(crate::common::DEFAULT_CLAUDE_MAX_TOKENS);
-    let messages = input_messages(input.input)?;
+    let (messages, system) = promote_system(
+        input_messages(input.input)?,
+        input.instructions.map(claude::StringOrArray::String),
+    )?;
     let output = claude::CreateMessageRequestBody {
         model: model.to_owned().into(),
         messages,
@@ -49,7 +52,7 @@ pub(crate) fn transform(
         speed: None,
         stop_sequences: None,
         stream: Some(stream),
-        system: input.instructions.map(claude::StringOrArray::String),
+        system,
         temperature: input.temperature,
         thinking: None,
         tool_choice: tool_choice(input.tool_choice, input.parallel_tool_calls)?,
@@ -57,9 +60,63 @@ pub(crate) fn transform(
         top_k: None,
         top_p: input.top_p,
         user_profile_id: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+fn promote_system(
+    messages: Vec<claude::MessageParam>,
+    initial: Option<claude::SystemPrompt>,
+) -> Result<(Vec<claude::MessageParam>, Option<claude::SystemPrompt>), TransformError> {
+    let mut system = match initial {
+        Some(claude::StringOrArray::String(text)) => text,
+        None => String::new(),
+        Some(_) => {
+            return Err(TransformError::unsupported(
+                "Responses instructions",
+                "future system shape",
+            ));
+        }
+    };
+    let mut retained = Vec::new();
+    for message in messages {
+        if message.role != claude::MessageRole::Known(claude::MessageRoleKnown::System) {
+            retained.push(message);
+            continue;
+        }
+        let text = match message.content {
+            claude::StringOrArray::String(text) => text,
+            claude::StringOrArray::Array(blocks) => blocks
+                .into_iter()
+                .filter_map(|block| match block {
+                    claude::ContentBlockParam::Text(block) => Some(block.text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            claude::StringOrArray::Raw(raw) => {
+                return Err(TransformError::unsupported(
+                    "Responses system message",
+                    raw.to_string(),
+                ));
+            }
+            _ => {
+                return Err(TransformError::unsupported(
+                    "Responses system message",
+                    "future content shape",
+                ));
+            }
+        };
+        if !system.is_empty() && !text.is_empty() {
+            system.push('\n');
+        }
+        system.push_str(&text);
+    }
+    Ok((
+        retained,
+        (!system.is_empty()).then_some(claude::StringOrArray::String(system)),
+    ))
 }
 
 #[allow(deprecated)]
@@ -87,7 +144,7 @@ pub(crate) fn count_tokens(
         thinking: None,
         tool_choice: tool_choice(input.tool_choice, input.parallel_tool_calls)?,
         tools: tools::responses_to_claude(input.tools)?,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -135,7 +192,7 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                         vec![claude::ContentBlockParam::Raw(raw)]
                     }
                 };
-                message(role, blocks, message_item.rest)
+                message(role, blocks, Default::default())
             }
             openai::ResponseMessageItem::Input(message_item) => {
                 let role = match message_item.role {
@@ -168,17 +225,15 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
 }
 
 fn with_item_id(
-    mut rest: serde_json::Map<String, serde_json::Value>,
-    id: Option<String>,
+    _: serde_json::Map<String, serde_json::Value>,
+    _: Option<String>,
 ) -> serde_json::Map<String, serde_json::Value> {
-    preserve_item_id(&mut rest, id);
-    rest
+    Default::default()
 }
 
 fn preserve_item_id(rest: &mut serde_json::Map<String, serde_json::Value>, id: Option<String>) {
-    if let Some(id) = id {
-        rest.insert("openai_item_id".into(), id.into());
-    }
+    let _ = id;
+    rest.remove("openai_item_id");
 }
 
 fn message(

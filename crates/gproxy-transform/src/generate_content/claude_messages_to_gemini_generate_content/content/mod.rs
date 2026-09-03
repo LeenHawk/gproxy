@@ -5,6 +5,7 @@ mod request;
 mod response;
 
 pub(crate) use request::{request_messages, system};
+pub(super) use response::{attach_signature, signature_part};
 pub(crate) use response::{response_block, response_content};
 
 pub(super) fn text_part(
