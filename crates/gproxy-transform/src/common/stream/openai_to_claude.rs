@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use bytes::Bytes;
-use gproxy_protocol::{claude, openai};
+use gproxy_protocol::claude;
 
 use crate::TransformError;
 use crate::envelope::{Converter, SseFrame};
@@ -27,7 +27,6 @@ pub(crate) struct State {
     pub(super) response_output_indices: BTreeMap<u32, Vec<u64>>,
     pub(super) response_tool_inputs: BTreeMap<u64, String>,
     pub(super) open: BTreeSet<u64>,
-    pub(super) pending_rest: openai::Rest,
 }
 
 impl State {
@@ -47,15 +46,10 @@ impl State {
             response_output_indices: BTreeMap::new(),
             response_tool_inputs: BTreeMap::new(),
             open: BTreeSet::new(),
-            pending_rest: Default::default(),
         }
     }
 
-    pub(super) fn ensure_start(
-        &mut self,
-        message_rest: openai::Rest,
-        event_rest: openai::Rest,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn ensure_start(&mut self) -> Result<Vec<Bytes>, TransformError> {
         if self.started {
             return Ok(Vec::new());
         }
@@ -79,9 +73,9 @@ impl State {
                 stop_sequence: None,
                 usage: None,
                 input_transformations: None,
-                rest: message_rest,
+                rest: Default::default(),
             }),
-            rest: event_rest,
+            rest: Default::default(),
         }));
         Ok(vec![typed_claude("message_start", &event)?])
     }
@@ -91,25 +85,27 @@ impl State {
         key: &str,
         kind: Scalar,
         text: String,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = Vec::new();
         let index = if let Some((open_key, index)) = self.scalar.as_ref() {
             if open_key == key {
                 *index
             } else {
-                output.extend(self.close(*index, Default::default())?);
+                output.extend(self.close(*index)?);
                 self.open_scalar(key, kind, &mut output)?
             }
         } else {
             self.open_scalar(key, kind, &mut output)?
         };
         let delta = match kind {
-            Scalar::Text => claude::KnownEventDelta::Text { text, rest },
+            Scalar::Text => claude::KnownEventDelta::Text {
+                text,
+                rest: Default::default(),
+            },
             Scalar::Thinking => claude::KnownEventDelta::Thinking {
                 estimated_tokens: None,
                 thinking: text,
-                rest,
+                rest: Default::default(),
             },
         };
         output.push(self.delta(index, delta)?);
@@ -121,7 +117,6 @@ impl State {
         item_id: String,
         content_index: Option<u32>,
         delta: String,
-        rest: openai::Rest,
         kind: Scalar,
     ) -> Result<Vec<Bytes>, TransformError> {
         let key = (item_id.clone(), content_index);
@@ -149,16 +144,19 @@ impl State {
                 }),
             };
             self.response_indices.insert(key, index);
-            let mut output = self.block_start(index, block, Default::default())?;
-            output.extend(self.response_scalar(item_id, content_index, delta, rest, kind)?);
+            let mut output = self.block_start(index, block)?;
+            output.extend(self.response_scalar(item_id, content_index, delta, kind)?);
             return Ok(output);
         };
         let delta = match kind {
-            Scalar::Text => claude::KnownEventDelta::Text { text: delta, rest },
+            Scalar::Text => claude::KnownEventDelta::Text {
+                text: delta,
+                rest: Default::default(),
+            },
             Scalar::Thinking => claude::KnownEventDelta::Thinking {
                 estimated_tokens: None,
                 thinking: delta,
-                rest,
+                rest: Default::default(),
             },
         };
         Ok(vec![self.delta(index, delta)?])
@@ -185,7 +183,7 @@ impl State {
                 rest: Default::default(),
             }),
         };
-        output.extend(self.block_start(index, block, Default::default())?);
+        output.extend(self.block_start(index, block)?);
         self.scalar = Some((key.into(), index));
         Ok(index)
     }
@@ -194,11 +192,10 @@ impl State {
         &mut self,
         index: u64,
         block: claude::ContentBlock,
-        rest: serde_json::Map<String, serde_json::Value>,
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = Vec::new();
         for open in self.open.clone() {
-            output.extend(self.close(open, Default::default())?);
+            output.extend(self.close(open)?);
         }
         self.open.insert(index);
         output.push(typed_claude(
@@ -206,7 +203,7 @@ impl State {
             &claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::ContentBlockStart {
                 index,
                 content_block: Box::new(block),
-                rest,
+                rest: Default::default(),
             })),
         )?);
         Ok(output)
@@ -237,19 +234,17 @@ impl State {
         &self,
         index: u64,
         partial_json: String,
-        rest: serde_json::Map<String, serde_json::Value>,
     ) -> Result<Bytes, TransformError> {
         self.delta(
             index,
-            claude::KnownEventDelta::InputJson { partial_json, rest },
+            claude::KnownEventDelta::InputJson {
+                partial_json,
+                rest: Default::default(),
+            },
         )
     }
 
-    pub(super) fn close(
-        &mut self,
-        index: u64,
-        rest: serde_json::Map<String, serde_json::Value>,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn close(&mut self, index: u64) -> Result<Vec<Bytes>, TransformError> {
         if !self.open.remove(&index) {
             return Ok(Vec::new());
         }
@@ -264,17 +259,13 @@ impl State {
             "content_block_stop",
             &claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::ContentBlockStop {
                 index,
-                rest,
+                rest: Default::default(),
             })),
         )?])
     }
 
-    pub(super) fn usage_delta(
-        &self,
-        usage: claude::Usage,
-        rest: openai::Rest,
-    ) -> Result<Vec<Bytes>, TransformError> {
-        self.message_delta(None, Some(usage), rest)
+    pub(super) fn usage_delta(&self, usage: claude::Usage) -> Result<Vec<Bytes>, TransformError> {
+        self.message_delta(None, Some(usage))
     }
 
     pub(super) fn finish_message(
@@ -282,14 +273,13 @@ impl State {
         reason: claude::StopReason,
         usage: Option<claude::Usage>,
         stop: bool,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = Vec::new();
         for index in self.open.clone() {
-            output.extend(self.close(index, Default::default())?);
+            output.extend(self.close(index)?);
         }
         if !self.message_delta || usage.is_some() {
-            output.extend(self.message_delta(Some(reason), usage, rest)?);
+            output.extend(self.message_delta(Some(reason), usage)?);
             self.message_delta = true;
         }
         if stop {
@@ -302,7 +292,6 @@ impl State {
         &self,
         reason: Option<claude::StopReason>,
         usage: Option<claude::Usage>,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let event = claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::MessageDelta {
             context_management: None,
@@ -315,7 +304,7 @@ impl State {
             }),
             input_transformations: None,
             usage: usage.map(Box::new),
-            rest,
+            rest: Default::default(),
         }));
         Ok(vec![typed_claude("message_delta", &event)?])
     }
@@ -326,13 +315,12 @@ impl State {
         }
         let mut output = Vec::new();
         for index in self.open.clone() {
-            output.extend(self.close(index, Default::default())?);
+            output.extend(self.close(index)?);
         }
         if !self.message_delta {
             output.extend(self.message_delta(
                 Some(claude::StopReason::Known(claude::StopReasonKnown::EndTurn)),
                 None,
-                Default::default(),
             )?);
         }
         output.push(typed_claude(

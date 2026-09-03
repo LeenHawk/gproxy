@@ -67,7 +67,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                             name: call.function.name,
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
-                            rest: merge(call.rest, call.function.rest),
+                            rest: Default::default(),
                         },
                     ));
                 }
@@ -79,22 +79,12 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                             name: call.custom.name,
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
-                            rest: merge(call.rest, call.custom.rest),
+                            rest: Default::default(),
                         },
                     ));
                 }
-                openai::ChatToolCall::Unknown(raw) => {
-                    blocks.push(claude::ResponseContentBlock::Raw(raw));
-                }
+                openai::ChatToolCall::Unknown(_) => {}
             }
-        }
-    }
-    if let Some(raw) = choice
-        .as_ref()
-        .and_then(|choice| choice.message.rest.get("claude_content_blocks"))
-    {
-        for value in raw.as_array().into_iter().flatten() {
-            blocks.push(serde_json::from_value(value.clone())?);
         }
     }
     if blocks.is_empty() {
@@ -108,10 +98,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         ));
     }
     let usage = usage::chat_to_claude(input.usage).unwrap_or_else(empty_usage);
-    let mut rest = input.rest;
-    if let Some(created) = input.created {
-        rest.insert("openai_created".into(), created.into());
-    }
     let output = claude::CreateMessageResponseBody {
         id: input.id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
@@ -141,7 +127,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         diagnostics: None,
         input_transformations: None,
         stop_details: None,
-        rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -161,12 +147,4 @@ fn empty_usage() -> claude::Usage {
         speed: None,
         rest: Default::default(),
     }
-}
-
-fn merge(
-    mut left: serde_json::Map<String, serde_json::Value>,
-    right: serde_json::Map<String, serde_json::Value>,
-) -> serde_json::Map<String, serde_json::Value> {
-    left.extend(right);
-    left
 }

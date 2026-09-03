@@ -64,7 +64,7 @@ pub(crate) fn transform(body: Bytes, model: &str, stream: bool) -> Result<Bytes,
         top_p: generation.as_ref().and_then(|value| value.top_p),
         truncation: None,
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -88,9 +88,10 @@ fn text_config(
         .or(config.private_response_json_schema.clone())
         .or(config
             .response_schema
-            .as_ref()
-            .map(serde_json::to_value)
-            .transpose()?);
+            .clone()
+            .map(tools::schema_object)
+            .transpose()?
+            .map(serde_json::Value::Object));
     let format = if let Some(schema) = schema {
         Some(openai::ResponseFormat::JsonSchema(
             openai::JsonSchemaResponseFormat {

@@ -8,10 +8,7 @@ pub(crate) use request::{request_messages, system};
 pub(super) use response::{attach_signature, signature_part};
 pub(crate) use response::{response_block, response_content};
 
-pub(super) fn text_part(
-    text: String,
-    rest: serde_json::Map<String, serde_json::Value>,
-) -> gproxy_protocol::gemini::Part {
+pub(super) fn text_part(text: String) -> gproxy_protocol::gemini::Part {
     gproxy_protocol::gemini::Part {
         thought: None,
         thought_signature: None,
@@ -22,7 +19,7 @@ pub(super) fn text_part(
             rest: Default::default(),
         }),
         metadata: None,
-        rest,
+        rest: Default::default(),
     }
 }
 

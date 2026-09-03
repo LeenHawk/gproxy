@@ -265,13 +265,10 @@ impl UpstreamTransport for MemoryHost {
                     ),
                     (http::Method::POST, path)
                         if path.ends_with("/codex/responses")
-                            && serde_json::from_slice::<serde_json::Value>(&request_body)
-                                .ok()
-                                .and_then(|body| body.get("sparse_test")?.as_bool())
-                                .unwrap_or(false) =>
+                            && String::from_utf8_lossy(&request_body).contains("sparse_test") =>
                     {
                         Bytes::from_static(
-                            b"event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_sparse\",\"created_at\":1,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[]}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"item_id\":\"msg_sparse\",\"content_index\":0,\"delta\":\"hi\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_sparse\",\"created_at\":1,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[]}}\n\n",
+                            b"event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_sparse\",\"created_at\":1,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[]}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"item_id\":\"msg_sparse\",\"content_index\":0,\"delta\":\"sparse_test\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_sparse\",\"created_at\":1,\"object\":\"response\",\"model\":\"gpt-test\",\"output\":[]}}\n\n",
                         )
                     }
                     (http::Method::POST, path) if path.ends_with("/codex/responses") => {

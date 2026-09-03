@@ -14,18 +14,11 @@ impl State {
         _item_id: String,
         _output_index: u32,
         _content_index: u32,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         match part {
-            openai::ResponseContentPart::OutputText(part) => {
-                self.finish_text(part.text, part.rest, event_rest)
-            }
-            openai::ResponseContentPart::Refusal(part) => {
-                self.finish_refusal(part.refusal, part.rest, event_rest)
-            }
-            openai::ResponseContentPart::ReasoningText(part) => {
-                self.finish_reasoning(part.text, part.rest, event_rest)
-            }
+            openai::ResponseContentPart::OutputText(part) => self.finish_text(part.text),
+            openai::ResponseContentPart::Refusal(part) => self.finish_refusal(part.refusal),
+            openai::ResponseContentPart::ReasoningText(part) => self.finish_reasoning(part.text),
             openai::ResponseContentPart::Unknown(_) => Ok(Vec::new()),
         }
     }
@@ -33,44 +26,36 @@ impl State {
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn finish_text(
         &mut self,
         full: String,
-        rest: openai::Rest,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let delta = suffix(&self.text, &full, "output text")?;
         self.text = full;
-        self.content_chunk(delta, rest, event_rest, ContentKind::Text)
+        self.content_chunk(delta, ContentKind::Text)
     }
 
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn finish_reasoning(
         &mut self,
         full: String,
-        rest: openai::Rest,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let delta = suffix(&self.reasoning, &full, "reasoning text")?;
         self.reasoning = full;
-        self.content_chunk(delta, rest, event_rest, ContentKind::Reasoning)
+        self.content_chunk(delta, ContentKind::Reasoning)
     }
 
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn finish_refusal(
         &mut self,
         full: String,
-        rest: openai::Rest,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let delta = suffix(&self.refusal, &full, "refusal")?;
         self.refusal = full;
-        self.content_chunk(delta, rest, event_rest, ContentKind::Refusal)
+        self.content_chunk(delta, ContentKind::Refusal)
     }
 
     fn content_chunk(
         &self,
         delta: String,
-        rest: openai::Rest,
-        event_rest: openai::Rest,
         kind: ContentKind,
     ) -> Result<Vec<Bytes>, TransformError> {
-        if delta.is_empty() && rest.is_empty() && event_rest.is_empty() {
+        if delta.is_empty() {
             return Ok(Vec::new());
         }
         let mut value = empty_delta();
@@ -79,8 +64,7 @@ impl State {
             ContentKind::Reasoning => value.reasoning_content = Some(delta),
             ContentKind::Refusal => value.refusal = Some(delta),
         }
-        value.rest = rest;
-        Ok(vec![self.chunk(value, None, None, event_rest)?])
+        Ok(vec![self.chunk(value, None, None)?])
     }
 }
 

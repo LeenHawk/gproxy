@@ -1,18 +1,5 @@
 use gproxy_protocol::claude;
 
-pub(crate) fn preserve_input_transformations(
-    rest: &mut claude::JsonObject,
-    transformations: Option<Vec<claude::InputTransformation>>,
-) -> Result<(), serde_json::Error> {
-    if let Some(transformations) = transformations {
-        rest.insert(
-            "input_transformations".into(),
-            serde_json::to_value(transformations)?,
-        );
-    }
-    Ok(())
-}
-
 pub(crate) fn apply(
     messages: &mut Vec<claude::MessageParam>,
     output_config: &mut Option<claude::OutputConfig>,

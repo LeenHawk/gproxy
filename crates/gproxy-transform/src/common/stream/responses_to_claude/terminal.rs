@@ -13,7 +13,7 @@ impl State {
         event: openai::ResponseLifecycleEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
         self.update_response(&event.response)?;
-        self.ensure_start(event.response.rest.clone(), event.rest)
+        self.ensure_start()
     }
 
     pub(super) fn response_pending(
@@ -21,9 +21,7 @@ impl State {
         event: openai::ResponseLifecycleEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
         self.update_response(&event.response)?;
-        let output = self.ensure_start(event.response.rest.clone(), event.rest.clone())?;
-        self.pending_rest.extend(event.response.rest.clone());
-        self.pending_rest.extend(event.rest);
+        let output = self.ensure_start()?;
         Ok(output)
     }
 
@@ -32,9 +30,7 @@ impl State {
         event: openai::ResponseLifecycleEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
         self.update_response(&event.response)?;
-        let mut output = self.ensure_start(event.response.rest.clone(), event.rest.clone())?;
-        let mut terminal_rest = std::mem::take(&mut self.pending_rest);
-        terminal_rest.extend(event.rest);
+        let mut output = self.ensure_start()?;
         let response = event.response;
         if self.next_index == 0 && !response.output.is_empty() {
             let converted =
@@ -45,8 +41,8 @@ impl State {
             for block in message.content {
                 self.has_tool |= matches!(block, claude::ResponseContentBlock::ToolUse(_));
                 let index = self.allocate();
-                output.extend(self.block_start(index, block, Default::default())?);
-                output.extend(self.close(index, Default::default())?);
+                output.extend(self.block_start(index, block)?);
+                output.extend(self.close(index)?);
             }
         }
         output.extend(self.finish_message(
@@ -57,7 +53,6 @@ impl State {
             }),
             usage::responses_to_claude(response.usage),
             true,
-            terminal_rest,
         )?);
         Ok(output)
     }
@@ -67,15 +62,12 @@ impl State {
         event: openai::ResponseLifecycleEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
         self.update_response(&event.response)?;
-        let mut output = self.ensure_start(event.response.rest.clone(), event.rest.clone())?;
-        let mut terminal_rest = std::mem::take(&mut self.pending_rest);
-        terminal_rest.extend(event.rest);
+        let mut output = self.ensure_start()?;
         let usage = usage::responses_to_claude(event.response.usage);
         output.extend(self.finish_message(
             claude::StopReason::Known(claude::StopReasonKnown::MaxTokens),
             usage,
             true,
-            terminal_rest,
         )?);
         Ok(output)
     }

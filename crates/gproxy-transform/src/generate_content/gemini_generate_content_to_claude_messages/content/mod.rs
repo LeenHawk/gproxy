@@ -85,23 +85,3 @@ impl Correlation {
         id
     }
 }
-
-pub(super) fn merge(
-    mut left: serde_json::Map<String, serde_json::Value>,
-    right: serde_json::Map<String, serde_json::Value>,
-) -> serde_json::Map<String, serde_json::Value> {
-    left.extend(right);
-    left
-}
-
-pub(super) fn caller(signature: Option<String>) -> Option<gproxy_protocol::claude::Caller> {
-    let signature = signature?;
-    Some(gproxy_protocol::claude::Caller::Direct(
-        gproxy_protocol::claude::DirectCaller {
-            type_: gproxy_protocol::claude::DirectCallerType::Direct,
-            rest: [("thought_signature".into(), signature.into())]
-                .into_iter()
-                .collect(),
-        },
-    ))
-}

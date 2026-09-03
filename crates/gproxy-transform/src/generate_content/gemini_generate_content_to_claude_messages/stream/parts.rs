@@ -39,7 +39,7 @@ impl State {
                             citations: None,
                             text: String::new(),
                             type_: claude::TextBlockType::Text,
-                            rest: part.rest.clone(),
+                            rest: Default::default(),
                         })
                     }
                     OpenKind::Thinking => {
@@ -47,7 +47,7 @@ impl State {
                             signature: None,
                             thinking: String::new(),
                             type_: claude::ThinkingBlockType::Thinking,
-                            rest: part.rest.clone(),
+                            rest: Default::default(),
                         })
                     }
                 };
@@ -55,7 +55,7 @@ impl State {
                 index
             }
         };
-        let Some(gemini::PartData::Text { text, rest }) = part.data else {
+        let Some(gemini::PartData::Text { text, .. }) = part.data else {
             return Err(TransformError::shape(
                 "Gemini stream",
                 "text part changed during conversion",
@@ -63,11 +63,14 @@ impl State {
         };
         if !text.is_empty() {
             let delta = match kind {
-                OpenKind::Text => claude::KnownEventDelta::Text { text, rest },
+                OpenKind::Text => claude::KnownEventDelta::Text {
+                    text,
+                    rest: Default::default(),
+                },
                 OpenKind::Thinking => claude::KnownEventDelta::Thinking {
                     estimated_tokens: None,
                     thinking: text,
-                    rest,
+                    rest: Default::default(),
                 },
             };
             output.push(events::encode(events::block_delta(index, delta))?);
@@ -87,23 +90,22 @@ impl State {
     }
 
     fn signature_only(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
-        let open = self.open.as_ref().ok_or_else(|| {
-            TransformError::shape("Gemini stream", "signature before thinking block")
-        })?;
-        if open.kind != OpenKind::Thinking {
-            return Err(TransformError::shape(
-                "Gemini stream",
-                "signature on text block",
-            ));
-        }
         let signature = part
             .thought_signature
             .ok_or_else(|| TransformError::shape("Gemini stream", "signature is missing"))?;
+        let Some(open) = self.open.as_ref() else {
+            self.pending_signature = Some(signature);
+            return Ok(Vec::new());
+        };
+        if open.kind != OpenKind::Thinking {
+            self.pending_signature = Some(signature);
+            return Ok(Vec::new());
+        }
         Ok(vec![events::encode(events::block_delta(
             open.index,
             claude::KnownEventDelta::Signature {
                 signature,
-                rest: part.rest,
+                rest: Default::default(),
             },
         ))?])
     }
@@ -111,7 +113,10 @@ impl State {
     fn closed_part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
         let mut output = self.close_open()?;
         if matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
-            && let Some(signature) = part.thought_signature.clone()
+            && let Some(signature) = part
+                .thought_signature
+                .clone()
+                .or(self.pending_signature.take())
         {
             let index = self.next_index;
             self.next_index = self.next_index.saturating_add(1);
@@ -123,6 +128,8 @@ impl State {
                 });
             output.push(events::encode(events::block_start(index, block))?);
             output.push(events::encode(events::block_stop(index))?);
+        } else {
+            self.pending_signature = None;
         }
         let Some(block) = super::super::content::response_part(part, &mut self.correlation)? else {
             return Ok(output);

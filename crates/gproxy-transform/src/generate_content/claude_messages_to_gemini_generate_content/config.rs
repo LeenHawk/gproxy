@@ -71,15 +71,15 @@ pub(super) fn request_tier(
             gemini::ServiceTierKnown::Priority,
         ));
     }
-    tier.map(|tier| match tier {
-        claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::Auto) => {
-            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified)
-        }
-        claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::StandardOnly) => {
-            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard)
-        }
-        claude::RequestServiceTier::Unknown(value) => gemini::ServiceTier::Unknown(value),
-        _ => gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified),
+    tier.and_then(|tier| match tier {
+        claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::Auto) => Some(
+            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified),
+        ),
+        claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::StandardOnly) => Some(
+            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard),
+        ),
+        claude::RequestServiceTier::Unknown(_) => None,
+        _ => None,
     })
 }
 
@@ -100,17 +100,15 @@ fn thinking_to_gemini(
             include_thoughts: Some(true),
             thinking_budget: Some(to_i32(config.budget_tokens)?),
             thinking_level: None,
-            rest: config.rest,
+            rest: Default::default(),
         },
-        claude::ThinkingConfig::Adaptive(config) => gemini::ThinkingConfig {
+        claude::ThinkingConfig::Adaptive(_) => gemini::ThinkingConfig {
             include_thoughts: Some(true),
             thinking_budget: None,
             thinking_level: None,
-            rest: config.rest,
+            rest: Default::default(),
         },
-        claude::ThinkingConfig::Unknown(raw) => {
-            return serde_json::from_value(raw).map(Some).map_err(Into::into);
-        }
+        claude::ThinkingConfig::Unknown(_) => return Ok(None),
         _ => return Ok(None),
     }))
 }
@@ -128,7 +126,7 @@ fn effort_to_gemini(effort: Option<claude::OutputEffort>) -> Option<gemini::Thin
             | claude::OutputEffortKnown::XHigh
             | claude::OutputEffortKnown::Max,
         ) => gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High),
-        claude::OutputEffort::Unknown(value) => gemini::ThinkingLevel::Unknown(value),
+        claude::OutputEffort::Unknown(_) => return None,
         _ => return None,
     })
 }

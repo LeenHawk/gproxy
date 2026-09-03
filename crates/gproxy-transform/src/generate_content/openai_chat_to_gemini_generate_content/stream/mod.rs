@@ -90,7 +90,7 @@ impl State {
                 delta,
                 finish_reason,
                 logprobs: None,
-                rest: candidate.rest,
+                rest: Default::default(),
             });
         }
         if choices.is_empty() && blocked {
@@ -118,7 +118,7 @@ impl State {
                 service_tier,
                 system_fingerprint: None,
                 usage,
-                rest: input.rest,
+                rest: Default::default(),
             };
         Ok(vec![SseFrame::typed(None, &output)?])
     }

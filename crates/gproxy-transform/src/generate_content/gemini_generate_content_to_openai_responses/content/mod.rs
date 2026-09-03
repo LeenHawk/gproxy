@@ -48,43 +48,7 @@ impl ContentConverter {
         &mut self,
         content: gemini::Content,
     ) -> Result<Vec<openai::ResponseItem>, TransformError> {
-        let mut output = Vec::new();
-        let mut buffered = Vec::new();
-        for part in content.parts {
-            let signature = matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
-                .then(|| part.thought_signature.clone())
-                .flatten();
-            if let Some(signature) = signature {
-                output.extend(self.content(
-                    gemini::Content {
-                        parts: std::mem::take(&mut buffered),
-                        role: content.role.clone(),
-                        rest: content.rest.clone(),
-                    },
-                    true,
-                )?);
-                output.push(self.reasoning(None, Some(signature), Default::default()));
-                output.extend(self.content(
-                    gemini::Content {
-                        parts: vec![part],
-                        role: content.role.clone(),
-                        rest: content.rest.clone(),
-                    },
-                    true,
-                )?);
-            } else {
-                buffered.push(part);
-            }
-        }
-        output.extend(self.content(
-            gemini::Content {
-                parts: buffered,
-                role: content.role,
-                rest: content.rest,
-            },
-            true,
-        )?);
-        Ok(output)
+        self.content(content, true)
     }
 
     fn content(
@@ -94,14 +58,25 @@ impl ContentConverter {
     ) -> Result<Vec<openai::ResponseItem>, TransformError> {
         let mut output = Vec::new();
         let mut message_parts = Vec::new();
-        for part in content.parts {
+        for mut part in content.parts {
+            if matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
+                && let Some(signature) = part.thought_signature.take()
+            {
+                messages::flush(
+                    &mut output,
+                    &mut message_parts,
+                    content.role.as_ref(),
+                    response,
+                    &mut self.next_message,
+                );
+                output.push(self.reasoning(None, Some(signature)));
+            }
             if let Some(item) = self.part(part, response, &mut message_parts)? {
                 messages::flush(
                     &mut output,
                     &mut message_parts,
                     content.role.as_ref(),
                     response,
-                    content.rest.clone(),
                     &mut self.next_message,
                 );
                 output.push(item);
@@ -112,7 +87,6 @@ impl ContentConverter {
             &mut message_parts,
             content.role.as_ref(),
             response,
-            content.rest,
             &mut self.next_message,
         );
         Ok(output)

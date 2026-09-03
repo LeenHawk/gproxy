@@ -2,6 +2,83 @@ use gproxy_protocol::claude;
 
 use crate::TransformError;
 
+pub(super) fn typed_value(
+    schema: gproxy_protocol::gemini::Schema,
+) -> Result<serde_json::Value, TransformError> {
+    let mut object = serde_json::Map::new();
+    object.insert("type".into(), schema_type(schema.r#type)?.into());
+    insert(&mut object, "format", schema.format)?;
+    insert(&mut object, "title", schema.title)?;
+    insert(&mut object, "description", schema.description)?;
+    insert(&mut object, "nullable", schema.nullable)?;
+    insert(&mut object, "enum", schema.r#enum)?;
+    if let Some(properties) = schema.properties {
+        let properties = properties
+            .into_iter()
+            .map(|(name, schema)| typed_value(schema).map(|schema| (name, schema)))
+            .collect::<Result<serde_json::Map<_, _>, _>>()?;
+        object.insert("properties".into(), properties.into());
+    }
+    insert(&mut object, "required", schema.required)?;
+    if let Some(any_of) = schema.any_of {
+        let any_of = any_of
+            .into_iter()
+            .map(typed_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        object.insert("anyOf".into(), any_of.into());
+    }
+    insert(&mut object, "propertyOrdering", schema.property_ordering)?;
+    if let Some(items) = schema.items {
+        object.insert("items".into(), typed_value(*items)?);
+    }
+    insert(&mut object, "minimum", schema.minimum)?;
+    insert(&mut object, "maximum", schema.maximum)?;
+    insert(&mut object, "maxItems", schema.max_items)?;
+    insert(&mut object, "minItems", schema.min_items)?;
+    insert(&mut object, "minProperties", schema.min_properties)?;
+    insert(&mut object, "maxProperties", schema.max_properties)?;
+    insert(&mut object, "minLength", schema.min_length)?;
+    insert(&mut object, "maxLength", schema.max_length)?;
+    insert(&mut object, "pattern", schema.pattern)?;
+    insert(&mut object, "example", schema.example)?;
+    insert(&mut object, "default", schema.default)?;
+    Ok(object.into())
+}
+
+fn schema_type(kind: gproxy_protocol::gemini::SchemaType) -> Result<&'static str, TransformError> {
+    use gproxy_protocol::gemini::{SchemaType, SchemaTypeKnown};
+
+    match kind {
+        SchemaType::Known(SchemaTypeKnown::String) => Ok("string"),
+        SchemaType::Known(SchemaTypeKnown::Number) => Ok("number"),
+        SchemaType::Known(SchemaTypeKnown::Integer) => Ok("integer"),
+        SchemaType::Known(SchemaTypeKnown::Boolean) => Ok("boolean"),
+        SchemaType::Known(SchemaTypeKnown::Array) => Ok("array"),
+        SchemaType::Known(SchemaTypeKnown::Object) => Ok("object"),
+        SchemaType::Known(SchemaTypeKnown::Null) => Ok("null"),
+        SchemaType::Known(SchemaTypeKnown::TypeUnspecified) => Err(TransformError::unsupported(
+            "Gemini schema type",
+            "unspecified type",
+        )),
+        SchemaType::Unknown(value) => Err(TransformError::unsupported("Gemini schema type", value)),
+        _ => Err(TransformError::unsupported(
+            "Gemini schema type",
+            "future type",
+        )),
+    }
+}
+
+fn insert<T: serde::Serialize>(
+    object: &mut claude::JsonObject,
+    key: &str,
+    value: Option<T>,
+) -> Result<(), TransformError> {
+    if let Some(value) = value {
+        object.insert(key.into(), serde_json::to_value(value)?);
+    }
+    Ok(())
+}
+
 pub(super) fn convert(mut value: serde_json::Value) -> Result<claude::JsonSchema, TransformError> {
     crate::common::gemini_schema::normalize(&mut value);
     let serde_json::Value::Object(mut object) = value else {
@@ -21,7 +98,7 @@ pub(super) fn convert(mut value: serde_json::Value) -> Result<claude::JsonSchema
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties,
         required,
-        rest: object,
+        rest: Default::default(),
     })
 }
 

@@ -28,7 +28,6 @@ pub(crate) fn transform(
             openai::ChatCompletionMessageParam::Developer(message) => {
                 push_system(
                     content::chat_text_blocks(message.content)?,
-                    message.rest,
                     seen_turn,
                     mid_conv_supported,
                     last_non_system.is_some_and(|last| index > last),
@@ -39,7 +38,6 @@ pub(crate) fn transform(
             openai::ChatCompletionMessageParam::System(message) => {
                 push_system(
                     content::chat_text_blocks(message.content)?,
-                    message.rest,
                     seen_turn,
                     mid_conv_supported,
                     last_non_system.is_some_and(|last| index > last),
@@ -53,7 +51,6 @@ pub(crate) fn transform(
                     &mut messages,
                     claude::MessageRoleKnown::User,
                     content::chat_user_blocks(message.content)?,
-                    message.rest,
                 );
             }
             openai::ChatCompletionMessageParam::Assistant(message) => {
@@ -85,15 +82,12 @@ pub(crate) fn transform(
                 }
                 if let Some(calls) = message.tool_calls {
                     for call in calls {
-                        blocks.push(tool_call(call)?);
+                        if let Some(block) = tool_call(call)? {
+                            blocks.push(block);
+                        }
                     }
                 }
-                push_message(
-                    &mut messages,
-                    claude::MessageRoleKnown::Assistant,
-                    blocks,
-                    message.rest,
-                );
+                push_message(&mut messages, claude::MessageRoleKnown::Assistant, blocks);
             }
             openai::ChatCompletionMessageParam::Tool(message) => {
                 seen_turn = true;
@@ -107,10 +101,9 @@ pub(crate) fn transform(
                             cache_control: None,
                             content: Some(tool_result_content(message.content)?),
                             is_error: None,
-                            rest: message.rest,
+                            rest: Default::default(),
                         },
                     )],
-                    Default::default(),
                 );
             }
             openai::ChatCompletionMessageParam::Function(message) => {
@@ -125,15 +118,9 @@ pub(crate) fn transform(
                         "function:{}\n{}",
                         message.name, content
                     )))?,
-                    message.rest,
                 );
             }
-            openai::ChatCompletionMessageParam::Unknown(raw) => {
-                return Err(TransformError::unsupported(
-                    "OpenAI Chat message",
-                    raw.to_string(),
-                ));
-            }
+            openai::ChatCompletionMessageParam::Unknown(_) => {}
         }
     }
     let service_tier_value = input.service_tier.clone();
@@ -172,14 +159,13 @@ pub(crate) fn transform(
         top_k: None,
         top_p: input.top_p,
         user_profile_id: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 
 fn push_system(
     blocks: Vec<claude::ContentBlockParam>,
-    rest: openai::Rest,
     seen_turn: bool,
     mid_conv_supported: bool,
     trailing: bool,
@@ -194,7 +180,7 @@ fn push_system(
         } else {
             claude::MessageRoleKnown::Assistant
         };
-        push_message(messages, role, blocks, rest);
+        push_message(messages, role, blocks);
     } else {
         system.extend(blocks.into_iter().filter_map(|block| match block {
             claude::ContentBlockParam::Text(block) => Some(block),
@@ -231,7 +217,6 @@ fn push_message(
     messages: &mut Vec<claude::MessageParam>,
     role: claude::MessageRoleKnown,
     blocks: Vec<claude::ContentBlockParam>,
-    rest: serde_json::Map<String, serde_json::Value>,
 ) {
     if !blocks.is_empty() {
         messages.push(claude::MessageParam {
@@ -239,7 +224,7 @@ fn push_message(
             content: claude::StringOrArray::Array(blocks),
             clear_at: None,
             output_config: None,
-            rest,
+            rest: Default::default(),
         });
     }
 }
@@ -256,26 +241,30 @@ fn function_call(
         type_: claude::ToolUseBlockType::ToolUse,
         cache_control: None,
         caller: None,
-        rest: call.rest,
+        rest: Default::default(),
     }))
 }
 
-fn tool_call(call: openai::ChatToolCall) -> Result<claude::ContentBlockParam, TransformError> {
+fn tool_call(
+    call: openai::ChatToolCall,
+) -> Result<Option<claude::ContentBlockParam>, TransformError> {
     match call {
-        openai::ChatToolCall::Function(call) => function_call(call.id, call.function),
+        openai::ChatToolCall::Function(call) => function_call(call.id, call.function).map(Some),
         openai::ChatToolCall::Custom(call) => {
             let input = serde_json::from_str(&call.custom.input).unwrap_or_default();
-            Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-                id: call.id,
-                input,
-                name: call.custom.name,
-                type_: claude::ToolUseBlockType::ToolUse,
-                cache_control: None,
-                caller: None,
-                rest: call.rest,
-            }))
+            Ok(Some(claude::ContentBlockParam::ToolUse(
+                claude::ToolUseBlock {
+                    id: call.id,
+                    input,
+                    name: call.custom.name,
+                    type_: claude::ToolUseBlockType::ToolUse,
+                    cache_control: None,
+                    caller: None,
+                    rest: Default::default(),
+                },
+            )))
         }
-        openai::ChatToolCall::Unknown(raw) => Ok(claude::ContentBlockParam::Raw(raw)),
+        openai::ChatToolCall::Unknown(_) => Ok(None),
     }
 }
 
@@ -287,23 +276,24 @@ fn tool_result_content(
         openai::ChatTextContent::Parts(parts) => Ok(claude::ToolResultContent::Blocks(
             parts
                 .into_iter()
-                .map(|part| match part {
-                    openai::ChatTextContentPart::Text(part) => {
-                        Ok(claude::ToolResultContentBlock::Text(claude::TextBlock {
+                .filter_map(|part| match part {
+                    openai::ChatTextContentPart::Text(part) => Some(Ok(
+                        claude::ToolResultContentBlock::Text(claude::TextBlock {
                             text: part.text,
                             type_: claude::TextBlockType::Text,
                             cache_control: None,
                             citations: None,
-                            rest: part.rest,
-                        }))
-                    }
-                    openai::ChatTextContentPart::Unknown(raw) => {
-                        Ok(claude::ToolResultContentBlock::Raw(raw))
-                    }
+                            rest: Default::default(),
+                        }),
+                    )),
+                    openai::ChatTextContentPart::Unknown(_) => None,
                 })
                 .collect::<Result<_, TransformError>>()?,
         )),
-        openai::ChatTextContent::Unknown(raw) => Ok(claude::ToolResultContent::Raw(raw)),
+        openai::ChatTextContent::Unknown(raw) => Err(TransformError::unsupported(
+            "OpenAI Chat tool result",
+            raw.to_string(),
+        )),
     }
 }
 
@@ -319,7 +309,7 @@ fn output_config(
             schema: format.json_schema.schema.ok_or_else(|| {
                 TransformError::shape("OpenAI JSON schema response format", "schema is missing")
             })?,
-            rest: format.rest,
+            rest: Default::default(),
         }),
         Some(openai::ChatResponseFormat::Text(_)) | None => None,
         Some(other) => {
@@ -357,9 +347,7 @@ fn service_tier(
         Some(openai::ServiceTier::Auto | openai::ServiceTier::Default) => Ok(Some(
             claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::Auto),
         )),
-        Some(openai::ServiceTier::Unknown(value)) => {
-            Ok(Some(claude::RequestServiceTier::Unknown(value)))
-        }
+        Some(openai::ServiceTier::Unknown(_)) => Ok(None),
         Some(_) => Ok(None),
     }
 }

@@ -49,13 +49,13 @@ pub(crate) fn choice(
             choice_with_names(
                 openai::AllowedToolsMode::Required,
                 config.allowed_function_names,
-            )
+            )?
         }
         gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::Validated) => {
             choice_with_names(
                 openai::AllowedToolsMode::Auto,
                 config.allowed_function_names,
-            )
+            )?
         }
         gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::None) => {
             if config.allowed_function_names.is_some() {
@@ -66,31 +66,28 @@ pub(crate) fn choice(
             }
             Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::None))
         }
-        gemini::FunctionCallingMode::Unknown(value) => Some(openai::ChatToolChoice::Mode(
-            openai::ToolChoiceMode::Unknown(value),
-        )),
-        _ => {
-            return Err(TransformError::unsupported(
-                "Gemini function calling mode",
-                "future mode",
-            ));
-        }
+        _ => None,
     })
 }
 
 fn choice_with_names(
     mode: openai::AllowedToolsMode,
     names: Option<Vec<String>>,
-) -> Option<openai::ChatToolChoice> {
+) -> Result<Option<openai::ChatToolChoice>, TransformError> {
     let Some(names) = names else {
-        return Some(openai::ChatToolChoice::Mode(match mode {
+        return Ok(Some(openai::ChatToolChoice::Mode(match mode {
             openai::AllowedToolsMode::Required => openai::ToolChoiceMode::Required,
             openai::AllowedToolsMode::Auto | openai::AllowedToolsMode::Unknown(_) => {
                 openai::ToolChoiceMode::Auto
             }
-        }));
+        })));
     };
-    Some(openai::ChatToolChoice::Allowed(
+    if names.is_empty() {
+        return Ok(Some(openai::ChatToolChoice::Mode(
+            openai::ToolChoiceMode::None,
+        )));
+    }
+    Ok(Some(openai::ChatToolChoice::Allowed(
         openai::ChatAllowedToolChoice {
             allowed_tools: openai::ChatAllowedTools {
                 mode,
@@ -100,16 +97,15 @@ fn choice_with_names(
             type_: openai::AllowedToolsType::AllowedTools,
             rest: Default::default(),
         },
-    ))
+    )))
 }
 
-fn allowed_function(name: String) -> openai::Rest {
-    let mut function = openai::Rest::new();
-    function.insert("name".into(), name.into());
-    let mut tool = openai::Rest::new();
-    tool.insert("type".into(), "function".into());
-    tool.insert("function".into(), serde_json::Value::Object(function));
-    tool
+fn allowed_function(name: String) -> serde_json::Map<String, serde_json::Value> {
+    let function = serde_json::Map::from_iter([("name".into(), name.into())]);
+    serde_json::Map::from_iter([
+        ("type".into(), "function".into()),
+        ("function".into(), serde_json::Value::Object(function)),
+    ])
 }
 
 fn function_declaration(
@@ -127,7 +123,7 @@ fn function_declaration(
             description: Some(declaration.description),
             parameters,
             strict: None,
-            rest: declaration.rest,
+            rest: Default::default(),
         },
         rest: Default::default(),
     }))

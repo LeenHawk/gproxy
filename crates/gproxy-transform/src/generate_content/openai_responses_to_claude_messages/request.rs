@@ -156,7 +156,6 @@ fn input_messages(
         Some(openai::ResponseInput::Text(text)) => Ok(vec![message(
             claude::MessageRoleKnown::User,
             vec![text_block(text)],
-            Default::default(),
         )]),
         Some(openai::ResponseInput::Items(items)) => items
             .into_iter()
@@ -188,11 +187,9 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                     openai::ResponseEasyInputContent::OutputParts(parts) => {
                         responses::output_to_claude(parts)?
                     }
-                    openai::ResponseEasyInputContent::Unknown(raw) => {
-                        vec![claude::ContentBlockParam::Raw(raw)]
-                    }
+                    openai::ResponseEasyInputContent::Unknown(_) => return Ok(None),
                 };
-                message(role, blocks, Default::default())
+                message(role, blocks)
             }
             openai::ResponseMessageItem::Input(message_item) => {
                 let role = match message_item.role {
@@ -202,16 +199,11 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                         claude::MessageRoleKnown::System
                     }
                 };
-                message(
-                    role,
-                    responses::input_to_claude(message_item.content)?,
-                    with_item_id(message_item.rest, message_item.id),
-                )
+                message(role, responses::input_to_claude(message_item.content)?)
             }
             openai::ResponseMessageItem::Output(message_item) => message(
                 claude::MessageRoleKnown::Assistant,
                 responses::output_to_claude(message_item.content)?,
-                with_item_id(message_item.rest, Some(message_item.id)),
             ),
             openai::ResponseMessageItem::Unknown(_) => return Ok(None),
         })),
@@ -224,29 +216,16 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
     }
 }
 
-fn with_item_id(
-    _: serde_json::Map<String, serde_json::Value>,
-    _: Option<String>,
-) -> serde_json::Map<String, serde_json::Value> {
-    Default::default()
-}
-
-fn preserve_item_id(rest: &mut serde_json::Map<String, serde_json::Value>, id: Option<String>) {
-    let _ = id;
-    rest.remove("openai_item_id");
-}
-
 fn message(
     role: claude::MessageRoleKnown,
     content: Vec<claude::ContentBlockParam>,
-    rest: serde_json::Map<String, serde_json::Value>,
 ) -> claude::MessageParam {
     claude::MessageParam {
         role: claude::MessageRole::Known(role),
         content: claude::StringOrArray::Array(content),
         clear_at: None,
         output_config: None,
-        rest,
+        rest: Default::default(),
     }
 }
 
@@ -292,7 +271,7 @@ fn tool_choice(
                 name: choice.name,
                 type_: claude::ToolChoiceToolType::Tool,
                 disable_parallel_tool_use,
-                rest: choice.rest,
+                rest: Default::default(),
             }))
         }
         Some(openai::ResponseToolChoice::Custom(choice)) => {
@@ -300,10 +279,10 @@ fn tool_choice(
                 name: choice.name,
                 type_: claude::ToolChoiceToolType::Tool,
                 disable_parallel_tool_use,
-                rest: choice.rest,
+                rest: Default::default(),
             }))
         }
-        Some(openai::ResponseToolChoice::Unknown(raw)) => Some(claude::ToolChoice::Unknown(raw)),
+        Some(openai::ResponseToolChoice::Unknown(_)) => None,
         Some(other) => {
             return Err(TransformError::unsupported(
                 "OpenAI Responses tool choice",
@@ -327,7 +306,7 @@ fn output_config(
                 claude::JsonSchemaFormatTypeKnown::JsonSchema,
             ),
             schema: format.schema,
-            rest: format.rest,
+            rest: Default::default(),
         }),
         Some(openai::ResponseFormat::Text(_)) | None => None,
         Some(other) => {
@@ -354,9 +333,7 @@ fn service_tier(
         Some(openai::ServiceTier::Auto | openai::ServiceTier::Default) => Some(
             claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::Auto),
         ),
-        Some(openai::ServiceTier::Unknown(value)) => {
-            Some(claude::RequestServiceTier::Unknown(value))
-        }
+        Some(openai::ServiceTier::Unknown(_)) => None,
         _ => None,
     })
 }

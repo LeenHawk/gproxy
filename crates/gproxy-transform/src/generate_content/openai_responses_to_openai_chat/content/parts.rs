@@ -11,7 +11,7 @@ pub(super) fn response_part_to_chat(
                 type_: openai::ChatTextPartType::Text,
                 text: part.text,
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                rest: part.rest,
+                rest: Default::default(),
             })
         }
         openai::ResponseInputContentPart::InputImage(part) => {
@@ -24,7 +24,7 @@ pub(super) fn response_part_to_chat(
                         rest: Default::default(),
                     },
                     prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                    rest: part.rest,
+                    rest: Default::default(),
                 })
             } else if let Some(file_id) = part.file_id {
                 openai::ChatContentPart::File(openai::ChatFilePart {
@@ -36,7 +36,7 @@ pub(super) fn response_part_to_chat(
                         rest: Default::default(),
                     },
                     prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                    rest: part.rest,
+                    rest: Default::default(),
                 })
             } else {
                 return Err(TransformError::shape(
@@ -51,7 +51,7 @@ pub(super) fn response_part_to_chat(
                     type_: openai::ChatTextPartType::Text,
                     text: format!("Attachment URL: {url}"),
                     prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                    rest: part.rest,
+                    rest: Default::default(),
                 })
             } else {
                 openai::ChatContentPart::File(openai::ChatFilePart {
@@ -63,7 +63,7 @@ pub(super) fn response_part_to_chat(
                         rest: Default::default(),
                     },
                     prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                    rest: part.rest,
+                    rest: Default::default(),
                 })
             }
         }
@@ -73,10 +73,10 @@ pub(super) fn response_part_to_chat(
                 input_audio: openai::InputAudio {
                     data: part.input_audio.data,
                     format: part.input_audio.format,
-                    rest: part.input_audio.rest,
+                    rest: Default::default(),
                 },
                 prompt_cache_breakpoint: None,
-                rest: part.rest,
+                rest: Default::default(),
             })
         }
     })

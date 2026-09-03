@@ -17,7 +17,7 @@ impl State {
             match part.data.as_ref() {
                 Some(gemini::PartData::FunctionResponse { .. })
                 | Some(gemini::PartData::CodeExecutionResult { .. }) => {
-                    flush_user(&mut output, &mut ordinary, Default::default());
+                    flush_user(&mut output, &mut ordinary);
                     output.push(self.result(part)?);
                 }
                 _ => {
@@ -27,7 +27,7 @@ impl State {
                 }
             }
         }
-        flush_user(&mut output, &mut ordinary, content.rest);
+        flush_user(&mut output, &mut ordinary);
         Ok(output)
     }
 
@@ -37,38 +37,13 @@ impl State {
     ) -> Result<openai::ChatCompletionMessageParam, TransformError> {
         match part.data {
             Some(gemini::PartData::FunctionResponse {
-                function_response,
-                rest: data_rest,
+                function_response, ..
             }) => {
                 let id = self
                     .take_function_id(&function_response.name, function_response.id.as_deref())?;
-                let mut rest = part.rest;
-                rest.extend(data_rest);
-                preserve(
-                    &mut rest,
-                    "gemini_function_response_parts",
-                    &function_response.parts,
-                )?;
-                preserve(
-                    &mut rest,
-                    "gemini_function_response_will_continue",
-                    &function_response.will_continue,
-                )?;
-                preserve(
-                    &mut rest,
-                    "gemini_function_response_scheduling",
-                    &function_response.scheduling,
-                )?;
-                if !function_response.rest.is_empty() {
-                    rest.insert(
-                        "gemini_function_response_rest".into(),
-                        serde_json::Value::Object(function_response.rest),
-                    );
-                }
                 Ok(tool_message(
                     id,
                     serde_json::to_string(&function_response.response)?,
-                    rest,
                 ))
             }
             Some(gemini::PartData::CodeExecutionResult {
@@ -100,7 +75,6 @@ impl State {
                 Ok(tool_message(
                     id,
                     serde_json::to_string(&code_execution_result)?,
-                    part.rest,
                 ))
             }
             _ => Err(TransformError::shape(
@@ -150,21 +124,9 @@ impl State {
     }
 }
 
-fn preserve<T: serde::Serialize>(
-    rest: &mut openai::Rest,
-    key: &str,
-    value: &Option<T>,
-) -> Result<(), TransformError> {
-    if let Some(value) = value {
-        rest.insert(key.into(), serde_json::to_value(value)?);
-    }
-    Ok(())
-}
-
 fn flush_user(
     output: &mut Vec<openai::ChatCompletionMessageParam>,
     parts: &mut Vec<openai::ChatContentPart>,
-    rest: openai::Rest,
 ) {
     if !parts.is_empty() {
         output.push(openai::ChatCompletionMessageParam::User(
@@ -172,7 +134,7 @@ fn flush_user(
                 role: openai::ChatUserRole::User,
                 content: text_content(std::mem::take(parts)),
                 name: None,
-                rest,
+                rest: Default::default(),
             },
         ));
     }

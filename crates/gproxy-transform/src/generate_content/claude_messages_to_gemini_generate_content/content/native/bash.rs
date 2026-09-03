@@ -5,34 +5,21 @@ use crate::TransformError;
 pub(crate) fn request_bash_result(
     block: claude::BashCodeExecutionToolResultBlock,
 ) -> Result<gemini::Part, TransformError> {
-    let (outcome, output, inner) = request_content(block.content)?;
-    if !inner.is_empty() {
-        return Err(TransformError::unsupported(
-            "Claude bash result",
-            "result rest",
-        ));
-    }
-    Ok(code_result(
-        block.tool_use_id,
-        outcome,
-        output,
-        Default::default(),
-    ))
+    let (outcome, output) = request_content(block.content)?;
+    Ok(code_result(block.tool_use_id, outcome, output))
 }
 
 pub(crate) fn response_bash_result(
     block: claude::ResponseBashCodeExecutionToolResultBlock,
 ) -> Result<gemini::Part, TransformError> {
-    let (outcome, output, mut rest) = match block.content {
+    let (outcome, output) = match block.content {
         claude::ResponseBashCodeExecutionToolResultContent::Result(result) => (
             result_outcome(result.return_code),
             command_output(result.stdout, result.stderr),
-            result.rest,
         ),
         claude::ResponseBashCodeExecutionToolResultContent::Error(error) => (
             gemini::CodeExecutionOutcomeKnown::OutcomeFailed,
             error.error_message,
-            error.rest,
         ),
         claude::ResponseBashCodeExecutionToolResultContent::Raw(raw) => {
             return Err(TransformError::unsupported(
@@ -47,30 +34,20 @@ pub(crate) fn response_bash_result(
             ));
         }
     };
-    rest.extend(block.rest);
-    Ok(code_result(block.tool_use_id, outcome, output, rest))
+    Ok(code_result(block.tool_use_id, outcome, output))
 }
 
 fn request_content(
     content: claude::BashCodeExecutionToolResultContent,
-) -> Result<
-    (
-        gemini::CodeExecutionOutcomeKnown,
-        Option<String>,
-        gemini::JsonMap,
-    ),
-    TransformError,
-> {
+) -> Result<(gemini::CodeExecutionOutcomeKnown, Option<String>), TransformError> {
     match content {
         claude::BashCodeExecutionToolResultContent::Result(result) => Ok((
             result_outcome(result.return_code),
             command_output(result.stdout, result.stderr),
-            result.rest,
         )),
         claude::BashCodeExecutionToolResultContent::Error(error) => Ok((
             gemini::CodeExecutionOutcomeKnown::OutcomeFailed,
             error.error_message,
-            error.rest,
         )),
         claude::BashCodeExecutionToolResultContent::Raw(raw) => Err(TransformError::unsupported(
             "Claude bash result",
@@ -87,7 +64,6 @@ fn code_result(
     id: String,
     outcome: gemini::CodeExecutionOutcomeKnown,
     output: Option<String>,
-    rest: gemini::JsonMap,
 ) -> gemini::Part {
     gemini::Part {
         data: Some(gemini::PartData::CodeExecutionResult {
@@ -95,7 +71,7 @@ fn code_result(
                 id: Some(id),
                 outcome: gemini::CodeExecutionOutcome::Known(outcome),
                 output,
-                rest,
+                rest: Default::default(),
             },
             rest: Default::default(),
         }),

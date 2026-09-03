@@ -7,15 +7,7 @@ use super::Correlation;
 pub(super) fn request_call(
     code: gemini::ExecutableCode,
     correlation: &mut Correlation,
-    rest: claude::JsonObject,
-    signature: Option<String>,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    if !rest.is_empty() || !code.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Gemini executable code",
-            "rest fields",
-        ));
-    }
     let id = correlation.code_call(code.id.clone());
     Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
         id,
@@ -23,22 +15,15 @@ pub(super) fn request_call(
         name: "bash".into(),
         type_: claude::ToolUseBlockType::ToolUse,
         cache_control: None,
-        caller: super::caller(signature),
-        rest,
+        caller: None,
+        rest: Default::default(),
     }))
 }
 
 pub(super) fn request_result(
     result: gemini::CodeExecutionResult,
     correlation: &mut Correlation,
-    rest: claude::JsonObject,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    if !rest.is_empty() || !result.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Gemini code result",
-            "rest fields",
-        ));
-    }
     Ok(claude::ContentBlockParam::ToolResult(
         claude::ToolResultBlock {
             tool_use_id: correlation.code_result(result.id)?,
@@ -54,8 +39,6 @@ pub(super) fn request_result(
 pub(super) fn response_call(
     code: gemini::ExecutableCode,
     correlation: &mut Correlation,
-    rest: claude::JsonObject,
-    signature: Option<String>,
 ) -> Result<claude::ContentBlock, TransformError> {
     let id = correlation.code_call(code.id.clone());
     Ok(claude::ResponseContentBlock::ToolUse(
@@ -64,8 +47,8 @@ pub(super) fn response_call(
             input: code_input(code)?,
             name: "bash".into(),
             type_: claude::ToolUseBlockType::ToolUse,
-            caller: super::caller(signature),
-            rest,
+            caller: None,
+            rest: Default::default(),
         },
     ))
 }
@@ -73,7 +56,6 @@ pub(super) fn response_call(
 pub(super) fn response_result(
     result: gemini::CodeExecutionResult,
     correlation: &mut Correlation,
-    rest: claude::JsonObject,
 ) -> Result<claude::ContentBlock, TransformError> {
     let tool_use_id = correlation.code_result(result.id)?;
     let failed = outcome_error(&result.outcome)
@@ -94,20 +76,43 @@ pub(super) fn response_result(
                     },
                     stdout: if failed { String::new() } else { output },
                     type_: claude::BashCodeExecutionResultBlockType::BashCodeExecutionResult,
-                    rest: result.rest,
+                    rest: Default::default(),
                 },
             ),
             tool_use_id,
             type_: claude::BashCodeExecutionToolResultBlockType::BashCodeExecutionToolResult,
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
 fn code_input(code: gemini::ExecutableCode) -> Result<claude::JsonObject, TransformError> {
-    let mut input = code.rest;
+    match code.language {
+        gemini::ExecutableCodeLanguage::Known(gemini::ExecutableCodeLanguageKnown::Python) => {}
+        gemini::ExecutableCodeLanguage::Known(
+            gemini::ExecutableCodeLanguageKnown::LanguageUnspecified,
+        ) => {
+            return Err(TransformError::shape(
+                "Gemini executableCode",
+                "language is unspecified",
+            ));
+        }
+        gemini::ExecutableCodeLanguage::Unknown(value) => {
+            return Err(TransformError::unsupported(
+                "Gemini executableCode language",
+                value,
+            ));
+        }
+        _ => {
+            return Err(TransformError::unsupported(
+                "Gemini executableCode language",
+                "future language",
+            ));
+        }
+    }
+    let mut input = claude::JsonObject::new();
     input.insert("command".into(), code.code.into());
-    input.insert("language".into(), serde_json::to_value(code.language)?);
+    input.insert("language".into(), "PYTHON".into());
     Ok(input)
 }
 

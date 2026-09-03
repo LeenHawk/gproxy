@@ -51,7 +51,7 @@ impl State {
             ));
         }
         let chunk = match *event {
-            claude::KnownStreamEvent::MessageStart { message, rest } => {
+            claude::KnownStreamEvent::MessageStart { message, .. } => {
                 if self.started {
                     return Err(TransformError::shape(
                         "Claude stream",
@@ -59,7 +59,7 @@ impl State {
                     ));
                 }
                 self.started = true;
-                let mut message = *message;
+                let message = *message;
                 if !message.content.is_empty()
                     || message.stop_reason.is_some()
                     || message.stop_sequence.is_some()
@@ -69,10 +69,6 @@ impl State {
                         "nonempty content or terminal fields",
                     ));
                 }
-                crate::common::claude_message_controls::preserve_input_transformations(
-                    &mut message.rest,
-                    message.input_transformations.take(),
-                )?;
                 Some(chunks::metadata(
                     message.id,
                     wire_string(&message.model)?,
@@ -80,27 +76,18 @@ impl State {
                         .usage
                         .map(super::super::usage::convert)
                         .transpose()?,
-                    chunks::merge(message.rest, rest),
                 ))
             }
             claude::KnownStreamEvent::ContentBlockStart {
                 index,
                 content_block,
-                rest,
-            } => self.block_start(index, *content_block, rest)?,
-            claude::KnownStreamEvent::ContentBlockDelta { index, delta, rest } => {
-                self.block_delta(index, *delta, rest)?
+                ..
+            } => self.block_start(index, *content_block)?,
+            claude::KnownStreamEvent::ContentBlockDelta { index, delta, .. } => {
+                self.block_delta(index, *delta)?
             }
-            claude::KnownStreamEvent::ContentBlockStop { index, rest } => {
-                self.block_stop(index, rest)?
-            }
-            claude::KnownStreamEvent::MessageDelta {
-                context_management,
-                delta,
-                input_transformations,
-                usage,
-                mut rest,
-            } => {
+            claude::KnownStreamEvent::ContentBlockStop { index, .. } => self.block_stop(index)?,
+            claude::KnownStreamEvent::MessageDelta { delta, usage, .. } => {
                 if delta.stop_reason.is_some() {
                     if self.saw_finish {
                         return Err(TransformError::shape(
@@ -110,24 +97,13 @@ impl State {
                     }
                     self.saw_finish = true;
                 }
-                crate::common::claude_message_controls::preserve_input_transformations(
-                    &mut rest,
-                    input_transformations,
-                )?;
-                Some(chunks::message_delta(
-                    *delta,
-                    context_management,
-                    usage.map(|usage| *usage),
-                    rest,
-                )?)
+                Some(chunks::message_delta(*delta, usage.map(|usage| *usage))?)
             }
-            claude::KnownStreamEvent::MessageStop { rest } => {
+            claude::KnownStreamEvent::MessageStop { .. } => {
                 self.stopped = true;
-                (!rest.is_empty()).then(|| chunks::candidate(None, None, None, rest))
+                None
             }
-            claude::KnownStreamEvent::Ping { rest } => {
-                (!rest.is_empty()).then(|| chunks::candidate(None, None, None, rest))
-            }
+            claude::KnownStreamEvent::Ping { .. } => None,
             claude::KnownStreamEvent::Error { error, .. } => {
                 return Err(TransformError::unsupported(
                     "Claude stream error",
@@ -144,51 +120,28 @@ impl State {
         &mut self,
         index: u64,
         delta: claude::EventDelta,
-        rest: gemini::JsonMap,
     ) -> Result<Option<gemini::GenerateContentResponse>, TransformError> {
         let delta = match delta {
             claude::EventDelta::Known(delta) => delta,
             claude::EventDelta::Unknown(_) => return Ok(None),
         };
         let part = match *delta {
-            claude::KnownEventDelta::Text { text, rest: inner } => {
-                chunks::text(text, false, chunks::merge(inner, rest))
-            }
-            claude::KnownEventDelta::Thinking {
-                thinking,
-                rest: inner,
-                ..
-            } => chunks::text(thinking, true, chunks::merge(inner, rest)),
-            claude::KnownEventDelta::Signature {
-                signature,
-                rest: inner,
-            } => {
+            claude::KnownEventDelta::Text { text, .. } => chunks::text(text, false),
+            claude::KnownEventDelta::Thinking { thinking, .. } => chunks::text(thinking, true),
+            claude::KnownEventDelta::Signature { signature, .. } => {
                 self.pending_signature = Some(signature.clone());
-                chunks::signature(signature, chunks::merge(inner, rest))
+                chunks::signature(signature)
             }
-            claude::KnownEventDelta::InputJson {
-                partial_json,
-                rest: inner,
-            } => {
+            claude::KnownEventDelta::InputJson { partial_json, .. } => {
                 let tool = self.tools.get_mut(&index).ok_or_else(|| {
                     TransformError::shape("Claude stream", "tool delta before block start")
                 })?;
                 tool.partial.push_str(&partial_json);
-                tool.block.rest.extend(chunks::merge(inner, rest));
                 return Ok(None);
             }
-            claude::KnownEventDelta::Compaction {
-                content,
-                rest: inner,
-                ..
-            } => chunks::text(content, false, chunks::merge(inner, rest)),
+            claude::KnownEventDelta::Compaction { content, .. } => chunks::text(content, false),
             claude::KnownEventDelta::Citations { .. } => return Ok(None),
         };
-        Ok(Some(chunks::candidate(
-            Some(part),
-            None,
-            None,
-            Default::default(),
-        )))
+        Ok(Some(chunks::candidate(Some(part), None, None)))
     }
 }

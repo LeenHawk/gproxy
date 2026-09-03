@@ -185,12 +185,7 @@ fn response_format(
             )),
             Some(serde_json::Value::Object(format.schema)),
         ),
-        Some(openai::ResponseFormat::Unknown(raw)) => {
-            return Err(TransformError::unsupported(
-                "Responses text format",
-                raw.to_string(),
-            ));
-        }
+        Some(openai::ResponseFormat::Unknown(_)) => (None, None),
     })
 }
 

@@ -10,7 +10,6 @@ impl State {
         &mut self,
         item: openai::ResponseItem,
         output_index: u32,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         match item {
             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(_)) => {
@@ -22,12 +21,9 @@ impl State {
                     },
                     None,
                     None,
-                    event_rest,
                 )?])
             }
-            openai::ResponseItem::Typed(item) => {
-                self.complete_typed_item(*item, output_index, event_rest)
-            }
+            openai::ResponseItem::Typed(item) => self.complete_typed_item(*item, output_index),
             openai::ResponseItem::Message(openai::ResponseMessageItem::Input(_))
             | openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(_))
             | openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_))
@@ -39,12 +35,9 @@ impl State {
         &mut self,
         item: openai::ResponseItem,
         output_index: u32,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         match item {
-            openai::ResponseItem::Typed(item) => {
-                self.complete_typed_item(*item, output_index, event_rest)
-            }
+            openai::ResponseItem::Typed(item) => self.complete_typed_item(*item, output_index),
             openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
         }
     }

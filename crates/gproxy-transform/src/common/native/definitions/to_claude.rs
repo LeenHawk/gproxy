@@ -13,7 +13,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             description,
             output_schema: _,
             allowed_callers,
-            rest,
+            ..
         } => claude::Tool::Custom(claude::CustomTool {
             input_schema: schema(parameters)?,
             name,
@@ -30,7 +30,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
                 },
                 ..Default::default()
             },
-            rest: strict_rest(rest),
+            rest: Default::default(),
         }),
         ref custom @ openai::ResponseTool::Custom {
             ref name,
@@ -56,74 +56,57 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             None,
             None,
         )?,
-        openai::ResponseTool::LocalShell { rest } => bash(None, strict_rest(rest)),
+        openai::ResponseTool::LocalShell { .. } => bash(None),
         openai::ResponseTool::Shell {
-            allowed_callers,
-            rest,
-            ..
-        } => bash(allowed_callers, strict_rest(rest)),
+            allowed_callers, ..
+        } => bash(allowed_callers),
         openai::ResponseTool::ApplyPatch {
             allowed_callers,
             max_characters,
-            rest,
-        } => text_editor(allowed_callers, max_characters, strict_rest(rest)),
-        openai::ResponseTool::CodeExecution { rest } => code_execution(None, strict_rest(rest)),
-        openai::ResponseTool::CodeInterpreter {
-            allowed_callers,
-            rest,
             ..
-        } => code_execution(allowed_callers, strict_rest(rest)),
+        } => text_editor(allowed_callers, max_characters),
+        openai::ResponseTool::CodeExecution { .. } => code_execution(None),
+        openai::ResponseTool::CodeInterpreter {
+            allowed_callers, ..
+        } => code_execution(allowed_callers),
         openai::ResponseTool::ComputerUsePreview {
             display_height,
             display_width,
-            rest,
             ..
-        } => computer(display_width, display_height, strict_rest(rest)),
+        } => computer(display_width, display_height),
         openai::ResponseTool::WebSearch {
             filters,
             max_uses,
             user_location,
-            rest,
             ..
         }
         | openai::ResponseTool::WebSearch20250826 {
             filters,
             max_uses,
             user_location,
-            rest,
             ..
-        } => web_search(filters, max_uses, user_location, strict_rest(rest)),
-        openai::ResponseTool::WebSearchPreview {
-            user_location,
-            rest,
-            ..
+        } => web_search(filters, max_uses, user_location),
+        openai::ResponseTool::WebSearchPreview { user_location, .. }
+        | openai::ResponseTool::WebSearchPreview20250311 { user_location, .. } => {
+            preview_search(user_location)
         }
-        | openai::ResponseTool::WebSearchPreview20250311 {
-            user_location,
-            rest,
-            ..
-        } => preview_search(user_location, strict_rest(rest)),
         openai::ResponseTool::WebFetch {
             allowed_domains,
             blocked_domains,
             max_content_tokens,
             max_uses,
-            rest,
+            ..
         } => web_fetch(
             allowed_domains,
             blocked_domains,
             max_content_tokens,
             max_uses,
-            strict_rest(rest),
         ),
-        openai::ResponseTool::Memory { rest } => memory(strict_rest(rest)),
-        openai::ResponseTool::ToolSearch {
-            execution, rest, ..
-        } => tool_search(execution, strict_rest(rest)),
+        openai::ResponseTool::Memory { .. } => memory(),
+        openai::ResponseTool::ToolSearch { execution, .. } => tool_search(execution),
         openai::ResponseTool::Mcp {
             server_label,
             server_url: None,
-            rest,
             ..
         } => claude::Tool::McpToolset(claude::McpToolset {
             mcp_server_name: server_label,
@@ -131,7 +114,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
             cache_control: None,
             configs: Default::default(),
             default_config: None,
-            rest: strict_rest(rest),
+            rest: Default::default(),
         }),
         unsupported @ (openai::ResponseTool::FileSearch { .. }
         | openai::ResponseTool::Computer { .. }
@@ -151,14 +134,7 @@ pub(super) fn convert(tool: openai::ResponseTool) -> Result<claude::Tool, Transf
     })
 }
 
-fn strict_rest(mut rest: openai::Rest) -> openai::Rest {
-    rest.remove("allowed_callers");
-    rest.remove("external_web_access");
-    rest.remove("openai_native_tool");
-    rest
-}
-
-fn bash(callers: Option<Vec<openai::ToolCaller>>, rest: openai::Rest) -> claude::Tool {
+fn bash(callers: Option<Vec<openai::ToolCaller>>) -> claude::Tool {
     claude::Tool::Command(claude::CommandTool::Bash20250124(
         claude::BashTool20250124 {
             name: claude::BashToolName::Bash,
@@ -167,7 +143,7 @@ fn bash(callers: Option<Vec<openai::ToolCaller>>, rest: openai::Rest) -> claude:
                 allowed_callers: callers_to_claude(callers),
                 ..Default::default()
             },
-            rest,
+            rest: Default::default(),
         },
     ))
 }
@@ -175,7 +151,6 @@ fn bash(callers: Option<Vec<openai::ToolCaller>>, rest: openai::Rest) -> claude:
 fn text_editor(
     callers: Option<Vec<openai::ToolCaller>>,
     max_characters: Option<u64>,
-    rest: openai::Rest,
 ) -> claude::Tool {
     claude::Tool::TextEditor(claude::TextEditorTool::TextEditor20250728(
         claude::TextEditorTool20250728 {
@@ -186,12 +161,12 @@ fn text_editor(
                 allowed_callers: callers_to_claude(callers),
                 ..Default::default()
             },
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
-fn code_execution(callers: Option<Vec<openai::ToolCaller>>, rest: openai::Rest) -> claude::Tool {
+fn code_execution(callers: Option<Vec<openai::ToolCaller>>) -> claude::Tool {
     claude::Tool::Command(claude::CommandTool::CodeExecution20260120(
         claude::CodeExecutionTool20260120 {
             name: claude::CodeExecutionToolName::CodeExecution,
@@ -200,12 +175,12 @@ fn code_execution(callers: Option<Vec<openai::ToolCaller>>, rest: openai::Rest) 
                 allowed_callers: callers_to_claude(callers),
                 ..Default::default()
             },
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
-fn computer(width: u32, height: u32, rest: openai::Rest) -> claude::Tool {
+fn computer(width: u32, height: u32) -> claude::Tool {
     claude::Tool::Computer(claude::ComputerTool::Computer20250124(
         claude::ComputerTool20250124 {
             display_height_px: u64::from(height),
@@ -214,7 +189,7 @@ fn computer(width: u32, height: u32, rest: openai::Rest) -> claude::Tool {
             type_: claude::ComputerTool20250124Type::Computer20250124,
             display_number: None,
             common: Default::default(),
-            rest,
+            rest: Default::default(),
         },
     ))
 }
@@ -223,7 +198,6 @@ fn web_search(
     filters: Option<openai::WebSearchFilters>,
     max_uses: Option<u64>,
     user_location: Option<openai::WebSearchUserLocation>,
-    rest: openai::Rest,
 ) -> claude::Tool {
     let (allowed_domains, blocked_domains) = filters
         .map(|filters| (filters.allowed_domains, filters.blocked_domains))
@@ -233,15 +207,11 @@ fn web_search(
         blocked_domains,
         max_uses,
         user_location.map(location),
-        rest,
     )
 }
 
-fn preview_search(
-    user_location: Option<openai::WebSearchPreviewUserLocation>,
-    rest: openai::Rest,
-) -> claude::Tool {
-    claude_search(None, None, None, user_location.map(preview_location), rest)
+fn preview_search(user_location: Option<openai::WebSearchPreviewUserLocation>) -> claude::Tool {
+    claude_search(None, None, None, user_location.map(preview_location))
 }
 
 fn claude_search(
@@ -249,7 +219,6 @@ fn claude_search(
     blocked_domains: Option<Vec<String>>,
     max_uses: Option<u64>,
     user_location: Option<claude::UserLocation>,
-    rest: openai::Rest,
 ) -> claude::Tool {
     claude::Tool::WebSearch(claude::WebSearchTool::WebSearch20260209(
         claude::WebSearchTool20260209 {
@@ -263,7 +232,7 @@ fn claude_search(
                 rest: Default::default(),
             },
             common: Default::default(),
-            rest,
+            rest: Default::default(),
         },
     ))
 }
@@ -275,7 +244,7 @@ fn location(location: openai::WebSearchUserLocation) -> claude::UserLocation {
         country: location.country,
         region: location.region,
         timezone: location.timezone,
-        rest: location.rest,
+        rest: Default::default(),
     }
 }
 
@@ -286,7 +255,7 @@ fn preview_location(location: openai::WebSearchPreviewUserLocation) -> claude::U
         country: location.country,
         region: location.region,
         timezone: location.timezone,
-        rest: location.rest,
+        rest: Default::default(),
     }
 }
 
@@ -295,7 +264,6 @@ fn web_fetch(
     blocked_domains: Option<Vec<String>>,
     max_content_tokens: Option<u64>,
     max_uses: Option<u64>,
-    rest: openai::Rest,
 ) -> claude::Tool {
     claude::Tool::WebFetch(claude::WebFetchTool::WebFetch20260209(
         claude::WebFetchTool20260209 {
@@ -310,30 +278,30 @@ fn web_fetch(
                 rest: Default::default(),
             },
             common: Default::default(),
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
-fn memory(rest: openai::Rest) -> claude::Tool {
+fn memory() -> claude::Tool {
     claude::Tool::Command(claude::CommandTool::Memory20250818(
         claude::MemoryTool20250818 {
             name: claude::MemoryToolName::Memory,
             type_: claude::MemoryTool20250818Type::Memory20250818,
             common: Default::default(),
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
-fn tool_search(execution: Option<openai::ToolSearchExecution>, rest: openai::Rest) -> claude::Tool {
+fn tool_search(execution: Option<openai::ToolSearchExecution>) -> claude::Tool {
     if matches!(execution, Some(openai::ToolSearchExecution::Client)) {
         claude::Tool::Command(claude::CommandTool::ToolSearchRegex(
             claude::ToolSearchRegexTool {
                 name: claude::ToolSearchRegexToolName::ToolSearchRegex,
                 type_: claude::ToolSearchRegexToolType::ToolSearchRegex,
                 common: Default::default(),
-                rest,
+                rest: Default::default(),
             },
         ))
     } else {
@@ -342,7 +310,7 @@ fn tool_search(execution: Option<openai::ToolSearchExecution>, rest: openai::Res
                 name: claude::ToolSearchBm25ToolName::ToolSearchBm25,
                 type_: claude::ToolSearchBm25ToolType::ToolSearchBm25,
                 common: Default::default(),
-                rest,
+                rest: Default::default(),
             },
         ))
     }

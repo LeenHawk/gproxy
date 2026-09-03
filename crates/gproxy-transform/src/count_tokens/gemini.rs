@@ -32,7 +32,7 @@ pub(crate) fn response(
             encode(&openai::ResponseInputTokensResponse {
                 input_tokens: nonnegative_u32(input.total_tokens),
                 object: openai::ResponseInputTokensObjectType::ResponseInputTokens,
-                rest: input.rest,
+                rest: Default::default(),
             })
         }
         (WireFamily::Gemini, WireFamily::OpenAi) => {
@@ -42,7 +42,7 @@ pub(crate) fn response(
                 cached_content_token_count: None,
                 prompt_tokens_details: Vec::new(),
                 cache_tokens_details: Vec::new(),
-                rest: input.rest,
+                rest: Default::default(),
             })
         }
         (WireFamily::Claude, WireFamily::Gemini) => {
@@ -50,7 +50,7 @@ pub(crate) fn response(
             encode(&claude::CountTokensResponseBody {
                 input_tokens: u64::from(nonnegative_u32(input.total_tokens)),
                 context_management: None,
-                rest: input.rest,
+                rest: Default::default(),
             })
         }
         (WireFamily::Gemini, WireFamily::Claude) => {
@@ -60,7 +60,7 @@ pub(crate) fn response(
                 cached_content_token_count: None,
                 prompt_tokens_details: Vec::new(),
                 cache_tokens_details: Vec::new(),
-                rest: input.rest,
+                rest: Default::default(),
             })
         }
         _ => Err(TransformError::shape(

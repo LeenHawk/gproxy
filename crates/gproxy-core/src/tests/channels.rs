@@ -319,13 +319,13 @@ fn codex_sparse_text_repairs_before_chat_and_claude_transforms() -> Result<(), I
     for (path, body, marker) in [
         (
             "/v1/chat/completions",
-            r#"{"model":"alias","stream":true,"messages":[{"role":"user","content":"hi"}],"sparse_test":true}"#,
-            "\"content\":\"hi\"",
+            r#"{"model":"alias","stream":true,"messages":[{"role":"user","content":"sparse_test"}]}"#,
+            "\"content\":\"sparse_test\"",
         ),
         (
             "/v1/messages",
-            r#"{"model":"alias","max_tokens":32,"stream":true,"messages":[{"role":"user","content":"hi"}],"sparse_test":true}"#,
-            "\"text\":\"hi\"",
+            r#"{"model":"alias","max_tokens":32,"stream":true,"messages":[{"role":"user","content":"sparse_test"}]}"#,
+            "\"text\":\"sparse_test\"",
         ),
     ] {
         let host = MemoryHost::new(false);
@@ -362,14 +362,14 @@ fn codex_sparse_text_repairs_before_chat_and_claude_transforms() -> Result<(), I
     let mut request = request(false, "codex-sparse-buffered");
     request.path = "/v1/chat/completions".into();
     request.body = Bytes::from_static(
-        br#"{"model":"alias","stream":false,"messages":[{"role":"user","content":"hi"}],"sparse_test":true}"#,
+        br#"{"model":"alias","stream":false,"messages":[{"role":"user","content":"sparse_test"}]}"#,
     );
     let outcome = block_on(core.execute(&host, request)).expect("buffered sparse Codex response");
     let ResponseBody::Full(body) = outcome.body else {
         panic!("buffered sparse Codex response was not collected");
     };
     let body: serde_json::Value = serde_json::from_slice(&body).expect("buffered Chat response");
-    assert_eq!(body["choices"][0]["message"]["content"], "hi");
+    assert_eq!(body["choices"][0]["message"]["content"], "sparse_test");
     Ok(())
 }
 

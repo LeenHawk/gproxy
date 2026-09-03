@@ -51,31 +51,23 @@ pub(super) fn tool_kind_or(
 pub(super) fn tool_metadata(
     call: &openai::ChatToolCallDelta,
     kind: ToolKind,
-) -> Result<(String, openai::Rest), TransformError> {
-    let (name, inner_rest) = match kind {
+) -> Result<String, TransformError> {
+    let name = match kind {
         ToolKind::Function => call
             .function
             .as_ref()
-            .map(|function| (function.name.clone(), function.rest.clone())),
-        ToolKind::Custom => call
-            .custom
-            .as_ref()
-            .map(|custom| (custom.name.clone(), custom.rest.clone())),
+            .and_then(|function| function.name.clone()),
+        ToolKind::Custom => call.custom.as_ref().and_then(|custom| custom.name.clone()),
     }
     .ok_or_else(|| TransformError::shape("Chat stream", "tool payload missing"))?;
-    let name = name
-        .ok_or_else(|| TransformError::shape("Chat stream", "tool name missing on first delta"))?;
-    let mut rest = call.rest.clone();
-    merge_rest(&mut rest, inner_rest);
-    Ok((name, rest))
+    Ok(name)
 }
 
 pub(super) fn tool_payload(
     call: openai::ChatToolCallDelta,
     kind: ToolKind,
-) -> Result<(String, Option<String>, openai::Rest), TransformError> {
-    let mut rest = call.rest;
-    let (delta, name, inner_rest) = match kind {
+) -> Result<(String, Option<String>), TransformError> {
+    let (delta, name) = match kind {
         ToolKind::Function => {
             if call.custom.is_some() {
                 return Err(TransformError::shape(
@@ -84,7 +76,7 @@ pub(super) fn tool_payload(
                 ));
             }
             call.function
-                .map(|function| (function.arguments, function.name, function.rest))
+                .map(|function| (function.arguments, function.name))
         }
         ToolKind::Custom => {
             if call.function.is_some() {
@@ -93,15 +85,9 @@ pub(super) fn tool_payload(
                     "function payload on a custom tool delta",
                 ));
             }
-            call.custom
-                .map(|custom| (custom.input, custom.name, custom.rest))
+            call.custom.map(|custom| (custom.input, custom.name))
         }
     }
-    .unwrap_or((None, None, Default::default()));
-    merge_rest(&mut rest, inner_rest);
-    Ok((delta.unwrap_or_default(), name, rest))
-}
-
-pub(super) fn merge_rest(target: &mut openai::Rest, source: openai::Rest) {
-    target.extend(source);
+    .unwrap_or((None, None));
+    Ok((delta.unwrap_or_default(), name))
 }

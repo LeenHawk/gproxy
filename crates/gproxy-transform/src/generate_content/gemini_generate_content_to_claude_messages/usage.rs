@@ -8,7 +8,6 @@ pub(super) fn convert(usage: gemini::UsageMetadata) -> Result<claude::Usage, Tra
         || !usage.cache_tokens_details.is_empty()
         || !usage.candidates_tokens_details.is_empty()
         || !usage.tool_use_prompt_tokens_details.is_empty()
-        || !usage.rest.is_empty()
     {
         return Err(TransformError::unsupported(
             "Gemini usage",
@@ -69,26 +68,22 @@ pub(super) fn convert(usage: gemini::UsageMetadata) -> Result<claude::Usage, Tra
             ))
         )
         .then_some(claude::Speed::Known(claude::SpeedKnown::Fast)),
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 
 fn service_tier(tier: Option<gemini::ServiceTier>) -> Option<claude::UsageServiceTier> {
-    tier.map(|tier| match tier {
-        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard) => {
-            claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Standard)
-        }
-        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Priority) => {
-            claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Priority)
-        }
-        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Flex) => {
-            claude::UsageServiceTier::Unknown("flex".into())
-        }
-        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified) => {
-            claude::UsageServiceTier::Unknown("unspecified".into())
-        }
-        gemini::ServiceTier::Unknown(value) => claude::UsageServiceTier::Unknown(value),
-        _ => claude::UsageServiceTier::Unknown("unknown".into()),
+    tier.and_then(|tier| match tier {
+        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard) => Some(
+            claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Standard),
+        ),
+        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Priority) => Some(
+            claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Priority),
+        ),
+        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Flex) => None,
+        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified) => None,
+        gemini::ServiceTier::Unknown(_) => None,
+        _ => None,
     })
 }
 

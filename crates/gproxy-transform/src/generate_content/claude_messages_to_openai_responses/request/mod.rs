@@ -72,7 +72,7 @@ pub(crate) fn transform(
         top_p: input.top_p,
         truncation: None,
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -83,15 +83,9 @@ fn response_tools(
 ) -> Result<Option<Vec<openai::ResponseTool>>, TransformError> {
     let mut output = tools::claude_to_responses(tools)?.unwrap_or_default();
     for server in servers.into_iter().flatten() {
-        let (allowed_tools, rest) = server
+        let allowed_tools = server
             .tool_configuration
-            .map(|config| {
-                (
-                    config.allowed_tools.map(openai::McpAllowedTools::Names),
-                    config.rest,
-                )
-            })
-            .unwrap_or_default();
+            .and_then(|config| config.allowed_tools.map(openai::McpAllowedTools::Names));
         output.push(openai::ResponseTool::Mcp {
             server_label: server.name,
             allowed_tools,
@@ -104,15 +98,10 @@ fn response_tools(
             server_url: Some(server.url),
             tunnel_id: None,
             allowed_callers: None,
-            rest: merge_rest(server.rest, rest),
+            rest: Default::default(),
         });
     }
     Ok((!output.is_empty()).then_some(output))
-}
-
-fn merge_rest(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }
 
 fn system_items(system: Option<claude::SystemPrompt>) -> Vec<openai::ResponseItem> {
@@ -125,9 +114,7 @@ fn system_items(system: Option<claude::SystemPrompt>) -> Vec<openai::ResponseIte
             rest: Default::default(),
         }],
         Some(claude::StringOrArray::Array(blocks)) => blocks,
-        Some(claude::StringOrArray::Raw(raw)) => {
-            return vec![openai::ResponseItem::Unknown(raw)];
-        }
+        Some(claude::StringOrArray::Raw(_)) => return Vec::new(),
         _future => return Vec::new(),
     };
     vec![openai::ResponseItem::Message(
@@ -140,13 +127,13 @@ fn system_items(system: Option<claude::SystemPrompt>) -> Vec<openai::ResponseIte
                     .map(|block| {
                         openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
                             text: block.text,
-                            prompt_cache_breakpoint: block.cache_control.map(|control| {
+                            prompt_cache_breakpoint: block.cache_control.map(|_| {
                                 openai::PromptCacheBreakpoint {
                                     mode: openai::PromptCacheBreakpointMode::Explicit,
-                                    rest: control.rest,
+                                    rest: Default::default(),
                                 }
                             }),
-                            rest: block.rest,
+                            rest: Default::default(),
                         })
                     })
                     .collect(),
@@ -194,6 +181,6 @@ pub(crate) fn count_tokens(
         tool_choice: tool_choice(input.tool_choice)?,
         tools: tools::claude_to_responses(input.tools)?,
         truncation: None,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }

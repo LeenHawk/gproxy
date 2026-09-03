@@ -26,7 +26,7 @@ pub(super) fn tool_item(
             caller: None,
             namespace: None,
             status: Some(status),
-            rest: item.rest.clone(),
+            rest: Default::default(),
         },
         ToolKind::Custom => openai::TypedResponseItem::CustomToolCall {
             call_id: item.id.clone(),
@@ -35,19 +35,12 @@ pub(super) fn tool_item(
             id: Some(item.id.clone()),
             caller: None,
             namespace: None,
-            rest: item.rest.clone(),
+            rest: Default::default(),
         },
     }))
 }
 
 pub(super) fn stream_logprob(value: openai::TokenLogprob) -> openai::StreamTokenLogprob {
-    let mut rest = value.rest;
-    if let Some(bytes) = value.bytes {
-        rest.insert(
-            "bytes".into(),
-            serde_json::Value::Array(bytes.into_iter().map(serde_json::Value::from).collect()),
-        );
-    }
     openai::StreamTokenLogprob {
         token: value.token,
         logprob: value.logprob,
@@ -55,24 +48,13 @@ pub(super) fn stream_logprob(value: openai::TokenLogprob) -> openai::StreamToken
             value
                 .top_logprobs
                 .into_iter()
-                .map(|top| {
-                    let mut rest = top.rest;
-                    if let Some(bytes) = top.bytes {
-                        rest.insert(
-                            "bytes".into(),
-                            serde_json::Value::Array(
-                                bytes.into_iter().map(serde_json::Value::from).collect(),
-                            ),
-                        );
-                    }
-                    openai::StreamTokenTopLogprob {
-                        token: Some(top.token),
-                        logprob: Some(top.logprob),
-                        rest,
-                    }
+                .map(|top| openai::StreamTokenTopLogprob {
+                    token: Some(top.token),
+                    logprob: Some(top.logprob),
+                    rest: Default::default(),
                 })
                 .collect(),
         ),
-        rest,
+        rest: Default::default(),
     }
 }

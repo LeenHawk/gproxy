@@ -11,7 +11,7 @@ impl State {
         &mut self,
         event: openai::ResponseOutputItemEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let mut output = self.ensure_start()?;
         let tool_input = match event.item.as_ref() {
             openai::ResponseItem::Typed(item) => match item.as_ref() {
                 openai::TypedResponseItem::FunctionCall { arguments, .. } => {
@@ -44,12 +44,8 @@ impl State {
             }
         }
         for (position, index) in indices.iter().enumerate() {
-            let rest = if position + 1 == indices.len() {
-                event.rest.clone()
-            } else {
-                Default::default()
-            };
-            output.extend(self.close(*index, rest)?);
+            let _ = position;
+            output.extend(self.close(*index)?);
         }
         Ok(output)
     }

@@ -18,5 +18,4 @@ pub(super) fn merge_usage(target: &mut claude::Usage, update: claude::Usage) {
     target.inference_geo = update.inference_geo.or(target.inference_geo.take());
     target.service_tier = update.service_tier.or(target.service_tier.take());
     target.speed = update.speed.or(target.speed.take());
-    target.rest.extend(update.rest);
 }

@@ -6,7 +6,6 @@ use crate::common::native::items;
 
 use super::super::claude_to_openai::{Output, State};
 use super::super::claude_to_responses::{function_item, reasoning_item};
-use super::super::state::merge;
 use super::Block;
 
 impl State {
@@ -14,7 +13,6 @@ impl State {
         &mut self,
         index: u64,
         block: claude::ContentBlock,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         if !self.started || self.blocks.contains_key(&index) {
             return Err(TransformError::shape(
@@ -30,10 +28,9 @@ impl State {
                     index
                 );
                 let text = block.text;
-                let block_rest = merge(block.rest.clone(), rest.clone());
                 let output = match self.output {
                     Output::Chat => (!text.is_empty())
-                        .then(|| self.chat_text(text.clone(), block_rest.clone()))
+                        .then(|| self.chat_text(text.clone()))
                         .transpose()?
                         .into_iter()
                         .collect(),
@@ -47,11 +44,10 @@ impl State {
                                     content: Vec::new(),
                                     status: openai::ResponseItemLifecycleStatus::InProgress,
                                     phase: None,
-                                    rest: block.rest.clone(),
+                                    rest: Default::default(),
                                 },
                             )),
                             index as u32,
-                            rest.clone(),
                         )?,
                         self.response_content_part_added(
                             id.clone(),
@@ -61,20 +57,12 @@ impl State {
                                 annotations: Vec::new(),
                                 logprobs: None,
                                 text: String::new(),
-                                rest: block.rest,
+                                rest: Default::default(),
                             }),
-                            rest.clone(),
                         )?,
                     ],
                 };
-                (
-                    Block::Text {
-                        id,
-                        text,
-                        rest: block_rest,
-                    },
-                    output,
-                )
+                (Block::Text { id, text }, output)
             }
             claude::ResponseContentBlock::Thinking(block) => {
                 let id = format!(
@@ -83,10 +71,9 @@ impl State {
                     index
                 );
                 let text = block.thinking;
-                let block_rest = merge(block.rest.clone(), rest.clone());
                 let output = match self.output {
                     Output::Chat => (!text.is_empty())
-                        .then(|| self.chat_reasoning(text.clone(), block_rest.clone()))
+                        .then(|| self.chat_reasoning(text.clone()))
                         .transpose()?
                         .into_iter()
                         .collect(),
@@ -95,11 +82,9 @@ impl State {
                             id.clone(),
                             text.clone(),
                             block.signature.clone(),
-                            block.rest,
                             openai::ResponseItemLifecycleStatus::InProgress,
                         ),
                         index as u32,
-                        rest.clone(),
                     )?],
                 };
                 (
@@ -107,7 +92,6 @@ impl State {
                         id,
                         text,
                         signature: block.signature,
-                        rest: block_rest,
                     },
                     output,
                 )
@@ -118,14 +102,12 @@ impl State {
                 } else {
                     serde_json::to_string(&block.input)?
                 };
-                let block_rest = merge(block.rest.clone(), rest.clone());
                 let output = match self.output {
                     Output::Chat => vec![self.chat_tool_start(
                         index as u32,
                         block.id.clone(),
                         block.name.clone(),
                         arguments.clone(),
-                        block_rest.clone(),
                     )?],
                     Output::Responses if items::is_buffered_native(&block.name) => Vec::new(),
                     Output::Responses => vec![self.response_output_item_added(
@@ -133,11 +115,9 @@ impl State {
                             block.id.clone(),
                             block.name.clone(),
                             arguments.clone(),
-                            block.rest,
                             openai::ResponseItemLifecycleStatus::InProgress,
                         ),
                         index as u32,
-                        rest.clone(),
                     )?],
                 };
                 (
@@ -145,7 +125,6 @@ impl State {
                         id: block.id,
                         name: block.name,
                         arguments,
-                        rest: block_rest,
                     },
                     output,
                 )

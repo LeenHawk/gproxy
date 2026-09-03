@@ -4,21 +4,11 @@ use crate::TransformError;
 
 pub(super) fn image(source: claude::ImageSource) -> Result<gemini::Part, TransformError> {
     Ok(match source {
-        claude::ImageSource::Base64(source) => inline(
-            image_mime(source.media_type)?.into(),
-            source.data,
-            checked_rest(source.rest, "Claude image source")?,
-        ),
-        claude::ImageSource::Url(source) => file(
-            None,
-            source.url,
-            checked_rest(source.rest, "Claude image source")?,
-        ),
-        claude::ImageSource::File(source) => file(
-            None,
-            source.file_id,
-            checked_rest(source.rest, "Claude image source")?,
-        ),
+        claude::ImageSource::Base64(source) => {
+            inline(image_mime(source.media_type)?.into(), source.data)
+        }
+        claude::ImageSource::Url(source) => file(None, source.url),
+        claude::ImageSource::File(source) => file(None, source.file_id),
         claude::ImageSource::Raw(raw) => {
             return Err(TransformError::unsupported(
                 "Claude image source",
@@ -31,25 +21,10 @@ pub(super) fn image(source: claude::ImageSource) -> Result<gemini::Part, Transfo
 
 pub(super) fn document(source: claude::DocumentSource) -> Result<gemini::Part, TransformError> {
     Ok(match source {
-        claude::DocumentSource::Base64(source) => inline(
-            "application/pdf".into(),
-            source.data,
-            checked_rest(source.rest, "Claude document source")?,
-        ),
-        claude::DocumentSource::Text(source) => super::text_part(
-            source.data,
-            checked_rest(source.rest, "Claude document source")?,
-        ),
-        claude::DocumentSource::Url(source) => file(
-            None,
-            source.url,
-            checked_rest(source.rest, "Claude document source")?,
-        ),
-        claude::DocumentSource::File(source) => file(
-            None,
-            source.file_id,
-            checked_rest(source.rest, "Claude document source")?,
-        ),
+        claude::DocumentSource::Base64(source) => inline("application/pdf".into(), source.data),
+        claude::DocumentSource::Text(source) => super::text_part(source.data),
+        claude::DocumentSource::Url(source) => file(None, source.url),
+        claude::DocumentSource::File(source) => file(None, source.file_id),
         claude::DocumentSource::Raw(raw) => {
             return Err(TransformError::unsupported(
                 "Claude document source",
@@ -65,53 +40,29 @@ pub(super) fn document(source: claude::DocumentSource) -> Result<gemini::Part, T
     })
 }
 
-fn inline(
-    mime_type: String,
-    data: String,
-    rest: serde_json::Map<String, serde_json::Value>,
-) -> gemini::Part {
-    part(
-        gemini::PartData::InlineData {
-            inline_data: gemini::Blob {
-                mime_type,
-                data,
-                rest: Default::default(),
-            },
+fn inline(mime_type: String, data: String) -> gemini::Part {
+    part(gemini::PartData::InlineData {
+        inline_data: gemini::Blob {
+            mime_type,
+            data,
             rest: Default::default(),
         },
-        rest,
-    )
+        rest: Default::default(),
+    })
 }
 
-fn file(
-    mime_type: Option<String>,
-    file_uri: String,
-    rest: serde_json::Map<String, serde_json::Value>,
-) -> gemini::Part {
-    part(
-        gemini::PartData::FileData {
-            file_data: gemini::FileData {
-                mime_type,
-                file_uri,
-                rest: Default::default(),
-            },
+fn file(mime_type: Option<String>, file_uri: String) -> gemini::Part {
+    part(gemini::PartData::FileData {
+        file_data: gemini::FileData {
+            mime_type,
+            file_uri,
             rest: Default::default(),
         },
-        rest,
-    )
+        rest: Default::default(),
+    })
 }
 
-fn checked_rest(
-    rest: serde_json::Map<String, serde_json::Value>,
-    wire: &'static str,
-) -> Result<serde_json::Map<String, serde_json::Value>, TransformError> {
-    if !rest.is_empty() {
-        return Err(TransformError::unsupported(wire, "source rest"));
-    }
-    Ok(rest)
-}
-
-fn part(data: gemini::PartData, rest: serde_json::Map<String, serde_json::Value>) -> gemini::Part {
+fn part(data: gemini::PartData) -> gemini::Part {
     gemini::Part {
         thought: None,
         thought_signature: None,
@@ -119,7 +70,7 @@ fn part(data: gemini::PartData, rest: serde_json::Map<String, serde_json::Value>
         media_resolution: None,
         data: Some(data),
         metadata: None,
-        rest,
+        rest: Default::default(),
     }
 }
 

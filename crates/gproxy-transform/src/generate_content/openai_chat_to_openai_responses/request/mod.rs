@@ -50,7 +50,7 @@ pub(crate) fn transform(
             .stream_options
             .map(|options| openai::ResponseStreamOptions {
                 include_obfuscation: options.include_obfuscation,
-                rest: options.rest,
+                rest: Default::default(),
             }),
         temperature: input.temperature,
         text: text_config(input.response_format, input.verbosity)?,
@@ -60,7 +60,7 @@ pub(crate) fn transform(
         top_p: input.top_p,
         truncation: None,
         user: input.user,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -75,20 +75,18 @@ fn tool_choice(
             openai::ResponseToolChoice::Function(openai::ResponseFunctionToolChoice {
                 type_: openai::FunctionToolChoiceType::Function,
                 name: choice.function.name,
-                rest: choice.rest,
+                rest: Default::default(),
             }),
         ),
         Some(openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Custom(choice))) => Some(
             openai::ResponseToolChoice::Custom(openai::ResponseCustomToolChoice {
                 type_: openai::CustomToolChoiceType::Custom,
                 name: choice.custom.name,
-                rest: choice.rest,
+                rest: Default::default(),
             }),
         ),
-        Some(openai::ChatToolChoice::Unknown(raw)) => {
-            Some(openai::ResponseToolChoice::Unknown(raw))
-        }
-        Some(other) => serde_json::from_slice(&serde_json::to_vec(&other)?).map(Some)?,
+        Some(openai::ChatToolChoice::Unknown(_)) => None,
+        Some(_) => None,
     })
 }
 

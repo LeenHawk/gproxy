@@ -13,11 +13,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         .map(usage::convert)
         .transpose()?
         .unwrap_or_else(empty_usage);
-    let mut rest = input.rest;
-    preserve(&mut rest, "promptFeedback", input.prompt_feedback.as_ref())?;
-    preserve(&mut rest, "modelStatus", input.model_status.as_ref())?;
-    let (blocks, stop_reason, stop_sequence) =
-        candidate(input.candidates, input.prompt_feedback, &mut rest)?;
+    let (blocks, stop_reason, stop_sequence) = candidate(input.candidates, input.prompt_feedback)?;
     let output = claude::CreateMessageResponseBody {
         id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
@@ -32,7 +28,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         diagnostics: None,
         input_transformations: None,
         stop_details: None,
-        rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -40,7 +36,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
 fn candidate(
     candidates: Vec<gemini::Candidate>,
     prompt_feedback: Option<gemini::PromptFeedback>,
-    rest: &mut claude::JsonObject,
 ) -> Result<
     (
         Vec<claude::ContentBlock>,
@@ -63,27 +58,6 @@ fn candidate(
             None,
         ));
     };
-    preserve(rest, "safetyRatings", Some(&candidate.safety_ratings))?;
-    preserve(
-        rest,
-        "citationMetadata",
-        candidate.citation_metadata.as_ref(),
-    )?;
-    preserve(rest, "tokenCount", candidate.token_count.as_ref())?;
-    preserve(
-        rest,
-        "groundingMetadata",
-        candidate.grounding_metadata.as_ref(),
-    )?;
-    preserve(rest, "avgLogprobs", candidate.avg_logprobs.as_ref())?;
-    preserve(rest, "logprobsResult", candidate.logprobs_result.as_ref())?;
-    preserve(
-        rest,
-        "urlContextMetadata",
-        candidate.url_context_metadata.as_ref(),
-    )?;
-    preserve(rest, "candidateIndex", candidate.index.as_ref())?;
-    rest.extend(candidate.rest);
     let blocks = candidate
         .content
         .map(content::response_blocks)
@@ -157,7 +131,9 @@ pub(super) fn finish_reason(
             | gemini::FinishReasonKnown::ImageSafety
             | gemini::FinishReasonKnown::ImageProhibitedContent,
         ) => claude::StopReason::Known(claude::StopReasonKnown::Refusal),
-        gemini::FinishReason::Unknown(value) => claude::StopReason::Unknown(value),
+        gemini::FinishReason::Unknown(value) => {
+            return Err(TransformError::unsupported("Gemini finish reason", value));
+        }
         other => {
             return Err(TransformError::unsupported(
                 "Gemini finish reason",
@@ -182,18 +158,4 @@ pub(super) fn blocked(feedback: gemini::PromptFeedback) -> Result<bool, Transfor
             "future variant",
         )),
     }
-}
-
-fn preserve<T: serde::Serialize>(
-    rest: &mut claude::JsonObject,
-    key: &str,
-    value: Option<&T>,
-) -> Result<(), TransformError> {
-    if let Some(value) = value {
-        let value = serde_json::to_value(value)?;
-        if !value.is_null() && value != serde_json::Value::Array(Vec::new()) {
-            rest.insert(key.into(), value);
-        }
-    }
-    Ok(())
 }

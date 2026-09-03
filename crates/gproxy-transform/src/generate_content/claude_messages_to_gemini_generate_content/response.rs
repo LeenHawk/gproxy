@@ -7,16 +7,11 @@ use super::{content, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
-    let mut rest = input.rest;
-    crate::common::claude_message_controls::preserve_input_transformations(
-        &mut rest,
-        input.input_transformations,
-    )?;
     let output_tokens = input.usage.output_tokens.map(to_i32).transpose()?;
     let output = gemini::GenerateContentResponse {
         candidates: vec![gemini::Candidate {
             content: Some(content::response_content(input.content)?),
-            finish_reason: Some(stop_reason(input.stop_reason)),
+            finish_reason: Some(stop_reason(input.stop_reason)?),
             safety_ratings: Vec::new(),
             citation_metadata: None,
             token_count: output_tokens,
@@ -33,12 +28,14 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         model_version: Some(wire_string(&input.model)?),
         response_id: Some(input.id),
         model_status: None,
-        rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 
-pub(super) fn stop_reason(reason: claude::StopReason) -> gemini::FinishReason {
+pub(super) fn stop_reason(
+    reason: claude::StopReason,
+) -> Result<gemini::FinishReason, TransformError> {
     let known = match reason {
         claude::StopReason::Known(
             claude::StopReasonKnown::MaxTokens
@@ -54,10 +51,17 @@ pub(super) fn stop_reason(reason: claude::StopReason) -> gemini::FinishReason {
             | claude::StopReasonKnown::PauseTurn
             | claude::StopReasonKnown::Compaction,
         ) => gemini::FinishReasonKnown::Stop,
-        claude::StopReason::Unknown(value) => return gemini::FinishReason::Unknown(value),
-        _ => gemini::FinishReasonKnown::Other,
+        claude::StopReason::Unknown(value) => {
+            return Err(TransformError::unsupported("Claude stop reason", value));
+        }
+        _ => {
+            return Err(TransformError::unsupported(
+                "Claude stop reason",
+                "future reason",
+            ));
+        }
     };
-    gemini::FinishReason::Known(known)
+    Ok(gemini::FinishReason::Known(known))
 }
 
 fn to_i32(value: u64) -> Result<i32, TransformError> {

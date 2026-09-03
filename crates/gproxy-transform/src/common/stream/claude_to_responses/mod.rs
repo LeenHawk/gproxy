@@ -63,7 +63,7 @@ impl State {
             truncation: None,
             usage: self.usage.clone().and_then(usage::claude_to_responses),
             user: None,
-            rest: self.response_rest.clone(),
+            rest: Default::default(),
         }
     }
 
@@ -78,7 +78,6 @@ pub(super) fn reasoning_item(
     id: String,
     text: String,
     signature: Option<String>,
-    rest: openai::Rest,
     status: openai::ResponseItemLifecycleStatus,
 ) -> openai::ResponseItem {
     openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::Reasoning {
@@ -91,7 +90,7 @@ pub(super) fn reasoning_item(
         }]),
         encrypted_content: signature,
         status: Some(status),
-        rest,
+        rest: Default::default(),
     }))
 }
 
@@ -99,7 +98,6 @@ pub(super) fn function_item(
     id: String,
     name: String,
     arguments: String,
-    rest: openai::Rest,
     status: openai::ResponseItemLifecycleStatus,
 ) -> openai::ResponseItem {
     openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::FunctionCall {
@@ -110,6 +108,6 @@ pub(super) fn function_item(
         caller: None,
         namespace: None,
         status: Some(status),
-        rest,
+        rest: Default::default(),
     }))
 }

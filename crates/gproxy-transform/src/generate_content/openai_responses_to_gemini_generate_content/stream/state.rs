@@ -10,7 +10,6 @@ impl State {
         &mut self,
         chunk: gemini::GenerateContentResponse,
     ) -> Result<Vec<Bytes>, TransformError> {
-        self.response_rest.extend(chunk.rest);
         self.blocked |= chunk
             .prompt_feedback
             .as_ref()
@@ -56,7 +55,6 @@ impl State {
         text: String,
         thought: bool,
         signature: Option<String>,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut output = Vec::new();
         if thought {
@@ -67,7 +65,6 @@ impl State {
                     index,
                     text: String::new(),
                     signature: None,
-                    rest,
                 };
                 output.push(self.item_added(
                     index,
@@ -108,7 +105,6 @@ impl State {
                 index,
                 text: String::new(),
                 signature: None,
-                rest,
             };
             output.push(self.item_added(
                 index,

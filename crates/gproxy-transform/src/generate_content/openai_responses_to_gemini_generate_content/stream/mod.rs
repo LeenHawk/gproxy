@@ -27,7 +27,6 @@ struct State {
     reasoning: BTreeMap<i32, Item>,
     candidates: Vec<gemini::Candidate>,
     usage: Option<gemini::UsageMetadata>,
-    response_rest: openai::Rest,
     next_index: u32,
     sequence: u64,
     started: bool,
@@ -44,7 +43,6 @@ struct Item {
     index: u32,
     text: String,
     signature: Option<String>,
-    rest: openai::Rest,
 }
 
 impl State {
@@ -59,7 +57,6 @@ impl State {
             reasoning: BTreeMap::new(),
             candidates: Vec::new(),
             usage: None,
-            response_rest: Default::default(),
             next_index: 0,
             sequence: 0,
             started: false,

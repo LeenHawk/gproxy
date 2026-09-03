@@ -14,7 +14,6 @@ pub(super) struct ChatCollector {
     usage: Option<openai::CompletionUsage>,
     service_tier: Option<openai::ServiceTier>,
     system_fingerprint: Option<String>,
-    rest: openai::Rest,
     pub(super) complete: bool,
 }
 
@@ -28,8 +27,6 @@ struct Choice {
     tools: BTreeMap<u32, Tool>,
     finish_reason: Option<openai::ChatFinishReason>,
     logprobs: Option<openai::ChatChoiceLogprobs>,
-    rest: openai::Rest,
-    message_rest: openai::Rest,
 }
 
 #[derive(Default)]
@@ -38,8 +35,6 @@ struct Tool {
     custom: bool,
     name: Option<String>,
     data: String,
-    rest: openai::Rest,
-    payload_rest: openai::Rest,
 }
 
 impl ChatCollector {
@@ -56,7 +51,6 @@ impl ChatCollector {
         self.created = chunk.created.or(self.created);
         self.service_tier = chunk.service_tier.or(self.service_tier.take());
         self.system_fingerprint = chunk.system_fingerprint.or(self.system_fingerprint.take());
-        self.rest.extend(chunk.rest);
         self.usage = chunk.usage.or(self.usage.take());
         for choice in chunk.choices {
             self.choices.entry(choice.index).or_default().push(choice);
@@ -84,7 +78,7 @@ impl ChatCollector {
             service_tier: self.service_tier,
             system_fingerprint: self.system_fingerprint,
             usage: self.usage,
-            rest: self.rest,
+            rest: Default::default(),
         })
     }
 
@@ -102,7 +96,6 @@ impl Choice {
     fn push(&mut self, choice: openai::ChatChunkChoice) {
         self.finish_reason = choice.finish_reason.or(self.finish_reason.take());
         self.logprobs = choice.logprobs.or(self.logprobs.take());
-        self.rest.extend(choice.rest);
         let delta = choice.delta;
         append(&mut self.text, delta.content);
         append(&mut self.reasoning, delta.reasoning_content);
@@ -110,16 +103,10 @@ impl Choice {
         if let Some(function) = delta.function_call {
             self.function_name = function.name.or(self.function_name.take());
             append(&mut self.function_arguments, function.arguments);
-            self.message_rest.extend(function.rest);
         }
         for call in delta.tool_calls.into_iter().flatten() {
             self.tools.entry(call.index).or_default().push(call);
         }
-        if let Some(obfuscation) = delta.obfuscation {
-            self.message_rest
-                .insert("obfuscation".into(), obfuscation.into());
-        }
-        self.message_rest.extend(delta.rest);
     }
 
     fn finish(self, index: u32) -> Result<openai::ChatCompletionChoice, TransformError> {
@@ -157,9 +144,9 @@ impl Choice {
                 function_call,
                 reasoning_content: (!self.reasoning.is_empty()).then_some(self.reasoning),
                 tool_calls: (!tools.is_empty()).then_some(tools),
-                rest: self.message_rest,
+                rest: Default::default(),
             },
-            rest: self.rest,
+            rest: Default::default(),
         })
     }
 }
@@ -172,15 +159,12 @@ impl Tool {
             self.custom = false;
             self.name = function.name.or(self.name.take());
             append(&mut self.data, function.arguments);
-            self.payload_rest.extend(function.rest);
         }
         if let Some(custom) = call.custom {
             self.custom = true;
             self.name = custom.name.or(self.name.take());
             append(&mut self.data, custom.input);
-            self.payload_rest.extend(custom.rest);
         }
-        self.rest.extend(call.rest);
     }
 
     fn finish(self, index: u32) -> openai::ChatToolCall {
@@ -192,9 +176,9 @@ impl Tool {
                 custom: openai::CustomToolCall {
                     input: self.data,
                     name: self.name.unwrap_or_default(),
-                    rest: self.payload_rest,
+                    rest: Default::default(),
                 },
-                rest: self.rest,
+                rest: Default::default(),
             })
         } else {
             openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
@@ -203,9 +187,9 @@ impl Tool {
                 function: openai::FunctionCall {
                     arguments: self.data,
                     name: self.name.unwrap_or_default(),
-                    rest: self.payload_rest,
+                    rest: Default::default(),
                 },
-                rest: self.rest,
+                rest: Default::default(),
             })
         }
     }

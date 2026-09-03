@@ -4,7 +4,6 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 
 use super::super::State;
-use super::preserve_option;
 use super::typed_tools::CallContext;
 
 impl State {
@@ -12,7 +11,6 @@ impl State {
         &mut self,
         item: openai::TypedResponseItem,
         output_index: u32,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         match item {
             openai::TypedResponseItem::FunctionCall {
@@ -20,10 +18,9 @@ impl State {
                 call_id,
                 name,
                 id,
-                caller,
                 namespace,
                 status,
-                rest,
+                ..
             } => self.complete_function_call(
                 arguments,
                 name,
@@ -32,10 +29,7 @@ impl State {
                 CallContext {
                     call_id,
                     id,
-                    caller,
-                    rest,
                     output_index,
-                    event_rest,
                 },
             ),
             openai::TypedResponseItem::CustomToolCall {
@@ -43,9 +37,8 @@ impl State {
                 input,
                 name,
                 id,
-                caller,
                 namespace,
-                rest,
+                ..
             } => self.complete_custom_call(
                 input,
                 name,
@@ -53,21 +46,17 @@ impl State {
                 CallContext {
                     call_id,
                     id,
-                    caller,
-                    rest,
                     output_index,
-                    event_rest,
                 },
             ),
             openai::TypedResponseItem::ShellCall {
                 action,
                 call_id,
                 id,
-                caller,
                 environment,
                 status,
                 created_by,
-                rest,
+                ..
             } => self.complete_shell_call(
                 action,
                 environment,
@@ -76,10 +65,7 @@ impl State {
                 CallContext {
                     call_id,
                     id,
-                    caller,
-                    rest,
                     output_index,
-                    event_rest,
                 },
             ),
             openai::TypedResponseItem::ApplyPatchCall {
@@ -87,9 +73,8 @@ impl State {
                 operation,
                 status,
                 id,
-                caller,
                 created_by,
-                rest,
+                ..
             } => self.complete_patch_call(
                 operation,
                 status,
@@ -97,43 +82,24 @@ impl State {
                 CallContext {
                     call_id,
                     id,
-                    caller,
-                    rest,
                     output_index,
-                    event_rest,
                 },
             ),
             openai::TypedResponseItem::Reasoning {
                 summary,
                 content,
                 encrypted_content,
-                status,
-                mut rest,
                 ..
             } => {
                 // An opaque blob a Chat client cannot use, and one Codex sends on
                 // every turn. Dropping it costs nothing here; refusing it cost the turn.
                 let _ = encrypted_content;
-                preserve_option(&mut rest, "status", status)?;
                 let mut output = Vec::new();
                 for part in summary {
-                    output.extend(self.finish_reasoning(
-                        part.text,
-                        part.rest,
-                        event_rest.clone(),
-                    )?);
+                    output.extend(self.finish_reasoning(part.text)?);
                 }
                 for part in content.into_iter().flatten() {
-                    output.extend(self.finish_reasoning(
-                        part.text,
-                        part.rest,
-                        event_rest.clone(),
-                    )?);
-                }
-                if !rest.is_empty() {
-                    output.push(self.preserve(rest, Default::default())?);
-                } else if output.is_empty() && !event_rest.is_empty() {
-                    output.push(self.preserve(Default::default(), event_rest)?);
+                    output.extend(self.finish_reasoning(part.text)?);
                 }
                 Ok(output)
             }

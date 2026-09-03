@@ -43,10 +43,10 @@ impl State {
             }
             openai::KnownResponseStreamEvent::Error(_) => self.error_terminal(),
             openai::KnownResponseStreamEvent::ResponseOutputItemAdded(event) => {
-                self.add_item(*event.item, event.output_index, event.rest)
+                self.add_item(*event.item, event.output_index)
             }
             openai::KnownResponseStreamEvent::ResponseOutputItemDone(event) => {
-                self.done_item(*event.item, event.output_index, event.rest)
+                self.done_item(*event.item, event.output_index)
             }
             openai::KnownResponseStreamEvent::ResponseContentPartAdded(event)
             | openai::KnownResponseStreamEvent::ResponseContentPartDone(event) => self
@@ -55,7 +55,6 @@ impl State {
                     event.item_id,
                     event.output_index,
                     event.content_index,
-                    event.rest,
                 ),
             openai::KnownResponseStreamEvent::ResponseOutputTextDelta(event) => {
                 self.text_delta(event)
@@ -70,16 +69,16 @@ impl State {
                 self.refusal_delta(event)
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextDone(event) => {
-                self.finish_text(event.text, Default::default(), event.rest)
+                self.finish_text(event.text)
             }
             openai::KnownResponseStreamEvent::ResponseReasoningTextDone(event) => {
-                self.finish_reasoning(event.text, Default::default(), event.rest)
+                self.finish_reasoning(event.text)
             }
             openai::KnownResponseStreamEvent::ResponseReasoningSummaryTextDone(event) => {
-                self.finish_reasoning(event.text, Default::default(), event.rest)
+                self.finish_reasoning(event.text)
             }
             openai::KnownResponseStreamEvent::ResponseRefusalDone(event) => {
-                self.finish_refusal(event.refusal, Default::default(), event.rest)
+                self.finish_refusal(event.refusal)
             }
             openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta(event) => {
                 self.tool_delta(event, ToolKind::Function)

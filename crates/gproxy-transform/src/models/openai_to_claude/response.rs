@@ -5,10 +5,6 @@ use crate::TransformError;
 
 pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
     if let Ok(list) = serde_json::from_slice::<claude::ListModelsResponse>(&body) {
-        let mut rest = list.rest;
-        super::super::common::preserve(&mut rest, "first_id", &list.first_id)?;
-        super::super::common::preserve(&mut rest, "last_id", &list.last_id)?;
-        super::super::common::preserve(&mut rest, "has_more", &list.has_more)?;
         let output = openai::ModelListResponse {
             data: list
                 .data
@@ -16,7 +12,7 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
                 .map(super::super::common::claude_to_openai)
                 .collect::<Result<_, _>>()?,
             object: openai::ListObjectType::List,
-            rest,
+            rest: Default::default(),
         };
         return Ok(Bytes::from(serde_json::to_vec(&output)?));
     }

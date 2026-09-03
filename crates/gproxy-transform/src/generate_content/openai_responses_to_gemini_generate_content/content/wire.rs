@@ -20,10 +20,6 @@ pub(super) fn function_result(
     }
 }
 
-pub(super) fn openai_item_rest(_: gemini::JsonMap, _: Option<String>) -> gemini::JsonMap {
-    Default::default()
-}
-
 fn multipart_result(
     parts: Vec<openai::ResponseToolOutputContentPart>,
 ) -> Result<(gemini::JsonMap, Option<Vec<gemini::FunctionResponsePart>>), TransformError> {
@@ -45,13 +41,13 @@ fn multipart_result(
                     values.push(serde_json::Value::String(id));
                 }
             }
-            openai::ResponseToolOutputContentPart::InputFile(mut part) => {
-                let mime_type = part
-                    .rest
-                    .remove("mime_type")
-                    .and_then(|value| value.as_str().map(str::to_owned));
-                if let (Some(mime_type), Some(data)) = (mime_type, part.file_data) {
-                    media.push(response_part(mime_type, data));
+            openai::ResponseToolOutputContentPart::InputFile(part) => {
+                if let Some(data) = part.file_data {
+                    if let Ok((mime_type, data)) = data_uri(data.clone()) {
+                        media.push(response_part(mime_type, data));
+                    } else {
+                        values.push(serde_json::Value::String(data));
+                    }
                 } else if let Some(reference) = part.file_url.or(part.file_id).or(part.filename) {
                     values.push(serde_json::Value::String(reference));
                 }

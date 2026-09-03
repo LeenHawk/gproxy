@@ -32,9 +32,10 @@ pub(super) fn output_to_chat(
                     openai::ChatContentPart::Text(part) => {
                         Ok(openai::ChatTextContentPart::Text(part))
                     }
-                    openai::ChatContentPart::Unknown(raw) => {
-                        Ok(openai::ChatTextContentPart::Unknown(raw))
-                    }
+                    openai::ChatContentPart::Unknown(raw) => Err(TransformError::unsupported(
+                        "Responses tool output",
+                        raw.to_string(),
+                    )),
                     unsupported @ (openai::ChatContentPart::ImageUrl(_)
                     | openai::ChatContentPart::File(_)
                     | openai::ChatContentPart::InputAudio(_)) => Err(TransformError::unsupported(

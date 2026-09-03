@@ -17,7 +17,7 @@ pub(crate) fn response_content(
             }
             claude::ResponseContentBlock::RedactedThinking(block) => {
                 pending_signature = Some(block.data.clone());
-                parts.push(signature_part(block.data.clone(), block.rest.clone()));
+                parts.push(signature_part(block.data.clone()));
                 continue;
             }
             _ => {}
@@ -39,7 +39,7 @@ pub(crate) fn attach_signature(part: &mut gemini::Part, pending: &mut Option<Str
     }
 }
 
-pub(crate) fn signature_part(signature: String, rest: gemini::JsonMap) -> gemini::Part {
+pub(crate) fn signature_part(signature: String) -> gemini::Part {
     gemini::Part {
         thought: Some(true),
         thought_signature: Some(signature),
@@ -47,7 +47,7 @@ pub(crate) fn signature_part(signature: String, rest: gemini::JsonMap) -> gemini
         media_resolution: None,
         data: None,
         metadata: None,
-        rest,
+        rest: Default::default(),
     }
 }
 
@@ -55,21 +55,16 @@ pub(crate) fn response_block(
     block: claude::ContentBlock,
 ) -> Result<Option<gemini::Part>, TransformError> {
     Ok(Some(match block {
-        claude::ResponseContentBlock::Text(block) => {
-            super::text_part(block.text, Default::default())
-        }
+        claude::ResponseContentBlock::Text(block) => super::text_part(block.text),
         claude::ResponseContentBlock::Thinking(block) => thought(block),
         claude::ResponseContentBlock::ToolUse(block) if tools::is_native_name(&block.name) => {
-            native::call(block.id, block.input, Default::default())?
+            native::call(block.id, block.input)?
         }
-        claude::ResponseContentBlock::ToolUse(mut block) => {
-            let signature = take_signature(&mut block.caller)?;
-            function_call(block, signature)
-        }
+        claude::ResponseContentBlock::ToolUse(block) => function_call(block, None),
         claude::ResponseContentBlock::ServerToolUse(block)
             if tools::is_server_native_name(&block.name) =>
         {
-            native::call(block.id, block.input, Default::default())?
+            native::call(block.id, block.input)?
         }
         claude::ResponseContentBlock::BashCodeExecutionToolResult(block) => {
             native::response_bash_result(block)?
@@ -108,7 +103,7 @@ fn function_call(block: claude::ResponseToolUseBlock, signature: Option<String>)
             rest: Default::default(),
         }),
         metadata: None,
-        rest: block.rest,
+        rest: Default::default(),
     }
 }
 
@@ -123,24 +118,6 @@ fn thought(block: claude::ThinkingBlock) -> gemini::Part {
             rest: Default::default(),
         }),
         metadata: None,
-        rest: block.rest,
+        rest: Default::default(),
     }
-}
-
-fn take_signature(caller: &mut Option<claude::Caller>) -> Result<Option<String>, TransformError> {
-    let Some(caller) = caller.as_mut() else {
-        return Ok(None);
-    };
-    let claude::Caller::Direct(caller) = caller else {
-        return Ok(None);
-    };
-    let signature = caller
-        .rest
-        .remove("thought_signature")
-        .or_else(|| caller.rest.remove("thoughtSignature"))
-        .and_then(|value| value.as_str().map(str::to_owned));
-    let Some(signature) = signature else {
-        return Ok(None);
-    };
-    Ok(Some(signature))
 }

@@ -36,7 +36,6 @@ struct ToolCall {
     name: String,
     arguments: String,
     custom: bool,
-    rest: openai::Rest,
 }
 
 impl State {

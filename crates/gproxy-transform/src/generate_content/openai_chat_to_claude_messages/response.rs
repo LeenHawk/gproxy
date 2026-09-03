@@ -6,26 +6,14 @@ use crate::models::common::wire_string;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
-    let mut rest = input.rest;
-    crate::common::claude_message_controls::preserve_input_transformations(
-        &mut rest,
-        input.input_transformations,
-    )?;
-    let created = rest
-        .remove("openai_created")
-        .map(serde_json::from_value)
-        .transpose()?;
     let service_tier = claude_service_tier(&input.usage)?;
     let mut rendered = Vec::new();
     let mut calls = Vec::new();
-    let mut raw = Vec::new();
     for block in input.content {
         match block {
             claude::ResponseContentBlock::Text(block) => rendered.push(block.text),
             claude::ResponseContentBlock::Thinking(block) => rendered.push(block.thinking),
-            claude::ResponseContentBlock::RedactedThinking(block) => {
-                raw.push(serde_json::to_value(block)?);
-            }
+            claude::ResponseContentBlock::RedactedThinking(_) => {}
             claude::ResponseContentBlock::ToolUse(block) => calls.push(
                 openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
                     id: block.id,
@@ -33,7 +21,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     function: openai::FunctionCall {
                         arguments: serde_json::to_string(&block.input)?,
                         name: block.name,
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                     rest: Default::default(),
                 }),
@@ -43,7 +31,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     block.id,
                     wire_string(&block.name)?,
                     block.input,
-                    block.rest,
                 ));
             }
             claude::ResponseContentBlock::McpToolUse(block) => {
@@ -51,19 +38,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     block.id,
                     format!("mcp:{}:{}", block.server_name, block.name),
                     block.input,
-                    block.rest,
                 ));
             }
-            claude::ResponseContentBlock::Raw(value) => raw.push(value),
-            other => raw.push(serde_json::to_value(other)?),
+            claude::ResponseContentBlock::Raw(_) => {}
+            _ => {}
         }
-    }
-    let mut message_rest: openai::Rest = Default::default();
-    if !raw.is_empty() {
-        message_rest.insert(
-            "claude_content_blocks".into(),
-            serde_json::Value::Array(raw),
-        );
     }
     let output = openai::ChatCompletionResponse {
         id: input.id,
@@ -80,28 +59,23 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 function_call: None,
                 reasoning_content: None,
                 tool_calls: (!calls.is_empty()).then_some(calls),
-                rest: message_rest,
+                rest: Default::default(),
             },
             rest: Default::default(),
         }],
-        created: created.or(Some(0)),
+        created: Some(0),
         model: wire_string(&input.model)?.into(),
         object: openai::ChatCompletionObjectType::ChatCompletion,
         moderation: None,
         service_tier,
         system_fingerprint: None,
         usage: usage::claude_to_chat(input.usage),
-        rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 
-fn custom_call(
-    id: String,
-    name: String,
-    input: claude::JsonObject,
-    rest: openai::Rest,
-) -> openai::ChatToolCall {
+fn custom_call(id: String, name: String, input: claude::JsonObject) -> openai::ChatToolCall {
     openai::ChatToolCall::Custom(openai::ChatCustomToolCall {
         id,
         type_: openai::CustomToolChoiceType::Custom,
@@ -110,7 +84,7 @@ fn custom_call(
             name,
             rest: Default::default(),
         },
-        rest,
+        rest: Default::default(),
     })
 }
 

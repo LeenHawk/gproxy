@@ -24,6 +24,7 @@ pub(super) struct State {
     pub(super) correlation: Correlation,
     pub(super) next_index: u64,
     pub(super) open: Option<OpenBlock>,
+    pub(super) pending_signature: Option<String>,
     started: bool,
     pub(super) has_tool: bool,
     saw_finish: bool,
@@ -52,7 +53,7 @@ impl State {
             output.push(events::encode(events::start(
                 id,
                 model,
-                std::mem::take(&mut chunk.rest),
+                Default::default(),
             ))?);
             self.started = true;
         }
@@ -81,7 +82,7 @@ impl State {
                     Some(response::finish_reason(reason, self.has_tool)?),
                     candidate.finish_message,
                     usage,
-                    candidate.rest,
+                    Default::default(),
                 ))?);
                 self.saw_finish = true;
             } else if usage.is_some() {
@@ -89,7 +90,7 @@ impl State {
                     None,
                     None,
                     usage,
-                    candidate.rest,
+                    Default::default(),
                 ))?);
             }
         } else if chunk
@@ -103,12 +104,15 @@ impl State {
                 Some(claude::StopReason::Known(claude::StopReasonKnown::Refusal)),
                 None,
                 usage,
-                chunk.rest,
+                Default::default(),
             ))?);
             self.saw_finish = true;
         } else if usage.is_some() {
             output.push(events::encode(events::message_delta(
-                None, None, usage, chunk.rest,
+                None,
+                None,
+                usage,
+                Default::default(),
             ))?);
         }
         Ok(output)

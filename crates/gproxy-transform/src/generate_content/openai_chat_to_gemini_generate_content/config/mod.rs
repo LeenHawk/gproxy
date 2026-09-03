@@ -75,16 +75,14 @@ fn modalities(
 ) -> Result<Vec<gemini::ResponseModality>, TransformError> {
     values
         .into_iter()
-        .map(|value| match value {
-            openai::TextOrAudioModality::Text => Ok(gemini::ResponseModality::Known(
+        .filter_map(|value| match value {
+            openai::TextOrAudioModality::Text => Some(Ok(gemini::ResponseModality::Known(
                 gemini::ResponseModalityKnown::Text,
-            )),
-            openai::TextOrAudioModality::Audio => Ok(gemini::ResponseModality::Known(
+            ))),
+            openai::TextOrAudioModality::Audio => Some(Ok(gemini::ResponseModality::Known(
                 gemini::ResponseModalityKnown::Audio,
-            )),
-            openai::TextOrAudioModality::Unknown(value) => {
-                Err(TransformError::unsupported("Chat response modality", value))
-            }
+            ))),
+            openai::TextOrAudioModality::Unknown(_) => None,
         })
         .collect()
 }
@@ -126,9 +124,7 @@ fn reasoning(effort: Option<openai::ReasoningEffort>) -> Option<gemini::Thinking
                 gemini::ThinkingLevelKnown::High,
             )),
         ),
-        openai::ReasoningEffort::Unknown(value) => {
-            (Some(true), Some(gemini::ThinkingLevel::Unknown(value)))
-        }
+        openai::ReasoningEffort::Unknown(_) => return None,
     };
     Some(gemini::ThinkingConfig {
         include_thoughts,

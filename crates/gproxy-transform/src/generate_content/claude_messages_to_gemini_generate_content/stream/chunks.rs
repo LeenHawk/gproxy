@@ -1,15 +1,9 @@
 use gproxy_protocol::{claude, gemini};
 
-pub(super) fn merge(mut left: gemini::JsonMap, right: gemini::JsonMap) -> gemini::JsonMap {
-    left.extend(right);
-    left
-}
-
 pub(super) fn metadata(
     id: String,
     model: String,
     usage: Option<gemini::UsageMetadata>,
-    rest: gemini::JsonMap,
 ) -> gemini::GenerateContentResponse {
     gemini::GenerateContentResponse {
         candidates: Vec::new(),
@@ -18,7 +12,7 @@ pub(super) fn metadata(
         model_version: Some(model),
         response_id: Some(id),
         model_status: None,
-        rest,
+        rest: Default::default(),
     }
 }
 
@@ -26,7 +20,6 @@ pub(super) fn candidate(
     part: Option<gemini::Part>,
     finish_reason: Option<gemini::FinishReason>,
     usage: Option<gemini::UsageMetadata>,
-    rest: gemini::JsonMap,
 ) -> gemini::GenerateContentResponse {
     let candidates = if part.is_some() || finish_reason.is_some() {
         vec![gemini::Candidate {
@@ -53,11 +46,11 @@ pub(super) fn candidate(
         model_version: None,
         response_id: None,
         model_status: None,
-        rest,
+        rest: Default::default(),
     }
 }
 
-pub(super) fn text(text: String, thought: bool, rest: gemini::JsonMap) -> gemini::Part {
+pub(super) fn text(text: String, thought: bool) -> gemini::Part {
     gemini::Part {
         thought: thought.then_some(true),
         thought_signature: None,
@@ -68,11 +61,11 @@ pub(super) fn text(text: String, thought: bool, rest: gemini::JsonMap) -> gemini
             rest: Default::default(),
         }),
         metadata: None,
-        rest,
+        rest: Default::default(),
     }
 }
 
-pub(super) fn signature(signature: String, rest: gemini::JsonMap) -> gemini::Part {
+pub(super) fn signature(signature: String) -> gemini::Part {
     gemini::Part {
         thought: Some(true),
         thought_signature: Some(signature),
@@ -80,40 +73,21 @@ pub(super) fn signature(signature: String, rest: gemini::JsonMap) -> gemini::Par
         media_resolution: None,
         data: None,
         metadata: None,
-        rest,
+        rest: Default::default(),
     }
 }
 
 pub(super) fn message_delta(
     delta: claude::MessageDelta,
-    context_management: Option<Box<claude::ContextManagementResponse>>,
     usage: Option<claude::Usage>,
-    mut rest: gemini::JsonMap,
 ) -> Result<gemini::GenerateContentResponse, crate::TransformError> {
-    preserve(&mut rest, "container", delta.container.as_ref())?;
-    preserve(&mut rest, "stopSequence", delta.stop_sequence.as_ref())?;
-    preserve(&mut rest, "stopDetails", delta.stop_details.as_ref())?;
-    preserve(
-        &mut rest,
-        "contextManagement",
-        context_management.as_deref(),
-    )?;
     let usage = usage.map(super::super::usage::convert).transpose()?;
     Ok(candidate(
         None,
-        delta.stop_reason.map(super::super::response::stop_reason),
+        delta
+            .stop_reason
+            .map(super::super::response::stop_reason)
+            .transpose()?,
         usage,
-        rest,
     ))
-}
-
-fn preserve<T: serde::Serialize>(
-    rest: &mut gemini::JsonMap,
-    key: &str,
-    value: Option<&T>,
-) -> Result<(), crate::TransformError> {
-    if let Some(value) = value {
-        rest.insert(key.into(), serde_json::to_value(value)?);
-    }
-    Ok(())
 }

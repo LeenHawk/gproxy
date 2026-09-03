@@ -10,7 +10,7 @@ impl State {
         &mut self,
         event: openai::ResponseContentPartEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let mut output = self.ensure_start()?;
         match event.part {
             openai::ResponseContentPart::OutputText(part) => {
                 let index = self.allocate();
@@ -21,9 +21,8 @@ impl State {
                         citations: None,
                         text: String::new(),
                         type_: claude::TextBlockType::Text,
-                        rest: part.rest,
+                        rest: Default::default(),
                     }),
-                    event.rest,
                 )?);
                 self.response_indices
                     .insert((event.item_id, Some(event.content_index)), index);
@@ -46,9 +45,8 @@ impl State {
                         citations: None,
                         text: String::new(),
                         type_: claude::TextBlockType::Text,
-                        rest: part.rest,
+                        rest: Default::default(),
                     }),
-                    event.rest,
                 )?);
                 self.response_indices
                     .insert((event.item_id, Some(event.content_index)), index);
@@ -72,7 +70,7 @@ impl State {
                         claude::KnownEventDelta::Thinking {
                             estimated_tokens: None,
                             thinking: part.text,
-                            rest: part.rest,
+                            rest: Default::default(),
                         },
                     )?);
                 }
@@ -91,12 +89,11 @@ impl State {
         &mut self,
         event: openai::ResponseOutputTextDeltaEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let mut output = self.ensure_start()?;
         output.extend(self.response_scalar(
             event.item_id,
             event.content_index,
             event.delta,
-            event.rest,
             Scalar::Text,
         )?);
         Ok(output)
@@ -107,12 +104,11 @@ impl State {
         event: openai::ResponseContentDeltaEvent,
         kind: Scalar,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let mut output = self.ensure_start()?;
         output.extend(self.response_scalar(
             event.item_id,
             Some(event.content_index),
             event.delta,
-            event.rest,
             kind,
         )?);
         Ok(output)
@@ -122,14 +118,8 @@ impl State {
         &mut self,
         event: openai::ResponseReasoningSummaryTextDeltaEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
-        output.extend(self.response_scalar(
-            event.item_id,
-            None,
-            event.delta,
-            event.rest,
-            Scalar::Thinking,
-        )?);
+        let mut output = self.ensure_start()?;
+        output.extend(self.response_scalar(event.item_id, None, event.delta, Scalar::Thinking)?);
         Ok(output)
     }
 
@@ -137,13 +127,13 @@ impl State {
         &mut self,
         event: openai::ResponseItemStringDeltaEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let mut output = self.ensure_start()?;
         let index = self.response_index(Some(&event.item_id), None)?;
         self.response_tool_inputs
             .get_mut(&index)
             .ok_or_else(|| TransformError::shape("Responses stream", "tool input state missing"))?
             .push_str(&event.delta);
-        output.push(self.input_delta(index, event.delta, event.rest)?);
+        output.push(self.input_delta(index, event.delta)?);
         Ok(output)
     }
 
@@ -151,11 +141,9 @@ impl State {
         &mut self,
         item_id: &str,
         content_index: Option<u32>,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let output = self.ensure_start(Default::default(), rest.clone())?;
+        let output = self.ensure_start()?;
         self.response_index(Some(item_id), content_index)?;
-        self.pending_rest.extend(rest);
         Ok(output)
     }
 
@@ -164,12 +152,10 @@ impl State {
         item_id: Option<&str>,
         output_index: u32,
         full: String,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), rest.clone())?;
+        let mut output = self.ensure_start()?;
         let index = self.response_index_for_output(item_id, output_index, None)?;
         output.extend(self.response_tool_full(index, full)?);
-        self.pending_rest.extend(rest);
         Ok(output)
     }
 
@@ -195,7 +181,7 @@ impl State {
         if delta.is_empty() {
             Ok(Vec::new())
         } else {
-            Ok(vec![self.input_delta(index, delta, Default::default())?])
+            Ok(vec![self.input_delta(index, delta)?])
         }
     }
 }

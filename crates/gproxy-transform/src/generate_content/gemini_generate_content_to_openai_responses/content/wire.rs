@@ -2,31 +2,6 @@ use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 
-pub(super) fn part_rest(part: &mut gemini::Part) -> Result<openai::Rest, TransformError> {
-    let mut rest = std::mem::take(&mut part.rest);
-    for key in [
-        "codeExecutionResult",
-        "executableCode",
-        "fileData",
-        "functionCall",
-        "functionResponse",
-        "inlineData",
-        "text",
-        "toolCall",
-        "toolResponse",
-    ] {
-        rest.remove(key);
-    }
-    preserve(&mut rest, "gemini_part_metadata", part.part_metadata.take())?;
-    preserve(
-        &mut rest,
-        "gemini_media_resolution",
-        part.media_resolution.take(),
-    )?;
-    preserve(&mut rest, "gemini_metadata", part.metadata.take())?;
-    Ok(rest)
-}
-
 pub(super) fn arguments(args: Option<gemini::JsonMap>) -> Result<String, TransformError> {
     serde_json::to_string(&args.unwrap_or_default()).map_err(Into::into)
 }
@@ -52,41 +27,28 @@ pub(super) fn function_output(
             rest: Default::default(),
         },
     )];
-    for mut part in parts {
-        let mut part_rest = std::mem::take(&mut part.rest);
-        output.push(match part.data.take() {
-            Some(gemini::FunctionResponsePartData::InlineData { inline_data, rest }) => {
-                part_rest.extend(rest);
-                response_blob(inline_data, part_rest)?
+    for part in parts {
+        let converted = match part.data {
+            Some(gemini::FunctionResponsePartData::InlineData { inline_data, .. }) => {
+                Some(response_blob(inline_data)?)
             }
-            Some(gemini::FunctionResponsePartData::Raw(_)) => {
-                return Err(TransformError::unsupported(
-                    "Gemini function response part",
-                    "unknown part data",
-                ));
-            }
+            Some(gemini::FunctionResponsePartData::Raw(_)) => None,
             None => {
                 return Err(TransformError::shape(
                     "Gemini function response part",
                     "data is missing",
                 ));
             }
-            Some(_) => {
-                return Err(TransformError::unsupported(
-                    "Gemini function response part",
-                    "future part data",
-                ));
-            }
-        });
+            Some(_) => None,
+        };
+        output.extend(converted);
     }
     Ok(openai::ResponseOutput::Parts(output))
 }
 
 fn response_blob(
     blob: gemini::FunctionResponseBlob,
-    mut rest: openai::Rest,
 ) -> Result<openai::ResponseToolOutputContentPart, TransformError> {
-    rest.extend(blob.rest);
     if blob.mime_type.starts_with("image/") {
         return Ok(openai::ResponseToolOutputContentPart::InputImage(
             openai::ResponseInputImage {
@@ -94,7 +56,7 @@ fn response_blob(
                 file_id: None,
                 image_url: Some(format!("data:{};base64,{}", blob.mime_type, blob.data)),
                 prompt_cache_breakpoint: None,
-                rest,
+                rest: Default::default(),
             },
         ));
     }
@@ -104,34 +66,44 @@ fn response_blob(
             "audio content",
         ));
     }
-    rest.insert("mime_type".into(), blob.mime_type.into());
+    let file_data = format!("data:{};base64,{}", blob.mime_type, blob.data);
     Ok(openai::ResponseToolOutputContentPart::InputFile(
         openai::ResponseInputFile {
             detail: None,
-            file_data: Some(blob.data),
+            file_data: Some(file_data),
             file_id: None,
             file_url: None,
             filename: None,
             prompt_cache_breakpoint: None,
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
 pub(super) fn server_tool_name(value: &gemini::ServerToolType) -> Result<String, TransformError> {
-    serde_json::to_value(value)?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| TransformError::shape("Gemini server tool", "expected a string"))
-}
-
-fn preserve<T: serde::Serialize>(
-    rest: &mut openai::Rest,
-    key: &str,
-    value: Option<T>,
-) -> Result<(), TransformError> {
-    if let Some(value) = value {
-        rest.insert(key.into(), serde_json::to_value(value)?);
+    match value {
+        gemini::ServerToolType::Known(value) => Ok(match value {
+            gemini::ServerToolTypeKnown::ToolTypeUnspecified => "TOOL_TYPE_UNSPECIFIED",
+            gemini::ServerToolTypeKnown::GoogleSearchWeb => "GOOGLE_SEARCH_WEB",
+            gemini::ServerToolTypeKnown::GoogleSearchImage => "GOOGLE_SEARCH_IMAGE",
+            gemini::ServerToolTypeKnown::UrlContext => "URL_CONTEXT",
+            gemini::ServerToolTypeKnown::GoogleMaps => "GOOGLE_MAPS",
+            gemini::ServerToolTypeKnown::FileSearch => "FILE_SEARCH",
+            _ => {
+                return Err(TransformError::unsupported(
+                    "Gemini server tool type",
+                    "future type",
+                ));
+            }
+        }
+        .to_owned()),
+        gemini::ServerToolType::Unknown(value) => Err(TransformError::unsupported(
+            "Gemini server tool type",
+            value,
+        )),
+        _ => Err(TransformError::unsupported(
+            "Gemini server tool type",
+            "future type",
+        )),
     }
-    Ok(())
 }

@@ -23,7 +23,7 @@ pub(super) fn definitions(
                         description,
                         behavior: None,
                         parameters: None,
-                        parameters_json_schema: Some(serde_json::to_value(tool.input_schema)?),
+                        parameters_json_schema: Some(schema_value(tool.input_schema)?),
                         response: None,
                         response_json_schema: None,
                         rest: Default::default(),
@@ -43,27 +43,13 @@ pub(super) fn definitions(
 }
 
 pub(super) fn choice(choice: Option<claude::ToolChoice>) -> Option<gemini::ToolConfig> {
-    let (mode, allowed_function_names, rest) = match choice? {
-        claude::ToolChoice::Auto(choice) => (
-            gemini::FunctionCallingModeKnown::Auto,
-            Vec::new(),
-            choice.rest,
-        ),
-        claude::ToolChoice::Any(choice) => (
-            gemini::FunctionCallingModeKnown::Any,
-            Vec::new(),
-            choice.rest,
-        ),
-        claude::ToolChoice::None(choice) => (
-            gemini::FunctionCallingModeKnown::None,
-            Vec::new(),
-            choice.rest,
-        ),
-        claude::ToolChoice::Tool(choice) => (
-            gemini::FunctionCallingModeKnown::Any,
-            vec![choice.name],
-            choice.rest,
-        ),
+    let (mode, allowed_function_names) = match choice? {
+        claude::ToolChoice::Auto(_) => (gemini::FunctionCallingModeKnown::Auto, Vec::new()),
+        claude::ToolChoice::Any(_) => (gemini::FunctionCallingModeKnown::Any, Vec::new()),
+        claude::ToolChoice::None(_) => (gemini::FunctionCallingModeKnown::None, Vec::new()),
+        claude::ToolChoice::Tool(choice) => {
+            (gemini::FunctionCallingModeKnown::Any, vec![choice.name])
+        }
         claude::ToolChoice::Unknown(_) => return None,
         _ => return None,
     };
@@ -72,7 +58,7 @@ pub(super) fn choice(choice: Option<claude::ToolChoice>) -> Option<gemini::ToolC
             mode: Some(gemini::FunctionCallingMode::Known(mode)),
             allowed_function_names: (!allowed_function_names.is_empty())
                 .then_some(allowed_function_names),
-            rest,
+            rest: Default::default(),
         }),
         retrieval_config: None,
         include_server_side_tool_invocations: None,
@@ -108,5 +94,27 @@ fn is_empty(tool: &gemini::Tool) -> bool {
         && tool.file_search.is_none()
         && tool.mcp_servers.is_none()
         && tool.google_maps.is_none()
-        && tool.rest.is_empty()
+}
+
+fn schema_value(schema: claude::JsonSchema) -> Result<serde_json::Value, TransformError> {
+    let type_ = match schema.type_ {
+        claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object) => "object",
+        claude::JsonSchemaObjectType::Unknown(value) => {
+            return Err(TransformError::unsupported(
+                "Claude tool schema type",
+                value,
+            ));
+        }
+        _ => {
+            return Err(TransformError::unsupported(
+                "Claude tool schema type",
+                "future type",
+            ));
+        }
+    };
+    Ok(serde_json::json!({
+        "type": type_,
+        "properties": schema.properties,
+        "required": schema.required,
+    }))
 }

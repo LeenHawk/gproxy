@@ -4,18 +4,12 @@ pub(crate) struct ClaudeResult {
     call_id: String,
     content: Option<claude::ToolResultContent>,
     is_error: Option<bool>,
-    item_id: Option<String>,
-    rest: openai::Rest,
 }
 
 pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeResult> {
     match item {
         openai::TypedResponseItem::ShellCallOutput {
-            call_id,
-            output,
-            id,
-            rest,
-            ..
+            call_id, output, ..
         } => {
             let failed = output.iter().any(|part| match &part.outcome {
                 openai::ShellCallOutcome::Exit { exit_code, .. } => *exit_code != 0,
@@ -31,16 +25,13 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
                 call_id,
                 content: (!text.is_empty()).then_some(claude::ToolResultContent::Text(text)),
                 is_error: Some(failed),
-                item_id: id,
-                rest,
             })
         }
         openai::TypedResponseItem::ApplyPatchCallOutput {
             call_id,
             status,
-            id,
+            id: _,
             output,
-            rest,
             ..
         } => Some(ClaudeResult {
             call_id,
@@ -49,15 +40,13 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
                 status,
                 openai::ResponseApplyPatchCallOutputStatus::Failed
             )),
-            item_id: id,
-            rest,
         }),
         openai::TypedResponseItem::ProgramOutput {
-            id,
+            id: _,
             call_id,
             result,
             status,
-            rest,
+            ..
         } => Some(ClaudeResult {
             call_id,
             content: Some(claude::ToolResultContent::Text(result)),
@@ -65,8 +54,6 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
                 status,
                 openai::ResponseItemLifecycleStatus::Completed
             )),
-            item_id: Some(id),
-            rest,
         }),
         openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
@@ -100,16 +87,13 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
     }
 }
 
-pub(crate) fn result_block(mut result: ClaudeResult) -> claude::ContentBlockParam {
-    if let Some(item_id) = result.item_id {
-        result.rest.insert("openai_item_id".into(), item_id.into());
-    }
+pub(crate) fn result_block(result: ClaudeResult) -> claude::ContentBlockParam {
     claude::ContentBlockParam::ToolResult(claude::ToolResultBlock {
         tool_use_id: result.call_id,
         type_: claude::ToolResultBlockType::ToolResult,
         cache_control: None,
         content: result.content,
         is_error: result.is_error,
-        rest: result.rest,
+        rest: Default::default(),
     })
 }

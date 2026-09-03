@@ -27,7 +27,7 @@ pub(crate) fn transform(
         cached_content: None,
         service_tier: config::request_tier(input.speed, input.service_tier),
         store: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }

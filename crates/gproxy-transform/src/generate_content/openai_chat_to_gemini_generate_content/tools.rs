@@ -24,7 +24,7 @@ pub(crate) fn transform(
                     parameters_json_schema: tool.function.parameters.map(serde_json::Value::Object),
                     response: None,
                     response_json_schema: None,
-                    rest: merge(tool.rest, tool.function.rest),
+                    rest: Default::default(),
                 });
             }
             openai::ChatTool::Custom(tool) => {
@@ -36,12 +36,10 @@ pub(crate) fn transform(
                     parameters_json_schema: None,
                     response: None,
                     response_json_schema: None,
-                    rest: merge(tool.rest, tool.custom.rest),
+                    rest: Default::default(),
                 });
             }
-            openai::ChatTool::Unknown(raw) => {
-                return Err(TransformError::unsupported("Chat tool", raw.to_string()));
-            }
+            openai::ChatTool::Unknown(_) => {}
         }
     }
     if !declarations.is_empty() {
@@ -85,7 +83,7 @@ pub(crate) fn choice(
             None,
         ),
         openai::ChatToolChoice::Mode(openai::ToolChoiceMode::Unknown(value)) => {
-            (gemini::FunctionCallingMode::Unknown(value), None)
+            return Err(TransformError::unsupported("Chat tool choice mode", value));
         }
         openai::ChatToolChoice::Unknown(raw) => {
             return Err(TransformError::unsupported(
@@ -116,7 +114,10 @@ pub(crate) fn choice(
                     gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::Any)
                 }
                 openai::AllowedToolsMode::Unknown(value) => {
-                    gemini::FunctionCallingMode::Unknown(value)
+                    return Err(TransformError::unsupported(
+                        "Chat allowed tools mode",
+                        value,
+                    ));
                 }
             };
             let names = value
@@ -140,23 +141,12 @@ pub(crate) fn choice(
     }))
 }
 
-fn tool_name(mut tool: openai::Rest) -> Result<String, TransformError> {
-    tool.remove("function")
-        .or_else(|| tool.remove("custom"))
-        .and_then(|value| {
-            value
-                .get("name")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-        })
-        .or_else(|| {
-            tool.remove("name")
-                .and_then(|value| value.as_str().map(str::to_owned))
-        })
+fn tool_name(tool: serde_json::Map<String, serde_json::Value>) -> Result<String, TransformError> {
+    tool.get("function")
+        .or_else(|| tool.get("custom"))
+        .and_then(|value| value.get("name"))
+        .or_else(|| tool.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
         .ok_or_else(|| TransformError::shape("Chat allowed tool", "name is missing"))
-}
-
-fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }

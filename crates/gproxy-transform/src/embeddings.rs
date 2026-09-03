@@ -47,7 +47,7 @@ pub(crate) fn gemini_single_response_to_openai(body: Bytes) -> Result<Bytes, Tra
         model: "unknown".into(),
         object: openai::ListObjectType::List,
         usage: openai_usage(input.usage_metadata),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -64,7 +64,7 @@ pub(crate) fn gemini_batch_response_to_openai(body: Bytes) -> Result<Bytes, Tran
         model: "unknown".into(),
         object: openai::ListObjectType::List,
         usage: openai_usage(input.usage_metadata),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -78,7 +78,7 @@ pub(crate) fn openai_response_to_gemini_single(body: Bytes) -> Result<Bytes, Tra
             .map(gemini_embedding)
             .transpose()?,
         usage_metadata: Some(gemini_usage(input.usage)),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -91,7 +91,7 @@ pub(crate) fn openai_response_to_gemini_batch(body: Bytes) -> Result<Bytes, Tran
             .map(gemini_embedding)
             .collect::<Result<_, _>>()?,
         usage_metadata: Some(gemini_usage(input.usage)),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -210,7 +210,7 @@ fn openai_embedding(
         ),
         index: u32::try_from(index).unwrap_or(u32::MAX),
         object: openai::EmbeddingObjectType::Embedding,
-        rest: input.rest,
+        rest: Default::default(),
     }
 }
 
@@ -226,7 +226,7 @@ fn gemini_embedding(
     Ok(gemini::ContentEmbedding {
         values: values.into_iter().map(|value| value as f32).collect(),
         shape: Vec::new(),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -241,7 +241,7 @@ fn openai_usage(
     openai_embeddings::EmbeddingUsage {
         prompt_tokens: tokens,
         total_tokens: tokens,
-        rest: input.map(|usage| usage.rest).unwrap_or_default(),
+        rest: Default::default(),
     }
 }
 
@@ -249,7 +249,7 @@ fn gemini_usage(input: openai_embeddings::EmbeddingUsage) -> gemini::EmbeddingUs
     gemini::EmbeddingUsageMetadata {
         prompt_token_count: Some(i32::try_from(input.prompt_tokens).unwrap_or(i32::MAX)),
         prompt_token_details: Vec::new(),
-        rest: input.rest,
+        rest: Default::default(),
     }
 }
 

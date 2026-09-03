@@ -13,13 +13,13 @@ pub(crate) fn transform(
     let search = has_search(input.tools.as_ref());
     let mut messages = Vec::new();
     if let Some(system) = input.system_instruction {
-        let (content, rest) = content::system_content(system)?;
+        let content = content::system_content(system)?;
         messages.push(openai::ChatCompletionMessageParam::System(
             openai::ChatSystemMessageParam {
                 role: openai::ChatSystemRole::System,
                 content,
                 name: None,
-                rest,
+                rest: Default::default(),
             },
         ));
     }
@@ -71,7 +71,7 @@ pub(crate) fn transform(
             user_location: None,
             rest: Default::default(),
         }),
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }

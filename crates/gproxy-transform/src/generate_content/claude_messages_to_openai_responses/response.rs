@@ -14,9 +14,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         .unwrap_or_else(|| "unknown".into())
         .into();
     let usage = usage::responses_to_claude(input.usage).unwrap_or_else(empty_usage);
-    let mut rest = input.rest;
-    preserve_number(&mut rest, "openai_created_at", input.created_at);
-    preserve_number(&mut rest, "openai_completed_at", input.completed_at);
     let mut blocks = Vec::new();
     for item in input.output {
         blocks.extend(item_blocks(item)?);
@@ -48,7 +45,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         diagnostics: None,
         input_transformations: None,
         stop_details: None,
-        rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -59,8 +56,7 @@ fn item_blocks(
     match item {
         openai::ResponseItem::Message(message) => match message {
             openai::ResponseMessageItem::Output(message) => {
-                let item_id = message.id;
-                let mut blocks = message
+                let blocks = message
                     .content
                     .into_iter()
                     .map(|part| match part {
@@ -69,7 +65,7 @@ fn item_blocks(
                                 citations: None,
                                 text: part.text,
                                 type_: claude::TextBlockType::Text,
-                                rest: part.rest,
+                                rest: Default::default(),
                             })
                         }
                         openai::ResponseMessageOutputContentPart::Refusal(part) => {
@@ -77,31 +73,28 @@ fn item_blocks(
                                 citations: None,
                                 text: part.refusal,
                                 type_: claude::TextBlockType::Text,
-                                rest: part.rest,
+                                rest: Default::default(),
                             })
                         }
-                        openai::ResponseMessageOutputContentPart::Unknown(raw) => {
-                            claude::ResponseContentBlock::Raw(raw)
+                        openai::ResponseMessageOutputContentPart::Unknown(_) => {
+                            claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                                citations: None,
+                                text: String::new(),
+                                type_: claude::TextBlockType::Text,
+                                rest: Default::default(),
+                            })
                         }
                     })
+                    .filter(|block| !matches!(block, claude::ResponseContentBlock::Text(text) if text.text.is_empty()))
                     .collect::<Vec<_>>();
-                if let Some(rest) = blocks.iter_mut().find_map(block_rest_mut) {
-                    rest.insert("openai_item_id".into(), item_id.into());
-                }
                 Ok(blocks)
             }
-            openai::ResponseMessageItem::Unknown(raw) => {
-                Ok(vec![claude::ResponseContentBlock::Raw(raw)])
-            }
-            unsupported @ (openai::ResponseMessageItem::Input(_)
-            | openai::ResponseMessageItem::EasyInput(_)) => {
-                Ok(vec![claude::ResponseContentBlock::Raw(
-                    serde_json::to_value(unsupported)?,
-                )])
-            }
+            openai::ResponseMessageItem::Unknown(_)
+            | openai::ResponseMessageItem::Input(_)
+            | openai::ResponseMessageItem::EasyInput(_) => Ok(Vec::new()),
         },
         openai::ResponseItem::Typed(item) => typed_blocks(*item),
-        openai::ResponseItem::Unknown(raw) => Ok(vec![claude::ResponseContentBlock::Raw(raw)]),
+        openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
     }
 }
 
@@ -113,50 +106,37 @@ fn typed_blocks(
             arguments,
             call_id,
             name,
-            id,
-            mut rest,
             ..
-        } => {
-            preserve_string(&mut rest, "openai_item_id", id);
-            vec![claude::ResponseContentBlock::ToolUse(
-                claude::ResponseToolUseBlock {
-                    id: call_id,
-                    input: serde_json::from_str(&arguments).unwrap_or_default(),
-                    name,
-                    type_: claude::ToolUseBlockType::ToolUse,
-                    caller: None,
-                    rest,
-                },
-            )]
-        }
+        } => vec![claude::ResponseContentBlock::ToolUse(
+            claude::ResponseToolUseBlock {
+                id: call_id,
+                input: serde_json::from_str(&arguments).unwrap_or_default(),
+                name,
+                type_: claude::ToolUseBlockType::ToolUse,
+                caller: None,
+                rest: Default::default(),
+            },
+        )],
         openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
             name,
-            id,
-            mut rest,
             ..
-        } => {
-            preserve_string(&mut rest, "openai_item_id", id);
-            vec![claude::ResponseContentBlock::ToolUse(
-                claude::ResponseToolUseBlock {
-                    id: call_id,
-                    input: string_input(input),
-                    name,
-                    type_: claude::ToolUseBlockType::ToolUse,
-                    caller: None,
-                    rest,
-                },
-            )]
-        }
+        } => vec![claude::ResponseContentBlock::ToolUse(
+            claude::ResponseToolUseBlock {
+                id: call_id,
+                input: string_input(input),
+                name,
+                type_: claude::ToolUseBlockType::ToolUse,
+                caller: None,
+                rest: Default::default(),
+            },
+        )],
         openai::TypedResponseItem::Reasoning {
-            id,
             content,
             encrypted_content,
-            mut rest,
             ..
         } => {
-            preserve_string(&mut rest, "openai_item_id", id);
             let thinking = content
                 .into_iter()
                 .flatten()
@@ -168,7 +148,7 @@ fn typed_blocks(
                         signature: Some(signature),
                         thinking,
                         type_: claude::ThinkingBlockType::Thinking,
-                        rest,
+                        rest: Default::default(),
                     },
                 )],
                 (false, None) => vec![claude::ResponseContentBlock::Text(
@@ -176,35 +156,29 @@ fn typed_blocks(
                         citations: None,
                         text: thinking,
                         type_: claude::TextBlockType::Text,
-                        rest,
+                        rest: Default::default(),
                     },
                 )],
                 (true, Some(data)) => vec![claude::ResponseContentBlock::RedactedThinking(
                     claude::RedactedThinkingBlock {
                         data,
                         type_: claude::RedactedThinkingBlockType::RedactedThinking,
-                        rest,
+                        rest: Default::default(),
                     },
                 )],
                 (true, None) => Vec::new(),
             }
         }
         openai::TypedResponseItem::Compaction {
-            encrypted_content,
-            id,
-            mut rest,
-            ..
-        } => {
-            preserve_string(&mut rest, "openai_item_id", id);
-            vec![claude::ResponseContentBlock::Compaction(
-                claude::ResponseCompactionBlock {
-                    content: None,
-                    encrypted_content,
-                    type_: claude::CompactionBlockType::Compaction,
-                    rest,
-                },
-            )]
-        }
+            encrypted_content, ..
+        } => vec![claude::ResponseContentBlock::Compaction(
+            claude::ResponseCompactionBlock {
+                content: None,
+                encrypted_content,
+                type_: claude::CompactionBlockType::Compaction,
+                rest: Default::default(),
+            },
+        )],
         other @ (openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
         | openai::TypedResponseItem::ComputerCallOutput { .. }
@@ -236,41 +210,10 @@ fn typed_blocks(
             if let Some(call) = items::openai_call(other.clone())? {
                 vec![items::response_block(call)]
             } else {
-                vec![claude::ResponseContentBlock::Raw(serde_json::to_value(
-                    other,
-                )?)]
+                Vec::new()
             }
         }
     })
-}
-
-fn block_rest_mut(
-    block: &mut claude::ResponseContentBlock,
-) -> Option<&mut serde_json::Map<String, serde_json::Value>> {
-    match block {
-        claude::ResponseContentBlock::Text(block) => Some(&mut block.rest),
-        _ => None,
-    }
-}
-
-fn preserve_number(
-    rest: &mut serde_json::Map<String, serde_json::Value>,
-    name: &str,
-    value: Option<u64>,
-) {
-    if let Some(value) = value {
-        rest.insert(name.into(), value.into());
-    }
-}
-
-fn preserve_string(
-    rest: &mut serde_json::Map<String, serde_json::Value>,
-    name: &str,
-    value: Option<String>,
-) {
-    if let Some(value) = value {
-        rest.insert(name.into(), value.into());
-    }
 }
 
 fn string_input(input: String) -> claude::JsonObject {

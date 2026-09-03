@@ -62,9 +62,12 @@ pub(super) fn part_to_block(
         part_metadata: _,
         media_resolution: _,
         data,
-        metadata: _,
-        rest: _,
+        ..
     } = part;
+    if data.is_none() && thought == Some(true) && signature.is_some() {
+        *pending_signature = signature;
+        return Ok(None);
+    }
     let Some(data) = data else {
         return Ok(None);
     };
@@ -76,64 +79,48 @@ pub(super) fn part_to_block(
         *pending_signature = signature;
         return Ok(None);
     }
-    let inherited_signature = if matches!(data, gemini::PartData::FunctionCall { .. }) {
-        pending_signature.take()
-    } else {
+    if !matches!(data, gemini::PartData::FunctionCall { .. }) {
         *pending_signature = None;
-        None
-    };
+    }
     Ok(Some(match data {
-        gemini::PartData::Text { text, rest: data } if thought == Some(true) => {
+        gemini::PartData::Text { text, .. } if thought == Some(true) => {
             claude::ContentBlockParam::Thinking(claude::ThinkingBlock {
                 signature,
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
-                rest: data,
+                rest: Default::default(),
             })
         }
-        gemini::PartData::Text { text, rest: data } => functions::text_block(text, data),
-        gemini::PartData::InlineData {
-            inline_data,
-            rest: _,
-        } => match media::inline(inline_data) {
+        gemini::PartData::Text { text, .. } => functions::text_block(text),
+        gemini::PartData::InlineData { inline_data, .. } => match media::inline(inline_data) {
             Ok(block) => block,
             Err(TransformError::Unsupported { .. }) => return Ok(None),
             Err(error) => return Err(error),
         },
-        gemini::PartData::FileData { file_data, rest: _ } => match media::file(file_data) {
+        gemini::PartData::FileData { file_data, .. } => match media::file(file_data) {
             Ok(block) => block,
             Err(TransformError::Unsupported { .. }) => return Ok(None),
             Err(error) => return Err(error),
         },
-        gemini::PartData::FunctionCall {
-            function_call,
-            rest: data,
-        } => functions::function_call_block(
-            function_call,
-            signature.or(inherited_signature),
-            data,
-            correlation,
-        )?,
+        gemini::PartData::FunctionCall { function_call, .. } => {
+            functions::function_call_block(function_call, correlation)?
+        }
         gemini::PartData::FunctionResponse {
-            function_response,
-            rest: data,
-        } => functions::function_result_block(function_response, data, correlation)?,
+            function_response, ..
+        } => functions::function_result_block(function_response, correlation)?,
         gemini::PartData::ExecutableCode {
-            executable_code,
-            rest: data,
-        } => native::request_call(executable_code, correlation, data, signature)?,
+            executable_code, ..
+        } => native::request_call(executable_code, correlation)?,
         gemini::PartData::CodeExecutionResult {
             code_execution_result,
-            rest: data,
-        } => native::request_result(code_execution_result, correlation, data)?,
-        gemini::PartData::ToolCall {
-            tool_call,
-            rest: data,
-        } => functions::server_call_block(tool_call, data, correlation)?,
-        gemini::PartData::ToolResponse {
-            tool_response,
-            rest: data,
-        } => functions::server_result_block(tool_response, data, correlation)?,
+            ..
+        } => native::request_result(code_execution_result, correlation)?,
+        gemini::PartData::ToolCall { tool_call, .. } => {
+            functions::server_call_block(tool_call, correlation)?
+        }
+        gemini::PartData::ToolResponse { tool_response, .. } => {
+            functions::server_result_block(tool_response, correlation)?
+        }
         gemini::PartData::Raw(_) => return Ok(None),
         _future => return Ok(None),
     }))

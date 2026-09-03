@@ -14,10 +14,8 @@ impl State {
         &mut self,
         delta: claude::MessageDelta,
         usage_delta: Option<claude::Usage>,
-        rest: serde_json::Map<String, serde_json::Value>,
+        _extensions: serde_json::Map<String, serde_json::Value>,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut event_rest = delta.rest;
-        event_rest.extend(rest);
         if let Some(reason) = delta.stop_reason {
             self.stop_reason = reason;
         }
@@ -28,12 +26,10 @@ impl State {
                 self.usage = Some(usage);
             }
         }
-        self.response_rest.extend(event_rest);
         Ok(match self.output {
             Output::Chat => {
-                let rest = std::mem::take(&mut self.response_rest);
                 vec![self.chat_chunk(
-                    empty_delta(rest),
+                    empty_delta(),
                     Some(stop::claude_to_chat(&self.stop_reason)),
                     self.usage.clone().and_then(usage::claude_to_chat),
                 )?]
@@ -44,7 +40,7 @@ impl State {
 
     pub(super) fn message_stop(
         &mut self,
-        rest: serde_json::Map<String, serde_json::Value>,
+        _extensions: serde_json::Map<String, serde_json::Value>,
     ) -> Result<Vec<Bytes>, TransformError> {
         if !self.started || !self.blocks.is_empty() {
             return Err(TransformError::shape(
@@ -52,17 +48,10 @@ impl State {
                 "invalid message_stop",
             ));
         }
-        self.response_rest.extend(rest);
         self.stopped = true;
         Ok(match self.output {
             Output::Chat => {
-                let mut frames = Vec::new();
-                if !self.response_rest.is_empty() {
-                    let rest = std::mem::take(&mut self.response_rest);
-                    frames.push(self.chat_chunk(empty_delta(rest), None, None)?);
-                }
-                frames.push(SseFrame::encode(None, "[DONE]"));
-                frames
+                vec![SseFrame::encode(None, "[DONE]")]
             }
             Output::Responses => {
                 let incomplete = matches!(
@@ -78,11 +67,7 @@ impl State {
                 } else {
                     openai::ResponseStatus::Completed
                 };
-                vec![self.response_terminal(
-                    incomplete,
-                    self.response_object(status),
-                    Default::default(),
-                )?]
+                vec![self.response_terminal(incomplete, self.response_object(status))?]
             }
         })
     }

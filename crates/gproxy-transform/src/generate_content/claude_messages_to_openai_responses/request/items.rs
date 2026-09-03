@@ -6,20 +6,24 @@ use crate::TransformError;
 use crate::common::native::items::{self, NativeKind};
 use crate::common::responses;
 
-use super::tool_output::{function_output, reasoning_item, redacted_reasoning_item, take_item_id};
+use super::tool_output::{function_output, reasoning_item, redacted_reasoning_item};
 
 pub(super) fn message_items(
     message: claude::MessageParam,
     native_calls: &mut BTreeMap<String, NativeKind>,
 ) -> Result<Vec<openai::ResponseItem>, TransformError> {
     let role = match &message.role {
-        claude::MessageRole::Known(claude::MessageRoleKnown::User)
-        | claude::MessageRole::Unknown(_) => openai::ResponseEasyInputMessageRole::User,
+        claude::MessageRole::Known(claude::MessageRoleKnown::User) => {
+            openai::ResponseEasyInputMessageRole::User
+        }
         claude::MessageRole::Known(claude::MessageRoleKnown::Assistant) => {
             openai::ResponseEasyInputMessageRole::Assistant
         }
         claude::MessageRole::Known(claude::MessageRoleKnown::System) => {
             openai::ResponseEasyInputMessageRole::Developer
+        }
+        claude::MessageRole::Unknown(value) => {
+            return Err(TransformError::unsupported("Claude role", value.clone()));
         }
         _ => {
             return Err(TransformError::unsupported("Claude role", "future role"));
@@ -36,7 +40,7 @@ pub(super) fn message_items(
             })]
         }
         claude::StringOrArray::Array(blocks) => blocks,
-        claude::StringOrArray::Raw(raw) => return Ok(vec![openai::ResponseItem::Unknown(raw)]),
+        claude::StringOrArray::Raw(_) => return Ok(Vec::new()),
         _ => {
             return Err(TransformError::unsupported(
                 "Claude content",
@@ -50,15 +54,14 @@ pub(super) fn message_items(
         match block {
             claude::ContentBlockParam::Text(_)
             | claude::ContentBlockParam::Image(_)
-            | claude::ContentBlockParam::Document(_)
-            | claude::ContentBlockParam::Raw(_) => message_blocks.push(block),
+            | claude::ContentBlockParam::Document(_) => message_blocks.push(block),
+            claude::ContentBlockParam::Raw(_) => {}
             claude::ContentBlockParam::ToolUse(block) => {
                 let call_id = block.id.clone();
                 let (item, kind) = items::claude_call(
                     block.id,
                     block.input,
                     block.name,
-                    block.rest,
                     openai::ResponseItemLifecycleStatus::Completed,
                 )?;
                 if let Some(kind) = kind {
@@ -78,16 +81,16 @@ pub(super) fn message_items(
             claude::ContentBlockParam::RedactedThinking(block) => {
                 output.push(redacted_reasoning_item(block)?);
             }
-            claude::ContentBlockParam::Compaction(mut block) => {
+            claude::ContentBlockParam::Compaction(block) => {
                 let encrypted_content = block.encrypted_content.ok_or_else(|| {
                     TransformError::shape("Claude compaction block", "encrypted_content is missing")
                 })?;
                 output.push(openai::ResponseItem::Typed(Box::new(
                     openai::TypedResponseItem::Compaction {
                         encrypted_content,
-                        id: take_item_id(&mut block.rest)?,
+                        id: None,
                         created_by: None,
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                 )));
             }
@@ -97,7 +100,6 @@ pub(super) fn message_items(
                     block.id.clone(),
                     block.input,
                     name,
-                    block.rest,
                     openai::ResponseItemLifecycleStatus::Completed,
                 )?;
                 if let Some(kind) = kind {
@@ -116,7 +118,7 @@ pub(super) fn message_items(
                         error: None,
                         output: None,
                         status: Some(openai::ResponseMcpCallStatus::Completed),
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                 )));
             }
@@ -163,7 +165,7 @@ pub(super) fn message_items(
                     role,
                     content: openai::ResponseEasyInputContent::Parts(content),
                     phase: None,
-                    rest: message.rest,
+                    rest: Default::default(),
                 },
             )),
         );

@@ -10,32 +10,21 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
     let mut refusal = String::new();
     let mut annotations = Vec::new();
     let mut calls = Vec::new();
-    let mut raw = Vec::new();
-    let mut message_rest: openai::Rest = Default::default();
     for item in input.output {
         match item {
             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
-                message_rest.extend(message.rest);
-                if let Some(phase) = message.phase {
-                    message_rest.insert(
-                        "responses_message_phase".into(),
-                        serde_json::to_value(phase)?,
-                    );
-                }
                 for part in message.content {
                     match part {
                         openai::ResponseMessageOutputContentPart::OutputText(part) => {
                             text.push(part.text);
                             annotations
                                 .extend(part.annotations.into_iter().filter_map(chat_annotation));
-                            message_rest.extend(part.rest);
                         }
                         openai::ResponseMessageOutputContentPart::Refusal(part) => {
                             text.push(part.refusal.clone());
                             refusal.push_str(&part.refusal);
-                            message_rest.extend(part.rest);
                         }
-                        openai::ResponseMessageOutputContentPart::Unknown(value) => raw.push(value),
+                        openai::ResponseMessageOutputContentPart::Unknown(_) => {}
                     }
                 }
             }
@@ -44,115 +33,61 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     arguments,
                     call_id,
                     name,
-                    id,
-                    mut rest,
-                    caller,
-                    namespace,
-                    status,
-                } => {
-                    preserve_option(&mut rest, "responses_item_id", id)?;
-                    preserve_option(&mut rest, "caller", caller)?;
-                    preserve_option(&mut rest, "namespace", namespace)?;
-                    preserve_option(&mut rest, "status", status)?;
-                    calls.push(openai::ChatToolCall::Function(
-                        openai::ChatFunctionToolCall {
-                            id: call_id,
-                            type_: openai::FunctionToolChoiceType::Function,
-                            function: openai::FunctionCall {
-                                arguments,
-                                name,
-                                rest: Default::default(),
-                            },
-                            rest,
+                    ..
+                } => calls.push(openai::ChatToolCall::Function(
+                    openai::ChatFunctionToolCall {
+                        id: call_id,
+                        type_: openai::FunctionToolChoiceType::Function,
+                        function: openai::FunctionCall {
+                            arguments,
+                            name,
+                            rest: Default::default(),
                         },
-                    ))
-                }
+                        rest: Default::default(),
+                    },
+                )),
                 openai::TypedResponseItem::CustomToolCall {
                     call_id,
                     input,
                     name,
-                    id,
-                    mut rest,
-                    caller,
-                    namespace,
-                } => {
-                    preserve_option(&mut rest, "responses_item_id", id)?;
-                    preserve_option(&mut rest, "caller", caller)?;
-                    preserve_option(&mut rest, "namespace", namespace)?;
-                    calls.push(openai::ChatToolCall::Custom(openai::ChatCustomToolCall {
-                        id: call_id,
-                        type_: openai::CustomToolChoiceType::Custom,
-                        custom: openai::CustomToolCall {
-                            input,
-                            name,
-                            rest: Default::default(),
-                        },
-                        rest,
-                    }))
-                }
+                    ..
+                } => calls.push(openai::ChatToolCall::Custom(openai::ChatCustomToolCall {
+                    id: call_id,
+                    type_: openai::CustomToolChoiceType::Custom,
+                    custom: openai::CustomToolCall {
+                        input,
+                        name,
+                        rest: Default::default(),
+                    },
+                    rest: Default::default(),
+                })),
                 openai::TypedResponseItem::ShellCall {
-                    action,
-                    call_id,
-                    id,
-                    caller,
-                    environment,
-                    status,
-                    created_by,
-                    mut rest,
+                    action, call_id, ..
                 } => {
-                    preserve_option(&mut rest, "responses_item_id", id)?;
-                    preserve_option(&mut rest, "caller", caller)?;
-                    preserve_option(&mut rest, "environment", environment)?;
-                    preserve_option(&mut rest, "status", status)?;
-                    preserve_option(&mut rest, "created_by", created_by)?;
                     calls.push(function_call(
                         call_id,
                         "shell",
                         serde_json::to_string(&action)?,
-                        rest,
                     ));
                 }
                 openai::TypedResponseItem::ApplyPatchCall {
-                    call_id,
-                    operation,
-                    status,
-                    id,
-                    caller,
-                    created_by,
-                    mut rest,
+                    call_id, operation, ..
                 } => {
-                    preserve_option(&mut rest, "responses_item_id", id)?;
-                    preserve_option(&mut rest, "caller", caller)?;
-                    preserve_option(&mut rest, "status", Some(status))?;
-                    preserve_option(&mut rest, "created_by", created_by)?;
                     calls.push(function_call(
                         call_id,
                         "apply_patch",
                         serde_json::to_string(&operation)?,
-                        rest,
                     ));
                 }
                 openai::TypedResponseItem::Reasoning {
-                    summary,
-                    content,
-                    encrypted_content,
-                    status,
-                    rest,
-                    ..
+                    summary, content, ..
                 } => {
                     reasoning.extend(summary.into_iter().map(|part| part.text));
                     reasoning.extend(content.into_iter().flatten().map(|part| part.text));
-                    message_rest.extend(rest);
-                    preserve_option(
-                        &mut message_rest,
-                        "responses_reasoning_encrypted_content",
-                        encrypted_content,
-                    )?;
-                    preserve_option(&mut message_rest, "responses_reasoning_status", status)?;
                 }
-                other => raw.push(serde_json::to_value(other)?),
+                _ => {}
             },
-            other => raw.push(serde_json::to_value(other)?),
+            _ => {}
         }
     }
     let has_calls = !calls.is_empty();
@@ -160,12 +95,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         && let Some(fallback) = input.output_text.clone().filter(|value| !value.is_empty())
     {
         text.push(fallback);
-    }
-    if !raw.is_empty() {
-        message_rest.insert(
-            "responses_output_items".into(),
-            serde_json::Value::Array(raw),
-        );
     }
     let finish_reason = if has_calls {
         openai::ChatFinishReason::ToolCalls
@@ -191,7 +120,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 function_call: None,
                 reasoning_content: joined(reasoning),
                 tool_calls: has_calls.then_some(calls),
-                rest: message_rest,
+                rest: Default::default(),
             },
             rest: Default::default(),
         }],
@@ -204,7 +133,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         service_tier: input.service_tier,
         system_fingerprint: None,
         usage: input.usage.map(usage::responses_to_chat),
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -241,12 +170,7 @@ fn chat_annotation(annotation: openai::ResponseAnnotation) -> Option<openai::Cha
     }
 }
 
-fn function_call(
-    id: String,
-    name: &str,
-    arguments: String,
-    rest: openai::Rest,
-) -> openai::ChatToolCall {
+fn function_call(id: String, name: &str, arguments: String) -> openai::ChatToolCall {
     openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
         id,
         type_: openai::FunctionToolChoiceType::Function,
@@ -255,17 +179,6 @@ fn function_call(
             name: name.into(),
             rest: Default::default(),
         },
-        rest,
+        rest: Default::default(),
     })
-}
-
-fn preserve_option<T: serde::Serialize>(
-    rest: &mut openai::Rest,
-    key: &str,
-    value: Option<T>,
-) -> Result<(), TransformError> {
-    if let Some(value) = value {
-        rest.insert(key.into(), serde_json::to_value(value)?);
-    }
-    Ok(())
 }

@@ -38,7 +38,7 @@ pub(crate) fn transform(
         cached_content: input.prompt_cache_key,
         service_tier: wire::service_tier(input.service_tier),
         store: input.store,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }

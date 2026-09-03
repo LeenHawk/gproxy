@@ -51,21 +51,16 @@ impl Converter for GeminiImageStream {
                 output_tokens,
                 total_tokens: nonnegative(usage.total_token_count),
                 output_tokens_details: None,
-                rest: usage.rest,
+                rest: Default::default(),
             });
         }
         let mut output = Vec::new();
         for candidate in input.candidates {
             if let Some(content) = candidate.content {
                 for part in content.parts {
-                    if let Some(gemini::PartData::InlineData { inline_data, rest }) = part.data {
+                    if let Some(gemini::PartData::InlineData { inline_data, .. }) = part.data {
                         self.last_image = Some(inline_data.data.clone());
-                        output.push(image_partial(
-                            self.edit,
-                            inline_data.data,
-                            self.next_index,
-                            rest,
-                        )?);
+                        output.push(image_partial(self.edit, inline_data.data, self.next_index)?);
                         self.next_index = self.next_index.saturating_add(1);
                     }
                 }
@@ -100,7 +95,6 @@ impl Converter for ResponsesImageStream {
                     self.edit,
                     event.partial_image_b64,
                     event.partial_image_index,
-                    event.rest,
                 )?])
             }
             openai::KnownResponseStreamEvent::ResponseCompleted(event)
@@ -152,12 +146,11 @@ fn image_partial(
     edit: bool,
     b64_json: String,
     partial_image_index: u32,
-    rest: openai::Rest,
 ) -> Result<Bytes, TransformError> {
     let event = openai_images::ImagePartialEvent {
         b64_json,
         partial_image_index,
-        rest,
+        rest: Default::default(),
     };
     let name = if edit {
         "image_edit.partial_image"
@@ -206,7 +199,7 @@ fn response_usage(usage: openai::ResponseUsage) -> openai_images::ImageUsage {
         output_tokens: u64::from(usage.output_tokens),
         total_tokens: u64::from(usage.total_tokens),
         output_tokens_details: None,
-        rest: usage.rest,
+        rest: Default::default(),
     }
 }
 

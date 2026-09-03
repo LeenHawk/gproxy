@@ -25,7 +25,7 @@ fn from_gemini_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
         let output = openai::ModelListResponse {
             data: list.models.into_iter().map(gemini_to_openai).collect(),
             object: openai::ListObjectType::List,
-            rest: list.rest,
+            rest: Default::default(),
         };
         return encode(&output);
     }
@@ -41,7 +41,7 @@ fn from_openai_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
                 .map(openai_to_gemini)
                 .collect::<Result<_, _>>()?,
             next_page_token: None,
-            rest: list.rest,
+            rest: Default::default(),
         };
         return encode(&output);
     }
@@ -63,7 +63,7 @@ fn from_gemini_to_claude(body: Bytes) -> Result<Bytes, TransformError> {
                 .or(data.last().map(|model| wire(&model.id)).transpose()?),
             data,
             has_more: Some(has_more),
-            rest: list.rest,
+            rest: Default::default(),
         };
         return encode(&output);
     }
@@ -83,7 +83,7 @@ fn from_claude_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
                 .unwrap_or(false)
                 .then_some(list.last_id)
                 .flatten(),
-            rest: list.rest,
+            rest: Default::default(),
         };
         return encode(&output);
     }
@@ -101,7 +101,7 @@ fn gemini_to_openai(model: gemini::Model) -> openai::Model {
         thinking_supported: model.thinking,
         object: openai::ModelObjectType::Model,
         owned_by: Some("google".into()),
-        rest: model.rest,
+        rest: Default::default(),
     }
 }
 
@@ -122,7 +122,7 @@ fn openai_to_gemini(model: openai::Model) -> Result<gemini::Model, TransformErro
         max_temperature: None,
         top_p: None,
         top_k: None,
-        rest: model.rest,
+        rest: Default::default(),
     })
 }
 
@@ -137,7 +137,7 @@ fn gemini_to_claude(model: gemini::Model) -> claude::ModelInfo {
         max_input_tokens: model.input_token_limit.map(nonnegative_u64),
         max_tokens: model.output_token_limit.map(nonnegative_u64),
         capabilities: None,
-        rest: model.rest,
+        rest: Default::default(),
     }
 }
 
@@ -160,7 +160,7 @@ fn claude_to_gemini(model: claude::ModelInfo) -> Result<gemini::Model, Transform
         max_temperature: None,
         top_p: None,
         top_k: None,
-        rest: model.rest,
+        rest: Default::default(),
     })
 }
 

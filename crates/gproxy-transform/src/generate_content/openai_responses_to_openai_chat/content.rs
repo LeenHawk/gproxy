@@ -24,14 +24,13 @@ pub(super) fn user_text(text: String) -> openai::ChatCompletionMessageParam {
 
 pub(super) fn user_content(
     content: openai::ResponseEasyInputContent,
-    rest: openai::Rest,
 ) -> Result<openai::ChatCompletionMessageParam, TransformError> {
     Ok(openai::ChatCompletionMessageParam::User(
         openai::ChatUserMessageParam {
             role: openai::ChatUserRole::User,
             content: easy_user(content)?,
             name: None,
-            rest,
+            rest: Default::default(),
         },
     ))
 }
@@ -39,7 +38,6 @@ pub(super) fn user_content(
 pub(super) fn text_message(
     content: openai::ResponseEasyInputContent,
     role: openai::ResponseEasyInputMessageRole,
-    rest: openai::Rest,
 ) -> Result<openai::ChatCompletionMessageParam, TransformError> {
     let content = easy_text(content)?;
     Ok(match role {
@@ -48,7 +46,7 @@ pub(super) fn text_message(
                 role: openai::ChatSystemRole::System,
                 content,
                 name: None,
-                rest,
+                rest: Default::default(),
             })
         }
         openai::ResponseEasyInputMessageRole::Developer
@@ -58,7 +56,7 @@ pub(super) fn text_message(
                 role: openai::ChatDeveloperRole::Developer,
                 content,
                 name: None,
-                rest,
+                rest: Default::default(),
             })
         }
     })
@@ -78,7 +76,7 @@ pub(super) fn easy_text(
                             type_: openai::ChatTextPartType::Text,
                             text: part.text,
                             prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                            rest: part.rest,
+                            rest: Default::default(),
                         }))
                     }
                     unsupported @ (openai::ResponseInputContentPart::InputImage(_)
@@ -92,7 +90,10 @@ pub(super) fn easy_text(
                 })
                 .collect::<Result<_, _>>()?,
         )),
-        openai::ResponseEasyInputContent::Unknown(raw) => Ok(openai::ChatTextContent::Unknown(raw)),
+        openai::ResponseEasyInputContent::Unknown(raw) => Err(TransformError::unsupported(
+            "OpenAI Responses text content",
+            raw.to_string(),
+        )),
         openai::ResponseEasyInputContent::OutputParts(parts) => {
             Ok(openai::ChatTextContent::Parts(output_text_parts(parts)))
         }
@@ -110,7 +111,10 @@ pub(super) fn easy_user(
                 .map(response_part_to_chat)
                 .collect::<Result<_, _>>()?,
         )),
-        openai::ResponseEasyInputContent::Unknown(raw) => Ok(openai::ChatContent::Unknown(raw)),
+        openai::ResponseEasyInputContent::Unknown(raw) => Err(TransformError::unsupported(
+            "OpenAI Responses user content",
+            raw.to_string(),
+        )),
         openai::ResponseEasyInputContent::OutputParts(parts) => Ok(openai::ChatContent::Parts(
             output_text_parts(parts)
                 .into_iter()
@@ -136,7 +140,7 @@ fn output_text_parts(
                     type_: openai::ChatTextPartType::Text,
                     text: part.text,
                     prompt_cache_breakpoint: None,
-                    rest: part.rest,
+                    rest: Default::default(),
                 }))
             }
             openai::ResponseMessageOutputContentPart::Refusal(part) => {
@@ -144,7 +148,7 @@ fn output_text_parts(
                     type_: openai::ChatTextPartType::Text,
                     text: part.refusal,
                     prompt_cache_breakpoint: None,
-                    rest: part.rest,
+                    rest: Default::default(),
                 }))
             }
             openai::ResponseMessageOutputContentPart::Unknown(_) => None,
@@ -160,9 +164,10 @@ pub(super) fn easy_assistant(
             Ok(openai::ChatAssistantContent::Text(text))
         }
         openai::ResponseEasyInputContent::OutputParts(parts) => Ok(output_content(parts)),
-        openai::ResponseEasyInputContent::Unknown(raw) => {
-            Ok(openai::ChatAssistantContent::Unknown(raw))
-        }
+        openai::ResponseEasyInputContent::Unknown(raw) => Err(TransformError::unsupported(
+            "OpenAI Responses assistant content",
+            raw.to_string(),
+        )),
         unsupported @ openai::ResponseEasyInputContent::Parts(_) => {
             Err(TransformError::unsupported(
                 "Responses assistant content",
@@ -178,26 +183,24 @@ pub(super) fn output_content(
     openai::ChatAssistantContent::Parts(
         parts
             .into_iter()
-            .map(|part| match part {
-                openai::ResponseMessageOutputContentPart::OutputText(part) => {
+            .filter_map(|part| match part {
+                openai::ResponseMessageOutputContentPart::OutputText(part) => Some(
                     openai::ChatAssistantContentPart::Text(openai::ChatTextPart {
                         type_: openai::ChatTextPartType::Text,
                         text: part.text,
                         prompt_cache_breakpoint: None,
-                        rest: part.rest,
-                    })
-                }
-                openai::ResponseMessageOutputContentPart::Refusal(part) => {
+                        rest: Default::default(),
+                    }),
+                ),
+                openai::ResponseMessageOutputContentPart::Refusal(part) => Some(
                     openai::ChatAssistantContentPart::Refusal(openai::ChatRefusalPart {
                         type_: openai::ChatRefusalPartType::Refusal,
                         refusal: part.refusal,
                         prompt_cache_breakpoint: None,
-                        rest: part.rest,
-                    })
-                }
-                openai::ResponseMessageOutputContentPart::Unknown(raw) => {
-                    openai::ChatAssistantContentPart::Unknown(raw)
-                }
+                        rest: Default::default(),
+                    }),
+                ),
+                openai::ResponseMessageOutputContentPart::Unknown(_) => None,
             })
             .collect(),
     )

@@ -19,7 +19,6 @@ impl State {
         item_id: String,
         index: u64,
         delta: String,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         let sequence_number = Some(self.next_sequence());
         let output_index = index as u32;
@@ -32,7 +31,7 @@ impl State {
                     logprobs: None,
                     output_index,
                     sequence_number,
-                    rest,
+                    rest: Default::default(),
                 },
             ),
             ResponseDelta::ReasoningText => {
@@ -43,7 +42,7 @@ impl State {
                         item_id,
                         output_index,
                         sequence_number,
-                        rest,
+                        rest: Default::default(),
                     },
                 )
             }
@@ -54,7 +53,7 @@ impl State {
                         item_id,
                         output_index,
                         sequence_number,
-                        rest,
+                        rest: Default::default(),
                     },
                 )
             }
@@ -67,7 +66,6 @@ impl State {
         item_id: String,
         output_index: u32,
         part: openai::ResponseContentPart,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseContentPartAdded(
@@ -77,7 +75,7 @@ impl State {
                 output_index,
                 part,
                 sequence_number,
-                rest,
+                rest: Default::default(),
             },
         ))
     }
@@ -85,14 +83,13 @@ impl State {
     pub(in crate::common::stream) fn response_created(
         &mut self,
         response: openai::ResponseObject,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseCreated(
             openai::ResponseLifecycleEvent {
                 response: Box::new(response),
                 sequence_number,
-                rest,
+                rest: Default::default(),
             },
         ))
     }
@@ -101,12 +98,11 @@ impl State {
         &mut self,
         incomplete: bool,
         response: openai::ResponseObject,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         let payload = openai::ResponseLifecycleEvent {
             response: Box::new(response),
             sequence_number: Some(self.next_sequence()),
-            rest,
+            rest: Default::default(),
         };
         typed_response_event(if incomplete {
             openai::KnownResponseStreamEvent::ResponseIncomplete(payload)
@@ -119,7 +115,6 @@ impl State {
         &mut self,
         item: openai::ResponseItem,
         output_index: u32,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
@@ -127,7 +122,7 @@ impl State {
                 item: Box::new(item),
                 output_index,
                 sequence_number,
-                rest,
+                rest: Default::default(),
             },
         ))
     }
@@ -136,7 +131,6 @@ impl State {
         &mut self,
         item: openai::ResponseItem,
         output_index: u32,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
@@ -144,7 +138,7 @@ impl State {
                 item: Box::new(item),
                 output_index,
                 sequence_number,
-                rest,
+                rest: Default::default(),
             },
         ))
     }

@@ -51,7 +51,7 @@ impl State {
             for call in choice.delta.tool_calls.into_iter().flatten() {
                 parts.extend(tools::update(&mut self.tools, choice.index, call)?);
             }
-            let finish_reason = choice.finish_reason.map(wire::finish_reason);
+            let finish_reason = choice.finish_reason.map(wire::finish_reason).transpose()?;
             if finish_reason.is_some() {
                 parts.extend(tools::finish_choice(&mut self.tools, choice.index)?);
                 self.finished.insert(choice.index);
@@ -60,7 +60,7 @@ impl State {
                 content: (!parts.is_empty()).then_some(gemini::Content {
                     parts,
                     role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
-                    rest: choice.delta.rest,
+                    rest: Default::default(),
                 }),
                 finish_reason,
                 safety_ratings: Vec::new(),
@@ -72,7 +72,7 @@ impl State {
                 url_context_metadata: None,
                 index: Some(wire::index(choice.index)?),
                 finish_message: None,
-                rest: choice.rest,
+                rest: Default::default(),
             });
         }
         let output = gemini::GenerateContentResponse {
@@ -82,7 +82,7 @@ impl State {
             model_version: Some(model),
             response_id: Some(response_id),
             model_status: None,
-            rest: input.rest,
+            rest: Default::default(),
         };
         Ok(vec![SseFrame::typed(None, &output)?])
     }
@@ -119,13 +119,13 @@ fn delta_parts(
 ) -> Vec<gemini::Part> {
     let mut parts = Vec::new();
     if let Some(reasoning) = reasoning.filter(|value| !value.is_empty()) {
-        parts.push(content::text_part(reasoning, true, Default::default()));
+        parts.push(content::text_part(reasoning, true));
     }
     if let Some(text) = text.filter(|value| !value.is_empty()) {
-        parts.push(content::text_part(text, false, Default::default()));
+        parts.push(content::text_part(text, false));
     }
     if let Some(refusal) = refusal.filter(|value| !value.is_empty()) {
-        parts.push(content::text_part(refusal, false, Default::default()));
+        parts.push(content::text_part(refusal, false));
     }
     parts
 }

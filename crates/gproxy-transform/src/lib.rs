@@ -1,4 +1,13 @@
 //! Pure pairwise wire transforms. Routing policy belongs to channels and core.
+//!
+//! Protocol extension bags stop at this crate's input boundary. A transform maps
+//! only fields and enum values whose semantics it understands, emits empty target
+//! extension bags, drops unknown optional objects and values, and rejects unknown
+//! data required to produce a valid target shape. Cross-protocol correlation and
+//! opaque continuation data use typed converter state or documented wire fields,
+//! never private JSON metadata.
+//! Same-wire operation and envelope promotions remain byte-preserving because
+//! they do not perform a semantic conversion.
 
 mod common;
 mod compact;

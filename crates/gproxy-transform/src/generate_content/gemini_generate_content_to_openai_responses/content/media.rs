@@ -7,100 +7,75 @@ use super::messages::MessagePart;
 pub(super) fn media_message(
     blob: gemini::Blob,
     response: bool,
-    mut rest: openai::Rest,
-) -> Result<MessagePart, TransformError> {
+) -> Result<Option<MessagePart>, TransformError> {
     if response {
-        let raw = gemini::Part {
-            data: Some(gemini::PartData::InlineData {
-                inline_data: blob,
-                rest: Default::default(),
-            }),
-            rest,
-            ..Default::default()
-        };
-        return Ok(MessagePart::Output(
-            openai::ResponseMessageOutputContentPart::Unknown(serde_json::to_value(raw)?),
-        ));
+        return Ok(None);
     }
     let mime = blob.mime_type;
     if mime.starts_with("image/") {
-        return Ok(MessagePart::Input(
+        return Ok(Some(MessagePart::Input(
             openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
                 detail: None,
                 file_id: None,
                 image_url: Some(format!("data:{mime};base64,{}", blob.data)),
                 prompt_cache_breakpoint: None,
-                rest,
+                rest: Default::default(),
             }),
-        ));
+        )));
     }
     if mime.starts_with("audio/") {
-        let format = mime
-            .strip_prefix("audio/")
-            .expect("audio MIME checked above")
-            .to_owned();
-        return Ok(MessagePart::Input(
+        let format = match mime.as_str() {
+            "audio/wav" | "audio/x-wav" => openai::InputAudioFormat::Wav,
+            "audio/mpeg" | "audio/mp3" => openai::InputAudioFormat::Mp3,
+            _ => return Ok(None),
+        };
+        return Ok(Some(MessagePart::Input(
             openai::ResponseInputContentPart::InputAudio(openai::ResponseInputAudio {
                 input_audio: openai::InputAudioContent {
                     data: blob.data,
-                    format: openai::InputAudioFormat::Unknown(format),
-                    rest: blob.rest,
+                    format,
+                    rest: Default::default(),
                 },
-                rest,
+                rest: Default::default(),
             }),
-        ));
+        )));
     }
-    rest.insert("mime_type".into(), mime.into());
-    Ok(MessagePart::Input(
+    Ok(Some(MessagePart::Input(
         openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
             detail: None,
-            file_data: Some(blob.data),
+            file_data: Some(format!("data:{mime};base64,{}", blob.data)),
             file_id: None,
             file_url: None,
             filename: None,
             prompt_cache_breakpoint: None,
-            rest,
+            rest: Default::default(),
         }),
-    ))
+    )))
 }
 
 pub(super) fn file_message(
     file: gemini::FileData,
     response: bool,
-    mut rest: openai::Rest,
-) -> Result<MessagePart, TransformError> {
+) -> Result<Option<MessagePart>, TransformError> {
     if response {
-        let raw = gemini::Part {
-            data: Some(gemini::PartData::FileData {
-                file_data: file,
-                rest: Default::default(),
-            }),
-            rest,
-            ..Default::default()
-        };
-        return Ok(MessagePart::Output(
-            openai::ResponseMessageOutputContentPart::Unknown(serde_json::to_value(raw)?),
-        ));
+        return Ok(None);
     }
     if file
         .mime_type
         .as_deref()
         .is_some_and(|mime| mime.starts_with("image/"))
     {
-        return Ok(MessagePart::Input(
+        return Ok(Some(MessagePart::Input(
             openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
                 detail: None,
                 file_id: None,
                 image_url: Some(file.file_uri),
                 prompt_cache_breakpoint: None,
-                rest,
+                rest: Default::default(),
             }),
-        ));
+        )));
     }
-    if let Some(mime) = file.mime_type {
-        rest.insert("mime_type".into(), mime.into());
-    }
-    Ok(MessagePart::Input(
+    Ok(Some(MessagePart::Input(
         openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
             detail: None,
             file_data: None,
@@ -108,7 +83,7 @@ pub(super) fn file_message(
             file_url: Some(file.file_uri),
             filename: None,
             prompt_cache_breakpoint: None,
-            rest,
+            rest: Default::default(),
         }),
-    ))
+    )))
 }

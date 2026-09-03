@@ -1,12 +1,11 @@
 use bytes::Bytes;
-use gproxy_protocol::{claude, openai};
+use gproxy_protocol::claude;
 
 use crate::TransformError;
 use crate::common::native::items;
 
 use super::super::claude_to_openai::{Output, State};
 use super::super::claude_to_responses::ResponseDelta;
-use super::super::state::merge;
 use super::{Block, Emission};
 
 impl State {
@@ -14,7 +13,6 @@ impl State {
         &mut self,
         index: u64,
         delta: claude::EventDelta,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let mut block = self
             .blocks
@@ -23,98 +21,59 @@ impl State {
         let emission = match delta {
             claude::EventDelta::Known(delta) => match (*delta, &mut block, self.output) {
                 (
-                    claude::KnownEventDelta::Text {
-                        text,
-                        rest: delta_rest,
-                    },
-                    Block::Text {
-                        text: total,
-                        id,
-                        rest: block_rest,
-                    },
+                    claude::KnownEventDelta::Text { text, .. },
+                    Block::Text { text: total, id },
                     output,
                 ) => {
                     total.push_str(&text);
-                    let event_rest = merge(delta_rest, rest.clone());
-                    block_rest.extend(event_rest.clone());
                     match output {
-                        Output::Chat => Emission::ChatText(text, event_rest),
-                        Output::Responses => Emission::Responses(
-                            ResponseDelta::OutputText,
-                            id.clone(),
-                            text,
-                            event_rest,
-                        ),
+                        Output::Chat => Emission::ChatText(text),
+                        Output::Responses => {
+                            Emission::Responses(ResponseDelta::OutputText, id.clone(), text)
+                        }
                     }
                 }
                 (
-                    claude::KnownEventDelta::Thinking {
-                        thinking,
-                        rest: delta_rest,
-                        ..
-                    },
-                    Block::Thinking {
-                        text,
-                        id,
-                        rest: block_rest,
-                        ..
-                    },
+                    claude::KnownEventDelta::Thinking { thinking, .. },
+                    Block::Thinking { text, id, .. },
                     output,
                 ) => {
                     text.push_str(&thinking);
-                    let event_rest = merge(delta_rest, rest.clone());
-                    block_rest.extend(event_rest.clone());
                     match output {
-                        Output::Chat => Emission::ChatReasoning(thinking, event_rest),
-                        Output::Responses => Emission::Responses(
-                            ResponseDelta::ReasoningText,
-                            id.clone(),
-                            thinking,
-                            event_rest,
-                        ),
+                        Output::Chat => Emission::ChatReasoning(thinking),
+                        Output::Responses => {
+                            Emission::Responses(ResponseDelta::ReasoningText, id.clone(), thinking)
+                        }
                     }
                 }
                 (
                     claude::KnownEventDelta::Signature {
-                        signature: delta,
-                        rest: delta_rest,
+                        signature: delta, ..
                     },
-                    Block::Thinking {
-                        signature,
-                        rest: block_rest,
-                        ..
-                    },
+                    Block::Thinking { signature, .. },
                     _,
                 ) => {
                     signature.get_or_insert_default().push_str(&delta);
-                    block_rest.extend(merge(delta_rest, rest.clone()));
                     Emission::None
                 }
                 (
-                    claude::KnownEventDelta::InputJson {
-                        partial_json,
-                        rest: delta_rest,
-                    },
+                    claude::KnownEventDelta::InputJson { partial_json, .. },
                     Block::Tool {
                         arguments,
                         id,
                         name,
-                        rest: block_rest,
                         ..
                     },
                     output,
                 ) => {
                     arguments.push_str(&partial_json);
-                    let event_rest = merge(delta_rest, rest.clone());
-                    block_rest.extend(event_rest.clone());
                     match output {
-                        Output::Chat => Emission::ChatTool(partial_json, event_rest),
+                        Output::Chat => Emission::ChatTool(partial_json),
                         Output::Responses if items::is_buffered_native(name) => Emission::None,
                         Output::Responses => Emission::Responses(
                             ResponseDelta::FunctionArguments,
                             id.clone(),
                             partial_json,
-                            event_rest,
                         ),
                     }
                 }
@@ -139,13 +98,15 @@ impl State {
         };
         self.blocks.insert(index, block);
         Ok(match emission {
-            Emission::ChatText(text, rest) => vec![self.chat_text(text, rest)?],
-            Emission::ChatReasoning(text, rest) => vec![self.chat_reasoning(text, rest)?],
-            Emission::ChatTool(arguments, rest) => {
-                vec![self.chat_tool_delta(index as u32, arguments, rest)?]
+            Emission::ChatText(text) => vec![self.chat_text(text)?],
+            Emission::ChatReasoning(text) => {
+                vec![self.chat_reasoning(text)?]
             }
-            Emission::Responses(type_, id, delta, rest) => {
-                vec![self.response_delta(type_, id, index, delta, rest)?]
+            Emission::ChatTool(arguments) => {
+                vec![self.chat_tool_delta(index as u32, arguments)?]
+            }
+            Emission::Responses(type_, id, delta) => {
+                vec![self.response_delta(type_, id, index, delta)?]
             }
             Emission::None => Vec::new(),
         })

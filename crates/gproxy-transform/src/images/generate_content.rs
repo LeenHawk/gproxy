@@ -81,7 +81,7 @@ pub(crate) fn gemini_request(
             size: None,
             stream: None,
             user: None,
-            rest: input.rest,
+            rest: Default::default(),
         });
     }
     super::encode(&openai_images::CreateImageRequest {
@@ -99,7 +99,7 @@ pub(crate) fn gemini_request(
         stream: None,
         style: None,
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -111,20 +111,20 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
         if let Some(content) = candidate.content {
             for part in content.parts {
                 match part.data {
-                    Some(gemini::PartData::InlineData { inline_data, rest }) => {
+                    Some(gemini::PartData::InlineData { inline_data, .. }) => {
                         data.push(openai_images::Image {
                             b64_json: Some(inline_data.data),
                             revised_prompt: None,
                             url: None,
-                            rest,
+                            rest: Default::default(),
                         });
                     }
-                    Some(gemini::PartData::FileData { file_data, rest }) => {
+                    Some(gemini::PartData::FileData { file_data, .. }) => {
                         data.push(openai_images::Image {
                             b64_json: None,
                             revised_prompt: None,
                             url: Some(file_data.file_uri),
-                            rest,
+                            rest: Default::default(),
                         });
                     }
                     Some(gemini::PartData::Text { text: value, .. }) => text.push(value),
@@ -151,7 +151,7 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
             output_tokens,
             total_tokens: nonnegative(usage.total_token_count),
             output_tokens_details: None,
-            rest: usage.rest,
+            rest: Default::default(),
         }
     });
     super::encode(&openai_images::ImagesResponse {
@@ -162,7 +162,7 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
         quality: None,
         size: None,
         usage,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -178,7 +178,7 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
                         data,
                         rest: Default::default(),
                     },
-                    rest: image.rest,
+                    rest: Default::default(),
                 }),
                 ..Default::default()
             });
@@ -190,7 +190,7 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
                         file_uri,
                         rest: Default::default(),
                     },
-                    rest: image.rest,
+                    rest: Default::default(),
                 }),
                 ..Default::default()
             });
@@ -206,7 +206,7 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
     super::encode(&gemini::GenerateContentResponse {
         candidates: candidate.into_iter().collect(),
         response_id: Some(input.created.to_string()),
-        rest: input.rest,
+        rest: Default::default(),
         ..Default::default()
     })
 }
@@ -263,7 +263,7 @@ fn reference_part(reference: openai_images::ImageReference) -> Option<gemini::Pa
                 data: data.into(),
                 rest: Default::default(),
             },
-            rest: reference.rest,
+            rest: Default::default(),
         }
     } else {
         gemini::PartData::FileData {
@@ -272,7 +272,7 @@ fn reference_part(reference: openai_images::ImageReference) -> Option<gemini::Pa
                 file_uri: url,
                 rest: Default::default(),
             },
-            rest: reference.rest,
+            rest: Default::default(),
         }
     };
     Some(gemini::Part {

@@ -6,10 +6,9 @@ use crate::common::native::shape;
 use super::ClaudeCall;
 
 pub(super) fn local_shell(
-    id: String,
+    _id: String,
     action: openai::LocalShellAction,
     call_id: String,
-    rest: openai::Rest,
 ) -> Result<ClaudeCall, TransformError> {
     let fallback = action.clone();
     let (name, input) = match shape::local_bash_input(action)? {
@@ -23,17 +22,14 @@ pub(super) fn local_shell(
         id: call_id,
         name: name.into(),
         input,
-        item_id: Some(id),
-        rest,
     })
 }
 
 pub(super) fn shell(
     action: openai::ShellAction,
     call_id: String,
-    id: Option<String>,
+    _id: Option<String>,
     environment: Option<openai::ShellEnvironment>,
-    rest: openai::Rest,
 ) -> Result<ClaudeCall, TransformError> {
     let fallback_action = action.clone();
     let fallback_environment = environment.clone();
@@ -51,32 +47,26 @@ pub(super) fn shell(
         id: call_id,
         name: name.into(),
         input,
-        item_id: id,
-        rest,
     })
 }
 
 pub(super) fn apply_patch(
     call_id: String,
     operation: openai::ApplyPatchOperation,
-    id: Option<String>,
-    rest: openai::Rest,
+    _id: Option<String>,
 ) -> ClaudeCall {
     ClaudeCall {
         id: call_id,
         name: "str_replace_based_edit_tool".into(),
         input: shape::editor_input(operation),
-        item_id: id,
-        rest,
     }
 }
 
 pub(super) fn computer(
-    id: String,
+    _id: String,
     call_id: String,
     action: Option<openai::ComputerAction>,
     actions: Option<Vec<openai::ComputerAction>>,
-    mut rest: openai::Rest,
 ) -> Result<ClaudeCall, TransformError> {
     let input = if let Some(action) = action {
         shape::value_object(serde_json::to_value(action)?)
@@ -90,12 +80,9 @@ pub(super) fn computer(
             "both action and actions are missing",
         ));
     };
-    rest.insert("openai_native_tool".into(), "computer_call".into());
     Ok(ClaudeCall {
         id: call_id,
         name: "computer".into(),
         input,
-        item_id: Some(id),
-        rest,
     })
 }

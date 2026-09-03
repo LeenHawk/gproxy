@@ -2,12 +2,10 @@ use gproxy_protocol::{claude, gemini};
 
 use crate::TransformError;
 
-use super::{Correlation, merge};
+use super::Correlation;
 
 pub(super) fn function_call_block(
     call: gemini::FunctionCall,
-    signature: Option<String>,
-    rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let input = call.args.unwrap_or_default();
@@ -18,18 +16,16 @@ pub(super) fn function_call_block(
         name: call.name,
         type_: claude::ToolUseBlockType::ToolUse,
         cache_control: None,
-        caller: super::caller(signature),
-        rest: merge(call.rest, rest),
+        caller: None,
+        rest: Default::default(),
     }))
 }
 
 pub(super) fn function_result_block(
     response: gemini::FunctionResponse,
-    rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let id = correlation.function_result(response.id, &response.name)?;
-    let result_rest = merge(response.rest, rest);
     let (content, is_error) = function_response_text(response.response)?;
     Ok(claude::ContentBlockParam::ToolResult(
         claude::ToolResultBlock {
@@ -38,14 +34,13 @@ pub(super) fn function_result_block(
             cache_control: None,
             content,
             is_error,
-            rest: result_rest,
+            rest: Default::default(),
         },
     ))
 }
 
 pub(super) fn server_call_block(
     call: gemini::ToolCall,
-    rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let name = crate::models::common::wire_string(&call.tool_type)?;
@@ -58,13 +53,12 @@ pub(super) fn server_call_block(
         type_: claude::ToolUseBlockType::ToolUse,
         cache_control: None,
         caller: None,
-        rest: merge(call.rest, rest),
+        rest: Default::default(),
     }))
 }
 
 pub(super) fn server_result_block(
     response: gemini::ToolResponse,
-    rest: claude::JsonObject,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let name = crate::models::common::wire_string(&response.tool_type)?;
@@ -77,18 +71,18 @@ pub(super) fn server_result_block(
             cache_control: None,
             content,
             is_error: None,
-            rest: merge(response.rest, rest),
+            rest: Default::default(),
         },
     ))
 }
 
-pub(super) fn text_block(text: String, rest: claude::JsonObject) -> claude::ContentBlockParam {
+pub(super) fn text_block(text: String) -> claude::ContentBlockParam {
     claude::ContentBlockParam::Text(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
         cache_control: None,
         citations: None,
-        rest,
+        rest: Default::default(),
     })
 }
 

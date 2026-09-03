@@ -13,7 +13,8 @@ pub(super) fn output(
         None => config
             .response_schema
             .as_ref()
-            .map(serde_json::to_value)
+            .cloned()
+            .map(super::tools::typed_schema_value)
             .transpose()?,
     };
     let format = schema.map(json_format).transpose()?;
@@ -42,7 +43,7 @@ pub(super) fn thinking(
         return Ok(Some(claude::ThinkingConfig::Disabled(
             claude::ThinkingDisabled {
                 type_: claude::ThinkingDisabledType::Disabled,
-                rest: thinking.rest.clone(),
+                rest: Default::default(),
             },
         )));
     }
@@ -56,7 +57,7 @@ pub(super) fn thinking(
                 type_: claude::ThinkingEnabledType::Enabled,
                 block_binding: None,
                 display: None,
-                rest: thinking.rest.clone(),
+                rest: Default::default(),
             },
         )));
     }
@@ -69,16 +70,7 @@ pub(super) fn thinking(
                 | gemini::ThinkingLevelKnown::ThinkingLevelUnspecified,
             ) => 4_096,
             gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High) => 8_192,
-            gemini::ThinkingLevel::Unknown(_) => {
-                return Ok(Some(claude::ThinkingConfig::Adaptive(
-                    claude::ThinkingAdaptive {
-                        type_: claude::ThinkingAdaptiveType::Adaptive,
-                        block_binding: None,
-                        display: None,
-                        rest: thinking.rest.clone(),
-                    },
-                )));
-            }
+            gemini::ThinkingLevel::Unknown(_) => 4_096,
             _ => 4_096,
         };
         return Ok(Some(claude::ThinkingConfig::Enabled(
@@ -87,7 +79,7 @@ pub(super) fn thinking(
                 type_: claude::ThinkingEnabledType::Enabled,
                 block_binding: None,
                 display: None,
-                rest: thinking.rest.clone(),
+                rest: Default::default(),
             },
         )));
     }
@@ -97,7 +89,7 @@ pub(super) fn thinking(
             type_: claude::ThinkingEnabledType::Enabled,
             block_binding: None,
             display: None,
-            rest: thinking.rest.clone(),
+            rest: Default::default(),
         },
     )))
 }
@@ -112,17 +104,19 @@ pub(super) fn request_tier(
         ))
     )
     .then_some(claude::Speed::Known(claude::SpeedKnown::Fast));
-    let request = tier.map(|tier| match tier {
-        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard) => {
-            claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::StandardOnly)
-        }
+    let request = tier.and_then(|tier| match tier {
+        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard) => Some(
+            claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::StandardOnly),
+        ),
         gemini::ServiceTier::Known(
             gemini::ServiceTierKnown::Flex
             | gemini::ServiceTierKnown::Priority
             | gemini::ServiceTierKnown::Unspecified,
-        ) => claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::Auto),
-        gemini::ServiceTier::Unknown(value) => claude::RequestServiceTier::Unknown(value),
-        _ => claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::Auto),
+        ) => Some(claude::RequestServiceTier::Known(
+            claude::RequestServiceTierKnown::Auto,
+        )),
+        gemini::ServiceTier::Unknown(_) => None,
+        _ => None,
     });
     (request, speed)
 }

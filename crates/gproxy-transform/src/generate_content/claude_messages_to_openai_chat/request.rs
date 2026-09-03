@@ -26,7 +26,6 @@ pub(crate) fn transform(
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant) => {
                 messages.push(openai::ChatCompletionMessageParam::Assistant(assistant(
                     message.content,
-                    message.rest,
                 )?));
             }
             claude::MessageRole::Known(claude::MessageRoleKnown::System) => {
@@ -35,13 +34,15 @@ pub(crate) fn transform(
                         role: openai::ChatDeveloperRole::Developer,
                         content: chat_text(message.content)?,
                         name: None,
-                        rest: message.rest,
+                        rest: Default::default(),
                     },
                 ));
             }
-            claude::MessageRole::Known(claude::MessageRoleKnown::User)
-            | claude::MessageRole::Unknown(_) => {
-                messages.extend(user(message.content, message.rest)?);
+            claude::MessageRole::Known(claude::MessageRoleKnown::User) => {
+                messages.extend(user(message.content)?);
+            }
+            claude::MessageRole::Unknown(value) => {
+                return Err(TransformError::unsupported("Claude message role", value));
             }
             _ => {
                 return Err(TransformError::unsupported(
@@ -89,14 +90,13 @@ pub(crate) fn transform(
         user: input.metadata.and_then(|metadata| metadata.user_id),
         verbosity: None,
         web_search_options: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 
 fn assistant(
     content: claude::MessageContent,
-    rest: serde_json::Map<String, serde_json::Value>,
 ) -> Result<openai::ChatAssistantMessageParam, TransformError> {
     let blocks = blocks(content);
     let mut text = Vec::new();
@@ -114,24 +114,12 @@ fn assistant(
                     function: openai::FunctionCall {
                         arguments: serde_json::to_string(&block.input)?,
                         name: block.name,
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                     rest: Default::default(),
                 }),
             ),
-            claude::ContentBlockParam::Raw(raw) if text.is_empty() && calls.is_empty() => {
-                return Ok(openai::ChatAssistantMessageParam {
-                    role: openai::ChatAssistantRole::Assistant,
-                    content: Some(openai::ChatAssistantContent::Unknown(raw)),
-                    audio: None,
-                    function_call: None,
-                    name: None,
-                    reasoning_content: None,
-                    refusal: None,
-                    tool_calls: None,
-                    rest,
-                });
-            }
+            claude::ContentBlockParam::Raw(_) => {}
             other => {
                 return Err(TransformError::unsupported(
                     "Claude assistant block",
@@ -149,13 +137,12 @@ fn assistant(
         reasoning_content: (!reasoning.is_empty()).then(|| reasoning.join("")),
         refusal: None,
         tool_calls: (!calls.is_empty()).then_some(calls),
-        rest,
+        rest: Default::default(),
     })
 }
 
 fn user(
     content_value: claude::MessageContent,
-    rest: serde_json::Map<String, serde_json::Value>,
 ) -> Result<Vec<openai::ChatCompletionMessageParam>, TransformError> {
     if let claude::StringOrArray::String(text) = content_value {
         return Ok(vec![openai::ChatCompletionMessageParam::User(
@@ -163,7 +150,7 @@ fn user(
                 role: openai::ChatUserRole::User,
                 content: openai::ChatContent::Text(text),
                 name: None,
-                rest,
+                rest: Default::default(),
             },
         )]);
     }
@@ -173,14 +160,14 @@ fn user(
         match block {
             claude::ContentBlockParam::ToolResult(block) => {
                 if !parts.is_empty() {
-                    output.push(user_message(std::mem::take(&mut parts), Default::default()));
+                    output.push(user_message(std::mem::take(&mut parts)));
                 }
                 output.push(openai::ChatCompletionMessageParam::Tool(
                     openai::ChatToolMessageParam {
                         role: openai::ChatToolRole::Tool,
                         content: tool_result(block.content)?,
                         tool_call_id: block.tool_use_id,
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                 ));
             }
@@ -188,20 +175,17 @@ fn user(
         }
     }
     if !parts.is_empty() {
-        output.push(user_message(parts, rest));
+        output.push(user_message(parts));
     }
     Ok(output)
 }
 
-fn user_message(
-    parts: Vec<openai::ChatContentPart>,
-    rest: openai::Rest,
-) -> openai::ChatCompletionMessageParam {
+fn user_message(parts: Vec<openai::ChatContentPart>) -> openai::ChatCompletionMessageParam {
     openai::ChatCompletionMessageParam::User(openai::ChatUserMessageParam {
         role: openai::ChatUserRole::User,
         content: openai::ChatContent::Parts(parts),
         name: None,
-        rest,
+        rest: Default::default(),
     })
 }
 
@@ -219,12 +203,10 @@ fn chat_text(
                             type_: openai::ChatTextPartType::Text,
                             text: block.text,
                             prompt_cache_breakpoint: None,
-                            rest: block.rest,
+                            rest: Default::default(),
                         }));
                     }
-                    claude::ContentBlockParam::Raw(raw) => {
-                        parts.push(openai::ChatTextContentPart::Unknown(raw));
-                    }
+                    claude::ContentBlockParam::Raw(_) => {}
                     other => {
                         return Err(TransformError::unsupported(
                             "Claude system block",
@@ -235,7 +217,10 @@ fn chat_text(
             }
             Ok(openai::ChatTextContent::Parts(parts))
         }
-        claude::StringOrArray::Raw(raw) => Ok(openai::ChatTextContent::Unknown(raw)),
+        claude::StringOrArray::Raw(raw) => Err(TransformError::unsupported(
+            "Claude message content",
+            raw.to_string(),
+        )),
         _ => Err(TransformError::unsupported(
             "Claude message content",
             "future content shape",
@@ -257,26 +242,29 @@ fn tool_result(
         Some(claude::ToolResultContent::Blocks(blocks)) => openai::ChatTextContent::Parts(
             blocks
                 .into_iter()
-                .map(|block| match block {
-                    claude::ToolResultContentBlock::Text(block) => {
-                        Ok(openai::ChatTextContentPart::Text(openai::ChatTextPart {
+                .filter_map(|block| match block {
+                    claude::ToolResultContentBlock::Text(block) => Some(Ok(
+                        openai::ChatTextContentPart::Text(openai::ChatTextPart {
                             type_: openai::ChatTextPartType::Text,
                             text: block.text,
                             prompt_cache_breakpoint: None,
-                            rest: block.rest,
-                        }))
-                    }
-                    claude::ToolResultContentBlock::Raw(raw) => {
-                        Ok(openai::ChatTextContentPart::Unknown(raw))
-                    }
-                    other => Err(TransformError::unsupported(
-                        "Claude tool result",
-                        serde_json::to_string(&other)?,
+                            rest: Default::default(),
+                        }),
                     )),
+                    claude::ToolResultContentBlock::Raw(_) => None,
+                    _ => Some(Err(TransformError::unsupported(
+                        "Claude tool result",
+                        "unsupported block",
+                    ))),
                 })
                 .collect::<Result<_, _>>()?,
         ),
-        Some(claude::ToolResultContent::Raw(raw)) => openai::ChatTextContent::Unknown(raw),
+        Some(claude::ToolResultContent::Raw(raw)) => {
+            return Err(TransformError::unsupported(
+                "Claude tool result",
+                raw.to_string(),
+            ));
+        }
         Some(_) => {
             return Err(TransformError::unsupported(
                 "Claude tool result",
@@ -298,7 +286,7 @@ fn blocks(content: claude::MessageContent) -> Vec<claude::ContentBlockParam> {
             })]
         }
         claude::StringOrArray::Array(blocks) => blocks,
-        claude::StringOrArray::Raw(raw) => vec![claude::ContentBlockParam::Raw(raw)],
+        claude::StringOrArray::Raw(_) => Vec::new(),
         _ => Vec::new(),
     }
 }
@@ -336,7 +324,7 @@ fn response_format(
                 description: None,
                 schema: Some(format.schema.clone()),
                 strict: None,
-                rest: format.rest.clone(),
+                rest: Default::default(),
             },
             rest: Default::default(),
         },

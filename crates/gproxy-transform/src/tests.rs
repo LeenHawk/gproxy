@@ -10,6 +10,7 @@ mod native_tools;
 mod ported_surface;
 mod request_parity;
 mod stream_lifecycle;
+mod strict_extensions;
 mod support;
 mod thought_signature;
 use support::*;
@@ -154,10 +155,14 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     assert_eq!(request["messages"][2]["content"][0]["type"], "tool_result");
     assert_eq!(request["tools"][0]["input_schema"]["type"], "object");
     assert_eq!(request["tool_choice"]["type"], "any");
-    assert_eq!(request["root_future"], 10);
-    assert_eq!(request["messages"][0]["message_future"], 8);
-    assert_eq!(request["messages"][0]["content"][0]["part_future"], 7);
-    assert_eq!(request["tools"][0]["tool_future"], 9);
+    assert!(request.get("root_future").is_none());
+    assert!(request["messages"][0].get("message_future").is_none());
+    assert!(
+        request["messages"][0]["content"][0]
+            .get("part_future")
+            .is_none()
+    );
+    assert!(request["tools"][0].get("tool_future").is_none());
 
     let chat_response = convert_response(
         chat,
@@ -180,7 +185,7 @@ fn buffered_content_and_compact_preserve_turns_tools_stops_and_usage() {
     );
     assert_eq!(chat_response["choices"][0]["finish_reason"], "tool_calls");
     assert_eq!(chat_response["usage"]["prompt_tokens"], 15);
-    assert_eq!(chat_response["response_future"], 11);
+    assert!(chat_response.get("response_future").is_none());
 
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
     let response_request = convert_request(
@@ -378,13 +383,8 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
         .iter()
         .find(|v| v["item"]["type"] == "custom_tool_call")
         .unwrap();
-    assert_eq!(
-        (
-            item["item"]["custom_future"].as_u64(),
-            item["item"]["call_future"].as_u64()
-        ),
-        (Some(7), Some(8))
-    );
+    assert!(item["item"].get("custom_future").is_none());
+    assert!(item["item"].get("call_future").is_none());
     let done = custom_frames
         .iter()
         .filter(|v| v["type"] == "response.output_item.done")
@@ -399,9 +399,9 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
         (
             terminal["response"]["status"].as_str(),
             terminal["response"]["created_at"].as_u64(),
-            terminal["response"]["root_future"].as_u64()
+            terminal["response"].get("root_future")
         ),
-        (Some("completed"), Some(123), Some(9))
+        (Some("completed"), Some(123), None)
     );
     assert_eq!(terminal["response"]["completed_at"], 123);
 
@@ -429,7 +429,7 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
 }
 
 #[test]
-fn typed_chat_responses_pairs_and_same_wire_promotion_preserve_rest() {
+fn typed_chat_responses_pairs_drop_unknown_fields_and_promotion_stays_identity() {
     let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
     let chat_request = json!({
@@ -442,13 +442,21 @@ fn typed_chat_responses_pairs_and_same_wire_promotion_preserve_rest() {
         "root_future":{"x":3}
     });
     let converted = convert_request(chat, responses, chat_request.clone());
-    assert_eq!(converted["root_future"]["x"], 3);
-    assert_eq!(converted["input"][0]["message_future"], 2);
-    assert_eq!(converted["input"][0]["content"][0]["part_future"], 1);
+    assert!(converted.get("root_future").is_none());
+    assert!(converted["input"][0].get("message_future").is_none());
+    assert!(
+        converted["input"][0]["content"][0]
+            .get("part_future")
+            .is_none()
+    );
     let roundtrip = convert_request(responses, chat, converted);
-    assert_eq!(roundtrip["root_future"]["x"], 3);
-    assert_eq!(roundtrip["messages"][0]["message_future"], 2);
-    assert_eq!(roundtrip["messages"][0]["content"][0]["part_future"], 1);
+    assert!(roundtrip.get("root_future").is_none());
+    assert!(roundtrip["messages"][0].get("message_future").is_none());
+    assert!(
+        roundtrip["messages"][0]["content"][0]
+            .get("part_future")
+            .is_none()
+    );
 
     let response_wire = json!({
         "id":"resp_1","object":"response","created_at":0,"model":"gpt",
@@ -461,9 +469,13 @@ fn typed_chat_responses_pairs_and_same_wire_promotion_preserve_rest() {
             "output_tokens_details":{"reasoning_tokens":0}}
     });
     let outward = convert_response(chat, responses, response_wire);
-    assert_eq!(outward["response_future"], 4);
+    assert!(outward.get("response_future").is_none());
     assert_eq!(outward["choices"][0]["message"]["content"], "answer");
-    assert_eq!(outward["choices"][0]["message"]["text_future"], 5);
+    assert!(
+        outward["choices"][0]["message"]
+            .get("text_future")
+            .is_none()
+    );
 
     let promoted = content(Operation::StreamGenerateContent, Kind::OpenAiResponses);
     assert!(can_transform(responses, promoted));

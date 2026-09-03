@@ -31,7 +31,6 @@ struct State {
     finish_reason: Option<openai::ChatFinishReason>,
     sequence: u64,
     service_tier: Option<openai::ServiceTier>,
-    response_rest: openai::Rest,
     stopped: bool,
 }
 
@@ -40,7 +39,6 @@ struct Item {
     id: String,
     index: u32,
     text: String,
-    rest: openai::Rest,
     logprobs: Vec<openai::TokenLogprob>,
 }
 
@@ -57,7 +55,6 @@ struct Tool {
     name: String,
     arguments: String,
     kind: ToolKind,
-    rest: openai::Rest,
 }
 
 impl State {

@@ -22,7 +22,7 @@ pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Byte
             stream: input.stream,
             style: None,
             user: input.user,
-            rest: input.rest,
+            rest: Default::default(),
         };
         (create, input.images, input.mask)
     } else {
@@ -44,7 +44,7 @@ pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Byte
         input_image_mask: mask.map(|mask| openai::ImageMask {
             file_id: mask.file_id,
             image_url: mask.image_url,
-            rest: mask.rest,
+            rest: Default::default(),
         }),
         model: input.model.clone(),
         moderation: input.moderation,
@@ -75,7 +75,7 @@ pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Byte
                 file_id: image.file_id,
                 image_url: image.image_url,
                 prompt_cache_breakpoint: None,
-                rest: image.rest,
+                rest: Default::default(),
             })
         }));
         openai::ResponseInput::Items(vec![openai::ResponseItem::Message(
@@ -94,7 +94,7 @@ pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Byte
         model: input.model.or_else(|| Some(model.into())),
         tools: Some(vec![tool]),
         stream: input.stream,
-        rest: input.rest,
+        rest: Default::default(),
         ..Default::default()
     })
 }
@@ -114,7 +114,7 @@ pub(crate) fn responses_request(
             images: Vec::new(),
             prompt,
             model: Some(model.into()),
-            rest: input.rest,
+            rest: Default::default(),
             background: None,
             input_fidelity: None,
             mask: None,
@@ -133,7 +133,7 @@ pub(crate) fn responses_request(
         prompt,
         model: Some(model.into()),
         stream: input.stream,
-        rest: input.rest,
+        rest: Default::default(),
         background: None,
         moderation: None,
         n: None,
@@ -156,14 +156,12 @@ pub(crate) fn responses_to_images(body: Bytes) -> Result<Bytes, TransformError> 
         .filter_map(|item| match item {
             openai::ResponseItem::Typed(item) => match *item {
                 openai::TypedResponseItem::ImageGenerationCall {
-                    result: Some(data),
-                    rest,
-                    ..
+                    result: Some(data), ..
                 } => Some(openai_images::Image {
                     b64_json: Some(data),
                     revised_prompt: None,
                     url: None,
-                    rest,
+                    rest: Default::default(),
                 }),
                 _ => None,
             },
@@ -173,7 +171,7 @@ pub(crate) fn responses_to_images(body: Bytes) -> Result<Bytes, TransformError> 
     super::encode(&openai_images::ImagesResponse {
         created: input.created_at.unwrap_or_default(),
         data: Some(data),
-        rest: input.rest,
+        rest: Default::default(),
         background: None,
         output_format: None,
         quality: None,
@@ -188,7 +186,7 @@ pub(crate) fn responses_to_images(body: Bytes) -> Result<Bytes, TransformError> 
             output_tokens: u64::from(usage.output_tokens),
             total_tokens: u64::from(usage.total_tokens),
             output_tokens_details: None,
-            rest: usage.rest,
+            rest: Default::default(),
         }),
     })
 }
@@ -207,7 +205,7 @@ pub(crate) fn images_to_responses(body: Bytes) -> Result<Bytes, TransformError> 
                         id: format!("image_{index}"),
                         result: Some(result),
                         status: openai::ResponseImageGenerationCallStatus::Completed,
-                        rest: image.rest,
+                        rest: Default::default(),
                     },
                 ))
             })
@@ -219,7 +217,7 @@ pub(crate) fn images_to_responses(body: Bytes) -> Result<Bytes, TransformError> 
         total_tokens: u32::try_from(usage.total_tokens).unwrap_or(u32::MAX),
         input_tokens_details: None,
         output_tokens_details: None,
-        rest: usage.rest,
+        rest: Default::default(),
     });
     super::encode(&openai::ResponseObject {
         id: format!("resp_image_{}", input.created),
@@ -228,7 +226,7 @@ pub(crate) fn images_to_responses(body: Bytes) -> Result<Bytes, TransformError> 
         output,
         status: Some(openai::ResponseStatus::Completed),
         usage,
-        rest: input.rest,
+        rest: Default::default(),
         background: None,
         completed_at: None,
         conversation: None,

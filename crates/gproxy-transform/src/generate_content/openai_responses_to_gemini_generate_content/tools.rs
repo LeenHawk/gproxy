@@ -23,42 +23,30 @@ pub(super) fn to_gemini(
                     openai::ResponseFunctionParameters::Null => None,
                 },
                 output_schema,
-                Default::default(),
             )?),
             openai::ResponseTool::Custom {
                 name, description, ..
-            } => declarations.push(function(name, description, None, None, Default::default())?),
+            } => declarations.push(function(name, description, None, None)?),
             openai::ResponseTool::Namespace { tools, .. } => {
                 for nested in tools {
-                    let (name, description, parameters, output_schema, rest) = match nested {
+                    let (name, description, parameters, output_schema) = match nested {
                         openai::ResponseNamespaceTool::Function {
                             name,
                             description,
                             parameters,
                             output_schema,
-                            rest,
                             ..
                         } => (
                             name,
                             description,
                             parameters.and_then(|value| value.as_object().cloned()),
                             output_schema,
-                            rest,
                         ),
                         openai::ResponseNamespaceTool::Custom {
-                            name,
-                            description,
-                            rest,
-                            ..
-                        } => (name, description, None, None, rest),
+                            name, description, ..
+                        } => (name, description, None, None),
                     };
-                    declarations.push(function(
-                        name,
-                        description,
-                        parameters,
-                        output_schema,
-                        rest,
-                    )?);
+                    declarations.push(function(name, description, parameters, output_schema)?);
                 }
             }
             openai::ResponseTool::FileSearch {
@@ -219,7 +207,6 @@ fn function(
     description: Option<String>,
     parameters: Option<openai::JsonSchema>,
     output_schema: Option<openai::JsonSchema>,
-    _rest: openai::Rest,
 ) -> Result<gemini::FunctionDeclaration, TransformError> {
     Ok(gemini::FunctionDeclaration {
         name,

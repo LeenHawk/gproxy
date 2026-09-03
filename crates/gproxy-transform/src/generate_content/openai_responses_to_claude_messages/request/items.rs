@@ -4,7 +4,7 @@ use crate::TransformError;
 use crate::common::native::{items, results, shape};
 use crate::common::responses;
 
-use super::{message, preserve_item_id};
+use super::message;
 
 pub(super) fn typed_item(
     item: openai::TypedResponseItem,
@@ -14,70 +14,43 @@ pub(super) fn typed_item(
             arguments,
             call_id,
             name,
-            id,
-            mut rest,
             ..
-        } => {
-            preserve_item_id(&mut rest, id);
-            Ok(message(
-                claude::MessageRoleKnown::Assistant,
-                vec![tool_use(call_id, name, arguments, rest)?],
-                Default::default(),
-            ))
-        }
+        } => Ok(message(
+            claude::MessageRoleKnown::Assistant,
+            vec![tool_use(call_id, name, arguments)?],
+        )),
         openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
             name,
-            id,
-            mut rest,
             ..
-        } => {
-            preserve_item_id(&mut rest, id);
-            Ok(message(
-                claude::MessageRoleKnown::Assistant,
-                vec![tool_use(call_id, name, input, rest)?],
-                Default::default(),
-            ))
-        }
+        } => Ok(message(
+            claude::MessageRoleKnown::Assistant,
+            vec![tool_use(call_id, name, input)?],
+        )),
         openai::TypedResponseItem::FunctionCallOutput {
-            call_id,
-            output,
-            id,
-            mut rest,
-            ..
+            call_id, output, ..
         }
         | openai::TypedResponseItem::CustomToolCallOutput {
-            call_id,
-            output,
-            id,
-            mut rest,
-            ..
-        } => {
-            preserve_item_id(&mut rest, id);
-            Ok(message(
-                claude::MessageRoleKnown::User,
-                vec![claude::ContentBlockParam::ToolResult(
-                    claude::ToolResultBlock {
-                        tool_use_id: call_id,
-                        type_: claude::ToolResultBlockType::ToolResult,
-                        cache_control: None,
-                        content: Some(response_output(output)?),
-                        is_error: None,
-                        rest,
-                    },
-                )],
-                Default::default(),
-            ))
-        }
+            call_id, output, ..
+        } => Ok(message(
+            claude::MessageRoleKnown::User,
+            vec![claude::ContentBlockParam::ToolResult(
+                claude::ToolResultBlock {
+                    tool_use_id: call_id,
+                    type_: claude::ToolResultBlockType::ToolResult,
+                    cache_control: None,
+                    content: Some(response_output(output)?),
+                    is_error: None,
+                    rest: Default::default(),
+                },
+            )],
+        )),
         openai::TypedResponseItem::Reasoning {
-            id,
             content,
             encrypted_content,
-            mut rest,
             ..
         } => {
-            preserve_item_id(&mut rest, id);
             let thinking = content
                 .into_iter()
                 .flatten()
@@ -89,32 +62,24 @@ pub(super) fn typed_item(
                     signature: encrypted_content,
                     thinking,
                     type_: claude::ThinkingBlockType::Thinking,
-                    rest,
+                    rest: Default::default(),
                 })],
-                Default::default(),
             ))
         }
         openai::TypedResponseItem::Compaction {
-            encrypted_content,
-            id,
-            mut rest,
-            ..
-        } => {
-            preserve_item_id(&mut rest, id);
-            Ok(message(
-                claude::MessageRoleKnown::Assistant,
-                vec![claude::ContentBlockParam::Compaction(
-                    claude::CompactionBlock {
-                        content: None,
-                        encrypted_content: Some(encrypted_content),
-                        type_: claude::CompactionBlockType::Compaction,
-                        cache_control: None,
-                        rest,
-                    },
-                )],
-                Default::default(),
-            ))
-        }
+            encrypted_content, ..
+        } => Ok(message(
+            claude::MessageRoleKnown::Assistant,
+            vec![claude::ContentBlockParam::Compaction(
+                claude::CompactionBlock {
+                    content: None,
+                    encrypted_content: Some(encrypted_content),
+                    type_: claude::CompactionBlockType::Compaction,
+                    cache_control: None,
+                    rest: Default::default(),
+                },
+            )],
+        )),
         other @ (openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
         | openai::TypedResponseItem::ComputerCallOutput { .. }
@@ -145,14 +110,12 @@ pub(super) fn typed_item(
                 return Ok(message(
                     claude::MessageRoleKnown::Assistant,
                     vec![items::request_block(call)],
-                    Default::default(),
                 ));
             }
             if let Some(result) = results::openai_result(other.clone()) {
                 return Ok(message(
                     claude::MessageRoleKnown::User,
                     vec![results::result_block(result)],
-                    Default::default(),
                 ));
             }
             Err(TransformError::unsupported(
@@ -167,7 +130,6 @@ fn tool_use(
     id: String,
     name: String,
     arguments: String,
-    rest: openai::Rest,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
         id,
@@ -176,7 +138,7 @@ fn tool_use(
         type_: claude::ToolUseBlockType::ToolUse,
         cache_control: None,
         caller: None,
-        rest,
+        rest: Default::default(),
     }))
 }
 

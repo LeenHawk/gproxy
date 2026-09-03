@@ -18,8 +18,6 @@ impl State {
             output_index,
             name,
             kind,
-            rest,
-            event_rest,
         } = start;
         if let Some(tool) = self.tools.get(&source_id) {
             if tool.kind != kind
@@ -32,11 +30,7 @@ impl State {
                     "tool output item changed kind or index",
                 ));
             }
-            return if rest.is_empty() && event_rest.is_empty() {
-                Ok(Vec::new())
-            } else {
-                Ok(vec![self.preserve(rest, event_rest)?])
-            };
+            return Ok(Vec::new());
         }
         let index = self.next_tool;
         self.next_tool += 1;
@@ -68,7 +62,7 @@ impl State {
                 name: Some(name),
                 rest: Default::default(),
             }),
-            rest,
+            rest: Default::default(),
         };
         Ok(vec![self.chunk(
             openai::ChatDelta {
@@ -77,7 +71,6 @@ impl State {
             },
             None,
             None,
-            event_rest,
         )?])
     }
 
@@ -87,7 +80,6 @@ impl State {
         output_index: u32,
         kind: ToolKind,
         full: String,
-        event_rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         let tool = self.tools.get_mut(id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool done before output item")
@@ -101,10 +93,10 @@ impl State {
         let delta = suffix(&tool.data, &full, "tool input")?;
         tool.data = full;
         let index = tool.index;
-        if delta.is_empty() && event_rest.is_empty() {
+        if delta.is_empty() {
             Ok(Vec::new())
         } else {
-            Ok(vec![self.tool_chunk(index, kind, delta, event_rest)?])
+            Ok(vec![self.tool_chunk(index, kind, delta)?])
         }
     }
 
@@ -113,7 +105,6 @@ impl State {
         index: u32,
         kind: ToolKind,
         delta: String,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         self.chunk(
             openai::ChatDelta {
@@ -137,17 +128,6 @@ impl State {
             },
             None,
             None,
-            rest,
         )
-    }
-
-    pub(super) fn preserve(
-        &self,
-        delta_rest: openai::Rest,
-        event_rest: openai::Rest,
-    ) -> Result<Bytes, TransformError> {
-        let mut delta = empty_delta();
-        delta.rest = delta_rest;
-        self.chunk(delta, None, None, event_rest)
     }
 }

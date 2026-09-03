@@ -50,7 +50,7 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
         model_version: input.model.map(config::model_string).transpose()?,
         response_id: Some(input.id),
         model_status: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -75,17 +75,13 @@ pub(in crate::generate_content) fn finish_reason(
                 Some(openai::IncompleteReason::Unknown(value)) if value.is_empty() => {
                     gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens)
                 }
-                Some(openai::IncompleteReason::Unknown(value)) => {
-                    gemini::FinishReason::Unknown(value.clone())
-                }
+                Some(openai::IncompleteReason::Unknown(_)) => return Ok(None),
             })
         }
         Some(openai::ResponseStatus::Failed | openai::ResponseStatus::Cancelled) => Some(
             gemini::FinishReason::Known(gemini::FinishReasonKnown::Other),
         ),
-        Some(openai::ResponseStatus::Unknown(value)) => {
-            Some(gemini::FinishReason::Unknown(value.clone()))
-        }
+        Some(openai::ResponseStatus::Unknown(_)) => None,
         Some(openai::ResponseStatus::InProgress | openai::ResponseStatus::Queued) | None => None,
     })
 }

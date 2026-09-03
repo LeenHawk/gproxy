@@ -10,7 +10,6 @@ pub(super) fn flush(
     parts: &mut Vec<MessagePart>,
     role: Option<&gemini::ContentRole>,
     response: bool,
-    rest: openai::Rest,
     next_message: &mut u32,
 ) {
     if parts.is_empty() {
@@ -36,7 +35,7 @@ pub(super) fn flush(
                 content,
                 status: openai::ResponseItemLifecycleStatus::Completed,
                 phase: None,
-                rest,
+                rest: Default::default(),
             }),
         ));
         return;
@@ -65,7 +64,7 @@ pub(super) fn flush(
             role,
             content: openai::ResponseEasyInputContent::Parts(content),
             phase: None,
-            rest,
+            rest: Default::default(),
         }),
     ));
 }

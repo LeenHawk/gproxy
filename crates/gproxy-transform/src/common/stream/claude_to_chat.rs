@@ -7,30 +7,22 @@ use crate::envelope::SseFrame;
 use super::claude_to_openai::State;
 
 impl State {
-    pub(super) fn chat_text(
-        &self,
-        text: String,
-        rest: openai::Rest,
-    ) -> Result<Bytes, TransformError> {
+    pub(super) fn chat_text(&self, text: String) -> Result<Bytes, TransformError> {
         self.chat_chunk(
             openai::ChatDelta {
                 content: Some(text),
-                ..empty_delta(rest)
+                ..empty_delta()
             },
             None,
             None,
         )
     }
 
-    pub(super) fn chat_reasoning(
-        &self,
-        text: String,
-        rest: openai::Rest,
-    ) -> Result<Bytes, TransformError> {
+    pub(super) fn chat_reasoning(&self, text: String) -> Result<Bytes, TransformError> {
         self.chat_chunk(
             openai::ChatDelta {
                 reasoning_content: Some(text),
-                ..empty_delta(rest)
+                ..empty_delta()
             },
             None,
             None,
@@ -43,7 +35,6 @@ impl State {
         id: String,
         name: String,
         arguments: String,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         self.chat_chunk(
             openai::ChatDelta {
@@ -54,12 +45,12 @@ impl State {
                     function: Some(openai::FunctionCallDelta {
                         arguments: Some(arguments),
                         name: Some(name),
-                        rest,
+                        rest: Default::default(),
                     }),
                     custom: None,
                     rest: Default::default(),
                 }]),
-                ..empty_delta(Default::default())
+                ..empty_delta()
             },
             None,
             None,
@@ -70,7 +61,6 @@ impl State {
         &self,
         index: u32,
         arguments: String,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         self.chat_chunk(
             openai::ChatDelta {
@@ -81,12 +71,12 @@ impl State {
                     function: Some(openai::FunctionCallDelta {
                         arguments: Some(arguments),
                         name: None,
-                        rest,
+                        rest: Default::default(),
                     }),
                     custom: None,
                     rest: Default::default(),
                 }]),
-                ..empty_delta(Default::default())
+                ..empty_delta()
             },
             None,
             None,
@@ -122,7 +112,7 @@ impl State {
     }
 }
 
-pub(super) fn empty_delta(rest: openai::Rest) -> openai::ChatDelta {
+pub(super) fn empty_delta() -> openai::ChatDelta {
     openai::ChatDelta {
         role: None,
         content: None,
@@ -131,6 +121,6 @@ pub(super) fn empty_delta(rest: openai::Rest) -> openai::ChatDelta {
         tool_calls: None,
         function_call: None,
         obfuscation: None,
-        rest,
+        rest: Default::default(),
     }
 }

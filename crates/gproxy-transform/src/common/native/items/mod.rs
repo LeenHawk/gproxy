@@ -4,7 +4,7 @@ mod execution;
 mod hosted;
 mod ids;
 
-use gproxy_protocol::{claude as claude_protocol, openai};
+use gproxy_protocol::claude as claude_protocol;
 
 pub(crate) use calls::{openai_call, request_block, response_block};
 pub(crate) use claude::{claude_call, claude_result};
@@ -20,8 +20,6 @@ pub(crate) struct ClaudeCall {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) input: claude_protocol::JsonObject,
-    pub(crate) item_id: Option<String>,
-    pub(crate) rest: openai::Rest,
 }
 
 pub(crate) fn is_buffered_native(name: &str) -> bool {

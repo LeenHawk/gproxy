@@ -28,7 +28,6 @@ struct Call {
 struct State {
     contents: Vec<gemini::Content>,
     system_parts: Vec<gemini::Part>,
-    system_entries: Vec<serde_json::Value>,
     calls: BTreeMap<String, Call>,
     seen_turn: bool,
 }
@@ -40,16 +39,12 @@ impl State {
         turn: usize,
     ) -> Result<(), TransformError> {
         match message {
-            openai::ChatCompletionMessageParam::Developer(message) => {
-                self.system(message.content, "developer", message.rest)
-            }
-            openai::ChatCompletionMessageParam::System(message) => {
-                self.system(message.content, "system", message.rest)
-            }
+            openai::ChatCompletionMessageParam::Developer(message) => self.system(message.content),
+            openai::ChatCompletionMessageParam::System(message) => self.system(message.content),
             openai::ChatCompletionMessageParam::User(message) => {
                 self.seen_turn = true;
                 let parts = user_parts(message.content)?;
-                self.push(gemini::ContentRoleKnown::User, parts, message.rest);
+                self.push(gemini::ContentRoleKnown::User, parts);
                 Ok(())
             }
             openai::ChatCompletionMessageParam::Assistant(message) => {
@@ -64,73 +59,47 @@ impl State {
                 self.seen_turn = true;
                 self.function_result(message)
             }
-            openai::ChatCompletionMessageParam::Unknown(raw) => {
-                Err(TransformError::unsupported("Chat message", raw.to_string()))
-            }
+            openai::ChatCompletionMessageParam::Unknown(_) => Ok(()),
         }
     }
 
-    fn system(
-        &mut self,
-        content: openai::ChatTextContent,
-        role: &str,
-        rest: openai::Rest,
-    ) -> Result<(), TransformError> {
+    fn system(&mut self, content: openai::ChatTextContent) -> Result<(), TransformError> {
         let text = text_content(content)?;
         if text.is_empty() {
             return Ok(());
         }
-        let entry = serde_json::json!({ "role": role, "rest": rest });
         if self.seen_turn {
-            let mut content_rest = openai::Rest::new();
-            content_rest.insert("openai_system_message".into(), entry);
             self.push(
                 gemini::ContentRoleKnown::System,
-                vec![text_part(text, false, Default::default())],
-                content_rest,
+                vec![text_part(text, false)],
             );
         } else {
-            self.system_parts
-                .push(text_part(text, false, Default::default()));
-            self.system_entries.push(entry);
+            self.system_parts.push(text_part(text, false));
         }
         Ok(())
     }
 
-    fn push(
-        &mut self,
-        role: gemini::ContentRoleKnown,
-        parts: Vec<gemini::Part>,
-        rest: gemini::ExtraFields,
-    ) {
+    fn push(&mut self, role: gemini::ContentRoleKnown, parts: Vec<gemini::Part>) {
         if !parts.is_empty() {
             if let Some(previous) = self.contents.last_mut()
                 && previous.role == Some(gemini::ContentRole::Known(role.clone()))
             {
                 previous.parts.extend(parts);
-                previous.rest.extend(rest);
                 return;
             }
             self.contents.push(gemini::Content {
                 parts,
                 role: Some(gemini::ContentRole::Known(role)),
-                rest,
+                rest: Default::default(),
             });
         }
     }
 
     fn finish(mut self) -> (Vec<gemini::Content>, Option<gemini::Content>) {
-        let system = (!self.system_parts.is_empty()).then(|| {
-            let mut rest = gemini::ExtraFields::new();
-            rest.insert(
-                "openai_system_messages".into(),
-                serde_json::Value::Array(self.system_entries),
-            );
-            gemini::Content {
-                parts: self.system_parts,
-                role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)),
-                rest,
-            }
+        let system = (!self.system_parts.is_empty()).then(|| gemini::Content {
+            parts: self.system_parts,
+            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)),
+            rest: Default::default(),
         });
         (std::mem::take(&mut self.contents), system)
     }

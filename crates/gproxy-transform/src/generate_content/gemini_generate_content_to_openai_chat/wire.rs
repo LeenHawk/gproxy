@@ -8,7 +8,7 @@ pub(crate) fn service_tier(
     let Some(tier) = tier else {
         return Ok(None);
     };
-    Ok(Some(match tier {
+    Ok(match tier {
         gemini::ServiceTier::Known(gemini::ServiceTierKnown::Flex) => openai::ServiceTier::Flex,
         gemini::ServiceTier::Known(gemini::ServiceTierKnown::Priority) => {
             openai::ServiceTier::Priority
@@ -16,17 +16,11 @@ pub(crate) fn service_tier(
         gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard) => {
             openai::ServiceTier::Default
         }
-        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified) => {
-            openai::ServiceTier::Unknown("unspecified".into())
-        }
-        gemini::ServiceTier::Unknown(value) => openai::ServiceTier::Unknown(value),
-        _ => {
-            return Err(TransformError::unsupported(
-                "Gemini service tier",
-                "future service tier",
-            ));
-        }
-    }))
+        gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified)
+        | gemini::ServiceTier::Unknown(_) => return Ok(None),
+        _ => return Ok(None),
+    }
+    .into())
 }
 
 pub(crate) fn finish_reason(
@@ -46,13 +40,22 @@ pub(crate) fn finish_reason(
             | gemini::FinishReasonKnown::ImageProhibitedContent,
         ) => openai::ChatFinishReason::ContentFilter,
         gemini::FinishReason::Known(gemini::FinishReasonKnown::UnexpectedToolCall) => {
-            openai::ChatFinishReason::Unknown("UNEXPECTED_TOOL_CALL".into())
+            return Err(TransformError::unsupported(
+                "Gemini finish reason",
+                "UNEXPECTED_TOOL_CALL",
+            ));
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::TooManyToolCalls) => {
-            openai::ChatFinishReason::Unknown("TOO_MANY_TOOL_CALLS".into())
+            return Err(TransformError::unsupported(
+                "Gemini finish reason",
+                "TOO_MANY_TOOL_CALLS",
+            ));
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MalformedFunctionCall) => {
-            openai::ChatFinishReason::Unknown("MALFORMED_FUNCTION_CALL".into())
+            return Err(TransformError::unsupported(
+                "Gemini finish reason",
+                "MALFORMED_FUNCTION_CALL",
+            ));
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::Stop) => {
             openai::ChatFinishReason::Stop
@@ -67,15 +70,23 @@ pub(crate) fn finish_reason(
             openai::ChatFinishReason::Stop
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::Other) => {
-            openai::ChatFinishReason::Unknown("OTHER".into())
+            return Err(TransformError::unsupported("Gemini finish reason", "OTHER"));
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MissingThoughtSignature) => {
-            openai::ChatFinishReason::Unknown("MISSING_THOUGHT_SIGNATURE".into())
+            return Err(TransformError::unsupported(
+                "Gemini finish reason",
+                "MISSING_THOUGHT_SIGNATURE",
+            ));
         }
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MalformedResponse) => {
-            openai::ChatFinishReason::Unknown("MALFORMED_RESPONSE".into())
+            return Err(TransformError::unsupported(
+                "Gemini finish reason",
+                "MALFORMED_RESPONSE",
+            ));
         }
-        gemini::FinishReason::Unknown(value) => openai::ChatFinishReason::Unknown(value),
+        gemini::FinishReason::Unknown(value) => {
+            return Err(TransformError::unsupported("Gemini finish reason", value));
+        }
         _ => {
             return Err(TransformError::unsupported(
                 "Gemini finish reason",
@@ -139,7 +150,7 @@ pub(crate) fn usage(
                 })
             })
             .transpose()?,
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 

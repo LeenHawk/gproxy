@@ -15,11 +15,11 @@ pub(crate) fn claude_to_chat(usage: claude::Usage) -> Option<openai::CompletionU
                 audio_tokens: None,
                 reasoning_tokens: details.thinking_tokens.map(clamp),
                 rejected_prediction_tokens: None,
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
         prompt_tokens_details: cache_details_to_chat(cached, cache_write),
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 
@@ -45,7 +45,7 @@ pub(crate) fn chat_to_claude(usage: Option<openai::CompletionUsage>) -> Option<c
         output_tokens_details: usage.completion_tokens_details.map(|details| {
             claude::OutputTokensDetails {
                 thinking_tokens: details.reasoning_tokens.map(u64::from),
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
         server_tool_use: None,
@@ -53,7 +53,7 @@ pub(crate) fn chat_to_claude(usage: Option<openai::CompletionUsage>) -> Option<c
         inference_geo: None,
         service_tier: None,
         speed: None,
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 
@@ -70,10 +70,10 @@ pub(crate) fn claude_to_responses(usage: claude::Usage) -> Option<openai::Respon
         output_tokens_details: usage.output_tokens_details.map(|details| {
             openai::ResponseOutputTokensDetails {
                 reasoning_tokens: details.thinking_tokens.map(clamp),
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 
@@ -99,7 +99,7 @@ pub(crate) fn responses_to_claude(usage: Option<openai::ResponseUsage>) -> Optio
         output_tokens_details: usage.output_tokens_details.map(|details| {
             claude::OutputTokensDetails {
                 thinking_tokens: details.reasoning_tokens.map(u64::from),
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
         server_tool_use: None,
@@ -107,7 +107,7 @@ pub(crate) fn responses_to_claude(usage: Option<openai::ResponseUsage>) -> Optio
         inference_geo: None,
         service_tier: None,
         speed: None,
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 
@@ -122,7 +122,7 @@ pub(crate) fn responses_to_chat(usage: openai::ResponseUsage) -> openai::Complet
                 audio_tokens: None,
                 reasoning_tokens: details.reasoning_tokens,
                 rejected_prediction_tokens: None,
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
         prompt_tokens_details: usage.input_tokens_details.map(|details| {
@@ -130,10 +130,10 @@ pub(crate) fn responses_to_chat(usage: openai::ResponseUsage) -> openai::Complet
                 audio_tokens: None,
                 cache_write_tokens: details.cache_write_tokens,
                 cached_tokens: details.cached_tokens,
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
-        rest: usage.rest,
+        rest: Default::default(),
     }
 }
 
@@ -146,16 +146,16 @@ pub(crate) fn chat_to_responses(usage: openai::CompletionUsage) -> openai::Respo
             openai::ResponseInputTokensDetails {
                 cache_write_tokens: details.cache_write_tokens,
                 cached_tokens: details.cached_tokens,
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
         output_tokens_details: usage.completion_tokens_details.map(|details| {
             openai::ResponseOutputTokensDetails {
                 reasoning_tokens: details.reasoning_tokens,
-                rest: details.rest,
+                rest: Default::default(),
             }
         }),
-        rest: usage.rest,
+        rest: Default::default(),
     }
 }
 

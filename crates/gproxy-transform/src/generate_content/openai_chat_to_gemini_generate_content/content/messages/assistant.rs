@@ -20,10 +20,10 @@ impl State {
             .flatten()
             .collect::<Vec<_>>();
         if let Some(reasoning) = message.reasoning_content.filter(|value| !value.is_empty()) {
-            parts.insert(0, text_part(reasoning, true, Default::default()));
+            parts.insert(0, text_part(reasoning, true));
         }
         if let Some(refusal) = message.refusal.filter(|value| !value.is_empty()) {
-            parts.push(text_part(refusal, false, Default::default()));
+            parts.push(text_part(refusal, false));
         }
         if let Some(call) = message.function_call {
             let id = format!("function_call_{turn}");
@@ -34,17 +34,12 @@ impl State {
                     code_execution: false,
                 },
             );
-            parts.push(function_call(
-                Some(id),
-                call.name,
-                &call.arguments,
-                call.rest,
-            )?);
+            parts.push(function_call(Some(id), call.name, &call.arguments)?);
         }
         for call in message.tool_calls.into_iter().flatten() {
             parts.extend(self.tool_call(call)?);
         }
-        self.push(gemini::ContentRoleKnown::Model, parts, message.rest);
+        self.push(gemini::ContentRoleKnown::Model, parts);
         Ok(())
     }
 
@@ -52,25 +47,12 @@ impl State {
         &mut self,
         call: openai::ChatToolCall,
     ) -> Result<Vec<gemini::Part>, TransformError> {
-        let (id, name, arguments, rest) = match call {
-            openai::ChatToolCall::Function(call) => (
-                call.id,
-                call.function.name,
-                call.function.arguments,
-                merge(call.rest, call.function.rest),
-            ),
-            openai::ChatToolCall::Custom(call) => (
-                call.id,
-                call.custom.name,
-                call.custom.input,
-                merge(call.rest, call.custom.rest),
-            ),
-            openai::ChatToolCall::Unknown(raw) => {
-                return Err(TransformError::unsupported(
-                    "Chat tool call",
-                    raw.to_string(),
-                ));
+        let (id, name, arguments) = match call {
+            openai::ChatToolCall::Function(call) => {
+                (call.id, call.function.name, call.function.arguments)
             }
+            openai::ChatToolCall::Custom(call) => (call.id, call.custom.name, call.custom.input),
+            openai::ChatToolCall::Unknown(_) => return Ok(Vec::new()),
         };
         let code_execution = name == CODE_EXECUTION_NAME;
         self.calls.insert(
@@ -88,15 +70,10 @@ impl State {
                     executable_code: code,
                     rest: Default::default(),
                 }),
-                rest,
+                rest: Default::default(),
                 ..Default::default()
             }]);
         }
-        Ok(vec![function_call(Some(id), name, &arguments, rest)?])
+        Ok(vec![function_call(Some(id), name, &arguments)?])
     }
-}
-
-fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }

@@ -6,11 +6,7 @@ mod bash;
 
 pub(super) use bash::{request_bash_result, response_bash_result};
 
-pub(super) fn call(
-    id: String,
-    input: claude::JsonObject,
-    rest: serde_json::Map<String, serde_json::Value>,
-) -> Result<gemini::Part, TransformError> {
+pub(super) fn call(id: String, input: claude::JsonObject) -> Result<gemini::Part, TransformError> {
     let code = input
         .get("command")
         .and_then(serde_json::Value::as_str)
@@ -36,7 +32,7 @@ pub(super) fn call(
                 gemini::ExecutableCodeLanguageKnown::Python,
             ),
             code,
-            rest,
+            rest: Default::default(),
         },
         rest: Default::default(),
     }))
@@ -54,7 +50,7 @@ pub(super) fn result(block: claude::ToolResultBlock) -> Result<gemini::Part, Tra
             id: Some(block.tool_use_id),
             outcome: gemini::CodeExecutionOutcome::Known(outcome),
             output,
-            rest: block.rest,
+            rest: Default::default(),
         },
         rest: Default::default(),
     }))
@@ -72,13 +68,10 @@ pub(super) fn result_text(content: claude::ToolResultContent) -> Result<String, 
                         "non-text result block",
                     ));
                 };
-                if block.cache_control.is_some()
-                    || block.citations.is_some()
-                    || !block.rest.is_empty()
-                {
+                if block.cache_control.is_some() || block.citations.is_some() {
                     return Err(TransformError::unsupported(
                         "Claude tool result text",
-                        "cache, citations, or rest",
+                        "cache or citations",
                     ));
                 }
                 text.push(block.text);

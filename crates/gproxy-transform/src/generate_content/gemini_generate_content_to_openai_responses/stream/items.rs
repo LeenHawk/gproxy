@@ -18,7 +18,6 @@ impl State {
                     call_id,
                     name,
                     id,
-                    rest,
                     ..
                 } => {
                     let item_id = id.ok_or_else(|| {
@@ -31,7 +30,6 @@ impl State {
                             name,
                             arguments,
                             custom: false,
-                            rest,
                         },
                     );
                     self.call_indices.insert(event.output_index, item_id);
@@ -41,7 +39,6 @@ impl State {
                     input,
                     name,
                     id,
-                    rest,
                     ..
                 } => {
                     let item_id = id.ok_or_else(|| {
@@ -54,7 +51,6 @@ impl State {
                             name,
                             arguments: input,
                             custom: true,
-                            rest,
                         },
                     );
                     self.call_indices.insert(event.output_index, item_id);
@@ -131,7 +127,6 @@ impl State {
                         id,
                         encrypted_content: Some(encrypted_content),
                         status,
-                        rest,
                         ..
                     } => openai::ResponseItem::Typed(Box::new(
                         openai::TypedResponseItem::Reasoning {
@@ -140,7 +135,7 @@ impl State {
                             content: None,
                             encrypted_content: Some(encrypted_content),
                             status,
-                            rest,
+                            rest: Default::default(),
                         },
                     )),
                     openai::TypedResponseItem::Reasoning { .. } => return Ok(Vec::new()),
@@ -178,7 +173,7 @@ impl State {
                         openai::ResponseItem::Typed(Box::new(other))
                     }
                 },
-                openai::ResponseItem::Unknown(raw) => openai::ResponseItem::Unknown(raw),
+                openai::ResponseItem::Unknown(_) => return Ok(Vec::new()),
             };
         }
         let content = self.content.item(item)?;

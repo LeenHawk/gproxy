@@ -71,7 +71,7 @@ pub(crate) fn transform(
             .as_ref()
             .and_then(|config| config.top_p),
         user_profile_id: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }

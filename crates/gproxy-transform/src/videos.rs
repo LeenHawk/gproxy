@@ -22,7 +22,7 @@ pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
     super_encode(&gemini::VeoPredictLongRunningRequest {
         instances: vec![instance],
         parameters: Some(parameters),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -56,7 +56,7 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
         model: Some(openai_video::VideoModelId::Unknown(model.into())),
         seconds,
         size: serde_json::from_value(serde_json::json!(size)).ok(),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -80,12 +80,8 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
         message: error
             .message
             .unwrap_or_else(|| "video generation failed".into()),
-        rest: error.rest,
+        rest: Default::default(),
     });
-    let mut rest = input.rest;
-    if let Some(response) = input.response {
-        rest.insert("gproxy_veo_response".into(), response);
-    }
     let model = name
         .strip_prefix("models/")
         .and_then(|value| value.split('/').next())
@@ -105,7 +101,7 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
         seconds: openai_video::VideoSecondsValue::String("0".into()),
         size: serde_json::from_value(serde_json::json!("1280x720"))?,
         status,
-        rest,
+        rest: Default::default(),
     })
 }
 
@@ -121,15 +117,15 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
         code: error.code.parse().ok(),
         message: Some(error.message),
         details: Vec::new(),
-        rest: error.rest,
+        rest: Default::default(),
     });
     super_encode(&gemini::VeoOperation {
         name: Some(input.id),
         metadata: None,
         done: Some(done),
         error,
-        response: input.rest.get("gproxy_veo_response").cloned(),
-        rest: input.rest,
+        response: None,
+        rest: Default::default(),
     })
 }
 

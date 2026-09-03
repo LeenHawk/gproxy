@@ -4,6 +4,12 @@ use crate::TransformError;
 
 mod schema;
 
+pub(super) fn typed_schema_value(
+    schema: gemini::Schema,
+) -> Result<serde_json::Value, TransformError> {
+    schema::typed_value(schema)
+}
+
 pub(super) fn definitions(
     tools: Option<Vec<gemini::Tool>>,
 ) -> Result<Option<Vec<claude::Tool>>, TransformError> {
@@ -40,7 +46,7 @@ pub(super) fn choice(
         ) => Some(claude::ToolChoice::Auto(claude::ToolChoiceAuto {
             type_: claude::ToolChoiceAutoType::Auto,
             disable_parallel_tool_use: None,
-            rest: config.rest,
+            rest: Default::default(),
         })),
         gemini::FunctionCallingMode::Known(
             gemini::FunctionCallingModeKnown::Any | gemini::FunctionCallingModeKnown::Validated,
@@ -49,7 +55,7 @@ pub(super) fn choice(
                 Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
                     type_: claude::ToolChoiceAnyType::Any,
                     disable_parallel_tool_use: None,
-                    rest: config.rest,
+                    rest: Default::default(),
                 }))
             }
             Some(names) => match names.into_iter().next() {
@@ -57,38 +63,28 @@ pub(super) fn choice(
                     name,
                     type_: claude::ToolChoiceToolType::Tool,
                     disable_parallel_tool_use: None,
-                    rest: config.rest,
+                    rest: Default::default(),
                 })),
                 None => Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
                     type_: claude::ToolChoiceAnyType::Any,
                     disable_parallel_tool_use: None,
-                    rest: config.rest,
+                    rest: Default::default(),
                 })),
             },
             None => Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
                 type_: claude::ToolChoiceAnyType::Any,
                 disable_parallel_tool_use: None,
-                rest: config.rest,
+                rest: Default::default(),
             })),
         },
         gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::None) => {
             Some(claude::ToolChoice::None(claude::ToolChoiceNone {
                 type_: claude::ToolChoiceNoneType::None,
-                rest: config.rest,
+                rest: Default::default(),
             }))
         }
-        gemini::FunctionCallingMode::Unknown(value) => {
-            return Err(TransformError::unsupported(
-                "Gemini function calling mode",
-                value,
-            ));
-        }
-        _ => {
-            return Err(TransformError::unsupported(
-                "Gemini tool choice",
-                "future mode",
-            ));
-        }
+        gemini::FunctionCallingMode::Unknown(_) => None,
+        _ => None,
     })
 }
 
@@ -96,7 +92,7 @@ fn custom(declaration: gemini::FunctionDeclaration) -> Result<claude::Tool, Tran
     let schema = match declaration.parameters_json_schema {
         Some(value) => schema::convert(value)?,
         None => match declaration.parameters {
-            Some(value) => schema::convert(serde_json::to_value(value)?)?,
+            Some(value) => schema::convert(schema::typed_value(value)?)?,
             None => schema::empty(),
         },
     };

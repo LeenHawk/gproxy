@@ -17,9 +17,7 @@ pub(crate) fn transform(
         Some(openai::ResponseInput::Items(items)) => {
             messages.extend(items_to_messages(items)?);
         }
-        Some(openai::ResponseInput::Unknown(raw)) => {
-            messages.push(openai::ChatCompletionMessageParam::Unknown(raw));
-        }
+        Some(openai::ResponseInput::Unknown(_)) => {}
         None => {}
     }
     if let Some(instructions) = input.instructions {
@@ -32,6 +30,12 @@ pub(crate) fn transform(
                 rest: Default::default(),
             }),
         );
+    }
+    if messages.is_empty() {
+        return Err(TransformError::unsupported(
+            "OpenAI Responses input",
+            "no representable messages",
+        ));
     }
     let verbosity = input.text.as_ref().and_then(|text| text.verbosity.clone());
     let output = openai::ChatCompletionRequest {
@@ -66,7 +70,7 @@ pub(crate) fn transform(
         stream_options: input.stream_options.map(|options| openai::StreamOptions {
             include_obfuscation: options.include_obfuscation,
             include_usage: Some(true),
-            rest: options.rest,
+            rest: Default::default(),
         }),
         temperature: input.temperature,
         tool_choice: tool_choice(input.tool_choice)?,
@@ -76,7 +80,7 @@ pub(crate) fn transform(
         user: input.user,
         verbosity,
         web_search_options: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -119,10 +123,7 @@ fn item_messages(
         openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_)) => Ok(Vec::new()),
         openai::ResponseItem::Message(message) => Ok(vec![message_to_chat(message)?]),
         openai::ResponseItem::Typed(item) => typed_messages(*item),
-        openai::ResponseItem::Unknown(raw) => {
-            let _ = raw;
-            Ok(Vec::new())
-        }
+        openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
     }
 }
 
@@ -141,37 +142,29 @@ fn message_to_chat(
                     reasoning_content: None,
                     refusal: None,
                     tool_calls: None,
-                    rest: message.rest,
+                    rest: Default::default(),
                 }),
             ),
             openai::ResponseEasyInputMessageRole::System => Ok(text_message(
                 message.content,
                 openai::ResponseEasyInputMessageRole::System,
-                message.rest,
             )?),
             openai::ResponseEasyInputMessageRole::Developer => Ok(text_message(
                 message.content,
                 openai::ResponseEasyInputMessageRole::Developer,
-                message.rest,
             )?),
-            openai::ResponseEasyInputMessageRole::User => {
-                Ok(user_content(message.content, message.rest)?)
-            }
+            openai::ResponseEasyInputMessageRole::User => Ok(user_content(message.content)?),
         },
         openai::ResponseMessageItem::Input(message) => {
             let content = openai::ResponseEasyInputContent::Parts(message.content);
             match message.role {
-                openai::ResponseInputMessageRole::User => user_content(content, message.rest),
-                openai::ResponseInputMessageRole::System => text_message(
-                    content,
-                    openai::ResponseEasyInputMessageRole::System,
-                    message.rest,
-                ),
-                openai::ResponseInputMessageRole::Developer => text_message(
-                    content,
-                    openai::ResponseEasyInputMessageRole::Developer,
-                    message.rest,
-                ),
+                openai::ResponseInputMessageRole::User => user_content(content),
+                openai::ResponseInputMessageRole::System => {
+                    text_message(content, openai::ResponseEasyInputMessageRole::System)
+                }
+                openai::ResponseInputMessageRole::Developer => {
+                    text_message(content, openai::ResponseEasyInputMessageRole::Developer)
+                }
             }
         }
         openai::ResponseMessageItem::Output(message) => Ok(
@@ -184,20 +177,13 @@ fn message_to_chat(
                 reasoning_content: None,
                 refusal: None,
                 tool_calls: None,
-                rest: message.rest,
+                rest: Default::default(),
             }),
         ),
-        openai::ResponseMessageItem::Unknown(raw) => {
-            let _ = raw;
-            Ok(openai::ChatCompletionMessageParam::User(
-                openai::ChatUserMessageParam {
-                    role: openai::ChatUserRole::User,
-                    content: openai::ChatContent::Text(String::new()),
-                    name: None,
-                    rest: Default::default(),
-                },
-            ))
-        }
+        openai::ResponseMessageItem::Unknown(raw) => Err(TransformError::unsupported(
+            "OpenAI Responses message",
+            raw.to_string(),
+        )),
     }
 }
 
@@ -209,8 +195,6 @@ fn typed_messages(
             arguments,
             call_id,
             name,
-            id: _,
-            rest,
             ..
         } => vec![assistant_call(openai::ChatToolCall::Function(
             openai::ChatFunctionToolCall {
@@ -221,15 +205,13 @@ fn typed_messages(
                     name,
                     rest: Default::default(),
                 },
-                rest,
+                rest: Default::default(),
             },
         ))],
         openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
             name,
-            id: _,
-            rest,
             ..
         } => vec![assistant_call(openai::ChatToolCall::Custom(
             openai::ChatCustomToolCall {
@@ -240,33 +222,24 @@ fn typed_messages(
                     name,
                     rest: Default::default(),
                 },
-                rest,
+                rest: Default::default(),
             },
         ))],
         openai::TypedResponseItem::FunctionCallOutput {
-            call_id,
-            output,
-            rest,
-            ..
+            call_id, output, ..
         }
         | openai::TypedResponseItem::CustomToolCallOutput {
-            call_id,
-            output,
-            rest,
-            ..
+            call_id, output, ..
         } => vec![openai::ChatCompletionMessageParam::Tool(
             openai::ChatToolMessageParam {
                 role: openai::ChatToolRole::Tool,
                 content: output_to_chat(output)?,
                 tool_call_id: call_id,
-                rest,
+                rest: Default::default(),
             },
         )],
         openai::TypedResponseItem::ApplyPatchCall {
-            call_id,
-            operation,
-            rest,
-            ..
+            call_id, operation, ..
         } => vec![assistant_call(openai::ChatToolCall::Function(
             openai::ChatFunctionToolCall {
                 id: call_id,
@@ -276,23 +249,20 @@ fn typed_messages(
                     name: "apply_patch".into(),
                     rest: Default::default(),
                 },
-                rest,
+                rest: Default::default(),
             },
         ))],
         openai::TypedResponseItem::ApplyPatchCallOutput {
-            call_id,
-            output,
-            rest,
-            ..
+            call_id, output, ..
         } => vec![openai::ChatCompletionMessageParam::Tool(
             openai::ChatToolMessageParam {
                 role: openai::ChatToolRole::Tool,
                 content: openai::ChatTextContent::Text(output.unwrap_or_default()),
                 tool_call_id: call_id,
-                rest,
+                rest: Default::default(),
             },
         )],
-        openai::TypedResponseItem::Reasoning { content, rest, .. } => {
+        openai::TypedResponseItem::Reasoning { content, .. } => {
             vec![openai::ChatCompletionMessageParam::Assistant(
                 openai::ChatAssistantMessageParam {
                     role: openai::ChatAssistantRole::Assistant,
@@ -309,11 +279,11 @@ fn typed_messages(
                     ),
                     refusal: None,
                     tool_calls: None,
-                    rest,
+                    rest: Default::default(),
                 },
             )]
         }
-        other @ (openai::TypedResponseItem::FileSearchCall { .. }
+        _other @ (openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
         | openai::TypedResponseItem::ComputerCallOutput { .. }
         | openai::TypedResponseItem::WebSearchCall { .. }
@@ -337,11 +307,7 @@ fn typed_messages(
         | openai::TypedResponseItem::MultiAgentCallOutput { .. }
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
-        | openai::TypedResponseItem::ItemReference { .. }) => {
-            vec![openai::ChatCompletionMessageParam::Unknown(
-                serde_json::to_value(other)?,
-            )]
-        }
+        | openai::TypedResponseItem::ItemReference { .. }) => Vec::new(),
     })
 }
 
@@ -409,7 +375,7 @@ fn tool_choice(
                     name: choice.name,
                     rest: Default::default(),
                 },
-                rest: choice.rest,
+                rest: Default::default(),
             }),
         )),
         Some(openai::ResponseToolChoice::Custom(choice)) => Some(openai::ChatToolChoice::Named(
@@ -419,13 +385,11 @@ fn tool_choice(
                     name: choice.name,
                     rest: Default::default(),
                 },
-                rest: choice.rest,
+                rest: Default::default(),
             }),
         )),
-        Some(openai::ResponseToolChoice::Unknown(raw)) => {
-            Some(openai::ChatToolChoice::Unknown(raw))
-        }
-        Some(other) => serde_json::from_slice(&serde_json::to_vec(&other)?).map(Some)?,
+        Some(openai::ResponseToolChoice::Unknown(_)) => None,
+        Some(_) => None,
     })
 }
 

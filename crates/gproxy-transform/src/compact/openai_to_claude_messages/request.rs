@@ -42,7 +42,7 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
         top_p: None,
         truncation: None,
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     let converted =
         crate::generate_content::openai_responses_to_claude_messages::request::transform(

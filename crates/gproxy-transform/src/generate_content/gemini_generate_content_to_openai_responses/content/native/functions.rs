@@ -11,14 +11,12 @@ impl ContentConverter {
         &mut self,
         call: gemini::FunctionCall,
         _signature: Option<String>,
-        mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
         let call_id = self.allocate_named_call(call.id, &call.name);
         self.calls_by_name
             .entry(call.name.clone())
             .or_default()
             .push_back(call_id.clone());
-        rest.extend(call.rest);
         Ok(openai::ResponseItem::Typed(Box::new(
             openai::TypedResponseItem::FunctionCall {
                 arguments: wire::arguments(call.args)?,
@@ -28,7 +26,7 @@ impl ContentConverter {
                 caller: None,
                 namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                rest,
+                rest: Default::default(),
             },
         )))
     }
@@ -36,7 +34,6 @@ impl ContentConverter {
     pub(in crate::generate_content) fn function_response(
         &mut self,
         result: gemini::FunctionResponse,
-        mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
         let pending = self.calls_by_name.get_mut(&result.name);
         let call_id = correlated(result.id, pending).ok_or_else(|| {
@@ -45,7 +42,6 @@ impl ContentConverter {
                 "id missing and no matching functionCall was seen",
             )
         })?;
-        rest.extend(result.rest);
         Ok(openai::ResponseItem::Typed(Box::new(
             openai::TypedResponseItem::FunctionCallOutput {
                 call_id,
@@ -56,7 +52,7 @@ impl ContentConverter {
                 namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 created_by: None,
-                rest,
+                rest: Default::default(),
             },
         )))
     }
@@ -64,7 +60,6 @@ impl ContentConverter {
     pub(in crate::generate_content) fn tool_call(
         &mut self,
         call: gemini::ToolCall,
-        mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
         let name = wire::server_tool_name(&call.tool_type)?;
         let call_id = self.allocate_named_call(call.id, &name);
@@ -72,7 +67,6 @@ impl ContentConverter {
             .entry(name.clone())
             .or_default()
             .push_back(call_id.clone());
-        rest.extend(call.rest);
         Ok(openai::ResponseItem::Typed(Box::new(
             openai::TypedResponseItem::FunctionCall {
                 arguments: wire::arguments(call.args)?,
@@ -82,7 +76,7 @@ impl ContentConverter {
                 caller: None,
                 namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                rest,
+                rest: Default::default(),
             },
         )))
     }
@@ -90,7 +84,6 @@ impl ContentConverter {
     pub(in crate::generate_content) fn tool_response(
         &mut self,
         result: gemini::ToolResponse,
-        mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
         let name = wire::server_tool_name(&result.tool_type)?;
         let pending = self.calls_by_name.get_mut(&name);
@@ -100,7 +93,6 @@ impl ContentConverter {
                 "id missing and no matching toolCall was seen",
             )
         })?;
-        rest.extend(result.rest);
         let output = result
             .response
             .map(wire::output)
@@ -116,7 +108,7 @@ impl ContentConverter {
                 namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 created_by: None,
-                rest,
+                rest: Default::default(),
             },
         )))
     }

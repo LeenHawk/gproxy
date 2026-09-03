@@ -11,7 +11,7 @@ pub(super) fn input_part(
                 text: part.text,
                 rest: Default::default(),
             }),
-            rest: part.rest,
+            rest: Default::default(),
             ..Default::default()
         },
         openai::ResponseInputContentPart::InputImage(part) => {
@@ -22,21 +22,20 @@ pub(super) fn input_part(
                 )
             })?;
             if let Some((mime, data)) = data_uri(&uri) {
-                inline_part(mime, data, part.rest)
+                inline_part(mime, data)
             } else {
-                file_part(uri, None, part.rest)
+                file_part(uri, None)
             }
         }
-        openai::ResponseInputContentPart::InputFile(mut part) => {
-            let mime = part
-                .rest
-                .remove("mime_type")
-                .and_then(|value| value.as_str().map(str::to_owned));
+        openai::ResponseInputContentPart::InputFile(part) => {
             if let Some(data) = part.file_data {
-                let mime = mime.ok_or_else(|| {
-                    TransformError::shape("Responses inline input file", "MIME type is missing")
+                let (mime, data) = data_uri(&data).ok_or_else(|| {
+                    TransformError::unsupported(
+                        "Responses inline input file",
+                        "file_data without a media type",
+                    )
                 })?;
-                inline_part(mime, data, part.rest)
+                inline_part(mime, data)
             } else {
                 let uri = part.file_url.or(part.file_id).ok_or_else(|| {
                     TransformError::shape(
@@ -44,17 +43,26 @@ pub(super) fn input_part(
                         "file_data, file_url, and file_id are all missing",
                     )
                 })?;
-                file_part(uri, mime, part.rest)
+                file_part(uri, None)
             }
         }
         openai::ResponseInputContentPart::InputAudio(part) => {
-            let mime = format!("audio/{}", part.input_audio.format.as_str());
-            inline_part(mime, part.input_audio.data, part.rest)
+            let mime = match part.input_audio.format {
+                openai::InputAudioFormat::Wav => "audio/wav",
+                openai::InputAudioFormat::Mp3 => "audio/mpeg",
+                openai::InputAudioFormat::Unknown(value) => {
+                    return Err(TransformError::unsupported(
+                        "Responses input audio format",
+                        value,
+                    ));
+                }
+            };
+            inline_part(mime.into(), part.input_audio.data)
         }
     })
 }
 
-fn inline_part(mime: String, data: String, rest: gemini::JsonMap) -> gemini::Part {
+fn inline_part(mime: String, data: String) -> gemini::Part {
     gemini::Part {
         data: Some(gemini::PartData::InlineData {
             inline_data: gemini::Blob {
@@ -64,12 +72,12 @@ fn inline_part(mime: String, data: String, rest: gemini::JsonMap) -> gemini::Par
             },
             rest: Default::default(),
         }),
-        rest,
+        rest: Default::default(),
         ..Default::default()
     }
 }
 
-fn file_part(uri: String, mime: Option<String>, rest: gemini::JsonMap) -> gemini::Part {
+fn file_part(uri: String, mime: Option<String>) -> gemini::Part {
     gemini::Part {
         data: Some(gemini::PartData::FileData {
             file_data: gemini::FileData {
@@ -79,7 +87,7 @@ fn file_part(uri: String, mime: Option<String>, rest: gemini::JsonMap) -> gemini
             },
             rest: Default::default(),
         }),
-        rest,
+        rest: Default::default(),
         ..Default::default()
     }
 }

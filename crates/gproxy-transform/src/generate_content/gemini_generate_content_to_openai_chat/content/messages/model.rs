@@ -3,7 +3,6 @@ use gproxy_protocol::{gemini, openai};
 use crate::TransformError;
 use crate::generate_content::gemini_generate_content_to_openai_chat::tools::CODE_EXECUTION_NAME;
 
-use super::super::parts::merge;
 use super::State;
 
 impl State {
@@ -23,10 +22,7 @@ impl State {
                     reasoning.push(value)
                 }
                 Some(gemini::PartData::Text { text: value, .. }) => text.push(value),
-                Some(gemini::PartData::FunctionCall {
-                    function_call,
-                    rest,
-                }) => {
+                Some(gemini::PartData::FunctionCall { function_call, .. }) => {
                     let id = function_call
                         .id
                         .clone()
@@ -35,22 +31,17 @@ impl State {
                         .entry(function_call.name.clone())
                         .or_default()
                         .push_back(id.clone());
-                    calls.push(function_call_to_chat(
-                        function_call,
-                        id,
-                        merge(part.rest, rest),
-                    )?);
+                    calls.push(function_call_to_chat(function_call, id)?);
                 }
                 Some(gemini::PartData::ExecutableCode {
-                    executable_code,
-                    rest,
+                    executable_code, ..
                 }) => {
                     let id = executable_code
                         .id
                         .clone()
                         .unwrap_or_else(|| format!("gemini_code_{turn}_{index}"));
                     self.pending_code.push_back(id.clone());
-                    calls.push(code_call(executable_code, id, merge(part.rest, rest))?);
+                    calls.push(code_call(executable_code, id)?);
                 }
                 Some(gemini::PartData::CodeExecutionResult {
                     code_execution_result,
@@ -81,9 +72,9 @@ impl State {
                     results.push(tool_message(
                         id,
                         serde_json::to_string(&code_execution_result)?,
-                        Default::default(),
                     ));
                 }
+                Some(gemini::PartData::Raw(_)) => {}
                 Some(other) => {
                     return Err(TransformError::unsupported(
                         "Gemini model part",
@@ -95,7 +86,7 @@ impl State {
         }
         let mut output = Vec::new();
         if !text.is_empty() || !reasoning.is_empty() || !calls.is_empty() {
-            output.push(assistant(text, reasoning, calls, content.rest));
+            output.push(assistant(text, reasoning, calls));
         }
         output.extend(results);
         Ok(output)
@@ -106,7 +97,6 @@ fn assistant(
     text: Vec<String>,
     reasoning: Vec<String>,
     calls: Vec<openai::ChatToolCall>,
-    rest: openai::Rest,
 ) -> openai::ChatCompletionMessageParam {
     openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
         role: openai::ChatAssistantRole::Assistant,
@@ -117,14 +107,13 @@ fn assistant(
         reasoning_content: (!reasoning.is_empty()).then(|| reasoning.join("")),
         refusal: None,
         tool_calls: (!calls.is_empty()).then_some(calls),
-        rest,
+        rest: Default::default(),
     })
 }
 
 fn function_call_to_chat(
     call: gemini::FunctionCall,
     id: String,
-    rest: openai::Rest,
 ) -> Result<openai::ChatToolCall, TransformError> {
     let arguments = call
         .args
@@ -136,9 +125,9 @@ fn function_call_to_chat(
             function: openai::FunctionCall {
                 arguments: serde_json::to_string(&arguments)?,
                 name: call.name,
-                rest: call.rest,
+                rest: Default::default(),
             },
-            rest,
+            rest: Default::default(),
         },
     ))
 }
@@ -146,7 +135,6 @@ fn function_call_to_chat(
 fn code_call(
     code: gemini::ExecutableCode,
     id: String,
-    rest: openai::Rest,
 ) -> Result<openai::ChatToolCall, TransformError> {
     Ok(openai::ChatToolCall::Function(
         openai::ChatFunctionToolCall {
@@ -157,20 +145,16 @@ fn code_call(
                 name: CODE_EXECUTION_NAME.into(),
                 rest: Default::default(),
             },
-            rest,
+            rest: Default::default(),
         },
     ))
 }
 
-pub(super) fn tool_message(
-    id: String,
-    content: String,
-    rest: openai::Rest,
-) -> openai::ChatCompletionMessageParam {
+pub(super) fn tool_message(id: String, content: String) -> openai::ChatCompletionMessageParam {
     openai::ChatCompletionMessageParam::Tool(openai::ChatToolMessageParam {
         role: openai::ChatToolRole::Tool,
         content: openai::ChatTextContent::Text(content),
         tool_call_id: id,
-        rest,
+        rest: Default::default(),
     })
 }

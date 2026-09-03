@@ -12,13 +12,13 @@ pub(crate) fn service_tier(tier: Option<openai::ServiceTier>) -> Option<gemini::
         openai::ServiceTier::Default
         | openai::ServiceTier::Scale
         | openai::ServiceTier::OnDemand => gemini::ServiceTierKnown::Standard,
-        openai::ServiceTier::Unknown(value) => {
-            return Some(gemini::ServiceTier::Unknown(value));
-        }
+        openai::ServiceTier::Unknown(_) => return None,
     }))
 }
 
-pub(crate) fn finish_reason(reason: openai::ChatFinishReason) -> gemini::FinishReason {
+pub(crate) fn finish_reason(
+    reason: openai::ChatFinishReason,
+) -> Result<gemini::FinishReason, TransformError> {
     let reason = match reason {
         openai::ChatFinishReason::Length => gemini::FinishReasonKnown::MaxTokens,
         openai::ChatFinishReason::ContentFilter => gemini::FinishReasonKnown::Safety,
@@ -26,10 +26,10 @@ pub(crate) fn finish_reason(reason: openai::ChatFinishReason) -> gemini::FinishR
         | openai::ChatFinishReason::ToolCalls
         | openai::ChatFinishReason::FunctionCall => gemini::FinishReasonKnown::Stop,
         openai::ChatFinishReason::Unknown(value) => {
-            return gemini::FinishReason::Unknown(value);
+            return Err(TransformError::unsupported("Chat finish reason", value));
         }
     };
-    gemini::FinishReason::Known(reason)
+    Ok(gemini::FinishReason::Known(reason))
 }
 
 pub(crate) fn usage(
@@ -73,7 +73,7 @@ pub(crate) fn usage(
         candidates_tokens_details: Vec::new(),
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 

@@ -19,7 +19,6 @@ impl State {
             },
             None,
             None,
-            event.rest,
         )?])
     }
 
@@ -27,21 +26,17 @@ impl State {
         &mut self,
         event: openai::ResponseContentDeltaEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        self.reasoning_delta(event.delta, event.rest)
+        self.reasoning_delta(event.delta)
     }
 
     pub(super) fn reasoning_summary_delta(
         &mut self,
         event: openai::ResponseReasoningSummaryTextDeltaEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        self.reasoning_delta(event.delta, event.rest)
+        self.reasoning_delta(event.delta)
     }
 
-    fn reasoning_delta(
-        &mut self,
-        delta: String,
-        rest: openai::Rest,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    fn reasoning_delta(&mut self, delta: String) -> Result<Vec<Bytes>, TransformError> {
         self.reasoning.push_str(&delta);
         Ok(vec![self.chunk(
             openai::ChatDelta {
@@ -50,7 +45,6 @@ impl State {
             },
             None,
             None,
-            rest,
         )?])
     }
 
@@ -66,7 +60,6 @@ impl State {
             },
             None,
             None,
-            event.rest,
         )?])
     }
 
@@ -74,18 +67,13 @@ impl State {
         &mut self,
         event: openai::ResponseReasoningSummaryPartAddedEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        self.finish_reasoning(event.part.text, event.part.rest, event.rest)
+        self.finish_reasoning(event.part.text)
     }
 
     pub(super) fn reasoning_part_done(
         &mut self,
-        mut event: openai::ResponseReasoningSummaryPartDoneEvent,
+        event: openai::ResponseReasoningSummaryPartDoneEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        if let Some(status) = event.status {
-            event
-                .rest
-                .insert("status".into(), serde_json::to_value(status)?);
-        }
-        self.finish_reasoning(event.part.text, event.part.rest, event.rest)
+        self.finish_reasoning(event.part.text)
     }
 }

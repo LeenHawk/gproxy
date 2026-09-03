@@ -51,7 +51,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 )],
                 status: openai::ResponseItemLifecycleStatus::Completed,
                 phase: None,
-                rest: choice.as_ref().expect("choice exists").message.rest.clone(),
+                rest: Default::default(),
             }),
         ));
     }
@@ -72,7 +72,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     caller: None,
                     namespace: None,
                     status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                    rest: merge(call.rest, call.function.rest),
+                    rest: Default::default(),
                 }))
             }
             openai::ChatToolCall::Custom(call) => {
@@ -84,19 +84,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     id: None,
                     caller: None,
                     namespace: None,
-                    rest: merge(call.rest, call.custom.rest),
+                    rest: Default::default(),
                 }))
             }
-            openai::ChatToolCall::Unknown(raw) => openai::ResponseItem::Unknown(raw),
+            openai::ChatToolCall::Unknown(_) => continue,
         });
-    }
-    if let Some(raw) = choice
-        .as_ref()
-        .and_then(|choice| choice.message.rest.get("responses_output_items"))
-    {
-        for item in raw.as_array().into_iter().flatten() {
-            output.push(serde_json::from_value(item.clone())?);
-        }
     }
     if let Some(reason) = choice.as_ref().map(|choice| &choice.finish_reason)
         && matches!(
@@ -154,7 +146,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         truncation: None,
         usage: input.usage.map(usage::chat_to_responses),
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
 }
@@ -177,9 +169,4 @@ fn prefixed_id(original: &str, prefix: &str) -> String {
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     format!("{prefix}{hash:016x}")
-}
-
-fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }

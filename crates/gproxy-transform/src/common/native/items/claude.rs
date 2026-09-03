@@ -3,17 +3,14 @@ use gproxy_protocol::{claude, openai};
 use crate::TransformError;
 
 use super::NativeKind;
-use super::ids::take_item_id;
 use crate::common::native::shape;
 
 pub(crate) fn claude_call(
     id: String,
     input: claude::JsonObject,
     name: String,
-    mut rest: openai::Rest,
     status: openai::ResponseItemLifecycleStatus,
 ) -> Result<(openai::TypedResponseItem, Option<NativeKind>), TransformError> {
-    let item_id = take_item_id(&mut rest)?;
     if name == "bash"
         && let Some(action) = shape::shell_action(&input)
     {
@@ -21,12 +18,12 @@ pub(crate) fn claude_call(
             openai::TypedResponseItem::ShellCall {
                 action,
                 call_id: id,
-                id: item_id,
+                id: None,
                 caller: None,
                 environment: None,
                 status: Some(status),
                 created_by: None,
-                rest,
+                rest: Default::default(),
             },
             Some(NativeKind::Shell),
         ));
@@ -46,10 +43,10 @@ pub(crate) fn claude_call(
                     }
                     _ => openai::ResponseApplyPatchCallStatus::Completed,
                 },
-                id: item_id,
+                id: None,
                 caller: None,
                 created_by: None,
-                rest,
+                rest: Default::default(),
             },
             Some(NativeKind::ApplyPatch),
         ));
@@ -59,21 +56,20 @@ pub(crate) fn claude_call(
             arguments: serde_json::to_string(&input)?,
             call_id: id,
             name,
-            id: item_id,
+            id: None,
             caller: None,
             namespace: None,
             status: Some(status),
-            rest,
+            rest: Default::default(),
         },
         None,
     ))
 }
 
 pub(crate) fn claude_result(
-    mut block: claude::ToolResultBlock,
+    block: claude::ToolResultBlock,
     kind: NativeKind,
 ) -> Result<openai::TypedResponseItem, TransformError> {
-    let item_id = take_item_id(&mut block.rest)?;
     let text = claude_result_text(block.content)?;
     let failed = block.is_error.unwrap_or(false);
     Ok(match kind {
@@ -89,12 +85,12 @@ pub(crate) fn claude_result(
                 created_by: None,
                 rest: Default::default(),
             }],
-            id: item_id,
+            id: None,
             caller: None,
             max_output_length: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             created_by: None,
-            rest: block.rest,
+            rest: Default::default(),
         },
         NativeKind::ApplyPatch => openai::TypedResponseItem::ApplyPatchCallOutput {
             call_id: block.tool_use_id,
@@ -103,11 +99,11 @@ pub(crate) fn claude_result(
             } else {
                 openai::ResponseApplyPatchCallOutputStatus::Completed
             },
-            id: item_id,
+            id: None,
             caller: None,
             output: (!text.is_empty()).then_some(text),
             created_by: None,
-            rest: block.rest,
+            rest: Default::default(),
         },
     })
 }

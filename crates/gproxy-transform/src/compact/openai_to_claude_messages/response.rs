@@ -17,7 +17,7 @@ pub(crate) fn from_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Transfo
     let mut items = input
         .output
         .into_iter()
-        .map(|item| compact_item(item, incomplete))
+        .filter_map(|item| compact_item(item, incomplete).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     items.sort_by_key(|item| !matches!(item, openai::CompactResponseItem::Message(_)));
     let output = openai::CompactedResponseObject {
@@ -26,7 +26,7 @@ pub(crate) fn from_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Transfo
         object: openai::ResponseCompactionObjectType::ResponseCompaction,
         output: items,
         usage,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
@@ -34,33 +34,31 @@ pub(crate) fn from_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Transfo
 fn compact_item(
     item: openai::ResponseItem,
     incomplete: bool,
-) -> Result<openai::CompactResponseItem, TransformError> {
+) -> Result<Option<openai::CompactResponseItem>, TransformError> {
     Ok(match item {
-        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
+        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => Some(
             openai::CompactResponseItem::Message(openai::CompactMessageItem {
                 id: Some(message.id),
                 type_: message.type_,
                 content: message
                     .content
                     .into_iter()
-                    .map(|part| match part {
-                        openai::ResponseMessageOutputContentPart::OutputText(part) => {
+                    .filter_map(|part| match part {
+                        openai::ResponseMessageOutputContentPart::OutputText(part) => Some(
                             openai::CompactMessageContentPart::Text(openai::CompactTextContent {
                                 text: part.text,
                                 type_: openai::CompactTextContentType::Text,
-                                rest: part.rest,
-                            })
-                        }
-                        openai::ResponseMessageOutputContentPart::Refusal(part) => {
+                                rest: Default::default(),
+                            }),
+                        ),
+                        openai::ResponseMessageOutputContentPart::Refusal(part) => Some(
                             openai::CompactMessageContentPart::Text(openai::CompactTextContent {
                                 text: part.refusal,
                                 type_: openai::CompactTextContentType::Text,
-                                rest: part.rest,
-                            })
-                        }
-                        openai::ResponseMessageOutputContentPart::Unknown(raw) => {
-                            openai::CompactMessageContentPart::Unknown(raw)
-                        }
+                                rest: Default::default(),
+                            }),
+                        ),
+                        openai::ResponseMessageOutputContentPart::Unknown(_) => None,
                     })
                     .collect(),
                 role: openai::CompactMessageRole::Assistant,
@@ -70,14 +68,11 @@ fn compact_item(
                     message.status
                 },
                 phase: message.phase,
-                rest: message.rest,
-            })
-        }
-        openai::ResponseItem::Typed(item) => openai::CompactResponseItem::Typed(item),
-        openai::ResponseItem::Unknown(raw) => openai::CompactResponseItem::Unknown(raw),
-        openai::ResponseItem::Message(message) => {
-            openai::CompactResponseItem::Unknown(serde_json::to_value(message)?)
-        }
+                rest: Default::default(),
+            }),
+        ),
+        openai::ResponseItem::Typed(item) => Some(openai::CompactResponseItem::Typed(item)),
+        openai::ResponseItem::Unknown(_) | openai::ResponseItem::Message(_) => None,
     })
 }
 

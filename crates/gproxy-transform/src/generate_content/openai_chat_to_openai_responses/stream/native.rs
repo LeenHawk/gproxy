@@ -13,13 +13,7 @@ impl State {
         let output_index = start.output_index;
         let kind = start.kind;
         let mut output = self.start_tool(start)?;
-        output.extend(self.finish_tool(
-            &source_id,
-            output_index,
-            kind,
-            arguments,
-            Default::default(),
-        )?);
+        output.extend(self.finish_tool(&source_id, output_index, kind, arguments)?);
         Ok(output)
     }
 }

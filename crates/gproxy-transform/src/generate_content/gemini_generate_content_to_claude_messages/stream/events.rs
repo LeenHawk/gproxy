@@ -12,7 +12,7 @@ pub(super) fn encode(event: claude::KnownStreamEvent) -> Result<Bytes, Transform
 pub(super) fn start(
     id: String,
     model: String,
-    rest: claude::JsonObject,
+    _extensions: claude::JsonObject,
 ) -> claude::KnownStreamEvent {
     claude::KnownStreamEvent::MessageStart {
         message: Box::new(claude::CreateMessageStartBody {
@@ -27,7 +27,7 @@ pub(super) fn start(
             input_transformations: None,
             rest: Default::default(),
         }),
-        rest,
+        rest: Default::default(),
     }
 }
 
@@ -58,7 +58,7 @@ pub(super) fn message_delta(
     stop_reason: Option<claude::StopReason>,
     stop_sequence: Option<String>,
     usage: Option<claude::Usage>,
-    rest: claude::JsonObject,
+    _extensions: claude::JsonObject,
 ) -> claude::KnownStreamEvent {
     claude::KnownStreamEvent::MessageDelta {
         context_management: None,
@@ -71,7 +71,7 @@ pub(super) fn message_delta(
         }),
         input_transformations: None,
         usage: usage.map(Box::new),
-        rest,
+        rest: Default::default(),
     }
 }
 

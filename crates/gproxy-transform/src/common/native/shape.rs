@@ -4,42 +4,31 @@ use crate::TransformError;
 
 pub(crate) fn shell_action(input: &claude::JsonObject) -> Option<openai::ShellAction> {
     let commands = strings(input, "commands").or_else(|| strings(input, "command"))?;
-    let mut rest = input.clone();
-    for key in [
-        "commands",
-        "command",
-        "max_output_length",
-        "timeout_ms",
-        "timeout",
-    ] {
-        rest.remove(key);
-    }
     Some(openai::ShellAction {
         commands,
         max_output_length: number(input, "max_output_length"),
         timeout_ms: number(input, "timeout_ms").or_else(|| number(input, "timeout")),
-        rest,
+        rest: Default::default(),
     })
 }
 
 pub(crate) fn patch_operation(input: &claude::JsonObject) -> Option<openai::ApplyPatchOperation> {
     let command = string(input, "command")?;
     let path = string(input, "path")?;
-    let mut rest = input.clone();
-    for key in ["command", "path", "file_text", "old_str", "new_str"] {
-        rest.remove(key);
-    }
     match command.as_str() {
         "create" => Some(openai::ApplyPatchOperation::CreateFile {
             diff: string(input, "file_text")?,
             path,
-            rest,
+            rest: Default::default(),
         }),
-        "delete" => Some(openai::ApplyPatchOperation::DeleteFile { path, rest }),
+        "delete" => Some(openai::ApplyPatchOperation::DeleteFile {
+            path,
+            rest: Default::default(),
+        }),
         "str_replace" => Some(openai::ApplyPatchOperation::UpdateFile {
             diff: replacement_diff(&string(input, "old_str")?, &string(input, "new_str")?),
             path,
-            rest,
+            rest: Default::default(),
         }),
         _ => None,
     }
@@ -52,7 +41,7 @@ pub(crate) fn bash_input(
     if action.commands.is_empty() {
         return Ok(None);
     }
-    let mut input = action.rest;
+    let mut input = claude::JsonObject::new();
     input.insert("command".into(), action.commands.join("\n").into());
     if let Some(timeout_ms) = action.timeout_ms {
         input.insert("timeout_ms".into(), timeout_ms.into());
@@ -72,7 +61,7 @@ pub(crate) fn local_bash_input(
     if action.command.is_empty() {
         return Ok(None);
     }
-    let mut input = action.rest;
+    let mut input = claude::JsonObject::new();
     input.insert("command".into(), action.command.join("\n").into());
     if !action.env.is_empty() {
         input.insert("env".into(), serde_json::to_value(action.env)?);
@@ -91,32 +80,29 @@ pub(crate) fn local_bash_input(
 
 pub(crate) fn editor_input(operation: openai::ApplyPatchOperation) -> claude::JsonObject {
     match operation {
-        openai::ApplyPatchOperation::CreateFile {
-            diff,
-            path,
-            mut rest,
-        } => {
-            rest.insert("path".into(), path.into());
-            rest.insert("command".into(), "create".into());
-            rest.insert("file_text".into(), diff.into());
-            rest
-        }
-        openai::ApplyPatchOperation::DeleteFile { path, mut rest } => {
-            rest.insert("path".into(), path.into());
-            rest.insert("command".into(), "delete".into());
-            rest
-        }
-        openai::ApplyPatchOperation::UpdateFile {
-            diff,
-            path,
-            mut rest,
-        } => {
+        openai::ApplyPatchOperation::CreateFile { diff, path, .. } => [
+            ("path".into(), path.into()),
+            ("command".into(), "create".into()),
+            ("file_text".into(), diff.into()),
+        ]
+        .into_iter()
+        .collect(),
+        openai::ApplyPatchOperation::DeleteFile { path, .. } => [
+            ("path".into(), path.into()),
+            ("command".into(), "delete".into()),
+        ]
+        .into_iter()
+        .collect(),
+        openai::ApplyPatchOperation::UpdateFile { diff, path, .. } => {
             let (old, new) = replacement_strings(&diff);
-            rest.insert("path".into(), path.into());
-            rest.insert("command".into(), "str_replace".into());
-            rest.insert("old_str".into(), old.into());
-            rest.insert("new_str".into(), new.into());
-            rest
+            [
+                ("path".into(), path.into()),
+                ("command".into(), "str_replace".into()),
+                ("old_str".into(), old.into()),
+                ("new_str".into(), new.into()),
+            ]
+            .into_iter()
+            .collect()
         }
     }
 }

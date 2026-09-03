@@ -26,7 +26,7 @@ pub(super) fn message_item(
             )],
             status,
             phase: None,
-            rest: item.rest.clone(),
+            rest: Default::default(),
         },
     ))
 }
@@ -55,6 +55,6 @@ pub(super) fn reasoning_item(
         }]),
         encrypted_content: item.signature.clone(),
         status: Some(status),
-        rest: item.rest.clone(),
+        rest: Default::default(),
     }))
 }

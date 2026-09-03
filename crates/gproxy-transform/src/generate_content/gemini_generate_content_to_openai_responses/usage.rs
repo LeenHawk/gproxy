@@ -61,28 +61,6 @@ pub(in crate::generate_content) fn to_responses(
         .cached_content_token_count
         .map(nonnegative_value)
         .transpose()?;
-    let mut rest = usage.rest;
-    preserve(
-        &mut rest,
-        "toolUsePromptTokenCount",
-        usage.tool_use_prompt_token_count,
-    )?;
-    preserve_details(
-        &mut rest,
-        "promptTokensDetails",
-        usage.prompt_tokens_details,
-    )?;
-    preserve_details(&mut rest, "cacheTokensDetails", usage.cache_tokens_details)?;
-    preserve_details(
-        &mut rest,
-        "candidatesTokensDetails",
-        usage.candidates_tokens_details,
-    )?;
-    preserve_details(
-        &mut rest,
-        "toolUsePromptTokensDetails",
-        usage.tool_use_prompt_tokens_details,
-    )?;
     Ok(openai::ResponseUsage {
         input_tokens,
         output_tokens,
@@ -100,7 +78,7 @@ pub(in crate::generate_content) fn to_responses(
                 rest: Default::default(),
             }
         }),
-        rest,
+        rest: Default::default(),
     })
 }
 
@@ -117,28 +95,6 @@ fn validate_details(details: &[gemini::ModalityTokenCount]) -> Result<(), Transf
     } else {
         Ok(())
     }
-}
-
-fn preserve<T: serde::Serialize>(
-    rest: &mut openai::Rest,
-    key: &str,
-    value: Option<T>,
-) -> Result<(), TransformError> {
-    if let Some(value) = value {
-        rest.insert(key.into(), serde_json::to_value(value)?);
-    }
-    Ok(())
-}
-
-fn preserve_details(
-    rest: &mut openai::Rest,
-    key: &str,
-    value: Vec<gemini::ModalityTokenCount>,
-) -> Result<(), TransformError> {
-    if !value.is_empty() {
-        rest.insert(key.into(), serde_json::to_value(value)?);
-    }
-    Ok(())
 }
 
 fn required(value: Option<i32>, field: &str) -> Result<u32, TransformError> {

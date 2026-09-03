@@ -49,7 +49,7 @@ impl State {
                 self.response_content_part_added(event)
             }
             openai::KnownResponseStreamEvent::ResponseContentPartDone(event) => {
-                self.response_content_done(&event.item_id, Some(event.content_index), event.rest)
+                self.response_content_done(&event.item_id, Some(event.content_index))
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextDelta(event) => {
                 self.response_output_text_delta(event)
@@ -68,31 +68,26 @@ impl State {
                 self.response_tool_delta(event)
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextDone(event) => {
-                self.response_content_done(&event.item_id, Some(event.content_index), event.rest)
+                self.response_content_done(&event.item_id, Some(event.content_index))
             }
             openai::KnownResponseStreamEvent::ResponseReasoningTextDone(event) => {
-                self.response_content_done(&event.item_id, Some(event.content_index), event.rest)
+                self.response_content_done(&event.item_id, Some(event.content_index))
             }
             openai::KnownResponseStreamEvent::ResponseReasoningSummaryTextDone(event) => {
-                self.response_content_done(&event.item_id, None, event.rest)
+                self.response_content_done(&event.item_id, None)
             }
             openai::KnownResponseStreamEvent::ResponseRefusalDone(event) => {
-                self.response_content_done(&event.item_id, Some(event.content_index), event.rest)
+                self.response_content_done(&event.item_id, Some(event.content_index))
             }
             openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDone(event) => self
                 .response_tool_done(
                     event.item_id.as_deref(),
                     event.output_index,
                     event.arguments,
-                    event.rest,
                 ),
-            openai::KnownResponseStreamEvent::ResponseCustomToolCallInputDone(event) => self
-                .response_tool_done(
-                    Some(&event.item_id),
-                    event.output_index,
-                    event.input,
-                    event.rest,
-                ),
+            openai::KnownResponseStreamEvent::ResponseCustomToolCallInputDone(event) => {
+                self.response_tool_done(Some(&event.item_id), event.output_index, event.input)
+            }
             openai::KnownResponseStreamEvent::ResponseOutputTextAnnotationAdded(_)
             | openai::KnownResponseStreamEvent::ResponseInjectCreated(_)
             | openai::KnownResponseStreamEvent::ResponseInjectFailed(_)

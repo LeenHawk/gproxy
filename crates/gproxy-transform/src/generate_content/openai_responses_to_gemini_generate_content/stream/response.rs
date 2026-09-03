@@ -80,7 +80,7 @@ impl State {
             truncation: None,
             usage,
             user: None,
-            rest: self.response_rest.clone(),
+            rest: Default::default(),
         })
     }
 }

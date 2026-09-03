@@ -1,33 +1,33 @@
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
-use crate::common::tools::{callers_to_openai, merge};
+use crate::common::tools::callers_to_openai;
 
 pub(super) fn convert(tool: claude::Tool) -> Result<openai::ResponseTool, TransformError> {
     let tool = normalize(tool)?;
     Ok(match tool {
         claude::Tool::Custom(tool) => custom(tool)?,
         claude::Tool::Command(command) => match command {
-            claude::CommandTool::Bash20241022(tool) => shell(tool.common, tool.rest),
-            claude::CommandTool::Bash20250124(tool) => shell(tool.common, tool.rest),
+            claude::CommandTool::Bash20241022(tool) => shell(tool.common),
+            claude::CommandTool::Bash20250124(tool) => shell(tool.common),
             claude::CommandTool::CodeExecution20250522(tool) => {
-                code_interpreter(tool.common.allowed_callers, tool.rest)
+                code_interpreter(tool.common.allowed_callers)
             }
             claude::CommandTool::CodeExecution20250825(tool) => {
-                code_interpreter(tool.common.allowed_callers, tool.rest)
+                code_interpreter(tool.common.allowed_callers)
             }
             claude::CommandTool::CodeExecution20260120(tool) => {
-                code_interpreter(tool.common.allowed_callers, tool.rest)
+                code_interpreter(tool.common.allowed_callers)
             }
             claude::CommandTool::CodeExecution20260521(tool) => {
-                code_interpreter(tool.common.allowed_callers, tool.rest)
+                code_interpreter(tool.common.allowed_callers)
             }
-            claude::CommandTool::Memory20250818(tool) => memory(tool.common, tool.rest),
+            claude::CommandTool::Memory20250818(tool) => memory(tool.common),
             claude::CommandTool::ToolSearchRegex(tool) => {
-                tool_search(openai::ToolSearchExecution::Client, tool.common, tool.rest)
+                tool_search(openai::ToolSearchExecution::Client, tool.common)
             }
             claude::CommandTool::ToolSearchBm25(tool) => {
-                tool_search(openai::ToolSearchExecution::Server, tool.common, tool.rest)
+                tool_search(openai::ToolSearchExecution::Server, tool.common)
             }
             other => fallback(claude::Tool::Command(other))?,
         },
@@ -47,7 +47,7 @@ pub(super) fn convert(tool: claude::Tool) -> Result<openai::ResponseTool, Transf
             server_url: None,
             tunnel_id: None,
             allowed_callers: None,
-            rest: toolset.rest,
+            rest: Default::default(),
         },
         other => fallback(other)?,
     })
@@ -58,21 +58,6 @@ fn custom(tool: claude::CustomTool) -> Result<openai::ResponseTool, TransformErr
         .as_object()
         .cloned()
         .ok_or_else(|| TransformError::shape("Claude custom tool", "schema must be an object"))?;
-    let mut rest = merge(tool.rest, tool.common.rest);
-    for key in [
-        "allowed_callers",
-        "cache_control",
-        "defer_loading",
-        "description",
-        "eager_input_streaming",
-        "input_examples",
-        "input_schema",
-        "name",
-        "strict",
-        "type",
-    ] {
-        rest.remove(key);
-    }
     Ok(openai::ResponseTool::Function {
         name: tool.name,
         parameters: openai::ResponseFunctionParameters::Schema(parameters),
@@ -85,78 +70,48 @@ fn custom(tool: claude::CustomTool) -> Result<openai::ResponseTool, TransformErr
         description: tool.description,
         output_schema: None,
         allowed_callers: callers_to_openai(tool.common.allowed_callers),
-        rest,
+        rest: Default::default(),
     })
 }
 
 fn normalize(tool: claude::Tool) -> Result<claude::Tool, TransformError> {
-    let raw = match tool {
+    match tool {
         claude::Tool::WebFetch(claude::WebFetchTool::Raw(raw))
         | claude::Tool::WebSearch(claude::WebSearchTool::Raw(raw))
         | claude::Tool::Computer(claude::ComputerTool::Raw(raw))
         | claude::Tool::TextEditor(claude::TextEditorTool::Raw(raw))
         | claude::Tool::Command(claude::CommandTool::Raw(raw))
-        | claude::Tool::Unknown(raw) => raw,
-        tool => return Ok(tool),
-    };
-    let type_ = raw
-        .as_object()
-        .and_then(|object| object.get("type"))
-        .and_then(serde_json::Value::as_str);
-    Ok(match type_ {
-        Some(type_)
-            if type_.starts_with("bash_")
-                || type_.starts_with("code_execution_")
-                || type_.starts_with("memory_")
-                || type_.starts_with("tool_search_tool_") =>
-        {
-            claude::Tool::Command(serde_json::from_value(raw)?)
+        | claude::Tool::Unknown(raw) => {
+            Err(TransformError::unsupported("Claude tool", raw.to_string()))
         }
-        Some(type_) if type_.starts_with("text_editor_") => {
-            claude::Tool::TextEditor(serde_json::from_value(raw)?)
-        }
-        Some(type_) if type_.starts_with("computer_") => {
-            claude::Tool::Computer(serde_json::from_value(raw)?)
-        }
-        Some(type_) if type_.starts_with("web_search_") => {
-            claude::Tool::WebSearch(serde_json::from_value(raw)?)
-        }
-        Some(type_) if type_.starts_with("web_fetch_") => {
-            claude::Tool::WebFetch(serde_json::from_value(raw)?)
-        }
-        _ => claude::Tool::Unknown(raw),
-    })
+        tool => Ok(tool),
+    }
 }
 
-fn shell(common: claude::ToolCommon, rest: openai::Rest) -> openai::ResponseTool {
+fn shell(common: claude::ToolCommon) -> openai::ResponseTool {
     openai::ResponseTool::Shell {
         environment: None,
         allowed_callers: callers_to_openai(common.allowed_callers),
-        rest: merge(rest, common.rest),
+        rest: Default::default(),
     }
 }
 
 fn text_editor(editor: claude::TextEditorTool) -> Result<openai::ResponseTool, TransformError> {
-    let (common, max_characters, rest) = match editor {
-        claude::TextEditorTool::TextEditor20241022(tool) => (tool.common, None, tool.rest),
-        claude::TextEditorTool::TextEditor20250124(tool) => (tool.common, None, tool.rest),
-        claude::TextEditorTool::TextEditor20250429(tool) => (tool.common, None, tool.rest),
-        claude::TextEditorTool::TextEditor20250728(tool) => {
-            (tool.common, tool.max_characters, tool.rest)
-        }
+    let (common, max_characters) = match editor {
+        claude::TextEditorTool::TextEditor20241022(tool) => (tool.common, None),
+        claude::TextEditorTool::TextEditor20250124(tool) => (tool.common, None),
+        claude::TextEditorTool::TextEditor20250429(tool) => (tool.common, None),
+        claude::TextEditorTool::TextEditor20250728(tool) => (tool.common, tool.max_characters),
         other => return fallback(claude::Tool::TextEditor(other)),
     };
     Ok(openai::ResponseTool::ApplyPatch {
         allowed_callers: callers_to_openai(common.allowed_callers),
         max_characters,
-        rest: merge(rest, common.rest),
+        rest: Default::default(),
     })
 }
 
-fn code_interpreter(
-    callers: Option<Vec<claude::ToolCaller>>,
-    rest: openai::Rest,
-) -> openai::ResponseTool {
+fn code_interpreter(callers: Option<Vec<claude::ToolCaller>>) -> openai::ResponseTool {
     openai::ResponseTool::CodeInterpreter {
         container: openai::CodeInterpreterContainer::Auto(openai::CodeInterpreterAutoContainer {
             type_: openai::CodeInterpreterContainerType::Auto,
@@ -166,11 +121,11 @@ fn code_interpreter(
             rest: Default::default(),
         }),
         allowed_callers: callers_to_openai(callers),
-        rest,
+        rest: Default::default(),
     }
 }
 
-fn memory(common: claude::ToolCommon, rest: openai::Rest) -> openai::ResponseTool {
+fn memory(common: claude::ToolCommon) -> openai::ResponseTool {
     openai::ResponseTool::Function {
         name: "memory".into(),
         parameters: openai::ResponseFunctionParameters::Null,
@@ -182,40 +137,39 @@ fn memory(common: claude::ToolCommon, rest: openai::Rest) -> openai::ResponseToo
         description: Some("Read or update persistent agent memory".into()),
         output_schema: None,
         allowed_callers: callers_to_openai(common.allowed_callers),
-        rest: merge(rest, common.rest),
+        rest: Default::default(),
     }
 }
 
 fn tool_search(
     execution: openai::ToolSearchExecution,
-    common: claude::ToolCommonWithoutInputExamples,
-    rest: openai::Rest,
+    _common: claude::ToolCommonWithoutInputExamples,
 ) -> openai::ResponseTool {
     openai::ResponseTool::ToolSearch {
         description: None,
         execution: Some(execution),
         parameters: None,
-        rest: merge(rest, common.rest),
+        rest: Default::default(),
     }
 }
 
 fn computer(computer: claude::ComputerTool) -> Result<openai::ResponseTool, TransformError> {
-    let (common, rest) = match computer {
-        claude::ComputerTool::Computer20241022(tool) => (tool.common, tool.rest),
-        claude::ComputerTool::Computer20250124(tool) => (tool.common, tool.rest),
-        claude::ComputerTool::Computer20251124(tool) => (tool.common, tool.rest),
+    match computer {
+        claude::ComputerTool::Computer20241022(_)
+        | claude::ComputerTool::Computer20250124(_)
+        | claude::ComputerTool::Computer20251124(_) => {}
         other => return fallback(claude::Tool::Computer(other)),
-    };
+    }
     Ok(openai::ResponseTool::Computer {
-        rest: merge(rest, common.rest),
+        rest: Default::default(),
     })
 }
 
 fn web_search(search: claude::WebSearchTool) -> Result<openai::ResponseTool, TransformError> {
-    let (params, common, rest) = match search {
-        claude::WebSearchTool::WebSearch20250305(tool) => (tool.params, tool.common, tool.rest),
-        claude::WebSearchTool::WebSearch20260209(tool) => (tool.params, tool.common, tool.rest),
-        claude::WebSearchTool::WebSearch20260318(tool) => (tool.params, tool.common, tool.rest),
+    let params = match search {
+        claude::WebSearchTool::WebSearch20250305(tool) => tool.params,
+        claude::WebSearchTool::WebSearch20260209(tool) => tool.params,
+        claude::WebSearchTool::WebSearch20260318(tool) => tool.params,
         other => return fallback(claude::Tool::WebSearch(other)),
     };
     let filters = if params.allowed_domains.is_some() || params.blocked_domains.is_some() {
@@ -232,16 +186,16 @@ fn web_search(search: claude::WebSearchTool) -> Result<openai::ResponseTool, Tra
         max_uses: params.max_uses,
         search_context_size: None,
         user_location: params.user_location.map(location),
-        rest: merge(merge(rest, common.rest), params.rest),
+        rest: Default::default(),
     })
 }
 
 fn web_fetch(fetch: claude::WebFetchTool) -> Result<openai::ResponseTool, TransformError> {
-    let (params, common, rest) = match fetch {
-        claude::WebFetchTool::WebFetch20250910(tool) => (tool.params, tool.common, tool.rest),
-        claude::WebFetchTool::WebFetch20260209(tool) => (tool.params, tool.common, tool.rest),
-        claude::WebFetchTool::WebFetch20260309(tool) => (tool.params, tool.common, tool.rest),
-        claude::WebFetchTool::WebFetch20260318(tool) => (tool.params, tool.common, tool.rest),
+    let params = match fetch {
+        claude::WebFetchTool::WebFetch20250910(tool) => tool.params,
+        claude::WebFetchTool::WebFetch20260209(tool) => tool.params,
+        claude::WebFetchTool::WebFetch20260309(tool) => tool.params,
+        claude::WebFetchTool::WebFetch20260318(tool) => tool.params,
         other => return fallback(claude::Tool::WebFetch(other)),
     };
     Ok(openai::ResponseTool::WebFetch {
@@ -249,7 +203,7 @@ fn web_fetch(fetch: claude::WebFetchTool) -> Result<openai::ResponseTool, Transf
         blocked_domains: params.blocked_domains,
         max_content_tokens: params.max_content_tokens,
         max_uses: params.max_uses,
-        rest: merge(merge(rest, common.rest), params.rest),
+        rest: Default::default(),
     })
 }
 
@@ -260,40 +214,13 @@ fn location(location: claude::UserLocation) -> openai::WebSearchUserLocation {
         region: location.region,
         timezone: location.timezone,
         type_: Some(openai::ApproximateLocationType::Approximate),
-        rest: location.rest,
+        rest: Default::default(),
     }
 }
 
 fn fallback(tool: claude::Tool) -> Result<openai::ResponseTool, TransformError> {
-    let raw = serde_json::to_value(&tool)?;
-    let object = raw.as_object();
-    let name = object
-        .and_then(|object| object.get("name"))
-        .and_then(serde_json::Value::as_str)
-        .or_else(|| {
-            object
-                .and_then(|object| object.get("type"))
-                .and_then(serde_json::Value::as_str)
-        })
-        .ok_or_else(|| {
-            TransformError::shape(
-                "Claude native tool fallback",
-                "both name and type are missing",
-            )
-        })?
-        .to_owned();
-    let mut rest = openai::Rest::new();
-    rest.insert("source_tool_definition".into(), raw);
-    let mut parameters = openai::JsonSchema::new();
-    parameters.insert("type".into(), "object".into());
-    Ok(openai::ResponseTool::Function {
-        name,
-        parameters: openai::ResponseFunctionParameters::Schema(parameters),
-        strict: openai::ResponseFunctionStrict::Absent,
-        defer_loading: None,
-        description: None,
-        output_schema: None,
-        allowed_callers: None,
-        rest,
-    })
+    Err(TransformError::unsupported(
+        "Claude native tool",
+        serde_json::to_string(&tool)?,
+    ))
 }

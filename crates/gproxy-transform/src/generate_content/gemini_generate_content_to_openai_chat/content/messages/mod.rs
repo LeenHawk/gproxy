@@ -21,7 +21,7 @@ pub(crate) fn messages(
 
 pub(crate) fn system_content(
     content: gemini::Content,
-) -> Result<(openai::ChatTextContent, openai::Rest), TransformError> {
+) -> Result<openai::ChatTextContent, TransformError> {
     system::convert(content)
 }
 
@@ -42,13 +42,13 @@ impl State {
                 self.model(content, turn)
             }
             Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)) => {
-                let (content, rest) = system::convert(content)?;
+                let content = system::convert(content)?;
                 Ok(vec![openai::ChatCompletionMessageParam::Developer(
                     openai::ChatDeveloperMessageParam {
                         role: openai::ChatDeveloperRole::Developer,
                         content,
                         name: None,
-                        rest,
+                        rest: Default::default(),
                     },
                 )])
             }

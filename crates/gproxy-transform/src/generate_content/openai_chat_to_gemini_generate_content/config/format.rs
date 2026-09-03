@@ -30,11 +30,6 @@ pub(super) fn convert(
                 Some(serde_json::Value::Object(schema)),
             )
         }
-        Some(openai::ChatResponseFormat::Unknown(raw)) => {
-            return Err(TransformError::unsupported(
-                "Chat response format",
-                raw.to_string(),
-            ));
-        }
+        Some(openai::ChatResponseFormat::Unknown(_)) => (None, None),
     })
 }

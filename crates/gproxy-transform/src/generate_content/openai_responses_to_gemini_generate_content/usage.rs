@@ -35,38 +35,20 @@ pub(in crate::generate_content) fn to_gemini(
                 "output_tokens is below reasoning_tokens",
             )
         })?;
-    let mut rest = usage.rest;
-    let tool_use_prompt_token_count = take(&mut rest, "toolUsePromptTokenCount")?;
-    let prompt_tokens_details = take(&mut rest, "promptTokensDetails")?.unwrap_or_else(Vec::new);
-    let cache_tokens_details = take(&mut rest, "cacheTokensDetails")?.unwrap_or_else(Vec::new);
-    let candidates_tokens_details =
-        take(&mut rest, "candidatesTokensDetails")?.unwrap_or_else(Vec::new);
-    let tool_use_prompt_tokens_details =
-        take(&mut rest, "toolUsePromptTokensDetails")?.unwrap_or_else(Vec::new);
     Ok(Some(gemini::UsageMetadata {
         prompt_token_count: Some(to_i32(usage.input_tokens)?),
         cached_content_token_count: cached_tokens.map(to_i32).transpose()?,
         candidates_token_count: Some(to_i32(candidate_tokens)?),
-        tool_use_prompt_token_count,
+        tool_use_prompt_token_count: None,
         thoughts_token_count: reasoning_tokens.map(to_i32).transpose()?,
         total_token_count: Some(to_i32(usage.total_tokens)?),
-        prompt_tokens_details,
-        cache_tokens_details,
-        candidates_tokens_details,
-        tool_use_prompt_tokens_details,
+        prompt_tokens_details: Vec::new(),
+        cache_tokens_details: Vec::new(),
+        candidates_tokens_details: Vec::new(),
+        tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
-        rest,
+        rest: Default::default(),
     }))
-}
-
-fn take<T: serde::de::DeserializeOwned>(
-    rest: &mut openai::Rest,
-    key: &str,
-) -> Result<Option<T>, crate::TransformError> {
-    rest.remove(key)
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
 }
 
 fn to_i32(value: u32) -> Result<i32, crate::TransformError> {

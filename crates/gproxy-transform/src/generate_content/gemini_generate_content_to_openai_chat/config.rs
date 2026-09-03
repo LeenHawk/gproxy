@@ -98,21 +98,18 @@ fn modalities(
     if modalities.is_empty() {
         return Ok(vec![openai::TextOrAudioModality::Text]);
     }
-    modalities
+    Ok(modalities
         .into_iter()
-        .map(|modality| match modality {
+        .filter_map(|modality| match modality {
             gemini::ResponseModality::Known(gemini::ResponseModalityKnown::Text) => {
-                Ok(openai::TextOrAudioModality::Text)
+                Some(openai::TextOrAudioModality::Text)
             }
             gemini::ResponseModality::Known(gemini::ResponseModalityKnown::Audio) => {
-                Ok(openai::TextOrAudioModality::Audio)
+                Some(openai::TextOrAudioModality::Audio)
             }
-            other => Err(TransformError::unsupported(
-                "Gemini response modality",
-                serde_json::to_string(&other)?,
-            )),
+            _ => None,
         })
-        .collect()
+        .collect())
 }
 
 fn reasoning(
@@ -141,13 +138,7 @@ fn reasoning(
         gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High) => {
             openai::ReasoningEffort::High
         }
-        gemini::ThinkingLevel::Unknown(value) => openai::ReasoningEffort::Unknown(value.clone()),
-        _ => {
-            return Err(TransformError::unsupported(
-                "Gemini thinking level",
-                "future thinking level",
-            ));
-        }
+        _ => return Ok(None),
     }))
 }
 

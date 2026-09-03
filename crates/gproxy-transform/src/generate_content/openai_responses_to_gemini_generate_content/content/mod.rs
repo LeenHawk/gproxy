@@ -50,16 +50,9 @@ impl ContentConverter {
         item: openai::ResponseItem,
     ) -> Result<Option<gemini::Content>, TransformError> {
         Ok(match item {
-            openai::ResponseItem::Message(message) => Some(messages::message(message)?),
+            openai::ResponseItem::Message(message) => messages::message(message)?,
             openai::ResponseItem::Typed(item) => self.typed(*item)?,
-            openai::ResponseItem::Unknown(raw) => Some(gemini::Content {
-                parts: vec![gemini::Part {
-                    data: Some(gemini::PartData::Raw(raw)),
-                    ..Default::default()
-                }],
-                role: None,
-                rest: Default::default(),
-            }),
+            openai::ResponseItem::Unknown(_) => None,
         })
     }
 
@@ -72,30 +65,24 @@ impl ContentConverter {
                 call_id,
                 name,
                 arguments,
-                mut rest,
                 ..
             }
             | openai::TypedResponseItem::CustomToolCall {
                 call_id,
                 name,
                 input: arguments,
-                mut rest,
                 ..
             } => {
-                if let Some(signature) = self.pending_signature.take() {
-                    rest.entry("thought_signature")
-                        .or_insert_with(|| signature.into());
-                }
+                let signature = self.pending_signature.take();
                 self.function_names.insert(call_id.clone(), name.clone());
                 Ok(Some(native::function_call(
-                    call_id, name, arguments, &mut rest,
+                    call_id, name, arguments, signature,
                 )?))
             }
             openai::TypedResponseItem::FunctionCallOutput {
                 call_id,
                 name,
                 output,
-                rest,
                 ..
             } => {
                 let name = name
@@ -106,13 +93,10 @@ impl ContentConverter {
                             "name missing and no matching call was seen",
                         )
                     })?;
-                Ok(Some(native::function_result(call_id, name, output, rest)?))
+                Ok(Some(native::function_result(call_id, name, output)?))
             }
             openai::TypedResponseItem::CustomToolCallOutput {
-                call_id,
-                output,
-                rest,
-                ..
+                call_id, output, ..
             } => {
                 let name = self.function_names.get(&call_id).cloned().ok_or_else(|| {
                     TransformError::shape(
@@ -120,14 +104,13 @@ impl ContentConverter {
                         "name missing and no matching call was seen",
                     )
                 })?;
-                Ok(Some(native::function_result(call_id, name, output, rest)?))
+                Ok(Some(native::function_result(call_id, name, output)?))
             }
             openai::TypedResponseItem::Reasoning {
-                id,
+                id: _,
                 summary,
                 content,
                 encrypted_content,
-                rest,
                 ..
             } => {
                 let empty = summary.is_empty()
@@ -138,13 +121,7 @@ impl ContentConverter {
                     self.pending_signature = encrypted_content;
                     Ok(None)
                 } else {
-                    Ok(Some(native::reasoning(
-                        id,
-                        summary,
-                        content,
-                        encrypted_content,
-                        rest,
-                    )))
+                    Ok(Some(native::reasoning(summary, content, encrypted_content)))
                 }
             }
             other @ (openai::TypedResponseItem::FileSearchCall { .. }
@@ -173,9 +150,7 @@ impl ContentConverter {
             | openai::TypedResponseItem::MultiAgentCallOutput { .. }
             | openai::TypedResponseItem::AgentMessage { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
-            | openai::TypedResponseItem::ItemReference { .. }) => {
-                native::native_item(self, other).map(Some)
-            }
+            | openai::TypedResponseItem::ItemReference { .. }) => native::native_item(self, other),
         }
     }
 }

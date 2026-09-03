@@ -18,7 +18,6 @@ impl State {
         &mut self,
         candidate: u32,
         call: gemini::FunctionCall,
-        rest: openai::Rest,
     ) -> Result<openai::ChatToolCallDelta, TransformError> {
         let index = self.allocate(candidate);
         let id = call
@@ -27,20 +26,13 @@ impl State {
         let args = call
             .args
             .ok_or_else(|| TransformError::shape("Gemini function call", "args is missing"))?;
-        Ok(delta(
-            index,
-            id,
-            call.name,
-            serde_json::to_string(&args)?,
-            rest,
-        ))
+        Ok(delta(index, id, call.name, serde_json::to_string(&args)?))
     }
 
     pub(super) fn code(
         &mut self,
         candidate: u32,
         mut code: gemini::ExecutableCode,
-        rest: openai::Rest,
     ) -> Result<openai::ChatToolCallDelta, TransformError> {
         let index = self.allocate(candidate);
         let id = code
@@ -56,7 +48,6 @@ impl State {
             id,
             CODE_EXECUTION_NAME.into(),
             serde_json::to_string(&code)?,
-            rest,
         ))
     }
 
@@ -64,8 +55,7 @@ impl State {
         &mut self,
         candidate: u32,
         result: gemini::CodeExecutionResult,
-        mut rest: openai::Rest,
-    ) -> Result<openai::ChatToolCallDelta, TransformError> {
+    ) -> Result<(), TransformError> {
         let index = result
             .id
             .as_ref()
@@ -93,18 +83,7 @@ impl State {
         {
             pending.remove(position);
         }
-        rest.insert(
-            "gemini_code_execution_result".into(),
-            serde_json::to_value(result)?,
-        );
-        Ok(openai::ChatToolCallDelta {
-            index,
-            id: None,
-            type_: None,
-            function: None,
-            custom: None,
-            rest,
-        })
+        Ok(())
     }
 
     pub(super) fn complete(&self) -> bool {
@@ -119,13 +98,7 @@ impl State {
     }
 }
 
-fn delta(
-    index: u32,
-    id: String,
-    name: String,
-    arguments: String,
-    rest: openai::Rest,
-) -> openai::ChatToolCallDelta {
+fn delta(index: u32, id: String, name: String, arguments: String) -> openai::ChatToolCallDelta {
     openai::ChatToolCallDelta {
         index,
         id: Some(id),
@@ -136,6 +109,6 @@ fn delta(
             rest: Default::default(),
         }),
         custom: None,
-        rest,
+        rest: Default::default(),
     }
 }

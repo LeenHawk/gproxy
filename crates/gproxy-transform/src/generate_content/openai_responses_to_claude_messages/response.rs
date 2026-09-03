@@ -14,13 +14,6 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
 pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
     let id = input.id;
-    let mut rest = input.rest;
-    crate::common::claude_message_controls::preserve_input_transformations(
-        &mut rest,
-        input.input_transformations,
-    )?;
-    let created_at = take(&mut rest, "openai_created_at")?;
-    let completed_at = take(&mut rest, "openai_completed_at")?;
     let service_tier = claude_service_tier(&input.usage)?;
     let mut output = Vec::new();
     let mut text = Vec::new();
@@ -29,8 +22,7 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
     let mut message_index = 0;
     for block in input.content {
         match block {
-            claude::ResponseContentBlock::Text(mut block) => {
-                message_id = take(&mut block.rest, "openai_item_id")?.or(message_id);
+            claude::ResponseContentBlock::Text(block) => {
                 text.push(block.text.clone());
                 parts.push(openai::ResponseMessageOutputContentPart::OutputText(
                     openai::ResponseOutputText {
@@ -38,50 +30,42 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
                         annotations: Vec::new(),
                         logprobs: None,
                         text: block.text,
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                 ));
             }
-            claude::ResponseContentBlock::Thinking(mut block) => {
-                let item_id = take(&mut block.rest, "openai_item_id")?;
+            claude::ResponseContentBlock::Thinking(block) => {
                 output.push(reasoning(
-                    item_id,
+                    None,
                     Some(block.thinking),
                     block.signature,
-                    block.rest,
+                    Default::default(),
                 ));
             }
-            claude::ResponseContentBlock::RedactedThinking(mut block) => {
-                let item_id = take(&mut block.rest, "openai_item_id")?;
-                output.push(reasoning(item_id, None, Some(block.data), block.rest));
+            claude::ResponseContentBlock::RedactedThinking(block) => {
+                output.push(reasoning(None, None, Some(block.data), Default::default()));
             }
             claude::ResponseContentBlock::ToolUse(block) => {
                 let (item, _) = items::claude_call(
                     block.id,
                     block.input,
                     block.name,
-                    block.rest,
                     openai::ResponseItemLifecycleStatus::Completed,
                 )?;
                 output.push(openai::ResponseItem::Typed(Box::new(item)));
             }
-            claude::ResponseContentBlock::Compaction(mut block) => {
-                let item_id = take(&mut block.rest, "openai_item_id")?;
+            claude::ResponseContentBlock::Compaction(block) => {
                 output.push(openai::ResponseItem::Typed(Box::new(
                     openai::TypedResponseItem::Compaction {
                         encrypted_content: block.encrypted_content,
-                        id: item_id,
+                        id: None,
                         created_by: None,
-                        rest: block.rest,
+                        rest: Default::default(),
                     },
                 )));
             }
-            claude::ResponseContentBlock::Raw(raw) => {
-                output.push(openai::ResponseItem::Unknown(raw));
-            }
-            other => {
-                output.push(openai::ResponseItem::Unknown(serde_json::to_value(other)?));
-            }
+            claude::ResponseContentBlock::Raw(_) => {}
+            _ => {}
         }
     }
     flush_message(
@@ -102,9 +86,9 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
     };
     let response = openai::ResponseObject {
         id,
-        created_at,
+        created_at: None,
         background: None,
-        completed_at,
+        completed_at: None,
         conversation: None,
         error: None,
         incomplete_details: incomplete_reason
@@ -147,7 +131,7 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         truncation: None,
         usage: usage::claude_to_responses(input.usage),
         user: None,
-        rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
 }

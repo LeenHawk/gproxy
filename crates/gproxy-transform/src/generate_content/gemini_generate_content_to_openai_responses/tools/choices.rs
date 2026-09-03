@@ -8,10 +8,7 @@ pub(crate) fn choice_to_responses(
     let Some(config) = config else {
         return Ok(None);
     };
-    if config.retrieval_config.is_some()
-        || config.include_server_side_tool_invocations.is_some()
-        || !config.rest.is_empty()
-    {
+    if config.retrieval_config.is_some() || config.include_server_side_tool_invocations.is_some() {
         return Err(TransformError::unsupported(
             "Gemini toolConfig",
             "retrieval, server-side invocation, or extension settings",
@@ -20,12 +17,6 @@ pub(crate) fn choice_to_responses(
     let Some(config) = config.function_calling_config else {
         return Ok(None);
     };
-    if !config.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Gemini functionCallingConfig",
-            "extension fields",
-        ));
-    }
     let names = config.allowed_function_names;
     Ok(match config.mode {
         None
@@ -57,16 +48,14 @@ pub(crate) fn choice_to_responses(
         Some(gemini::FunctionCallingMode::Known(
             gemini::FunctionCallingModeKnown::Any | gemini::FunctionCallingModeKnown::Validated,
         )) => Some(choice_with_names(openai::AllowedToolsMode::Required, names)),
-        Some(gemini::FunctionCallingMode::Unknown(value)) => {
+        Some(gemini::FunctionCallingMode::Unknown(_)) => {
             if names.is_some() {
                 return Err(TransformError::unsupported(
                     "Gemini functionCallingConfig",
                     "allowed names with an unknown mode",
                 ));
             }
-            Some(openai::ResponseToolChoice::Mode(
-                openai::ToolChoiceMode::Unknown(value),
-            ))
+            None
         }
         Some(_) => {
             return Err(TransformError::unsupported(

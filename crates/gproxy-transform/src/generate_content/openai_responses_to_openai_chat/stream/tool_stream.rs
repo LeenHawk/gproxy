@@ -4,7 +4,7 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 
 use super::events::{emit, tool_item};
-use super::tools::{merge_rest, tool_kind, tool_kind_or, tool_metadata, tool_payload};
+use super::tools::{tool_kind, tool_kind_or, tool_metadata, tool_payload};
 use super::{State, Tool, ToolKind};
 
 impl State {
@@ -19,14 +19,13 @@ impl State {
                 TransformError::shape("Chat stream", "tool call id missing on first delta")
             })?;
             let kind = tool_kind(&call)?;
-            let (name, rest) = tool_metadata(&call, kind)?;
+            let name = tool_metadata(&call, kind)?;
             let item = Tool {
                 id,
                 index: self.allocate(),
                 name,
                 arguments: String::new(),
                 kind,
-                rest,
             };
             output.push(emit(
                 openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
@@ -57,7 +56,7 @@ impl State {
                 "tool call kind changed between deltas",
             ));
         }
-        let (delta, name, rest) = tool_payload(call, kind)?;
+        let (delta, name) = tool_payload(call, kind)?;
         let (id, output_index) = {
             let item = self.tools.get_mut(&chat_index).expect("created");
             if name.as_ref().is_some_and(|name| name != &item.name) {
@@ -67,7 +66,6 @@ impl State {
                 ));
             }
             item.arguments.push_str(&delta);
-            merge_rest(&mut item.rest, rest);
             (item.id.clone(), item.index)
         };
         if !delta.is_empty() {

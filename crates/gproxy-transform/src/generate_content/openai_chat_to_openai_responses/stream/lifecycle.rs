@@ -6,7 +6,7 @@ use crate::common::usage;
 use crate::envelope::SseFrame;
 
 use super::State;
-use super::wire::{empty_delta, merge_rest};
+use super::wire::empty_delta;
 
 impl State {
     pub(super) fn start(
@@ -49,14 +49,11 @@ impl State {
             }
             openai::ResponseStatus::Unknown(_) => openai::ChatFinishReason::ContentFilter,
         };
-        let mut rest = response.rest.clone();
-        merge_rest(&mut rest, event.rest);
         self.stopped = true;
         let mut output = vec![self.chunk(
             empty_delta(),
             Some(finish),
             response.usage.clone().map(usage::responses_to_chat),
-            rest,
         )?];
         output.push(SseFrame::encode(None, "[DONE]"));
         Ok(output)
@@ -72,7 +69,6 @@ impl State {
                 empty_delta(),
                 Some(openai::ChatFinishReason::ContentFilter),
                 None,
-                Default::default(),
             )?,
             SseFrame::encode(None, "[DONE]"),
         ])
@@ -90,7 +86,6 @@ impl State {
         delta: openai::ChatDelta,
         finish_reason: Option<openai::ChatFinishReason>,
         usage: Option<openai::CompletionUsage>,
-        rest: openai::Rest,
     ) -> Result<Bytes, TransformError> {
         SseFrame::typed(
             None,
@@ -115,7 +110,7 @@ impl State {
                 service_tier: self.service_tier.clone(),
                 system_fingerprint: None,
                 usage,
-                rest,
+                rest: Default::default(),
             },
         )
     }

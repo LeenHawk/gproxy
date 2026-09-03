@@ -68,7 +68,7 @@ impl State {
                 id: Some(id.clone()),
                 caller: None,
                 namespace: None,
-                rest: call.rest,
+                rest: Default::default(),
             }
         } else {
             openai::TypedResponseItem::FunctionCall {
@@ -79,7 +79,7 @@ impl State {
                 caller: None,
                 namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                rest: call.rest,
+                rest: Default::default(),
             }
         };
         self.emit_item(openai::ResponseItem::Typed(Box::new(item)), id)

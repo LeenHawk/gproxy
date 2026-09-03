@@ -2,9 +2,9 @@ use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 
+use super::ContentConverter;
 use super::media::{file_message, media_message};
 use super::messages::MessagePart;
-use super::{ContentConverter, wire};
 
 impl ContentConverter {
     pub(super) fn part(
@@ -13,72 +13,52 @@ impl ContentConverter {
         response: bool,
         message: &mut Vec<MessagePart>,
     ) -> Result<Option<openai::ResponseItem>, TransformError> {
-        let rest = wire::part_rest(&mut part)?;
         let signature = part.thought_signature.take();
         let Some(data) = part.data.take() else {
-            return Ok(signature.map(|value| self.reasoning(None, Some(value), rest)));
+            return Ok(signature.map(|value| self.reasoning(None, Some(value))));
         };
         Ok(match data {
-            gemini::PartData::Text {
-                text,
-                rest: data_rest,
-            } if part.thought == Some(true) => {
-                Some(self.reasoning(Some(text), signature, merge(rest, data_rest)))
+            gemini::PartData::Text { text, .. } if part.thought == Some(true) => {
+                Some(self.reasoning(Some(text), signature))
             }
-            gemini::PartData::Text {
-                text,
-                rest: data_rest,
-            } => {
+            gemini::PartData::Text { text, .. } => {
                 if let Some(signature) = signature {
-                    message.push(text_message(text, response, merge(rest.clone(), data_rest)));
-                    Some(self.reasoning(None, Some(signature), rest))
+                    message.push(text_message(text, response));
+                    Some(self.reasoning(None, Some(signature)))
                 } else {
-                    message.push(text_message(text, response, merge(rest, data_rest)));
+                    message.push(text_message(text, response));
                     None
                 }
             }
-            gemini::PartData::InlineData {
-                inline_data,
-                rest: data_rest,
-            } => {
-                message.push(media_message(
-                    inline_data,
-                    response,
-                    merge(rest, data_rest),
-                )?);
+            gemini::PartData::InlineData { inline_data, .. } => {
+                if let Some(part) = media_message(inline_data, response)? {
+                    message.push(part);
+                }
                 None
             }
-            gemini::PartData::FileData {
-                file_data,
-                rest: data_rest,
-            } => {
-                message.push(file_message(file_data, response, merge(rest, data_rest))?);
+            gemini::PartData::FileData { file_data, .. } => {
+                if let Some(part) = file_message(file_data, response)? {
+                    message.push(part);
+                }
                 None
             }
-            gemini::PartData::FunctionCall {
-                function_call,
-                rest: data_rest,
-            } => Some(self.function_call(function_call, signature, merge(rest, data_rest))?),
+            gemini::PartData::FunctionCall { function_call, .. } => {
+                Some(self.function_call(function_call, signature)?)
+            }
             gemini::PartData::FunctionResponse {
-                function_response,
-                rest: data_rest,
-            } => Some(self.function_response(function_response, merge(rest, data_rest))?),
+                function_response, ..
+            } => Some(self.function_response(function_response)?),
             gemini::PartData::ExecutableCode {
-                executable_code,
-                rest: data_rest,
-            } => Some(self.executable_code(executable_code, merge(rest, data_rest))),
+                executable_code, ..
+            } => Some(self.executable_code(executable_code)?),
             gemini::PartData::CodeExecutionResult {
                 code_execution_result,
-                rest: data_rest,
-            } => Some(self.code_result(code_execution_result, merge(rest, data_rest))?),
-            gemini::PartData::ToolCall {
-                tool_call,
-                rest: data_rest,
-            } => Some(self.tool_call(tool_call, merge(rest, data_rest))?),
-            gemini::PartData::ToolResponse {
-                tool_response,
-                rest: data_rest,
-            } => Some(self.tool_response(tool_response, merge(rest, data_rest))?),
+                ..
+            } => Some(self.code_result(code_execution_result)?),
+            gemini::PartData::ToolCall { tool_call, .. } => Some(self.tool_call(tool_call)?),
+            gemini::PartData::ToolResponse { tool_response, .. } => {
+                Some(self.tool_response(tool_response)?)
+            }
             gemini::PartData::Raw(_) => None,
             _future => None,
         })
@@ -88,7 +68,6 @@ impl ContentConverter {
         &mut self,
         text: Option<String>,
         signature: Option<String>,
-        rest: openai::Rest,
     ) -> openai::ResponseItem {
         let id = super::super::ids::reasoning_id(
             signature.as_deref().or(text.as_deref()),
@@ -107,12 +86,12 @@ impl ContentConverter {
             }),
             encrypted_content: signature,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
-            rest,
+            rest: Default::default(),
         }))
     }
 }
 
-fn text_message(text: String, response: bool, rest: openai::Rest) -> MessagePart {
+fn text_message(text: String, response: bool) -> MessagePart {
     if response {
         MessagePart::Output(openai::ResponseMessageOutputContentPart::OutputText(
             openai::ResponseOutputText {
@@ -120,7 +99,7 @@ fn text_message(text: String, response: bool, rest: openai::Rest) -> MessagePart
                 annotations: Vec::new(),
                 logprobs: None,
                 text,
-                rest,
+                rest: Default::default(),
             },
         ))
     } else {
@@ -128,13 +107,8 @@ fn text_message(text: String, response: bool, rest: openai::Rest) -> MessagePart
             openai::ResponseInputText {
                 text,
                 prompt_cache_breakpoint: None,
-                rest,
+                rest: Default::default(),
             },
         ))
     }
-}
-
-fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }

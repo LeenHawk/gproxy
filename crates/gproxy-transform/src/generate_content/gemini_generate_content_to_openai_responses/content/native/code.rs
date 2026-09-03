@@ -10,33 +10,54 @@ impl ContentConverter {
     pub(in crate::generate_content) fn executable_code(
         &mut self,
         code: gemini::ExecutableCode,
-        mut rest: openai::Rest,
-    ) -> openai::ResponseItem {
+    ) -> Result<openai::ResponseItem, TransformError> {
+        match code.language {
+            gemini::ExecutableCodeLanguage::Known(gemini::ExecutableCodeLanguageKnown::Python) => {}
+            gemini::ExecutableCodeLanguage::Known(
+                gemini::ExecutableCodeLanguageKnown::LanguageUnspecified,
+            ) => {
+                return Err(TransformError::shape(
+                    "Gemini executableCode",
+                    "language is unspecified",
+                ));
+            }
+            gemini::ExecutableCodeLanguage::Unknown(value) => {
+                return Err(TransformError::unsupported(
+                    "Gemini executableCode language",
+                    value,
+                ));
+            }
+            _ => {
+                return Err(TransformError::unsupported(
+                    "Gemini executableCode language",
+                    "future language",
+                ));
+            }
+        }
         let call_id = self.allocate_call(code.id);
         self.code_calls.push_back(call_id.clone());
-        rest.extend(code.rest);
-        rest.insert("gemini_language".into(), serde_json::json!(code.language));
-        openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::ShellCall {
-            action: openai::ShellAction {
-                commands: vec![code.code],
-                max_output_length: None,
-                timeout_ms: None,
+        Ok(openai::ResponseItem::Typed(Box::new(
+            openai::TypedResponseItem::ShellCall {
+                action: openai::ShellAction {
+                    commands: vec![code.code],
+                    max_output_length: None,
+                    timeout_ms: None,
+                    rest: Default::default(),
+                },
+                call_id: call_id.clone(),
+                id: Some(ids::item_id("sh", &call_id)),
+                caller: None,
+                environment: None,
+                status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                created_by: None,
                 rest: Default::default(),
             },
-            call_id: call_id.clone(),
-            id: Some(ids::item_id("sh", &call_id)),
-            caller: None,
-            environment: None,
-            status: Some(openai::ResponseItemLifecycleStatus::Completed),
-            created_by: None,
-            rest,
-        }))
+        )))
     }
 
     pub(in crate::generate_content) fn code_result(
         &mut self,
         result: gemini::CodeExecutionResult,
-        mut rest: openai::Rest,
     ) -> Result<openai::ResponseItem, TransformError> {
         let call_id = correlated(result.id, Some(&mut self.code_calls)).ok_or_else(|| {
             TransformError::shape(
@@ -44,7 +65,6 @@ impl ContentConverter {
                 "id missing and no matching executableCode was seen",
             )
         })?;
-        rest.extend(result.rest);
         let (outcome, failed) = code_outcome(&result.outcome)?;
         let text = result.output.ok_or_else(|| {
             TransformError::shape("Gemini codeExecutionResult", "output is missing")
@@ -64,7 +84,7 @@ impl ContentConverter {
                 max_output_length: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 created_by: None,
-                rest,
+                rest: Default::default(),
             },
         )))
     }

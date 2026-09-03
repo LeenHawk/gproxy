@@ -38,10 +38,10 @@ pub(super) fn tool_choice(
             openai::ResponseFunctionToolChoice {
                 type_: openai::FunctionToolChoiceType::Function,
                 name: choice.name,
-                rest: choice.rest,
+                rest: Default::default(),
             },
         )),
-        Some(claude::ToolChoice::Unknown(raw)) => Some(openai::ResponseToolChoice::Unknown(raw)),
+        Some(claude::ToolChoice::Unknown(_)) => None,
         Some(_) => {
             return Err(TransformError::unsupported(
                 "Claude tool choice",
@@ -98,7 +98,7 @@ pub(super) fn text_config(
                 schema: format.schema.clone(),
                 description: None,
                 strict: None,
-                rest: format.rest.clone(),
+                rest: Default::default(),
             },
         )),
         verbosity: None,

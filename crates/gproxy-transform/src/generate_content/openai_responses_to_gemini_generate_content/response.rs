@@ -83,7 +83,7 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
         truncation: None,
         usage: input.usage_metadata.map(usage::to_responses).transpose()?,
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(Bytes::from(serde_json::to_vec(&output)?))
 }

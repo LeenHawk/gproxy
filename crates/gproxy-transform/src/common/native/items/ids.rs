@@ -1,7 +1,5 @@
 use gproxy_protocol::openai;
 
-use crate::TransformError;
-
 pub(crate) fn item_id(item: &openai::TypedResponseItem) -> Option<String> {
     match item {
         openai::TypedResponseItem::LocalShellCall { id, .. } => Some(id.clone()),
@@ -36,18 +34,5 @@ pub(crate) fn item_id(item: &openai::TypedResponseItem) -> Option<String> {
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => None,
-    }
-}
-
-pub(super) fn take_item_id(rest: &mut openai::Rest) -> Result<Option<String>, TransformError> {
-    rest.remove("openai_item_id")
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
-}
-
-pub(super) fn preserve_item_id(rest: &mut openai::Rest, item_id: Option<String>) {
-    if let Some(item_id) = item_id {
-        rest.insert("openai_item_id".into(), item_id.into());
     }
 }

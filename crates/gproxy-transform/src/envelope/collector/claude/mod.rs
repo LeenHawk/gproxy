@@ -18,7 +18,6 @@ pub(super) struct ClaudeCollector {
     delta: Option<claude::MessageDelta>,
     input_transformations: Option<Vec<claude::InputTransformation>>,
     usage: Option<claude::Usage>,
-    rest: serde_json::Map<String, serde_json::Value>,
     pub(super) complete: bool,
 }
 
@@ -27,36 +26,31 @@ impl ClaudeCollector {
         let event: claude::StreamEvent = serde_json::from_str(&frame.data)?;
         match event {
             claude::StreamEvent::Known(event) => match *event {
-                claude::KnownStreamEvent::MessageStart { message, rest } => {
+                claude::KnownStreamEvent::MessageStart { message, .. } => {
                     self.message = Some(*message);
-                    self.rest.extend(rest);
                 }
                 claude::KnownStreamEvent::ContentBlockStart {
                     index,
                     content_block,
-                    rest,
+                    ..
                 } => {
                     self.blocks.insert(index, *content_block);
-                    self.rest.extend(rest);
                 }
-                claude::KnownStreamEvent::ContentBlockDelta { index, delta, rest } => {
+                claude::KnownStreamEvent::ContentBlockDelta { index, delta, .. } => {
                     self.apply_delta(index, *delta)?;
-                    self.rest.extend(rest);
                 }
-                claude::KnownStreamEvent::ContentBlockStop { index, rest } => {
+                claude::KnownStreamEvent::ContentBlockStop { index, .. } => {
                     if let Some(json) = self.json.remove(&index)
                         && let Some(claude::ResponseContentBlock::ToolUse(block)) =
                             self.blocks.get_mut(&index)
                     {
                         block.input = serde_json::from_str(&json)?;
                     }
-                    self.rest.extend(rest);
                 }
                 claude::KnownStreamEvent::MessageDelta {
                     delta,
                     input_transformations,
                     usage,
-                    rest,
                     ..
                 } => {
                     self.delta = Some(*delta);
@@ -77,13 +71,11 @@ impl ClaudeCollector {
                             None => *usage,
                         });
                     }
-                    self.rest.extend(rest);
                 }
-                claude::KnownStreamEvent::MessageStop { rest } => {
+                claude::KnownStreamEvent::MessageStop { .. } => {
                     self.complete = true;
-                    self.rest.extend(rest);
                 }
-                claude::KnownStreamEvent::Ping { rest } => self.rest.extend(rest),
+                claude::KnownStreamEvent::Ping { .. } => {}
                 claude::KnownStreamEvent::Error { error, .. } => {
                     return Err(TransformError::unsupported(
                         "Claude stream error",
@@ -91,14 +83,7 @@ impl ClaudeCollector {
                     ));
                 }
             },
-            claude::StreamEvent::Unknown(object) => {
-                self.rest
-                    .entry("stream_events")
-                    .or_insert_with(|| serde_json::Value::Array(Vec::new()))
-                    .as_array_mut()
-                    .expect("inserted array")
-                    .push(serde_json::to_value(object)?);
-            }
+            claude::StreamEvent::Unknown(_) => {}
         }
         Ok(())
     }
@@ -128,7 +113,7 @@ impl ClaudeCollector {
             diagnostics: None,
             input_transformations: self.input_transformations.or(message.input_transformations),
             stop_details: delta.stop_details,
-            rest: self.rest,
+            rest: Default::default(),
         })
     }
 }

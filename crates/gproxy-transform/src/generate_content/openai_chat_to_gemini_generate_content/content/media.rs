@@ -8,16 +8,11 @@ pub(super) fn user_part(
     part: openai::ChatContentPart,
 ) -> Result<Option<gemini::Part>, TransformError> {
     Ok(Some(match part {
-        openai::ChatContentPart::Text(part) => text_part(part.text, false, part.rest),
-        openai::ChatContentPart::ImageUrl(part) => uri_part(part.image_url.url, part.rest),
+        openai::ChatContentPart::Text(part) => text_part(part.text, false),
+        openai::ChatContentPart::ImageUrl(part) => uri_part(part.image_url.url),
         openai::ChatContentPart::InputAudio(part) => audio_part(part)?,
         openai::ChatContentPart::File(part) => file_part(part)?,
-        openai::ChatContentPart::Unknown(raw) => {
-            return Err(TransformError::unsupported(
-                "Chat user part",
-                raw.to_string(),
-            ));
-        }
+        openai::ChatContentPart::Unknown(_) => return Ok(None),
     }))
 }
 
@@ -37,11 +32,11 @@ fn audio_part(part: openai::ChatInputAudioPart) -> Result<gemini::Part, Transfor
             inline_data: gemini::Blob {
                 mime_type: mime_type.into(),
                 data: part.input_audio.data,
-                rest: part.input_audio.rest,
+                rest: Default::default(),
             },
             rest: Default::default(),
         }),
-        rest: part.rest,
+        rest: Default::default(),
         ..Default::default()
     })
 }
@@ -51,23 +46,23 @@ fn file_part(part: openai::ChatFilePart) -> Result<gemini::Part, TransformError>
         let (mime_type, data) = data_url(&data).ok_or_else(|| {
             TransformError::shape("Chat file", "file_data has no MIME-bearing data URL")
         })?;
-        return Ok(inline_part(mime_type, data, part.rest));
+        return Ok(inline_part(mime_type, data));
     }
     let uri = part
         .file
         .file_id
         .ok_or_else(|| TransformError::shape("Chat file", "file_id is missing"))?;
-    Ok(file_uri_part(uri, None, part.rest))
+    Ok(file_uri_part(uri, None))
 }
 
-fn uri_part(uri: String, rest: gemini::ExtraFields) -> gemini::Part {
+fn uri_part(uri: String) -> gemini::Part {
     match data_url(&uri) {
-        Some((mime, data)) => inline_part(mime, data, rest),
-        None => file_uri_part(uri, None, rest),
+        Some((mime, data)) => inline_part(mime, data),
+        None => file_uri_part(uri, None),
     }
 }
 
-fn inline_part(mime_type: String, data: String, rest: gemini::ExtraFields) -> gemini::Part {
+fn inline_part(mime_type: String, data: String) -> gemini::Part {
     gemini::Part {
         data: Some(gemini::PartData::InlineData {
             inline_data: gemini::Blob {
@@ -77,16 +72,12 @@ fn inline_part(mime_type: String, data: String, rest: gemini::ExtraFields) -> ge
             },
             rest: Default::default(),
         }),
-        rest,
+        rest: Default::default(),
         ..Default::default()
     }
 }
 
-fn file_uri_part(
-    uri: String,
-    mime_type: Option<String>,
-    rest: gemini::ExtraFields,
-) -> gemini::Part {
+fn file_uri_part(uri: String, mime_type: Option<String>) -> gemini::Part {
     gemini::Part {
         data: Some(gemini::PartData::FileData {
             file_data: gemini::FileData {
@@ -96,7 +87,7 @@ fn file_uri_part(
             },
             rest: Default::default(),
         }),
-        rest,
+        rest: Default::default(),
         ..Default::default()
     }
 }

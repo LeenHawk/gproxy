@@ -26,17 +26,14 @@ fn message_to_items(
         openai::ChatCompletionMessageParam::Developer(message) => Ok(vec![easy_message(
             openai::ResponseEasyInputMessageRole::Developer,
             text_content(message.content)?,
-            message.rest,
         )]),
         openai::ChatCompletionMessageParam::System(message) => Ok(vec![easy_message(
             openai::ResponseEasyInputMessageRole::System,
             text_content(message.content)?,
-            message.rest,
         )]),
         openai::ChatCompletionMessageParam::User(message) => Ok(vec![easy_message(
             openai::ResponseEasyInputMessageRole::User,
             user_content(message.content)?,
-            message.rest,
         )]),
         openai::ChatCompletionMessageParam::Assistant(message) => {
             assistant_items(index, message, correlations)
@@ -50,7 +47,6 @@ fn message_to_items(
                 kind,
                 call_id,
                 text_output(message.content)?,
-                message.rest,
             )])
         }
         openai::ChatCompletionMessageParam::Function(message) => {
@@ -61,12 +57,9 @@ fn message_to_items(
                 ToolKind::Function,
                 legacy_call_id(&message.name),
                 openai::ResponseOutput::Text(content),
-                message.rest.clone(),
             )])
         }
-        openai::ChatCompletionMessageParam::Unknown(raw) => {
-            Ok(vec![openai::ResponseItem::Unknown(raw)])
-        }
+        openai::ChatCompletionMessageParam::Unknown(_) => Ok(Vec::new()),
     }
 }
 
@@ -83,22 +76,15 @@ fn assistant_items(
             output.push(easy_message(
                 openai::ResponseEasyInputMessageRole::Assistant,
                 content,
-                message.rest.clone(),
             ));
         } else {
-            output.push(output_message(
-                index,
-                content,
-                message.refusal,
-                message.rest.clone(),
-            )?);
+            output.push(output_message(index, content, message.refusal)?);
         }
     } else if let Some(refusal) = message.refusal.filter(|value| !value.is_empty()) {
         output.push(output_message(
             index,
             openai::ResponseEasyInputContent::OutputParts(Vec::new()),
             Some(refusal),
-            message.rest.clone(),
         )?);
     }
     if let Some(reasoning) = message.reasoning_content {
@@ -146,7 +132,7 @@ fn assistant_items(
                     caller: None,
                     namespace: None,
                     status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                    rest: merge(call.rest, call.function.rest),
+                    rest: Default::default(),
                 }))
             }
             openai::ChatToolCall::Custom(call) => {
@@ -159,17 +145,16 @@ fn assistant_items(
                     id: None,
                     caller: None,
                     namespace: None,
-                    rest: merge(call.rest, call.custom.rest),
+                    rest: Default::default(),
                 }))
             }
-            openai::ChatToolCall::Unknown(raw) => openai::ResponseItem::Unknown(raw),
+            openai::ChatToolCall::Unknown(_) => continue,
         });
     }
     if output.is_empty() {
         output.push(easy_message(
             openai::ResponseEasyInputMessageRole::Assistant,
             openai::ResponseEasyInputContent::Text(String::new()),
-            message.rest,
         ));
     }
     Ok(output)
@@ -192,7 +177,6 @@ fn output_message(
     index: usize,
     content: openai::ResponseEasyInputContent,
     refusal: Option<String>,
-    rest: openai::Rest,
 ) -> Result<openai::ResponseItem, TransformError> {
     let openai::ResponseEasyInputContent::OutputParts(mut content) = content else {
         return Err(TransformError::shape(
@@ -217,7 +201,7 @@ fn output_message(
             content,
             status: openai::ResponseItemLifecycleStatus::Completed,
             phase: None,
-            rest,
+            rest: Default::default(),
         }),
     ))
 }
@@ -225,7 +209,6 @@ fn output_message(
 fn easy_message(
     role: openai::ResponseEasyInputMessageRole,
     content: openai::ResponseEasyInputContent,
-    rest: openai::Rest,
 ) -> openai::ResponseItem {
     openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
         openai::ResponseEasyInputMessageItem {
@@ -233,7 +216,7 @@ fn easy_message(
             role,
             content,
             phase: None,
-            rest,
+            rest: Default::default(),
         },
     ))
 }
@@ -270,7 +253,6 @@ fn tool_output(
     kind: ToolKind,
     call_id: String,
     output: openai::ResponseOutput,
-    rest: openai::Rest,
 ) -> openai::ResponseItem {
     openai::ResponseItem::Typed(Box::new(match kind {
         ToolKind::Function => openai::TypedResponseItem::FunctionCallOutput {
@@ -282,7 +264,7 @@ fn tool_output(
             namespace: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             created_by: None,
-            rest,
+            rest: Default::default(),
         },
         ToolKind::Custom => openai::TypedResponseItem::CustomToolCallOutput {
             call_id,
@@ -291,7 +273,7 @@ fn tool_output(
             caller: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             created_by: None,
-            rest,
+            rest: Default::default(),
         },
     }))
 }
@@ -318,9 +300,4 @@ fn prefixed_id(original: &str, prefix: &str) -> String {
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     format!("{prefix}{hash:016x}")
-}
-
-fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }

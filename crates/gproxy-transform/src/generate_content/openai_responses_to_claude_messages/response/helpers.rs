@@ -1,7 +1,5 @@
 use gproxy_protocol::openai;
 
-use crate::TransformError;
-
 pub(super) fn flush_message(
     output: &mut Vec<openai::ResponseItem>,
     parts: &mut Vec<openai::ResponseMessageOutputContentPart>,
@@ -33,7 +31,7 @@ pub(super) fn reasoning(
     id: Option<String>,
     text: Option<String>,
     encrypted_content: Option<String>,
-    rest: serde_json::Map<String, serde_json::Value>,
+    _extensions: serde_json::Map<String, serde_json::Value>,
 ) -> openai::ResponseItem {
     openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::Reasoning {
         id,
@@ -47,16 +45,6 @@ pub(super) fn reasoning(
         }),
         encrypted_content,
         status: Some(openai::ResponseItemLifecycleStatus::Completed),
-        rest,
+        rest: Default::default(),
     }))
-}
-
-pub(super) fn take<T: serde::de::DeserializeOwned>(
-    rest: &mut serde_json::Map<String, serde_json::Value>,
-    name: &str,
-) -> Result<Option<T>, TransformError> {
-    rest.remove(name)
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
 }

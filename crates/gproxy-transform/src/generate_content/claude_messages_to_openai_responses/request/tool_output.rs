@@ -16,15 +16,14 @@ pub(super) fn function_output(
             namespace: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             created_by: None,
-            rest: block.rest,
+            rest: Default::default(),
         },
     )))
 }
 
 pub(super) fn reasoning_item(
-    mut block: claude::ThinkingBlock,
+    block: claude::ThinkingBlock,
 ) -> Result<openai::ResponseItem, TransformError> {
-    let id = take_item_id(&mut block.rest)?;
     let content = (!block.thinking.is_empty()).then(|| {
         vec![openai::ResponseReasoningTextPart {
             type_: openai::ResponseReasoningTextType::ReasoningText,
@@ -34,28 +33,27 @@ pub(super) fn reasoning_item(
     });
     Ok(openai::ResponseItem::Typed(Box::new(
         openai::TypedResponseItem::Reasoning {
-            id,
+            id: None,
             summary: Vec::new(),
             content,
             encrypted_content: block.signature,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
-            rest: block.rest,
+            rest: Default::default(),
         },
     )))
 }
 
 pub(super) fn redacted_reasoning_item(
-    mut block: claude::RedactedThinkingBlock,
+    block: claude::RedactedThinkingBlock,
 ) -> Result<openai::ResponseItem, TransformError> {
-    let id = take_item_id(&mut block.rest)?;
     Ok(openai::ResponseItem::Typed(Box::new(
         openai::TypedResponseItem::Reasoning {
-            id,
+            id: None,
             summary: Vec::new(),
             content: None,
             encrypted_content: Some(block.data),
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
-            rest: block.rest,
+            rest: Default::default(),
         },
     )))
 }
@@ -115,13 +113,4 @@ fn tool_output_part(
             ));
         }
     })
-}
-
-pub(super) fn take_item_id(
-    rest: &mut serde_json::Map<String, serde_json::Value>,
-) -> Result<Option<String>, TransformError> {
-    rest.remove("openai_item_id")
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
 }

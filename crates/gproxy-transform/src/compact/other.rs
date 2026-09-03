@@ -71,7 +71,7 @@ pub(crate) fn content_request(
         prompt_cache_options: input.prompt_cache_options,
         prompt_cache_retention: input.prompt_cache_retention,
         service_tier: input.service_tier,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -109,7 +109,7 @@ fn compact_to_responses(body: Bytes, model: &str) -> Result<Bytes, TransformErro
         prompt_cache_retention: input.prompt_cache_retention,
         service_tier: input.service_tier,
         stream: Some(false),
-        rest: input.rest,
+        rest: Default::default(),
         ..Default::default()
     })
 }
@@ -148,7 +148,7 @@ fn compact_object_to_responses(body: Bytes) -> Result<Bytes, TransformError> {
     let output = input
         .output
         .into_iter()
-        .map(compact_item_to_response)
+        .filter_map(|item| compact_item_to_response(item).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     encode(&openai::ResponseObject {
         id: input.id,
@@ -188,54 +188,50 @@ fn compact_object_to_responses(body: Bytes) -> Result<Bytes, TransformError> {
         truncation: None,
         usage: Some(input.usage),
         user: None,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
 fn compact_item_to_response(
     item: openai::CompactResponseItem,
-) -> Result<openai::ResponseItem, TransformError> {
+) -> Result<Option<openai::ResponseItem>, TransformError> {
     Ok(match item {
-        openai::CompactResponseItem::Typed(item) => openai::ResponseItem::Typed(item),
-        openai::CompactResponseItem::Unknown(raw) => openai::ResponseItem::Unknown(raw),
+        openai::CompactResponseItem::Typed(item) => Some(openai::ResponseItem::Typed(item)),
+        openai::CompactResponseItem::Unknown(_) => None,
         openai::CompactResponseItem::Message(message)
             if message.role == openai::CompactMessageRole::Assistant =>
         {
             let content = message
                 .content
                 .into_iter()
-                .map(|part| match part {
+                .filter_map(|part| match part {
                     openai::CompactMessageContentPart::Text(part) => {
-                        openai::ResponseMessageOutputContentPart::OutputText(
+                        Some(openai::ResponseMessageOutputContentPart::OutputText(
                             openai::ResponseOutputText {
                                 type_: openai::ResponseOutputTextType::OutputText,
                                 annotations: Vec::new(),
                                 logprobs: None,
                                 text: part.text,
-                                rest: part.rest,
+                                rest: Default::default(),
                             },
-                        )
+                        ))
                     }
-                    other => openai::ResponseMessageOutputContentPart::Unknown(
-                        serde_json::to_value(other).expect("typed compact content serializes"),
-                    ),
+                    _ => None,
                 })
                 .collect();
-            openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
-                openai::ResponseOutputMessageItem {
+            Some(openai::ResponseItem::Message(
+                openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
                     type_: message.type_,
                     id: message.id.unwrap_or_else(|| "msg_compact".into()),
                     role: openai::ResponseOutputMessageRole::Assistant,
                     content,
                     status: message.status,
                     phase: message.phase,
-                    rest: message.rest,
-                },
+                    rest: Default::default(),
+                }),
             ))
         }
-        openai::CompactResponseItem::Message(message) => {
-            openai::ResponseItem::Unknown(serde_json::to_value(message)?)
-        }
+        openai::CompactResponseItem::Message(_) => None,
     })
 }
 

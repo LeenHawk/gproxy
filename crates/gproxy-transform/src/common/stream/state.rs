@@ -1,4 +1,4 @@
-use gproxy_protocol::{claude, openai};
+use gproxy_protocol::claude;
 
 pub(super) fn merge_usage(target: &mut claude::Usage, update: claude::Usage) {
     target.input_tokens = update.input_tokens.or(target.input_tokens);
@@ -18,10 +18,4 @@ pub(super) fn merge_usage(target: &mut claude::Usage, update: claude::Usage) {
     target.inference_geo = update.inference_geo.or(target.inference_geo.take());
     target.service_tier = update.service_tier.or(target.service_tier.take());
     target.speed = update.speed.or(target.speed.take());
-    target.rest.extend(update.rest);
-}
-
-pub(super) fn merge(mut left: openai::Rest, right: openai::Rest) -> openai::Rest {
-    left.extend(right);
-    left
 }

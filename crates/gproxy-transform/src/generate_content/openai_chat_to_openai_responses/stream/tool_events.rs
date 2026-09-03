@@ -22,12 +22,7 @@ impl State {
         }
         tool.data.push_str(&event.delta);
         let index = tool.index;
-        Ok(vec![self.tool_chunk(
-            index,
-            kind,
-            event.delta,
-            event.rest,
-        )?])
+        Ok(vec![self.tool_chunk(index, kind, event.delta)?])
     }
 
     pub(super) fn function_done(
@@ -41,7 +36,6 @@ impl State {
             ToolKind::Function,
             event.arguments,
             event.name,
-            event.rest,
         )
     }
 
@@ -55,7 +49,6 @@ impl State {
             ToolKind::Custom,
             event.input,
             None,
-            event.rest,
         )
     }
 
@@ -66,7 +59,6 @@ impl State {
         kind: ToolKind,
         full: String,
         name: Option<String>,
-        rest: openai::Rest,
     ) -> Result<Vec<Bytes>, TransformError> {
         if let Some(name) = name {
             let tool = self.tools.get(id).ok_or_else(|| {
@@ -79,7 +71,7 @@ impl State {
                 ));
             }
         }
-        self.finish_tool(id, output_index, kind, full, rest)
+        self.finish_tool(id, output_index, kind, full)
     }
 
     fn tool_source_id(

@@ -25,7 +25,7 @@ pub(super) fn function_call(
             rest: Default::default(),
         }),
         metadata: None,
-        rest: block.rest,
+        rest: Default::default(),
     }
 }
 
@@ -71,37 +71,7 @@ pub(super) fn thought(block: claude::ThinkingBlock) -> gemini::Part {
     });
     part.thought = Some(true);
     part.thought_signature = block.signature;
-    part.rest = block.rest;
     part
-}
-
-pub(super) fn take_signature(
-    caller: &mut Option<claude::Caller>,
-) -> Result<Option<String>, TransformError> {
-    let Some(caller) = caller.as_mut() else {
-        return Ok(None);
-    };
-    let claude::Caller::Direct(caller) = caller else {
-        return Err(TransformError::unsupported(
-            "Claude tool caller",
-            "non-direct caller",
-        ));
-    };
-    let signature = caller
-        .rest
-        .remove("thought_signature")
-        .or_else(|| caller.rest.remove("thoughtSignature"))
-        .ok_or_else(|| TransformError::unsupported("Claude tool caller", "missing signature"))?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| TransformError::shape("Claude tool caller", "signature is not a string"))?;
-    if !caller.rest.is_empty() {
-        return Err(TransformError::unsupported(
-            "Claude tool caller",
-            "unmapped caller fields",
-        ));
-    }
-    Ok(Some(signature))
 }
 
 fn part(data: gemini::PartData) -> gemini::Part {

@@ -7,7 +7,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
     let output = openai::ResponseInputTokensResponse {
         input_tokens: input.input_tokens.min(u64::from(u32::MAX)) as u32,
         object: openai::ResponseInputTokensObjectType::ResponseInputTokens,
-        rest: input.rest,
+        rest: Default::default(),
     };
     Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }

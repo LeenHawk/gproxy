@@ -13,8 +13,6 @@ struct ToolStart {
     name: String,
     input: String,
     output_index: u32,
-    rest: openai::Rest,
-    event_rest: openai::Rest,
 }
 
 impl State {
@@ -22,7 +20,7 @@ impl State {
         &mut self,
         event: openai::ResponseOutputItemEvent,
     ) -> Result<Vec<Bytes>, TransformError> {
-        let mut output = self.ensure_start(Default::default(), event.rest.clone())?;
+        let mut output = self.ensure_start()?;
         let native_id = match event.item.as_ref() {
             openai::ResponseItem::Typed(item) => items::item_id(item),
             openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
@@ -31,16 +29,11 @@ impl State {
         match *event.item {
             openai::ResponseItem::Typed(item) => match *item {
                 openai::TypedResponseItem::FunctionCall {
-                    id,
                     call_id,
                     name,
                     arguments,
-                    mut rest,
                     ..
                 } => {
-                    if let Some(id) = id {
-                        rest.insert("openai_item_id".into(), id.into());
-                    }
                     output.extend(self.response_tool(ToolStart {
                         item_id: item_id.ok_or_else(|| {
                             TransformError::shape("Responses stream", "function item id is missing")
@@ -49,21 +42,14 @@ impl State {
                         name,
                         input: arguments,
                         output_index: event.output_index,
-                        rest,
-                        event_rest: event.rest,
                     })?);
                 }
                 openai::TypedResponseItem::CustomToolCall {
-                    id,
                     call_id,
                     name,
                     input,
-                    mut rest,
                     ..
                 } => {
-                    if let Some(id) = id {
-                        rest.insert("openai_item_id".into(), id.into());
-                    }
                     output.extend(self.response_tool(ToolStart {
                         item_id: item_id.ok_or_else(|| {
                             TransformError::shape("Responses stream", "custom item id is missing")
@@ -72,14 +58,10 @@ impl State {
                         name,
                         input,
                         output_index: event.output_index,
-                        rest,
-                        event_rest: event.rest,
                     })?);
                 }
                 openai::TypedResponseItem::Reasoning {
-                    encrypted_content,
-                    rest,
-                    ..
+                    encrypted_content, ..
                 } => {
                     let item_id = item_id.ok_or_else(|| {
                         TransformError::shape("Responses stream", "reasoning item id is missing")
@@ -91,9 +73,8 @@ impl State {
                             signature: encrypted_content,
                             thinking: String::new(),
                             type_: claude::ThinkingBlockType::Thinking,
-                            rest,
+                            rest: Default::default(),
                         }),
-                        event.rest,
                     )?);
                     self.response_indices.insert((item_id, None), index);
                 }
@@ -128,11 +109,7 @@ impl State {
                 | openai::TypedResponseItem::ItemReference { .. }) => {
                     if let Some(call) = items::openai_call(other.clone())? {
                         let index = self.allocate();
-                        output.extend(self.block_start(
-                            index,
-                            items::response_block(call),
-                            event.rest,
-                        )?);
+                        output.extend(self.block_start(index, items::response_block(call))?);
                         if let Some(item_id) = item_id {
                             self.response_indices.insert((item_id, None), index);
                         }
@@ -166,8 +143,6 @@ impl State {
             name,
             input,
             output_index,
-            rest,
-            event_rest,
         } = start;
         let index = self.allocate();
         let mut output = self.block_start(
@@ -178,9 +153,8 @@ impl State {
                 name,
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
-                rest,
+                rest: Default::default(),
             }),
-            event_rest,
         )?;
         self.response_indices.insert((item_id, None), index);
         self.response_tool_inputs.insert(index, input.clone());
@@ -190,7 +164,7 @@ impl State {
             .push(index);
         self.has_tool = true;
         if !input.is_empty() {
-            output.push(self.input_delta(index, input, Default::default())?);
+            output.push(self.input_delta(index, input)?);
         }
         Ok(output)
     }

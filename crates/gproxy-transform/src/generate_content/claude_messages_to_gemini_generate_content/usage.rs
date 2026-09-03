@@ -50,7 +50,7 @@ pub(super) fn convert(usage: claude::Usage) -> Result<gemini::UsageMetadata, Tra
         candidates_tokens_details: Vec::new(),
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: service_tier(usage.service_tier, usage.speed),
-        rest: usage.rest,
+        rest: Default::default(),
     })
 }
 
@@ -63,18 +63,16 @@ fn service_tier(
             gemini::ServiceTierKnown::Priority,
         ));
     }
-    tier.map(|tier| match tier {
-        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Priority) => {
-            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Priority)
-        }
-        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Standard) => {
-            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard)
-        }
-        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Batch) => {
-            gemini::ServiceTier::Unknown("batch".into())
-        }
-        claude::UsageServiceTier::Unknown(value) => gemini::ServiceTier::Unknown(value),
-        _ => gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified),
+    tier.and_then(|tier| match tier {
+        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Priority) => Some(
+            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Priority),
+        ),
+        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Standard) => Some(
+            gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard),
+        ),
+        claude::UsageServiceTier::Known(claude::UsageServiceTierKnown::Batch)
+        | claude::UsageServiceTier::Unknown(_) => None,
+        _ => None,
     })
 }
 

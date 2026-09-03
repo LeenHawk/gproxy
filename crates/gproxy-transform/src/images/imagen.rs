@@ -16,7 +16,7 @@ pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
     super::encode(&gemini::ImagenPredictRequest {
         instances: vec![serde_json::json!({"prompt": input.prompt})],
         parameters: Some(parameters),
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 
@@ -38,7 +38,7 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
         prompt,
         model: Some(model.into()),
         n,
-        rest: input.rest,
+        rest: Default::default(),
         background: None,
         moderation: None,
         output_compression: None,
@@ -78,7 +78,7 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
     super::encode(&openai_images::ImagesResponse {
         created: 0,
         data: Some(data),
-        rest: input.rest,
+        rest: Default::default(),
         background: None,
         output_format: None,
         quality: None,
@@ -104,7 +104,7 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
         .collect();
     super::encode(&gemini::ImagenPredictResponse {
         predictions,
-        rest: input.rest,
+        rest: Default::default(),
     })
 }
 

@@ -15,28 +15,20 @@ impl State {
         let signature = part.thought_signature.clone();
         match part.data.as_ref() {
             Some(gemini::PartData::Text { text, .. }) => {
-                return self.text_delta(
-                    candidate_index,
-                    text.clone(),
-                    thought,
-                    signature,
-                    part.rest,
-                );
+                return self.text_delta(candidate_index, text.clone(), thought, signature);
             }
             None if signature.is_some() => {
-                return self.text_delta(candidate_index, String::new(), true, signature, part.rest);
+                return self.text_delta(candidate_index, String::new(), true, signature);
             }
             Some(gemini::PartData::InlineData { inline_data, .. })
                 if inline_data.mime_type.starts_with("audio/") =>
             {
                 self.audio = true;
-                let mut rest = part.rest;
-                rest.insert("mime_type".into(), inline_data.mime_type.clone().into());
                 let event = openai::KnownResponseStreamEvent::ResponseAudioDelta(
                     openai::ResponseAudioDeltaEvent {
                         delta: inline_data.data.clone(),
                         sequence_number: Some(self.next_sequence()),
-                        rest,
+                        rest: Default::default(),
                     },
                 );
                 return Ok(vec![events::emit(event)?]);

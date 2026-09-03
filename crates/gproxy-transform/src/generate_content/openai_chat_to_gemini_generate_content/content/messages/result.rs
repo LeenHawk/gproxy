@@ -22,22 +22,13 @@ impl State {
                     code_execution_result: result,
                     rest: Default::default(),
                 }),
-                rest: message.rest,
+                rest: Default::default(),
                 ..Default::default()
             }
         } else {
-            function_response(
-                Some(message.tool_call_id),
-                call.name.clone(),
-                Some(output),
-                message.rest,
-            )?
+            function_response(Some(message.tool_call_id), call.name.clone(), Some(output))?
         };
-        self.push(
-            gemini::ContentRoleKnown::Function,
-            vec![part],
-            Default::default(),
-        );
+        self.push(gemini::ContentRoleKnown::Function, vec![part]);
         Ok(())
     }
 
@@ -45,12 +36,8 @@ impl State {
         &mut self,
         message: openai::ChatFunctionMessageParam,
     ) -> Result<(), TransformError> {
-        let part = function_response(None, message.name, message.content, message.rest)?;
-        self.push(
-            gemini::ContentRoleKnown::Function,
-            vec![part],
-            Default::default(),
-        );
+        let part = function_response(None, message.name, message.content)?;
+        self.push(gemini::ContentRoleKnown::Function, vec![part]);
         Ok(())
     }
 }
@@ -59,15 +46,7 @@ fn function_response(
     id: Option<String>,
     name: String,
     output: Option<String>,
-    mut rest: gemini::ExtraFields,
 ) -> Result<gemini::Part, TransformError> {
-    let parts = take(&mut rest, "gemini_function_response_parts")?;
-    let will_continue = take(&mut rest, "gemini_function_response_will_continue")?;
-    let scheduling = take(&mut rest, "gemini_function_response_scheduling")?;
-    let response_rest = match take(&mut rest, "gemini_function_response_rest")? {
-        Some(rest) => rest,
-        None => gemini::ExtraFields::new(),
-    };
     let response = match output {
         None => {
             let mut response = gemini::JsonMap::new();
@@ -94,24 +73,14 @@ fn function_response(
                 id,
                 name,
                 response,
-                parts,
-                will_continue,
-                scheduling,
-                rest: response_rest,
+                parts: None,
+                will_continue: None,
+                scheduling: None,
+                rest: Default::default(),
             },
             rest: Default::default(),
         }),
-        rest,
+        rest: Default::default(),
         ..Default::default()
     })
-}
-
-fn take<T: serde::de::DeserializeOwned>(
-    rest: &mut gemini::ExtraFields,
-    key: &str,
-) -> Result<Option<T>, TransformError> {
-    rest.remove(key)
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
 }

@@ -14,7 +14,7 @@ pub(crate) fn system(
         return Ok(None);
     };
     let parts = match system {
-        claude::StringOrArray::String(text) => vec![super::text_part(text, Default::default())],
+        claude::StringOrArray::String(text) => vec![super::text_part(text)],
         claude::StringOrArray::Array(blocks) => blocks
             .into_iter()
             .map(system_part)
@@ -81,7 +81,7 @@ pub(crate) fn request_messages(
             }
         }
         if !parts.is_empty() {
-            output.push(content(parts, role, message.rest));
+            output.push(content(parts, role));
         }
     }
     Ok(output)
@@ -98,37 +98,27 @@ fn block_to_part(
         return Ok(None);
     }
     Ok(Some(match block {
-        claude::ContentBlockParam::Text(block) => super::text_part(block.text, block.rest),
+        claude::ContentBlockParam::Text(block) => super::text_part(block.text),
         claude::ContentBlockParam::Thinking(block) => functions::thought(block),
-        claude::ContentBlockParam::Image(block) => {
-            let mut part = media::image(block.source)?;
-            part.rest.extend(block.rest);
-            part
-        }
-        claude::ContentBlockParam::Document(block) => {
-            let mut part = media::document(block.source)?;
-            part.rest.extend(block.rest);
-            part
-        }
-        claude::ContentBlockParam::ToolUse(mut block) if tools::is_native_name(&block.name) => {
+        claude::ContentBlockParam::Image(block) => media::image(block.source)?,
+        claude::ContentBlockParam::Document(block) => media::document(block.source)?,
+        claude::ContentBlockParam::ToolUse(block) if tools::is_native_name(&block.name) => {
             native_ids.insert(block.id.clone());
-            let signature =
-                functions::take_signature(&mut block.caller)?.or_else(|| pending_signature.take());
-            let mut part = native::call(block.id, block.input, block.rest)?;
+            let signature = pending_signature.take();
+            let mut part = native::call(block.id, block.input)?;
             part.thought_signature = signature;
             part
         }
-        claude::ContentBlockParam::ToolUse(mut block) => {
+        claude::ContentBlockParam::ToolUse(block) => {
             names.insert(block.id.clone(), block.name.clone());
-            let signature =
-                functions::take_signature(&mut block.caller)?.or_else(|| pending_signature.take());
+            let signature = pending_signature.take();
             functions::function_call(block, signature)
         }
         claude::ContentBlockParam::ServerToolUse(block)
             if tools::is_server_native_name(&block.name) =>
         {
             native_ids.insert(block.id.clone());
-            native::call(block.id, block.input, block.rest)?
+            native::call(block.id, block.input)?
         }
         claude::ContentBlockParam::ToolResult(block) if native_ids.contains(&block.tool_use_id) => {
             native::result(block)?
@@ -153,15 +143,11 @@ fn block_to_part(
     }))
 }
 
-fn content(
-    parts: Vec<gemini::Part>,
-    role: gemini::ContentRole,
-    rest: serde_json::Map<String, serde_json::Value>,
-) -> gemini::Content {
+fn content(parts: Vec<gemini::Part>, role: gemini::ContentRole) -> gemini::Content {
     gemini::Content {
         parts,
         role: Some(role),
-        rest,
+        rest: Default::default(),
     }
 }
 
@@ -176,11 +162,13 @@ fn role(role: claude::MessageRole) -> Result<gemini::ContentRole, TransformError
         claude::MessageRole::Known(claude::MessageRoleKnown::User) => {
             Ok(gemini::ContentRole::Known(gemini::ContentRoleKnown::User))
         }
-        claude::MessageRole::Unknown(value) => Ok(gemini::ContentRole::Unknown(value)),
+        claude::MessageRole::Unknown(value) => {
+            Err(TransformError::unsupported("Claude role", value))
+        }
         _ => Err(TransformError::unsupported("Claude role", "future role")),
     }
 }
 
 fn system_part(block: claude::TextBlock) -> Result<gemini::Part, TransformError> {
-    Ok(super::text_part(block.text, block.rest))
+    Ok(super::text_part(block.text))
 }

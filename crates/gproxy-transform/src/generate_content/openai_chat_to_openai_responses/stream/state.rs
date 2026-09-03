@@ -38,6 +38,4 @@ pub(super) struct ToolStart {
     pub(super) output_index: u32,
     pub(super) name: String,
     pub(super) kind: ToolKind,
-    pub(super) rest: openai::Rest,
-    pub(super) event_rest: openai::Rest,
 }

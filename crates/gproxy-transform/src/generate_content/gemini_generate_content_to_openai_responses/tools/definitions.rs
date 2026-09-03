@@ -130,9 +130,72 @@ fn search_types(
 }
 
 fn typed_schema(schema: gemini::Schema) -> Result<openai::JsonSchema, TransformError> {
-    let mut value = serde_json::to_value(schema)?;
+    schema_object(schema)
+}
+
+pub(in crate::generate_content::gemini_generate_content_to_openai_responses) fn schema_object(
+    schema: gemini::Schema,
+) -> Result<openai::JsonSchema, TransformError> {
+    let mut value = serde_json::to_value(sanitized_schema(schema)?)?;
     crate::common::gemini_schema::normalize(&mut value);
     object_schema(value)
+}
+
+fn sanitized_schema(schema: gemini::Schema) -> Result<gemini::Schema, TransformError> {
+    match &schema.r#type {
+        gemini::SchemaType::Known(_) => {}
+        gemini::SchemaType::Unknown(value) => {
+            return Err(TransformError::unsupported("Gemini schema type", value));
+        }
+        _ => {
+            return Err(TransformError::unsupported(
+                "Gemini schema type",
+                "future type",
+            ));
+        }
+    }
+    let properties = schema
+        .properties
+        .map(|properties| {
+            properties
+                .into_iter()
+                .map(|(name, child)| Ok((name, sanitized_schema(child)?)))
+                .collect::<Result<_, TransformError>>()
+        })
+        .transpose()?;
+    let any_of = schema
+        .any_of
+        .map(|children| children.into_iter().map(sanitized_schema).collect())
+        .transpose()?;
+    let items = schema
+        .items
+        .map(|child| sanitized_schema(*child).map(Box::new))
+        .transpose()?;
+    Ok(gemini::Schema {
+        r#type: schema.r#type,
+        format: schema.format,
+        title: schema.title,
+        description: schema.description,
+        nullable: schema.nullable,
+        r#enum: schema.r#enum,
+        properties,
+        required: schema.required,
+        any_of,
+        property_ordering: schema.property_ordering,
+        items,
+        minimum: schema.minimum,
+        maximum: schema.maximum,
+        max_items: schema.max_items,
+        min_items: schema.min_items,
+        min_properties: schema.min_properties,
+        max_properties: schema.max_properties,
+        min_length: schema.min_length,
+        max_length: schema.max_length,
+        pattern: schema.pattern,
+        example: schema.example,
+        default: schema.default,
+        rest: Default::default(),
+    })
 }
 
 fn object_schema(value: serde_json::Value) -> Result<openai::JsonSchema, TransformError> {

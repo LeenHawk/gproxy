@@ -24,10 +24,6 @@ impl State {
                 "terminal event disagrees with response status",
             ));
         }
-        let mut response_rest = response.rest.clone();
-        if let Some(error) = response.error.as_ref() {
-            response_rest.insert("openai_error".into(), serde_json::to_value(error)?);
-        }
         self.remember(&response)?;
         let mut output = Vec::new();
         for (index, item) in response.output.iter().cloned().enumerate() {
@@ -42,14 +38,13 @@ impl State {
         if let Some(usage) = converted_usage.as_mut() {
             usage.service_tier = super::config::openai_service_tier(response.service_tier);
         }
-        let mut terminal = events::chunk(
+        let terminal = events::chunk(
             None,
             finish,
             converted_usage,
             self.response_id.clone(),
             self.model.clone(),
         );
-        terminal.rest = response_rest;
         output.push(self.emit(terminal)?);
         self.stopped = true;
         Ok(output)

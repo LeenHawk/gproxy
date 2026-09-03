@@ -16,10 +16,9 @@ impl State {
         let chunk: openai::ChatCompletionChunk = serde_json::from_str(&frame.data)?;
         self.id = Some(chunk.id);
         self.model = Some(wire_string(&chunk.model)?.into());
-        let chunk_rest = chunk.rest;
-        let mut output = self.ensure_start(Default::default(), chunk_rest.clone())?;
+        let mut output = self.ensure_start()?;
         if let Some(usage) = usage::chat_to_claude(chunk.usage) {
-            output.extend(self.usage_delta(usage, chunk_rest.clone())?);
+            output.extend(self.usage_delta(usage)?);
         }
         for choice in chunk.choices {
             if choice.index != 0 {
@@ -28,32 +27,14 @@ impl State {
                     "multiple choices",
                 ));
             }
-            let mut payload_rest = chunk_rest.clone();
-            payload_rest.extend(choice.rest);
-            payload_rest.extend(choice.delta.rest.clone());
             if let Some(reasoning) = choice.delta.reasoning_content {
-                output.extend(self.scalar_delta(
-                    "thinking",
-                    Scalar::Thinking,
-                    reasoning,
-                    payload_rest.clone(),
-                )?);
+                output.extend(self.scalar_delta("thinking", Scalar::Thinking, reasoning)?);
             }
             if let Some(text) = choice.delta.content {
-                output.extend(self.scalar_delta(
-                    "text",
-                    Scalar::Text,
-                    text,
-                    payload_rest.clone(),
-                )?);
+                output.extend(self.scalar_delta("text", Scalar::Text, text)?);
             }
             if let Some(refusal) = choice.delta.refusal {
-                output.extend(self.scalar_delta(
-                    "refusal",
-                    Scalar::Text,
-                    refusal,
-                    payload_rest.clone(),
-                )?);
+                output.extend(self.scalar_delta("refusal", Scalar::Text, refusal)?);
             }
             if choice.delta.function_call.is_some() {
                 return Err(TransformError::unsupported(
@@ -63,20 +44,17 @@ impl State {
             }
             for call in choice.delta.tool_calls.into_iter().flatten() {
                 let key = format!("tool:{}", call.index);
-                let mut tool_rest = payload_rest.clone();
-                tool_rest.extend(call.rest);
-                let (name, arguments, variant_rest) = match (call.function, call.custom) {
-                    (Some(function), None) => (function.name, function.arguments, function.rest),
-                    (None, Some(custom)) => (custom.name, custom.input, custom.rest),
+                let (name, arguments) = match (call.function, call.custom) {
+                    (Some(function), None) => (function.name, function.arguments),
+                    (None, Some(custom)) => (custom.name, custom.input),
                     (Some(_), Some(_)) => {
                         return Err(TransformError::shape(
                             "Chat stream",
                             "tool delta has both function and custom payloads",
                         ));
                     }
-                    (None, None) => (None, None, Default::default()),
+                    (None, None) => (None, None),
                 };
-                tool_rest.extend(variant_rest);
                 let index = if let Some(index) = self.item_indices.get(&key).copied() {
                     index
                 } else {
@@ -95,25 +73,19 @@ impl State {
                             name,
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
-                            rest: tool_rest.clone(),
+                            rest: Default::default(),
                         }),
-                        tool_rest.clone(),
                     )?);
                     self.item_indices.insert(key.clone(), index);
                     index
                 };
                 let arguments = arguments.unwrap_or_default();
-                if !arguments.is_empty() || !tool_rest.is_empty() {
-                    output.push(self.input_delta(index, arguments, tool_rest)?);
+                if !arguments.is_empty() {
+                    output.push(self.input_delta(index, arguments)?);
                 }
             }
             if let Some(reason) = choice.finish_reason {
-                output.extend(self.finish_message(
-                    stop::chat_to_claude(reason),
-                    None,
-                    false,
-                    payload_rest,
-                )?);
+                output.extend(self.finish_message(stop::chat_to_claude(reason), None, false)?);
             }
         }
         Ok(output)

@@ -17,7 +17,7 @@ pub(super) fn text_content(
                         openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
                             text: part.text,
                             prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                            rest: part.rest,
+                            rest: Default::default(),
                         }),
                     ),
                     openai::ChatTextContentPart::Unknown(raw) => Err(TransformError::unsupported(
@@ -83,7 +83,7 @@ pub(super) fn assistant_content(
                                     annotations: Vec::new(),
                                     logprobs: None,
                                     text: part.text,
-                                    rest: part.rest,
+                                    rest: Default::default(),
                                 },
                             ))
                         }
@@ -92,7 +92,7 @@ pub(super) fn assistant_content(
                                 openai::ResponseRefusal {
                                     type_: openai::ResponseRefusalType::Refusal,
                                     refusal: part.refusal,
-                                    rest: part.rest,
+                                    rest: Default::default(),
                                 },
                             ))
                         }
@@ -120,7 +120,7 @@ fn chat_part_to_response(
             openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
                 text: part.text,
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                rest: part.rest,
+                rest: Default::default(),
             })
         }
         openai::ChatContentPart::ImageUrl(part) => {
@@ -129,7 +129,7 @@ fn chat_part_to_response(
                 file_id: None,
                 image_url: Some(part.image_url.url),
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                rest: part.rest,
+                rest: Default::default(),
             })
         }
         openai::ChatContentPart::File(part) => {
@@ -140,7 +140,7 @@ fn chat_part_to_response(
                 file_url: None,
                 filename: part.file.filename,
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                rest: part.rest,
+                rest: Default::default(),
             })
         }
         openai::ChatContentPart::InputAudio(part) => {
@@ -148,9 +148,9 @@ fn chat_part_to_response(
                 input_audio: openai::InputAudioContent {
                     data: part.input_audio.data,
                     format: part.input_audio.format,
-                    rest: part.input_audio.rest,
+                    rest: Default::default(),
                 },
-                rest: part.rest,
+                rest: Default::default(),
             })
         }
         openai::ChatContentPart::Unknown(raw) => {

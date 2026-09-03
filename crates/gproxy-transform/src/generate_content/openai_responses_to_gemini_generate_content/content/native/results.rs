@@ -2,19 +2,15 @@ use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 
-use super::super::{ContentConverter, wire};
+use super::super::ContentConverter;
 
 pub(super) fn convert(
     state: &mut ContentConverter,
     item: &openai::TypedResponseItem,
 ) -> Result<Option<gemini::Content>, TransformError> {
-    let (call_id, item_id, outcome, text, rest) = match item {
+    let (call_id, outcome, text) = match item {
         openai::TypedResponseItem::ShellCallOutput {
-            call_id,
-            output,
-            id,
-            rest,
-            ..
+            call_id, output, ..
         } => {
             if output.is_empty() {
                 return Err(TransformError::shape(
@@ -32,17 +28,12 @@ pub(super) fn convert(
                 .join("\n");
             (
                 call_id.clone(),
-                id.clone(),
                 outcome(failed),
                 (!text.is_empty()).then_some(text),
-                rest.clone(),
             )
         }
         openai::TypedResponseItem::LocalShellCallOutput {
-            id,
-            output,
-            status,
-            rest,
+            id, output, status, ..
         } => {
             let failed = lifecycle_failed(status.as_ref(), "Responses localShellCallOutput")?;
             (
@@ -51,18 +42,14 @@ pub(super) fn convert(
                     .get(id)
                     .cloned()
                     .unwrap_or_else(|| id.clone()),
-                Some(id.clone()),
                 outcome(failed),
                 (!output.is_empty()).then_some(output.clone()),
-                rest.clone(),
             )
         }
         openai::TypedResponseItem::ApplyPatchCallOutput {
             call_id,
             status,
-            id,
             output,
-            rest,
             ..
         } => {
             let failed = match status {
@@ -75,13 +62,7 @@ pub(super) fn convert(
                     ));
                 }
             };
-            (
-                call_id.clone(),
-                id.clone(),
-                outcome(failed),
-                output.clone(),
-                rest.clone(),
-            )
+            (call_id.clone(), outcome(failed), output.clone())
         }
         openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
@@ -113,22 +94,19 @@ pub(super) fn convert(
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => return Ok(None),
     };
-    Ok(Some(super::user_content(
-        vec![gemini::Part {
-            data: Some(gemini::PartData::CodeExecutionResult {
-                code_execution_result: gemini::CodeExecutionResult {
-                    id: Some(call_id),
-                    outcome,
-                    output: text,
-                    rest: Default::default(),
-                },
+    Ok(Some(super::user_content(vec![gemini::Part {
+        data: Some(gemini::PartData::CodeExecutionResult {
+            code_execution_result: gemini::CodeExecutionResult {
+                id: Some(call_id),
+                outcome,
+                output: text,
                 rest: Default::default(),
-            }),
-            rest: wire::openai_item_rest(rest, item_id),
-            ..Default::default()
-        }],
-        Default::default(),
-    )))
+            },
+            rest: Default::default(),
+        }),
+        rest: Default::default(),
+        ..Default::default()
+    }])))
 }
 
 fn shell_failed(output: &[openai::ShellCallOutputContent]) -> bool {

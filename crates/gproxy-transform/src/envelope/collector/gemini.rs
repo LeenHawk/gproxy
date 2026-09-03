@@ -13,7 +13,6 @@ pub(super) struct GeminiCollector {
     model_version: Option<String>,
     response_id: Option<String>,
     model_status: Option<gemini::ModelStatus>,
-    rest: gemini::JsonMap,
 }
 
 impl GeminiCollector {
@@ -50,7 +49,6 @@ impl GeminiCollector {
         set_identity(&mut self.model_version, chunk.model_version, "modelVersion")?;
         set_identity(&mut self.response_id, chunk.response_id, "responseId")?;
         self.model_status = chunk.model_status.or(self.model_status.take());
-        self.rest.extend(chunk.rest);
         Ok(())
     }
 
@@ -79,7 +77,7 @@ impl GeminiCollector {
             model_version: self.model_version,
             response_id: self.response_id,
             model_status: self.model_status,
-            rest: self.rest,
+            rest: Default::default(),
         })
     }
 }
@@ -106,7 +104,6 @@ fn merge_candidate(target: &mut gemini::Candidate, update: gemini::Candidate) {
         (Some(target), Some(update)) => {
             target.parts.extend(update.parts);
             target.role = update.role.or(target.role.take());
-            target.rest.extend(update.rest);
         }
         (slot @ None, Some(update)) => *slot = Some(update),
         _ => {}
@@ -125,7 +122,6 @@ fn merge_candidate(target: &mut gemini::Candidate, update: gemini::Candidate) {
         .or(target.url_context_metadata.take());
     target.index = update.index.or(target.index);
     target.finish_message = update.finish_message.or(target.finish_message.take());
-    target.rest.extend(update.rest);
 }
 
 fn merge_usage(target: &mut gemini::UsageMetadata, update: gemini::UsageMetadata) {
@@ -158,7 +154,6 @@ fn merge_usage(target: &mut gemini::UsageMetadata, update: gemini::UsageMetadata
         update.tool_use_prompt_tokens_details,
     );
     target.service_tier = update.service_tier.or(target.service_tier.take());
-    target.rest.extend(update.rest);
 }
 
 fn replace_if_present<T>(target: &mut Vec<T>, update: Vec<T>) {
