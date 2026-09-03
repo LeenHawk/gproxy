@@ -14,7 +14,8 @@ pub enum ResponseWebSocketRequest {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseCreateWebSocketRequest {
     #[serde(rename = "type")]
     pub type_: ResponseCreateWebSocketRequestType,
@@ -35,7 +36,8 @@ pub enum ResponseCreateWebSocketRequestType {
     ResponseCreate,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInjectWebSocketRequest {
     #[serde(rename = "type")]
     pub type_: ResponseInjectWebSocketRequestType,
@@ -52,7 +54,8 @@ pub enum ResponseInjectWebSocketRequestType {
     ResponseInject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInjectCreatedEvent {
     pub response_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -61,7 +64,8 @@ pub struct ResponseInjectCreatedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInjectFailedEvent {
     pub response_id: String,
     pub input: Vec<ResponseItem>,
@@ -72,7 +76,8 @@ pub struct ResponseInjectFailedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInjectError {
     pub code: String,
     pub message: String,

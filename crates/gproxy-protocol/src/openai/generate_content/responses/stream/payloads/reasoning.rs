@@ -4,7 +4,8 @@ use crate::openai::common::Rest;
 
 use super::super::super::ResponseReasoningSummaryPart;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningSummaryPartAddedEvent {
     pub item_id: String,
     pub output_index: u32,
@@ -16,7 +17,8 @@ pub struct ResponseReasoningSummaryPartAddedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningSummaryPartDoneEvent {
     pub item_id: String,
     pub output_index: u32,
@@ -37,7 +39,8 @@ pub enum ResponseReasoningSummaryPartStatus {
     Incomplete,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningSummaryTextDeltaEvent {
     pub delta: String,
     pub item_id: String,
@@ -49,7 +52,8 @@ pub struct ResponseReasoningSummaryTextDeltaEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningSummaryTextDoneEvent {
     pub item_id: String,
     pub output_index: u32,

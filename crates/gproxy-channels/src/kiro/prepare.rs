@@ -12,7 +12,7 @@ const UA_RUNTIME: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererstreaming/
 pub(super) const UA_MANAGEMENT: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererruntime/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-    if ctx.key.operation == Operation::ListModels {
+    if ctx.key.operation() == Operation::ListModels {
         return model_list(ctx);
     }
     runtime(ctx)

@@ -23,7 +23,7 @@ pub(super) async fn run<H: Host>(
     owner_user_id: i64,
     started: Instant,
 ) -> Option<Result<ExecOutcome, CoreError>> {
-    let operation = classified.key.operation;
+    let operation = classified.key.operation();
     let catalogue = matches!(operation, Operation::ListModels | Operation::GetModel)
         && matches!(
             &request.mode,
@@ -70,12 +70,12 @@ async fn serve<H: Host>(
         .first()
         .cloned()
         .ok_or(CoreError::NoCredentials)?;
-    let OperationKind::Family(family) = classified.key.kind else {
+    let OperationKind::Family(family) = classified.key.kind() else {
         return Err(CoreError::Internal(
             "local operation has a non-family wire kind".into(),
         ));
     };
-    let (status, body) = match classified.key.operation {
+    let (status, body) = match classified.key.operation() {
         Operation::ListModels => {
             let scoped = matches!(&request.mode, crate::boundary::RoutingMode::Scoped { .. });
             let mut models = if scoped {

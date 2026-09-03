@@ -12,7 +12,7 @@ pub(crate) struct ClaudeSseDecoder {
 impl ClaudeSseDecoder {
     pub(crate) fn for_operation(ctx: StreamCtx<'_>) -> Option<Self> {
         matches!(
-            (ctx.key.operation, ctx.key.kind),
+            (ctx.key.operation(), ctx.key.kind()),
             (
                 Operation::StreamGenerateContent,
                 OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)

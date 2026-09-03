@@ -6,6 +6,8 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListFoundationModelsRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub by_customization_type: Option<CustomizationType>,
@@ -21,6 +23,8 @@ pub struct ListFoundationModelsRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListFoundationModelsResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_summaries: Option<Vec<FoundationModelSummary>>,
@@ -30,6 +34,8 @@ pub struct ListFoundationModelsResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GetFoundationModelRequest {
     pub model_identifier: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -38,6 +44,8 @@ pub struct GetFoundationModelRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GetFoundationModelResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_details: Option<FoundationModelDetails>,
@@ -47,6 +55,8 @@ pub struct GetFoundationModelResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FoundationModelSummary {
     pub model_arn: String,
     pub model_id: String,
@@ -74,6 +84,8 @@ pub type FoundationModelDetails = FoundationModelSummary;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FoundationModelLifecycle {
     pub status: FoundationModelLifecycleStatus,
     #[serde(skip_serializing_if = "Option::is_none")]

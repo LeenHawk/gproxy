@@ -75,7 +75,7 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
 }
 
 fn model_query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
-    if ctx.key.operation == gproxy_protocol::Operation::ListModels {
+    if ctx.key.operation() == gproxy_protocol::Operation::ListModels {
         crate::policy::request_query(crate::policy::CLAUDE_API, ctx)
     } else {
         Ok(None)

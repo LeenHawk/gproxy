@@ -5,7 +5,8 @@ use super::common::{AnthropicBetaHeaders, DeletedFileObjectType, FileObjectType}
 pub type FileRequestHeaders = AnthropicBetaHeaders;
 
 /// Multipart form fields for `POST /v1/files`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UploadFileRequestBody {
     pub file: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -14,7 +15,8 @@ pub struct UploadFileRequestBody {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListFilesQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_id: Option<String>,
@@ -28,14 +30,16 @@ pub struct ListFilesQuery {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FilePath {
     pub file_id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FileMetadata {
     pub id: String,
     pub created_at: String,
@@ -59,7 +63,8 @@ pub struct FileMetadata {
 pub type UploadFileResponseBody = FileMetadata;
 pub type RetrieveFileResponseBody = FileMetadata;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListFilesResponseBody {
     pub data: Vec<FileMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,7 +77,8 @@ pub struct ListFilesResponseBody {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DeleteFileResponseBody {
     pub id: String,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
@@ -83,7 +89,8 @@ pub struct DeleteFileResponseBody {
 
 pub type DownloadFileResponseBody = Vec<u8>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FileScope {
     pub id: String,
     #[serde(rename = "type")]

@@ -78,7 +78,7 @@ pub(super) async fn apply<H: Host>(
     user_key_id: i64,
     plan: &mut Plan,
 ) -> Option<SessionAffinity> {
-    if classified.key.operation.spec().affinity != Affinity::Session {
+    if classified.key.operation().spec().affinity != Affinity::Session {
         return None;
     }
     let key = cache_key(ctx, classified.session, user_key_id);

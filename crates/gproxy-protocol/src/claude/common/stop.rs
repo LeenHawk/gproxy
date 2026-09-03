@@ -10,7 +10,8 @@ pub enum StopDetails {
     Unknown(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RefusalStopDetails {
     pub category: Option<RefusalCategory>,
     pub explanation: Option<String>,

@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::openai::common::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct McpToolDescription {
     // OpenAI documents an MCP tool input schema as unknown.
     pub input_schema: Value,

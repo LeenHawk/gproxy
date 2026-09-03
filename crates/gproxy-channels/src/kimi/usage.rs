@@ -3,7 +3,7 @@ use gproxy_protocol::{ContentGenerationKind, OperationKind};
 use serde_json::Value;
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    if ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
+    if ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
         return crate::shared::claude::usage::from_body(ctx.response_body);
     }
     let response = ctx.response_body;

@@ -11,7 +11,8 @@ pub enum ToolChoice {
     Unknown(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolChoiceAuto {
     #[serde(rename = "type")]
     pub type_: ToolChoiceAutoType,
@@ -28,7 +29,8 @@ pub enum ToolChoiceAutoType {
     Auto,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolChoiceAny {
     #[serde(rename = "type")]
     pub type_: ToolChoiceAnyType,
@@ -45,7 +47,8 @@ pub enum ToolChoiceAnyType {
     Any,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolChoiceTool {
     pub name: String,
     #[serde(rename = "type")]
@@ -63,7 +66,8 @@ pub enum ToolChoiceToolType {
     Tool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolChoiceNone {
     #[serde(rename = "type")]
     pub type_: ToolChoiceNoneType,

@@ -4,7 +4,8 @@ use crate::openai::common::Rest;
 
 use super::super::super::{RealtimeContentPart, RealtimeItem};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseOutputItemEvent {
     pub response_id: String,
     pub output_index: u32,
@@ -13,7 +14,8 @@ pub struct RealtimeResponseOutputItemEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseContentPartEvent {
     pub response_id: String,
     pub item_id: String,
@@ -24,7 +26,8 @@ pub struct RealtimeResponseContentPartEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseOutputDeltaEvent {
     pub response_id: String,
     pub item_id: String,
@@ -35,7 +38,8 @@ pub struct RealtimeResponseOutputDeltaEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseOutputTextDoneEvent {
     pub response_id: String,
     pub item_id: String,
@@ -46,7 +50,8 @@ pub struct RealtimeResponseOutputTextDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseAudioTranscriptDoneEvent {
     pub response_id: String,
     pub item_id: String,
@@ -57,7 +62,8 @@ pub struct RealtimeResponseAudioTranscriptDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseOutputAudioDoneEvent {
     pub response_id: String,
     pub item_id: String,

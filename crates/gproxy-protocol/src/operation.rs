@@ -182,12 +182,16 @@ pub enum OperationKind {
 /// What routing rules, transforms, and channel support tables key on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OperationKey {
-    pub operation: Operation,
-    pub kind: OperationKind,
+    operation: Operation,
+    kind: OperationKind,
 }
 
 impl OperationKey {
     pub const fn content(operation: Operation, kind: ContentGenerationKind) -> Self {
+        assert!(
+            operation.is_content_generation(),
+            "content kind used with non-content operation"
+        );
         Self {
             operation,
             kind: OperationKind::ContentGeneration(kind),
@@ -195,12 +199,56 @@ impl OperationKey {
     }
 
     pub const fn family(operation: Operation, family: WireFamily) -> Self {
+        assert!(
+            !operation.is_content_generation(),
+            "wire family used with content operation"
+        );
         Self {
             operation,
             kind: OperationKind::Family(family),
         }
     }
+
+    pub const fn try_new(
+        operation: Operation,
+        kind: OperationKind,
+    ) -> Result<Self, OperationKeyError> {
+        let consistent = matches!(kind, OperationKind::ContentGeneration(_))
+            == operation.is_content_generation();
+        if consistent {
+            Ok(Self { operation, kind })
+        } else {
+            Err(OperationKeyError { operation, kind })
+        }
+    }
+
+    pub const fn operation(self) -> Operation {
+        self.operation
+    }
+
+    pub const fn kind(self) -> OperationKind {
+        self.kind
+    }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OperationKeyError {
+    pub operation: Operation,
+    pub kind: OperationKind,
+}
+
+impl std::fmt::Display for OperationKeyError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "operation {:?} is inconsistent with kind {:?}",
+            self.operation, self.kind
+        )
+    }
+}
+
+impl std::error::Error for OperationKeyError {}
 
 impl OperationGroup {
     /// Stable permission and persistence id.
@@ -226,6 +274,16 @@ impl OperationGroup {
 }
 
 impl Operation {
+    pub const fn is_content_generation(self) -> bool {
+        matches!(
+            self,
+            Self::GenerateContent
+                | Self::StreamGenerateContent
+                | Self::GuardianReview
+                | Self::GuardianClassify
+        )
+    }
+
     /// Stable persistence id. Exhaustive so adding an operation cannot silently
     /// collapse into a debug-string or catch-all representation.
     pub const fn id(self) -> &'static str {

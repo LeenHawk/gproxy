@@ -7,7 +7,8 @@ use super::{
     ToolUseBlockType, WebSearchResultBlockType, WebSearchToolResultBlockType,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseTextBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<Vec<Citation>>,
@@ -18,7 +19,8 @@ pub struct ResponseTextBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -31,7 +33,8 @@ pub struct ResponseToolUseBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseServerToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -44,7 +47,8 @@ pub struct ResponseServerToolUseBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseWebSearchToolResultBlock {
     pub content: ResponseWebSearchToolResultContent,
     pub tool_use_id: String,
@@ -56,7 +60,8 @@ pub struct ResponseWebSearchToolResultBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseWebSearchResultBlock {
     pub encrypted_content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,7 +74,8 @@ pub struct ResponseWebSearchResultBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseToolReferenceBlock {
     pub tool_name: String,
     #[serde(rename = "type")]
@@ -85,7 +91,8 @@ pub enum ResponseToolReferenceBlockType {
     ToolReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseMcpToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -104,7 +111,8 @@ pub enum ResponseMcpToolUseBlockType {
     McpToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseMcpToolResultBlock {
     pub content: ResponseMcpToolResultContent,
     pub is_error: bool,
@@ -124,7 +132,8 @@ pub enum ResponseMcpToolResultBlockType {
 
 pub type ResponseMcpToolResultContent = StringOrArray<ResponseTextBlock>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseContainerUploadBlock {
     pub file_id: String,
     #[serde(rename = "type")]
@@ -133,7 +142,8 @@ pub struct ResponseContainerUploadBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseCompactionBlock {
     pub content: Option<String>,
     pub encrypted_content: String,

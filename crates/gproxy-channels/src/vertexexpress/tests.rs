@@ -28,7 +28,7 @@ fn declares_only_express_operations_with_available_pairs() {
     );
     assert!(supports.iter().all(|support| {
         support.target == OperationKey::family(Operation::CountTokens, WireFamily::Gemini)
-            || support.target.kind
+            || support.target.kind()
                 == gproxy_protocol::OperationKind::ContentGeneration(
                     ContentGenerationKind::GeminiGenerateContent,
                 )

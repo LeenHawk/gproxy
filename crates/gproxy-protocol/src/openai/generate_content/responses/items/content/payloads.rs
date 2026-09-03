@@ -4,7 +4,8 @@ use crate::openai::common::*;
 
 use super::super::ResponseAnnotation;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputText {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -13,7 +14,8 @@ pub struct ResponseInputText {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputImage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<DetailLevel>,
@@ -27,7 +29,8 @@ pub struct ResponseInputImage {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<InputFileDetailLevel>,
@@ -45,14 +48,16 @@ pub struct ResponseInputFile {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputAudio {
     pub input_audio: InputAudioContent,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseOutputText {
     #[serde(rename = "type")]
     pub type_: ResponseOutputTextType,
@@ -72,7 +77,8 @@ pub enum ResponseOutputTextType {
     OutputText,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseRefusal {
     #[serde(rename = "type")]
     pub type_: ResponseRefusalType,
@@ -88,7 +94,8 @@ pub enum ResponseRefusalType {
     Refusal,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningText {
     #[serde(rename = "type")]
     pub type_: ResponseReasoningTextType,
@@ -104,7 +111,8 @@ pub enum ResponseReasoningTextType {
     ReasoningText,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InputAudioContent {
     pub data: String,
     pub format: InputAudioFormat,

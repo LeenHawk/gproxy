@@ -4,7 +4,7 @@ use gproxy_protocol::{ContentGenerationKind, OperationKind};
 use serde_json::Value;
 
 pub(crate) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
-    let kind = match ctx.key.kind {
+    let kind = match ctx.key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => Kind::Chat,
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses) => Kind::Responses,
         _ => return None,

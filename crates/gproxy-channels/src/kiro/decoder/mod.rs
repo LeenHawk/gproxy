@@ -27,8 +27,8 @@ pub(super) struct KiroDecoder {
 
 impl KiroDecoder {
     pub(super) fn for_operation(ctx: StreamCtx<'_>) -> Option<Self> {
-        let supported = ctx.key.operation == Operation::StreamGenerateContent
-            && ctx.key.kind
+        let supported = ctx.key.operation() == Operation::StreamGenerateContent
+            && ctx.key.kind()
                 == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses);
         supported.then(|| {
             let request: Value = serde_json::from_slice(ctx.request_body)

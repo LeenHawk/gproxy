@@ -229,7 +229,7 @@ impl Channel for MemoryHost {
         &self,
         ctx: ResourceCtx<'_>,
     ) -> Result<Vec<ResourceMutation>, ChannelError> {
-        if ctx.key.operation == Operation::CreateRealtimeCall {
+        if ctx.key.operation() == Operation::CreateRealtimeCall {
             let id = ctx
                 .response_headers
                 .get(http::header::LOCATION)
@@ -242,7 +242,7 @@ impl Channel for MemoryHost {
                 summary: serde_json::json!({"id": id}),
             }]);
         }
-        if ctx.key.operation == Operation::DeleteFile {
+        if ctx.key.operation() == Operation::DeleteFile {
             return Ok(ctx
                 .request_resource
                 .map(|(kind, id)| ResourceMutation::Delete {

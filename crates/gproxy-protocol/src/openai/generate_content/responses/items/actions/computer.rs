@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::common::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SafetyCheck {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,7 +99,8 @@ pub enum ComputerMouseButton {
     Forward,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ComputerCoordinate {
     pub x: f64,
     pub y: f64,
@@ -106,7 +108,8 @@ pub struct ComputerCoordinate {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ComputerScreenshot {
     #[serde(rename = "type")]
     pub type_: ComputerScreenshotType,

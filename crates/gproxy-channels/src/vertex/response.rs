@@ -7,11 +7,11 @@ pub(super) fn shape(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
     if !ctx.status.is_success() {
         return Ok(ctx.body.clone());
     }
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::ListModels => crate::shared::gemini::vertex::normalize_model(ctx.body, true),
         Operation::GetModel => crate::shared::gemini::vertex::normalize_model(ctx.body, false),
         Operation::GenerateContent | Operation::StreamGenerateContent
-            if ctx.key.kind
+            if ctx.key.kind()
                 == OperationKind::ContentGeneration(
                     ContentGenerationKind::GeminiGenerateContent,
                 ) =>

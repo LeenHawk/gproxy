@@ -22,7 +22,8 @@ pub enum TranslationResponse {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Transcription {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -35,7 +36,8 @@ pub struct Transcription {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionVerbose {
     pub duration: f64,
     pub language: String,
@@ -52,7 +54,8 @@ pub struct TranscriptionVerbose {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionDiarized {
     pub duration: f64,
     pub segments: Vec<TranscriptionDiarizedSegment>,
@@ -64,14 +67,16 @@ pub struct TranscriptionDiarized {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Translation {
     pub text: String,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranslationVerbose {
     pub duration: f64,
     pub language: String,
@@ -90,7 +95,8 @@ pub enum AudioUsage {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AudioTokenUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -109,7 +115,8 @@ pub enum AudioTokenUsageType {
     Tokens,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AudioDurationUsage {
     pub seconds: f64,
     #[serde(rename = "type")]
@@ -124,7 +131,8 @@ pub enum AudioDurationUsageType {
     Duration,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AudioInputTokenDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_tokens: Option<u64>,
@@ -134,14 +142,16 @@ pub struct AudioInputTokenDetails {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionLanguage {
     pub code: String,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionLogprob {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
@@ -153,7 +163,8 @@ pub struct TranscriptionLogprob {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionSegment {
     pub id: u64,
     pub avg_logprob: f64,
@@ -169,7 +180,8 @@ pub struct TranscriptionSegment {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionWord {
     pub end: f64,
     pub start: f64,
@@ -178,7 +190,8 @@ pub struct TranscriptionWord {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionDiarizedSegment {
     pub id: String,
     pub end: f64,

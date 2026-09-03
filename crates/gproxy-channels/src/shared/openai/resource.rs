@@ -12,11 +12,11 @@ pub(crate) fn settlement_ready(ctx: UsageCtx<'_>) -> Result<bool, ChannelError> 
 }
 
 pub(crate) fn mutations(ctx: ResourceCtx<'_>) -> Result<Vec<ResourceMutation>, ChannelError> {
-    let Affinity::Resource(kind) = ctx.key.operation.spec().affinity else {
+    let Affinity::Resource(kind) = ctx.key.operation().spec().affinity else {
         return Ok(Vec::new());
     };
     use gproxy_protocol::Operation::*;
-    match ctx.key.operation {
+    match ctx.key.operation() {
         CreateFile | RetrieveFile => {
             let file: openai::files::FileObject =
                 serde_json::from_slice(ctx.response_body).map_err(observe)?;

@@ -3,7 +3,7 @@ use gproxy_channel_api::{ChannelError, PrepareCtx};
 
 pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
     let rewritten =
-        crate::shared::gemini::model::rewrite(ctx.key.operation, ctx.body, ctx.upstream_model)?;
+        crate::shared::gemini::model::rewrite(ctx.key.operation(), ctx.body, ctx.upstream_model)?;
     let mut value: serde_json::Value = serde_json::from_slice(&rewritten)
         .map_err(|error| ChannelError::Prepare(format!("Gemini request JSON: {error}")))?;
     value

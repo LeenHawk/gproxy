@@ -9,7 +9,7 @@ pub(super) fn shape(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
     if !ctx.status.is_success() {
         return Ok(ctx.body.clone());
     }
-    if ctx.key.operation == Operation::ListModels {
+    if ctx.key.operation() == Operation::ListModels {
         model_list(ctx.body)
     } else {
         unwrap_chat(ctx.body)

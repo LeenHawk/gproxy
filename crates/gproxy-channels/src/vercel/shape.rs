@@ -9,7 +9,7 @@ pub(super) fn request(
     body: Bytes,
 ) -> Result<Bytes, ChannelError> {
     let openai = matches!(
-        ctx.key.kind,
+        ctx.key.kind(),
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses
         )
@@ -21,14 +21,14 @@ pub(super) fn request(
     let mut value: Value = serde_json::from_slice(&body)
         .map_err(|error| ChannelError::Prepare(format!("request body JSON: {error}")))?;
     if openai && enabled(ctx.provider_settings, "enable_openai_magic_cache") {
-        let kind = match ctx.key.kind {
+        let kind = match ctx.key.kind() {
             OperationKind::ContentGeneration(kind) => kind,
             OperationKind::Family(_) => return Ok(body),
         };
         crate::shared::openai::cache::apply(&mut value, kind);
     }
     if claude {
-        if ctx.key.operation == Operation::CountTokens {
+        if ctx.key.operation() == Operation::CountTokens {
             crate::shared::claude::hygiene::count_tokens(&value, headers);
         } else {
             crate::shared::claude::hygiene::messages(&mut value, headers);

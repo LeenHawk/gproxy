@@ -242,7 +242,7 @@ fn media_stream_detection_covers_json_values_and_multipart_flags() {
         crate::execution::request::classify(&models)
             .expect("Claude models")
             .key
-            .kind,
+            .kind(),
         gproxy_protocol::OperationKind::Family(gproxy_protocol::WireFamily::Claude)
     );
     models.upgrade = true;

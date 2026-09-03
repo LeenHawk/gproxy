@@ -14,7 +14,7 @@ pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
             .unwrap_or(seconds);
         object.entry("duration").or_insert(duration);
     }
-    if ctx.key.operation == Operation::CreateVideo {
+    if ctx.key.operation() == Operation::CreateVideo {
         if let Some(reference) = object.remove("input_reference") {
             object.entry("image").or_insert(source(reference)?);
         }

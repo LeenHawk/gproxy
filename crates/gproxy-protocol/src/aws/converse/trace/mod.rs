@@ -15,6 +15,8 @@ pub use policies::*;
 /// AWS `ConverseTrace` response object (`Converse.md` trace).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseTrace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guardrail: Option<GuardrailTraceAssessment>,
@@ -29,6 +31,8 @@ pub type ConverseStreamTrace = ConverseTrace;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PromptRouterTrace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invoked_model_id: Option<String>,
@@ -38,6 +42,8 @@ pub struct PromptRouterTrace {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailTraceAssessment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action_reason: Option<String>,
@@ -53,6 +59,8 @@ pub struct GuardrailTraceAssessment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAssessment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub applied_guardrail_details: Option<AppliedGuardrailDetails>,

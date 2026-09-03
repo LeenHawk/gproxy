@@ -30,7 +30,7 @@ enum Kind {
 
 impl OpenAiSseDecoder {
     pub(crate) fn for_operation(ctx: StreamCtx<'_>) -> Option<Self> {
-        let kind = match (ctx.key.operation, ctx.key.kind) {
+        let kind = match (ctx.key.operation(), ctx.key.kind()) {
             (
                 Operation::StreamGenerateContent,
                 OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat),

@@ -35,7 +35,7 @@ pub(super) async fn run<H: Host>(
             };
             async move {
                 let classified = super::request::classify(&request).ok()?;
-                let OperationKind::Family(family) = classified.key.kind else {
+                let OperationKind::Family(family) = classified.key.kind() else {
                     return None;
                 };
                 let channel = core.channels.get(&targets.first()?.provider.channel)?;
@@ -104,9 +104,11 @@ pub(super) async fn for_local_get<H: Host>(
     if !models.is_empty() {
         return models;
     }
-    let key = gproxy_protocol::OperationKey {
-        operation: gproxy_protocol::Operation::ListModels,
-        kind: classified.key.kind,
+    let Ok(key) = gproxy_protocol::OperationKey::try_new(
+        gproxy_protocol::Operation::ListModels,
+        classified.key.kind(),
+    ) else {
+        return Vec::new();
     };
     let Some((method, path)) = gproxy_protocol::request_target(key, "") else {
         return Vec::new();

@@ -8,7 +8,7 @@ pub(super) fn request(
     ctx: &PrepareCtx<'_>,
     headers: &mut HeaderMap,
 ) -> Result<Bytes, ChannelError> {
-    if ctx.key.operation == Operation::CreateTranscription {
+    if ctx.key.operation() == Operation::CreateTranscription {
         if ctx.stream {
             return Err(ChannelError::Prepare(
                 "xAI transcription API does not use OpenAI SSE".into(),
@@ -18,14 +18,14 @@ pub(super) fn request(
         headers.insert(http::header::CONTENT_TYPE, content_type);
         return Ok(body);
     }
-    if ctx.stream && ctx.key.operation == Operation::CreateSpeech {
+    if ctx.stream && ctx.key.operation() == Operation::CreateSpeech {
         return Err(ChannelError::Prepare(
             "xAI speech API does not use OpenAI SSE".into(),
         ));
     }
     if ctx.stream
         && matches!(
-            ctx.key.operation,
+            ctx.key.operation(),
             Operation::CreateImage | Operation::EditImage
         )
     {
@@ -50,11 +50,11 @@ pub(super) fn request(
     if !ctx.upstream_model.is_empty() {
         object.insert("model".into(), Value::String(ctx.upstream_model.into()));
     }
-    match ctx.key.operation {
-        Operation::CreateImage | Operation::EditImage => image(&mut object, ctx.key.operation)?,
+    match ctx.key.operation() {
+        Operation::CreateImage | Operation::EditImage => image(&mut object, ctx.key.operation())?,
         Operation::CreateSpeech => speech(&mut object)?,
         Operation::CreateVideo | Operation::EditVideo | Operation::ExtendVideo => {
-            video(&mut object, ctx.key.operation)?
+            video(&mut object, ctx.key.operation())?
         }
         _ => {}
     }

@@ -211,7 +211,7 @@ impl Channel for KiroChannel {
         &self,
         ctx: ResponseShapeCtx<'_>,
     ) -> Result<bytes::Bytes, gproxy_channel_api::ChannelError> {
-        if ctx.status.is_success() && ctx.key.operation == Operation::ListModels {
+        if ctx.status.is_success() && ctx.key.operation() == Operation::ListModels {
             model_list::response(ctx.body)
         } else {
             Ok(ctx.body.clone())

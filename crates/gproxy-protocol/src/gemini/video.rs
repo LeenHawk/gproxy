@@ -5,6 +5,8 @@ use super::Status;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VeoPredictLongRunningRequest {
     // models.predictLongRunning defines each instance as google.protobuf.Value.
     pub instances: Vec<Value>,
@@ -18,6 +20,8 @@ pub struct VeoPredictLongRunningRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VeoOperation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

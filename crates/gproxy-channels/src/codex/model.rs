@@ -9,7 +9,7 @@ pub(super) fn shape(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
     if !ctx.status.is_success() {
         return Ok(ctx.body.clone());
     }
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::ListModels => list(ctx.body),
         Operation::GetModel => get(ctx.body),
         _ => Ok(ctx.body.clone()),

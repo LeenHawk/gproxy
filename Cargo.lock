@@ -1676,9 +1676,19 @@ dependencies = [
 name = "gproxy-protocol"
 version = "3.0.0-alpha.0"
 dependencies = [
+ "gproxy-protocol-macros",
  "http",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "gproxy-protocol-macros"
+version = "3.0.0-alpha.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
 ]
 
 [[package]]

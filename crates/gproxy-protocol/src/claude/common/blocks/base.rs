@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use super::super::{CacheControl, Citation, CitationConfig};
 use super::{DocumentSource, ImageSource};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextBlock {
     pub text: String,
     #[serde(rename = "type")]
@@ -23,7 +24,8 @@ pub enum TextBlockType {
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageBlock {
     pub source: ImageSource,
     #[serde(rename = "type")]
@@ -41,7 +43,8 @@ pub enum ImageBlockType {
     Image,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DocumentBlock {
     pub source: DocumentSource,
     #[serde(rename = "type")]
@@ -65,7 +68,8 @@ pub enum DocumentBlockType {
     Document,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SearchResultBlock {
     pub content: Vec<TextBlock>,
     pub source: String,
@@ -87,7 +91,8 @@ pub enum SearchResultBlockType {
     SearchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
@@ -105,7 +110,8 @@ pub enum ThinkingBlockType {
     Thinking,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RedactedThinkingBlock {
     pub data: String,
     #[serde(rename = "type")]

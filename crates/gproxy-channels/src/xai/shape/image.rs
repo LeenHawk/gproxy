@@ -24,7 +24,7 @@ pub(super) fn request(
     for name in ["moderation", "partial_images", "size", "stream"] {
         object.remove(name);
     }
-    if ctx.key.operation == Operation::EditImage {
+    if ctx.key.operation() == Operation::EditImage {
         object.remove("mask");
         let images = object
             .remove("images")

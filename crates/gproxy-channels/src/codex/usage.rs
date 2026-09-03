@@ -8,7 +8,7 @@ use gproxy_protocol::openai::search::SearchResponse;
 use rust_decimal::Decimal;
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::GenerateContent
         | Operation::StreamGenerateContent
         | Operation::GuardianReview

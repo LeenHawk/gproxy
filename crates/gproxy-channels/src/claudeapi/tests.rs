@@ -23,9 +23,9 @@ fn declares_only_native_claude_targets_and_available_pairs() {
         5
     );
     assert!(supports.iter().all(|support| {
-        support.target.kind
+        support.target.kind()
             == if matches!(
-                support.target.operation,
+                support.target.operation(),
                 Operation::GenerateContent | Operation::StreamGenerateContent
             ) {
                 gproxy_protocol::OperationKind::ContentGeneration(

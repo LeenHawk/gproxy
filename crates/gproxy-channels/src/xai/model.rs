@@ -4,7 +4,7 @@ use gproxy_protocol::Operation;
 use serde_json::Value;
 
 pub(super) fn path(ctx: &PrepareCtx<'_>) -> String {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::GetModel if !ctx.upstream_model.is_empty() => format!(
             "/v1/models/{}",
             crate::shared::http::encode_component(ctx.upstream_model)

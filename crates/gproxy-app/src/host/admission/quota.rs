@@ -18,7 +18,7 @@ pub(super) async fn reserve(
     now: i64,
     charged: &mut Vec<CounterCharge>,
 ) -> Result<Vec<QuotaReservation>, CoreError> {
-    if !operation.is_some_and(|key| key.operation.spec().settle != SettleMode::Free) {
+    if !operation.is_some_and(|key| key.operation().spec().settle != SettleMode::Free) {
         return Ok(Vec::new());
     }
     let estimate = estimated_cost_micros(host, request, plan).await?;

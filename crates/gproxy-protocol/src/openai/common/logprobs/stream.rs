@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StreamTokenLogprob {
     pub token: String,
     pub logprob: f64,
@@ -12,7 +13,8 @@ pub struct StreamTokenLogprob {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StreamTokenTopLogprob {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,

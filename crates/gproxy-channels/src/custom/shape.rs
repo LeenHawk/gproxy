@@ -11,13 +11,13 @@ pub(super) fn request(
     body: Bytes,
 ) -> Result<Bytes, ChannelError> {
     let openai = matches!(
-        key.kind,
+        key.kind(),
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses
         )
     ) && enabled(settings, "enable_openai_magic_cache");
     let claude =
-        key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
+        key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
     let fallback = claude && crate::shared::claude::fallback::enabled(settings);
     if !openai && !fallback {
         return Ok(body);
@@ -25,7 +25,7 @@ pub(super) fn request(
     let mut value: Value = serde_json::from_slice(&body)
         .map_err(|error| ChannelError::Prepare(format!("request body JSON: {error}")))?;
     if openai {
-        let kind = match key.kind {
+        let kind = match key.kind() {
             OperationKind::ContentGeneration(kind) => kind,
             OperationKind::Family(_) => return Ok(body),
         };

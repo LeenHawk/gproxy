@@ -5,7 +5,7 @@ use serde_json::Value;
 
 pub(super) fn rewrite(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
     if matches!(
-        ctx.key.kind,
+        ctx.key.kind(),
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses
         )
@@ -31,7 +31,7 @@ pub(super) fn rewrite(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 }
 
 pub(super) fn endpoint(key: gproxy_protocol::OperationKey) -> Option<&'static str> {
-    match key.kind {
+    match key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => {
             Some("openai_chat_completions")
         }
@@ -50,5 +50,5 @@ pub(super) fn endpoint(key: gproxy_protocol::OperationKey) -> Option<&'static st
 }
 
 pub(super) fn is_claude(key: gproxy_protocol::OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
 }

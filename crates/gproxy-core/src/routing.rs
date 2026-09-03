@@ -67,12 +67,15 @@ pub fn compile(spec: &RoutingRuleSpec) -> Result<CompiledRoutingRule, String> {
     let implementation = RoutingImplementation::from_id(&spec.implementation)
         .ok_or_else(|| format!("unknown routing implementation `{}`", spec.implementation))?;
     let destination = match (&spec.dest_operation, &spec.dest_kind) {
-        (Some(operation), Some(kind)) => Some(OperationKey {
-            operation: Operation::from_id(operation)
-                .ok_or_else(|| format!("unknown destination operation `{operation}`"))?,
-            kind: OperationKind::from_id(kind)
-                .ok_or_else(|| format!("unknown destination kind `{kind}`"))?,
-        }),
+        (Some(operation), Some(kind)) => Some(
+            OperationKey::try_new(
+                Operation::from_id(operation)
+                    .ok_or_else(|| format!("unknown destination operation `{operation}`"))?,
+                OperationKind::from_id(kind)
+                    .ok_or_else(|| format!("unknown destination kind `{kind}`"))?,
+            )
+            .map_err(|error| error.to_string())?,
+        ),
         (None, None) => None,
         _ => return Err("destination operation and kind must be set together".into()),
     };
@@ -104,7 +107,7 @@ pub fn compile_all(specs: &[RoutingRuleSpec]) -> Result<Vec<CompiledRoutingRule>
 pub fn decide(rules: &[CompiledRoutingRule], source: OperationKey) -> Option<RoutingDecision> {
     let rule = rules
         .iter()
-        .find(|rule| rule.operation == source.operation && rule.kind == source.kind)?;
+        .find(|rule| rule.operation == source.operation() && rule.kind == source.kind())?;
     Some(match rule.implementation {
         RoutingImplementation::Passthrough => RoutingDecision::Passthrough,
         RoutingImplementation::TransformTo => {

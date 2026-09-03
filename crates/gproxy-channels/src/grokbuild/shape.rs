@@ -11,7 +11,7 @@ pub(super) fn request(
     headers: &mut HeaderMap,
 ) -> Result<Bytes, ChannelError> {
     if matches!(
-        ctx.key.kind,
+        ctx.key.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses)
     ) {
         let body = crate::shared::openai::shape_request(
@@ -23,7 +23,7 @@ pub(super) fn request(
         )?;
         return responses::request(&body);
     }
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::CreateImage
         | Operation::EditImage
         | Operation::CreateSpeech
@@ -44,7 +44,7 @@ pub(super) fn request(
 pub(super) fn response(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
     if ctx.status.is_success()
         && matches!(
-            ctx.key.operation,
+            ctx.key.operation(),
             Operation::CreateVideo
                 | Operation::RetrieveVideo
                 | Operation::EditVideo

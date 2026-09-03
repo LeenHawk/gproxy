@@ -5,7 +5,8 @@ use crate::openai::common::{Rest, StreamTokenLogprob};
 
 use super::super::super::ResponseContentPart;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseContentPartEvent {
     pub content_index: u32,
     pub item_id: String,
@@ -17,7 +18,8 @@ pub struct ResponseContentPartEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseOutputTextDeltaEvent {
     // The Codex backend can omit the content index on sparse interrupted frames.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -33,7 +35,8 @@ pub struct ResponseOutputTextDeltaEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseOutputTextDoneEvent {
     pub content_index: u32,
     pub item_id: String,
@@ -47,7 +50,8 @@ pub struct ResponseOutputTextDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseOutputTextAnnotationEvent {
     // OpenAI deliberately documents the streamed annotation payload as unknown.
     pub annotation: Value,
@@ -61,7 +65,8 @@ pub struct ResponseOutputTextAnnotationEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseContentDeltaEvent {
     pub content_index: u32,
     pub delta: String,
@@ -73,7 +78,8 @@ pub struct ResponseContentDeltaEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseRefusalDoneEvent {
     pub content_index: u32,
     pub item_id: String,
@@ -85,7 +91,8 @@ pub struct ResponseRefusalDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseContentTextDoneEvent {
     pub content_index: u32,
     pub item_id: String,
@@ -97,7 +104,8 @@ pub struct ResponseContentTextDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseAudioDeltaEvent {
     pub delta: String,
     #[serde(skip_serializing_if = "Option::is_none")]

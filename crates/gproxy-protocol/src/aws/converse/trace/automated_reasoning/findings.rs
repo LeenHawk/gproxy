@@ -56,6 +56,8 @@ pub enum GuardrailAutomatedReasoningFinding {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningImpossibleFinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contradicting_rules: Option<Vec<GuardrailAutomatedReasoningRule>>,
@@ -69,6 +71,8 @@ pub struct GuardrailAutomatedReasoningImpossibleFinding {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningInvalidFinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contradicting_rules: Option<Vec<GuardrailAutomatedReasoningRule>>,
@@ -85,6 +89,8 @@ pub type GuardrailAutomatedReasoningTooComplexFinding = EmptyObject;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningSatisfiableFinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claims_false_scenario: Option<GuardrailAutomatedReasoningScenario>,
@@ -100,6 +106,8 @@ pub struct GuardrailAutomatedReasoningSatisfiableFinding {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningTranslationAmbiguousFinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub difference_scenarios: Option<Vec<GuardrailAutomatedReasoningScenario>>,
@@ -111,6 +119,8 @@ pub struct GuardrailAutomatedReasoningTranslationAmbiguousFinding {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningValidFinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claims_true_scenario: Option<GuardrailAutomatedReasoningScenario>,

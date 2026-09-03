@@ -165,7 +165,7 @@ pub(crate) async fn send<H: Host>(
                     decoder,
                 )));
             }
-            let gproxy_protocol::OperationKind::ContentGeneration(kind) = key.kind else {
+            let gproxy_protocol::OperationKind::ContentGeneration(kind) = key.kind() else {
                 let (parts, _) = response.into_parts();
                 return Err(Box::new(Failure::Interrupted {
                     channel: channel.descriptor().id,
@@ -232,7 +232,7 @@ pub(crate) async fn send<H: Host>(
                 }
             };
         }
-        if source.kind != key.kind || facts.source_framing != facts.target_framing {
+        if source.kind() != key.kind() || facts.source_framing != facts.target_framing {
             decoder = Some(Box::new(transform::TransformDecoder::new(
                 source,
                 key,

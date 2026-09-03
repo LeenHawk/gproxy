@@ -4,7 +4,8 @@ use crate::openai::common::*;
 
 use super::{ChatChoiceLogprobs, CompletionUsage};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCompletionChunk {
     pub id: String,
     pub choices: Vec<ChatChunkChoice>,
@@ -22,7 +23,8 @@ pub struct ChatCompletionChunk {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatChunkChoice {
     pub index: u32,
     pub delta: ChatDelta,
@@ -33,7 +35,8 @@ pub struct ChatChunkChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<ChatDeltaRole>,
@@ -59,7 +62,8 @@ pub enum ChatDeltaRole {
     Assistant,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatToolCallDelta {
     pub index: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -74,7 +78,8 @@ pub struct ChatToolCallDelta {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FunctionCallDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<String>,
@@ -84,7 +89,8 @@ pub struct FunctionCallDelta {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CustomToolCallDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<String>,

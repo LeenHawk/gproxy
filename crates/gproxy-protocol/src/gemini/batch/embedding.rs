@@ -5,6 +5,8 @@ use super::{BatchOperation, BatchResourceFields};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AsyncBatchEmbedContentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch: Option<EmbedContentBatch>,
@@ -16,6 +18,8 @@ pub type AsyncBatchEmbedContentResponse = BatchOperation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UpdateEmbedContentBatchQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_mask: Option<String>,
@@ -25,6 +29,8 @@ pub struct UpdateEmbedContentBatchQuery {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct EmbedContentBatch {
     #[serde(flatten)]
     pub resource: BatchResourceFields,
@@ -38,6 +44,8 @@ pub struct EmbedContentBatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct EmbedContentInputConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub source: Option<EmbedContentInputSource>,
@@ -60,6 +68,8 @@ pub enum EmbedContentInputSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedEmbedRequests {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requests: Vec<InlinedEmbedRequest>,
@@ -67,7 +77,10 @@ pub struct InlinedEmbedRequests {
     pub rest: JsonMap,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedEmbedRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<EmbedContentRequest>,
@@ -79,6 +92,8 @@ pub struct InlinedEmbedRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct EmbedContentBatchOutput {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub output: Option<EmbedContentBatchOutputData>,
@@ -102,6 +117,8 @@ pub enum EmbedContentBatchOutputData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedEmbedResponses {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inlined_responses: Vec<InlinedEmbedResponse>,
@@ -109,7 +126,10 @@ pub struct InlinedEmbedResponses {
     pub rest: JsonMap,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedEmbedResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<JsonMap>,

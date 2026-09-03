@@ -18,7 +18,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         &mut headers,
         ctx.secret,
         ctx.stream,
-        ctx.key.operation == Operation::CreateSpeech,
+        ctx.key.operation() == Operation::CreateSpeech,
         session.as_deref(),
     )?;
     let mut request = http::Request::builder()
@@ -71,14 +71,14 @@ fn video_id(path: &str) -> Option<&str> {
 
 fn path(ctx: &PrepareCtx<'_>, public: bool) -> String {
     if public {
-        return match ctx.key.operation {
+        return match ctx.key.operation() {
             Operation::CreateSpeech => "/tts".into(),
             Operation::CreateTranscription => "/stt".into(),
             Operation::CreateVideo => "/videos/generations".into(),
             _ => ctx.path.strip_prefix("/v1").unwrap_or(ctx.path).into(),
         };
     }
-    if ctx.key.operation == Operation::GetModel && !ctx.upstream_model.is_empty() {
+    if ctx.key.operation() == Operation::GetModel && !ctx.upstream_model.is_empty() {
         return format!(
             "/models/{}",
             crate::shared::http::encode_component(ctx.upstream_model)
@@ -88,14 +88,14 @@ fn path(ctx: &PrepareCtx<'_>, public: bool) -> String {
 }
 
 fn endpoint_name(key: gproxy_protocol::OperationKey) -> Option<&'static str> {
-    if let OperationKind::ContentGeneration(kind) = key.kind {
+    if let OperationKind::ContentGeneration(kind) = key.kind() {
         return match kind {
             ContentGenerationKind::OpenAiChat => Some("openai_chat_completions"),
             ContentGenerationKind::OpenAiResponses => Some("openai_responses"),
             _ => None,
         };
     }
-    match key.operation {
+    match key.operation() {
         Operation::ListModels => Some("openai_list_models"),
         Operation::GetModel => Some("openai_get_model"),
         Operation::CompactContent => Some("openai_compact"),
@@ -112,9 +112,9 @@ fn endpoint_name(key: gproxy_protocol::OperationKey) -> Option<&'static str> {
 }
 
 fn is_public(key: gproxy_protocol::OperationKey) -> bool {
-    key.kind == OperationKind::Family(gproxy_protocol::WireFamily::OpenAi)
+    key.kind() == OperationKind::Family(gproxy_protocol::WireFamily::OpenAi)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::CompactContent
                 | Operation::CreateImage
                 | Operation::EditImage

@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use super::{Message, Rest, SystemContentBlock, ToolConfiguration};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CountTokensRequest {
     pub input: CountTokensInput,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -28,7 +29,10 @@ pub enum CountTokensInput {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InvokeModelTokensRequest {
     pub body: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -37,6 +41,8 @@ pub struct InvokeModelTokensRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseTokensRequest {
     /// `upstream_docs/aws/docs/ConverseTokensRequest.md`,
     /// `additionalModelRequestFields`: model-specific parameters as a JSON value.
@@ -54,6 +60,8 @@ pub struct ConverseTokensRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CountTokensResponse {
     pub input_tokens: u64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

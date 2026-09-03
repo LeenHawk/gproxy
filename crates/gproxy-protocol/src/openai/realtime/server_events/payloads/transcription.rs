@@ -6,7 +6,8 @@ use crate::openai::audio::AudioUsage;
 
 use super::super::super::RealtimeError;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputTranscriptionDeltaEvent {
     pub item_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16,7 +17,8 @@ pub struct RealtimeInputTranscriptionDeltaEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputTranscriptionCompletedEvent {
     pub item_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -28,7 +30,8 @@ pub struct RealtimeInputTranscriptionCompletedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputTranscriptionFailedEvent {
     pub item_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,7 +41,8 @@ pub struct RealtimeInputTranscriptionFailedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputTranscriptionSegmentEvent {
     pub item_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,7 +59,8 @@ pub struct RealtimeInputTranscriptionSegmentEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputAudioBufferCommittedEvent {
     pub item_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,13 +69,15 @@ pub struct RealtimeInputAudioBufferCommittedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputAudioBufferClearedEvent {
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputAudioSpeechStartedEvent {
     pub item_id: String,
     pub audio_start_ms: u64,
@@ -78,7 +85,8 @@ pub struct RealtimeInputAudioSpeechStartedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputAudioSpeechStoppedEvent {
     pub item_id: String,
     pub audio_end_ms: u64,
@@ -86,7 +94,8 @@ pub struct RealtimeInputAudioSpeechStoppedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputAudioTimeoutEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub item_id: Option<String>,
@@ -98,7 +107,8 @@ pub struct RealtimeInputAudioTimeoutEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeOutputAudioBufferEvent {
     pub response_id: String,
     #[serde(default, flatten)]

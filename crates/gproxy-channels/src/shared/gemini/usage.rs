@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use std::collections::BTreeSet;
 
 pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::GenerateContent | Operation::StreamGenerateContent => {
             let response =
                 serde_json::from_slice::<gemini::GenerateContentResponse>(ctx.response_body)

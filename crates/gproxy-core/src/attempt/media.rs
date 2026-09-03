@@ -58,8 +58,11 @@ pub(super) fn restore(
     headers: &mut HeaderMap,
     body: Bytes,
 ) -> Result<Bytes, CoreError> {
-    if key.kind != OperationKind::Family(WireFamily::OpenAi)
-        || !matches!(key.operation, Operation::EditImage | Operation::CreateVideo)
+    if key.kind() != OperationKind::Family(WireFamily::OpenAi)
+        || !matches!(
+            key.operation(),
+            Operation::EditImage | Operation::CreateVideo
+        )
     {
         return Ok(body);
     }
@@ -75,7 +78,7 @@ pub(super) fn restore(
     );
     let mut output = Vec::with_capacity(body.len());
     for (name, value) in fields {
-        append_value(&mut output, &boundary, key.operation, &name, value)?;
+        append_value(&mut output, &boundary, key.operation(), &name, value)?;
     }
     output.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     headers.insert(

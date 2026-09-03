@@ -151,7 +151,7 @@ fn completed(ctx: &FunnelCtx, status: Option<http::StatusCode>, reason: &'static
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.source_key.map(|key| key.operation),
+        operation = ?ctx.source_key.map(|key| key.operation()),
         status = status.map(|status| status.as_u16()),
         reason,
         "request.completed"

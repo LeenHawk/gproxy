@@ -5,7 +5,7 @@ use serde_json::Value;
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     if matches!(
-        ctx.key.operation,
+        ctx.key.operation(),
         Operation::CreateImage | Operation::EditImage
     ) {
         return image(ctx);

@@ -31,7 +31,7 @@ impl Classified {
     }
 
     pub(crate) fn routing_affinity(&self, user_key_id: i64) -> i64 {
-        if self.key.operation.spec().affinity == Affinity::Session {
+        if self.key.operation().spec().affinity == Affinity::Session {
             super::session::selection_key(self.session, user_key_id)
         } else {
             user_key_id
@@ -39,7 +39,7 @@ impl Classified {
     }
 
     pub(crate) fn dedupe_key(&self, provider_id: i64) -> Option<String> {
-        (self.key.operation.spec().settle == SettleMode::OnCompletedStatus)
+        (self.key.operation().spec().settle == SettleMode::OnCompletedStatus)
             .then(|| {
                 self.resource
                     .as_ref()
@@ -119,10 +119,8 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
         .then(|| super::session::subject(ctx, matched.kind, body.as_ref()))
         .flatten();
     Ok(Classified {
-        key: OperationKey {
-            operation,
-            kind: matched.kind,
-        },
+        key: OperationKey::try_new(operation, matched.kind)
+            .expect("operation registry keeps operation and kind consistent"),
         stream,
         framing,
         model,

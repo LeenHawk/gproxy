@@ -32,7 +32,8 @@ pub enum ResponseToolChoice {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatAllowedToolChoice {
     pub allowed_tools: ChatAllowedTools,
     #[serde(rename = "type")]
@@ -41,7 +42,8 @@ pub struct ChatAllowedToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatAllowedTools {
     pub mode: AllowedToolsMode,
     pub tools: Vec<Rest>,
@@ -49,7 +51,8 @@ pub struct ChatAllowedTools {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseAllowedToolChoice {
     pub mode: AllowedToolsMode,
     pub tools: Vec<ResponseAllowedTool>,
@@ -70,7 +73,8 @@ pub enum ChatNamedToolChoice {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatNamedFunctionToolChoice {
     #[serde(rename = "type")]
     pub type_: FunctionToolChoiceType,
@@ -79,7 +83,8 @@ pub struct ChatNamedFunctionToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatNamedCustomToolChoice {
     #[serde(rename = "type")]
     pub type_: CustomToolChoiceType,
@@ -88,7 +93,8 @@ pub struct ChatNamedCustomToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseHostedToolChoice {
     #[serde(rename = "type")]
     pub type_: ResponseHostedToolChoiceType,
@@ -107,7 +113,8 @@ strict_string_enum!(ResponseHostedToolChoiceType {
     CodeInterpreter => "code_interpreter",
 });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseFunctionToolChoice {
     #[serde(rename = "type")]
     pub type_: FunctionToolChoiceType,
@@ -116,7 +123,8 @@ pub struct ResponseFunctionToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseMcpToolChoice {
     #[serde(rename = "type")]
     pub type_: McpToolChoiceType,
@@ -127,7 +135,8 @@ pub struct ResponseMcpToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseCustomToolChoice {
     #[serde(rename = "type")]
     pub type_: CustomToolChoiceType,
@@ -136,7 +145,8 @@ pub struct ResponseCustomToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseApplyPatchToolChoice {
     #[serde(rename = "type")]
     pub type_: ApplyPatchToolChoiceType,
@@ -144,7 +154,8 @@ pub struct ResponseApplyPatchToolChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseShellToolChoice {
     #[serde(rename = "type")]
     pub type_: ShellToolChoiceType,

@@ -253,10 +253,10 @@ fn is_count_tokens(key: OperationKey) -> bool {
 }
 
 fn is_messages(key: OperationKey) -> bool {
-    key.kind
+    key.kind()
         == gproxy_protocol::OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

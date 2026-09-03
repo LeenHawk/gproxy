@@ -4,6 +4,8 @@ use super::SpeechLanguageCode;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SpeechConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub voice: Option<SpeechVoiceConfig>,
@@ -34,6 +36,8 @@ pub enum SpeechVoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VoiceConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub voice_config: Option<VoiceConfigValue>,
@@ -56,6 +60,8 @@ pub enum VoiceConfigValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PrebuiltVoiceConfig {
     pub voice_name: String,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
@@ -64,6 +70,8 @@ pub struct PrebuiltVoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MultiSpeakerVoiceConfig {
     pub speaker_voice_configs: Vec<SpeakerVoiceConfig>,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
@@ -72,6 +80,8 @@ pub struct MultiSpeakerVoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SpeakerVoiceConfig {
     pub speaker: String,
     pub voice_config: VoiceConfig,

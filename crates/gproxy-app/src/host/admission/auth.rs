@@ -48,7 +48,7 @@ pub(crate) fn authorize(
     operation: Option<OperationKey>,
     plan: &Plan,
 ) -> Result<(), CoreError> {
-    let group = operation.map(|key| key.operation.group().id());
+    let group = operation.map(|key| key.operation().group().id());
     for provider in plan.targets.iter().map(|target| target.provider.id) {
         let applicable = snapshot.permissions.iter().filter(|permission| {
             subject_matches(&permission.subject_kind, permission.subject_id, identity)

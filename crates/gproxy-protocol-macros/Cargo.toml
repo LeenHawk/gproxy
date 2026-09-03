@@ -1,0 +1,20 @@
+[package]
+name = "gproxy-protocol-macros"
+description = "Construction helpers for extensible gproxy-protocol wire structs"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+repository.workspace = true
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+homepage = "https://gproxy.leenhawk.com"
+readme = "README.md"
+keywords = ["llm", "openai", "anthropic", "gemini", "serde"]
+categories = ["api-bindings", "development-tools::procedural-macro-helpers"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

@@ -11,7 +11,7 @@ pub(super) fn request(
     ctx: &PrepareCtx<'_>,
     headers: &mut HeaderMap,
 ) -> Result<Bytes, ChannelError> {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::CreateImage | Operation::EditImage => image::request(ctx, headers),
         Operation::CreateSpeech | Operation::CreateTranscription => audio::request(ctx, headers),
         Operation::CreateVideo | Operation::EditVideo | Operation::ExtendVideo => {
@@ -22,11 +22,11 @@ pub(super) fn request(
 }
 
 pub(super) fn response(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
-    if ctx.status.is_success() && ctx.key.operation == Operation::ListModels {
+    if ctx.status.is_success() && ctx.key.operation() == Operation::ListModels {
         super::model::response(ctx.body)
     } else if ctx.status.is_success()
         && matches!(
-            ctx.key.operation,
+            ctx.key.operation(),
             Operation::CreateVideo
                 | Operation::RetrieveVideo
                 | Operation::EditVideo

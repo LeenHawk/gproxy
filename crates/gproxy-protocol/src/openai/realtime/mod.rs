@@ -39,7 +39,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::common::{OpenAiModelId, OpenAiWireModel, Rest};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CreateRealtimeCallRequest {
     pub sdp: String,
     pub session: RealtimeSession,

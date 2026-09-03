@@ -33,7 +33,8 @@ pub enum WebSearchAction {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchSource {
     #[serde(rename = "type")]
     pub type_: WebSearchSourceType,

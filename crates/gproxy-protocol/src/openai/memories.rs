@@ -7,7 +7,8 @@ use super::generate_content::responses::ReasoningConfig;
 pub type MemorySummarizeWireModel =
     OpenAiWireModel<MemorySummarizeRequest, MemorySummarizeResponse>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MemorySummarizeRequest {
     pub model: OpenAiModelId,
     pub traces: Vec<MemoryTrace>,
@@ -17,7 +18,8 @@ pub struct MemorySummarizeRequest {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MemoryTrace {
     pub id: String,
     pub metadata: MemoryTraceMetadata,
@@ -27,21 +29,24 @@ pub struct MemoryTrace {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MemoryTraceMetadata {
     pub source_path: String,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MemorySummarizeResponse {
     pub output: Vec<MemorySummary>,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MemorySummary {
     #[serde(rename = "trace_summary", alias = "raw_memory")]
     pub trace_summary: String,

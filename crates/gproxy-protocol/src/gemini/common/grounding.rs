@@ -4,6 +4,8 @@ use super::UrlRetrievalStatus;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GroundingMetadata {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grounding_chunks: Vec<GroundingChunk>,
@@ -25,6 +27,8 @@ pub struct GroundingMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SearchEntryPoint {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rendered_content: Option<String>,
@@ -36,6 +40,8 @@ pub struct SearchEntryPoint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GroundingChunk {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub source: Option<GroundingChunkSource>,
@@ -73,6 +79,8 @@ pub enum GroundingChunkSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
@@ -84,6 +92,8 @@ pub struct WebChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_uri: Option<String>,
@@ -99,6 +109,8 @@ pub struct ImageChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RetrievedContext {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_metadata: Vec<CustomMetadata>,
@@ -120,6 +132,8 @@ pub struct RetrievedContext {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CustomMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
@@ -154,7 +168,10 @@ pub enum CustomMetadataValue {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StringList {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub values: Vec<String>,
@@ -164,6 +181,8 @@ pub struct StringList {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MapsChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
@@ -181,6 +200,8 @@ pub struct MapsChunk {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PlaceAnswerSources {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub review_snippets: Vec<ReviewSnippet>,
@@ -190,6 +211,8 @@ pub struct PlaceAnswerSources {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ReviewSnippet {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_id: Option<String>,
@@ -203,6 +226,8 @@ pub struct ReviewSnippet {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GroundingSupport {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grounding_chunk_indices: Vec<i32>,
@@ -218,6 +243,8 @@ pub struct GroundingSupport {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Segment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub part_index: Option<i32>,
@@ -233,6 +260,8 @@ pub struct Segment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RetrievalMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub google_search_dynamic_retrieval_score: Option<f64>,
@@ -242,6 +271,8 @@ pub struct RetrievalMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UrlContextMetadata {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub url_metadata: Vec<UrlMetadata>,
@@ -251,6 +282,8 @@ pub struct UrlContextMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UrlMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retrieved_url: Option<String>,

@@ -7,7 +7,7 @@ use gproxy_protocol::aws::{
 use rust_decimal::Decimal;
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::CountTokens => {
             let response: CountTokensResponse = serde_json::from_slice(ctx.response_body).ok()?;
             Some(NormalizedUsage {

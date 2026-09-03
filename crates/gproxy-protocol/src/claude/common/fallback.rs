@@ -29,7 +29,8 @@ pub enum FallbackCreditTokenParam {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FallbackCreditTokenConfig {
     pub token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,7 +65,8 @@ pub enum FallbackCreditModeKnown {
 }
 
 /// One ordered entry of the request-level `fallbacks` chain.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FallbackParam {
     pub model: ClaudeModel,
     #[serde(skip_serializing_if = "Option::is_none")]

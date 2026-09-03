@@ -10,7 +10,7 @@ pub(super) const USER_AGENT_VALUE: &str = "antigravity/cli/1.0.6 linux/amd64";
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access = super::auth::access_token(ctx.secret)?;
     let project = super::auth::project_id(ctx.secret)?;
-    let (endpoint, path, query, body, framing) = match ctx.key.operation {
+    let (endpoint, path, query, body, framing) = match ctx.key.operation() {
         Operation::ListModels => (
             "gemini_list_models",
             "/v1internal:fetchAvailableModels",
@@ -26,9 +26,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             None,
         ),
         Operation::GenerateContent | Operation::StreamGenerateContent => {
-            let stream = ctx.key.operation == Operation::StreamGenerateContent;
+            let stream = ctx.key.operation() == Operation::StreamGenerateContent;
             let body = crate::shared::gemini::model::rewrite(
-                ctx.key.operation,
+                ctx.key.operation(),
                 ctx.body,
                 ctx.upstream_model,
             )?;

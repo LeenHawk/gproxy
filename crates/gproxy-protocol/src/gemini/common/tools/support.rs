@@ -6,6 +6,8 @@ use super::super::{ComputerUseEnvironment, DynamicRetrievalMode};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GoogleSearchRetrieval {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_retrieval_config: Option<DynamicRetrievalConfig>,
@@ -15,6 +17,8 @@ pub struct GoogleSearchRetrieval {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DynamicRetrievalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<DynamicRetrievalMode>,
@@ -26,6 +30,8 @@ pub struct DynamicRetrievalConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GoogleSearch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_range_filter: Option<Interval>,
@@ -35,25 +41,37 @@ pub struct GoogleSearch {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecution {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UrlContext {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearch {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageSearch {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: serde_json::Map<String, serde_json::Value>,
@@ -61,6 +79,8 @@ pub struct ImageSearch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Interval {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_time: Option<String>,
@@ -72,6 +92,8 @@ pub struct Interval {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SearchTypes {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub web_search: Option<WebSearch>,
@@ -83,6 +105,8 @@ pub struct SearchTypes {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ComputerUse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<ComputerUseEnvironment>,
@@ -94,6 +118,8 @@ pub struct ComputerUse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FileSearch {
     pub file_search_store_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,6 +132,8 @@ pub struct FileSearch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct McpServer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -117,6 +145,8 @@ pub struct McpServer {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StreamableHttpTransport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -134,6 +164,8 @@ pub struct StreamableHttpTransport {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GoogleMaps {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_widget: Option<bool>,
@@ -143,6 +175,8 @@ pub struct GoogleMaps {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RetrievalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lat_lng: Option<LatLng>,
@@ -154,6 +188,8 @@ pub struct RetrievalConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct LatLng {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latitude: Option<f64>,

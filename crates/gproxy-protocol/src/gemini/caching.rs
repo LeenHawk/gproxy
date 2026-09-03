@@ -11,6 +11,8 @@ pub type DeleteCachedContentResponse = JsonMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CachedContent {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub contents: Vec<Content>,
@@ -53,6 +55,8 @@ pub enum CachedContentExpiration {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CachedContentUsageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_token_count: Option<i32>,
@@ -62,6 +66,8 @@ pub struct CachedContentUsageMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListCachedContentsRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_size: Option<i32>,
@@ -73,6 +79,8 @@ pub struct ListCachedContentsRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListCachedContentsResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cached_contents: Vec<CachedContent>,
@@ -84,6 +92,8 @@ pub struct ListCachedContentsResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GetCachedContentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -93,6 +103,8 @@ pub struct GetCachedContentRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UpdateCachedContentQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_mask: Option<String>,

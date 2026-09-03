@@ -4,7 +4,8 @@ use crate::openai::common::{
     ImageOutputFormat, ImageResponseBackground, ImageResponseQuality, ImageResponseSize, Rest,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImagesResponse {
     pub created: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -23,7 +24,8 @@ pub struct ImagesResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Image {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub b64_json: Option<String>,
@@ -35,7 +37,8 @@ pub struct Image {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageUsage {
     pub input_tokens: u64,
     pub input_tokens_details: ImageTokenDetails,
@@ -47,7 +50,8 @@ pub struct ImageUsage {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageTokenDetails {
     pub image_tokens: u64,
     pub text_tokens: u64,

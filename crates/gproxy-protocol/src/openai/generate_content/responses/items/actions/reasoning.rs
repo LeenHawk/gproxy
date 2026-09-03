@@ -18,7 +18,8 @@ pub enum AdditionalToolsRole {
     Tool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningSummaryPart {
     pub text: String,
     #[serde(rename = "type")]
@@ -34,7 +35,8 @@ pub enum ResponseReasoningSummaryType {
     SummaryText,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseReasoningTextPart {
     pub text: String,
     #[serde(rename = "type")]

@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::common::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseItemStringDeltaEvent {
     pub delta: String,
     pub item_id: String,
@@ -13,7 +14,8 @@ pub struct ResponseItemStringDeltaEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseFunctionCallArgumentsDoneEvent {
     pub arguments: String,
     // The Codex backend can omit these and relies on output-index state recovery.
@@ -28,7 +30,8 @@ pub struct ResponseFunctionCallArgumentsDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseCustomToolCallInputDoneEvent {
     pub input: String,
     pub item_id: String,
@@ -39,7 +42,8 @@ pub struct ResponseCustomToolCallInputDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseToolProgressEvent {
     pub item_id: String,
     pub output_index: u32,
@@ -49,7 +53,8 @@ pub struct ResponseToolProgressEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseImagePartialEvent {
     pub item_id: String,
     pub output_index: u32,
@@ -61,7 +66,8 @@ pub struct ResponseImagePartialEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseCodeInterpreterCallCodeDoneEvent {
     pub code: String,
     pub item_id: String,
@@ -72,7 +78,8 @@ pub struct ResponseCodeInterpreterCallCodeDoneEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseMcpCallArgumentsDoneEvent {
     pub arguments: String,
     pub item_id: String,

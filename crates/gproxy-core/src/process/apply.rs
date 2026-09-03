@@ -38,7 +38,7 @@ pub fn apply_request(
             headers: None,
         };
     }
-    let kind = match operation.kind {
+    let kind = match operation.kind() {
         gproxy_protocol::OperationKind::ContentGeneration(kind) => Some(kind),
         gproxy_protocol::OperationKind::Family(_) => None,
     };
@@ -162,7 +162,7 @@ fn applicable<'a>(
         .filter(|rule| {
             rule.operations
                 .as_ref()
-                .is_none_or(|operations| operations.contains(&operation.operation))
+                .is_none_or(|operations| operations.contains(&operation.operation()))
                 && rule.model_pattern.as_ref().is_none_or(|pattern| {
                     pattern.is_match(models.primary)
                         || models

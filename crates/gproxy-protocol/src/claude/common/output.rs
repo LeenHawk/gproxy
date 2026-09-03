@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{JsonSchemaFormat, OutputEffort, TaskBudgetType};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct OutputConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<OutputEffort>,
@@ -14,7 +15,8 @@ pub struct OutputConfig {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SystemMessageOutputConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<OutputEffort>,
@@ -22,7 +24,8 @@ pub struct SystemMessageOutputConfig {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TokenTaskBudget {
     pub total: u64,
     #[serde(rename = "type")]

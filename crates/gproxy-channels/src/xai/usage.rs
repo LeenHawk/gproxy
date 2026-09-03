@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::str::FromStr as _;
 
 pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    let operation = ctx.key.operation;
+    let operation = ctx.key.operation();
     let response = ctx.response_body;
     let base = crate::shared::openai::usage_from_body(ctx);
     let Ok(value) = serde_json::from_slice::<Value>(response) else {

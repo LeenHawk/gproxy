@@ -95,7 +95,7 @@ impl<H: Host> Core<H> {
         if let Some(channel) = channels.iter().find(|channel| {
             channel.session_preparer().is_none()
                 && channel.descriptor().supports.iter().any(|support| {
-                    support.target.operation.spec().settle
+                    support.target.operation().spec().settle
                         == gproxy_protocol::SettleMode::OnSessionEnd
                 })
         }) {
@@ -131,7 +131,7 @@ impl<H: Host> Core<H> {
             && let Some(channel) = channels.iter().find(|channel| {
                 channel.descriptor().supports.iter().any(|support| {
                     matches!(
-                        support.source.operation.spec().affinity,
+                        support.source.operation().spec().affinity,
                         gproxy_protocol::Affinity::Resource(_)
                     )
                 })

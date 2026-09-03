@@ -1,7 +1,7 @@
 use gproxy_channel_api::{NormalizedUsage, UsageCtx};
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    if super::image::is_operation(ctx.key.operation) {
+    if super::image::is_operation(ctx.key.operation()) {
         return super::image::usage(ctx.response_body);
     }
     if super::model::is_claude(ctx.key) {

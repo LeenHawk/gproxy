@@ -5,7 +5,7 @@ use serde_json::Value;
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let mode = super::auth::mode(ctx.secret);
     let path = super::model::path(&ctx, mode);
-    let query = if ctx.key.operation == Operation::ListModels {
+    let query = if ctx.key.operation() == Operation::ListModels {
         crate::policy::request_query(crate::policy::KIMI, &ctx)?
     } else {
         None

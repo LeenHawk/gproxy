@@ -5,6 +5,8 @@ use super::generate_content::GenerateContentRequest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CountTokensRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -18,6 +20,8 @@ pub struct CountTokensRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CountTokensResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<i32>,

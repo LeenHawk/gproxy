@@ -58,7 +58,7 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             AuthKind::Claude,
         ));
     }
-    let (path, endpoint) = match key.operation {
+    let (path, endpoint) = match key.operation() {
         Operation::CreateEmbedding => ("/openai/v1/embeddings".into(), "openai_embeddings"),
         Operation::CreateImage => ("/openai/v1/images/generations".into(), "image_generations"),
         Operation::EditImage => (
@@ -78,8 +78,8 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
 }
 
 pub(super) fn is_claude(key: OperationKey) -> bool {
-    key.kind == OperationKind::Family(WireFamily::Claude)
-        || key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    key.kind() == OperationKind::Family(WireFamily::Claude)
+        || key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
 }
 
 fn required_model<'a>(ctx: &'a PrepareCtx<'_>) -> Result<&'a str, ChannelError> {
@@ -111,9 +111,9 @@ fn family(operation: Operation, family: WireFamily) -> OperationKey {
 }
 
 fn is_content(key: OperationKey, kind: ContentGenerationKind) -> bool {
-    key.kind == OperationKind::ContentGeneration(kind)
+    key.kind() == OperationKind::ContentGeneration(kind)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

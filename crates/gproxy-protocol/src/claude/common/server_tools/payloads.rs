@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::{DocumentBlock, JsonObject, StopReason, ToolReferenceBlock};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebFetchResultBlock {
     pub content: DocumentBlock,
     #[serde(rename = "type")]
@@ -21,7 +22,8 @@ pub enum WebFetchResultBlockType {
     WebFetchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AdvisorResultBlock {
     pub text: String,
     #[serde(rename = "type")]
@@ -39,7 +41,8 @@ pub enum AdvisorResultBlockType {
     AdvisorResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AdvisorRedactedResultBlock {
     pub encrypted_content: String,
     #[serde(rename = "type")]
@@ -57,7 +60,8 @@ pub enum AdvisorRedactedResultBlockType {
     AdvisorRedactedResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecutionOutputBlock {
     pub file_id: String,
     #[serde(rename = "type")]
@@ -73,7 +77,8 @@ pub enum CodeExecutionOutputBlockType {
     CodeExecutionOutput,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecutionResultBlock {
     pub content: Vec<CodeExecutionOutputBlock>,
     pub return_code: i64,
@@ -92,7 +97,8 @@ pub enum CodeExecutionResultBlockType {
     CodeExecutionResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct EncryptedCodeExecutionResultBlock {
     pub content: Vec<CodeExecutionOutputBlock>,
     pub encrypted_stdout: String,
@@ -111,7 +117,8 @@ pub enum EncryptedCodeExecutionResultBlockType {
     EncryptedCodeExecutionResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BashCodeExecutionOutputBlock {
     pub file_id: String,
     #[serde(rename = "type")]
@@ -127,7 +134,8 @@ pub enum BashCodeExecutionOutputBlockType {
     BashCodeExecutionOutput,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BashCodeExecutionResultBlock {
     pub content: Vec<BashCodeExecutionOutputBlock>,
     pub return_code: i64,
@@ -146,7 +154,8 @@ pub enum BashCodeExecutionResultBlockType {
     BashCodeExecutionResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolSearchToolSearchResultBlock {
     pub tool_references: Vec<ToolReferenceBlock>,
     #[serde(rename = "type")]

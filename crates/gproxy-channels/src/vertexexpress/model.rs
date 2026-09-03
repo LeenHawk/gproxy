@@ -14,11 +14,11 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
         ));
     }
     let encoded = crate::shared::http::encode_component(model);
-    let (verb, endpoint) = if ctx.key.operation == Operation::CountTokens {
+    let (verb, endpoint) = if ctx.key.operation() == Operation::CountTokens {
         ("countTokens", "gemini_count_tokens")
-    } else if ctx.key.operation == Operation::StreamGenerateContent {
+    } else if ctx.key.operation() == Operation::StreamGenerateContent {
         ("streamGenerateContent", "gemini_stream_generate_content")
-    } else if ctx.key.operation == Operation::GenerateContent {
+    } else if ctx.key.operation() == Operation::GenerateContent {
         ("generateContent", "gemini_generate_content")
     } else {
         return Err(ChannelError::Prepare(
@@ -32,9 +32,9 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
 }
 
 pub(super) fn is_gemini_content(ctx: &gproxy_channel_api::ResponseShapeCtx<'_>) -> bool {
-    ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
+    ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
         && matches!(
-            ctx.key.operation,
+            ctx.key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

@@ -5,20 +5,25 @@ use super::common::{ListObjectType, ModelObjectType, OpenAiModelId, Rest};
 pub type ModelsWireModel = super::common::OpenAiWireModel<ListModelsRequest, ModelListResponse>;
 pub type ModelRetrieveWireModel = super::common::OpenAiWireModel<RetrieveModelRequest, Model>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListModelsRequest {
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RetrieveModelRequest {
     pub model: OpenAiModelId,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModelListResponse {
     pub data: Vec<Model>,
     pub object: ListObjectType,
@@ -26,7 +31,8 @@ pub struct ModelListResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Model {
     pub id: OpenAiModelId,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -28,7 +28,10 @@ pub enum ConverseStreamEvent {
     Unknown { event_type: String, payload: Value },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MessageStartEvent {
     pub role: ConversationRole,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -37,6 +40,8 @@ pub struct MessageStartEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ContentBlockStartEvent {
     pub start: ContentBlockStart,
     pub content_block_index: u64,
@@ -46,6 +51,8 @@ pub struct ContentBlockStartEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ContentBlockDeltaEvent {
     pub delta: ContentBlockDelta,
     pub content_block_index: u64,
@@ -55,6 +62,8 @@ pub struct ContentBlockDeltaEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ContentBlockStopEvent {
     pub content_block_index: u64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -63,6 +72,8 @@ pub struct ContentBlockStopEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MessageStopEvent {
     pub stop_reason: StopReason,
     /// `upstream_docs/aws/docs/ConverseStream.md`,
@@ -75,6 +86,8 @@ pub struct MessageStopEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseStreamMetadataEvent {
     pub usage: TokenUsage,
     pub metrics: ConverseMetrics,
@@ -88,7 +101,10 @@ pub struct ConverseStreamMetadataEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StreamException {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
@@ -98,6 +114,8 @@ pub struct StreamException {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModelStreamErrorException {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,

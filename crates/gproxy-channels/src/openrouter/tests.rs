@@ -21,7 +21,7 @@ fn prepare(
     settings: &Value,
 ) -> http::Request<Bytes> {
     let method = if matches!(
-        key.operation,
+        key.operation(),
         Operation::ListModels
             | Operation::GetModel
             | Operation::RetrieveVideo
@@ -34,7 +34,7 @@ fn prepare(
     OpenRouterChannel
         .prepare(PrepareCtx {
             key,
-            stream: key.operation == Operation::StreamGenerateContent,
+            stream: key.operation() == Operation::StreamGenerateContent,
             method,
             path,
             query,

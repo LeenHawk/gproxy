@@ -47,7 +47,7 @@ pub(crate) async fn prepare<H: Host>(
 ) -> Result<Prepared, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
     support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
-    if classified.key.operation.spec().settle == gproxy_protocol::SettleMode::OnSessionEnd
+    if classified.key.operation().spec().settle == gproxy_protocol::SettleMode::OnSessionEnd
         && core.host.spawner().is_none()
     {
         return Err(CoreError::Unsupported);
@@ -68,7 +68,7 @@ pub(crate) async fn prepare<H: Host>(
         return Err(CoreError::Unsupported);
     }
     let stream = classified.stream
-        || support.target.operation == gproxy_protocol::Operation::StreamGenerateContent;
+        || support.target.operation() == gproxy_protocol::Operation::StreamGenerateContent;
     let mut method = ctx.method.clone();
     let mut path = ctx.path.clone();
     let mut query = ctx.query.clone();
@@ -113,7 +113,7 @@ pub(crate) async fn prepare<H: Host>(
     // After the rules, not before: a rule that inserts text can carry a magic marker,
     // and v2 shaped at this point for exactly that reason. The provider switch stays
     // authoritative so operators can opt into this client-to-proxy protocol.
-    if support.target.kind
+    if support.target.kind()
         == gproxy_protocol::OperationKind::ContentGeneration(
             gproxy_protocol::ContentGenerationKind::ClaudeMessages,
         )
@@ -171,7 +171,7 @@ pub(crate) async fn prepare<H: Host>(
         channel.operation_driver(context()),
     )
     .await?;
-    let target_framing = gproxy_protocol::default_framing(support.target.kind, false);
+    let target_framing = gproxy_protocol::default_framing(support.target.kind(), false);
     let facts = FunnelCtx {
         request_id: ctx.request_id.clone(),
         target: target.clone(),
@@ -180,7 +180,7 @@ pub(crate) async fn prepare<H: Host>(
         key: Some(support.target),
         source_framing: classified.framing,
         target_framing,
-        settle: support.target.operation.spec().settle,
+        settle: support.target.operation().spec().settle,
         pricing: control
             .pricing(&target.provider, &target.upstream_model)
             .map(|pricing| pricing.for_request(&ctx.body)),
@@ -188,7 +188,7 @@ pub(crate) async fn prepare<H: Host>(
         upstream_url: None,
         request_method: None,
         request_body: body.clone(),
-        request_headers: (support.target.operation.spec().settle
+        request_headers: (support.target.operation().spec().settle
             == gproxy_protocol::SettleMode::OnSessionEnd)
             .then(|| request_headers.clone()),
         client_headers: ctx.headers.clone(),
@@ -219,7 +219,7 @@ pub(crate) async fn prepare<H: Host>(
     crate::fingerprint::apply_prepared(&mut prepared, &target.provider)?;
     let target_framing = prepared
         .framing
-        .unwrap_or_else(|| gproxy_protocol::default_framing(support.target.kind, false));
+        .unwrap_or_else(|| gproxy_protocol::default_framing(support.target.kind(), false));
     let mut facts = facts;
     facts.target_framing = target_framing;
     facts.upstream_url = Some(prepared.request.uri().to_string());

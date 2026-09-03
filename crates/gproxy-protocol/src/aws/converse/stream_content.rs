@@ -37,6 +37,8 @@ pub enum ContentBlockStart {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolUseBlockStart {
     pub tool_use_id: String,
     pub name: String,
@@ -48,6 +50,8 @@ pub struct ToolUseBlockStart {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolResultBlockStart {
     pub tool_use_id: String,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
@@ -58,7 +62,10 @@ pub struct ToolResultBlockStart {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageBlockStart {
     pub format: ImageFormat,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -100,7 +107,10 @@ pub enum ContentBlockDelta {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolUseBlockDelta {
     pub input: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -147,7 +157,8 @@ pub enum ReasoningContentBlockDelta {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageBlockDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<ImageSource>,
@@ -158,7 +169,10 @@ pub struct ImageBlockDelta {
 }
 
 /// AWS `ConverseStream.ImageBlockDelta.error` (`ErrorBlock` object).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ErrorBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,

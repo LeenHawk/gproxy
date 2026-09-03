@@ -13,7 +13,7 @@ pub(super) fn settlement_ready(ctx: UsageCtx<'_>) -> Result<bool, ChannelError> 
 
 pub(super) fn mutations(ctx: ResourceCtx<'_>) -> Result<Vec<ResourceMutation>, ChannelError> {
     if !matches!(
-        ctx.key.operation,
+        ctx.key.operation(),
         Operation::CreateVideo | Operation::RetrieveVideo
     ) {
         return Ok(Vec::new());

@@ -13,7 +13,7 @@ pub(super) fn request(
             "xAI audio API does not use OpenAI SSE".into(),
         ));
     }
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::CreateSpeech => speech(ctx.body),
         Operation::CreateTranscription => {
             let (body, content_type) = super::super::multipart::stt(ctx.headers, ctx.body)?;

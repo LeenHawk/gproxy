@@ -10,6 +10,8 @@ use crate::aws::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InferenceConfiguration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u64>,
@@ -25,6 +27,8 @@ pub struct InferenceConfiguration {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailConfiguration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guardrail_identifier: Option<String>,
@@ -38,6 +42,8 @@ pub struct GuardrailConfiguration {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailStreamConfiguration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guardrail_identifier: Option<String>,
@@ -51,7 +57,10 @@ pub struct GuardrailStreamConfiguration {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PerformanceConfiguration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latency: Option<PerformanceLatency>,
@@ -59,7 +68,10 @@ pub struct PerformanceConfiguration {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServiceTier {
     #[serde(rename = "type")]
     pub type_: ServiceTierType,
@@ -69,6 +81,8 @@ pub struct ServiceTier {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct OutputConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_format: Option<OutputFormat>,
@@ -76,7 +90,8 @@ pub struct OutputConfig {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct OutputFormat {
     #[serde(rename = "type")]
     pub type_: OutputFormatType,
@@ -98,7 +113,10 @@ pub enum OutputFormatStructure {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct JsonSchemaDefinition {
     pub schema: String,
     #[serde(skip_serializing_if = "Option::is_none")]

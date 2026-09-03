@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServerToolResultError<C, T> {
     pub error_code: C,
     #[serde(rename = "type")]

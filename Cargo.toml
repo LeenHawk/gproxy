@@ -9,6 +9,7 @@ members = [
     "crates/gproxy-host-axum",
     "crates/gproxy-host-edge",
     "crates/gproxy-protocol",
+    "crates/gproxy-protocol-macros",
     "crates/gproxy-store",
     "crates/gproxy-tokenize",
     "crates/gproxy-transform",
@@ -36,9 +37,10 @@ gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.0-alp
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.0-alpha.0" }
 gproxy-core = { path = "crates/gproxy-core", version = "=3.0.0-alpha.0" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.0-alpha.0" }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.0-alpha.0" }
 gproxy-store = { path = "crates/gproxy-store", version = "=3.0.0-alpha.0" }
 gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.0-alpha.0" }
-gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.0-alpha.0" }
+gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.0-alpha.0", features = ["exhaustive"] }
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.0-alpha.0" }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
@@ -56,6 +58,8 @@ js-sys = "0.3"
 mime_guess = "2"
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
 percent-encoding = "2"
+proc-macro2 = "1"
+quote = "1"
 redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
@@ -67,6 +71,7 @@ rust-embed = { version = "8", features = ["include-exclude"] }
 sea-query = { version = "1.0.2", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+syn = { version = "3", features = ["full", "visit-mut"] }
 serde_urlencoded = "0.7"
 sha2 = "0.11"
 tempfile = "3"

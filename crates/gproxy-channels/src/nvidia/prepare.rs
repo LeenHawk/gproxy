@@ -98,9 +98,10 @@ fn family(operation: Operation) -> OperationKey {
 }
 
 fn is_chat(key: OperationKey) -> bool {
-    key.kind == gproxy_protocol::OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat)
+    key.kind()
+        == gproxy_protocol::OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

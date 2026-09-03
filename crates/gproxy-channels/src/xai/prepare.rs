@@ -67,7 +67,7 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
 }
 
 fn endpoint_name(key: gproxy_protocol::OperationKey) -> Option<&'static str> {
-    if let OperationKind::ContentGeneration(kind) = key.kind {
+    if let OperationKind::ContentGeneration(kind) = key.kind() {
         return match kind {
             ContentGenerationKind::OpenAiChat => Some("openai_chat_completions"),
             ContentGenerationKind::OpenAiResponses => Some("openai_responses"),
@@ -76,7 +76,7 @@ fn endpoint_name(key: gproxy_protocol::OperationKey) -> Option<&'static str> {
             | ContentGenerationKind::GeminiGenerateContent => None,
         };
     }
-    match key.operation {
+    match key.operation() {
         Operation::ListModels => Some("openai_list_models"),
         Operation::GetModel => Some("openai_get_model"),
         Operation::CompactContent => Some("openai_compact"),

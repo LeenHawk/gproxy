@@ -4,7 +4,7 @@ use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, OperationK
 use serde_json::Value;
 
 pub(super) fn path(key: OperationKey) -> &'static str {
-    match key.kind {
+    match key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => "/chat/completions",
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses) => "/responses",
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) => "/messages",
@@ -13,7 +13,7 @@ pub(super) fn path(key: OperationKey) -> &'static str {
 }
 
 pub(super) fn endpoint_name(key: OperationKey) -> Option<&'static str> {
-    match key.kind {
+    match key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => {
             Some("openai_chat_completions")
         }
@@ -23,13 +23,13 @@ pub(super) fn endpoint_name(key: OperationKey) -> Option<&'static str> {
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) => {
             Some("claude_messages")
         }
-        _ if key.operation == Operation::ListModels => Some("openai_list_models"),
+        _ if key.operation() == Operation::ListModels => Some("openai_list_models"),
         _ => None,
     }
 }
 
 pub(super) fn body(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
-    match ctx.key.kind {
+    match ctx.key.kind() {
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses,
         ) => crate::shared::openai::shape_request(
@@ -55,5 +55,5 @@ pub(super) fn body(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 }
 
 pub(super) fn is_claude(key: OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
 }

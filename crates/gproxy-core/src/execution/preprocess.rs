@@ -23,12 +23,12 @@ pub(crate) fn apply(
         return Ok(());
     };
     let aliased = control.resolve_alias(&requested, &request.mode);
-    let declared_base = (classified.key.operation != Operation::GetModel)
+    let declared_base = (classified.key.operation() != Operation::GetModel)
         .then(|| control.resolve_variant(&aliased, &request.mode))
         .flatten();
     let (model, presets) = match declared_base {
         Some(base) => {
-            let (stripped, presets) = strip_presets(&aliased, classified.key.kind);
+            let (stripped, presets) = strip_presets(&aliased, classified.key.kind());
             let presets = if stripped == base {
                 presets
             } else {
@@ -42,7 +42,7 @@ pub(crate) fn apply(
         return Ok(());
     }
     rewrite_path(&mut request.path, &requested, &model);
-    rewrite_body(request, &requested, &model, &presets, classified.key.kind)?;
+    rewrite_body(request, &requested, &model, &presets, classified.key.kind())?;
     classified.model = Some(model);
     Ok(())
 }

@@ -59,9 +59,9 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
                         .is_ok()
                     {
                         let capability = PortalModelCapabilityDto {
-                            source: support.source.kind.id().into(),
-                            operation: support.source.operation.id().into(),
-                            group: support.source.operation.group().id().into(),
+                            source: support.source.kind().id().into(),
+                            operation: support.source.operation().id().into(),
+                            group: support.source.operation().group().id().into(),
                         };
                         capabilities
                             .entry((

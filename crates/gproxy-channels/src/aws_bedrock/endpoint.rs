@@ -14,7 +14,7 @@ pub(super) struct Target {
 pub(super) fn resolve(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
     let region = region(ctx.provider_settings)?;
     let compact = super::shape::is_compact(ctx.body);
-    let (method, path, endpoint, control, framing) = match ctx.key.operation {
+    let (method, path, endpoint, control, framing) = match ctx.key.operation() {
         Operation::ListModels => (
             Method::GET,
             "/foundation-models".into(),
@@ -83,7 +83,7 @@ pub(super) fn resolve(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             ));
         }
     };
-    let query = if ctx.key.operation == Operation::ListModels {
+    let query = if ctx.key.operation() == Operation::ListModels {
         crate::policy::request_query(crate::policy::AWS_BEDROCK, ctx)?
     } else {
         None

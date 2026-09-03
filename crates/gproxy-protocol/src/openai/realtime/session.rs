@@ -6,7 +6,8 @@ use crate::openai::generate_content::responses::ResponseTool;
 
 use super::audio::RealtimeAudio;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeSession {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<RealtimeSessionType>,

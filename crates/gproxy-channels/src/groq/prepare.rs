@@ -98,9 +98,9 @@ fn family(operation: Operation) -> OperationKey {
 }
 
 fn is_content(key: OperationKey, kind: ContentGenerationKind) -> bool {
-    key.kind == gproxy_protocol::OperationKind::ContentGeneration(kind)
+    key.kind() == gproxy_protocol::OperationKind::ContentGeneration(kind)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

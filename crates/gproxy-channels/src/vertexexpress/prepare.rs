@@ -86,7 +86,7 @@ fn query(ctx: &PrepareCtx<'_>, api_key: &str) -> Result<String, ChannelError> {
 }
 
 fn framing(ctx: &PrepareCtx<'_>) -> Option<StreamFraming> {
-    (ctx.key.operation == Operation::StreamGenerateContent).then(|| {
+    (ctx.key.operation() == Operation::StreamGenerateContent).then(|| {
         if ctx
             .query
             .is_some_and(|query| query.split('&').any(|part| part == "alt=sse"))

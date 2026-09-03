@@ -9,6 +9,8 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AppliedGuardrailDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guardrail_arn: Option<String>,
@@ -24,14 +26,16 @@ pub struct AppliedGuardrailDetails {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailContentPolicyAssessment {
     pub filters: Vec<GuardrailContentFilter>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailContextualGroundingPolicyAssessment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<Vec<GuardrailContextualGroundingFilter>>,
@@ -41,6 +45,8 @@ pub struct GuardrailContextualGroundingPolicyAssessment {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailInvocationMetrics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guardrail_coverage: Option<GuardrailCoverage>,
@@ -54,6 +60,8 @@ pub struct GuardrailInvocationMetrics {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailCoverage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub images: Option<GuardrailImageCoverage>,
@@ -63,7 +71,10 @@ pub struct GuardrailCoverage {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailImageCoverage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guarded: Option<i32>,
@@ -77,6 +88,8 @@ pub type GuardrailTextCharactersCoverage = GuardrailImageCoverage;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailUsage {
     pub content_policy_units: i32,
     pub contextual_grounding_policy_units: i32,
@@ -96,6 +109,8 @@ pub struct GuardrailUsage {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailSensitiveInformationPolicyAssessment {
     pub pii_entities: Vec<GuardrailPiiEntityFilter>,
     pub regexes: Vec<GuardrailRegexFilter>,
@@ -103,7 +118,10 @@ pub struct GuardrailSensitiveInformationPolicyAssessment {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailTopicPolicyAssessment {
     pub topics: Vec<GuardrailTopic>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -112,6 +130,8 @@ pub struct GuardrailTopicPolicyAssessment {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailWordPolicyAssessment {
     pub custom_words: Vec<GuardrailCustomWord>,
     pub managed_word_lists: Vec<GuardrailManagedWord>,

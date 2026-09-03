@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::openai::common::{EmbeddingObjectType, ListObjectType, OpenAiModelId, Rest};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CreateEmbeddingRequest {
     pub input: EmbeddingInput,
     pub model: OpenAiModelId,
@@ -41,7 +42,8 @@ pub enum KnownEmbeddingEncodingFormat {
     Base64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CreateEmbeddingResponse {
     pub data: Vec<Embedding>,
     pub model: OpenAiModelId,
@@ -51,7 +53,8 @@ pub struct CreateEmbeddingResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Embedding {
     pub embedding: EmbeddingVector,
     pub index: u32,
@@ -68,7 +71,8 @@ pub enum EmbeddingVector {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct EmbeddingUsage {
     pub prompt_tokens: u64,
     pub total_tokens: u64,

@@ -61,7 +61,7 @@ pub(in crate::host) fn admit<'a>(
 
         let state = AdmissionState {
             identity: IdentityState::from(identity),
-            operation: operation.map(|key| key.operation.id().to_owned()),
+            operation: operation.map(|key| key.operation().id().to_owned()),
             reservations,
         };
         let bytes = match serde_json::to_vec(&state) {

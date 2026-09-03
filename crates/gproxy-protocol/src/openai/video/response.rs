@@ -8,7 +8,8 @@ use super::{
     VideoStatus,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Video {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,7 +40,8 @@ pub enum VideoSecondsValue {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VideoError {
     pub code: String,
     pub message: String,
@@ -47,7 +49,8 @@ pub struct VideoError {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VideoListResponse {
     pub data: Vec<Video>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -60,7 +63,8 @@ pub struct VideoListResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VideoDeleteResponse {
     pub id: String,
     pub deleted: bool,
@@ -69,7 +73,8 @@ pub struct VideoDeleteResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct VideoCharacter {
     pub id: String,
     pub created_at: u64,

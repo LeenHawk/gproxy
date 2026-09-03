@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use super::super::{ClaudeModel, JsonObject, RefusalCategory};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FallbackBlockParam {
     pub from: FallbackInfo,
     pub to: FallbackInfo,
@@ -22,7 +23,8 @@ pub struct FallbackBlockParam {
     pub rest: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseFallbackBlock {
     pub from: FallbackInfo,
     pub to: FallbackInfo,
@@ -33,7 +35,8 @@ pub struct ResponseFallbackBlock {
     pub rest: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FallbackRefusalTrigger {
     pub category: RefusalCategory,
     #[serde(rename = "type")]
@@ -42,7 +45,8 @@ pub struct FallbackRefusalTrigger {
     pub rest: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FallbackInfo {
     pub model: ClaudeModel,
     #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]

@@ -7,11 +7,11 @@ use serde_json::Value;
 use std::str::FromStr as _;
 
 pub(crate) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    if ctx.key.operation == Operation::CreateSpeech {
+    if ctx.key.operation() == Operation::CreateSpeech {
         return speech(ctx.request_body, ctx.response_headers, ctx.response_body);
     }
     let value = serde_json::from_slice::<Value>(ctx.response_body).ok()?;
-    let mut usage = match ctx.key.operation {
+    let mut usage = match ctx.key.operation() {
         Operation::CreateImage | Operation::EditImage => from_image_value(&value),
         Operation::CreateTranscription => from_transcription_value(&value),
         Operation::RetrieveVideo => from_video_value(&value),

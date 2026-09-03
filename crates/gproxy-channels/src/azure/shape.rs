@@ -17,7 +17,7 @@ pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 }
 
 fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
-    let gproxy_protocol::OperationKind::ContentGeneration(kind) = ctx.key.kind else {
+    let gproxy_protocol::OperationKind::ContentGeneration(kind) = ctx.key.kind() else {
         return Ok(ctx.body.clone());
     };
     if ctx

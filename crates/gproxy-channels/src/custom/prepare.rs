@@ -51,7 +51,7 @@ fn endpoint(
             &crate::shared::http::encode_component(ctx.upstream_model),
         );
         let url =
-            crate::shared::openai::endpoint::replace_resource(url, ctx.key.operation, ctx.path);
+            crate::shared::openai::endpoint::replace_resource(url, ctx.key.operation(), ctx.path);
         return crate::shared::http::exact(&url, query);
     }
     let base = ctx
@@ -71,7 +71,7 @@ fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
 }
 
 fn framing(ctx: &PrepareCtx<'_>) -> Option<StreamFraming> {
-    (ctx.key.operation == Operation::StreamGenerateContent
+    (ctx.key.operation() == Operation::StreamGenerateContent
         && matches!(super::model::auth(ctx.key), super::model::AuthKind::Gemini))
     .then(|| {
         if ctx

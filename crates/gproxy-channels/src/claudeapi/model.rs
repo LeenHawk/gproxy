@@ -42,9 +42,9 @@ pub(super) fn endpoint_name(key: OperationKey) -> Option<&'static str> {
 }
 
 pub(super) fn is_messages(key: OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

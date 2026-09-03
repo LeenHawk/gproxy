@@ -87,7 +87,7 @@ pub(super) static SUPPORTS: [ChannelSupport; 17] = [
 ];
 
 pub(super) fn select(source: OperationKey, mode: Mode) -> Option<ChannelSupport> {
-    if mode == Mode::ApiKey && source.operation == Operation::CountTokens {
+    if mode == Mode::ApiKey && source.operation() == Operation::CountTokens {
         return None;
     }
     let mut rows = SUPPORTS.iter().filter(|row| row.source == source);
@@ -98,11 +98,11 @@ pub(super) fn select(source: OperationKey, mode: Mode) -> Option<ChannelSupport>
             .or_else(|| rows.next()),
         Mode::ApiKey => rows.find(|row| {
             !matches!(
-                source.kind,
+                source.kind(),
                 gproxy_protocol::OperationKind::ContentGeneration(
                     ContentGenerationKind::OpenAiResponses | ContentGenerationKind::ClaudeMessages
                 )
-            ) || row.target.kind
+            ) || row.target.kind()
                 == gproxy_protocol::OperationKind::ContentGeneration(
                     ContentGenerationKind::OpenAiChat,
                 )

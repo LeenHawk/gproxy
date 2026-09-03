@@ -4,13 +4,13 @@ use http::{HeaderValue, Uri};
 use serde_json::Value;
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-    let websocket = ctx.key.kind
+    let websocket = ctx.key.kind()
         == gproxy_protocol::OperationKind::ContentGeneration(
             gproxy_protocol::ContentGenerationKind::OpenAiResponsesWebSocket,
         );
     if ctx.stream
         && matches!(
-            ctx.key.operation,
+            ctx.key.operation(),
             Operation::CreateImage | Operation::EditImage
         )
     {
@@ -18,7 +18,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             "Codex image streaming is not supported by the captured backend".into(),
         ));
     }
-    let path = upstream_path(ctx.key.operation, ctx.upstream_model);
+    let path = upstream_path(ctx.key.operation(), ctx.upstream_model);
     let query = query(&ctx)?;
     let mut uri = endpoint(&ctx, &path, query.as_deref())?;
     if websocket {
@@ -28,7 +28,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let content_type = ctx.headers.get(http::header::CONTENT_TYPE).cloned();
     let session_id = super::auth::session_id(ctx.secret, &headers);
     super::auth::apply_headers(&mut headers, ctx.secret, &session_id)?;
-    if ctx.key.operation == Operation::CreateRealtimeCall
+    if ctx.key.operation() == Operation::CreateRealtimeCall
         && content_type.as_ref().is_some_and(is_sdp)
         && let Some(content_type) = content_type
     {
@@ -36,7 +36,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     }
     headers.insert(
         http::header::ACCEPT,
-        HeaderValue::from_static(match ctx.key.operation {
+        HeaderValue::from_static(match ctx.key.operation() {
             Operation::GenerateContent | Operation::StreamGenerateContent => "text/event-stream",
             Operation::CreateRealtimeCall => "application/sdp",
             _ => "application/json",
@@ -53,7 +53,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         );
     }
     let body = openai_cache(&ctx)?;
-    let body = super::shape::request(ctx.key.operation, ctx.headers, &body, ctx.upstream_model)?;
+    let body = super::shape::request(ctx.key.operation(), ctx.headers, &body, ctx.upstream_model)?;
     let mut request = http::Request::builder()
         .method(ctx.method)
         .uri(strip_userinfo(uri)?)
@@ -69,7 +69,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
 }
 
 fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<bytes::Bytes, ChannelError> {
-    let gproxy_protocol::OperationKind::ContentGeneration(kind) = ctx.key.kind else {
+    let gproxy_protocol::OperationKind::ContentGeneration(kind) = ctx.key.kind() else {
         return Ok(ctx.body.clone());
     };
     let enabled = ctx
@@ -184,7 +184,7 @@ fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
         .map(str::to_owned)
         .collect::<Vec<_>>();
     if matches!(
-        ctx.key.operation,
+        ctx.key.operation(),
         Operation::ListModels | Operation::GetModel
     ) && !kept
         .iter()
@@ -210,7 +210,7 @@ fn endpoint(ctx: &PrepareCtx<'_>, path: &str, query: Option<&str>) -> Result<Uri
 }
 
 fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
-    let name = match ctx.key.operation {
+    let name = match ctx.key.operation() {
         Operation::ListModels => "openai_list_models",
         Operation::GetModel => "openai_get_model",
         Operation::GenerateContent | Operation::StreamGenerateContent => "openai_responses",

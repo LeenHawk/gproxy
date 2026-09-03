@@ -59,7 +59,7 @@ fn declares_truthful_operations() {
     assert!(
         supports
             .iter()
-            .all(|support| support.source.operation != Operation::CompactContent)
+            .all(|support| support.source.operation() != Operation::CompactContent)
     );
 }
 

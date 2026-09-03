@@ -26,8 +26,8 @@ pub(super) struct CodexSseDecoder {
 
 impl CodexSseDecoder {
     pub(super) fn for_operation(ctx: StreamCtx<'_>) -> Option<Self> {
-        (ctx.key.operation == Operation::StreamGenerateContent
-            && ctx.key.kind
+        (ctx.key.operation() == Operation::StreamGenerateContent
+            && ctx.key.kind()
                 == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses))
         .then(|| Self {
             buffer: Vec::new(),

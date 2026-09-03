@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::openai::common::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeAudio {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<RealtimeAudioInput>,
@@ -15,7 +16,8 @@ pub struct RealtimeAudio {
 
 pub type RealtimeAudioConfig = RealtimeAudio;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeAudioInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<RealtimeAudioFormat>,
@@ -31,7 +33,8 @@ pub struct RealtimeAudioInput {
 
 pub type RealtimeAudioInputConfig = RealtimeAudioInput;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeAudioOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<RealtimeAudioFormat>,
@@ -55,7 +58,8 @@ pub enum RealtimeAudioFormat {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimePcmFormat {
     #[serde(rename = "type")]
     pub type_: RealtimePcmFormatType,
@@ -72,7 +76,8 @@ pub enum RealtimePcmFormatType {
     Pcm,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimePcmuFormat {
     #[serde(rename = "type")]
     pub type_: RealtimePcmuFormatType,
@@ -87,7 +92,8 @@ pub enum RealtimePcmuFormatType {
     Pcmu,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimePcmaFormat {
     #[serde(rename = "type")]
     pub type_: RealtimePcmaFormatType,
@@ -102,7 +108,8 @@ pub enum RealtimePcmaFormatType {
     Pcma,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeNoiseReduction {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<RealtimeNoiseReductionType>,
@@ -112,7 +119,8 @@ pub struct RealtimeNoiseReduction {
 
 pub type NoiseReduction = RealtimeNoiseReduction;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeTranscription {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -144,7 +152,8 @@ pub enum RealtimeTurnDetection {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeServerVad {
     #[serde(rename = "type")]
     pub type_: RealtimeServerVadType,
@@ -171,7 +180,8 @@ pub enum RealtimeServerVadType {
     ServerVad,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeSemanticVad {
     #[serde(rename = "type")]
     pub type_: RealtimeSemanticVadType,

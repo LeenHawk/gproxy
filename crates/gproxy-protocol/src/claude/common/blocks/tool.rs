@@ -5,7 +5,8 @@ use super::super::{
 };
 use super::content::{McpToolResultContent, ToolResultContent};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -27,7 +28,8 @@ pub enum ToolUseBlockType {
     ToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolResultBlock {
     pub tool_use_id: String,
     #[serde(rename = "type")]
@@ -49,7 +51,8 @@ pub enum ToolResultBlockType {
     ToolResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolReferenceBlock {
     pub tool_name: String,
     #[serde(rename = "type")]
@@ -67,7 +70,8 @@ pub enum ToolReferenceBlockType {
     ToolReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServerToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -89,7 +93,8 @@ pub enum ServerToolUseBlockType {
     ServerToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchToolResultBlock {
     pub content: WebSearchToolResultContent,
     pub tool_use_id: String,
@@ -110,7 +115,8 @@ pub enum WebSearchToolResultBlockType {
     WebSearchToolResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchResultBlock {
     pub encrypted_content: String,
     pub title: String,
@@ -130,7 +136,8 @@ pub enum WebSearchResultBlockType {
     WebSearchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct McpToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -151,7 +158,8 @@ pub enum McpToolUseBlockType {
     McpToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct McpToolResultBlock {
     pub tool_use_id: String,
     #[serde(rename = "type")]

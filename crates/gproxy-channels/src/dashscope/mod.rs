@@ -130,7 +130,7 @@ impl Channel for DashScopeChannel {
         &self,
         ctx: ResponseShapeCtx<'_>,
     ) -> Result<bytes::Bytes, gproxy_channel_api::ChannelError> {
-        if ctx.status.is_success() && image::is_operation(ctx.key.operation) {
+        if ctx.status.is_success() && image::is_operation(ctx.key.operation()) {
             image::response(ctx.body)
         } else {
             Ok(ctx.body.clone())

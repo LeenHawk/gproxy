@@ -6,7 +6,8 @@ use crate::openai::common::{
     Rest,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CreateImageRequest {
     pub prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,7 +40,8 @@ pub struct CreateImageRequest {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct EditImageRequest {
     #[serde(alias = "image")]
     pub images: Vec<ImageReference>,
@@ -74,7 +76,8 @@ pub struct EditImageRequest {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_id: Option<String>,

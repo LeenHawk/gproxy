@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorCodeExecutionViewResultBlock {
     pub content: String,
     pub file_type: TextEditorCodeExecutionFileType,
@@ -36,7 +37,8 @@ pub enum TextEditorCodeExecutionViewResultBlockType {
     TextEditorCodeExecutionViewResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorCodeExecutionCreateResultBlock {
     pub is_file_update: bool,
     #[serde(rename = "type")]
@@ -52,7 +54,8 @@ pub enum TextEditorCodeExecutionCreateResultBlockType {
     TextEditorCodeExecutionCreateResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorCodeExecutionStrReplaceResultBlock {
     #[serde(rename = "type")]
     pub type_: TextEditorCodeExecutionStrReplaceResultBlockType,

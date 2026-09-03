@@ -10,7 +10,8 @@ use crate::openai::generate_content::responses::{
 pub type CompactResponseWireModel =
     OpenAiWireModel<CompactResponseRequestBody, CompactedResponseObject>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CompactResponseRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<ResponseInput>,
@@ -31,7 +32,8 @@ pub struct CompactResponseRequestBody {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CompactedResponseObject {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,7 +53,8 @@ pub enum CompactResponseItem {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CompactMessageItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -77,7 +80,8 @@ pub enum CompactMessageContentPart {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CompactTextContent {
     pub text: String,
     #[serde(rename = "type")]
@@ -92,7 +96,8 @@ pub enum CompactTextContentType {
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CompactSummaryTextContent {
     pub text: String,
     #[serde(rename = "type")]

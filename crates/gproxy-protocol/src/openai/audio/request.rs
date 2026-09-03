@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::openai::common::{OpenAiModelId, Rest, VoiceName};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SpeechRequest {
     pub input: String,
     pub model: OpenAiModelId,
@@ -28,14 +29,16 @@ pub enum SpeechVoice {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CustomVoice {
     pub id: String,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionRequest {
     pub file: String,
     pub model: OpenAiModelId,
@@ -81,7 +84,8 @@ pub enum AudioChunkingAuto {
     Auto,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServerVadConfig {
     #[serde(rename = "type")]
     pub type_: ServerVadType,
@@ -101,7 +105,8 @@ pub enum ServerVadType {
     ServerVad,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranslationRequest {
     pub file: String,
     pub model: OpenAiModelId,

@@ -8,12 +8,12 @@ pub(super) fn request(
     _headers: &mut http::HeaderMap,
     body: Bytes,
 ) -> Result<Bytes, ChannelError> {
-    if !matches!(ctx.key.kind, OperationKind::ContentGeneration(_)) {
+    if !matches!(ctx.key.kind(), OperationKind::ContentGeneration(_)) {
         return Ok(body);
     }
     // Claude magic markers are shaped once for every Claude target, centrally.
     // Only the OpenAI side is still a per-provider opt-in here.
-    let kind = match ctx.key.kind {
+    let kind = match ctx.key.kind() {
         OperationKind::ContentGeneration(kind) => kind,
         OperationKind::Family(_) => return Ok(body),
     };

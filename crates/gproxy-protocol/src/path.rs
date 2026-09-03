@@ -54,19 +54,19 @@ pub fn match_path(pattern: PathPattern, path: &str) -> Option<Vec<(&'static str,
 /// Canonical upstream method/path for a native operation key. Targets derive
 /// from the ingress registry so transforms do not carry a second path table.
 pub fn request_target(key: OperationKey, model: &str) -> Option<(Method, String)> {
-    let operation = if key.operation == Operation::StreamGenerateContent
-        && key.kind
+    let operation = if key.operation() == Operation::StreamGenerateContent
+        && key.kind()
             != OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
     {
         Operation::GenerateContent
     } else {
-        key.operation
+        key.operation()
     };
     let ingress = operation
         .spec()
         .ingress
         .iter()
-        .find(|ingress| ingress.kind == key.kind)?;
+        .find(|ingress| ingress.kind == key.kind())?;
     let mut path = String::new();
     for segment in ingress.pattern.0 {
         path.push('/');

@@ -23,7 +23,7 @@ pub(super) fn prepare(
     super::super::DeepSeekChannel
         .prepare(PrepareCtx {
             key,
-            stream: key.operation == Operation::StreamGenerateContent,
+            stream: key.operation() == Operation::StreamGenerateContent,
             method: &http::Method::PATCH,
             path: "/client/path",
             query: Some("ignored=yes"),

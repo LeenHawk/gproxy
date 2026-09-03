@@ -19,7 +19,8 @@ pub enum Tool {
     Unknown(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CustomTool {
     pub input_schema: JsonSchema,
     pub name: String,
@@ -51,7 +52,8 @@ pub enum CommandTool {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BashTool20241022 {
     pub name: BashToolName,
     #[serde(rename = "type")]
@@ -62,7 +64,8 @@ pub struct BashTool20241022 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BashTool20250124 {
     pub name: BashToolName,
     #[serde(rename = "type")]
@@ -73,7 +76,8 @@ pub struct BashTool20250124 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecutionTool20250522 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -84,7 +88,8 @@ pub struct CodeExecutionTool20250522 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecutionTool20250825 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -95,7 +100,8 @@ pub struct CodeExecutionTool20250825 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecutionTool20260120 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -106,7 +112,8 @@ pub struct CodeExecutionTool20260120 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CodeExecutionTool20260521 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -117,7 +124,8 @@ pub struct CodeExecutionTool20260521 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MemoryTool20250818 {
     pub name: MemoryToolName,
     #[serde(rename = "type")]
@@ -128,7 +136,8 @@ pub struct MemoryTool20250818 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolSearchBm25Tool {
     pub name: ToolSearchBm25ToolName,
     #[serde(rename = "type")]
@@ -139,7 +148,8 @@ pub struct ToolSearchBm25Tool {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolSearchRegexTool {
     pub name: ToolSearchRegexToolName,
     #[serde(rename = "type")]
@@ -161,7 +171,8 @@ pub enum TextEditorTool {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorTool20241022 {
     pub name: StrReplaceEditorToolName,
     #[serde(rename = "type")]
@@ -172,7 +183,8 @@ pub struct TextEditorTool20241022 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorTool20250124 {
     pub name: StrReplaceEditorToolName,
     #[serde(rename = "type")]
@@ -183,7 +195,8 @@ pub struct TextEditorTool20250124 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorTool20250429 {
     pub name: StrReplaceBasedEditToolName,
     #[serde(rename = "type")]
@@ -194,7 +207,8 @@ pub struct TextEditorTool20250429 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextEditorTool20250728 {
     pub name: StrReplaceBasedEditToolName,
     #[serde(rename = "type")]
@@ -217,7 +231,8 @@ pub enum ComputerTool {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ComputerTool20241022 {
     pub display_height_px: u64,
     pub display_width_px: u64,
@@ -232,7 +247,8 @@ pub struct ComputerTool20241022 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ComputerTool20250124 {
     pub display_height_px: u64,
     pub display_width_px: u64,
@@ -247,7 +263,8 @@ pub struct ComputerTool20250124 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ComputerTool20251124 {
     pub display_height_px: u64,
     pub display_width_px: u64,
@@ -274,7 +291,8 @@ pub enum WebSearchTool {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchTool20250305 {
     pub name: WebSearchToolName,
     #[serde(rename = "type")]
@@ -287,7 +305,8 @@ pub struct WebSearchTool20250305 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchTool20260209 {
     pub name: WebSearchToolName,
     #[serde(rename = "type")]
@@ -300,7 +319,8 @@ pub struct WebSearchTool20260209 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchTool20260318 {
     pub name: WebSearchToolName,
     #[serde(rename = "type")]
@@ -315,7 +335,8 @@ pub struct WebSearchTool20260318 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebSearchToolParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -340,7 +361,8 @@ pub enum WebFetchTool {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebFetchTool20250910 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -353,7 +375,8 @@ pub struct WebFetchTool20250910 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebFetchTool20260209 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -366,7 +389,8 @@ pub struct WebFetchTool20260209 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebFetchTool20260309 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -381,7 +405,8 @@ pub struct WebFetchTool20260309 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebFetchTool20260318 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -398,7 +423,8 @@ pub struct WebFetchTool20260318 {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct WebFetchToolParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -414,7 +440,8 @@ pub struct WebFetchToolParams {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AdvisorTool {
     pub model: ClaudeModel,
     pub name: AdvisorToolName,

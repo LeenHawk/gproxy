@@ -13,7 +13,7 @@ pub(super) fn prepare(
     super::super::KiroChannel
         .prepare(PrepareCtx {
             key,
-            stream: key.operation == gproxy_protocol::Operation::StreamGenerateContent,
+            stream: key.operation() == gproxy_protocol::Operation::StreamGenerateContent,
             method: &http::Method::PATCH,
             path: "/client/path",
             query: Some("ignored=yes"),

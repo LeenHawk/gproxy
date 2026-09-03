@@ -13,14 +13,16 @@ pub enum LegacyFunctionCallChoice {
 
 strict_string_enum!(LegacyFunctionCallMode { None => "none", Auto => "auto" });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct LegacyFunctionCallOption {
     pub name: String,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct LegacyFunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

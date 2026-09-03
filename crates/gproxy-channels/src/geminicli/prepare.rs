@@ -9,7 +9,7 @@ const BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access = super::auth::access_token(ctx.secret)?;
     let project = super::auth::project_id(ctx.secret)?;
-    let (endpoint, path, query, method, body) = match ctx.key.operation {
+    let (endpoint, path, query, method, body) = match ctx.key.operation() {
         Operation::ListModels => (
             "gemini_list_models",
             "/v1internal:retrieveUserQuota",
@@ -25,9 +25,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             crate::shared::code_assist::wrap_count(ctx.body)?,
         ),
         Operation::GenerateContent | Operation::StreamGenerateContent => {
-            let stream = ctx.key.operation == Operation::StreamGenerateContent;
+            let stream = ctx.key.operation() == Operation::StreamGenerateContent;
             let body = crate::shared::gemini::model::rewrite(
-                ctx.key.operation,
+                ctx.key.operation(),
                 ctx.body,
                 ctx.upstream_model,
             )?;
@@ -62,7 +62,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         &mut headers,
         access,
         ctx.upstream_model,
-        ctx.key.operation == Operation::ListModels,
+        ctx.key.operation() == Operation::ListModels,
     )?;
     let mut request = http::Request::builder()
         .method(method)
@@ -72,7 +72,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
-        framing: (ctx.key.operation == Operation::StreamGenerateContent)
+        framing: (ctx.key.operation() == Operation::StreamGenerateContent)
             .then_some(StreamFraming::Sse),
         websocket: false,
         profile: Some(&super::profile::PROFILE),

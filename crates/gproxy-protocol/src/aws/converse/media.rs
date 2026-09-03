@@ -5,6 +5,8 @@ use crate::aws::{DocumentFormat, ImageFormat, Rest};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageBlock {
     pub format: ImageFormat,
     pub source: ImageSource,
@@ -32,6 +34,8 @@ pub enum ImageSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DocumentBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<DocumentFormat>,
@@ -68,6 +72,8 @@ pub enum DocumentSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct S3Location {
     pub uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -13,7 +13,8 @@ pub enum Caller {
     Unknown(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DirectCaller {
     #[serde(rename = "type")]
     pub type_: DirectCallerType,
@@ -28,7 +29,8 @@ pub enum DirectCallerType {
     Direct,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServerToolCaller {
     pub tool_id: String,
     #[serde(rename = "type")]
@@ -44,7 +46,8 @@ pub enum ServerToolCallerType {
     CodeExecution20250825,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServerToolCaller20260120 {
     pub tool_id: String,
     #[serde(rename = "type")]
@@ -60,7 +63,8 @@ pub enum ServerToolCaller20260120Type {
     CodeExecution20260120,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ServerToolCaller20260521 {
     pub tool_id: String,
     #[serde(rename = "type")]

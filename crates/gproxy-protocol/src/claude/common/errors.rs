@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ErrorResponse {
     #[serde(rename = "type")]
     pub type_: ErrorResponseType,
@@ -113,7 +114,8 @@ api_error!(
     "overloaded_error"
 );
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UnknownError {
     pub message: String,
     #[serde(rename = "type")]

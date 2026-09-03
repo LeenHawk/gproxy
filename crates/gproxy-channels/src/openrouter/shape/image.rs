@@ -17,7 +17,7 @@ pub(super) fn request(
         object.insert("model".into(), Value::String(ctx.upstream_model.into()));
     }
     object.remove("response_format");
-    if ctx.key.operation == Operation::EditImage {
+    if ctx.key.operation() == Operation::EditImage {
         object.remove("mask");
         let images = object
             .remove("images")

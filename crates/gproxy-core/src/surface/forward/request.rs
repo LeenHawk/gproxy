@@ -65,7 +65,7 @@ pub(crate) async fn request<H: Host>(
             .iter()
             .any(|support| support.target == key)
             || matches!(
-                key.operation.spec().settle,
+                key.operation().spec().settle,
                 SettleMode::OnCompletedStatus | SettleMode::OnSessionEnd
             ))
     {
@@ -120,7 +120,7 @@ pub(crate) async fn request<H: Host>(
     let source_framing = request
         .key
         .map_or(gproxy_protocol::StreamFraming::Sse, |key| {
-            gproxy_protocol::default_framing(key.kind, false)
+            gproxy_protocol::default_framing(key.kind(), false)
         });
     let target_framing = prepared.framing.unwrap_or(source_framing);
     let mut facts = FunnelCtx {
@@ -133,7 +133,7 @@ pub(crate) async fn request<H: Host>(
         target_framing,
         settle: request
             .key
-            .map(|key| key.operation.spec().settle)
+            .map(|key| key.operation().spec().settle)
             .unwrap_or(SettleMode::Free),
         pricing,
         started,

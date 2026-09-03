@@ -8,7 +8,10 @@ use super::{
     ResponseStreamOptions, ResponseTool, TextConfig,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background: Option<bool>,
@@ -86,7 +89,8 @@ pub enum ResponseConversationRef {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseConversationParam {
     pub id: String,
     #[serde(default, flatten)]

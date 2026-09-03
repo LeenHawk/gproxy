@@ -11,7 +11,8 @@ pub type MessageContent = StringOrArray<ContentBlockParam>;
 pub type SystemPrompt = StringOrArray<TextBlock>;
 pub type ContentBlock = ResponseContentBlock;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct MessageParam {
     pub role: MessageRole,
     pub content: MessageContent,

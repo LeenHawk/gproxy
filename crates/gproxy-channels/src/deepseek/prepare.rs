@@ -22,7 +22,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let uri = endpoint(&ctx, &target)?;
     let mut headers = crate::policy::request_headers(crate::policy::DEEPSEEK, &ctx)?;
     apply_auth(&mut headers, ctx.key, api_key)?;
-    let body = if matches!(ctx.key.kind, OperationKind::Family(_)) {
+    let body = if matches!(ctx.key.kind(), OperationKind::Family(_)) {
         ctx.body.clone()
     } else {
         let body = super::model::rewrite(&ctx)?;

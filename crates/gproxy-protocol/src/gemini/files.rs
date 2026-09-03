@@ -4,6 +4,8 @@ use super::FileState;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UploadFileRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<UploadFileMetadata>,
@@ -15,6 +17,8 @@ pub type CreateFileRequest = UploadFileRequest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UploadFileMetadata {
     #[serde(alias = "display_name", skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -24,6 +28,8 @@ pub struct UploadFileMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListFilesRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_size: Option<u32>,
@@ -35,6 +41,8 @@ pub struct ListFilesRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct FileRequest {
     pub name: String,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
@@ -49,6 +57,8 @@ pub type DownloadFileResponse = Vec<u8>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UploadFileResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<File>,
@@ -60,6 +70,8 @@ pub type CreateFileResponse = UploadFileResponse;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListFilesResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<File>,
@@ -71,6 +83,8 @@ pub struct ListFilesResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DeleteFileResponse {
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty", flatten)]
     pub rest: serde_json::Map<String, serde_json::Value>,
@@ -78,6 +92,8 @@ pub struct DeleteFileResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct File {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

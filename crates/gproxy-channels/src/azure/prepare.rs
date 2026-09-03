@@ -84,7 +84,7 @@ fn query(ctx: &PrepareCtx<'_>, exact: Option<&str>) -> Result<Option<String>, Ch
         })
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if image_version(ctx.key.operation).is_some()
+    if image_version(ctx.key.operation()).is_some()
         && !exact_has_version
         && !parts.iter().any(|part| part_name(part) == "api-version")
     {
@@ -94,7 +94,7 @@ fn query(ctx: &PrepareCtx<'_>, exact: Option<&str>) -> Result<Option<String>, Ch
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|version| !version.is_empty())
-            .or_else(|| image_version(ctx.key.operation))
+            .or_else(|| image_version(ctx.key.operation()))
             .expect("image operation has a default version");
         parts.push(format!(
             "api-version={}",

@@ -10,7 +10,7 @@ pub(super) fn settlement_ready(ctx: UsageCtx<'_>) -> Result<bool, ChannelError> 
 }
 
 pub(super) fn mutations(ctx: ResourceCtx<'_>) -> Result<Vec<ResourceMutation>, ChannelError> {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::CreateFile => upload(ctx.response_body),
         Operation::ListFiles => list_files(ctx.response_body),
         Operation::RetrieveFile => file(ctx.response_body, ctx.request_resource),

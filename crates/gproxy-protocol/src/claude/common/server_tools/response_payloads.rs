@@ -11,7 +11,8 @@ use super::{
     ToolSearchToolResultErrorType,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseWebFetchResultBlock {
     pub content: ResponseWebFetchDocumentBlock,
     pub retrieved_at: String,
@@ -29,7 +30,8 @@ pub enum ResponseWebFetchResultBlockType {
     WebFetchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseWebFetchDocumentBlock {
     pub citations: ResponseWebFetchCitationConfig,
     pub source: ResponseWebFetchDocumentSource,
@@ -40,7 +42,8 @@ pub struct ResponseWebFetchDocumentBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseWebFetchCitationConfig {
     pub enabled: bool,
     #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
@@ -56,7 +59,8 @@ pub enum ResponseWebFetchDocumentSource {
     Raw(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseAdvisorResultBlock {
     pub stop_reason: StopReason,
     pub text: String,
@@ -73,7 +77,8 @@ pub enum ResponseAdvisorResultBlockType {
     AdvisorResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseAdvisorRedactedResultBlock {
     pub encrypted_content: String,
     pub stop_reason: StopReason,
@@ -90,7 +95,8 @@ pub enum ResponseAdvisorRedactedResultBlockType {
     AdvisorRedactedResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseTextEditorCodeExecutionViewResultBlock {
     pub content: String,
     pub file_type: TextEditorCodeExecutionFileType,
@@ -103,7 +109,8 @@ pub struct ResponseTextEditorCodeExecutionViewResultBlock {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseTextEditorCodeExecutionStrReplaceResultBlock {
     pub lines: Vec<String>,
     pub new_lines: u64,
@@ -124,7 +131,8 @@ pub type ResponseTextEditorCodeExecutionToolResultError = ResponseServerToolResu
 pub type ResponseToolSearchToolResultError =
     ResponseServerToolResultError<ToolSearchToolResultErrorCode, ToolSearchToolResultErrorType>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseServerToolResultError<C, T> {
     pub error_code: C,
     pub error_message: String,
@@ -134,7 +142,8 @@ pub struct ResponseServerToolResultError<C, T> {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseToolSearchToolSearchResultBlock {
     pub tool_references: Vec<ResponseToolReferenceBlock>,
     #[serde(rename = "type")]

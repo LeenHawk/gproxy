@@ -8,7 +8,8 @@ use serde_json::Value;
 
 use crate::openai::common::{OpenAiModelId, Rest};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RerankRequest {
     pub model: OpenAiModelId,
     pub query: String,
@@ -31,7 +32,8 @@ pub enum RerankDocument {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RerankDocumentContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -41,7 +43,8 @@ pub struct RerankDocumentContent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RerankResponse {
     pub model: OpenAiModelId,
     pub results: Vec<RerankResult>,
@@ -57,7 +60,8 @@ pub struct RerankResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RerankResult {
     pub index: u32,
     pub relevance_score: f64,
@@ -67,7 +71,8 @@ pub struct RerankResult {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RerankUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<u64>,

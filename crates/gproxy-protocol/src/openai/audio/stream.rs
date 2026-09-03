@@ -16,7 +16,8 @@ pub enum SpeechStreamEvent {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SpeechEvent {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<String>,
@@ -55,7 +56,8 @@ impl<'de> Deserialize<'de> for TranscriptionStreamEvent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UnknownTranscriptionStreamEvent {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<String>,
@@ -63,7 +65,8 @@ pub struct UnknownTranscriptionStreamEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionTextDeltaEvent {
     #[serde(rename = "type")]
     pub type_: TranscriptionTextDeltaType,
@@ -83,7 +86,8 @@ pub enum TranscriptionTextDeltaType {
     Delta,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionTextDoneEvent {
     #[serde(rename = "type")]
     pub type_: TranscriptionTextDoneType,
@@ -105,7 +109,8 @@ pub enum TranscriptionTextDoneType {
     Done,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TranscriptionTextSegmentEvent {
     #[serde(rename = "type")]
     pub type_: TranscriptionTextSegmentType,

@@ -11,7 +11,7 @@ pub(super) fn request(
     ctx: &PrepareCtx<'_>,
     headers: &mut HeaderMap,
 ) -> Result<Bytes, ChannelError> {
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::CreateImage | Operation::EditImage => image::request(ctx, headers),
         Operation::CreateVideo => video::request(ctx),
         Operation::Rerank => with_object(ctx.body.clone(), |object| {
@@ -35,13 +35,13 @@ pub(super) fn request(
 
 fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, ChannelError> {
     let openai = matches!(
-        ctx.key.kind,
+        ctx.key.kind(),
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses
         )
     );
     let claude =
-        ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
+        ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages);
     let cache = openai
         && ctx
             .provider_settings
@@ -58,7 +58,7 @@ fn compatible_request(ctx: &PrepareCtx<'_>, body: Bytes) -> Result<Bytes, Channe
         }
         let mut value = Value::Object(std::mem::take(object));
         if cache {
-            let kind = match ctx.key.kind {
+            let kind = match ctx.key.kind() {
                 OperationKind::ContentGeneration(kind) => kind,
                 OperationKind::Family(_) => return Ok(()),
             };
@@ -79,7 +79,7 @@ pub(super) fn response(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError>
     if !ctx.status.is_success() {
         return Ok(super::error::shape(ctx.body));
     }
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::ListModels
             if ctx
                 .headers

@@ -15,7 +15,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let query = crate::policy::request_query(crate::policy::AISTUDIO, &ctx)?;
     let framing = framing(&ctx, query.as_deref());
     let uri = endpoint(&ctx, query.as_deref())?;
-    let body = super::model::rewrite(ctx.key.operation, ctx.body, ctx.upstream_model)?;
+    let body = super::model::rewrite(ctx.key.operation(), ctx.body, ctx.upstream_model)?;
     let mut request = http::Request::builder()
         .method(ctx.method)
         .uri(strip_userinfo(uri)?)
@@ -36,7 +36,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
 }
 
 fn framing(ctx: &PrepareCtx<'_>, query: Option<&str>) -> Option<StreamFraming> {
-    (ctx.key.operation == Operation::StreamGenerateContent).then(|| {
+    (ctx.key.operation() == Operation::StreamGenerateContent).then(|| {
         if query.is_some_and(has_sse_alt) {
             StreamFraming::Sse
         } else {
@@ -65,13 +65,13 @@ fn endpoint(ctx: &PrepareCtx<'_>, query: Option<&str>) -> Result<Uri, ChannelErr
 
 fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
     if matches!(
-        ctx.key.operation,
+        ctx.key.operation(),
         Operation::CreateVideo | Operation::RetrieveVideo
     ) && let Some(suffix) = ctx.path.strip_prefix("/v1/videos")
     {
         return format!("/v1beta/openai/videos{suffix}");
     }
-    if ctx.upstream_model.is_empty() || !has_model_path(ctx.key.operation) {
+    if ctx.upstream_model.is_empty() || !has_model_path(ctx.key.operation()) {
         return ctx.path.to_owned();
     }
     let Some(rest) = ctx.path.strip_prefix("/v1beta/models/") else {

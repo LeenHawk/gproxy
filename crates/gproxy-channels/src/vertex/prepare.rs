@@ -19,7 +19,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
-        framing: (ctx.key.operation == Operation::StreamGenerateContent)
+        framing: (ctx.key.operation() == Operation::StreamGenerateContent)
             .then_some(gproxy_protocol::StreamFraming::Sse),
         websocket: false,
         profile: None,
@@ -82,7 +82,7 @@ fn query(
     target: &super::model::Target,
 ) -> Result<Option<String>, ChannelError> {
     let mut parts = Vec::new();
-    let caller_query = if ctx.key.operation == Operation::ListModels {
+    let caller_query = if ctx.key.operation() == Operation::ListModels {
         crate::policy::request_query(crate::policy::VERTEX, ctx)?
     } else {
         None

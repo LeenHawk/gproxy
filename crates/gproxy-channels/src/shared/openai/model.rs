@@ -15,13 +15,13 @@ pub(crate) fn shape(
 ) -> Result<Bytes, ChannelError> {
     let include_usage = stream
         && matches!(
-            key.kind,
+            key.kind(),
             OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat)
         );
     if model.is_empty() && !include_usage {
         return Ok(body.clone());
     }
-    if !carries_model(key.operation) && !include_usage {
+    if !carries_model(key.operation()) && !include_usage {
         return Ok(body.clone());
     }
     if is_multipart(headers) {

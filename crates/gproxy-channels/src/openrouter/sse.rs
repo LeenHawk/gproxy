@@ -4,7 +4,7 @@ use gproxy_protocol::{ContentGenerationKind, OperationKind};
 use serde_json::Value;
 
 pub(super) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
-    let kind = match ctx.key.kind {
+    let kind = match ctx.key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => Some(Kind::Chat),
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses) => {
             Some(Kind::Responses)
@@ -14,7 +14,7 @@ pub(super) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
         }
         OperationKind::Family(gproxy_protocol::WireFamily::OpenAi)
             if matches!(
-                ctx.key.operation,
+                ctx.key.operation(),
                 gproxy_protocol::Operation::CreateImage | gproxy_protocol::Operation::EditImage
             ) =>
         {

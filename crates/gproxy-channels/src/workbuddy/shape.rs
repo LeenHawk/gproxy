@@ -15,7 +15,7 @@ pub(super) fn request(
     }
     let mut object = crate::shared::image_multipart::object(ctx.headers, ctx.body)?;
     crate::shared::image_multipart::json_fields(&mut object, &["footnote", "n", "revise"]);
-    let allowed = match ctx.key.operation {
+    let allowed = match ctx.key.operation() {
         Operation::CreateImage => CREATE_FIELDS,
         Operation::EditImage => EDIT_FIELDS,
         _ => {
@@ -28,7 +28,7 @@ pub(super) fn request(
     object
         .entry("response_format")
         .or_insert_with(|| Value::String("b64_json".into()));
-    let fallback = if ctx.key.operation == Operation::CreateImage {
+    let fallback = if ctx.key.operation() == Operation::CreateImage {
         "hunyuan-image-v3.0"
     } else {
         "hunyuan-image-v2.0-general-edit"
@@ -41,7 +41,7 @@ pub(super) fn request(
             ctx.upstream_model.into()
         }),
     );
-    if ctx.key.operation == Operation::EditImage {
+    if ctx.key.operation() == Operation::EditImage {
         let images = object
             .remove("images")
             .or_else(|| object.remove("image"))
@@ -58,7 +58,7 @@ pub(super) fn response(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError>
     if !ctx.status.is_success() {
         return Ok(ctx.body.clone());
     }
-    match ctx.key.operation {
+    match ctx.key.operation() {
         Operation::ListModels => model_list(ctx.body),
         Operation::CreateImage | Operation::EditImage => image_response(ctx.body),
         _ => Ok(ctx.body.clone()),

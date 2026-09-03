@@ -69,7 +69,7 @@ fn is_openai(key: gproxy_protocol::OperationKey) -> bool {
 }
 
 fn is_kind(key: gproxy_protocol::OperationKey, kind: ContentGenerationKind) -> bool {
-    key.kind == OperationKind::ContentGeneration(kind)
+    key.kind() == OperationKind::ContentGeneration(kind)
 }
 
 const fn family(operation: Operation, family: WireFamily) -> gproxy_protocol::OperationKey {

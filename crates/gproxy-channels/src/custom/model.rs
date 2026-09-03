@@ -11,8 +11,8 @@ pub(super) enum AuthKind {
 }
 
 pub(super) fn path(ctx: &PrepareCtx<'_>) -> String {
-    if ctx.key.operation == Operation::GetModel && !ctx.upstream_model.is_empty() {
-        let prefix = match ctx.key.kind {
+    if ctx.key.operation() == Operation::GetModel && !ctx.upstream_model.is_empty() {
+        let prefix = match ctx.key.kind() {
             OperationKind::Family(WireFamily::Gemini) => "/v1beta/models/",
             _ => "/v1/models/",
         };
@@ -21,8 +21,8 @@ pub(super) fn path(ctx: &PrepareCtx<'_>) -> String {
             crate::shared::http::encode_component(model_id(ctx.upstream_model))
         );
     }
-    if ctx.key.kind == OperationKind::Family(WireFamily::Gemini)
-        || ctx.key.kind
+    if ctx.key.kind() == OperationKind::Family(WireFamily::Gemini)
+        || ctx.key.kind()
             == OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
     {
         return gemini_path(ctx.path, ctx.upstream_model);
@@ -31,14 +31,14 @@ pub(super) fn path(ctx: &PrepareCtx<'_>) -> String {
 }
 
 pub(super) fn body(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
-    match ctx.key.kind {
+    match ctx.key.kind() {
         OperationKind::Family(WireFamily::Claude)
         | OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) => {
             claude_body(ctx)
         }
         OperationKind::Family(WireFamily::Gemini)
         | OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent) => {
-            crate::shared::gemini::model::rewrite(ctx.key.operation, ctx.body, ctx.upstream_model)
+            crate::shared::gemini::model::rewrite(ctx.key.operation(), ctx.body, ctx.upstream_model)
         }
         OperationKind::Family(WireFamily::OpenAi)
         | OperationKind::ContentGeneration(
@@ -57,7 +57,7 @@ pub(super) fn body(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 }
 
 pub(super) fn auth(key: OperationKey) -> AuthKind {
-    match key.kind {
+    match key.kind() {
         OperationKind::Family(WireFamily::Claude)
         | OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) => {
             AuthKind::Claude
@@ -76,7 +76,7 @@ pub(super) fn endpoint(key: OperationKey) -> Option<&'static str> {
 
 fn claude_body(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
     if !matches!(
-        ctx.key.operation,
+        ctx.key.operation(),
         Operation::CountTokens | Operation::GenerateContent | Operation::StreamGenerateContent
     ) || ctx.upstream_model.is_empty()
     {

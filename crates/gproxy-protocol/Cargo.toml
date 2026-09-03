@@ -3,8 +3,13 @@ name = "gproxy-protocol"
 description = "GPROXY v3 protocol model: operation taxonomy, wire kinds, and the OperationSpec registry"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+homepage = "https://gproxy.leenhawk.com"
+readme = "README.md"
+keywords = ["llm", "openai", "anthropic", "gemini", "claude"]
+categories = ["api-bindings", "data-structures", "encoding"]
 
 [features]
 # Workspace-internal builds enable this so protocol enums are exhaustive and
@@ -13,6 +18,7 @@ repository.workspace = true
 exhaustive = []
 
 [dependencies]
+gproxy-protocol-macros.workspace = true
 http.workspace = true
 serde.workspace = true
 serde_json.workspace = true

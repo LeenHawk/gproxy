@@ -5,6 +5,8 @@ use super::{AsyncInvokeStatus, Rest};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StartAsyncInvokeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_request_token: Option<String>,
@@ -19,6 +21,8 @@ pub struct StartAsyncInvokeRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct StartAsyncInvokeResponse {
     pub invocation_arn: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -27,6 +31,8 @@ pub struct StartAsyncInvokeResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GetAsyncInvokeRequest {
     pub invocation_arn: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -35,6 +41,8 @@ pub struct GetAsyncInvokeRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GetAsyncInvokeResponse {
     pub invocation_arn: String,
     pub model_arn: String,
@@ -68,6 +76,8 @@ pub enum AsyncInvokeOutputDataConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AsyncInvokeS3OutputDataConfig {
     pub s3_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -78,7 +88,10 @@ pub struct AsyncInvokeS3OutputDataConfig {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Tag {
     pub key: String,
     pub value: String,

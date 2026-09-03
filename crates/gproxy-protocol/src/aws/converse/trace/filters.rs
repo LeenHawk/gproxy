@@ -8,6 +8,8 @@ use crate::aws::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailContentFilter {
     pub action: GuardrailBlockAction,
     pub confidence: GuardrailLevel,
@@ -23,6 +25,8 @@ pub struct GuardrailContentFilter {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailContextualGroundingFilter {
     pub action: GuardrailBlockAction,
     pub score: f64,
@@ -37,6 +41,8 @@ pub struct GuardrailContextualGroundingFilter {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailPiiEntityFilter {
     pub action: GuardrailSensitiveAction,
     #[serde(rename = "match")]
@@ -51,6 +57,8 @@ pub struct GuardrailPiiEntityFilter {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailRegexFilter {
     pub action: GuardrailSensitiveAction,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -67,6 +75,8 @@ pub struct GuardrailRegexFilter {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailTopic {
     pub action: GuardrailBlockAction,
     pub name: String,
@@ -80,6 +90,8 @@ pub struct GuardrailTopic {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailCustomWord {
     pub action: GuardrailBlockAction,
     #[serde(rename = "match")]
@@ -92,6 +104,8 @@ pub struct GuardrailCustomWord {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailManagedWord {
     pub action: GuardrailBlockAction,
     #[serde(rename = "match")]

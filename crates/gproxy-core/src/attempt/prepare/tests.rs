@@ -26,8 +26,8 @@ fn declared_unsupported_route_cannot_be_enabled() {
         tier: 0,
         rules: TargetRules {
             routing: Arc::from([CompiledRoutingRule {
-                operation: key.operation,
-                kind: key.kind,
+                operation: key.operation(),
+                kind: key.kind(),
                 implementation: RoutingImplementation::Passthrough,
                 destination: None,
                 sort_order: 0,

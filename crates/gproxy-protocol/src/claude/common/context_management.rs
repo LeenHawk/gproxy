@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{BoolOrStringArray, TypedObject};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ContextManagementConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edits: Option<Vec<ContextEdit>>,
@@ -57,7 +58,8 @@ pub enum KnownContextEdit {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InputTokensValue {
     #[serde(rename = "type")]
     pub type_: InputTokensValueType,
@@ -73,7 +75,8 @@ pub enum InputTokensValueType {
     InputTokens,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolUsesValue {
     #[serde(rename = "type")]
     pub type_: ToolUsesValueType,
@@ -129,7 +132,8 @@ pub enum ThinkingAllValue {
     All,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ContextManagementResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub applied_edits: Option<Vec<AppliedContextEdit>>,

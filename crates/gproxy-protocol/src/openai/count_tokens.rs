@@ -8,7 +8,8 @@ use super::generate_content::responses::{
 pub type ResponseInputTokensWireModel =
     OpenAiWireModel<ResponseInputTokensRequest, ResponseInputTokensResponse>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputTokensRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation: Option<ResponseConversationRef>,
@@ -42,7 +43,8 @@ pub struct ResponseInputTokensRequest {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputTokensResponse {
     pub input_tokens: u32,
     pub object: ResponseInputTokensObjectType,

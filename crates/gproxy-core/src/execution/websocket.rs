@@ -28,7 +28,7 @@ pub(super) fn run<H: Host>(
     classified: Classified,
     identity: gproxy_channel_api::CallerIdentity,
 ) -> Result<ExecOutcome, CoreError> {
-    if classified.key.kind
+    if classified.key.kind()
         != OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponsesWebSocket)
     {
         return Err(CoreError::Unsupported);

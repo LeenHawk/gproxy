@@ -9,7 +9,7 @@ pub(super) fn rewrite(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
             "DeepSeek content request has no model".into(),
         ));
     }
-    match ctx.key.kind {
+    match ctx.key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => {
             let mut request: gproxy_protocol::openai::ChatCompletionRequest =
                 serde_json::from_slice(ctx.body).map_err(json_error)?;
@@ -39,15 +39,15 @@ pub(super) fn rewrite(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 }
 
 pub(super) fn is_chat(key: gproxy_protocol::OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat)
 }
 
 pub(super) fn is_responses(key: gproxy_protocol::OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses)
 }
 
 pub(super) fn is_claude(key: gproxy_protocol::OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
 }
 
 fn encode(value: &impl serde::Serialize) -> Result<Bytes, ChannelError> {

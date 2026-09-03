@@ -7,6 +7,8 @@ use super::{ConverseTrace, Message, PerformanceConfiguration, ServiceTier};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseResponse {
     pub output: ConverseOutput,
     pub stop_reason: StopReason,
@@ -40,6 +42,8 @@ pub enum ConverseOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TokenUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -56,6 +60,8 @@ pub struct TokenUsage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CacheDetail {
     pub input_tokens: u64,
     pub ttl: CacheTtl,
@@ -65,6 +71,8 @@ pub struct CacheDetail {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseMetrics {
     pub latency_ms: u64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

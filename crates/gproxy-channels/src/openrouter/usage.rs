@@ -7,7 +7,7 @@ use std::str::FromStr as _;
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
     let response = ctx.response_body;
     let base = if matches!(
-        ctx.key.kind,
+        ctx.key.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     ) {
         crate::shared::claude::usage::from_body(response)

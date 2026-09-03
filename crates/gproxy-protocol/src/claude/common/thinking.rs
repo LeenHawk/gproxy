@@ -12,7 +12,8 @@ pub enum ThinkingConfig {
     Unknown(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingEnabled {
     pub budget_tokens: u64,
     #[serde(rename = "type")]
@@ -32,7 +33,8 @@ pub enum ThinkingEnabledType {
     Enabled,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingDisabled {
     #[serde(rename = "type")]
     pub type_: ThinkingDisabledType,
@@ -47,7 +49,8 @@ pub enum ThinkingDisabledType {
     Disabled,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingAdaptive {
     #[serde(rename = "type")]
     pub type_: ThinkingAdaptiveType,
@@ -66,7 +69,8 @@ pub enum ThinkingAdaptiveType {
     Adaptive,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingBlockBinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefix_mismatch_behavior: Option<ThinkingPrefixMismatchBehavior>,
@@ -82,7 +86,8 @@ pub enum InputTransformation {
     Unknown(serde_json::Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingDroppedInputTransformation {
     pub path: String,
     pub reason: ThinkingDroppedReason,

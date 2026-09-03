@@ -2,7 +2,7 @@ use gproxy_channel_api::{NormalizedUsage, UsageCtx};
 use gproxy_protocol::{ContentGenerationKind, OperationKind, WireFamily};
 
 pub(super) fn from_body(ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-    match ctx.key.kind {
+    match ctx.key.kind() {
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         | OperationKind::Family(WireFamily::Claude) => {
             crate::shared::claude::usage::from_body(ctx.response_body)

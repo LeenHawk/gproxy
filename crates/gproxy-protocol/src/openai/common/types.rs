@@ -12,7 +12,8 @@ pub type JsonSchema = Map<String, Value>;
 pub type LogitBias = BTreeMap<String, f64>;
 pub type Metadata = BTreeMap<String, String>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PromptCacheOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<PromptCacheMode>,
@@ -22,14 +23,16 @@ pub struct PromptCacheOptions {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PromptCacheBreakpoint {
     pub mode: PromptCacheBreakpointMode,
     #[serde(default, flatten)]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModerationConfig {
     pub model: OpenAiModelId,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,7 +41,8 @@ pub struct ModerationConfig {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModerationPolicy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<ModerationPolicyRule>,
@@ -48,7 +52,8 @@ pub struct ModerationPolicy {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModerationPolicyRule {
     pub mode: ModerationPolicyMode,
     #[serde(default, flatten)]
@@ -60,7 +65,8 @@ strict_string_enum!(ModerationPolicyMode {
     Block => "block",
 });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModerationResult {
     pub categories: BTreeMap<String, bool>,
     pub category_applied_input_types: BTreeMap<String, Vec<ModerationInputType>>,
@@ -86,7 +92,8 @@ pub enum ModerationResultType {
     ModerationResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModerationError {
     pub code: String,
     pub message: String,
@@ -102,7 +109,8 @@ pub enum ModerationErrorType {
     Error,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct OpenAiWireModel<TRequest, TResponse> {
     pub operation_key: OperationKey,
     pub request: Option<TRequest>,

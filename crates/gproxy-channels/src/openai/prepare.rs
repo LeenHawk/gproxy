@@ -14,7 +14,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = upstream_path(&ctx);
     let query = crate::policy::request_query(crate::policy::OPENAI_API, &ctx)?;
-    let websocket = ctx.key.kind
+    let websocket = ctx.key.kind()
         == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponsesWebSocket);
     let mut uri = endpoint(&ctx, &path, query.as_deref())?;
     if websocket {
@@ -69,7 +69,7 @@ fn websocket_uri(uri: Uri) -> Result<Uri, ChannelError> {
 }
 
 fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<bytes::Bytes, ChannelError> {
-    let OperationKind::ContentGeneration(kind) = ctx.key.kind else {
+    let OperationKind::ContentGeneration(kind) = ctx.key.kind() else {
         return Ok(ctx.body.clone());
     };
     if ctx
@@ -89,7 +89,7 @@ fn openai_cache(ctx: &PrepareCtx<'_>) -> Result<bytes::Bytes, ChannelError> {
 }
 
 fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
-    if ctx.key.operation == Operation::GetModel && !ctx.upstream_model.is_empty() {
+    if ctx.key.operation() == Operation::GetModel && !ctx.upstream_model.is_empty() {
         format!("/v1/models/{}", encode_component(ctx.upstream_model))
     } else {
         ctx.path.to_owned()
@@ -120,12 +120,12 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         .filter(|url| !url.is_empty())
         .map(|url| {
             let url = url.replace("{model}", &encode_component(ctx.upstream_model));
-            crate::shared::openai::endpoint::replace_resource(url, ctx.key.operation, ctx.path)
+            crate::shared::openai::endpoint::replace_resource(url, ctx.key.operation(), ctx.path)
         })
 }
 
 fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'static str> {
-    if let OperationKind::ContentGeneration(kind) = key.kind {
+    if let OperationKind::ContentGeneration(kind) = key.kind() {
         return match kind {
             ContentGenerationKind::OpenAiChat => Some("openai_chat_completions"),
             ContentGenerationKind::OpenAiResponses => Some("openai_responses"),
@@ -135,7 +135,7 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         };
     }
     use Operation::*;
-    match key.operation {
+    match key.operation() {
         ListModels => Some("openai_list_models"),
         GetModel => Some("openai_get_model"),
         CompactContent => Some("openai_compact"),

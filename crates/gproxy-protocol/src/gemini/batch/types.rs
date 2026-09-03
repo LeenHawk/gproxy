@@ -4,6 +4,8 @@ use super::super::{BatchState, JsonMap, Status};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GetBatchRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -13,6 +15,8 @@ pub struct GetBatchRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListBatchesRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -30,6 +34,8 @@ pub struct ListBatchesRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ListBatchesResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operations: Vec<BatchOperation>,
@@ -50,6 +56,8 @@ pub type DeleteBatchResponseBody = DeleteBatchResponse;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BatchOperation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -76,6 +84,8 @@ pub enum BatchOperationResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BatchStats {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_count: Option<String>,
@@ -91,6 +101,8 @@ pub struct BatchStats {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BatchResourceFields {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,

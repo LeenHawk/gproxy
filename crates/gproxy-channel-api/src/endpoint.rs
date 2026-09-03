@@ -1,13 +1,13 @@
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, OperationKind, WireFamily};
 
 pub fn endpoint_override_key(key: OperationKey) -> Option<&'static str> {
-    if let OperationKind::ContentGeneration(kind) = key.kind {
+    if let OperationKind::ContentGeneration(kind) = key.kind() {
         return match kind {
             ContentGenerationKind::OpenAiChat => Some("openai_chat_completions"),
             ContentGenerationKind::OpenAiResponses => Some("openai_responses"),
             ContentGenerationKind::ClaudeMessages => Some("claude_messages"),
             ContentGenerationKind::GeminiGenerateContent => {
-                if key.operation == Operation::StreamGenerateContent {
+                if key.operation() == Operation::StreamGenerateContent {
                     Some("gemini_stream_generate_content")
                 } else {
                     Some("gemini_generate_content")
@@ -17,7 +17,7 @@ pub fn endpoint_override_key(key: OperationKey) -> Option<&'static str> {
         };
     }
     use Operation::*;
-    Some(match (key.operation, key.kind) {
+    Some(match (key.operation(), key.kind()) {
         (ListModels, OperationKind::Family(WireFamily::OpenAi)) => "openai_list_models",
         (ListModels, OperationKind::Family(WireFamily::Claude)) => "claude_list_models",
         (ListModels, OperationKind::Family(WireFamily::Gemini)) => "gemini_list_models",

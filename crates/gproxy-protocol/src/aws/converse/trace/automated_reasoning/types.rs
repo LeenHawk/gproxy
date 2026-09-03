@@ -4,6 +4,8 @@ use crate::aws::{GuardrailAutomatedReasoningLogicWarningType, Rest};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identifier: Option<String>,
@@ -15,6 +17,8 @@ pub struct GuardrailAutomatedReasoningRule {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningLogicWarning {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claims: Option<Vec<GuardrailAutomatedReasoningStatement>>,
@@ -28,6 +32,8 @@ pub struct GuardrailAutomatedReasoningLogicWarning {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningTranslation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claims: Option<Vec<GuardrailAutomatedReasoningStatement>>,
@@ -43,7 +49,10 @@ pub struct GuardrailAutomatedReasoningTranslation {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningScenario {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub statements: Option<Vec<GuardrailAutomatedReasoningStatement>>,
@@ -51,7 +60,8 @@ pub struct GuardrailAutomatedReasoningScenario {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningTranslationOption {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub translations: Option<Vec<GuardrailAutomatedReasoningTranslation>>,
@@ -61,6 +71,8 @@ pub struct GuardrailAutomatedReasoningTranslationOption {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningStatement {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logic: Option<String>,
@@ -70,7 +82,10 @@ pub struct GuardrailAutomatedReasoningStatement {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GuardrailAutomatedReasoningInputTextReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,

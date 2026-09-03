@@ -12,7 +12,8 @@ extensible_string!(RealtimeResponseStatus, KnownRealtimeResponseStatus {
     Incomplete => "incomplete", Failed => "failed",
 });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -34,7 +35,8 @@ pub struct RealtimeResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeStatusDetails {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<String>,
@@ -46,7 +48,10 @@ pub struct RealtimeStatusDetails {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeResponseOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation: Option<String>,
@@ -70,7 +75,8 @@ pub struct RealtimeResponseOptions {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<u64>,
@@ -86,7 +92,8 @@ pub struct RealtimeUsage {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeInputTokenDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_tokens: Option<u64>,
@@ -102,7 +109,8 @@ pub struct RealtimeInputTokenDetails {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeCachedTokenDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_tokens: Option<u64>,
@@ -114,7 +122,8 @@ pub struct RealtimeCachedTokenDetails {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeOutputTokenDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_tokens: Option<u64>,
@@ -124,7 +133,8 @@ pub struct RealtimeOutputTokenDetails {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeError {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<String>,
@@ -140,7 +150,8 @@ pub struct RealtimeError {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct RealtimeRateLimit {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

@@ -67,7 +67,7 @@ fn descriptor_declares_exact_runtime_routes() {
         !descriptor
             .supports
             .iter()
-            .any(|support| { matches!(support.source.operation, Operation::CreateEmbedding) })
+            .any(|support| matches!(support.source.operation(), Operation::CreateEmbedding))
     );
     assert!(descriptor.supports.iter().any(|support| {
         support.source == openai(Operation::CompactContent) && support.source == support.target

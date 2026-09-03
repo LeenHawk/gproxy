@@ -3,10 +3,10 @@ use gproxy_channel_api::{ChannelError, PrepareCtx};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKind};
 
 pub(super) fn rewrite(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
-    if ctx.key.operation == Operation::ListModels {
+    if ctx.key.operation() == Operation::ListModels {
         return Ok(ctx.body.clone());
     }
-    if ctx.key.kind != OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) {
+    if ctx.key.kind() != OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) {
         return Err(ChannelError::Prepare(
             "operation is unsupported by Cline".into(),
         ));

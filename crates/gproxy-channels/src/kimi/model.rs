@@ -27,7 +27,7 @@ pub(super) fn body(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 }
 
 pub(super) fn path(ctx: &PrepareCtx<'_>, mode: super::auth::Mode) -> String {
-    let path = if ctx.key.operation == Operation::GetModel && !ctx.upstream_model.is_empty() {
+    let path = if ctx.key.operation() == Operation::GetModel && !ctx.upstream_model.is_empty() {
         format!(
             "/v1/models/{}",
             crate::shared::http::encode_component(ctx.upstream_model)
@@ -54,7 +54,7 @@ pub(super) fn endpoint(key: gproxy_protocol::OperationKey) -> Option<&'static st
     {
         Some("openai_embeddings")
     } else {
-        match key.kind {
+        match key.kind() {
             OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => {
                 Some("openai_chat_completions")
             }
@@ -70,6 +70,6 @@ pub(super) fn endpoint(key: gproxy_protocol::OperationKey) -> Option<&'static st
 }
 
 pub(super) fn is_anthropic(key: gproxy_protocol::OperationKey) -> bool {
-    key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         || key == gproxy_protocol::OperationKey::family(Operation::CountTokens, WireFamily::Claude)
 }

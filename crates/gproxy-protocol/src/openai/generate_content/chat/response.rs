@@ -5,7 +5,8 @@ use crate::openai::common::*;
 
 use super::{ChatAnnotation, ChatAudio, ChatChoiceLogprobs, ChatToolCall, CompletionUsage};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCompletionResponse {
     pub id: String,
     pub choices: Vec<ChatCompletionChoice>,
@@ -26,7 +27,8 @@ pub struct ChatCompletionResponse {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCompletionChoice {
     pub finish_reason: ChatFinishReason,
     pub index: u32,
@@ -37,7 +39,8 @@ pub struct ChatCompletionChoice {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCompletionModeration {
     pub input: ChatCompletionModerationOutcome,
     pub output: ChatCompletionModerationOutcome,
@@ -53,7 +56,8 @@ pub enum ChatCompletionModerationOutcome {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCompletionModerationResults {
     pub model: OpenAiModelId,
     pub results: Vec<ModerationResult>,
@@ -69,7 +73,8 @@ pub enum ChatCompletionModerationResultsType {
     ModerationResults,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatMessage {
     pub role: ChatCompletionMessageRole,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -2,7 +2,7 @@ use gproxy_channel_api::{StreamCtx, StreamDecoder};
 use gproxy_protocol::{ContentGenerationKind, OperationKind, WireFamily};
 
 pub(super) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
-    match ctx.key.kind {
+    match ctx.key.kind() {
         OperationKind::ContentGeneration(
             ContentGenerationKind::OpenAiChat | ContentGenerationKind::OpenAiResponses,
         ) => crate::shared::openai::OpenAiSseDecoder::for_operation(ctx)

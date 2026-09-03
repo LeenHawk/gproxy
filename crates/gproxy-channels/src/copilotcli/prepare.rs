@@ -35,7 +35,7 @@ fn target(key: OperationKey) -> Result<Target, ChannelError> {
             path: "/models",
             endpoint: "openai_list_models",
         })
-    } else if key.kind
+    } else if key.kind()
         == gproxy_protocol::OperationKind::ContentGeneration(
             gproxy_protocol::ContentGenerationKind::OpenAiChat,
         )

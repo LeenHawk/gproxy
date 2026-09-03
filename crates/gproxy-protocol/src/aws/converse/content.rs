@@ -5,7 +5,8 @@ use crate::aws::{CachePointType, CacheTtl, ConversationRole, Rest};
 
 use super::{DocumentBlock, ImageBlock, ToolResultBlock, ToolUseBlock};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Message {
     pub role: ConversationRole,
     pub content: Vec<ContentBlock>,
@@ -96,7 +97,10 @@ pub enum ReasoningContentBlock {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ReasoningTextBlock {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -105,7 +109,10 @@ pub struct ReasoningTextBlock {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CachePointBlock {
     #[serde(rename = "type")]
     pub type_: CachePointType,

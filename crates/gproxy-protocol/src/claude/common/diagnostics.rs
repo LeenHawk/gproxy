@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::TypedObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct DiagnosticsParam {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_message_id: Option<Option<String>>,
@@ -10,7 +11,8 @@ pub struct DiagnosticsParam {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Diagnostics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_miss_reason: Option<CacheMissReason>,

@@ -8,7 +8,8 @@ use super::{
     InputAudio, PredictionContent, StreamOptions,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCompletionRequest {
     pub messages: Vec<ChatCompletionMessageParam>,
     pub model: OpenAiModelId,
@@ -116,7 +117,8 @@ macro_rules! text_message {
 text_message!(ChatDeveloperMessageParam, ChatDeveloperRole);
 text_message!(ChatSystemMessageParam, ChatSystemRole);
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatUserMessageParam {
     pub role: ChatUserRole,
     pub content: ChatContent,
@@ -126,7 +128,8 @@ pub struct ChatUserMessageParam {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatAssistantMessageParam {
     pub role: ChatAssistantRole,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -147,7 +150,8 @@ pub struct ChatAssistantMessageParam {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatToolMessageParam {
     pub role: ChatToolRole,
     pub content: ChatTextContent,
@@ -156,7 +160,8 @@ pub struct ChatToolMessageParam {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatFunctionMessageParam {
     pub role: ChatFunctionRole,
     pub content: Option<String>,
@@ -200,7 +205,8 @@ pub enum ChatTextContentPart {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatTextPart {
     #[serde(rename = "type")]
     pub type_: ChatTextPartType,
@@ -231,7 +237,8 @@ pub enum ChatAssistantContentPart {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatRefusalPart {
     #[serde(rename = "type")]
     pub type_: ChatRefusalPartType,
@@ -314,7 +321,8 @@ pub enum ChatTool {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatFunctionTool {
     #[serde(rename = "type")]
     pub type_: FunctionToolChoiceType,
@@ -323,7 +331,8 @@ pub struct ChatFunctionTool {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCustomTool {
     #[serde(rename = "type")]
     pub type_: CustomToolChoiceType,
@@ -341,7 +350,8 @@ pub enum ChatToolCall {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatFunctionToolCall {
     pub id: String,
     #[serde(rename = "type")]
@@ -351,7 +361,8 @@ pub struct ChatFunctionToolCall {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatCustomToolCall {
     pub id: String,
     #[serde(rename = "type")]

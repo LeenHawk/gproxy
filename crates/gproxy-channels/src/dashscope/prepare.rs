@@ -13,7 +13,7 @@ struct Target {
 }
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-    if ctx.stream && super::image::is_operation(ctx.key.operation) {
+    if ctx.stream && super::image::is_operation(ctx.key.operation()) {
         return Err(ChannelError::Prepare(
             "DashScope image generation is synchronous".into(),
         ));
@@ -83,7 +83,7 @@ fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             "claude_messages",
         ));
     }
-    let (path, endpoint) = match ctx.key.operation {
+    let (path, endpoint) = match ctx.key.operation() {
         Operation::CreateEmbedding => {
             ("/compatible-mode/v1/embeddings".into(), "openai_embeddings")
         }
@@ -128,9 +128,9 @@ fn required_model(model: &str) -> Result<&str, ChannelError> {
 }
 
 fn is_content(key: OperationKey, kind: ContentGenerationKind) -> bool {
-    key.kind == OperationKind::ContentGeneration(kind)
+    key.kind() == OperationKind::ContentGeneration(kind)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

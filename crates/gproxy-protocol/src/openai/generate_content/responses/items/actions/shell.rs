@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::common::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct LocalShellAction {
     pub command: Vec<String>,
     pub env: BTreeMap<String, String>,
@@ -27,7 +28,8 @@ pub enum LocalShellActionType {
     Exec,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ShellAction {
     pub commands: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -57,7 +59,8 @@ pub enum ShellEnvironment {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ShellSkillReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_id: Option<String>,
@@ -67,7 +70,8 @@ pub struct ShellSkillReference {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ShellCallOutputContent {
     pub outcome: ShellCallOutcome,
     pub stderr: String,

@@ -43,7 +43,7 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
         return google(":countTokens", "gemini_count_tokens", None);
     }
     if is_content(key, ContentGenerationKind::GeminiGenerateContent) {
-        return if key.operation == Operation::StreamGenerateContent {
+        return if key.operation() == Operation::StreamGenerateContent {
             google(
                 ":streamGenerateContent",
                 "gemini_stream_generate_content",
@@ -103,7 +103,7 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
         );
     }
     if is_content(key, ContentGenerationKind::ClaudeMessages) {
-        let verb = if key.operation == Operation::StreamGenerateContent {
+        let verb = if key.operation() == Operation::StreamGenerateContent {
             ":streamRawPredict"
         } else {
             ":rawPredict"
@@ -123,9 +123,9 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
 }
 
 pub(super) fn is_claude(key: OperationKey) -> bool {
-    key.kind == OperationKind::Family(WireFamily::Claude)
+    key.kind() == OperationKind::Family(WireFamily::Claude)
         || matches!(
-            key.kind,
+            key.kind(),
             OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
         )
 }
@@ -153,9 +153,9 @@ fn post(
 }
 
 fn is_content(key: OperationKey, kind: ContentGenerationKind) -> bool {
-    key.kind == OperationKind::ContentGeneration(kind)
+    key.kind() == OperationKind::ContentGeneration(kind)
         && matches!(
-            key.operation,
+            key.operation(),
             Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

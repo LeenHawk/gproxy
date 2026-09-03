@@ -71,7 +71,7 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
                 &ctx.request_body,
                 response_body.as_deref(),
                 estimated_output_chars,
-                ctx.source_key.map(|key| key.operation),
+                ctx.source_key.map(|key| key.operation()),
             )
         })
     } else {
@@ -133,7 +133,7 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         request_id = %ctx.request_id,
         provider_id = ctx.target.provider.id,
         credential_id = ctx.target.credential.0,
-        operation = ?ctx.source_key.map(|key| key.operation),
+        operation = ?ctx.source_key.map(|key| key.operation()),
         source_framing = ?ctx.source_framing,
         target_framing = ?ctx.target_framing,
         surface = ctx.surface_label.unwrap_or(""),

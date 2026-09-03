@@ -146,7 +146,7 @@ fn prepare(
     CopilotCliChannel
         .prepare(PrepareCtx {
             key,
-            stream: key.operation == Operation::StreamGenerateContent,
+            stream: key.operation() == Operation::StreamGenerateContent,
             method: &Method::PATCH,
             path: "/client/path",
             query: Some("ignored=yes"),

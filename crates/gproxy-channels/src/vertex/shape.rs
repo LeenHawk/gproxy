@@ -8,10 +8,10 @@ use serde_json::Value;
 const ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 
 pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
-    if ctx.key.operation == Operation::CreateVideo {
+    if ctx.key.operation() == Operation::CreateVideo {
         return video::create(ctx.body);
     }
-    if ctx.key.operation == Operation::RetrieveVideo {
+    if ctx.key.operation() == Operation::RetrieveVideo {
         let operation = super::resource::request_operation(ctx.path)?;
         return serde_json::to_vec(&serde_json::json!({"operationName": operation}))
             .map(Bytes::from)
@@ -20,7 +20,7 @@ pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
     if is_claude(ctx) {
         return claude(ctx);
     }
-    crate::shared::gemini::model::rewrite(ctx.key.operation, ctx.body, ctx.upstream_model)
+    crate::shared::gemini::model::rewrite(ctx.key.operation(), ctx.body, ctx.upstream_model)
 }
 
 fn claude(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
@@ -28,9 +28,9 @@ fn claude(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
     let root = body.as_object_mut().expect("JSON object was validated");
     root.entry("anthropic_version")
         .or_insert_with(|| Value::String(ANTHROPIC_VERSION.into()));
-    if ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
+    if ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
         root.remove("model");
-    } else if ctx.key.kind == OperationKind::Family(WireFamily::Claude)
+    } else if ctx.key.kind() == OperationKind::Family(WireFamily::Claude)
         && !ctx.upstream_model.is_empty()
     {
         root.insert(
@@ -46,7 +46,7 @@ fn claude(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
 fn is_claude(ctx: &PrepareCtx<'_>) -> bool {
     super::model::is_claude(ctx.key)
         && matches!(
-            ctx.key.operation,
+            ctx.key.operation(),
             Operation::CountTokens | Operation::GenerateContent | Operation::StreamGenerateContent
         )
 }

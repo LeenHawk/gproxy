@@ -24,8 +24,8 @@ enum Parser {
 
 impl GeminiStreamDecoder {
     pub(crate) fn for_operation(ctx: StreamCtx<'_>) -> Option<Self> {
-        if ctx.key.operation != Operation::StreamGenerateContent
-            || ctx.key.kind
+        if ctx.key.operation() != Operation::StreamGenerateContent
+            || ctx.key.kind()
                 != OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
         {
             return None;

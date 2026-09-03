@@ -14,7 +14,8 @@ use super::ImageUsage;
 pub use edit::*;
 pub use generation::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImagePartialEvent {
     pub b64_json: String,
     pub partial_image_index: u32,
@@ -22,7 +23,8 @@ pub struct ImagePartialEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageCompletedEvent {
     pub b64_json: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -31,7 +33,8 @@ pub struct ImageCompletedEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UnknownImageStreamEvent {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ImageStreamEventType>,

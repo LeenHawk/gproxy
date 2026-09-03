@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use super::super::{CacheControl, JsonObject, JsonSchemaObjectType};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolCommon {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_callers: Option<Vec<ToolCaller>>,
@@ -18,7 +21,10 @@ pub struct ToolCommon {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolCommonWithoutInputExamples {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_callers: Option<Vec<ToolCaller>>,
@@ -32,7 +38,8 @@ pub struct ToolCommonWithoutInputExamples {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct JsonSchema {
     #[serde(rename = "type")]
     pub type_: JsonSchemaObjectType,

@@ -51,7 +51,7 @@ fn target(key: OperationKey) -> Result<Target, ChannelError> {
             path: "/ai/cline/recommended-models",
             endpoint: "openai_list_models",
         })
-    } else if key.kind == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) {
+    } else if key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) {
         Ok(Target {
             method: http::Method::POST,
             path: "/chat/completions",

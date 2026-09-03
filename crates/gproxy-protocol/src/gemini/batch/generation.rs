@@ -5,6 +5,8 @@ use super::{BatchOperation, BatchResourceFields};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct BatchGenerateContentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch: Option<GenerateContentBatch>,
@@ -16,6 +18,8 @@ pub type BatchGenerateContentResponse = BatchOperation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct UpdateGenerateContentBatchQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_mask: Option<String>,
@@ -25,6 +29,8 @@ pub struct UpdateGenerateContentBatchQuery {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GenerateContentBatch {
     #[serde(flatten)]
     pub resource: BatchResourceFields,
@@ -38,6 +44,8 @@ pub struct GenerateContentBatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GenerateContentInputConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub source: Option<GenerateContentInputSource>,
@@ -60,6 +68,8 @@ pub enum GenerateContentInputSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedGenerateRequests {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requests: Vec<InlinedGenerateRequest>,
@@ -67,7 +77,10 @@ pub struct InlinedGenerateRequests {
     pub rest: JsonMap,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedGenerateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<GenerateContentRequest>,
@@ -79,6 +92,8 @@ pub struct InlinedGenerateRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GenerateContentBatchOutput {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub output: Option<GenerateContentBatchOutputData>,
@@ -102,6 +117,8 @@ pub enum GenerateContentBatchOutputData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedGenerateResponses {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inlined_responses: Vec<InlinedGenerateResponse>,
@@ -109,7 +126,10 @@ pub struct InlinedGenerateResponses {
     pub rest: JsonMap,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, Default, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct InlinedGenerateResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<JsonMap>,

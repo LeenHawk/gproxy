@@ -15,7 +15,8 @@ pub use stream::*;
 
 pub type CreateMessageRequestHeaders = AnthropicBetaHeaders;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CreateMessageRequestBody {
     pub model: ClaudeModel,
     pub messages: Vec<MessageParam>,
@@ -74,7 +75,8 @@ pub struct CreateMessageRequestBody {
     pub rest: serde_json::Map<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CreateMessageResponseBody {
     pub id: String,
     #[serde(rename = "type")]

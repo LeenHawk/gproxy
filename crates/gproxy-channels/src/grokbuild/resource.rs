@@ -3,7 +3,7 @@ use gproxy_protocol::Operation;
 use serde_json::Value;
 
 pub(super) fn settlement_ready(ctx: UsageCtx<'_>) -> Result<bool, ChannelError> {
-    if ctx.key.operation != Operation::RetrieveVideo {
+    if ctx.key.operation() != Operation::RetrieveVideo {
         return Ok(false);
     }
     let value = json(ctx.response_body)?;
@@ -16,7 +16,7 @@ pub(super) fn settlement_ready(ctx: UsageCtx<'_>) -> Result<bool, ChannelError> 
 
 pub(super) fn mutations(ctx: ResourceCtx<'_>) -> Result<Vec<ResourceMutation>, ChannelError> {
     if !matches!(
-        ctx.key.operation,
+        ctx.key.operation(),
         Operation::CreateVideo
             | Operation::RetrieveVideo
             | Operation::EditVideo

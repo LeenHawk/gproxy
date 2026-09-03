@@ -4,7 +4,8 @@ use crate::openai::common::{ResponseErrorCode, Rest};
 
 use super::super::super::{ResponseObject, ResponseOutputItem};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseLifecycleEvent {
     pub response: Box<ResponseObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -13,7 +14,8 @@ pub struct ResponseLifecycleEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseOutputItemEvent {
     pub item: Box<ResponseOutputItem>,
     pub output_index: u32,
@@ -23,7 +25,8 @@ pub struct ResponseOutputItemEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseSequenceEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sequence_number: Option<u64>,
@@ -31,7 +34,8 @@ pub struct ResponseSequenceEvent {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseErrorEvent {
     pub code: ResponseErrorEventCode,
     pub message: String,

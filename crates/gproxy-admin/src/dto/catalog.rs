@@ -178,11 +178,11 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
 
 fn channel_support(support: &gproxy_channel_api::ChannelSupport) -> ChannelSupportDto {
     ChannelSupportDto {
-        source: support.source.kind.id().into(),
-        target: support.target.kind.id().into(),
-        operation: support.source.operation.id().into(),
-        target_operation: support.target.operation.id().into(),
-        group: support.source.operation.group().id().into(),
+        source: support.source.kind().id().into(),
+        target: support.target.kind().id().into(),
+        operation: support.source.operation().id().into(),
+        target_operation: support.target.operation().id().into(),
+        group: support.source.operation().group().id().into(),
         implementation: match support.action {
             gproxy_channel_api::ChannelRouteAction::Passthrough => {
                 RoutingImplementationDto::Passthrough

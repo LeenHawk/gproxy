@@ -15,7 +15,8 @@ pub enum ResponseMessageItem {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseOutputMessageItem {
     #[serde(rename = "type")]
     pub type_: ResponseMessageItemType,
@@ -29,7 +30,8 @@ pub struct ResponseOutputMessageItem {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseInputMessageItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -43,7 +45,8 @@ pub struct ResponseInputMessageItem {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseEasyInputMessageItem {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ResponseMessageItemType>,
@@ -88,7 +91,8 @@ pub enum ResponseEasyInputMessageRole {
     Developer,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseAgent {
     pub agent_name: String,
     #[serde(default, flatten)]
@@ -104,7 +108,8 @@ pub enum ResponseCaller {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseDirectCaller {
     #[serde(rename = "type")]
     pub type_: ResponseDirectCallerType,
@@ -119,7 +124,8 @@ pub enum ResponseDirectCallerType {
     Direct,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseProgramCaller {
     #[serde(rename = "type")]
     pub type_: ResponseProgramCallerType,

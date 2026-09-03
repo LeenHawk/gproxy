@@ -21,7 +21,8 @@ pub enum ResponseFormat {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextResponseFormat {
     #[serde(rename = "type")]
     pub type_: TextResponseFormatType,
@@ -31,7 +32,8 @@ pub struct TextResponseFormat {
 
 strict_string_enum!(TextResponseFormatType { Text => "text" });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ChatJsonSchemaFormat {
     #[serde(rename = "type")]
     pub type_: JsonSchemaResponseFormatType,
@@ -40,7 +42,8 @@ pub struct ChatJsonSchemaFormat {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct JsonSchemaResponseFormat {
     #[serde(rename = "type")]
     pub type_: JsonSchemaResponseFormatType,
@@ -56,7 +59,8 @@ pub struct JsonSchemaResponseFormat {
 
 strict_string_enum!(JsonSchemaResponseFormatType { JsonSchema => "json_schema" });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct JsonObjectResponseFormat {
     #[serde(rename = "type")]
     pub type_: JsonObjectResponseFormatType,
@@ -66,7 +70,8 @@ pub struct JsonObjectResponseFormat {
 
 strict_string_enum!(JsonObjectResponseFormatType { JsonObject => "json_object" });
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct JsonSchemaFormat {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

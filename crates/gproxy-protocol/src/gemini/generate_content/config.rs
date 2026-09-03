@@ -10,6 +10,8 @@ use super::super::common::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<Vec<String>>,
@@ -68,6 +70,8 @@ pub struct GenerationConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ResponseFormatConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<TextResponseFormat>,
@@ -81,6 +85,8 @@ pub struct ResponseFormatConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<TextResponseFormatMimeType>,
@@ -94,6 +100,8 @@ pub struct TextResponseFormat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct AudioResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<AudioResponseFormatMimeType>,
@@ -109,6 +117,8 @@ pub struct AudioResponseFormat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<ImageResponseFormatMimeType>,
@@ -124,6 +134,8 @@ pub struct ImageResponseFormat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ThinkingConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_thoughts: Option<bool>,
@@ -137,6 +149,8 @@ pub struct ThinkingConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ImageConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aspect_ratio: Option<ImageAspectRatio>,

@@ -7,6 +7,8 @@ use super::{CachePointBlock, DocumentBlock, ImageBlock};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolUseBlock {
     pub tool_use_id: String,
     pub name: String,
@@ -19,6 +21,8 @@ pub struct ToolUseBlock {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolResultBlock {
     pub tool_use_id: String,
     pub content: Vec<ToolResultContentBlock>,
@@ -59,6 +63,8 @@ pub enum ToolResultContentBlock {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolConfiguration {
     pub tools: Vec<Tool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -88,6 +94,8 @@ pub enum Tool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ToolSpecification {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -133,7 +141,10 @@ pub enum ToolChoice {
     Raw(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct SpecificToolChoice {
     pub name: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

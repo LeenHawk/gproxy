@@ -21,7 +21,7 @@ impl<H: Host> ResponsesBridge<H> {
                     .ok()
                     .flatten()
                     .is_some_and(|support| {
-                        support.target.kind
+                        support.target.kind()
                             == OperationKind::ContentGeneration(
                                 ContentGenerationKind::OpenAiResponsesWebSocket,
                             )

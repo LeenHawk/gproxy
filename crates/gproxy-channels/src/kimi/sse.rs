@@ -4,11 +4,12 @@ use gproxy_protocol::{ContentGenerationKind, OperationKind};
 use serde_json::Value;
 
 pub(super) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
-    if ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
+    if ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
         return crate::shared::claude::sse::ClaudeSseDecoder::for_operation(ctx)
             .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>);
     }
-    let chat = ctx.key.kind == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat);
+    let chat =
+        ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat);
     let inner = crate::shared::openai::OpenAiSseDecoder::for_operation(ctx)?;
     if chat {
         Some(Box::new(KimiChatDecoder {

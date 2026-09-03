@@ -11,6 +11,8 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseRequest {
     /// `upstream_docs/aws/docs/Converse.md`, `additionalModelRequestFields`:
     /// model-specific parameters documented as a JSON value.
@@ -44,6 +46,8 @@ pub struct ConverseRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ConverseStreamRequest {
     /// `upstream_docs/aws/docs/ConverseStream.md`, `additionalModelRequestFields`:
     /// model-specific parameters documented as a JSON value.
