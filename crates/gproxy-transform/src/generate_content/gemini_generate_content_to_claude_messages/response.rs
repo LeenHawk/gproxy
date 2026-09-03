@@ -6,6 +6,13 @@ use super::{content, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: gemini::GenerateContentResponse = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: gemini::GenerateContentResponse,
+) -> Result<claude::CreateMessageResponseBody, TransformError> {
     let id = input.response_id.unwrap_or_default();
     let model = input.model_version.unwrap_or_default();
     let usage = input
@@ -14,7 +21,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         .transpose()?
         .unwrap_or_else(empty_usage);
     let (blocks, stop_reason, stop_sequence) = candidate(input.candidates, input.prompt_feedback)?;
-    let output = claude::CreateMessageResponseBody {
+    let output = crate::wire!(claude::CreateMessageResponseBody {
         id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -29,8 +36,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         input_transformations: None,
         stop_details: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn candidate(
@@ -83,7 +90,7 @@ fn candidate(
 }
 
 fn empty_usage() -> claude::Usage {
-    claude::Usage {
+    crate::wire!(claude::Usage {
         input_tokens: Some(0),
         output_tokens: Some(0),
         cache_creation_input_tokens: None,
@@ -96,16 +103,18 @@ fn empty_usage() -> claude::Usage {
         service_tier: None,
         speed: None,
         rest: Default::default(),
-    }
+    })
 }
 
 fn empty_text_response() -> Vec<claude::ContentBlock> {
-    vec![claude::ContentBlock::Text(claude::ResponseTextBlock {
-        citations: None,
-        text: String::new(),
-        type_: claude::TextBlockType::Text,
-        rest: Default::default(),
-    })]
+    vec![claude::ContentBlock::Text(crate::wire!(
+        claude::ResponseTextBlock {
+            citations: None,
+            text: String::new(),
+            type_: claude::TextBlockType::Text,
+            rest: Default::default(),
+        }
+    ))]
 }
 
 pub(super) fn finish_reason(

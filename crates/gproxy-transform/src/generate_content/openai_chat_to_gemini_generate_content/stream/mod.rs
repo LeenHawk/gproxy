@@ -16,7 +16,7 @@ pub(crate) fn converter() -> Box<dyn Converter> {
 }
 
 #[derive(Default)]
-struct State {
+pub(crate) struct State {
     id: Option<String>,
     model: Option<openai::OpenAiModelId>,
     started: BTreeSet<u32>,
@@ -27,10 +27,10 @@ struct State {
 }
 
 impl State {
-    fn chunk(
+    pub(crate) fn push_typed(
         &mut self,
         input: gemini::GenerateContentResponse,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         if let Some(id) = input.response_id {
             self.id = Some(id);
         }
@@ -85,60 +85,69 @@ impl State {
             if finish_reason.is_some() {
                 self.finished.insert(index);
             }
-            choices.push(openai::ChatChunkChoice {
+            choices.push(crate::wire!(openai::ChatChunkChoice {
                 index,
                 delta,
                 finish_reason,
                 logprobs: None,
                 rest: Default::default(),
-            });
+            }));
         }
         if choices.is_empty() && blocked {
             self.seen.insert(0);
             self.finished.insert(0);
-            choices.push(openai::ChatChunkChoice {
+            choices.push(crate::wire!(openai::ChatChunkChoice {
                 index: 0,
                 delta: empty_delta(Some(openai::ChatDeltaRole::Assistant)),
                 finish_reason: Some(openai::ChatFinishReason::ContentFilter),
                 logprobs: None,
                 rest: Default::default(),
-            });
+            }));
         }
-        let output =
-            openai::ChatCompletionChunk {
-                id: self.id.clone().ok_or_else(|| {
-                    TransformError::shape("Gemini stream", "responseId is missing")
-                })?,
-                choices,
-                created: None,
-                model: self.model.clone().ok_or_else(|| {
-                    TransformError::shape("Gemini stream", "modelVersion is missing")
-                })?,
-                object: openai::ChatCompletionChunkObjectType::ChatCompletionChunk,
-                service_tier,
-                system_fingerprint: None,
-                usage,
-                rest: Default::default(),
-            };
-        Ok(vec![SseFrame::typed(None, &output)?])
+        let output = crate::wire!(openai::ChatCompletionChunk {
+            id: self.id.clone().ok_or_else(|| {
+                TransformError::shape("Gemini stream", "responseId is missing")
+            })?,
+            choices,
+            created: None,
+            model: self.model.clone().ok_or_else(|| {
+                TransformError::shape("Gemini stream", "modelVersion is missing")
+            })?,
+            object: openai::ChatCompletionChunkObjectType::ChatCompletionChunk,
+            service_tier,
+            system_fingerprint: None,
+            usage,
+            rest: Default::default(),
+        });
+        Ok(vec![output])
+    }
+
+    pub(crate) fn finish_typed(
+        &mut self,
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
+        if self.seen.is_empty() || self.seen != self.finished || !self.tools.complete() {
+            return Err(TransformError::IncompleteStream);
+        }
+        Ok(Vec::new())
     }
 }
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.chunk(serde_json::from_str(&frame.data)?)
+        self.push_typed(serde_json::from_str(&frame.data)?)?
+            .into_iter()
+            .map(|event| SseFrame::typed(None, &event))
+            .collect()
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        if self.seen.is_empty() || self.seen != self.finished || !self.tools.complete() {
-            return Err(TransformError::IncompleteStream);
-        }
+        self.finish_typed()?;
         Ok(vec![SseFrame::encode(None, "[DONE]")])
     }
 }
 
 fn empty_delta(role: Option<openai::ChatDeltaRole>) -> openai::ChatDelta {
-    openai::ChatDelta {
+    crate::wire!(openai::ChatDelta {
         role,
         content: None,
         reasoning_content: None,
@@ -147,5 +156,5 @@ fn empty_delta(role: Option<openai::ChatDeltaRole>) -> openai::ChatDelta {
         function_call: None,
         obfuscation: None,
         rest: Default::default(),
-    }
+    })
 }

@@ -63,11 +63,11 @@ fn system_part(part: gemini::Part) -> Result<claude::TextBlock, TransformError> 
             "non-text part",
         ));
     };
-    Ok(claude::TextBlock {
+    Ok(crate::wire!(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
         cache_control: None,
         citations: None,
         rest: Default::default(),
-    })
+    }))
 }

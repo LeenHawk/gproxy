@@ -82,8 +82,22 @@ impl ClaudeCollector {
                         error.message,
                     ));
                 }
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             claude::StreamEvent::Unknown(_) => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
         Ok(())
     }
@@ -97,7 +111,7 @@ impl ClaudeCollector {
             .ok_or_else(|| TransformError::shape("Claude stream", "message_start is missing"))?;
         let delta = self.delta.ok_or(TransformError::IncompleteStream)?;
         let stop_reason = delta.stop_reason.ok_or(TransformError::IncompleteStream)?;
-        Ok(claude::CreateMessageResponseBody {
+        Ok(crate::wire!(claude::CreateMessageResponseBody {
             id: message.id,
             type_: message.type_,
             role: message.role,
@@ -114,6 +128,6 @@ impl ClaudeCollector {
             input_transformations: self.input_transformations.or(message.input_transformations),
             stop_details: delta.stop_details,
             rest: Default::default(),
-        })
+        }))
     }
 }

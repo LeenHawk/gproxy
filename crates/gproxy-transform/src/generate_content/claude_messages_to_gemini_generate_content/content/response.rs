@@ -40,7 +40,7 @@ pub(crate) fn attach_signature(part: &mut gemini::Part, pending: &mut Option<Str
 }
 
 pub(crate) fn signature_part(signature: String) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: Some(true),
         thought_signature: Some(signature),
         part_metadata: None,
@@ -48,7 +48,7 @@ pub(crate) fn signature_part(signature: String) -> gemini::Part {
         data: None,
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(crate) fn response_block(
@@ -88,7 +88,7 @@ pub(crate) fn response_block(
 }
 
 fn function_call(block: claude::ResponseToolUseBlock, signature: Option<String>) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: None,
         thought_signature: signature,
         part_metadata: None,
@@ -104,11 +104,11 @@ fn function_call(block: claude::ResponseToolUseBlock, signature: Option<String>)
         }),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 fn thought(block: claude::ThinkingBlock) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: Some(true),
         thought_signature: block.signature,
         part_metadata: None,
@@ -119,5 +119,5 @@ fn thought(block: claude::ThinkingBlock) -> gemini::Part {
         }),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }

@@ -8,43 +8,48 @@ pub(crate) fn resolve(source: OperationKey, target: OperationKey) -> Option<Tran
         ClaudeMessages, GeminiGenerateContent, OpenAiChat, OpenAiResponses,
     };
     use OperationKind::{ContentGeneration as Content, Family};
-    let pair = match (source.operation, source.kind, target.operation, target.kind) {
+    let pair = match (
+        source.operation(),
+        source.kind(),
+        target.operation(),
+        target.kind(),
+    ) {
         (
             Operation::ListModels | Operation::GetModel,
             Family(WireFamily::OpenAi),
             target_op,
             Family(WireFamily::Claude),
-        ) if target_op == source.operation => TransformPair::OpenAiModelsToClaude,
+        ) if target_op == source.operation() => TransformPair::OpenAiModelsToClaude,
         (
             Operation::ListModels | Operation::GetModel,
             Family(WireFamily::Claude),
             target_op,
             Family(WireFamily::OpenAi),
-        ) if target_op == source.operation => TransformPair::ClaudeModelsToOpenAi,
+        ) if target_op == source.operation() => TransformPair::ClaudeModelsToOpenAi,
         (
             Operation::ListModels | Operation::GetModel,
             Family(WireFamily::OpenAi),
             target_op,
             Family(WireFamily::Gemini),
-        ) if target_op == source.operation => TransformPair::OpenAiModelsToGemini,
+        ) if target_op == source.operation() => TransformPair::OpenAiModelsToGemini,
         (
             Operation::ListModels | Operation::GetModel,
             Family(WireFamily::Gemini),
             target_op,
             Family(WireFamily::OpenAi),
-        ) if target_op == source.operation => TransformPair::GeminiModelsToOpenAi,
+        ) if target_op == source.operation() => TransformPair::GeminiModelsToOpenAi,
         (
             Operation::ListModels | Operation::GetModel,
             Family(WireFamily::Claude),
             target_op,
             Family(WireFamily::Gemini),
-        ) if target_op == source.operation => TransformPair::ClaudeModelsToGemini,
+        ) if target_op == source.operation() => TransformPair::ClaudeModelsToGemini,
         (
             Operation::ListModels | Operation::GetModel,
             Family(WireFamily::Gemini),
             target_op,
             Family(WireFamily::Claude),
-        ) if target_op == source.operation => TransformPair::GeminiModelsToClaude,
+        ) if target_op == source.operation() => TransformPair::GeminiModelsToClaude,
         (
             Operation::CountTokens,
             Family(WireFamily::OpenAi),
@@ -86,73 +91,73 @@ pub(crate) fn resolve(source: OperationKey, target: OperationKey) -> Option<Tran
             Content(OpenAiChat),
             target_op,
             Content(ClaudeMessages),
-        ) if target_op == source.operation => TransformPair::ChatToClaude,
+        ) if target_op == source.operation() => TransformPair::ChatToClaude,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(ClaudeMessages),
             target_op,
             Content(OpenAiChat),
-        ) if target_op == source.operation => TransformPair::ClaudeToChat,
+        ) if target_op == source.operation() => TransformPair::ClaudeToChat,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(OpenAiResponses),
             target_op,
             Content(ClaudeMessages),
-        ) if target_op == source.operation => TransformPair::ResponsesToClaude,
+        ) if target_op == source.operation() => TransformPair::ResponsesToClaude,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(ClaudeMessages),
             target_op,
             Content(OpenAiResponses),
-        ) if target_op == source.operation => TransformPair::ClaudeToResponses,
+        ) if target_op == source.operation() => TransformPair::ClaudeToResponses,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(ClaudeMessages),
             target_op,
             Content(GeminiGenerateContent),
-        ) if target_op == source.operation => TransformPair::ClaudeToGemini,
+        ) if target_op == source.operation() => TransformPair::ClaudeToGemini,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(GeminiGenerateContent),
             target_op,
             Content(ClaudeMessages),
-        ) if target_op == source.operation => TransformPair::GeminiToClaude,
+        ) if target_op == source.operation() => TransformPair::GeminiToClaude,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(GeminiGenerateContent),
             target_op,
             Content(OpenAiChat),
-        ) if target_op == source.operation => TransformPair::GeminiToChat,
+        ) if target_op == source.operation() => TransformPair::GeminiToChat,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(OpenAiChat),
             target_op,
             Content(GeminiGenerateContent),
-        ) if target_op == source.operation => TransformPair::ChatToGemini,
+        ) if target_op == source.operation() => TransformPair::ChatToGemini,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(GeminiGenerateContent),
             target_op,
             Content(OpenAiResponses),
-        ) if target_op == source.operation => TransformPair::GeminiToResponses,
+        ) if target_op == source.operation() => TransformPair::GeminiToResponses,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(OpenAiResponses),
             target_op,
             Content(GeminiGenerateContent),
-        ) if target_op == source.operation => TransformPair::ResponsesToGemini,
+        ) if target_op == source.operation() => TransformPair::ResponsesToGemini,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(OpenAiChat),
             target_op,
             Content(OpenAiResponses),
-        ) if target_op == source.operation => TransformPair::OpenAiChatToResponses,
+        ) if target_op == source.operation() => TransformPair::OpenAiChatToResponses,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(OpenAiResponses),
             target_op,
             Content(OpenAiChat),
-        ) if target_op == source.operation => TransformPair::OpenAiResponsesToChat,
+        ) if target_op == source.operation() => TransformPair::OpenAiResponsesToChat,
         (
             Operation::GenerateContent | Operation::StreamGenerateContent,
             Content(ClaudeMessages),
@@ -308,47 +313,61 @@ pub(crate) fn resolve(source: OperationKey, target: OperationKey) -> Option<Tran
             Family(WireFamily::OpenAi),
             target_operation,
             Family(WireFamily::Gemini),
-        ) if target_operation == source.operation => TransformPair::OpenAiVideoToGemini,
+        ) if target_operation == source.operation() => TransformPair::OpenAiVideoToGemini,
         (
             Operation::CreateVideo | Operation::RetrieveVideo,
             Family(WireFamily::Gemini),
             target_operation,
             Family(WireFamily::OpenAi),
-        ) if target_operation == source.operation => TransformPair::GeminiVideoToOpenAi,
+        ) if target_operation == source.operation() => TransformPair::GeminiVideoToOpenAi,
         _ => return None,
     };
     Some(pair)
 }
 
 fn normalize_content_operations(
-    mut source: OperationKey,
-    mut target: OperationKey,
+    source: OperationKey,
+    target: OperationKey,
 ) -> (OperationKey, OperationKey) {
     use ContentGenerationKind::{OpenAiResponses, OpenAiResponsesWebSocket};
     use OperationKind::ContentGeneration;
-    if let ContentGeneration(kind) = source.kind {
-        source.kind = ContentGeneration(if kind == OpenAiResponsesWebSocket {
+    let source_kind = if let ContentGeneration(kind) = source.kind() {
+        ContentGeneration(if kind == OpenAiResponsesWebSocket {
             OpenAiResponses
         } else {
             kind
-        });
-    }
-    if let ContentGeneration(kind) = target.kind {
-        target.kind = ContentGeneration(if kind == OpenAiResponsesWebSocket {
+        })
+    } else {
+        source.kind()
+    };
+    let target_kind = if let ContentGeneration(kind) = target.kind() {
+        ContentGeneration(if kind == OpenAiResponsesWebSocket {
             OpenAiResponses
         } else {
             kind
-        });
-    }
-    if matches!(
-        source.operation,
+        })
+    } else {
+        target.kind()
+    };
+    let both_content = matches!(
+        source.operation(),
         Operation::GenerateContent | Operation::StreamGenerateContent
     ) && matches!(
-        target.operation,
+        target.operation(),
         Operation::GenerateContent | Operation::StreamGenerateContent
-    ) {
-        source.operation = Operation::GenerateContent;
-        target.operation = Operation::GenerateContent;
-    }
-    (source, target)
+    );
+    let source_operation = if both_content {
+        Operation::GenerateContent
+    } else {
+        source.operation()
+    };
+    let target_operation = if both_content {
+        Operation::GenerateContent
+    } else {
+        target.operation()
+    };
+    (
+        OperationKey::try_new(source_operation, source_kind).expect("normalized source key"),
+        OperationKey::try_new(target_operation, target_kind).expect("normalized target key"),
+    )
 }

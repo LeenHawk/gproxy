@@ -9,6 +9,12 @@ pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
         return Ok(body);
     }
     let input: openai_video::CreateVideoRequest = serde_json::from_slice(&body)?;
+    super_encode(&openai_request_typed(input))
+}
+
+pub(crate) fn openai_request_typed(
+    input: openai_video::CreateVideoRequest,
+) -> gemini::VeoPredictLongRunningRequest {
     let image = input.input_reference.and_then(reference_value);
     let mut instance = serde_json::json!({"prompt": input.prompt});
     if let Some(image) = image {
@@ -19,7 +25,7 @@ pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
         "aspectRatio": input.size.as_ref().and_then(wire).as_deref().and_then(aspect_ratio),
         "resolution": input.size.as_ref().and_then(wire).as_deref().and_then(resolution)
     });
-    super_encode(&gemini::VeoPredictLongRunningRequest {
+    crate::wire!(gemini::VeoPredictLongRunningRequest {
         instances: vec![instance],
         parameters: Some(parameters),
         rest: Default::default(),
@@ -31,6 +37,13 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
         return Ok(body);
     }
     let input: gemini::VeoPredictLongRunningRequest = serde_json::from_slice(&body)?;
+    super_encode(&gemini_request_typed(input, model))
+}
+
+pub(crate) fn gemini_request_typed(
+    input: gemini::VeoPredictLongRunningRequest,
+    model: &str,
+) -> openai_video::CreateVideoRequest {
     let instance = input.instances.first().cloned().unwrap_or_default();
     let prompt = instance
         .get("prompt")
@@ -50,7 +63,7 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
             .get("resolution")
             .and_then(serde_json::Value::as_str),
     );
-    super_encode(&openai_video::CreateVideoRequest {
+    crate::wire!(openai_video::CreateVideoRequest {
         prompt,
         input_reference: None,
         model: Some(openai_video::VideoModelId::Unknown(model.into())),
@@ -62,6 +75,12 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
 
 pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::VeoOperation = serde_json::from_slice(&body)?;
+    super_encode(&gemini_response_to_openai_typed(input)?)
+}
+
+pub(crate) fn gemini_response_to_openai_typed(
+    input: gemini::VeoOperation,
+) -> Result<openai_video::Video, TransformError> {
     let name = input.name.clone().unwrap_or_else(|| "operation".into());
     let failed = input.error.is_some();
     let done = input.done.unwrap_or(false);
@@ -72,22 +91,24 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
     } else {
         openai_video::VideoStatus::Known(openai_video::KnownVideoStatus::InProgress)
     };
-    let error = input.error.map(|error| openai_video::VideoError {
-        code: error
-            .code
-            .map(|code| code.to_string())
-            .unwrap_or_else(|| "failed".into()),
-        message: error
-            .message
-            .unwrap_or_else(|| "video generation failed".into()),
-        rest: Default::default(),
+    let error = input.error.map(|error| {
+        crate::wire!(openai_video::VideoError {
+            code: error
+                .code
+                .map(|code| code.to_string())
+                .unwrap_or_else(|| "failed".into()),
+            message: error
+                .message
+                .unwrap_or_else(|| "video generation failed".into()),
+            rest: Default::default(),
+        })
     });
     let model = name
         .strip_prefix("models/")
         .and_then(|value| value.split('/').next())
         .unwrap_or("veo")
         .to_owned();
-    super_encode(&openai_video::Video {
+    Ok(crate::wire!(openai_video::Video {
         id: name,
         completed_at: None,
         created_at: 0,
@@ -102,24 +123,30 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
         size: serde_json::from_value(serde_json::json!("1280x720"))?,
         status,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_video::Video = serde_json::from_slice(&body)?;
+    super_encode(&openai_response_to_gemini_typed(input))
+}
+
+pub(crate) fn openai_response_to_gemini_typed(input: openai_video::Video) -> gemini::VeoOperation {
     let done = matches!(
         input.status,
         openai_video::VideoStatus::Known(
             openai_video::KnownVideoStatus::Completed | openai_video::KnownVideoStatus::Failed
         )
     );
-    let error = input.error.map(|error| gemini::Status {
-        code: error.code.parse().ok(),
-        message: Some(error.message),
-        details: Vec::new(),
-        rest: Default::default(),
+    let error = input.error.map(|error| {
+        crate::wire!(gemini::Status {
+            code: error.code.parse().ok(),
+            message: Some(error.message),
+            details: Vec::new(),
+            rest: Default::default(),
+        })
     });
-    super_encode(&gemini::VeoOperation {
+    crate::wire!(gemini::VeoOperation {
         name: Some(input.id),
         metadata: None,
         done: Some(done),

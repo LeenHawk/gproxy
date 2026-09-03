@@ -18,7 +18,7 @@ pub(super) fn definitions(
                 output
                     .function_declarations
                     .get_or_insert_with(Vec::new)
-                    .push(gemini::FunctionDeclaration {
+                    .push(crate::wire!(gemini::FunctionDeclaration {
                         name: tool.name,
                         description,
                         behavior: None,
@@ -27,7 +27,7 @@ pub(super) fn definitions(
                         response: None,
                         response_json_schema: None,
                         rest: Default::default(),
-                    });
+                    }));
             }
             claude::Tool::Command(command) if native::command(&command) => {
                 output.code_execution = Some(gemini::CodeExecution::default());
@@ -53,7 +53,7 @@ pub(super) fn choice(choice: Option<claude::ToolChoice>) -> Option<gemini::ToolC
         claude::ToolChoice::Unknown(_) => return None,
         _ => return None,
     };
-    Some(gemini::ToolConfig {
+    Some(crate::wire!(gemini::ToolConfig {
         function_calling_config: Some(gemini::FunctionCallingConfig {
             mode: Some(gemini::FunctionCallingMode::Known(mode)),
             allowed_function_names: (!allowed_function_names.is_empty())
@@ -63,7 +63,7 @@ pub(super) fn choice(choice: Option<claude::ToolChoice>) -> Option<gemini::ToolC
         retrieval_config: None,
         include_server_side_tool_invocations: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn is_native_name(name: &str) -> bool {

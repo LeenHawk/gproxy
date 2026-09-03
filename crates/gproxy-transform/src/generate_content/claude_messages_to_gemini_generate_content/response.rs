@@ -7,9 +7,16 @@ use super::{content, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: claude::CreateMessageResponseBody,
+) -> Result<gemini::GenerateContentResponse, TransformError> {
     let output_tokens = input.usage.output_tokens.map(to_i32).transpose()?;
-    let output = gemini::GenerateContentResponse {
-        candidates: vec![gemini::Candidate {
+    let output = crate::wire!(gemini::GenerateContentResponse {
+        candidates: vec![crate::wire!(gemini::Candidate {
             content: Some(content::response_content(input.content)?),
             finish_reason: Some(stop_reason(input.stop_reason)?),
             safety_ratings: Vec::new(),
@@ -22,15 +29,15 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             index: Some(0),
             finish_message: input.stop_sequence,
             rest: Default::default(),
-        }],
+        })],
         prompt_feedback: None,
         usage_metadata: Some(usage::convert(input.usage)?),
         model_version: Some(wire_string(&input.model)?),
         response_id: Some(input.id),
         model_status: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 pub(super) fn stop_reason(

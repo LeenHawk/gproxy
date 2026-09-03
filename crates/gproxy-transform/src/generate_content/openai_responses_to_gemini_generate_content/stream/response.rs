@@ -26,6 +26,8 @@ impl State {
                                 }
                                 openai::ResponseMessageOutputContentPart::Refusal(_)
                                 | openai::ResponseMessageOutputContentPart::Unknown(_) => None,
+                                #[cfg(not(feature = "exhaustive"))]
+                                _ => None,
                             })
                             .collect::<String>(),
                     )
@@ -37,9 +39,11 @@ impl State {
                 )
                 | openai::ResponseItem::Typed(_)
                 | openai::ResponseItem::Unknown(_) => None,
+                #[cfg(not(feature = "exhaustive"))]
+                _ => None,
             })
             .collect::<String>();
-        Ok(openai::ResponseObject {
+        Ok(crate::wire!(openai::ResponseObject {
             id: self
                 .id
                 .clone()
@@ -81,6 +85,6 @@ impl State {
             usage,
             user: None,
             rest: Default::default(),
-        })
+        }))
     }
 }

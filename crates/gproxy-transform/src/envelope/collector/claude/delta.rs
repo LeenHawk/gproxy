@@ -49,8 +49,22 @@ impl ClaudeCollector {
                     }
                 }
                 claude::KnownEventDelta::Citations { .. } => {}
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             claude::EventDelta::Unknown(_) => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
         Ok(())
     }

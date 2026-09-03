@@ -7,21 +7,23 @@ pub(super) fn chunk(
     response_id: Option<String>,
     model_version: Option<String>,
 ) -> gemini::GenerateContentResponse {
-    let candidate = (content.is_some() || finish_reason.is_some()).then(|| gemini::Candidate {
-        content,
-        finish_reason,
-        safety_ratings: Vec::new(),
-        citation_metadata: None,
-        token_count: None,
-        grounding_metadata: None,
-        avg_logprobs: None,
-        logprobs_result: None,
-        url_context_metadata: None,
-        index: Some(0),
-        finish_message: None,
-        rest: Default::default(),
+    let candidate = (content.is_some() || finish_reason.is_some()).then(|| {
+        crate::wire!(gemini::Candidate {
+            content,
+            finish_reason,
+            safety_ratings: Vec::new(),
+            citation_metadata: None,
+            token_count: None,
+            grounding_metadata: None,
+            avg_logprobs: None,
+            logprobs_result: None,
+            url_context_metadata: None,
+            index: Some(0),
+            finish_message: None,
+            rest: Default::default(),
+        })
     });
-    gemini::GenerateContentResponse {
+    crate::wire!(gemini::GenerateContentResponse {
         candidates: candidate.into_iter().collect(),
         prompt_feedback: None,
         usage_metadata,
@@ -29,20 +31,20 @@ pub(super) fn chunk(
         response_id,
         model_status: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn text(text: String, thought: bool) -> gemini::Content {
-    gemini::Content {
-        parts: vec![gemini::Part {
+    crate::wire!(gemini::Content {
+        parts: vec![crate::wire!(gemini::Part {
             thought: thought.then_some(true),
             data: Some(gemini::PartData::Text {
                 text,
                 rest: Default::default(),
             }),
             ..Default::default()
-        }],
+        })],
         role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
         rest: Default::default(),
-    }
+    })
 }

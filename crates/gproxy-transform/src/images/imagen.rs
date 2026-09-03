@@ -6,6 +6,12 @@ use crate::TransformError;
 
 pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_images::CreateImageRequest = serde_json::from_slice(&body)?;
+    super::encode(&openai_request_typed(input))
+}
+
+pub(crate) fn openai_request_typed(
+    input: openai_images::CreateImageRequest,
+) -> gemini::ImagenPredictRequest {
     let parameters = serde_json::json!({
         "sampleCount": input.n.unwrap_or(1),
         "outputOptions": {
@@ -13,7 +19,7 @@ pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
         },
         "aspectRatio": input.size.as_ref().and_then(wire)
     });
-    super::encode(&gemini::ImagenPredictRequest {
+    crate::wire!(gemini::ImagenPredictRequest {
         instances: vec![serde_json::json!({"prompt": input.prompt})],
         parameters: Some(parameters),
         rest: Default::default(),
@@ -22,6 +28,13 @@ pub(crate) fn openai_request(body: Bytes) -> Result<Bytes, TransformError> {
 
 pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, TransformError> {
     let input: gemini::ImagenPredictRequest = serde_json::from_slice(&body)?;
+    super::encode(&gemini_request_typed(input, model))
+}
+
+pub(crate) fn gemini_request_typed(
+    input: gemini::ImagenPredictRequest,
+    model: &str,
+) -> openai_images::CreateImageRequest {
     let prompt = input
         .instances
         .iter()
@@ -34,7 +47,7 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
         .and_then(|value| value.get("sampleCount"))
         .and_then(serde_json::Value::as_u64)
         .and_then(|value| u32::try_from(value).ok());
-    super::encode(&openai_images::CreateImageRequest {
+    crate::wire!(openai_images::CreateImageRequest {
         prompt,
         model: Some(model.into()),
         n,
@@ -55,6 +68,12 @@ pub(crate) fn gemini_request(body: Bytes, model: &str) -> Result<Bytes, Transfor
 
 pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::ImagenPredictResponse = serde_json::from_slice(&body)?;
+    super::encode(&gemini_response_to_openai_typed(input))
+}
+
+pub(crate) fn gemini_response_to_openai_typed(
+    input: gemini::ImagenPredictResponse,
+) -> openai_images::ImagesResponse {
     let data = input
         .predictions
         .into_iter()
@@ -64,7 +83,7 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
                 .or_else(|| prediction.pointer("/image/bytesBase64Encoded"))
                 .and_then(serde_json::Value::as_str)?
                 .to_owned();
-            Some(openai_images::Image {
+            Some(crate::wire!(openai_images::Image {
                 b64_json: Some(b64_json),
                 revised_prompt: prediction
                     .get("prompt")
@@ -72,10 +91,10 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
                     .map(str::to_owned),
                 url: None,
                 rest: Default::default(),
-            })
+            }))
         })
         .collect();
-    super::encode(&openai_images::ImagesResponse {
+    crate::wire!(openai_images::ImagesResponse {
         created: 0,
         data: Some(data),
         rest: Default::default(),
@@ -89,6 +108,12 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
 
 pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_images::ImagesResponse = serde_json::from_slice(&body)?;
+    super::encode(&openai_response_to_gemini_typed(input))
+}
+
+pub(crate) fn openai_response_to_gemini_typed(
+    input: openai_images::ImagesResponse,
+) -> gemini::ImagenPredictResponse {
     let predictions = input
         .data
         .unwrap_or_default()
@@ -102,7 +127,7 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
             })
         })
         .collect();
-    super::encode(&gemini::ImagenPredictResponse {
+    crate::wire!(gemini::ImagenPredictResponse {
         predictions,
         rest: Default::default(),
     })

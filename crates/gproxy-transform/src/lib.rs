@@ -9,6 +9,22 @@
 //! Same-wire operation and envelope promotions remain byte-preserving because
 //! they do not perform a semantic conversion.
 
+#[cfg(feature = "exhaustive")]
+macro_rules! wire {
+    ($value:expr) => {
+        $value
+    };
+}
+
+#[cfg(not(feature = "exhaustive"))]
+macro_rules! wire {
+    ($($tokens:tt)*) => {
+        gproxy_protocol::wire!($($tokens)*)
+    };
+}
+
+pub(crate) use wire;
+
 mod common;
 mod compact;
 mod count_tokens;
@@ -19,13 +35,15 @@ mod generate_content;
 mod images;
 mod models;
 mod registry;
+pub mod typed;
 mod videos;
 
 use bytes::Bytes;
 use gproxy_protocol::{OperationKey, StreamFraming};
 
-pub use envelope::{BufferedResponse, ResponseCollector, ResponseStream};
+pub use envelope::{BufferedResponse, ResponseCollector, ResponseStream, synthesize_response};
 pub use error::TransformError;
+pub use gproxy_protocol as protocol;
 
 pub fn can_transform(source: OperationKey, target: OperationKey) -> bool {
     envelope::is_promotion(source, target) || registry::resolve(source, target).is_some()
@@ -80,13 +98,14 @@ pub fn response(
     registry::response(pair, body)
 }
 
-fn semantic_responses_key(mut key: OperationKey) -> OperationKey {
-    if key.kind
+fn semantic_responses_key(key: OperationKey) -> OperationKey {
+    if key.kind()
         == gproxy_protocol::OperationKind::ContentGeneration(
             gproxy_protocol::ContentGenerationKind::OpenAiResponsesWebSocket,
         )
     {
-        key.kind = gproxy_protocol::OperationKind::ContentGeneration(
+        return OperationKey::content(
+            key.operation(),
             gproxy_protocol::ContentGenerationKind::OpenAiResponses,
         );
     }
@@ -114,11 +133,11 @@ pub fn request_query(
     target: OperationKey,
     query: Option<&str>,
 ) -> Result<Option<String>, TransformError> {
-    if source.operation != gproxy_protocol::Operation::ListModels {
+    if source.operation() != gproxy_protocol::Operation::ListModels {
         return Ok(query.map(str::to_owned));
     }
     use gproxy_protocol::{OperationKind::Family, WireFamily};
-    Ok(match (source.kind, target.kind) {
+    Ok(match (source.kind(), target.kind()) {
         (Family(WireFamily::Claude), Family(WireFamily::Gemini)) => {
             let values = query_pairs(query);
             let mut output = Vec::new();

@@ -38,7 +38,7 @@ pub(super) fn convert(usage: claude::Usage) -> Result<gemini::UsageMetadata, Tra
         .zip(output)
         .map(|(prompt, output)| checked_add_i32(prompt, output))
         .transpose()?;
-    Ok(gemini::UsageMetadata {
+    Ok(crate::wire!(gemini::UsageMetadata {
         prompt_token_count: prompt,
         cached_content_token_count: cached,
         candidates_token_count: candidates,
@@ -51,7 +51,7 @@ pub(super) fn convert(usage: claude::Usage) -> Result<gemini::UsageMetadata, Tra
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: service_tier(usage.service_tier, usage.speed),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn service_tier(

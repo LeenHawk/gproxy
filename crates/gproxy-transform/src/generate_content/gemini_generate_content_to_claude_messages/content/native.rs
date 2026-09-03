@@ -9,22 +9,24 @@ pub(super) fn request_call(
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let id = correlation.code_call(code.id.clone());
-    Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-        id,
-        input: code_input(code)?,
-        name: "bash".into(),
-        type_: claude::ToolUseBlockType::ToolUse,
-        cache_control: None,
-        caller: None,
-        rest: Default::default(),
-    }))
+    Ok(claude::ContentBlockParam::ToolUse(crate::wire!(
+        claude::ToolUseBlock {
+            id,
+            input: code_input(code)?,
+            name: "bash".into(),
+            type_: claude::ToolUseBlockType::ToolUse,
+            cache_control: None,
+            caller: None,
+            rest: Default::default(),
+        }
+    )))
 }
 
 pub(super) fn request_result(
     result: gemini::CodeExecutionResult,
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    Ok(claude::ContentBlockParam::ToolResult(
+    Ok(claude::ContentBlockParam::ToolResult(crate::wire!(
         claude::ToolResultBlock {
             tool_use_id: correlation.code_result(result.id)?,
             type_: claude::ToolResultBlockType::ToolResult,
@@ -32,8 +34,8 @@ pub(super) fn request_result(
             content: result.output.map(claude::ToolResultContent::Text),
             is_error: outcome_error(&result.outcome),
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn response_call(
@@ -41,7 +43,7 @@ pub(super) fn response_call(
     correlation: &mut Correlation,
 ) -> Result<claude::ContentBlock, TransformError> {
     let id = correlation.code_call(code.id.clone());
-    Ok(claude::ResponseContentBlock::ToolUse(
+    Ok(claude::ResponseContentBlock::ToolUse(crate::wire!(
         claude::ResponseToolUseBlock {
             id,
             input: code_input(code)?,
@@ -49,8 +51,8 @@ pub(super) fn response_call(
             type_: claude::ToolUseBlockType::ToolUse,
             caller: None,
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn response_result(
@@ -65,7 +67,7 @@ pub(super) fn response_result(
         .ok_or_else(|| TransformError::shape("Gemini code result", "output is missing"))?;
     Ok(claude::ResponseContentBlock::BashCodeExecutionToolResult(
         claude::ResponseBashCodeExecutionToolResultBlock {
-            content: claude::ResponseBashCodeExecutionToolResultContent::Result(
+            content: claude::ResponseBashCodeExecutionToolResultContent::Result(crate::wire!(
                 claude::BashCodeExecutionResultBlock {
                     content: Vec::new(),
                     return_code: if failed { 1 } else { 0 },
@@ -77,8 +79,8 @@ pub(super) fn response_result(
                     stdout: if failed { String::new() } else { output },
                     type_: claude::BashCodeExecutionResultBlockType::BashCodeExecutionResult,
                     rest: Default::default(),
-                },
-            ),
+                }
+            )),
             tool_use_id,
             type_: claude::BashCodeExecutionToolResultBlockType::BashCodeExecutionToolResult,
             rest: Default::default(),

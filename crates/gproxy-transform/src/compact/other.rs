@@ -9,27 +9,34 @@ pub(crate) fn compact_request(
     model: &str,
     stream: bool,
 ) -> Result<Bytes, TransformError> {
-    if target == ContentGenerationKind::ClaudeMessages {
-        return crate::compact::openai_to_claude_messages::request::transform(body, model);
-    }
-    let responses = compact_to_responses(body, model)?;
+    let input: openai::CompactResponseRequestBody = serde_json::from_slice(&body)?;
     match target {
-        ContentGenerationKind::OpenAiResponses => Ok(responses),
-        ContentGenerationKind::OpenAiChat => {
-            crate::generate_content::openai_responses_to_openai_chat::request::transform(
-                responses, model, stream,
-            )
+        ContentGenerationKind::OpenAiResponses => {
+            encode(&compact_to_responses_typed(input, model))
         }
-        ContentGenerationKind::GeminiGenerateContent => {
-            crate::generate_content::openai_responses_to_gemini_generate_content::request::transform(
-                responses, model, stream,
-            )
-        }
-        ContentGenerationKind::ClaudeMessages => unreachable!("handled before normalization"),
+        ContentGenerationKind::OpenAiChat => encode(
+            &crate::generate_content::openai_responses_to_openai_chat::request::transform_typed(
+                compact_to_responses_typed(input, model),
+                model,
+                stream,
+            )?,
+        ),
+        ContentGenerationKind::GeminiGenerateContent => encode(
+            &crate::generate_content::openai_responses_to_gemini_generate_content::request::transform_typed(
+                compact_to_responses_typed(input, model),
+                model,
+                stream,
+            )?,
+        ),
+        ContentGenerationKind::ClaudeMessages => encode(
+            &crate::compact::openai_to_claude_messages::request::transform_typed(input, model)?,
+        ),
         ContentGenerationKind::OpenAiResponsesWebSocket => Err(TransformError::shape(
             "compact",
             "websocket is an envelope, not a compact semantic target",
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => return Err(crate::TransformError::unsupported("protocol enum", "unrecognized external variant")),
     }
 }
 
@@ -38,21 +45,31 @@ pub(crate) fn compact_response(
     body: Bytes,
 ) -> Result<Bytes, TransformError> {
     let responses = match target {
-        ContentGenerationKind::OpenAiResponses => body,
+        ContentGenerationKind::OpenAiResponses => serde_json::from_slice(&body)?,
         ContentGenerationKind::OpenAiChat => {
-            crate::generate_content::openai_responses_to_openai_chat::response::transform(body)?
+            crate::generate_content::openai_responses_to_openai_chat::response::transform_typed(
+                serde_json::from_slice(&body)?,
+            )?
         }
         ContentGenerationKind::GeminiGenerateContent => {
-            crate::generate_content::openai_responses_to_gemini_generate_content::response::transform(body)?
+            crate::generate_content::openai_responses_to_gemini_generate_content::response::transform_typed(
+                serde_json::from_slice(&body)?,
+            )?
         }
         ContentGenerationKind::ClaudeMessages => {
-            return crate::compact::openai_to_claude_messages::response::transform(body);
+            return encode(
+                &crate::compact::openai_to_claude_messages::response::transform_typed(
+                    serde_json::from_slice(&body)?,
+                )?,
+            );
         }
         ContentGenerationKind::OpenAiResponsesWebSocket => {
             return Err(TransformError::shape("compact", "websocket response envelope"));
-        }
+        },
+        #[cfg(not(feature = "exhaustive"))]
+        _ => return Err(crate::TransformError::unsupported("protocol enum", "unrecognized external variant"))
     };
-    crate::compact::openai_to_claude_messages::response::from_responses(responses)
+    encode(&crate::compact::openai_to_claude_messages::response::from_responses_typed(responses)?)
 }
 
 pub(crate) fn content_request(
@@ -60,9 +77,14 @@ pub(crate) fn content_request(
     body: Bytes,
     model: &str,
 ) -> Result<Bytes, TransformError> {
-    let responses = to_responses_request(source, body, model)?;
-    let input: openai::ResponseCreateRequest = serde_json::from_slice(&responses)?;
-    encode(&openai::CompactResponseRequestBody {
+    let input = to_responses_request(source, body, model)?;
+    encode(&responses_to_compact_request_typed(input))
+}
+
+pub(crate) fn responses_to_compact_request_typed(
+    input: openai::ResponseCreateRequest,
+) -> openai::CompactResponseRequestBody {
+    crate::wire!(openai::CompactResponseRequestBody {
         input: input.input,
         instructions: input.instructions,
         model: input.model,
@@ -79,27 +101,38 @@ pub(crate) fn content_response(
     source: ContentGenerationKind,
     body: Bytes,
 ) -> Result<Bytes, TransformError> {
-    let responses = compact_object_to_responses(body)?;
+    let compact: openai::CompactedResponseObject = serde_json::from_slice(&body)?;
+    let responses = compact_object_to_responses_typed(compact)?;
     match source {
-        ContentGenerationKind::OpenAiResponses => Ok(responses),
-        ContentGenerationKind::OpenAiChat => {
-            crate::generate_content::openai_chat_to_openai_responses::response::transform(responses)
-        }
-        ContentGenerationKind::GeminiGenerateContent => {
-            crate::generate_content::gemini_generate_content_to_openai_responses::response::transform(responses)
-        }
-        ContentGenerationKind::ClaudeMessages => {
-            crate::generate_content::claude_messages_to_openai_responses::response::transform(responses)
-        }
+        ContentGenerationKind::OpenAiResponses => encode(&responses),
+        ContentGenerationKind::OpenAiChat => encode(
+            &crate::generate_content::openai_chat_to_openai_responses::response::transform_typed(
+                responses,
+            )?,
+        ),
+        ContentGenerationKind::GeminiGenerateContent => encode(
+            &crate::generate_content::gemini_generate_content_to_openai_responses::response::transform_typed(
+                responses,
+            )?,
+        ),
+        ContentGenerationKind::ClaudeMessages => encode(
+            &crate::generate_content::claude_messages_to_openai_responses::response::transform_typed(
+                responses,
+            )?,
+        ),
         ContentGenerationKind::OpenAiResponsesWebSocket => {
             Err(TransformError::shape("compact", "websocket response envelope"))
-        }
+        },
+        #[cfg(not(feature = "exhaustive"))]
+        _ => return Err(crate::TransformError::unsupported("protocol enum", "unrecognized external variant"))
     }
 }
 
-fn compact_to_responses(body: Bytes, model: &str) -> Result<Bytes, TransformError> {
-    let input: openai::CompactResponseRequestBody = serde_json::from_slice(&body)?;
-    encode(&openai::ResponseCreateRequest {
+pub(crate) fn compact_to_responses_typed(
+    input: openai::CompactResponseRequestBody,
+    model: &str,
+) -> openai::ResponseCreateRequest {
+    crate::wire!(openai::ResponseCreateRequest {
         input: input.input,
         instructions: input.instructions,
         model: input.model.or_else(|| Some(model.into())),
@@ -109,6 +142,7 @@ fn compact_to_responses(body: Bytes, model: &str) -> Result<Bytes, TransformErro
         prompt_cache_retention: input.prompt_cache_retention,
         service_tier: input.service_tier,
         stream: Some(false),
+        max_output_tokens: Some(32_768),
         rest: Default::default(),
         ..Default::default()
     })
@@ -118,39 +152,48 @@ fn to_responses_request(
     source: ContentGenerationKind,
     body: Bytes,
     model: &str,
-) -> Result<Bytes, TransformError> {
+) -> Result<openai::ResponseCreateRequest, TransformError> {
     match source {
-        ContentGenerationKind::OpenAiResponses => Ok(body),
+        ContentGenerationKind::OpenAiResponses => Ok(serde_json::from_slice(&body)?),
         ContentGenerationKind::OpenAiChat => {
-            crate::generate_content::openai_chat_to_openai_responses::request::transform(
-                body, model, false,
+            crate::generate_content::openai_chat_to_openai_responses::request::transform_typed(
+                serde_json::from_slice(&body)?,
+                model,
+                false,
             )
         }
         ContentGenerationKind::GeminiGenerateContent => {
-            crate::generate_content::gemini_generate_content_to_openai_responses::request::transform(
-                body, model, false,
+            crate::generate_content::gemini_generate_content_to_openai_responses::request::transform_typed(
+                serde_json::from_slice(&body)?,
+                model,
+                false,
             )
         }
         ContentGenerationKind::ClaudeMessages => {
-            crate::generate_content::claude_messages_to_openai_responses::request::transform(
-                body, model, false,
+            crate::generate_content::claude_messages_to_openai_responses::request::transform_typed(
+                serde_json::from_slice(&body)?,
+                model,
+                false,
             )
         }
         ContentGenerationKind::OpenAiResponsesWebSocket => Err(TransformError::shape(
             "compact",
             "websocket request envelope",
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => return Err(crate::TransformError::unsupported("protocol enum", "unrecognized external variant")),
     }
 }
 
-fn compact_object_to_responses(body: Bytes) -> Result<Bytes, TransformError> {
-    let input: openai::CompactedResponseObject = serde_json::from_slice(&body)?;
+pub(crate) fn compact_object_to_responses_typed(
+    input: openai::CompactedResponseObject,
+) -> Result<openai::ResponseObject, TransformError> {
     let output = input
         .output
         .into_iter()
         .filter_map(|item| compact_item_to_response(item).transpose())
         .collect::<Result<Vec<_>, _>>()?;
-    encode(&openai::ResponseObject {
+    Ok(crate::wire!(openai::ResponseObject {
         id: input.id,
         created_at: input.created_at,
         background: None,
@@ -189,7 +232,7 @@ fn compact_object_to_responses(body: Bytes) -> Result<Bytes, TransformError> {
         usage: Some(input.usage),
         user: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn compact_item_to_response(
@@ -207,28 +250,30 @@ fn compact_item_to_response(
                 .filter_map(|part| match part {
                     openai::CompactMessageContentPart::Text(part) => {
                         Some(openai::ResponseMessageOutputContentPart::OutputText(
-                            openai::ResponseOutputText {
+                            crate::wire!(openai::ResponseOutputText {
                                 type_: openai::ResponseOutputTextType::OutputText,
                                 annotations: Vec::new(),
                                 logprobs: None,
                                 text: part.text,
                                 rest: Default::default(),
-                            },
+                            }),
                         ))
                     }
                     _ => None,
                 })
                 .collect();
             Some(openai::ResponseItem::Message(
-                openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
-                    type_: message.type_,
-                    id: message.id.unwrap_or_else(|| "msg_compact".into()),
-                    role: openai::ResponseOutputMessageRole::Assistant,
-                    content,
-                    status: message.status,
-                    phase: message.phase,
-                    rest: Default::default(),
-                }),
+                openai::ResponseMessageItem::Output(crate::wire!(
+                    openai::ResponseOutputMessageItem {
+                        type_: message.type_,
+                        id: message.id.unwrap_or_else(|| "msg_compact".into()),
+                        role: openai::ResponseOutputMessageRole::Assistant,
+                        content,
+                        status: message.status,
+                        phase: message.phase,
+                        rest: Default::default(),
+                    }
+                )),
             ))
         }
         openai::CompactResponseItem::Message(_) => None,

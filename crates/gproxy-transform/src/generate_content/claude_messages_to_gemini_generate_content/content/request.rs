@@ -32,11 +32,11 @@ pub(crate) fn system(
             ));
         }
     };
-    Ok(Some(gemini::Content {
+    Ok(Some(crate::wire!(gemini::Content {
         parts,
         role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)),
         rest: Default::default(),
-    }))
+    })))
 }
 
 pub(crate) fn request_messages(
@@ -49,13 +49,15 @@ pub(crate) fn request_messages(
         let role = role(message.role)?;
         let blocks = match message.content {
             claude::StringOrArray::String(text) => {
-                vec![claude::ContentBlockParam::Text(claude::TextBlock {
-                    text,
-                    type_: claude::TextBlockType::Text,
-                    cache_control: None,
-                    citations: None,
-                    rest: Default::default(),
-                })]
+                vec![claude::ContentBlockParam::Text(crate::wire!(
+                    claude::TextBlock {
+                        text,
+                        type_: claude::TextBlockType::Text,
+                        cache_control: None,
+                        citations: None,
+                        rest: Default::default(),
+                    }
+                ))]
             }
             claude::StringOrArray::Array(blocks) => blocks,
             claude::StringOrArray::Raw(raw) => {
@@ -144,11 +146,11 @@ fn block_to_part(
 }
 
 fn content(parts: Vec<gemini::Part>, role: gemini::ContentRole) -> gemini::Content {
-    gemini::Content {
+    crate::wire!(gemini::Content {
         parts,
         role: Some(role),
         rest: Default::default(),
-    }
+    })
 }
 
 fn role(role: claude::MessageRole) -> Result<gemini::ContentRole, TransformError> {

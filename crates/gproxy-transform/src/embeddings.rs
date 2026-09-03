@@ -6,6 +6,13 @@ use crate::TransformError;
 
 pub(crate) fn openai_to_gemini_single(body: Bytes, model: &str) -> Result<Bytes, TransformError> {
     let input: openai_embeddings::CreateEmbeddingRequest = serde_json::from_slice(&body)?;
+    encode(&openai_to_gemini_single_typed(input, model)?)
+}
+
+pub(crate) fn openai_to_gemini_single_typed(
+    input: openai_embeddings::CreateEmbeddingRequest,
+    model: &str,
+) -> Result<gemini::EmbedContentRequest, TransformError> {
     let mut requests = gemini_requests(input, model)?;
     if requests.len() != 1 {
         return Err(TransformError::shape(
@@ -13,36 +20,63 @@ pub(crate) fn openai_to_gemini_single(body: Bytes, model: &str) -> Result<Bytes,
             "multiple inputs require Gemini batchEmbedContents",
         ));
     }
-    encode(&requests.remove(0))
+    Ok(requests.remove(0))
 }
 
 pub(crate) fn openai_to_gemini_batch(body: Bytes, model: &str) -> Result<Bytes, TransformError> {
     let input: openai_embeddings::CreateEmbeddingRequest = serde_json::from_slice(&body)?;
-    encode(&gemini::BatchEmbedContentsRequest {
+    encode(&openai_to_gemini_batch_typed(input, model)?)
+}
+
+pub(crate) fn openai_to_gemini_batch_typed(
+    input: openai_embeddings::CreateEmbeddingRequest,
+    model: &str,
+) -> Result<gemini::BatchEmbedContentsRequest, TransformError> {
+    Ok(crate::wire!(gemini::BatchEmbedContentsRequest {
         requests: gemini_requests(input, model)?,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn gemini_single_to_openai(body: Bytes, model: &str) -> Result<Bytes, TransformError> {
     let input: gemini::EmbedContentRequest = serde_json::from_slice(&body)?;
-    encode(&openai_request(vec![input], model)?)
+    encode(&gemini_single_to_openai_typed(input, model)?)
+}
+
+pub(crate) fn gemini_single_to_openai_typed(
+    input: gemini::EmbedContentRequest,
+    model: &str,
+) -> Result<openai_embeddings::CreateEmbeddingRequest, TransformError> {
+    openai_request(vec![input], model)
 }
 
 pub(crate) fn gemini_batch_to_openai(body: Bytes, model: &str) -> Result<Bytes, TransformError> {
     let input: gemini::BatchEmbedContentsRequest = serde_json::from_slice(&body)?;
-    encode(&openai_request(input.requests, model)?)
+    encode(&gemini_batch_to_openai_typed(input, model)?)
+}
+
+pub(crate) fn gemini_batch_to_openai_typed(
+    input: gemini::BatchEmbedContentsRequest,
+    model: &str,
+) -> Result<openai_embeddings::CreateEmbeddingRequest, TransformError> {
+    openai_request(input.requests, model)
 }
 
 pub(crate) fn gemini_single_response_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::EmbedContentResponse = serde_json::from_slice(&body)?;
+    encode(&gemini_single_response_to_openai_typed(input))
+}
+
+pub(crate) fn gemini_single_response_to_openai_typed(
+    input: gemini::EmbedContentResponse,
+) -> openai_embeddings::CreateEmbeddingResponse {
     let data = input
         .embedding
         .into_iter()
         .enumerate()
         .map(openai_embedding)
         .collect();
-    encode(&openai_embeddings::CreateEmbeddingResponse {
+    crate::wire!(openai_embeddings::CreateEmbeddingResponse {
         data,
         model: "unknown".into(),
         object: openai::ListObjectType::List,
@@ -53,13 +87,19 @@ pub(crate) fn gemini_single_response_to_openai(body: Bytes) -> Result<Bytes, Tra
 
 pub(crate) fn gemini_batch_response_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::BatchEmbedContentsResponse = serde_json::from_slice(&body)?;
+    encode(&gemini_batch_response_to_openai_typed(input))
+}
+
+pub(crate) fn gemini_batch_response_to_openai_typed(
+    input: gemini::BatchEmbedContentsResponse,
+) -> openai_embeddings::CreateEmbeddingResponse {
     let data = input
         .embeddings
         .into_iter()
         .enumerate()
         .map(openai_embedding)
         .collect();
-    encode(&openai_embeddings::CreateEmbeddingResponse {
+    crate::wire!(openai_embeddings::CreateEmbeddingResponse {
         data,
         model: "unknown".into(),
         object: openai::ListObjectType::List,
@@ -70,7 +110,13 @@ pub(crate) fn gemini_batch_response_to_openai(body: Bytes) -> Result<Bytes, Tran
 
 pub(crate) fn openai_response_to_gemini_single(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_embeddings::CreateEmbeddingResponse = serde_json::from_slice(&body)?;
-    encode(&gemini::EmbedContentResponse {
+    encode(&openai_response_to_gemini_single_typed(input)?)
+}
+
+pub(crate) fn openai_response_to_gemini_single_typed(
+    input: openai_embeddings::CreateEmbeddingResponse,
+) -> Result<gemini::EmbedContentResponse, TransformError> {
+    Ok(crate::wire!(gemini::EmbedContentResponse {
         embedding: input
             .data
             .into_iter()
@@ -79,12 +125,18 @@ pub(crate) fn openai_response_to_gemini_single(body: Bytes) -> Result<Bytes, Tra
             .transpose()?,
         usage_metadata: Some(gemini_usage(input.usage)),
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn openai_response_to_gemini_batch(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_embeddings::CreateEmbeddingResponse = serde_json::from_slice(&body)?;
-    encode(&gemini::BatchEmbedContentsResponse {
+    encode(&openai_response_to_gemini_batch_typed(input)?)
+}
+
+pub(crate) fn openai_response_to_gemini_batch_typed(
+    input: openai_embeddings::CreateEmbeddingResponse,
+) -> Result<gemini::BatchEmbedContentsResponse, TransformError> {
+    Ok(crate::wire!(gemini::BatchEmbedContentsResponse {
         embeddings: input
             .data
             .into_iter()
@@ -92,7 +144,7 @@ pub(crate) fn openai_response_to_gemini_batch(body: Bytes) -> Result<Bytes, Tran
             .collect::<Result<_, _>>()?,
         usage_metadata: Some(gemini_usage(input.usage)),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn gemini_requests(
@@ -116,19 +168,21 @@ fn gemini_requests(
         .map(|value| i32::try_from(value).unwrap_or(i32::MAX));
     Ok(texts
         .into_iter()
-        .map(|text| gemini::EmbedContentRequest {
-            model: Some(model.to_owned()),
-            content: text_content(text),
-            task_type: None,
-            title: None,
-            output_dimensionality: dimensions,
-            embed_content_config: dimensions.map(|output_dimensionality| {
-                gemini::EmbedContentConfig {
-                    output_dimensionality: Some(output_dimensionality),
-                    ..Default::default()
-                }
-            }),
-            rest: Default::default(),
+        .map(|text| {
+            crate::wire!(gemini::EmbedContentRequest {
+                model: Some(model.to_owned()),
+                content: text_content(text),
+                task_type: None,
+                title: None,
+                output_dimensionality: dimensions,
+                embed_content_config: dimensions.map(|output_dimensionality| {
+                    gemini::EmbedContentConfig {
+                        output_dimensionality: Some(output_dimensionality),
+                        ..Default::default()
+                    }
+                }),
+                rest: Default::default(),
+            })
         })
         .collect())
 }
@@ -159,7 +213,7 @@ fn openai_request(
     } else {
         openai_embeddings::EmbeddingInput::TextList(texts)
     };
-    Ok(openai_embeddings::CreateEmbeddingRequest {
+    Ok(crate::wire!(openai_embeddings::CreateEmbeddingRequest {
         input,
         model: model.into(),
         dimensions,
@@ -168,20 +222,20 @@ fn openai_request(
         )),
         user: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn text_content(text: String) -> gemini::Content {
-    gemini::Content {
-        parts: vec![gemini::Part {
+    crate::wire!(gemini::Content {
+        parts: vec![crate::wire!(gemini::Part {
             data: Some(gemini::PartData::Text {
                 text,
                 rest: Default::default(),
             }),
             ..Default::default()
-        }],
+        })],
         ..Default::default()
-    }
+    })
 }
 
 fn content_text(content: gemini::Content) -> Result<String, TransformError> {
@@ -204,14 +258,14 @@ fn content_text(content: gemini::Content) -> Result<String, TransformError> {
 fn openai_embedding(
     (index, input): (usize, gemini::ContentEmbedding),
 ) -> openai_embeddings::Embedding {
-    openai_embeddings::Embedding {
+    crate::wire!(openai_embeddings::Embedding {
         embedding: openai_embeddings::EmbeddingVector::Float(
             input.values.into_iter().map(f64::from).collect(),
         ),
         index: u32::try_from(index).unwrap_or(u32::MAX),
         object: openai::EmbeddingObjectType::Embedding,
         rest: Default::default(),
-    }
+    })
 }
 
 fn gemini_embedding(
@@ -223,11 +277,11 @@ fn gemini_embedding(
             "non-float vector",
         ));
     };
-    Ok(gemini::ContentEmbedding {
+    Ok(crate::wire!(gemini::ContentEmbedding {
         values: values.into_iter().map(|value| value as f32).collect(),
         shape: Vec::new(),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn openai_usage(
@@ -238,19 +292,19 @@ fn openai_usage(
         .and_then(|usage| usage.prompt_token_count)
         .and_then(|value| u64::try_from(value).ok())
         .unwrap_or_default();
-    openai_embeddings::EmbeddingUsage {
+    crate::wire!(openai_embeddings::EmbeddingUsage {
         prompt_tokens: tokens,
         total_tokens: tokens,
         rest: Default::default(),
-    }
+    })
 }
 
 fn gemini_usage(input: openai_embeddings::EmbeddingUsage) -> gemini::EmbeddingUsageMetadata {
-    gemini::EmbeddingUsageMetadata {
+    crate::wire!(gemini::EmbeddingUsageMetadata {
         prompt_token_count: Some(i32::try_from(input.prompt_tokens).unwrap_or(i32::MAX)),
         prompt_token_details: Vec::new(),
         rest: Default::default(),
-    }
+    })
 }
 
 fn encode(value: &impl serde::Serialize) -> Result<Bytes, TransformError> {

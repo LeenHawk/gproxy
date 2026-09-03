@@ -5,7 +5,7 @@ pub(super) fn metadata(
     model: String,
     usage: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
-    gemini::GenerateContentResponse {
+    crate::wire!(gemini::GenerateContentResponse {
         candidates: Vec::new(),
         prompt_feedback: None,
         usage_metadata: usage,
@@ -13,7 +13,7 @@ pub(super) fn metadata(
         response_id: Some(id),
         model_status: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn candidate(
@@ -22,7 +22,7 @@ pub(super) fn candidate(
     usage: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
     let candidates = if part.is_some() || finish_reason.is_some() {
-        vec![gemini::Candidate {
+        vec![crate::wire!(gemini::Candidate {
             content: part.map(|part| super::super::content::model_content(vec![part])),
             finish_reason,
             safety_ratings: Vec::new(),
@@ -35,11 +35,11 @@ pub(super) fn candidate(
             index: Some(0),
             finish_message: None,
             rest: Default::default(),
-        }]
+        })]
     } else {
         Vec::new()
     };
-    gemini::GenerateContentResponse {
+    crate::wire!(gemini::GenerateContentResponse {
         candidates,
         prompt_feedback: None,
         usage_metadata: usage,
@@ -47,11 +47,11 @@ pub(super) fn candidate(
         response_id: None,
         model_status: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn text(text: String, thought: bool) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: thought.then_some(true),
         thought_signature: None,
         part_metadata: None,
@@ -62,11 +62,11 @@ pub(super) fn text(text: String, thought: bool) -> gemini::Part {
         }),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn signature(signature: String) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: Some(true),
         thought_signature: Some(signature),
         part_metadata: None,
@@ -74,7 +74,7 @@ pub(super) fn signature(signature: String) -> gemini::Part {
         data: None,
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn message_delta(

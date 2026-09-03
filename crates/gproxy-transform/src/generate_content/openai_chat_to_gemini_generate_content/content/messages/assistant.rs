@@ -53,6 +53,13 @@ impl State {
             }
             openai::ChatToolCall::Custom(call) => (call.id, call.custom.name, call.custom.input),
             openai::ChatToolCall::Unknown(_) => return Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         let code_execution = name == CODE_EXECUTION_NAME;
         self.calls.insert(
@@ -65,14 +72,14 @@ impl State {
         if code_execution {
             let mut code: gemini::ExecutableCode = serde_json::from_str(&arguments)?;
             code.id = Some(id);
-            return Ok(vec![gemini::Part {
+            return Ok(vec![crate::wire!(gemini::Part {
                 data: Some(gemini::PartData::ExecutableCode {
                     executable_code: code,
                     rest: Default::default(),
                 }),
                 rest: Default::default(),
                 ..Default::default()
-            }]);
+            })]);
         }
         Ok(vec![function_call(Some(id), name, &arguments)?])
     }

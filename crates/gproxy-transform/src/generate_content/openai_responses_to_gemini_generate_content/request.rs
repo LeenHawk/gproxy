@@ -9,6 +9,15 @@ use crate::generate_content::gemini_generate_content_to_openai_responses::config
 
 pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, _stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ResponseCreateRequest,
+    model: &str,
+    _stream: bool,
+) -> Result<gemini::GenerateContentRequest, TransformError> {
     let effort = input
         .reasoning
         .as_ref()
@@ -17,7 +26,7 @@ pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes
     let thinking_config = config::openai_reasoning(effort);
     let max_output_tokens = input.max_output_tokens.map(to_i32).transpose()?;
     let logprobs = input.top_logprobs.map(to_i32).transpose()?;
-    let generation = gemini::GenerationConfig {
+    let generation = crate::wire!(gemini::GenerationConfig {
         stop_sequences: None,
         response_mime_type,
         response_schema: None,
@@ -41,18 +50,20 @@ pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes
         image_config: None,
         media_resolution: None,
         rest: Default::default(),
-    };
+    });
     let generation_config = has_generation_fields(&generation).then_some(generation);
-    let mut system_instruction = input.instructions.map(|text| gemini::Content {
-        parts: vec![gemini::Part {
-            data: Some(gemini::PartData::Text {
-                text,
-                rest: Default::default(),
-            }),
-            ..Default::default()
-        }],
-        role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
-        rest: Default::default(),
+    let mut system_instruction = input.instructions.map(|text| {
+        crate::wire!(gemini::Content {
+            parts: vec![crate::wire!(gemini::Part {
+                data: Some(gemini::PartData::Text {
+                    text,
+                    rest: Default::default(),
+                }),
+                ..Default::default()
+            })],
+            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
+            rest: Default::default(),
+        })
     });
     let mut converter = ContentConverter::new();
     let mut contents = Vec::new();
@@ -68,7 +79,7 @@ pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes
     }
     let tools = tools::to_gemini(input.tools)?;
     let tool_config = mixed_tool_config(tools::choice_to_gemini(input.tool_choice), &tools);
-    let output = gemini::GenerateContentRequest {
+    let output = crate::wire!(gemini::GenerateContentRequest {
         model: Some(model.to_owned()),
         contents,
         tools,
@@ -82,8 +93,8 @@ pub(crate) fn transform(body: Bytes, model: &str, _stream: bool) -> Result<Bytes
         service_tier: config::openai_service_tier(input.service_tier),
         store: input.store,
         rest: Default::default(),
-    };
-    Ok(Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn mixed_tool_config(
@@ -121,18 +132,20 @@ fn append_system(system: &mut Option<gemini::Content>, text: String) {
     if text.is_empty() {
         return;
     }
-    let system = system.get_or_insert_with(|| gemini::Content {
-        parts: Vec::new(),
-        role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
-        rest: Default::default(),
+    let system = system.get_or_insert_with(|| {
+        crate::wire!(gemini::Content {
+            parts: Vec::new(),
+            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
+            rest: Default::default(),
+        })
     });
-    system.parts.push(gemini::Part {
+    system.parts.push(crate::wire!(gemini::Part {
         data: Some(gemini::PartData::Text {
             text,
             rest: Default::default(),
         }),
         ..Default::default()
-    });
+    }));
 }
 
 fn system_content_text(content: gemini::Content) -> Result<String, TransformError> {

@@ -9,7 +9,7 @@ pub(super) use response::{attach_signature, signature_part};
 pub(crate) use response::{response_block, response_content};
 
 pub(super) fn text_part(text: String) -> gproxy_protocol::gemini::Part {
-    gproxy_protocol::gemini::Part {
+    crate::wire!(gproxy_protocol::gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
@@ -20,17 +20,17 @@ pub(super) fn text_part(text: String) -> gproxy_protocol::gemini::Part {
         }),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn model_content(
     parts: Vec<gproxy_protocol::gemini::Part>,
 ) -> gproxy_protocol::gemini::Content {
-    gproxy_protocol::gemini::Content {
+    crate::wire!(gproxy_protocol::gemini::Content {
         parts,
         role: Some(gproxy_protocol::gemini::ContentRole::Known(
             gproxy_protocol::gemini::ContentRoleKnown::Model,
         )),
         rest: Default::default(),
-    }
+    })
 }

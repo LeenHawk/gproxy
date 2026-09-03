@@ -1,10 +1,9 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 use crate::common::native::items;
 
-use super::super::claude_to_openai::{Output, State};
+use super::super::claude_to_openai::{Output, OutputEvent, State};
 use super::super::claude_to_responses::{function_item, reasoning_item};
 use super::Block;
 
@@ -13,7 +12,7 @@ impl State {
         &mut self,
         index: u64,
         block: claude::ContentBlock,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<OutputEvent>, TransformError> {
         if !self.started || self.blocks.contains_key(&index) {
             return Err(TransformError::shape(
                 "Claude stream",
@@ -37,7 +36,7 @@ impl State {
                     Output::Responses => vec![
                         self.response_output_item_added(
                             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
-                                openai::ResponseOutputMessageItem {
+                                crate::wire!(openai::ResponseOutputMessageItem {
                                     type_: openai::ResponseMessageItemType::Message,
                                     id: id.clone(),
                                     role: openai::ResponseOutputMessageRole::Assistant,
@@ -45,20 +44,22 @@ impl State {
                                     status: openai::ResponseItemLifecycleStatus::InProgress,
                                     phase: None,
                                     rest: Default::default(),
-                                },
+                                }),
                             )),
                             index as u32,
                         )?,
                         self.response_content_part_added(
                             id.clone(),
                             index as u32,
-                            openai::ResponseContentPart::OutputText(openai::ResponseOutputText {
-                                type_: openai::ResponseOutputTextType::OutputText,
-                                annotations: Vec::new(),
-                                logprobs: None,
-                                text: String::new(),
-                                rest: Default::default(),
-                            }),
+                            openai::ResponseContentPart::OutputText(crate::wire!(
+                                openai::ResponseOutputText {
+                                    type_: openai::ResponseOutputTextType::OutputText,
+                                    annotations: Vec::new(),
+                                    logprobs: None,
+                                    text: String::new(),
+                                    rest: Default::default(),
+                                }
+                            )),
                         )?,
                     ],
                 };

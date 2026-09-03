@@ -1,5 +1,4 @@
-use bytes::Bytes;
-use gproxy_protocol::openai;
+use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 use crate::generate_content::openai_responses_to_gemini_generate_content::usage;
@@ -12,7 +11,7 @@ impl State {
         &mut self,
         event: openai::ResponseLifecycleEvent,
         expected_status: openai::ResponseStatus,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         let response = *event.response;
         if response
             .status

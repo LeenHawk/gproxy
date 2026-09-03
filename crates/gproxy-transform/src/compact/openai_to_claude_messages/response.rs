@@ -3,15 +3,24 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
-    let converted =
-        crate::generate_content::openai_responses_to_claude_messages::response::claude_to_responses(
-            body,
-        )?;
-    from_responses(converted)
+    let input = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
 }
 
-pub(crate) fn from_responses(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
-    let input: openai::ResponseObject = serde_json::from_slice(&body)?;
+pub(crate) fn transform_typed(
+    input: gproxy_protocol::claude::CreateMessageResponseBody,
+) -> Result<openai::CompactedResponseObject, TransformError> {
+    let response =
+        crate::generate_content::openai_responses_to_claude_messages::response::transform_typed(
+            input,
+        )?;
+    from_responses_typed(response)
+}
+
+pub(crate) fn from_responses_typed(
+    input: openai::ResponseObject,
+) -> Result<openai::CompactedResponseObject, TransformError> {
     let usage = input.usage.unwrap_or_else(empty_usage);
     let incomplete = input.status == Some(openai::ResponseStatus::Incomplete);
     let mut items = input
@@ -20,15 +29,15 @@ pub(crate) fn from_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Transfo
         .filter_map(|item| compact_item(item, incomplete).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     items.sort_by_key(|item| !matches!(item, openai::CompactResponseItem::Message(_)));
-    let output = openai::CompactedResponseObject {
+    let output = crate::wire!(openai::CompactedResponseObject {
         id: input.id,
         created_at: input.created_at,
         object: openai::ResponseCompactionObjectType::ResponseCompaction,
         output: items,
         usage,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn compact_item(
@@ -37,7 +46,7 @@ fn compact_item(
 ) -> Result<Option<openai::CompactResponseItem>, TransformError> {
     Ok(match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => Some(
-            openai::CompactResponseItem::Message(openai::CompactMessageItem {
+            openai::CompactResponseItem::Message(crate::wire!(openai::CompactMessageItem {
                 id: Some(message.id),
                 type_: message.type_,
                 content: message
@@ -59,6 +68,8 @@ fn compact_item(
                             }),
                         ),
                         openai::ResponseMessageOutputContentPart::Unknown(_) => None,
+                        #[cfg(not(feature = "exhaustive"))]
+                        _ => None,
                     })
                     .collect(),
                 role: openai::CompactMessageRole::Assistant,
@@ -69,20 +80,27 @@ fn compact_item(
                 },
                 phase: message.phase,
                 rest: Default::default(),
-            }),
+            })),
         ),
         openai::ResponseItem::Typed(item) => Some(openai::CompactResponseItem::Typed(item)),
         openai::ResponseItem::Unknown(_) | openai::ResponseItem::Message(_) => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
 fn empty_usage() -> openai::ResponseUsage {
-    openai::ResponseUsage {
+    crate::wire!(openai::ResponseUsage {
         input_tokens: 0,
         output_tokens: 0,
         total_tokens: 0,
         input_tokens_details: None,
         output_tokens_details: None,
         rest: Default::default(),
-    }
+    })
 }

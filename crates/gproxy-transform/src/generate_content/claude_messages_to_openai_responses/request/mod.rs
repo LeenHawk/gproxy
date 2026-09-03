@@ -18,14 +18,24 @@ pub(crate) fn transform(
     model: &str,
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
-    let mut input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+#[allow(deprecated)] // Reading the legacy Claude output_format remains necessary on the wire.
+pub(crate) fn transform_typed(
+    mut input: claude::CreateMessageRequestBody,
+    model: &str,
+    stream: bool,
+) -> Result<openai::ResponseCreateRequest, TransformError> {
     crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let mut response_items = system_items(input.system);
     let mut native_calls = BTreeMap::new();
     for message in input.messages {
         response_items.extend(message_items(message, &mut native_calls)?);
     }
-    let output = openai::ResponseCreateRequest {
+    let output = crate::wire!(openai::ResponseCreateRequest {
         background: None,
         context_management: None,
         conversation: None,
@@ -73,8 +83,8 @@ pub(crate) fn transform(
         truncation: None,
         user: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn response_tools(
@@ -106,41 +116,45 @@ fn response_tools(
 
 fn system_items(system: Option<claude::SystemPrompt>) -> Vec<openai::ResponseItem> {
     let blocks = match system {
-        Some(claude::StringOrArray::String(text)) => vec![claude::TextBlock {
-            text,
-            type_: claude::TextBlockType::Text,
-            cache_control: None,
-            citations: None,
-            rest: Default::default(),
-        }],
+        Some(claude::StringOrArray::String(text)) => {
+            vec![crate::wire!(claude::TextBlock {
+                text,
+                type_: claude::TextBlockType::Text,
+                cache_control: None,
+                citations: None,
+                rest: Default::default(),
+            })]
+        }
         Some(claude::StringOrArray::Array(blocks)) => blocks,
         Some(claude::StringOrArray::Raw(_)) => return Vec::new(),
         _future => return Vec::new(),
     };
     vec![openai::ResponseItem::Message(
-        openai::ResponseMessageItem::EasyInput(openai::ResponseEasyInputMessageItem {
-            type_: Some(openai::ResponseMessageItemType::Message),
-            role: openai::ResponseEasyInputMessageRole::System,
-            content: openai::ResponseEasyInputContent::Parts(
-                blocks
-                    .into_iter()
-                    .map(|block| {
-                        openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
-                            text: block.text,
-                            prompt_cache_breakpoint: block.cache_control.map(|_| {
-                                openai::PromptCacheBreakpoint {
-                                    mode: openai::PromptCacheBreakpointMode::Explicit,
-                                    rest: Default::default(),
-                                }
-                            }),
-                            rest: Default::default(),
+        openai::ResponseMessageItem::EasyInput(crate::wire!(
+            openai::ResponseEasyInputMessageItem {
+                type_: Some(openai::ResponseMessageItemType::Message),
+                role: openai::ResponseEasyInputMessageRole::System,
+                content: openai::ResponseEasyInputContent::Parts(
+                    blocks
+                        .into_iter()
+                        .map(|block| {
+                            openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
+                                text: block.text,
+                                prompt_cache_breakpoint: block.cache_control.map(|_| {
+                                    openai::PromptCacheBreakpoint {
+                                        mode: openai::PromptCacheBreakpointMode::Explicit,
+                                        rest: Default::default(),
+                                    }
+                                }),
+                                rest: Default::default(),
+                            })
                         })
-                    })
-                    .collect(),
-            ),
-            phase: None,
-            rest: Default::default(),
-        }),
+                        .collect(),
+                ),
+                phase: None,
+                rest: Default::default(),
+            }
+        )),
     )]
 }
 
@@ -164,7 +178,7 @@ pub(crate) fn count_tokens(
     for message in input.messages {
         response_items.extend(message_items(message, &mut native_calls)?);
     }
-    Ok(openai::ResponseInputTokensRequest {
+    Ok(crate::wire!(openai::ResponseInputTokensRequest {
         conversation: None,
         input: Some(openai::ResponseInput::Items(response_items)),
         instructions: input.system.map(system_text).transpose()?,
@@ -182,5 +196,5 @@ pub(crate) fn count_tokens(
         tools: tools::claude_to_responses(input.tools)?,
         truncation: None,
         rest: Default::default(),
-    })
+    }))
 }

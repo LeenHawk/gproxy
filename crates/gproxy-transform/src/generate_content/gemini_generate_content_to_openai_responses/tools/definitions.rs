@@ -23,15 +23,15 @@ pub(crate) fn to_responses(
         }
         if tool.code_execution.is_some() {
             output.push(openai::ResponseTool::CodeInterpreter {
-                container: openai::CodeInterpreterContainer::Auto(
+                container: openai::CodeInterpreterContainer::Auto(crate::wire!(
                     openai::CodeInterpreterAutoContainer {
                         type_: openai::CodeInterpreterContainerType::Auto,
                         file_ids: None,
                         memory_limit: None,
                         network_policy: None,
                         rest: Default::default(),
-                    },
-                ),
+                    }
+                )),
                 allowed_callers: None,
                 rest: Default::default(),
             });
@@ -171,7 +171,7 @@ fn sanitized_schema(schema: gemini::Schema) -> Result<gemini::Schema, TransformE
         .items
         .map(|child| sanitized_schema(*child).map(Box::new))
         .transpose()?;
-    Ok(gemini::Schema {
+    Ok(crate::wire!(gemini::Schema {
         r#type: schema.r#type,
         format: schema.format,
         title: schema.title,
@@ -195,7 +195,7 @@ fn sanitized_schema(schema: gemini::Schema) -> Result<gemini::Schema, TransformE
         example: schema.example,
         default: schema.default,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn object_schema(value: serde_json::Value) -> Result<openai::JsonSchema, TransformError> {

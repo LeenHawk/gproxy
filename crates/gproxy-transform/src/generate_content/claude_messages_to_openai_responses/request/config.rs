@@ -35,11 +35,11 @@ pub(super) fn tool_choice(
             openai::ToolChoiceMode::None,
         )),
         Some(claude::ToolChoice::Tool(choice)) => Some(openai::ResponseToolChoice::Function(
-            openai::ResponseFunctionToolChoice {
+            crate::wire!(openai::ResponseFunctionToolChoice {
                 type_: openai::FunctionToolChoiceType::Function,
                 name: choice.name,
                 rest: Default::default(),
-            },
+            }),
         )),
         Some(claude::ToolChoice::Unknown(_)) => None,
         Some(_) => {
@@ -75,13 +75,15 @@ pub(super) fn reasoning(
         }
         Some(claude::ThinkingConfig::Unknown(_)) | Some(_) | None => None,
     });
-    Ok(effort.map(|effort| openai::ReasoningConfig {
-        context: None,
-        effort: Some(effort),
-        mode: None,
-        summary: None,
-        generate_summary: None,
-        rest: Default::default(),
+    Ok(effort.map(|effort| {
+        crate::wire!(openai::ReasoningConfig {
+            context: None,
+            effort: Some(effort),
+            mode: None,
+            summary: None,
+            generate_summary: None,
+            rest: Default::default(),
+        })
     }))
 }
 
@@ -90,19 +92,21 @@ pub(super) fn text_config(
     legacy: Option<&claude::JsonSchemaFormat>,
 ) -> Result<Option<openai::TextConfig>, TransformError> {
     let format = output.and_then(|output| output.format.as_ref()).or(legacy);
-    Ok(format.map(|format| openai::TextConfig {
-        format: Some(openai::ResponseFormat::JsonSchema(
-            openai::JsonSchemaResponseFormat {
-                type_: openai::JsonSchemaResponseFormatType::JsonSchema,
-                name: "response".into(),
-                schema: format.schema.clone(),
-                description: None,
-                strict: None,
-                rest: Default::default(),
-            },
-        )),
-        verbosity: None,
-        rest: Default::default(),
+    Ok(format.map(|format| {
+        crate::wire!(openai::TextConfig {
+            format: Some(openai::ResponseFormat::JsonSchema(
+                openai::JsonSchemaResponseFormat {
+                    type_: openai::JsonSchemaResponseFormatType::JsonSchema,
+                    name: "response".into(),
+                    schema: format.schema.clone(),
+                    description: None,
+                    strict: None,
+                    rest: Default::default(),
+                },
+            )),
+            verbosity: None,
+            rest: Default::default(),
+        })
     }))
 }
 

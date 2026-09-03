@@ -28,11 +28,11 @@ pub(crate) fn response_blocks(
 }
 
 fn signature_block(signature: String) -> claude::ContentBlock {
-    claude::ResponseContentBlock::RedactedThinking(claude::RedactedThinkingBlock {
+    claude::ResponseContentBlock::RedactedThinking(crate::wire!(claude::RedactedThinkingBlock {
         data: signature,
         type_: claude::RedactedThinkingBlockType::RedactedThinking,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn response_part(
@@ -52,34 +52,34 @@ pub(crate) fn response_part(
     };
     Ok(Some(match data {
         gemini::PartData::Text { text, .. } if thought == Some(true) => {
-            claude::ResponseContentBlock::Thinking(claude::ThinkingBlock {
+            claude::ResponseContentBlock::Thinking(crate::wire!(claude::ThinkingBlock {
                 signature,
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
                 rest: Default::default(),
-            })
+            }))
         }
         gemini::PartData::Text { text, .. } => {
-            claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+            claude::ResponseContentBlock::Text(crate::wire!(claude::ResponseTextBlock {
                 citations: None,
                 text,
                 type_: claude::TextBlockType::Text,
                 rest: Default::default(),
-            })
+            }))
         }
         gemini::PartData::FunctionCall { function_call, .. } => {
             let input = function_call
                 .args
                 .ok_or_else(|| TransformError::shape("Gemini function call", "args is missing"))?;
             let id = correlation.function_call(function_call.id, &function_call.name);
-            claude::ResponseContentBlock::ToolUse(claude::ResponseToolUseBlock {
+            claude::ResponseContentBlock::ToolUse(crate::wire!(claude::ResponseToolUseBlock {
                 id,
                 input,
                 name: function_call.name,
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 rest: Default::default(),
-            })
+            }))
         }
         gemini::PartData::ExecutableCode {
             executable_code, ..
@@ -94,14 +94,14 @@ pub(crate) fn response_part(
                 TransformError::shape("Gemini server tool call", "args is missing")
             })?;
             let id = correlation.function_call(tool_call.id, &name);
-            claude::ResponseContentBlock::ToolUse(claude::ResponseToolUseBlock {
+            claude::ResponseContentBlock::ToolUse(crate::wire!(claude::ResponseToolUseBlock {
                 id,
                 input,
                 name,
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 rest: Default::default(),
-            })
+            }))
         }
         gemini::PartData::Raw(_)
         | gemini::PartData::InlineData { .. }

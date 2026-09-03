@@ -19,7 +19,7 @@ pub(crate) fn converter() -> Box<dyn Converter> {
 }
 
 #[derive(Default)]
-struct State {
+pub(crate) struct State {
     id: Option<String>,
     created_at: Option<u64>,
     model: Option<openai::OpenAiModelId>,
@@ -80,10 +80,21 @@ impl State {
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.chat(frame)
+        let events = if frame.data == "[DONE]" {
+            self.finish_typed()?
+        } else {
+            self.push_typed(serde_json::from_str(&frame.data)?)?
+        };
+        events
+            .into_iter()
+            .map(|event| SseFrame::typed(event.event_name(), &event))
+            .collect()
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        self.stop()
+        self.finish_typed()?
+            .into_iter()
+            .map(|event| SseFrame::typed(event.event_name(), &event))
+            .collect()
     }
 }

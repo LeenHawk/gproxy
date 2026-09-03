@@ -1,15 +1,14 @@
-use bytes::Bytes;
-use gproxy_protocol::openai;
+use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 
 use super::State;
 
 impl State {
-    pub(super) fn event(
+    pub(crate) fn push_typed(
         &mut self,
         event: openai::ResponseStreamEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         if self.stopped {
             return Err(TransformError::shape(
                 "Responses stream",
@@ -19,6 +18,13 @@ impl State {
         let event = match event {
             openai::ResponseStreamEvent::Known(event) => event,
             openai::ResponseStreamEvent::Unknown(_) => return Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         use openai::KnownResponseStreamEvent as E;
         match *event {
@@ -87,6 +93,13 @@ impl State {
             | E::ResponseMcpListToolsInProgress(_)
             | E::ResponseMcpListToolsCompleted(_)
             | E::ResponseMcpListToolsFailed(_) => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 }

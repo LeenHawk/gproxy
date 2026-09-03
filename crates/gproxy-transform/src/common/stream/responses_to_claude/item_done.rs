@@ -1,5 +1,4 @@
-use bytes::Bytes;
-use gproxy_protocol::openai;
+use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 
@@ -10,7 +9,7 @@ impl State {
     pub(super) fn response_output_item_done(
         &mut self,
         event: openai::ResponseOutputItemEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         let tool_input = match event.item.as_ref() {
             openai::ResponseItem::Typed(item) => match item.as_ref() {
@@ -21,6 +20,13 @@ impl State {
                 _ => None,
             },
             openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         let id = item_id(&event.item);
         let indices = if let Some(id) = id {

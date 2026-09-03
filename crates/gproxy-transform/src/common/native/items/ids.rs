@@ -34,5 +34,7 @@ pub(crate) fn item_id(item: &openai::TypedResponseItem) -> Option<String> {
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => None,
     }
 }

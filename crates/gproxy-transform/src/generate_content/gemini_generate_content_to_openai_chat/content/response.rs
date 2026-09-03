@@ -51,7 +51,7 @@ pub(crate) fn message(
             None => {}
         }
     }
-    Ok(openai::ChatMessage {
+    Ok(crate::wire!(openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
         content: (!text.is_empty()).then(|| text.join("")),
         refusal: None,
@@ -61,10 +61,10 @@ pub(crate) fn message(
         reasoning_content: (!reasoning.is_empty()).then(|| reasoning.join("")),
         tool_calls: (!calls.is_empty()).then_some(calls),
         rest: Default::default(),
-    })
+    }))
 }
 fn empty() -> openai::ChatMessage {
-    openai::ChatMessage {
+    crate::wire!(openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
         content: Some(String::new()),
         refusal: None,
@@ -74,7 +74,7 @@ fn empty() -> openai::ChatMessage {
         reasoning_content: None,
         tool_calls: None,
         rest: Default::default(),
-    }
+    })
 }
 
 fn function_call_to_chat(
@@ -84,7 +84,7 @@ fn function_call_to_chat(
     let args = call
         .args
         .ok_or_else(|| TransformError::shape("Gemini function call", "args is missing"))?;
-    Ok(openai::ChatToolCall::Function(
+    Ok(openai::ChatToolCall::Function(crate::wire!(
         openai::ChatFunctionToolCall {
             id,
             type_: openai::FunctionToolChoiceType::Function,
@@ -94,14 +94,14 @@ fn function_call_to_chat(
                 rest: Default::default(),
             },
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 fn code_call(
     code: gemini::ExecutableCode,
     id: String,
 ) -> Result<openai::ChatToolCall, TransformError> {
-    Ok(openai::ChatToolCall::Function(
+    Ok(openai::ChatToolCall::Function(crate::wire!(
         openai::ChatFunctionToolCall {
             id,
             type_: openai::FunctionToolChoiceType::Function,
@@ -111,6 +111,6 @@ fn code_call(
                 rest: Default::default(),
             },
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }

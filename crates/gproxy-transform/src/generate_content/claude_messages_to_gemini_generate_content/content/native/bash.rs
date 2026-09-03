@@ -65,7 +65,7 @@ fn code_result(
     outcome: gemini::CodeExecutionOutcomeKnown,
     output: Option<String>,
 ) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         data: Some(gemini::PartData::CodeExecutionResult {
             code_execution_result: gemini::CodeExecutionResult {
                 id: Some(id),
@@ -76,7 +76,7 @@ fn code_result(
             rest: Default::default(),
         }),
         ..Default::default()
-    }
+    })
 }
 
 fn result_outcome(return_code: i64) -> gemini::CodeExecutionOutcomeKnown {

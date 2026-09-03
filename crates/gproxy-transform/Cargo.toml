@@ -3,11 +3,19 @@ name = "gproxy-transform"
 description = "GPROXY v3 pairwise protocol transforms"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+homepage = "https://gproxy.leenhawk.com"
+readme = "README.md"
+keywords = ["llm", "openai", "anthropic", "gemini", "transform"]
+categories = ["api-bindings", "encoding", "web-programming"]
+
+[features]
+exhaustive = ["gproxy-protocol/exhaustive"]
 
 [dependencies]
-gproxy-protocol = { workspace = true, features = ["exhaustive"] }
+gproxy-protocol.workspace = true
 bytes.workspace = true
 serde.workspace = true
 serde_json.workspace = true

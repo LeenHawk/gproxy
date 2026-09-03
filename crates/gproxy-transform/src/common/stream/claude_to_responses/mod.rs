@@ -10,7 +10,7 @@ pub(in crate::common::stream) use events::ResponseDelta;
 
 impl State {
     pub(super) fn response_object(&self, status: openai::ResponseStatus) -> openai::ResponseObject {
-        openai::ResponseObject {
+        crate::wire!(openai::ResponseObject {
             id: self.id.clone().expect("started message has an id"),
             created_at: None,
             background: None,
@@ -64,7 +64,7 @@ impl State {
             usage: self.usage.clone().and_then(usage::claude_to_responses),
             user: None,
             rest: Default::default(),
-        }
+        })
     }
 
     pub(super) fn next_sequence(&mut self) -> u64 {
@@ -83,11 +83,11 @@ pub(super) fn reasoning_item(
     openai::ResponseItem::Typed(Box::new(openai::TypedResponseItem::Reasoning {
         id: Some(id),
         summary: Vec::new(),
-        content: Some(vec![openai::ResponseReasoningTextPart {
+        content: Some(vec![crate::wire!(openai::ResponseReasoningTextPart {
             type_: openai::ResponseReasoningTextType::ReasoningText,
             text,
             rest: Default::default(),
-        }]),
+        })]),
         encrypted_content: signature,
         status: Some(status),
         rest: Default::default(),

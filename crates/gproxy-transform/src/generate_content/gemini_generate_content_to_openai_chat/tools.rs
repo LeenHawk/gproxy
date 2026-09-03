@@ -87,7 +87,7 @@ fn choice_with_names(
             openai::ToolChoiceMode::None,
         )));
     }
-    Ok(Some(openai::ChatToolChoice::Allowed(
+    Ok(Some(openai::ChatToolChoice::Allowed(crate::wire!(
         openai::ChatAllowedToolChoice {
             allowed_tools: openai::ChatAllowedTools {
                 mode,
@@ -96,8 +96,8 @@ fn choice_with_names(
             },
             type_: openai::AllowedToolsType::AllowedTools,
             rest: Default::default(),
-        },
-    )))
+        }
+    ))))
 }
 
 fn allowed_function(name: String) -> serde_json::Map<String, serde_json::Value> {
@@ -116,17 +116,19 @@ fn function_declaration(
         (None, Some(schema)) => Some(json_object(serde_json::to_value(schema)?)?),
         (None, None) => None,
     };
-    Ok(openai::ChatTool::Function(openai::ChatFunctionTool {
-        type_: openai::FunctionToolChoiceType::Function,
-        function: openai::FunctionDefinition {
-            name: declaration.name,
-            description: Some(declaration.description),
-            parameters,
-            strict: None,
+    Ok(openai::ChatTool::Function(crate::wire!(
+        openai::ChatFunctionTool {
+            type_: openai::FunctionToolChoiceType::Function,
+            function: openai::FunctionDefinition {
+                name: declaration.name,
+                description: Some(declaration.description),
+                parameters,
+                strict: None,
+                rest: Default::default(),
+            },
             rest: Default::default(),
-        },
-        rest: Default::default(),
-    }))
+        }
+    )))
 }
 
 fn code_execution_tool() -> openai::ChatTool {
@@ -137,7 +139,7 @@ fn code_execution_tool() -> openai::ChatTool {
     parameters.insert("type".into(), "object".into());
     parameters.insert("properties".into(), properties.into());
     parameters.insert("required".into(), serde_json::json!(["language", "code"]));
-    openai::ChatTool::Function(openai::ChatFunctionTool {
+    openai::ChatTool::Function(crate::wire!(openai::ChatFunctionTool {
         type_: openai::FunctionToolChoiceType::Function,
         function: openai::FunctionDefinition {
             name: CODE_EXECUTION_NAME.into(),
@@ -147,7 +149,7 @@ fn code_execution_tool() -> openai::ChatTool {
             rest: Default::default(),
         },
         rest: Default::default(),
-    })
+    }))
 }
 
 fn json_object(value: serde_json::Value) -> Result<openai::JsonSchema, TransformError> {

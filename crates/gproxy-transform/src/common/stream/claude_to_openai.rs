@@ -9,10 +9,19 @@ use crate::models::common::wire_string;
 
 use super::claude_block_updates::Block;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Output {
     Chat,
     Responses,
+}
+
+#[expect(
+    clippy::large_enum_variant,
+    reason = "boxing Chat chunks adds a heap allocation to every transformed stream event"
+)]
+pub(crate) enum OutputEvent {
+    Chat(openai::ChatCompletionChunk),
+    Responses(openai::ResponseStreamEvent),
 }
 
 pub(crate) struct State {
@@ -44,7 +53,10 @@ impl State {
         }
     }
 
-    fn event(&mut self, event: claude::StreamEvent) -> Result<Vec<Bytes>, TransformError> {
+    pub(crate) fn push_typed(
+        &mut self,
+        event: claude::StreamEvent,
+    ) -> Result<Vec<OutputEvent>, TransformError> {
         match event {
             claude::StreamEvent::Known(event) => match *event {
                 claude::KnownStreamEvent::MessageStart { message, .. } => self.start(*message),
@@ -68,15 +80,29 @@ impl State {
                     "Claude stream error",
                     error.message,
                 )),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             claude::StreamEvent::Unknown(_) => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 
     fn start(
         &mut self,
         message: claude::CreateMessageStartBody,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<OutputEvent>, TransformError> {
         if self.started {
             return Err(TransformError::shape(
                 "Claude stream",
@@ -90,7 +116,7 @@ impl State {
         Ok(match self.output {
             Output::Chat => {
                 vec![self.chat_chunk(
-                    openai::ChatDelta {
+                    crate::wire!(openai::ChatDelta {
                         role: Some(openai::ChatDeltaRole::Assistant),
                         content: Some(String::new()),
                         reasoning_content: None,
@@ -99,7 +125,7 @@ impl State {
                         function_call: None,
                         obfuscation: None,
                         rest: Default::default(),
-                    },
+                    }),
                     None,
                     None,
                 )?]
@@ -113,14 +139,36 @@ impl State {
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.event(serde_json::from_str(&frame.data)?)
+        let events = self.push_typed(serde_json::from_str(&frame.data)?)?;
+        let done = self.stopped && self.output == Output::Chat;
+        let mut output = encode(events)?;
+        if done {
+            output.push(SseFrame::encode(None, "[DONE]"));
+        }
+        Ok(output)
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
+        encode(self.finish_typed()?)
+    }
+}
+
+impl State {
+    pub(crate) fn finish_typed(&mut self) -> Result<Vec<OutputEvent>, TransformError> {
         if self.stopped {
             Ok(Vec::new())
         } else {
             Err(TransformError::IncompleteStream)
         }
     }
+}
+
+fn encode(events: Vec<OutputEvent>) -> Result<Vec<Bytes>, TransformError> {
+    events
+        .into_iter()
+        .map(|event| match event {
+            OutputEvent::Chat(event) => SseFrame::typed(None, &event),
+            OutputEvent::Responses(event) => SseFrame::typed(event.event_name(), &event),
+        })
+        .collect()
 }

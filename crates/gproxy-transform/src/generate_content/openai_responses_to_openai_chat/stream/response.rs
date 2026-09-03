@@ -10,17 +10,21 @@ impl State {
         status: openai::ResponseStatus,
     ) -> Result<openai::ResponseObject, TransformError> {
         let incomplete_details = match self.finish_reason.as_ref() {
-            Some(openai::ChatFinishReason::Length) => Some(openai::IncompleteDetails {
-                reason: Some(openai::IncompleteReason::MaxOutputTokens),
-                rest: Default::default(),
-            }),
-            Some(openai::ChatFinishReason::ContentFilter) => Some(openai::IncompleteDetails {
-                reason: Some(openai::IncompleteReason::ContentFilter),
-                rest: Default::default(),
-            }),
+            Some(openai::ChatFinishReason::Length) => {
+                Some(crate::wire!(openai::IncompleteDetails {
+                    reason: Some(openai::IncompleteReason::MaxOutputTokens),
+                    rest: Default::default(),
+                }))
+            }
+            Some(openai::ChatFinishReason::ContentFilter) => {
+                Some(crate::wire!(openai::IncompleteDetails {
+                    reason: Some(openai::IncompleteReason::ContentFilter),
+                    rest: Default::default(),
+                }))
+            }
             _ => None,
         };
-        Ok(openai::ResponseObject {
+        Ok(crate::wire!(openai::ResponseObject {
             id: self
                 .id
                 .clone()
@@ -64,6 +68,6 @@ impl State {
             usage: self.usage.clone(),
             user: None,
             rest: Default::default(),
-        })
+        }))
     }
 }

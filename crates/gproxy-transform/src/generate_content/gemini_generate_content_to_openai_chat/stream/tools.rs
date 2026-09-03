@@ -68,14 +68,14 @@ pub(super) fn update_legacy(
     update(
         tools,
         choice,
-        openai::ChatToolCallDelta {
+        crate::wire!(openai::ChatToolCallDelta {
             index: u32::MAX,
             id: Some(format!("function_call_{choice}")),
             type_: Some(openai::ChatToolCallType::Function),
             function: Some(call),
             custom: None,
             rest: Default::default(),
-        },
+        }),
     )
 }
 
@@ -105,14 +105,14 @@ pub(super) fn finish_choice(
         if name == CODE_EXECUTION_NAME {
             let mut code: gemini::ExecutableCode = serde_json::from_str(&pending.arguments)?;
             code.id = Some(id.clone());
-            output.push(gemini::Part {
+            output.push(crate::wire!(gemini::Part {
                 data: Some(gemini::PartData::ExecutableCode {
                     executable_code: code,
                     rest: Default::default(),
                 }),
                 rest: Default::default(),
                 ..Default::default()
-            });
+            }));
         } else {
             output.push(content::lossy_function_call(
                 Some(id),

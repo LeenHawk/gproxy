@@ -13,6 +13,7 @@ mod stream_lifecycle;
 mod strict_extensions;
 mod support;
 mod thought_signature;
+mod typed;
 use support::*;
 
 fn family(operation: Operation, family: WireFamily) -> OperationKey {

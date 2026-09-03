@@ -16,7 +16,7 @@ pub(crate) fn transform(
                 code_execution = true;
             }
             openai::ChatTool::Function(tool) => {
-                declarations.push(gemini::FunctionDeclaration {
+                declarations.push(crate::wire!(gemini::FunctionDeclaration {
                     name: tool.function.name,
                     description: tool.function.description.unwrap_or_default(),
                     behavior: None,
@@ -25,10 +25,10 @@ pub(crate) fn transform(
                     response: None,
                     response_json_schema: None,
                     rest: Default::default(),
-                });
+                }));
             }
             openai::ChatTool::Custom(tool) => {
-                declarations.push(gemini::FunctionDeclaration {
+                declarations.push(crate::wire!(gemini::FunctionDeclaration {
                     name: tool.custom.name,
                     description: tool.custom.description.unwrap_or_default(),
                     behavior: None,
@@ -37,28 +37,35 @@ pub(crate) fn transform(
                     response: None,
                     response_json_schema: None,
                     rest: Default::default(),
-                });
+                }));
             }
             openai::ChatTool::Unknown(_) => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
     if !declarations.is_empty() {
-        output.push(gemini::Tool {
+        output.push(crate::wire!(gemini::Tool {
             function_declarations: Some(declarations),
             ..Default::default()
-        });
+        }));
     }
     if code_execution {
-        output.push(gemini::Tool {
+        output.push(crate::wire!(gemini::Tool {
             code_execution: Some(gemini::CodeExecution::default()),
             ..Default::default()
-        });
+        }));
     }
     if web_search {
-        output.push(gemini::Tool {
+        output.push(crate::wire!(gemini::Tool {
             google_search: Some(gemini::GoogleSearch::default()),
             ..Default::default()
-        });
+        }));
     }
     Ok((!output.is_empty()).then_some(output))
 }
@@ -128,8 +135,15 @@ pub(crate) fn choice(
                 .collect::<Result<Vec<_>, _>>()?;
             (mode, Some(names))
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     };
-    Ok(Some(gemini::ToolConfig {
+    Ok(Some(crate::wire!(gemini::ToolConfig {
         function_calling_config: Some(gemini::FunctionCallingConfig {
             mode: Some(mode),
             allowed_function_names: names,
@@ -138,7 +152,7 @@ pub(crate) fn choice(
         retrieval_config: None,
         include_server_side_tool_invocations: None,
         rest: Default::default(),
-    }))
+    })))
 }
 
 fn tool_name(tool: serde_json::Map<String, serde_json::Value>) -> Result<String, TransformError> {

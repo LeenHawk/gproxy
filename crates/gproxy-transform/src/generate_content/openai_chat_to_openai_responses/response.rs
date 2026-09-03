@@ -5,6 +5,13 @@ use crate::common::usage;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseObject = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ResponseObject,
+) -> Result<openai::ChatCompletionResponse, TransformError> {
     let mut text = Vec::new();
     let mut reasoning = Vec::new();
     let mut refusal = String::new();
@@ -25,6 +32,13 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                             refusal.push_str(&part.refusal);
                         }
                         openai::ResponseMessageOutputContentPart::Unknown(_) => {}
+                        #[cfg(not(feature = "exhaustive"))]
+                        _ => {
+                            return Err(crate::TransformError::unsupported(
+                                "protocol enum",
+                                "unrecognized external variant",
+                            ));
+                        }
                     }
                 }
             }
@@ -34,7 +48,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     call_id,
                     name,
                     ..
-                } => calls.push(openai::ChatToolCall::Function(
+                } => calls.push(openai::ChatToolCall::Function(crate::wire!(
                     openai::ChatFunctionToolCall {
                         id: call_id,
                         type_: openai::FunctionToolChoiceType::Function,
@@ -44,23 +58,25 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                             rest: Default::default(),
                         },
                         rest: Default::default(),
-                    },
-                )),
+                    }
+                ))),
                 openai::TypedResponseItem::CustomToolCall {
                     call_id,
                     input,
                     name,
                     ..
-                } => calls.push(openai::ChatToolCall::Custom(openai::ChatCustomToolCall {
-                    id: call_id,
-                    type_: openai::CustomToolChoiceType::Custom,
-                    custom: openai::CustomToolCall {
-                        input,
-                        name,
+                } => calls.push(openai::ChatToolCall::Custom(crate::wire!(
+                    openai::ChatCustomToolCall {
+                        id: call_id,
+                        type_: openai::CustomToolChoiceType::Custom,
+                        custom: openai::CustomToolCall {
+                            input,
+                            name,
+                            rest: Default::default(),
+                        },
                         rest: Default::default(),
-                    },
-                    rest: Default::default(),
-                })),
+                    }
+                ))),
                 openai::TypedResponseItem::ShellCall {
                     action, call_id, ..
                 } => {
@@ -105,9 +121,9 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
     } else {
         openai::ChatFinishReason::Stop
     };
-    let output = openai::ChatCompletionResponse {
+    let output = crate::wire!(openai::ChatCompletionResponse {
         id: input.id,
-        choices: vec![openai::ChatCompletionChoice {
+        choices: vec![crate::wire!(openai::ChatCompletionChoice {
             finish_reason,
             index: 0,
             logprobs: None,
@@ -123,7 +139,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 rest: Default::default(),
             },
             rest: Default::default(),
-        }],
+        })],
         created: input.created_at,
         model: input
             .model
@@ -134,8 +150,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         system_fingerprint: None,
         usage: input.usage.map(usage::responses_to_chat),
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn joined(parts: Vec<String>) -> Option<String> {
@@ -155,7 +171,7 @@ fn chat_annotation(annotation: openai::ResponseAnnotation) -> Option<openai::Cha
             title,
             url,
             ..
-        } => Some(openai::ChatAnnotation {
+        } => Some(crate::wire!(openai::ChatAnnotation {
             type_: openai::ChatAnnotationType::UrlCitation,
             url_citation: openai::UrlCitation {
                 end_index,
@@ -165,13 +181,13 @@ fn chat_annotation(annotation: openai::ResponseAnnotation) -> Option<openai::Cha
                 rest: Default::default(),
             },
             rest: Default::default(),
-        }),
+        })),
         _ => None,
     }
 }
 
 fn function_call(id: String, name: &str, arguments: String) -> openai::ChatToolCall {
-    openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
+    openai::ChatToolCall::Function(crate::wire!(openai::ChatFunctionToolCall {
         id,
         type_: openai::FunctionToolChoiceType::Function,
         function: openai::FunctionCall {
@@ -180,5 +196,5 @@ fn function_call(id: String, name: &str, arguments: String) -> openai::ChatToolC
             rest: Default::default(),
         },
         rest: Default::default(),
-    })
+    }))
 }

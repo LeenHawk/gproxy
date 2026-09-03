@@ -31,13 +31,15 @@ pub(super) fn message_items(
     };
     let blocks = match message.content {
         claude::StringOrArray::String(text) => {
-            vec![claude::ContentBlockParam::Text(claude::TextBlock {
-                text,
-                type_: claude::TextBlockType::Text,
-                cache_control: None,
-                citations: None,
-                rest: Default::default(),
-            })]
+            vec![claude::ContentBlockParam::Text(crate::wire!(
+                claude::TextBlock {
+                    text,
+                    type_: claude::TextBlockType::Text,
+                    cache_control: None,
+                    citations: None,
+                    rest: Default::default(),
+                }
+            ))]
         }
         claude::StringOrArray::Array(blocks) => blocks,
         claude::StringOrArray::Raw(_) => return Ok(Vec::new()),
@@ -159,15 +161,15 @@ pub(super) fn message_items(
         let content = responses::claude_to_input(message_blocks)?;
         output.insert(
             0,
-            openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
+            openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(crate::wire!(
                 openai::ResponseEasyInputMessageItem {
                     type_: Some(openai::ResponseMessageItemType::Message),
                     role,
                     content: openai::ResponseEasyInputContent::Parts(content),
                     phase: None,
                     rest: Default::default(),
-                },
-            )),
+                }
+            ))),
         );
     }
     Ok(output)

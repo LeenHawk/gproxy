@@ -41,6 +41,8 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::TypedResponseItem::AgentMessage { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
             | openai::TypedResponseItem::ItemReference { .. } => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => None,
         },
         openai::ResponseItem::Message(
             openai::ResponseMessageItem::Input(_)
@@ -48,5 +50,7 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::ResponseMessageItem::Unknown(_),
         )
         | openai::ResponseItem::Unknown(_) => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => None,
     }
 }

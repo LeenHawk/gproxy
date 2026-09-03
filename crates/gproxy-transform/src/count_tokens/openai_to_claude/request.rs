@@ -3,7 +3,15 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 
 pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes, TransformError> {
-    let mut input: openai::ResponseInputTokensRequest = serde_json::from_slice(&body)?;
+    let input: openai::ResponseInputTokensRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    mut input: openai::ResponseInputTokensRequest,
+    model: &str,
+) -> Result<gproxy_protocol::claude::CountTokensRequestBody, TransformError> {
     let text = input_text(input.input.take());
     let mut output =
         crate::generate_content::openai_responses_to_claude_messages::request::count_tokens(
@@ -12,7 +20,7 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
     output.messages = if text.is_empty() {
         Vec::new()
     } else {
-        vec![gproxy_protocol::claude::MessageParam {
+        vec![crate::wire!(gproxy_protocol::claude::MessageParam {
             role: gproxy_protocol::claude::MessageRole::Known(
                 gproxy_protocol::claude::MessageRoleKnown::User,
             ),
@@ -20,9 +28,9 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
             clear_at: None,
             output_config: None,
             rest: Default::default(),
-        }]
+        })]
     };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    Ok(output)
 }
 
 fn input_text(input: Option<openai::ResponseInput>) -> String {
@@ -53,11 +61,15 @@ fn item_text(item: openai::ResponseItem) -> String {
                 openai::ResponseMessageOutputContentPart::OutputText(part) => part.text,
                 openai::ResponseMessageOutputContentPart::Refusal(part) => part.refusal,
                 openai::ResponseMessageOutputContentPart::Unknown(_) => String::new(),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => String::new(),
             })
             .collect(),
         openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_))
         | openai::ResponseItem::Typed(_)
         | openai::ResponseItem::Unknown(_) => String::new(),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => String::new(),
     }
 }
 
@@ -71,9 +83,13 @@ fn easy_text(content: openai::ResponseEasyInputContent) -> String {
                 openai::ResponseMessageOutputContentPart::OutputText(part) => part.text,
                 openai::ResponseMessageOutputContentPart::Refusal(part) => part.refusal,
                 openai::ResponseMessageOutputContentPart::Unknown(_) => String::new(),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => String::new(),
             })
             .collect(),
         openai::ResponseEasyInputContent::Unknown(_) => String::new(),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => String::new(),
     }
 }
 
@@ -85,6 +101,8 @@ fn input_parts_text(parts: Vec<openai::ResponseInputContentPart>) -> String {
             openai::ResponseInputContentPart::InputImage(_)
             | openai::ResponseInputContentPart::InputFile(_)
             | openai::ResponseInputContentPart::InputAudio(_) => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => None,
         })
         .collect()
 }

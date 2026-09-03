@@ -10,6 +10,15 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: gemini::GenerateContentRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: gemini::GenerateContentRequest,
+    model: &str,
+    stream: bool,
+) -> Result<openai::ChatCompletionRequest, TransformError> {
     let search = has_search(input.tools.as_ref());
     let mut messages = Vec::new();
     if let Some(system) = input.system_instruction {
@@ -25,7 +34,7 @@ pub(crate) fn transform(
     }
     messages.extend(content::messages(input.contents)?);
     let config = config::to_chat(input.generation_config)?;
-    let output = openai::ChatCompletionRequest {
+    let output = crate::wire!(openai::ChatCompletionRequest {
         messages,
         model: model.into(),
         audio: None,
@@ -72,8 +81,8 @@ pub(crate) fn transform(
             rest: Default::default(),
         }),
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn has_search(tools: Option<&Vec<gemini::Tool>>) -> bool {

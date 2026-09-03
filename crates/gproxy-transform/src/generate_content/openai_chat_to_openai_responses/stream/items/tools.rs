@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -11,7 +10,7 @@ impl State {
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn start_tool(
         &mut self,
         start: ToolStart,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let ToolStart {
             source_id,
             call_id,
@@ -45,7 +44,7 @@ impl State {
                 data: String::new(),
             },
         );
-        let call = openai::ChatToolCallDelta {
+        let call = crate::wire!(openai::ChatToolCallDelta {
             index,
             id: Some(call_id),
             type_: Some(match kind {
@@ -63,12 +62,12 @@ impl State {
                 rest: Default::default(),
             }),
             rest: Default::default(),
-        };
+        });
         Ok(vec![self.chunk(
-            openai::ChatDelta {
+            crate::wire!(openai::ChatDelta {
                 tool_calls: Some(vec![call]),
                 ..empty_delta()
-            },
+            }),
             None,
             None,
         )?])
@@ -80,7 +79,7 @@ impl State {
         output_index: u32,
         kind: ToolKind,
         full: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let tool = self.tools.get_mut(id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool done before output item")
         })?;
@@ -105,10 +104,10 @@ impl State {
         index: u32,
         kind: ToolKind,
         delta: String,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<openai::ChatCompletionChunk, TransformError> {
         self.chunk(
-            openai::ChatDelta {
-                tool_calls: Some(vec![openai::ChatToolCallDelta {
+            crate::wire!(openai::ChatDelta {
+                tool_calls: Some(vec![crate::wire!(openai::ChatToolCallDelta {
                     index,
                     id: None,
                     type_: None,
@@ -123,9 +122,9 @@ impl State {
                         rest: Default::default(),
                     }),
                     rest: Default::default(),
-                }]),
+                })]),
                 ..empty_delta()
-            },
+            }),
             None,
             None,
         )

@@ -10,15 +10,17 @@ pub(super) fn function_call_block(
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let input = call.args.unwrap_or_default();
     let id = correlation.function_call(call.id, &call.name);
-    Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-        id,
-        input,
-        name: call.name,
-        type_: claude::ToolUseBlockType::ToolUse,
-        cache_control: None,
-        caller: None,
-        rest: Default::default(),
-    }))
+    Ok(claude::ContentBlockParam::ToolUse(crate::wire!(
+        claude::ToolUseBlock {
+            id,
+            input,
+            name: call.name,
+            type_: claude::ToolUseBlockType::ToolUse,
+            cache_control: None,
+            caller: None,
+            rest: Default::default(),
+        }
+    )))
 }
 
 pub(super) fn function_result_block(
@@ -27,7 +29,7 @@ pub(super) fn function_result_block(
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let id = correlation.function_result(response.id, &response.name)?;
     let (content, is_error) = function_response_text(response.response)?;
-    Ok(claude::ContentBlockParam::ToolResult(
+    Ok(claude::ContentBlockParam::ToolResult(crate::wire!(
         claude::ToolResultBlock {
             tool_use_id: id,
             type_: claude::ToolResultBlockType::ToolResult,
@@ -35,8 +37,8 @@ pub(super) fn function_result_block(
             content,
             is_error,
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn server_call_block(
@@ -46,15 +48,17 @@ pub(super) fn server_call_block(
     let name = crate::models::common::wire_string(&call.tool_type)?;
     let input = call.args.unwrap_or_default();
     let id = correlation.function_call(call.id, &name);
-    Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-        id,
-        input,
-        name,
-        type_: claude::ToolUseBlockType::ToolUse,
-        cache_control: None,
-        caller: None,
-        rest: Default::default(),
-    }))
+    Ok(claude::ContentBlockParam::ToolUse(crate::wire!(
+        claude::ToolUseBlock {
+            id,
+            input,
+            name,
+            type_: claude::ToolUseBlockType::ToolUse,
+            cache_control: None,
+            caller: None,
+            rest: Default::default(),
+        }
+    )))
 }
 
 pub(super) fn server_result_block(
@@ -64,7 +68,7 @@ pub(super) fn server_result_block(
     let name = crate::models::common::wire_string(&response.tool_type)?;
     let id = correlation.function_result(response.id, &name)?;
     let content = response.response.map(response_text).transpose()?.flatten();
-    Ok(claude::ContentBlockParam::ToolResult(
+    Ok(claude::ContentBlockParam::ToolResult(crate::wire!(
         claude::ToolResultBlock {
             tool_use_id: id,
             type_: claude::ToolResultBlockType::ToolResult,
@@ -72,18 +76,18 @@ pub(super) fn server_result_block(
             content,
             is_error: None,
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn text_block(text: String) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::Text(claude::TextBlock {
+    claude::ContentBlockParam::Text(crate::wire!(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
         cache_control: None,
         citations: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn response_text(

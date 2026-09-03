@@ -78,7 +78,7 @@ fn choice_with_names(
             }
         });
     };
-    openai::ResponseToolChoice::Allowed(openai::ResponseAllowedToolChoice {
+    openai::ResponseToolChoice::Allowed(crate::wire!(openai::ResponseAllowedToolChoice {
         mode,
         tools: names
             .into_iter()
@@ -89,5 +89,5 @@ fn choice_with_names(
             .collect(),
         type_: openai::AllowedToolsType::AllowedTools,
         rest: Default::default(),
-    })
+    }))
 }

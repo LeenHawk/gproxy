@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -7,7 +6,7 @@ use super::State;
 use super::events::emit;
 
 impl State {
-    pub(super) fn stop(&mut self) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn stop(&mut self) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         if self.stopped {
             return Ok(Vec::new());
         }
@@ -28,11 +27,11 @@ impl State {
             | openai::ChatFinishReason::Unknown(_) => openai::ResponseStatus::Completed,
         };
         let response = self.response(status.clone())?;
-        let event = openai::ResponseLifecycleEvent {
+        let event = crate::wire!(openai::ResponseLifecycleEvent {
             response: Box::new(response),
             sequence_number: Some(self.next_sequence()),
             rest: Default::default(),
-        };
+        });
         self.stopped = true;
         Ok(vec![emit(match status {
             openai::ResponseStatus::Incomplete => {

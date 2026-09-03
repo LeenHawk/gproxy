@@ -5,6 +5,13 @@ use crate::common::{stop, usage};
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionResponse = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ChatCompletionResponse,
+) -> Result<claude::CreateMessageResponseBody, TransformError> {
     let choice = input.choices.into_iter().next();
     let mut blocks = Vec::new();
     if let Some(reasoning) = choice
@@ -12,42 +19,42 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         .and_then(|choice| choice.message.reasoning_content.clone())
         .filter(|value| !value.is_empty())
     {
-        blocks.push(claude::ResponseContentBlock::Thinking(
+        blocks.push(claude::ResponseContentBlock::Thinking(crate::wire!(
             claude::ThinkingBlock {
                 signature: None,
                 thinking: reasoning,
                 type_: claude::ThinkingBlockType::Thinking,
                 rest: Default::default(),
-            },
-        ));
+            }
+        )));
     }
     if let Some(text) = choice
         .as_ref()
         .and_then(|choice| choice.message.content.clone())
         .filter(|value| !value.is_empty())
     {
-        blocks.push(claude::ResponseContentBlock::Text(
+        blocks.push(claude::ResponseContentBlock::Text(crate::wire!(
             claude::ResponseTextBlock {
                 citations: None,
                 text,
                 type_: claude::TextBlockType::Text,
                 rest: Default::default(),
-            },
-        ));
+            }
+        )));
     }
     let has_refusal = if let Some(refusal) = choice
         .as_ref()
         .and_then(|choice| choice.message.refusal.clone())
         .filter(|value| !value.is_empty())
     {
-        blocks.push(claude::ResponseContentBlock::Text(
+        blocks.push(claude::ResponseContentBlock::Text(crate::wire!(
             claude::ResponseTextBlock {
                 citations: None,
                 text: refusal,
                 type_: claude::TextBlockType::Text,
                 rest: Default::default(),
-            },
-        ));
+            }
+        )));
         true
     } else {
         false
@@ -59,7 +66,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         for call in calls {
             match call {
                 openai::ChatToolCall::Function(call) => {
-                    blocks.push(claude::ResponseContentBlock::ToolUse(
+                    blocks.push(claude::ResponseContentBlock::ToolUse(crate::wire!(
                         claude::ResponseToolUseBlock {
                             id: call.id,
                             input: serde_json::from_str(&call.function.arguments)
@@ -68,11 +75,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
                             rest: Default::default(),
-                        },
-                    ));
+                        }
+                    )));
                 }
                 openai::ChatToolCall::Custom(call) => {
-                    blocks.push(claude::ResponseContentBlock::ToolUse(
+                    blocks.push(claude::ResponseContentBlock::ToolUse(crate::wire!(
                         claude::ResponseToolUseBlock {
                             id: call.id,
                             input: serde_json::from_str(&call.custom.input).unwrap_or_default(),
@@ -80,25 +87,32 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                             type_: claude::ToolUseBlockType::ToolUse,
                             caller: None,
                             rest: Default::default(),
-                        },
-                    ));
+                        }
+                    )));
                 }
                 openai::ChatToolCall::Unknown(_) => {}
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             }
         }
     }
     if blocks.is_empty() {
-        blocks.push(claude::ResponseContentBlock::Text(
+        blocks.push(claude::ResponseContentBlock::Text(crate::wire!(
             claude::ResponseTextBlock {
                 citations: None,
                 text: String::new(),
                 type_: claude::TextBlockType::Text,
                 rest: Default::default(),
-            },
-        ));
+            }
+        )));
     }
     let usage = usage::chat_to_claude(input.usage).unwrap_or_else(empty_usage);
-    let output = claude::CreateMessageResponseBody {
+    let output = crate::wire!(claude::CreateMessageResponseBody {
         id: input.id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -128,12 +142,12 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         input_transformations: None,
         stop_details: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn empty_usage() -> claude::Usage {
-    claude::Usage {
+    crate::wire!(claude::Usage {
         input_tokens: Some(0),
         output_tokens: Some(0),
         cache_creation_input_tokens: None,
@@ -146,5 +160,5 @@ fn empty_usage() -> claude::Usage {
         service_tier: None,
         speed: None,
         rest: Default::default(),
-    }
+    })
 }

@@ -13,6 +13,13 @@ pub(super) fn user_part(
         openai::ChatContentPart::InputAudio(part) => audio_part(part)?,
         openai::ChatContentPart::File(part) => file_part(part)?,
         openai::ChatContentPart::Unknown(_) => return Ok(None),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }))
 }
 
@@ -27,7 +34,7 @@ fn audio_part(part: openai::ChatInputAudioPart) -> Result<gemini::Part, Transfor
             ));
         }
     };
-    Ok(gemini::Part {
+    Ok(crate::wire!(gemini::Part {
         data: Some(gemini::PartData::InlineData {
             inline_data: gemini::Blob {
                 mime_type: mime_type.into(),
@@ -38,7 +45,7 @@ fn audio_part(part: openai::ChatInputAudioPart) -> Result<gemini::Part, Transfor
         }),
         rest: Default::default(),
         ..Default::default()
-    })
+    }))
 }
 
 fn file_part(part: openai::ChatFilePart) -> Result<gemini::Part, TransformError> {
@@ -63,7 +70,7 @@ fn uri_part(uri: String) -> gemini::Part {
 }
 
 fn inline_part(mime_type: String, data: String) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         data: Some(gemini::PartData::InlineData {
             inline_data: gemini::Blob {
                 mime_type,
@@ -74,11 +81,11 @@ fn inline_part(mime_type: String, data: String) -> gemini::Part {
         }),
         rest: Default::default(),
         ..Default::default()
-    }
+    })
 }
 
 fn file_uri_part(uri: String, mime_type: Option<String>) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         data: Some(gemini::PartData::FileData {
             file_data: gemini::FileData {
                 mime_type,
@@ -89,7 +96,7 @@ fn file_uri_part(uri: String, mime_type: Option<String>) -> gemini::Part {
         }),
         rest: Default::default(),
         ..Default::default()
-    }
+    })
 }
 
 fn data_url(value: &str) -> Option<(String, String)> {

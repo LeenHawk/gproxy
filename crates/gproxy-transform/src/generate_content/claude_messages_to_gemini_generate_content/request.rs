@@ -9,11 +9,20 @@ pub(crate) fn transform(
     model: &str,
     _stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
-    let mut input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, _stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    mut input: claude::CreateMessageRequestBody,
+    model: &str,
+    _stream: bool,
+) -> Result<gemini::GenerateContentRequest, TransformError> {
     crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let generation_config = config::generation(&input)?;
     let tool_config = tools::choice(input.tool_choice);
-    let output = gemini::GenerateContentRequest {
+    let output = crate::wire!(gemini::GenerateContentRequest {
         model: Some(model.to_owned()),
         contents: content::request_messages(input.messages)?,
         tools: {
@@ -28,6 +37,6 @@ pub(crate) fn transform(
         service_tier: config::request_tier(input.speed, input.service_tier),
         store: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }

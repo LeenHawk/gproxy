@@ -5,33 +5,52 @@ use gproxy_protocol::openai::images as openai_images;
 use crate::TransformError;
 
 pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Bytes, TransformError> {
-    let (input, images, mask) = if edit {
+    if edit {
         let input: openai_images::EditImageRequest = serde_json::from_slice(&body)?;
-        let create = openai_images::CreateImageRequest {
-            prompt: input.prompt,
-            background: input.background,
-            model: input.model,
-            moderation: input.moderation,
-            n: input.n,
-            output_compression: input.output_compression,
-            output_format: input.output_format,
-            partial_images: input.partial_images,
-            quality: None,
-            response_format: None,
-            size: None,
-            stream: input.stream,
-            style: None,
-            user: input.user,
-            rest: Default::default(),
-        };
-        (create, input.images, input.mask)
-    } else {
-        (
-            serde_json::from_slice::<openai_images::CreateImageRequest>(&body)?,
-            Vec::new(),
-            None,
-        )
-    };
+        return super::encode(&edit_image_request_typed(input, model));
+    }
+    let input: openai_images::CreateImageRequest = serde_json::from_slice(&body)?;
+    super::encode(&create_image_request_typed(input, model))
+}
+
+pub(crate) fn create_image_request_typed(
+    input: openai_images::CreateImageRequest,
+    model: &str,
+) -> openai::ResponseCreateRequest {
+    build_image_request(input, Vec::new(), None, model, false)
+}
+
+pub(crate) fn edit_image_request_typed(
+    input: openai_images::EditImageRequest,
+    model: &str,
+) -> openai::ResponseCreateRequest {
+    let create = crate::wire!(openai_images::CreateImageRequest {
+        prompt: input.prompt,
+        background: input.background,
+        model: input.model,
+        moderation: input.moderation,
+        n: input.n,
+        output_compression: input.output_compression,
+        output_format: input.output_format,
+        partial_images: input.partial_images,
+        quality: None,
+        response_format: None,
+        size: None,
+        stream: input.stream,
+        style: None,
+        user: input.user,
+        rest: Default::default(),
+    });
+    build_image_request(create, input.images, input.mask, model, true)
+}
+
+fn build_image_request(
+    input: openai_images::CreateImageRequest,
+    images: Vec<openai_images::ImageReference>,
+    mask: Option<openai_images::ImageReference>,
+    model: &str,
+    edit: bool,
+) -> openai::ResponseCreateRequest {
     let action = if edit {
         openai::ImageGenerationAction::Edit
     } else {
@@ -41,10 +60,12 @@ pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Byte
         action: Some(action),
         background: input.background,
         input_fidelity: None,
-        input_image_mask: mask.map(|mask| openai::ImageMask {
-            file_id: mask.file_id,
-            image_url: mask.image_url,
-            rest: Default::default(),
+        input_image_mask: mask.map(|mask| {
+            crate::wire!(openai::ImageMask {
+                file_id: mask.file_id,
+                image_url: mask.image_url,
+                rest: Default::default(),
+            })
         }),
         model: input.model.clone(),
         moderation: input.moderation,
@@ -62,34 +83,34 @@ pub(crate) fn image_request(body: Bytes, model: &str, edit: bool) -> Result<Byte
     let response_input = if images.is_empty() {
         openai::ResponseInput::Text(input.prompt)
     } else {
-        let mut content = vec![openai::ResponseInputContentPart::InputText(
+        let mut content = vec![openai::ResponseInputContentPart::InputText(crate::wire!(
             openai::ResponseInputText {
                 text: input.prompt,
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
-            },
-        )];
+            }
+        ))];
         content.extend(images.into_iter().map(|image| {
-            openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
+            openai::ResponseInputContentPart::InputImage(crate::wire!(openai::ResponseInputImage {
                 detail: None,
                 file_id: image.file_id,
                 image_url: image.image_url,
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
-            })
+            }))
         }));
         openai::ResponseInput::Items(vec![openai::ResponseItem::Message(
-            openai::ResponseMessageItem::Input(openai::ResponseInputMessageItem {
+            openai::ResponseMessageItem::Input(crate::wire!(openai::ResponseInputMessageItem {
                 id: None,
                 type_: Some(openai::ResponseMessageItemType::Message),
                 role: openai::ResponseInputMessageRole::User,
                 content,
                 status: None,
                 rest: Default::default(),
-            }),
+            })),
         )])
     };
-    super::encode(&openai::ResponseCreateRequest {
+    crate::wire!(openai::ResponseCreateRequest {
         input: Some(response_input),
         model: input.model.or_else(|| Some(model.into())),
         tools: Some(vec![tool]),
@@ -105,12 +126,28 @@ pub(crate) fn responses_request(
     edit: bool,
 ) -> Result<Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
+    match responses_request_typed(input, model, edit) {
+        OpenAiImageRequest::Create(request) => super::encode(&request),
+        OpenAiImageRequest::Edit(request) => super::encode(&request),
+    }
+}
+
+enum OpenAiImageRequest {
+    Create(openai_images::CreateImageRequest),
+    Edit(openai_images::EditImageRequest),
+}
+
+fn responses_request_typed(
+    input: openai::ResponseCreateRequest,
+    model: &str,
+    edit: bool,
+) -> OpenAiImageRequest {
     let prompt = match input.input {
         Some(openai::ResponseInput::Text(text)) => text,
         _ => input.instructions.unwrap_or_default(),
     };
     if edit {
-        return super::encode(&openai_images::EditImageRequest {
+        return OpenAiImageRequest::Edit(crate::wire!(openai_images::EditImageRequest {
             images: Vec::new(),
             prompt,
             model: Some(model.into()),
@@ -127,9 +164,9 @@ pub(crate) fn responses_request(
             size: None,
             stream: input.stream,
             user: None,
-        });
+        }));
     }
-    super::encode(&openai_images::CreateImageRequest {
+    OpenAiImageRequest::Create(crate::wire!(openai_images::CreateImageRequest {
         prompt,
         model: Some(model.into()),
         stream: input.stream,
@@ -145,11 +182,37 @@ pub(crate) fn responses_request(
         size: None,
         style: None,
         user: None,
-    })
+    }))
+}
+
+pub(crate) fn responses_to_create_request_typed(
+    input: openai::ResponseCreateRequest,
+    model: &str,
+) -> openai_images::CreateImageRequest {
+    let OpenAiImageRequest::Create(request) = responses_request_typed(input, model, false) else {
+        unreachable!("create mode returns a create request")
+    };
+    request
+}
+
+pub(crate) fn responses_to_edit_request_typed(
+    input: openai::ResponseCreateRequest,
+    model: &str,
+) -> openai_images::EditImageRequest {
+    let OpenAiImageRequest::Edit(request) = responses_request_typed(input, model, true) else {
+        unreachable!("edit mode returns an edit request")
+    };
+    request
 }
 
 pub(crate) fn responses_to_images(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai::ResponseObject = serde_json::from_slice(&body)?;
+    super::encode(&responses_to_images_typed(input))
+}
+
+pub(crate) fn responses_to_images_typed(
+    input: openai::ResponseObject,
+) -> openai_images::ImagesResponse {
     let data = input
         .output
         .into_iter()
@@ -157,18 +220,18 @@ pub(crate) fn responses_to_images(body: Bytes) -> Result<Bytes, TransformError> 
             openai::ResponseItem::Typed(item) => match *item {
                 openai::TypedResponseItem::ImageGenerationCall {
                     result: Some(data), ..
-                } => Some(openai_images::Image {
+                } => Some(crate::wire!(openai_images::Image {
                     b64_json: Some(data),
                     revised_prompt: None,
                     url: None,
                     rest: Default::default(),
-                }),
+                })),
                 _ => None,
             },
             _ => None,
         })
         .collect();
-    super::encode(&openai_images::ImagesResponse {
+    crate::wire!(openai_images::ImagesResponse {
         created: input.created_at.unwrap_or_default(),
         data: Some(data),
         rest: Default::default(),
@@ -193,6 +256,12 @@ pub(crate) fn responses_to_images(body: Bytes) -> Result<Bytes, TransformError> 
 
 pub(crate) fn images_to_responses(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_images::ImagesResponse = serde_json::from_slice(&body)?;
+    super::encode(&images_to_responses_typed(input))
+}
+
+pub(crate) fn images_to_responses_typed(
+    input: openai_images::ImagesResponse,
+) -> openai::ResponseObject {
     let output = input
         .data
         .unwrap_or_default()
@@ -211,15 +280,17 @@ pub(crate) fn images_to_responses(body: Bytes) -> Result<Bytes, TransformError> 
             })
         })
         .collect();
-    let usage = input.usage.map(|usage| openai::ResponseUsage {
-        input_tokens: u32::try_from(usage.input_tokens).unwrap_or(u32::MAX),
-        output_tokens: u32::try_from(usage.output_tokens).unwrap_or(u32::MAX),
-        total_tokens: u32::try_from(usage.total_tokens).unwrap_or(u32::MAX),
-        input_tokens_details: None,
-        output_tokens_details: None,
-        rest: Default::default(),
+    let usage = input.usage.map(|usage| {
+        crate::wire!(openai::ResponseUsage {
+            input_tokens: u32::try_from(usage.input_tokens).unwrap_or(u32::MAX),
+            output_tokens: u32::try_from(usage.output_tokens).unwrap_or(u32::MAX),
+            total_tokens: u32::try_from(usage.total_tokens).unwrap_or(u32::MAX),
+            input_tokens_details: None,
+            output_tokens_details: None,
+            rest: Default::default(),
+        })
     });
-    super::encode(&openai::ResponseObject {
+    crate::wire!(openai::ResponseObject {
         id: format!("resp_image_{}", input.created),
         created_at: Some(input.created),
         object: openai::ResponseObjectType::Response,

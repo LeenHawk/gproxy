@@ -94,21 +94,21 @@ pub(super) fn convert(mut value: serde_json::Value) -> Result<claude::JsonSchema
         .map(serde_json::from_value)
         .transpose()?
         .unwrap_or_else(Vec::new);
-    Ok(claude::JsonSchema {
+    Ok(crate::wire!(claude::JsonSchema {
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties,
         required,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn empty() -> claude::JsonSchema {
-    claude::JsonSchema {
+    crate::wire!(claude::JsonSchema {
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties: Default::default(),
         required: Vec::new(),
         rest: Default::default(),
-    }
+    })
 }
 
 fn take_object(

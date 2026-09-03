@@ -1,12 +1,7 @@
-use bytes::Bytes;
 use gproxy_protocol::claude;
 
-use crate::TransformError;
-use crate::envelope::SseFrame;
-
-pub(super) fn encode(event: claude::KnownStreamEvent) -> Result<Bytes, TransformError> {
-    let name = event.event_name();
-    SseFrame::typed(Some(name), &claude::StreamEvent::Known(Box::new(event)))
+pub(super) fn wrap(event: claude::KnownStreamEvent) -> claude::StreamEvent {
+    claude::StreamEvent::Known(Box::new(event))
 }
 
 pub(super) fn start(
@@ -15,7 +10,7 @@ pub(super) fn start(
     _extensions: claude::JsonObject,
 ) -> claude::KnownStreamEvent {
     claude::KnownStreamEvent::MessageStart {
-        message: Box::new(claude::CreateMessageStartBody {
+        message: Box::new(crate::wire!(claude::CreateMessageStartBody {
             id,
             type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
             role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -26,7 +21,7 @@ pub(super) fn start(
             usage: None,
             input_transformations: None,
             rest: Default::default(),
-        }),
+        })),
         rest: Default::default(),
     }
 }
@@ -62,13 +57,13 @@ pub(super) fn message_delta(
 ) -> claude::KnownStreamEvent {
     claude::KnownStreamEvent::MessageDelta {
         context_management: None,
-        delta: Box::new(claude::MessageDelta {
+        delta: Box::new(crate::wire!(claude::MessageDelta {
             container: None,
             stop_reason,
             stop_sequence,
             stop_details: None,
             rest: Default::default(),
-        }),
+        })),
         input_transformations: None,
         usage: usage.map(Box::new),
         rest: Default::default(),

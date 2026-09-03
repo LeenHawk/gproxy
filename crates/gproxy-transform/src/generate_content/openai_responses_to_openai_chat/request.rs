@@ -11,6 +11,15 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ResponseCreateRequest,
+    model: &str,
+    stream: bool,
+) -> Result<openai::ChatCompletionRequest, TransformError> {
     let mut messages = Vec::new();
     match input.input {
         Some(openai::ResponseInput::Text(text)) => messages.push(user_text(text)),
@@ -38,7 +47,7 @@ pub(crate) fn transform(
         ));
     }
     let verbosity = input.text.as_ref().and_then(|text| text.verbosity.clone());
-    let output = openai::ChatCompletionRequest {
+    let output = crate::wire!(openai::ChatCompletionRequest {
         messages,
         model: model.into(),
         audio: None,
@@ -81,8 +90,8 @@ pub(crate) fn transform(
         verbosity,
         web_search_options: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn items_to_messages(
@@ -124,6 +133,13 @@ fn item_messages(
         openai::ResponseItem::Message(message) => Ok(vec![message_to_chat(message)?]),
         openai::ResponseItem::Typed(item) => typed_messages(*item),
         openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -132,19 +148,21 @@ fn message_to_chat(
 ) -> Result<openai::ChatCompletionMessageParam, TransformError> {
     match message {
         openai::ResponseMessageItem::EasyInput(message) => match message.role {
-            openai::ResponseEasyInputMessageRole::Assistant => Ok(
-                openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
-                    role: openai::ChatAssistantRole::Assistant,
-                    content: Some(easy_assistant(message.content)?),
-                    audio: None,
-                    function_call: None,
-                    name: None,
-                    reasoning_content: None,
-                    refusal: None,
-                    tool_calls: None,
-                    rest: Default::default(),
-                }),
-            ),
+            openai::ResponseEasyInputMessageRole::Assistant => {
+                Ok(openai::ChatCompletionMessageParam::Assistant(crate::wire!(
+                    openai::ChatAssistantMessageParam {
+                        role: openai::ChatAssistantRole::Assistant,
+                        content: Some(easy_assistant(message.content)?),
+                        audio: None,
+                        function_call: None,
+                        name: None,
+                        reasoning_content: None,
+                        refusal: None,
+                        tool_calls: None,
+                        rest: Default::default(),
+                    }
+                )))
+            }
             openai::ResponseEasyInputMessageRole::System => Ok(text_message(
                 message.content,
                 openai::ResponseEasyInputMessageRole::System,
@@ -154,6 +172,13 @@ fn message_to_chat(
                 openai::ResponseEasyInputMessageRole::Developer,
             )?),
             openai::ResponseEasyInputMessageRole::User => Ok(user_content(message.content)?),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         },
         openai::ResponseMessageItem::Input(message) => {
             let content = openai::ResponseEasyInputContent::Parts(message.content);
@@ -165,25 +190,41 @@ fn message_to_chat(
                 openai::ResponseInputMessageRole::Developer => {
                     text_message(content, openai::ResponseEasyInputMessageRole::Developer)
                 }
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             }
         }
-        openai::ResponseMessageItem::Output(message) => Ok(
-            openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
-                role: openai::ChatAssistantRole::Assistant,
-                content: Some(output_content(message.content)),
-                audio: None,
-                function_call: None,
-                name: None,
-                reasoning_content: None,
-                refusal: None,
-                tool_calls: None,
-                rest: Default::default(),
-            }),
-        ),
+        openai::ResponseMessageItem::Output(message) => {
+            Ok(openai::ChatCompletionMessageParam::Assistant(crate::wire!(
+                openai::ChatAssistantMessageParam {
+                    role: openai::ChatAssistantRole::Assistant,
+                    content: Some(output_content(message.content)),
+                    audio: None,
+                    function_call: None,
+                    name: None,
+                    reasoning_content: None,
+                    refusal: None,
+                    tool_calls: None,
+                    rest: Default::default(),
+                }
+            )))
+        }
         openai::ResponseMessageItem::Unknown(raw) => Err(TransformError::unsupported(
             "OpenAI Responses message",
             raw.to_string(),
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -197,7 +238,7 @@ fn typed_messages(
             name,
             ..
         } => vec![assistant_call(openai::ChatToolCall::Function(
-            openai::ChatFunctionToolCall {
+            crate::wire!(openai::ChatFunctionToolCall {
                 id: call_id,
                 type_: openai::FunctionToolChoiceType::Function,
                 function: openai::FunctionCall {
@@ -206,14 +247,14 @@ fn typed_messages(
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            },
+            }),
         ))],
         openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
             name,
             ..
-        } => vec![assistant_call(openai::ChatToolCall::Custom(
+        } => vec![assistant_call(openai::ChatToolCall::Custom(crate::wire!(
             openai::ChatCustomToolCall {
                 id: call_id,
                 type_: openai::CustomToolChoiceType::Custom,
@@ -223,25 +264,25 @@ fn typed_messages(
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            },
-        ))],
+            }
+        )))],
         openai::TypedResponseItem::FunctionCallOutput {
             call_id, output, ..
         }
         | openai::TypedResponseItem::CustomToolCallOutput {
             call_id, output, ..
-        } => vec![openai::ChatCompletionMessageParam::Tool(
+        } => vec![openai::ChatCompletionMessageParam::Tool(crate::wire!(
             openai::ChatToolMessageParam {
                 role: openai::ChatToolRole::Tool,
                 content: output_to_chat(output)?,
                 tool_call_id: call_id,
                 rest: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::TypedResponseItem::ApplyPatchCall {
             call_id, operation, ..
         } => vec![assistant_call(openai::ChatToolCall::Function(
-            openai::ChatFunctionToolCall {
+            crate::wire!(openai::ChatFunctionToolCall {
                 id: call_id,
                 type_: openai::FunctionToolChoiceType::Function,
                 function: openai::FunctionCall {
@@ -250,20 +291,20 @@ fn typed_messages(
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            },
+            }),
         ))],
         openai::TypedResponseItem::ApplyPatchCallOutput {
             call_id, output, ..
-        } => vec![openai::ChatCompletionMessageParam::Tool(
+        } => vec![openai::ChatCompletionMessageParam::Tool(crate::wire!(
             openai::ChatToolMessageParam {
                 role: openai::ChatToolRole::Tool,
                 content: openai::ChatTextContent::Text(output.unwrap_or_default()),
                 tool_call_id: call_id,
                 rest: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::TypedResponseItem::Reasoning { content, .. } => {
-            vec![openai::ChatCompletionMessageParam::Assistant(
+            vec![openai::ChatCompletionMessageParam::Assistant(crate::wire!(
                 openai::ChatAssistantMessageParam {
                     role: openai::ChatAssistantRole::Assistant,
                     content: None,
@@ -280,8 +321,8 @@ fn typed_messages(
                     refusal: None,
                     tool_calls: None,
                     rest: Default::default(),
-                },
-            )]
+                }
+            ))]
         }
         _other @ (openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
@@ -308,6 +349,13 @@ fn typed_messages(
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. }) => Vec::new(),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
@@ -326,7 +374,7 @@ fn attach_reasoning(message: &mut openai::ChatCompletionMessageParam, reasoning:
 }
 
 fn reasoning_message(reasoning: String) -> openai::ChatCompletionMessageParam {
-    openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
+    openai::ChatCompletionMessageParam::Assistant(crate::wire!(openai::ChatAssistantMessageParam {
         role: openai::ChatAssistantRole::Assistant,
         content: None,
         audio: None,
@@ -336,7 +384,7 @@ fn reasoning_message(reasoning: String) -> openai::ChatCompletionMessageParam {
         refusal: None,
         tool_calls: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn joined(parts: Vec<String>) -> Option<String> {
@@ -349,7 +397,7 @@ fn joined(parts: Vec<String>) -> Option<String> {
 }
 
 fn assistant_call(call: openai::ChatToolCall) -> openai::ChatCompletionMessageParam {
-    openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
+    openai::ChatCompletionMessageParam::Assistant(crate::wire!(openai::ChatAssistantMessageParam {
         role: openai::ChatAssistantRole::Assistant,
         content: None,
         audio: None,
@@ -359,7 +407,7 @@ fn assistant_call(call: openai::ChatToolCall) -> openai::ChatCompletionMessagePa
         refusal: None,
         tool_calls: Some(vec![call]),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn tool_choice(
@@ -369,24 +417,26 @@ fn tool_choice(
         None => None,
         Some(openai::ResponseToolChoice::Mode(mode)) => Some(openai::ChatToolChoice::Mode(mode)),
         Some(openai::ResponseToolChoice::Function(choice)) => Some(openai::ChatToolChoice::Named(
-            openai::ChatNamedToolChoice::Function(openai::ChatNamedFunctionToolChoice {
-                type_: openai::FunctionToolChoiceType::Function,
-                function: openai::NamedTool {
-                    name: choice.name,
+            openai::ChatNamedToolChoice::Function(crate::wire!(
+                openai::ChatNamedFunctionToolChoice {
+                    type_: openai::FunctionToolChoiceType::Function,
+                    function: openai::NamedTool {
+                        name: choice.name,
+                        rest: Default::default(),
+                    },
                     rest: Default::default(),
-                },
-                rest: Default::default(),
-            }),
+                }
+            )),
         )),
         Some(openai::ResponseToolChoice::Custom(choice)) => Some(openai::ChatToolChoice::Named(
-            openai::ChatNamedToolChoice::Custom(openai::ChatNamedCustomToolChoice {
+            openai::ChatNamedToolChoice::Custom(crate::wire!(openai::ChatNamedCustomToolChoice {
                 type_: openai::CustomToolChoiceType::Custom,
                 custom: openai::NamedTool {
                     name: choice.name,
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            }),
+            })),
         )),
         Some(openai::ResponseToolChoice::Unknown(_)) => None,
         Some(_) => None,

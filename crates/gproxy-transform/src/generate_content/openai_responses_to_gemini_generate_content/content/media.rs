@@ -6,14 +6,14 @@ pub(super) fn input_part(
     part: openai::ResponseInputContentPart,
 ) -> Result<gemini::Part, TransformError> {
     Ok(match part {
-        openai::ResponseInputContentPart::InputText(part) => gemini::Part {
+        openai::ResponseInputContentPart::InputText(part) => crate::wire!(gemini::Part {
             data: Some(gemini::PartData::Text {
                 text: part.text,
                 rest: Default::default(),
             }),
             rest: Default::default(),
             ..Default::default()
-        },
+        }),
         openai::ResponseInputContentPart::InputImage(part) => {
             let uri = part.image_url.or(part.file_id).ok_or_else(|| {
                 TransformError::shape(
@@ -59,11 +59,18 @@ pub(super) fn input_part(
             };
             inline_part(mime.into(), part.input_audio.data)
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
 fn inline_part(mime: String, data: String) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         data: Some(gemini::PartData::InlineData {
             inline_data: gemini::Blob {
                 mime_type: mime,
@@ -74,11 +81,11 @@ fn inline_part(mime: String, data: String) -> gemini::Part {
         }),
         rest: Default::default(),
         ..Default::default()
-    }
+    })
 }
 
 fn file_part(uri: String, mime: Option<String>) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         data: Some(gemini::PartData::FileData {
             file_data: gemini::FileData {
                 mime_type: mime,
@@ -89,7 +96,7 @@ fn file_part(uri: String, mime: Option<String>) -> gemini::Part {
         }),
         rest: Default::default(),
         ..Default::default()
-    }
+    })
 }
 
 fn data_uri(value: &str) -> Option<(String, String)> {

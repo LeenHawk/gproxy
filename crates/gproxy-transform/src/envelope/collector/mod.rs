@@ -54,6 +54,13 @@ impl ResponseCollector {
             }
             ContentGenerationKind::ClaudeMessages => Collector::Claude(Box::default()),
             ContentGenerationKind::GeminiGenerateContent => Collector::Gemini(Box::default()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         Ok(Self {
             decoder: SseDecoder::default(),

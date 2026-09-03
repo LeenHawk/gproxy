@@ -1,19 +1,16 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 use crate::common::{stop, usage};
-use crate::envelope::SseFrame;
 use crate::models::common::wire_string;
 
 use super::openai_to_claude::{Scalar, State};
 
 impl State {
-    pub(super) fn chat(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        if frame.data == "[DONE]" {
-            return self.stop();
-        }
-        let chunk: openai::ChatCompletionChunk = serde_json::from_str(&frame.data)?;
+    pub(crate) fn push_chat_typed(
+        &mut self,
+        chunk: openai::ChatCompletionChunk,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         self.id = Some(chunk.id);
         self.model = Some(wire_string(&chunk.model)?.into());
         let mut output = self.ensure_start()?;
@@ -67,14 +64,16 @@ impl State {
                     })?;
                     output.extend(self.block_start(
                         index,
-                        claude::ResponseContentBlock::ToolUse(claude::ResponseToolUseBlock {
-                            id,
-                            input: Default::default(),
-                            name,
-                            type_: claude::ToolUseBlockType::ToolUse,
-                            caller: None,
-                            rest: Default::default(),
-                        }),
+                        claude::ResponseContentBlock::ToolUse(crate::wire!(
+                            claude::ResponseToolUseBlock {
+                                id,
+                                input: Default::default(),
+                                name,
+                                type_: claude::ToolUseBlockType::ToolUse,
+                                caller: None,
+                                rest: Default::default(),
+                            }
+                        )),
                     )?);
                     self.item_indices.insert(key.clone(), index);
                     index

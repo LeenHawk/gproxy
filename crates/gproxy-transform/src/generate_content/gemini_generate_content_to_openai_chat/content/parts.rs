@@ -9,14 +9,14 @@ pub(super) fn user_part(
         return Ok(None);
     };
     Ok(match data {
-        gemini::PartData::Text { text, .. } => {
-            Some(openai::ChatContentPart::Text(openai::ChatTextPart {
+        gemini::PartData::Text { text, .. } => Some(openai::ChatContentPart::Text(crate::wire!(
+            openai::ChatTextPart {
                 type_: openai::ChatTextPartType::Text,
                 text,
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
-            }))
-        }
+            }
+        ))),
         gemini::PartData::InlineData { inline_data, .. } => Some(inline_data_part(inline_data)?),
         gemini::PartData::FileData { file_data, .. } => Some(file_data_part(file_data)),
         gemini::PartData::Raw(_) => None,
@@ -39,12 +39,12 @@ pub(super) fn text_content(parts: Vec<openai::ChatContentPart>) -> openai::ChatC
 }
 
 pub(super) fn text_part(text: String) -> openai::ChatTextContentPart {
-    openai::ChatTextContentPart::Text(openai::ChatTextPart {
+    openai::ChatTextContentPart::Text(crate::wire!(openai::ChatTextPart {
         type_: openai::ChatTextPartType::Text,
         text,
         prompt_cache_breakpoint: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn inline_data_part(data: gemini::Blob) -> Result<openai::ChatContentPart, TransformError> {
@@ -52,11 +52,11 @@ fn inline_data_part(data: gemini::Blob) -> Result<openai::ChatContentPart, Trans
         return Ok(openai::ChatContentPart::ImageUrl(
             openai::ChatImageUrlPart {
                 type_: openai::ChatImageUrlPartType::ImageUrl,
-                image_url: openai::ImageUrl {
+                image_url: crate::wire!(openai::ImageUrl {
                     url: format!("data:{};base64,{}", data.mime_type, data.data),
                     detail: None,
                     rest: Default::default(),
-                },
+                }),
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
             },
@@ -71,11 +71,11 @@ fn inline_data_part(data: gemini::Blob) -> Result<openai::ChatContentPart, Trans
         return Ok(openai::ChatContentPart::InputAudio(
             openai::ChatInputAudioPart {
                 type_: openai::ChatInputAudioPartType::InputAudio,
-                input_audio: openai::InputAudio {
+                input_audio: crate::wire!(openai::InputAudio {
                     data: data.data,
                     format,
                     rest: Default::default(),
-                },
+                }),
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
             },
@@ -83,12 +83,12 @@ fn inline_data_part(data: gemini::Blob) -> Result<openai::ChatContentPart, Trans
     }
     Ok(openai::ChatContentPart::File(openai::ChatFilePart {
         type_: openai::ChatFilePartType::File,
-        file: openai::ChatFileRef {
+        file: crate::wire!(openai::ChatFileRef {
             file_data: Some(format!("data:{};base64,{}", data.mime_type, data.data)),
             file_id: None,
             filename: None,
             rest: Default::default(),
-        },
+        }),
         prompt_cache_breakpoint: None,
         rest: Default::default(),
     }))
@@ -102,23 +102,23 @@ fn file_data_part(data: gemini::FileData) -> openai::ChatContentPart {
     {
         return openai::ChatContentPart::ImageUrl(openai::ChatImageUrlPart {
             type_: openai::ChatImageUrlPartType::ImageUrl,
-            image_url: openai::ImageUrl {
+            image_url: crate::wire!(openai::ImageUrl {
                 url: data.file_uri,
                 detail: None,
                 rest: Default::default(),
-            },
+            }),
             prompt_cache_breakpoint: None,
             rest: Default::default(),
         });
     }
     openai::ChatContentPart::File(openai::ChatFilePart {
         type_: openai::ChatFilePartType::File,
-        file: openai::ChatFileRef {
+        file: crate::wire!(openai::ChatFileRef {
             file_data: None,
             file_id: Some(data.file_uri),
             filename: None,
             rest: Default::default(),
-        },
+        }),
         prompt_cache_breakpoint: None,
         rest: Default::default(),
     })

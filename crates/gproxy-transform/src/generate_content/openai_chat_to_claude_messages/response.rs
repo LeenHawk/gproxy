@@ -6,6 +6,13 @@ use crate::models::common::wire_string;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: claude::CreateMessageResponseBody,
+) -> Result<openai::ChatCompletionResponse, TransformError> {
     let service_tier = claude_service_tier(&input.usage)?;
     let mut rendered = Vec::new();
     let mut calls = Vec::new();
@@ -15,7 +22,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             claude::ResponseContentBlock::Thinking(block) => rendered.push(block.thinking),
             claude::ResponseContentBlock::RedactedThinking(_) => {}
             claude::ResponseContentBlock::ToolUse(block) => calls.push(
-                openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
+                openai::ChatToolCall::Function(crate::wire!(openai::ChatFunctionToolCall {
                     id: block.id,
                     type_: openai::FunctionToolChoiceType::Function,
                     function: openai::FunctionCall {
@@ -24,7 +31,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                         rest: Default::default(),
                     },
                     rest: Default::default(),
-                }),
+                })),
             ),
             claude::ResponseContentBlock::ServerToolUse(block) => {
                 calls.push(custom_call(
@@ -44,9 +51,9 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             _ => {}
         }
     }
-    let output = openai::ChatCompletionResponse {
+    let output = crate::wire!(openai::ChatCompletionResponse {
         id: input.id,
-        choices: vec![openai::ChatCompletionChoice {
+        choices: vec![crate::wire!(openai::ChatCompletionChoice {
             finish_reason: stop::claude_to_chat(&input.stop_reason),
             index: 0,
             logprobs: None,
@@ -62,7 +69,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 rest: Default::default(),
             },
             rest: Default::default(),
-        }],
+        })],
         created: Some(0),
         model: wire_string(&input.model)?.into(),
         object: openai::ChatCompletionObjectType::ChatCompletion,
@@ -71,12 +78,12 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         system_fingerprint: None,
         usage: usage::claude_to_chat(input.usage),
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn custom_call(id: String, name: String, input: claude::JsonObject) -> openai::ChatToolCall {
-    openai::ChatToolCall::Custom(openai::ChatCustomToolCall {
+    openai::ChatToolCall::Custom(crate::wire!(openai::ChatCustomToolCall {
         id,
         type_: openai::CustomToolChoiceType::Custom,
         custom: openai::CustomToolCall {
@@ -85,7 +92,7 @@ fn custom_call(id: String, name: String, input: claude::JsonObject) -> openai::C
             rest: Default::default(),
         },
         rest: Default::default(),
-    })
+    }))
 }
 
 fn claude_service_tier(

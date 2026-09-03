@@ -44,12 +44,12 @@ pub(in crate::generate_content) fn openai_reasoning(
         | openai::ReasoningEffort::Max => (Some(true), Some(gemini::ThinkingLevelKnown::High)),
         openai::ReasoningEffort::Unknown(_) => return None,
     };
-    Some(gemini::ThinkingConfig {
+    Some(crate::wire!(gemini::ThinkingConfig {
         include_thoughts,
         thinking_budget: None,
         thinking_level: thinking_level.map(gemini::ThinkingLevel::Known),
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::generate_content) fn gemini_service_tier(

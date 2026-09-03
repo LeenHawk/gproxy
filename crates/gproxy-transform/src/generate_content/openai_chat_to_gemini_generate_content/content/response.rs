@@ -22,11 +22,11 @@ pub(crate) fn candidate(message: openai::ChatMessage) -> Result<gemini::Content,
     for call in message.tool_calls.into_iter().flatten() {
         parts.extend(tool_call(call)?);
     }
-    Ok(gemini::Content {
+    Ok(crate::wire!(gemini::Content {
         parts,
         role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn tool_call(call: openai::ChatToolCall) -> Result<Vec<gemini::Part>, TransformError> {
@@ -36,20 +36,27 @@ fn tool_call(call: openai::ChatToolCall) -> Result<Vec<gemini::Part>, TransformE
         }
         openai::ChatToolCall::Custom(call) => (call.id, call.custom.name, call.custom.input),
         openai::ChatToolCall::Unknown(_) => return Ok(Vec::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     };
     if name != CODE_EXECUTION_NAME {
         return Ok(vec![lossy_function_call(Some(id), name, &arguments)]);
     }
     let mut code: gemini::ExecutableCode = serde_json::from_str(&arguments)?;
     code.id = Some(id.clone());
-    let parts = vec![gemini::Part {
+    let parts = vec![crate::wire!(gemini::Part {
         data: Some(gemini::PartData::ExecutableCode {
             executable_code: code,
             rest: Default::default(),
         }),
         rest: Default::default(),
         ..Default::default()
-    }];
+    })];
     Ok(parts)
 }
 
@@ -58,7 +65,7 @@ pub(crate) fn lossy_function_call(
     name: String,
     arguments: &str,
 ) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         data: Some(gemini::PartData::FunctionCall {
             function_call: gemini::FunctionCall {
                 id,
@@ -70,5 +77,5 @@ pub(crate) fn lossy_function_call(
         }),
         rest: Default::default(),
         ..Default::default()
-    }
+    })
 }

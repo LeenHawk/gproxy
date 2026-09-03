@@ -12,6 +12,16 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseCreateRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+#[allow(deprecated)] // The public Claude wire still carries the deprecated output_format slot.
+pub(crate) fn transform_typed(
+    input: openai::ResponseCreateRequest,
+    model: &str,
+    stream: bool,
+) -> Result<claude::CreateMessageRequestBody, TransformError> {
     let max_tokens = input
         .max_output_tokens
         .map(u64::from)
@@ -20,7 +30,7 @@ pub(crate) fn transform(
         input_messages(input.input)?,
         input.instructions.map(claude::StringOrArray::String),
     )?;
-    let output = claude::CreateMessageRequestBody {
+    let output = crate::wire!(claude::CreateMessageRequestBody {
         model: model.to_owned().into(),
         messages,
         max_tokens,
@@ -61,8 +71,8 @@ pub(crate) fn transform(
         top_p: input.top_p,
         user_profile_id: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn promote_system(
@@ -124,7 +134,7 @@ pub(crate) fn count_tokens(
     input: openai::ResponseInputTokensRequest,
     model: &str,
 ) -> Result<claude::CountTokensRequestBody, TransformError> {
-    Ok(claude::CountTokensRequestBody {
+    Ok(crate::wire!(claude::CountTokensRequestBody {
         model: model.to_owned().into(),
         messages: input_messages(input.input)?,
         cache_control: None,
@@ -145,7 +155,7 @@ pub(crate) fn count_tokens(
         tool_choice: tool_choice(input.tool_choice, input.parallel_tool_calls)?,
         tools: tools::responses_to_claude(input.tools)?,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn input_messages(
@@ -178,6 +188,13 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                         claude::MessageRoleKnown::System
                     }
                     openai::ResponseEasyInputMessageRole::User => claude::MessageRoleKnown::User,
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 };
                 let blocks = match message_item.content {
                     openai::ResponseEasyInputContent::Text(text) => vec![text_block(text)],
@@ -188,6 +205,13 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                         responses::output_to_claude(parts)?
                     }
                     openai::ResponseEasyInputContent::Unknown(_) => return Ok(None),
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 };
                 message(role, blocks)
             }
@@ -198,6 +222,13 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                     | openai::ResponseInputMessageRole::Developer => {
                         claude::MessageRoleKnown::System
                     }
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 };
                 message(role, responses::input_to_claude(message_item.content)?)
             }
@@ -206,6 +237,13 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
                 responses::output_to_claude(message_item.content)?,
             ),
             openai::ResponseMessageItem::Unknown(_) => return Ok(None),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         })),
         openai::ResponseItem::Typed(item) => match items::typed_item(*item) {
             Ok(message) => Ok(Some(message)),
@@ -213,6 +251,13 @@ fn input_item(item: openai::ResponseItem) -> Result<Option<claude::MessageParam>
             Err(error) => Err(error),
         },
         openai::ResponseItem::Unknown(_) => Ok(None),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -220,23 +265,23 @@ fn message(
     role: claude::MessageRoleKnown,
     content: Vec<claude::ContentBlockParam>,
 ) -> claude::MessageParam {
-    claude::MessageParam {
+    crate::wire!(claude::MessageParam {
         role: claude::MessageRole::Known(role),
         content: claude::StringOrArray::Array(content),
         clear_at: None,
         output_config: None,
         rest: Default::default(),
-    }
+    })
 }
 
 fn text_block(text: String) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::Text(claude::TextBlock {
+    claude::ContentBlockParam::Text(crate::wire!(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
         cache_control: None,
         citations: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn tool_choice(
@@ -246,42 +291,42 @@ fn tool_choice(
     let disable_parallel_tool_use = parallel.map(|parallel| !parallel);
     Ok(match choice {
         None => None,
-        Some(openai::ResponseToolChoice::Mode(openai::ToolChoiceMode::Auto)) => {
-            Some(claude::ToolChoice::Auto(claude::ToolChoiceAuto {
+        Some(openai::ResponseToolChoice::Mode(openai::ToolChoiceMode::Auto)) => Some(
+            claude::ToolChoice::Auto(crate::wire!(claude::ToolChoiceAuto {
                 type_: claude::ToolChoiceAutoType::Auto,
                 disable_parallel_tool_use,
                 rest: Default::default(),
-            }))
-        }
-        Some(openai::ResponseToolChoice::Mode(openai::ToolChoiceMode::Required)) => {
-            Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
+            })),
+        ),
+        Some(openai::ResponseToolChoice::Mode(openai::ToolChoiceMode::Required)) => Some(
+            claude::ToolChoice::Any(crate::wire!(claude::ToolChoiceAny {
                 type_: claude::ToolChoiceAnyType::Any,
                 disable_parallel_tool_use,
                 rest: Default::default(),
-            }))
-        }
-        Some(openai::ResponseToolChoice::Mode(openai::ToolChoiceMode::None)) => {
-            Some(claude::ToolChoice::None(claude::ToolChoiceNone {
+            })),
+        ),
+        Some(openai::ResponseToolChoice::Mode(openai::ToolChoiceMode::None)) => Some(
+            claude::ToolChoice::None(crate::wire!(claude::ToolChoiceNone {
                 type_: claude::ToolChoiceNoneType::None,
                 rest: Default::default(),
-            }))
-        }
-        Some(openai::ResponseToolChoice::Function(choice)) => {
-            Some(claude::ToolChoice::Tool(claude::ToolChoiceTool {
+            })),
+        ),
+        Some(openai::ResponseToolChoice::Function(choice)) => Some(claude::ToolChoice::Tool(
+            crate::wire!(claude::ToolChoiceTool {
                 name: choice.name,
                 type_: claude::ToolChoiceToolType::Tool,
                 disable_parallel_tool_use,
                 rest: Default::default(),
-            }))
-        }
-        Some(openai::ResponseToolChoice::Custom(choice)) => {
-            Some(claude::ToolChoice::Tool(claude::ToolChoiceTool {
+            }),
+        )),
+        Some(openai::ResponseToolChoice::Custom(choice)) => Some(claude::ToolChoice::Tool(
+            crate::wire!(claude::ToolChoiceTool {
                 name: choice.name,
                 type_: claude::ToolChoiceToolType::Tool,
                 disable_parallel_tool_use,
                 rest: Default::default(),
-            }))
-        }
+            }),
+        )),
         Some(openai::ResponseToolChoice::Unknown(_)) => None,
         Some(other) => {
             return Err(TransformError::unsupported(
@@ -301,13 +346,15 @@ fn output_config(
         .map(|effort| serde_json::from_value(serde_json::to_value(effort)?))
         .transpose()?;
     let format = match text.and_then(|text| text.format) {
-        Some(openai::ResponseFormat::JsonSchema(format)) => Some(claude::JsonSchemaFormat {
-            type_: claude::JsonSchemaFormatType::Known(
-                claude::JsonSchemaFormatTypeKnown::JsonSchema,
-            ),
-            schema: format.schema,
-            rest: Default::default(),
-        }),
+        Some(openai::ResponseFormat::JsonSchema(format)) => {
+            Some(crate::wire!(claude::JsonSchemaFormat {
+                type_: claude::JsonSchemaFormatType::Known(
+                    claude::JsonSchemaFormatTypeKnown::JsonSchema,
+                ),
+                schema: format.schema,
+                rest: Default::default(),
+            }))
+        }
         Some(openai::ResponseFormat::Text(_)) | None => None,
         Some(other) => {
             return Err(TransformError::unsupported(
@@ -317,12 +364,12 @@ fn output_config(
         }
     };
     Ok(
-        (effort.is_some() || format.is_some()).then_some(claude::OutputConfig {
+        (effort.is_some() || format.is_some()).then_some(crate::wire!(claude::OutputConfig {
             effort,
             format,
             task_budget: None,
             rest: Default::default(),
-        }),
+        })),
     )
 }
 

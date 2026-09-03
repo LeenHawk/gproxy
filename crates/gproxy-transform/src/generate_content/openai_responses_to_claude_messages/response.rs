@@ -13,6 +13,13 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
 
 pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: claude::CreateMessageResponseBody = serde_json::from_slice(&body)?;
+    let response = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
+}
+
+pub(crate) fn transform_typed(
+    input: claude::CreateMessageResponseBody,
+) -> Result<openai::ResponseObject, TransformError> {
     let id = input.id;
     let service_tier = claude_service_tier(&input.usage)?;
     let mut output = Vec::new();
@@ -25,13 +32,13 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
             claude::ResponseContentBlock::Text(block) => {
                 text.push(block.text.clone());
                 parts.push(openai::ResponseMessageOutputContentPart::OutputText(
-                    openai::ResponseOutputText {
+                    crate::wire!(openai::ResponseOutputText {
                         type_: openai::ResponseOutputTextType::OutputText,
                         annotations: Vec::new(),
                         logprobs: None,
                         text: block.text,
                         rest: Default::default(),
-                    },
+                    }),
                 ));
             }
             claude::ResponseContentBlock::Thinking(block) => {
@@ -84,7 +91,7 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         "end_turn" | "stop_sequence" | "tool_use" | "pause_turn" | "compaction" => None,
         _ => None,
     };
-    let response = openai::ResponseObject {
+    let response = crate::wire!(openai::ResponseObject {
         id,
         created_at: None,
         background: None,
@@ -132,8 +139,8 @@ pub(crate) fn claude_to_responses(body: bytes::Bytes) -> Result<bytes::Bytes, Tr
         usage: usage::claude_to_responses(input.usage),
         user: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
+    });
+    Ok(response)
 }
 
 fn claude_service_tier(

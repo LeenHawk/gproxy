@@ -12,7 +12,8 @@ use gproxy_protocol::openai;
 use crate::TransformError;
 use crate::envelope::{Converter, SseFrame};
 
-use state::{State, Tool, ToolKind, ToolStart};
+pub(crate) use state::State;
+use state::{Tool, ToolKind, ToolStart};
 
 pub(crate) fn converter() -> Box<dyn Converter> {
     Box::new(State::default())
@@ -25,7 +26,10 @@ impl State {
     /// anything unrenderable is dropped and the stream continues. The list stays
     /// exhaustive: adding a variant still forces a decision here, it just no longer
     /// defaults to hanging up on the caller.
-    fn event(&mut self, event: openai::ResponseStreamEvent) -> Result<Vec<Bytes>, TransformError> {
+    pub(crate) fn push_typed(
+        &mut self,
+        event: openai::ResponseStreamEvent,
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let openai::ResponseStreamEvent::Known(event) = event else {
             return Ok(Vec::new());
         };
@@ -129,16 +133,40 @@ impl State {
             | openai::KnownResponseStreamEvent::ResponseMcpListToolsInProgress(_)
             | openai::KnownResponseStreamEvent::ResponseMcpListToolsCompleted(_)
             | openai::KnownResponseStreamEvent::ResponseMcpListToolsFailed(_) => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 }
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.event(serde_json::from_str(&frame.data)?)
+        let events = self.push_typed(serde_json::from_str(&frame.data)?)?;
+        let done = self.stopped;
+        let mut output = events
+            .into_iter()
+            .map(|event| SseFrame::typed(None, &event))
+            .collect::<Result<Vec<_>, _>>()?;
+        if done {
+            output.push(SseFrame::encode(None, "[DONE]"));
+        }
+        Ok(output)
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
+        self.finish_typed().map(|_| Vec::new())
+    }
+}
+
+impl State {
+    pub(crate) fn finish_typed(
+        &mut self,
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         if self.stopped {
             Ok(Vec::new())
         } else {

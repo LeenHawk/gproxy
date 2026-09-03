@@ -54,7 +54,7 @@ pub(super) fn convert(
     }
     let has_tool = !calls.is_empty();
     Ok((
-        openai::ChatDelta {
+        crate::wire!(openai::ChatDelta {
             role: None,
             content: (!text.is_empty()).then(|| text.join("")),
             reasoning_content: (!reasoning.is_empty()).then(|| reasoning.join("")),
@@ -63,7 +63,7 @@ pub(super) fn convert(
             function_call: None,
             obfuscation: None,
             rest: Default::default(),
-        },
+        }),
         has_tool,
     ))
 }

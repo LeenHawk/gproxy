@@ -3,7 +3,15 @@ use gproxy_protocol::claude;
 use crate::TransformError;
 
 pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes, TransformError> {
-    let mut input: claude::CountTokensRequestBody = serde_json::from_slice(&body)?;
+    let input: claude::CountTokensRequestBody = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    mut input: claude::CountTokensRequestBody,
+    model: &str,
+) -> Result<gproxy_protocol::openai::ResponseInputTokensRequest, TransformError> {
     crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let text = messages_text(std::mem::take(&mut input.messages));
     input.cache_control = None;
@@ -14,7 +22,7 @@ pub(crate) fn transform(body: bytes::Bytes, model: &str) -> Result<bytes::Bytes,
             input, model,
         )?;
     output.input = (!text.is_empty()).then_some(gproxy_protocol::openai::ResponseInput::Text(text));
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    Ok(output)
 }
 
 fn messages_text(messages: Vec<claude::MessageParam>) -> String {

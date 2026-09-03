@@ -129,13 +129,13 @@ fn flush_user(
     parts: &mut Vec<openai::ChatContentPart>,
 ) {
     if !parts.is_empty() {
-        output.push(openai::ChatCompletionMessageParam::User(
+        output.push(openai::ChatCompletionMessageParam::User(crate::wire!(
             openai::ChatUserMessageParam {
                 role: openai::ChatUserRole::User,
                 content: text_content(std::mem::take(parts)),
                 name: None,
                 rest: Default::default(),
-            },
-        ));
+            }
+        )));
     }
 }

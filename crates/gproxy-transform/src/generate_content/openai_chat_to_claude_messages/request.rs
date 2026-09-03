@@ -11,6 +11,16 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+#[allow(deprecated)] // The public Claude wire still carries the deprecated output_format slot.
+pub(crate) fn transform_typed(
+    input: openai::ChatCompletionRequest,
+    model: &str,
+    stream: bool,
+) -> Result<claude::CreateMessageRequestBody, TransformError> {
     let _ = wire_string(&input.model)?;
     let mid_conv_supported = supports_mid_conv_system(model);
     let last_non_system = input.messages.iter().rposition(|message| {
@@ -66,12 +76,12 @@ pub(crate) fn transform(
                 {
                     blocks.insert(
                         0,
-                        claude::ContentBlockParam::Thinking(claude::ThinkingBlock {
+                        claude::ContentBlockParam::Thinking(crate::wire!(claude::ThinkingBlock {
                             signature: None,
                             thinking: reasoning,
                             type_: claude::ThinkingBlockType::Thinking,
                             rest: Default::default(),
-                        }),
+                        })),
                     );
                 }
                 if message.function_call.is_some() {
@@ -94,7 +104,7 @@ pub(crate) fn transform(
                 push_message(
                     &mut messages,
                     claude::MessageRoleKnown::User,
-                    vec![claude::ContentBlockParam::ToolResult(
+                    vec![claude::ContentBlockParam::ToolResult(crate::wire!(
                         claude::ToolResultBlock {
                             tool_use_id: message.tool_call_id,
                             type_: claude::ToolResultBlockType::ToolResult,
@@ -102,8 +112,8 @@ pub(crate) fn transform(
                             content: Some(tool_result_content(message.content)?),
                             is_error: None,
                             rest: Default::default(),
-                        },
-                    )],
+                        }
+                    ))],
                 );
             }
             openai::ChatCompletionMessageParam::Function(message) => {
@@ -121,6 +131,13 @@ pub(crate) fn transform(
                 );
             }
             openai::ChatCompletionMessageParam::Unknown(_) => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
     let service_tier_value = input.service_tier.clone();
@@ -129,7 +146,7 @@ pub(crate) fn transform(
         .or(input.max_tokens)
         .map(u64::from)
         .unwrap_or(crate::common::DEFAULT_CLAUDE_MAX_TOKENS);
-    let output = claude::CreateMessageRequestBody {
+    let output = crate::wire!(claude::CreateMessageRequestBody {
         model: model.to_owned().into(),
         messages,
         max_tokens,
@@ -160,8 +177,8 @@ pub(crate) fn transform(
         top_p: input.top_p,
         user_profile_id: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn push_system(
@@ -219,13 +236,13 @@ fn push_message(
     blocks: Vec<claude::ContentBlockParam>,
 ) {
     if !blocks.is_empty() {
-        messages.push(claude::MessageParam {
+        messages.push(crate::wire!(claude::MessageParam {
             role: claude::MessageRole::Known(role),
             content: claude::StringOrArray::Array(blocks),
             clear_at: None,
             output_config: None,
             rest: Default::default(),
-        });
+        }));
     }
 }
 
@@ -234,15 +251,17 @@ fn function_call(
     call: openai::FunctionCall,
 ) -> Result<claude::ContentBlockParam, TransformError> {
     let input = serde_json::from_str(&call.arguments).unwrap_or_default();
-    Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-        id,
-        input,
-        name: call.name,
-        type_: claude::ToolUseBlockType::ToolUse,
-        cache_control: None,
-        caller: None,
-        rest: Default::default(),
-    }))
+    Ok(claude::ContentBlockParam::ToolUse(crate::wire!(
+        claude::ToolUseBlock {
+            id,
+            input,
+            name: call.name,
+            type_: claude::ToolUseBlockType::ToolUse,
+            cache_control: None,
+            caller: None,
+            rest: Default::default(),
+        }
+    )))
 }
 
 fn tool_call(
@@ -252,7 +271,7 @@ fn tool_call(
         openai::ChatToolCall::Function(call) => function_call(call.id, call.function).map(Some),
         openai::ChatToolCall::Custom(call) => {
             let input = serde_json::from_str(&call.custom.input).unwrap_or_default();
-            Ok(Some(claude::ContentBlockParam::ToolUse(
+            Ok(Some(claude::ContentBlockParam::ToolUse(crate::wire!(
                 claude::ToolUseBlock {
                     id: call.id,
                     input,
@@ -261,10 +280,17 @@ fn tool_call(
                     cache_control: None,
                     caller: None,
                     rest: Default::default(),
-                },
-            )))
+                }
+            ))))
         }
         openai::ChatToolCall::Unknown(_) => Ok(None),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -278,15 +304,17 @@ fn tool_result_content(
                 .into_iter()
                 .filter_map(|part| match part {
                     openai::ChatTextContentPart::Text(part) => Some(Ok(
-                        claude::ToolResultContentBlock::Text(claude::TextBlock {
+                        claude::ToolResultContentBlock::Text(crate::wire!(claude::TextBlock {
                             text: part.text,
                             type_: claude::TextBlockType::Text,
                             cache_control: None,
                             citations: None,
                             rest: Default::default(),
-                        }),
+                        })),
                     )),
                     openai::ChatTextContentPart::Unknown(_) => None,
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => None,
                 })
                 .collect::<Result<_, TransformError>>()?,
         )),
@@ -294,6 +322,13 @@ fn tool_result_content(
             "OpenAI Chat tool result",
             raw.to_string(),
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -302,15 +337,17 @@ fn output_config(
     effort: Option<openai::ReasoningEffort>,
 ) -> Result<Option<claude::OutputConfig>, TransformError> {
     let format = match format {
-        Some(openai::ChatResponseFormat::JsonSchema(format)) => Some(claude::JsonSchemaFormat {
-            type_: claude::JsonSchemaFormatType::Known(
-                claude::JsonSchemaFormatTypeKnown::JsonSchema,
-            ),
-            schema: format.json_schema.schema.ok_or_else(|| {
-                TransformError::shape("OpenAI JSON schema response format", "schema is missing")
-            })?,
-            rest: Default::default(),
-        }),
+        Some(openai::ChatResponseFormat::JsonSchema(format)) => {
+            Some(crate::wire!(claude::JsonSchemaFormat {
+                type_: claude::JsonSchemaFormatType::Known(
+                    claude::JsonSchemaFormatTypeKnown::JsonSchema,
+                ),
+                schema: format.json_schema.schema.ok_or_else(|| {
+                    TransformError::shape("OpenAI JSON schema response format", "schema is missing")
+                })?,
+                rest: Default::default(),
+            }))
+        }
         Some(openai::ChatResponseFormat::Text(_)) | None => None,
         Some(other) => {
             return Err(TransformError::unsupported(
@@ -323,12 +360,12 @@ fn output_config(
         .map(|effort| serde_json::from_value(serde_json::to_value(effort)?))
         .transpose()?;
     Ok(
-        (format.is_some() || effort.is_some()).then_some(claude::OutputConfig {
+        (format.is_some() || effort.is_some()).then_some(crate::wire!(claude::OutputConfig {
             effort,
             format,
             task_budget: None,
             rest: Default::default(),
-        }),
+        })),
     )
 }
 

@@ -17,6 +17,13 @@ fn tool_output_part_to_chat(
         openai::ResponseToolOutputContentPart::InputFile(part) => {
             openai::ResponseInputContentPart::InputFile(part)
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
@@ -42,8 +49,22 @@ pub(super) fn output_to_chat(
                         "Responses tool output",
                         serde_json::to_string(&unsupported)?,
                     )),
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 })
                 .collect::<Result<_, _>>()?,
         ),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }

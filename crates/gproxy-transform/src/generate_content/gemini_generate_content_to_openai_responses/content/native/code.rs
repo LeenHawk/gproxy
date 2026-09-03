@@ -38,12 +38,12 @@ impl ContentConverter {
         self.code_calls.push_back(call_id.clone());
         Ok(openai::ResponseItem::Typed(Box::new(
             openai::TypedResponseItem::ShellCall {
-                action: openai::ShellAction {
+                action: crate::wire!(openai::ShellAction {
                     commands: vec![code.code],
                     max_output_length: None,
                     timeout_ms: None,
                     rest: Default::default(),
-                },
+                }),
                 call_id: call_id.clone(),
                 id: Some(ids::item_id("sh", &call_id)),
                 caller: None,
@@ -72,13 +72,13 @@ impl ContentConverter {
         Ok(openai::ResponseItem::Typed(Box::new(
             openai::TypedResponseItem::ShellCallOutput {
                 call_id,
-                output: vec![openai::ShellCallOutputContent {
+                output: vec![crate::wire!(openai::ShellCallOutputContent {
                     outcome,
                     stderr: if failed { text.clone() } else { String::new() },
                     stdout: if failed { String::new() } else { text },
                     created_by: None,
                     rest: Default::default(),
-                }],
+                })],
                 id: None,
                 caller: None,
                 max_output_length: None,

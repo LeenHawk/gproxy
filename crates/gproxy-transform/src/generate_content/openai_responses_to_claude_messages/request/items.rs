@@ -35,7 +35,7 @@ pub(super) fn typed_item(
             call_id, output, ..
         } => Ok(message(
             claude::MessageRoleKnown::User,
-            vec![claude::ContentBlockParam::ToolResult(
+            vec![claude::ContentBlockParam::ToolResult(crate::wire!(
                 claude::ToolResultBlock {
                     tool_use_id: call_id,
                     type_: claude::ToolResultBlockType::ToolResult,
@@ -43,8 +43,8 @@ pub(super) fn typed_item(
                     content: Some(response_output(output)?),
                     is_error: None,
                     rest: Default::default(),
-                },
-            )],
+                }
+            ))],
         )),
         openai::TypedResponseItem::Reasoning {
             content,
@@ -58,27 +58,29 @@ pub(super) fn typed_item(
                 .collect::<String>();
             Ok(message(
                 claude::MessageRoleKnown::Assistant,
-                vec![claude::ContentBlockParam::Thinking(claude::ThinkingBlock {
-                    signature: encrypted_content,
-                    thinking,
-                    type_: claude::ThinkingBlockType::Thinking,
-                    rest: Default::default(),
-                })],
+                vec![claude::ContentBlockParam::Thinking(crate::wire!(
+                    claude::ThinkingBlock {
+                        signature: encrypted_content,
+                        thinking,
+                        type_: claude::ThinkingBlockType::Thinking,
+                        rest: Default::default(),
+                    }
+                ))],
             ))
         }
         openai::TypedResponseItem::Compaction {
             encrypted_content, ..
         } => Ok(message(
             claude::MessageRoleKnown::Assistant,
-            vec![claude::ContentBlockParam::Compaction(
+            vec![claude::ContentBlockParam::Compaction(crate::wire!(
                 claude::CompactionBlock {
                     content: None,
                     encrypted_content: Some(encrypted_content),
                     type_: claude::CompactionBlockType::Compaction,
                     cache_control: None,
                     rest: Default::default(),
-                },
-            )],
+                }
+            ))],
         )),
         other @ (openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
@@ -123,6 +125,13 @@ pub(super) fn typed_item(
                 serde_json::to_string(&other)?,
             ))
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -131,15 +140,17 @@ fn tool_use(
     name: String,
     arguments: String,
 ) -> Result<claude::ContentBlockParam, TransformError> {
-    Ok(claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-        id,
-        input: shape::arguments_object(&arguments)?,
-        name,
-        type_: claude::ToolUseBlockType::ToolUse,
-        cache_control: None,
-        caller: None,
-        rest: Default::default(),
-    }))
+    Ok(claude::ContentBlockParam::ToolUse(crate::wire!(
+        claude::ToolUseBlock {
+            id,
+            input: shape::arguments_object(&arguments)?,
+            name,
+            type_: claude::ToolUseBlockType::ToolUse,
+            cache_control: None,
+            caller: None,
+            rest: Default::default(),
+        }
+    )))
 }
 
 fn response_output(
@@ -148,7 +159,10 @@ fn response_output(
     match output {
         openai::ResponseOutput::Text(text) => Ok(claude::ToolResultContent::Text(text)),
         openai::ResponseOutput::Parts(parts) => {
-            let parts = parts.into_iter().map(tool_output_to_input).collect();
+            let parts = parts
+                .into_iter()
+                .map(tool_output_to_input)
+                .collect::<Result<_, _>>()?;
             let blocks = responses::input_to_claude(parts)?;
             let blocks = blocks
                 .into_iter()
@@ -156,13 +170,20 @@ fn response_output(
                 .collect::<Result<_, serde_json::Error>>()?;
             Ok(claude::ToolResultContent::Blocks(blocks))
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
 fn tool_output_to_input(
     part: openai::ResponseToolOutputContentPart,
-) -> openai::ResponseInputContentPart {
-    match part {
+) -> Result<openai::ResponseInputContentPart, TransformError> {
+    Ok(match part {
         openai::ResponseToolOutputContentPart::InputText(part) => {
             openai::ResponseInputContentPart::InputText(part)
         }
@@ -172,5 +193,12 @@ fn tool_output_to_input(
         openai::ResponseToolOutputContentPart::InputFile(part) => {
             openai::ResponseInputContentPart::InputFile(part)
         }
-    }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(TransformError::unsupported(
+                "OpenAI tool output content",
+                "unrecognized external variant",
+            ));
+        }
+    })
 }

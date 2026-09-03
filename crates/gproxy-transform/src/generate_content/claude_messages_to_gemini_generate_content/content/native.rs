@@ -26,14 +26,14 @@ pub(super) fn call(id: String, input: claude::JsonObject) -> Result<gemini::Part
     // Gemini code_execution only exposes Python; keep the native call/result
     // lifecycle and stable id even when a Claude bash/editor call is approximate.
     Ok(part(gemini::PartData::ExecutableCode {
-        executable_code: gemini::ExecutableCode {
+        executable_code: crate::wire!(gemini::ExecutableCode {
             id: Some(id),
             language: gemini::ExecutableCodeLanguage::Known(
                 gemini::ExecutableCodeLanguageKnown::Python,
             ),
             code,
             rest: Default::default(),
-        },
+        }),
         rest: Default::default(),
     }))
 }
@@ -46,12 +46,12 @@ pub(super) fn result(block: claude::ToolResultBlock) -> Result<gemini::Part, Tra
         None => gemini::CodeExecutionOutcomeKnown::OutcomeUnspecified,
     };
     Ok(part(gemini::PartData::CodeExecutionResult {
-        code_execution_result: gemini::CodeExecutionResult {
+        code_execution_result: crate::wire!(gemini::CodeExecutionResult {
             id: Some(block.tool_use_id),
             outcome: gemini::CodeExecutionOutcome::Known(outcome),
             output,
             rest: Default::default(),
-        },
+        }),
         rest: Default::default(),
     }))
 }
@@ -94,7 +94,7 @@ pub(super) fn result_text(content: claude::ToolResultContent) -> Result<String, 
 }
 
 fn part(data: gemini::PartData) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
@@ -102,5 +102,5 @@ fn part(data: gemini::PartData) -> gemini::Part {
         data: Some(data),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }

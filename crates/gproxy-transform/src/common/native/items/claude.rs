@@ -75,7 +75,7 @@ pub(crate) fn claude_result(
     Ok(match kind {
         NativeKind::Shell => openai::TypedResponseItem::ShellCallOutput {
             call_id: block.tool_use_id,
-            output: vec![openai::ShellCallOutputContent {
+            output: vec![crate::wire!(openai::ShellCallOutputContent {
                 outcome: openai::ShellCallOutcome::Exit {
                     exit_code: if failed { 1 } else { 0 },
                     rest: Default::default(),
@@ -84,7 +84,7 @@ pub(crate) fn claude_result(
                 stdout: if failed { String::new() } else { text },
                 created_by: None,
                 rest: Default::default(),
-            }],
+            })],
             id: None,
             caller: None,
             max_output_length: None,

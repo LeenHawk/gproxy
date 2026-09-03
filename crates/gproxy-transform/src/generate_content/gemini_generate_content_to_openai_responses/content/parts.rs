@@ -78,11 +78,11 @@ impl ContentConverter {
             id: Some(id),
             summary: Vec::new(),
             content: text.map(|text| {
-                vec![openai::ResponseReasoningTextPart {
+                vec![crate::wire!(openai::ResponseReasoningTextPart {
                     text,
                     type_: openai::ResponseReasoningTextType::ReasoningText,
                     rest: Default::default(),
-                }]
+                })]
             }),
             encrypted_content: signature,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
@@ -94,21 +94,21 @@ impl ContentConverter {
 fn text_message(text: String, response: bool) -> MessagePart {
     if response {
         MessagePart::Output(openai::ResponseMessageOutputContentPart::OutputText(
-            openai::ResponseOutputText {
+            crate::wire!(openai::ResponseOutputText {
                 type_: openai::ResponseOutputTextType::OutputText,
                 annotations: Vec::new(),
                 logprobs: None,
                 text,
                 rest: Default::default(),
-            },
+            }),
         ))
     } else {
-        MessagePart::Input(openai::ResponseInputContentPart::InputText(
+        MessagePart::Input(openai::ResponseInputContentPart::InputText(crate::wire!(
             openai::ResponseInputText {
                 text,
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
-            },
-        ))
+            }
+        )))
     }
 }

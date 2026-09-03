@@ -17,14 +17,14 @@ impl State {
         let part = if call.code_execution {
             let mut result: gemini::CodeExecutionResult = serde_json::from_str(&output)?;
             result.id = Some(message.tool_call_id);
-            gemini::Part {
+            crate::wire!(gemini::Part {
                 data: Some(gemini::PartData::CodeExecutionResult {
                     code_execution_result: result,
                     rest: Default::default(),
                 }),
                 rest: Default::default(),
                 ..Default::default()
-            }
+            })
         } else {
             function_response(Some(message.tool_call_id), call.name.clone(), Some(output))?
         };
@@ -67,7 +67,7 @@ fn function_response(
             }
         },
     };
-    Ok(gemini::Part {
+    Ok(crate::wire!(gemini::Part {
         data: Some(gemini::PartData::FunctionResponse {
             function_response: gemini::FunctionResponse {
                 id,
@@ -82,5 +82,5 @@ fn function_response(
         }),
         rest: Default::default(),
         ..Default::default()
-    })
+    }))
 }

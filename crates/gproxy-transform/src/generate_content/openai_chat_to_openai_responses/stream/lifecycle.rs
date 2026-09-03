@@ -1,9 +1,7 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
 use crate::common::usage;
-use crate::envelope::SseFrame;
 
 use super::State;
 use super::wire::empty_delta;
@@ -12,7 +10,7 @@ impl State {
     pub(super) fn start(
         &mut self,
         event: openai::ResponseLifecycleEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         self.update_response(&event.response);
         Ok(Vec::new())
     }
@@ -21,7 +19,7 @@ impl State {
         &mut self,
         event: openai::ResponseLifecycleEvent,
         expected: openai::ResponseStatus,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let response = event.response;
         self.update_response(&response);
         let finish = match expected {
@@ -50,28 +48,25 @@ impl State {
             openai::ResponseStatus::Unknown(_) => openai::ChatFinishReason::ContentFilter,
         };
         self.stopped = true;
-        let mut output = vec![self.chunk(
+        Ok(vec![self.chunk(
             empty_delta(),
             Some(finish),
             response.usage.clone().map(usage::responses_to_chat),
-        )?];
-        output.push(SseFrame::encode(None, "[DONE]"));
-        Ok(output)
+        )?])
     }
 
-    pub(super) fn error_terminal(&mut self) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn error_terminal(
+        &mut self,
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         self.id.get_or_insert_with(|| "resp_error".into());
         self.model
             .get_or_insert_with(|| openai::OpenAiModelId::from("unknown"));
         self.stopped = true;
-        Ok(vec![
-            self.chunk(
-                empty_delta(),
-                Some(openai::ChatFinishReason::ContentFilter),
-                None,
-            )?,
-            SseFrame::encode(None, "[DONE]"),
-        ])
+        Ok(vec![self.chunk(
+            empty_delta(),
+            Some(openai::ChatFinishReason::ContentFilter),
+            None,
+        )?])
     }
 
     fn update_response(&mut self, response: &openai::ResponseObject) {
@@ -86,32 +81,29 @@ impl State {
         delta: openai::ChatDelta,
         finish_reason: Option<openai::ChatFinishReason>,
         usage: Option<openai::CompletionUsage>,
-    ) -> Result<Bytes, TransformError> {
-        SseFrame::typed(
-            None,
-            &openai::ChatCompletionChunk {
-                id: self
-                    .id
-                    .clone()
-                    .ok_or_else(|| TransformError::shape("Responses stream", "id missing"))?,
-                choices: vec![openai::ChatChunkChoice {
-                    index: 0,
-                    delta,
-                    finish_reason,
-                    logprobs: None,
-                    rest: Default::default(),
-                }],
-                created: self.created_at,
-                model: self
-                    .model
-                    .clone()
-                    .ok_or_else(|| TransformError::shape("Responses stream", "model missing"))?,
-                object: openai::ChatCompletionChunkObjectType::ChatCompletionChunk,
-                service_tier: self.service_tier.clone(),
-                system_fingerprint: None,
-                usage,
+    ) -> Result<openai::ChatCompletionChunk, TransformError> {
+        Ok(crate::wire!(openai::ChatCompletionChunk {
+            id: self
+                .id
+                .clone()
+                .ok_or_else(|| TransformError::shape("Responses stream", "id missing"))?,
+            choices: vec![crate::wire!(openai::ChatChunkChoice {
+                index: 0,
+                delta,
+                finish_reason,
+                logprobs: None,
                 rest: Default::default(),
-            },
-        )
+            })],
+            created: self.created_at,
+            model: self
+                .model
+                .clone()
+                .ok_or_else(|| TransformError::shape("Responses stream", "model missing"))?,
+            object: openai::ChatCompletionChunkObjectType::ChatCompletionChunk,
+            service_tier: self.service_tier.clone(),
+            system_fingerprint: None,
+            usage,
+            rest: Default::default(),
+        }))
     }
 }

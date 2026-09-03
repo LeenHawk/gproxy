@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
@@ -9,7 +8,7 @@ impl State {
     pub(super) fn chunk(
         &mut self,
         chunk: gemini::GenerateContentResponse,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         self.blocked |= chunk
             .prompt_feedback
             .as_ref()
@@ -55,7 +54,7 @@ impl State {
         text: String,
         thought: bool,
         signature: Option<String>,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         let mut output = Vec::new();
         if thought {
             if !self.reasoning.contains_key(&candidate_index) {
@@ -85,14 +84,14 @@ impl State {
             };
             if !text.is_empty() {
                 let event = openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(
-                    openai::ResponseContentDeltaEvent {
+                    crate::wire!(openai::ResponseContentDeltaEvent {
                         content_index: 0,
                         delta: text,
                         item_id,
                         output_index: item_index,
                         sequence_number: Some(self.next_sequence()),
                         rest: Default::default(),
-                    },
+                    }),
                 );
                 output.push(events::emit(event)?);
             }
@@ -110,7 +109,7 @@ impl State {
                 index,
                 events::message_item(&item, openai::ResponseItemLifecycleStatus::InProgress),
             )?);
-            let added = openai::KnownResponseStreamEvent::ResponseContentPartAdded(
+            let added = openai::KnownResponseStreamEvent::ResponseContentPartAdded(crate::wire!(
                 openai::ResponseContentPartEvent {
                     content_index: 0,
                     item_id: item.id.clone(),
@@ -118,8 +117,8 @@ impl State {
                     part: openai::ResponseContentPart::OutputText(events::message_part(&item)),
                     sequence_number: Some(self.next_sequence()),
                     rest: Default::default(),
-                },
-            );
+                }
+            ));
             output.push(events::emit(added)?);
             self.text.insert(candidate_index, item);
         }
@@ -129,7 +128,7 @@ impl State {
             (item.id.clone(), item.index)
         };
         if !text.is_empty() {
-            let event = openai::KnownResponseStreamEvent::ResponseOutputTextDelta(
+            let event = openai::KnownResponseStreamEvent::ResponseOutputTextDelta(crate::wire!(
                 openai::ResponseOutputTextDeltaEvent {
                     content_index: Some(0),
                     delta: text,
@@ -138,8 +137,8 @@ impl State {
                     output_index: item_index,
                     sequence_number: Some(self.next_sequence()),
                     rest: Default::default(),
-                },
-            );
+                }
+            ));
             output.push(events::emit(event)?);
         }
         Ok(output)
@@ -149,15 +148,15 @@ impl State {
         &mut self,
         index: u32,
         item: openai::ResponseItem,
-    ) -> Result<Bytes, TransformError> {
-        let event = openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
+    ) -> Result<openai::ResponseStreamEvent, TransformError> {
+        let event = openai::KnownResponseStreamEvent::ResponseOutputItemAdded(crate::wire!(
             openai::ResponseOutputItemEvent {
                 item: Box::new(item),
                 output_index: index,
                 sequence_number: Some(self.next_sequence()),
                 rest: Default::default(),
-            },
-        );
+            }
+        ));
         events::emit(event)
     }
 }

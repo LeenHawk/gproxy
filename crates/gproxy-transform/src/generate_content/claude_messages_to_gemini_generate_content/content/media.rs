@@ -42,28 +42,28 @@ pub(super) fn document(source: claude::DocumentSource) -> Result<gemini::Part, T
 
 fn inline(mime_type: String, data: String) -> gemini::Part {
     part(gemini::PartData::InlineData {
-        inline_data: gemini::Blob {
+        inline_data: crate::wire!(gemini::Blob {
             mime_type,
             data,
             rest: Default::default(),
-        },
+        }),
         rest: Default::default(),
     })
 }
 
 fn file(mime_type: Option<String>, file_uri: String) -> gemini::Part {
     part(gemini::PartData::FileData {
-        file_data: gemini::FileData {
+        file_data: crate::wire!(gemini::FileData {
             mime_type,
             file_uri,
             rest: Default::default(),
-        },
+        }),
         rest: Default::default(),
     })
 }
 
 fn part(data: gemini::PartData) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
@@ -71,7 +71,7 @@ fn part(data: gemini::PartData) -> gemini::Part {
         data: Some(data),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 fn image_mime(media_type: claude::ImageMediaType) -> Result<&'static str, TransformError> {

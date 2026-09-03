@@ -93,20 +93,29 @@ pub(super) fn convert(
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => return Ok(None),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     };
-    Ok(Some(super::user_content(vec![gemini::Part {
-        data: Some(gemini::PartData::CodeExecutionResult {
-            code_execution_result: gemini::CodeExecutionResult {
-                id: Some(call_id),
-                outcome,
-                output: text,
+    Ok(Some(super::user_content(vec![crate::wire!(
+        gemini::Part {
+            data: Some(gemini::PartData::CodeExecutionResult {
+                code_execution_result: gemini::CodeExecutionResult {
+                    id: Some(call_id),
+                    outcome,
+                    output: text,
+                    rest: Default::default(),
+                },
                 rest: Default::default(),
-            },
+            }),
             rest: Default::default(),
-        }),
-        rest: Default::default(),
-        ..Default::default()
-    }])))
+            ..Default::default()
+        }
+    )])))
 }
 
 fn shell_failed(output: &[openai::ShellCallOutputContent]) -> bool {
@@ -117,6 +126,8 @@ fn shell_failed(output: &[openai::ShellCallOutputContent]) -> bool {
             openai::ShellCallOutcome::Exit { .. } | openai::ShellCallOutcome::Timeout { .. } => {
                 failed = true
             }
+            #[cfg(not(feature = "exhaustive"))]
+            _ => failed = true,
         }
     }
     failed

@@ -62,7 +62,7 @@ impl ChatCollector {
         if !self.is_complete() {
             return Err(TransformError::IncompleteStream);
         }
-        Ok(openai::ChatCompletionResponse {
+        Ok(crate::wire!(openai::ChatCompletionResponse {
             id: self.id.unwrap_or_default(),
             choices: self
                 .choices
@@ -79,7 +79,7 @@ impl ChatCollector {
             system_fingerprint: self.system_fingerprint,
             usage: self.usage,
             rest: Default::default(),
-        })
+        }))
     }
 
     pub(super) fn is_complete(&self) -> bool {
@@ -111,10 +111,12 @@ impl Choice {
 
     fn finish(self, index: u32) -> Result<openai::ChatCompletionChoice, TransformError> {
         let finish_reason = self.finish_reason.ok_or(TransformError::IncompleteStream)?;
-        let function_call = self.function_name.map(|name| openai::FunctionCall {
-            arguments: self.function_arguments,
-            name,
-            rest: Default::default(),
+        let function_call = self.function_name.map(|name| {
+            crate::wire!(openai::FunctionCall {
+                arguments: self.function_arguments,
+                name,
+                rest: Default::default(),
+            })
         });
         let tools = self
             .tools
@@ -125,7 +127,7 @@ impl Choice {
             || !self.refusal.is_empty()
             || function_call.is_some()
             || !tools.is_empty();
-        Ok(openai::ChatCompletionChoice {
+        Ok(crate::wire!(openai::ChatCompletionChoice {
             finish_reason,
             index,
             logprobs: self.logprobs,
@@ -147,7 +149,7 @@ impl Choice {
                 rest: Default::default(),
             },
             rest: Default::default(),
-        })
+        }))
     }
 }
 
@@ -170,7 +172,7 @@ impl Tool {
     fn finish(self, index: u32) -> openai::ChatToolCall {
         let id = self.id.unwrap_or_else(|| format!("call_{index}"));
         if self.custom {
-            openai::ChatToolCall::Custom(openai::ChatCustomToolCall {
+            openai::ChatToolCall::Custom(crate::wire!(openai::ChatCustomToolCall {
                 id,
                 type_: openai::CustomToolChoiceType::Custom,
                 custom: openai::CustomToolCall {
@@ -179,9 +181,9 @@ impl Tool {
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            })
+            }))
         } else {
-            openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
+            openai::ChatToolCall::Function(crate::wire!(openai::ChatFunctionToolCall {
                 id,
                 type_: openai::FunctionToolChoiceType::Function,
                 function: openai::FunctionCall {
@@ -190,7 +192,7 @@ impl Tool {
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            })
+            }))
         }
     }
 }

@@ -11,7 +11,7 @@ pub(super) fn flush_message(
         return;
     }
     output.push(openai::ResponseItem::Message(
-        openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
+        openai::ResponseMessageItem::Output(crate::wire!(openai::ResponseOutputMessageItem {
             type_: openai::ResponseMessageItemType::Message,
             id: id.take().unwrap_or_else(|| {
                 let id = format!("msg_{response_id}_{}", *message_index);
@@ -23,7 +23,7 @@ pub(super) fn flush_message(
             status: openai::ResponseItemLifecycleStatus::Completed,
             phase: None,
             rest: Default::default(),
-        }),
+        })),
     ));
 }
 
@@ -37,11 +37,11 @@ pub(super) fn reasoning(
         id,
         summary: Vec::new(),
         content: text.map(|text| {
-            vec![openai::ResponseReasoningTextPart {
+            vec![crate::wire!(openai::ResponseReasoningTextPart {
                 type_: openai::ResponseReasoningTextType::ReasoningText,
                 text,
                 rest: Default::default(),
-            }]
+            })]
         }),
         encrypted_content,
         status: Some(openai::ResponseItemLifecycleStatus::Completed),

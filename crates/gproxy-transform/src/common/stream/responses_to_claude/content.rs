@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
@@ -9,7 +8,7 @@ impl State {
     pub(super) fn response_content_part_added(
         &mut self,
         event: openai::ResponseContentPartEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         match event.part {
             openai::ResponseContentPart::OutputText(part) => {
@@ -17,12 +16,12 @@ impl State {
                 let text = part.text;
                 output.extend(self.block_start(
                     index,
-                    claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                    claude::ResponseContentBlock::Text(crate::wire!(claude::ResponseTextBlock {
                         citations: None,
                         text: String::new(),
                         type_: claude::TextBlockType::Text,
                         rest: Default::default(),
-                    }),
+                    })),
                 )?);
                 self.response_indices
                     .insert((event.item_id, Some(event.content_index)), index);
@@ -41,12 +40,12 @@ impl State {
                 let refusal = part.refusal;
                 output.extend(self.block_start(
                     index,
-                    claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                    claude::ResponseContentBlock::Text(crate::wire!(claude::ResponseTextBlock {
                         citations: None,
                         text: String::new(),
                         type_: claude::TextBlockType::Text,
                         rest: Default::default(),
-                    }),
+                    })),
                 )?);
                 self.response_indices
                     .insert((event.item_id, Some(event.content_index)), index);
@@ -81,6 +80,13 @@ impl State {
                     raw.to_string(),
                 ));
             }
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
         Ok(output)
     }
@@ -88,7 +94,7 @@ impl State {
     pub(super) fn response_output_text_delta(
         &mut self,
         event: openai::ResponseOutputTextDeltaEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         output.extend(self.response_scalar(
             event.item_id,
@@ -103,7 +109,7 @@ impl State {
         &mut self,
         event: openai::ResponseContentDeltaEvent,
         kind: Scalar,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         output.extend(self.response_scalar(
             event.item_id,
@@ -117,7 +123,7 @@ impl State {
     pub(super) fn response_summary_delta(
         &mut self,
         event: openai::ResponseReasoningSummaryTextDeltaEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         output.extend(self.response_scalar(event.item_id, None, event.delta, Scalar::Thinking)?);
         Ok(output)
@@ -126,7 +132,7 @@ impl State {
     pub(super) fn response_tool_delta(
         &mut self,
         event: openai::ResponseItemStringDeltaEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         let index = self.response_index(Some(&event.item_id), None)?;
         self.response_tool_inputs
@@ -141,7 +147,7 @@ impl State {
         &mut self,
         item_id: &str,
         content_index: Option<u32>,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let output = self.ensure_start()?;
         self.response_index(Some(item_id), content_index)?;
         Ok(output)
@@ -152,7 +158,7 @@ impl State {
         item_id: Option<&str>,
         output_index: u32,
         full: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         let index = self.response_index_for_output(item_id, output_index, None)?;
         output.extend(self.response_tool_full(index, full)?);
@@ -163,7 +169,7 @@ impl State {
         &mut self,
         index: u64,
         full: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let current = self
             .response_tool_inputs
             .get_mut(&index)

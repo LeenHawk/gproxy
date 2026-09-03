@@ -1,29 +1,27 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
-use crate::envelope::SseFrame;
 
-use super::claude_to_openai::State;
+use super::claude_to_openai::{OutputEvent, State};
 
 impl State {
-    pub(super) fn chat_text(&self, text: String) -> Result<Bytes, TransformError> {
+    pub(super) fn chat_text(&self, text: String) -> Result<OutputEvent, TransformError> {
         self.chat_chunk(
-            openai::ChatDelta {
+            crate::wire!(openai::ChatDelta {
                 content: Some(text),
                 ..empty_delta()
-            },
+            }),
             None,
             None,
         )
     }
 
-    pub(super) fn chat_reasoning(&self, text: String) -> Result<Bytes, TransformError> {
+    pub(super) fn chat_reasoning(&self, text: String) -> Result<OutputEvent, TransformError> {
         self.chat_chunk(
-            openai::ChatDelta {
+            crate::wire!(openai::ChatDelta {
                 reasoning_content: Some(text),
                 ..empty_delta()
-            },
+            }),
             None,
             None,
         )
@@ -35,10 +33,10 @@ impl State {
         id: String,
         name: String,
         arguments: String,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         self.chat_chunk(
-            openai::ChatDelta {
-                tool_calls: Some(vec![openai::ChatToolCallDelta {
+            crate::wire!(openai::ChatDelta {
+                tool_calls: Some(vec![crate::wire!(openai::ChatToolCallDelta {
                     index,
                     id: Some(id),
                     type_: Some(openai::ChatToolCallType::Function),
@@ -49,9 +47,9 @@ impl State {
                     }),
                     custom: None,
                     rest: Default::default(),
-                }]),
+                })]),
                 ..empty_delta()
-            },
+            }),
             None,
             None,
         )
@@ -61,10 +59,10 @@ impl State {
         &self,
         index: u32,
         arguments: String,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         self.chat_chunk(
-            openai::ChatDelta {
-                tool_calls: Some(vec![openai::ChatToolCallDelta {
+            crate::wire!(openai::ChatDelta {
+                tool_calls: Some(vec![crate::wire!(openai::ChatToolCallDelta {
                     index,
                     id: None,
                     type_: None,
@@ -75,9 +73,9 @@ impl State {
                     }),
                     custom: None,
                     rest: Default::default(),
-                }]),
+                })]),
                 ..empty_delta()
-            },
+            }),
             None,
             None,
         )
@@ -88,18 +86,17 @@ impl State {
         delta: openai::ChatDelta,
         finish_reason: Option<openai::ChatFinishReason>,
         usage: Option<openai::CompletionUsage>,
-    ) -> Result<Bytes, TransformError> {
-        SseFrame::typed(
-            None,
-            &openai::ChatCompletionChunk {
+    ) -> Result<OutputEvent, TransformError> {
+        Ok(OutputEvent::Chat(crate::wire!(
+            openai::ChatCompletionChunk {
                 id: self.id.clone().expect("started message has an id"),
-                choices: vec![openai::ChatChunkChoice {
+                choices: vec![crate::wire!(openai::ChatChunkChoice {
                     index: 0,
                     delta,
                     finish_reason,
                     logprobs: None,
                     rest: Default::default(),
-                }],
+                })],
                 created: None,
                 model: self.model.clone().expect("started message has a model"),
                 object: openai::ChatCompletionChunkObjectType::ChatCompletionChunk,
@@ -107,13 +104,13 @@ impl State {
                 system_fingerprint: None,
                 usage,
                 rest: Default::default(),
-            },
-        )
+            }
+        )))
     }
 }
 
 pub(super) fn empty_delta() -> openai::ChatDelta {
-    openai::ChatDelta {
+    crate::wire!(openai::ChatDelta {
         role: None,
         content: None,
         reasoning_content: None,
@@ -122,5 +119,5 @@ pub(super) fn empty_delta() -> openai::ChatDelta {
         function_call: None,
         obfuscation: None,
         rest: Default::default(),
-    }
+    })
 }

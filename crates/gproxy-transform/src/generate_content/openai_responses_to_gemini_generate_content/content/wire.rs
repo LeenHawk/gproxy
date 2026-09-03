@@ -17,6 +17,13 @@ pub(super) fn function_result(
     match output {
         openai::ResponseOutput::Text(text) => Ok((response_map(text_value(text)), None)),
         openai::ResponseOutput::Parts(parts) => multipart_result(parts),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -52,6 +59,13 @@ fn multipart_result(
                     values.push(serde_json::Value::String(reference));
                 }
             }
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
     Ok((
@@ -61,7 +75,7 @@ fn multipart_result(
 }
 
 fn response_part(mime_type: String, data: String) -> gemini::FunctionResponsePart {
-    gemini::FunctionResponsePart {
+    crate::wire!(gemini::FunctionResponsePart {
         data: Some(gemini::FunctionResponsePartData::InlineData {
             inline_data: gemini::FunctionResponseBlob {
                 mime_type,
@@ -71,7 +85,7 @@ fn response_part(mime_type: String, data: String) -> gemini::FunctionResponsePar
             rest: Default::default(),
         }),
         rest: Default::default(),
-    }
+    })
 }
 
 fn data_uri(uri: String) -> Result<(String, String), TransformError> {

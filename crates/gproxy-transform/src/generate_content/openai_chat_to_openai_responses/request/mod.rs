@@ -12,8 +12,17 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ChatCompletionRequest,
+    model: &str,
+    stream: bool,
+) -> Result<openai::ResponseCreateRequest, TransformError> {
     let items = messages::message_items(input.messages)?;
-    let output = openai::ResponseCreateRequest {
+    let output = crate::wire!(openai::ResponseCreateRequest {
         background: None,
         context_management: None,
         conversation: None,
@@ -61,8 +70,8 @@ pub(crate) fn transform(
         truncation: None,
         user: input.user,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn tool_choice(
@@ -71,19 +80,21 @@ fn tool_choice(
     Ok(match choice {
         None => None,
         Some(openai::ChatToolChoice::Mode(mode)) => Some(openai::ResponseToolChoice::Mode(mode)),
-        Some(openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Function(choice))) => Some(
-            openai::ResponseToolChoice::Function(openai::ResponseFunctionToolChoice {
-                type_: openai::FunctionToolChoiceType::Function,
-                name: choice.function.name,
-                rest: Default::default(),
-            }),
-        ),
+        Some(openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Function(choice))) => {
+            Some(openai::ResponseToolChoice::Function(crate::wire!(
+                openai::ResponseFunctionToolChoice {
+                    type_: openai::FunctionToolChoiceType::Function,
+                    name: choice.function.name,
+                    rest: Default::default(),
+                }
+            )))
+        }
         Some(openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Custom(choice))) => Some(
-            openai::ResponseToolChoice::Custom(openai::ResponseCustomToolChoice {
+            openai::ResponseToolChoice::Custom(crate::wire!(openai::ResponseCustomToolChoice {
                 type_: openai::CustomToolChoiceType::Custom,
                 name: choice.custom.name,
                 rest: Default::default(),
-            }),
+            })),
         ),
         Some(openai::ChatToolChoice::Unknown(_)) => None,
         Some(_) => None,
@@ -98,10 +109,10 @@ fn text_config(
         .map(|format| serde_json::from_slice(&serde_json::to_vec(&format)?))
         .transpose()?;
     Ok(
-        (format.is_some() || verbosity.is_some()).then_some(openai::TextConfig {
+        (format.is_some() || verbosity.is_some()).then_some(crate::wire!(openai::TextConfig {
             format,
             verbosity,
             rest: Default::default(),
-        }),
+        })),
     )
 }

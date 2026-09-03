@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -11,7 +10,7 @@ impl State {
         &mut self,
         delta: String,
         logprobs: Vec<openai::TokenLogprob>,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         if self.text.is_none() {
             let item = Item {
                 id: self.item_id("msg")?,
@@ -30,7 +29,10 @@ impl State {
         Ok(vec![self.emit_text_delta(id, index, delta, logprobs)?])
     }
 
-    pub(super) fn reasoning_delta(&mut self, delta: String) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn reasoning_delta(
+        &mut self,
+        delta: String,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         if self.reasoning.is_none() {
             let item = Item {
                 id: self.item_id("rs")?,
@@ -46,7 +48,7 @@ impl State {
             (item.id.clone(), item.index)
         };
         Ok(vec![emit(
-            openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(
+            openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(crate::wire!(
                 openai::ResponseContentDeltaEvent {
                     content_index: 0,
                     delta,
@@ -54,8 +56,8 @@ impl State {
                     output_index: index,
                     sequence_number: Some(self.next_sequence()),
                     rest: Default::default(),
-                },
-            ),
+                }
+            )),
         )?])
     }
 
@@ -63,9 +65,9 @@ impl State {
         &mut self,
         output_index: u32,
         delta: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         Ok(vec![emit(
-            openai::KnownResponseStreamEvent::ResponseRefusalDelta(
+            openai::KnownResponseStreamEvent::ResponseRefusalDelta(crate::wire!(
                 openai::ResponseContentDeltaEvent {
                     content_index: 0,
                     delta,
@@ -73,8 +75,8 @@ impl State {
                     output_index,
                     sequence_number: Some(self.next_sequence()),
                     rest: Default::default(),
-                },
-            ),
+                }
+            )),
         )?])
     }
 
@@ -84,11 +86,11 @@ impl State {
         output_index: u32,
         delta: String,
         logprobs: Vec<openai::TokenLogprob>,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<openai::ResponseStreamEvent, TransformError> {
         let logprobs =
             (!logprobs.is_empty()).then(|| logprobs.into_iter().map(stream_logprob).collect());
         emit(openai::KnownResponseStreamEvent::ResponseOutputTextDelta(
-            openai::ResponseOutputTextDeltaEvent {
+            crate::wire!(openai::ResponseOutputTextDeltaEvent {
                 content_index: Some(0),
                 delta,
                 item_id,
@@ -96,7 +98,7 @@ impl State {
                 output_index,
                 sequence_number: Some(self.next_sequence()),
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 }

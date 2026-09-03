@@ -1,10 +1,9 @@
-use bytes::Bytes;
 use gproxy_protocol::claude;
 
 use crate::TransformError;
 use crate::common::native::items;
 
-use super::super::claude_to_openai::{Output, State};
+use super::super::claude_to_openai::{Output, OutputEvent, State};
 use super::super::claude_to_responses::ResponseDelta;
 use super::{Block, Emission};
 
@@ -13,7 +12,7 @@ impl State {
         &mut self,
         index: u64,
         delta: claude::EventDelta,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<OutputEvent>, TransformError> {
         let mut block = self
             .blocks
             .remove(&index)
@@ -93,8 +92,22 @@ impl State {
                         serde_json::to_string(&other)?,
                     ));
                 }
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(TransformError::unsupported(
+                        "Claude stream delta",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             claude::EventDelta::Unknown(_) => Emission::None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         self.blocks.insert(index, block);
         Ok(match emission {

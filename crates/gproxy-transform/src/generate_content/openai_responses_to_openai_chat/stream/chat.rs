@@ -1,18 +1,15 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
 use crate::common::usage;
-use crate::envelope::SseFrame;
 
 use super::State;
 
 impl State {
-    pub(super) fn chat(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        if frame.data == "[DONE]" {
-            return self.stop();
-        }
-        let chunk: openai::ChatCompletionChunk = serde_json::from_str(&frame.data)?;
+    pub(crate) fn push_typed(
+        &mut self,
+        chunk: openai::ChatCompletionChunk,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         self.id = Some(chunk.id);
         self.created_at = chunk.created.or(self.created_at);
         self.model = Some(chunk.model);
@@ -32,7 +29,16 @@ impl State {
         Ok(output)
     }
 
-    fn choice(&mut self, choice: openai::ChatChunkChoice) -> Result<Vec<Bytes>, TransformError> {
+    pub(crate) fn finish_typed(
+        &mut self,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
+        self.stop()
+    }
+
+    fn choice(
+        &mut self,
+        choice: openai::ChatChunkChoice,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         let content_logprobs = choice
             .logprobs
             .map(|logprobs| logprobs.content)
@@ -57,14 +63,14 @@ impl State {
             output.extend(self.tool_delta(call)?);
         }
         if let Some(function) = delta.function_call {
-            output.extend(self.tool_delta(openai::ChatToolCallDelta {
+            output.extend(self.tool_delta(crate::wire!(openai::ChatToolCallDelta {
                 index: choice.index,
                 id: Some(format!("call_{}", choice.index)),
                 type_: Some(openai::ChatToolCallType::Function),
                 function: Some(function),
                 custom: None,
                 rest: Default::default(),
-            })?);
+            }))?);
         }
         if choice.finish_reason.is_some() {
             self.finish_reason = choice.finish_reason;

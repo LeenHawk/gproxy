@@ -53,6 +53,13 @@ impl ContentConverter {
             openai::ResponseItem::Message(message) => messages::message(message)?,
             openai::ResponseItem::Typed(item) => self.typed(*item)?,
             openai::ResponseItem::Unknown(_) => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         })
     }
 
@@ -151,6 +158,13 @@ impl ContentConverter {
             | openai::TypedResponseItem::AgentMessage { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
             | openai::TypedResponseItem::ItemReference { .. }) => native::native_item(self, other),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 }

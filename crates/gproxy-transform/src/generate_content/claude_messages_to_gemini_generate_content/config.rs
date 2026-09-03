@@ -18,11 +18,13 @@ pub(super) fn generation(
     let mut thinking_config = thinking_to_gemini(input.thinking.clone())?;
     if let Some(level) = effort_to_gemini(effort) {
         thinking_config
-            .get_or_insert_with(|| gemini::ThinkingConfig {
-                include_thoughts: None,
-                thinking_budget: None,
-                thinking_level: None,
-                rest: Default::default(),
+            .get_or_insert_with(|| {
+                crate::wire!(gemini::ThinkingConfig {
+                    include_thoughts: None,
+                    thinking_budget: None,
+                    thinking_level: None,
+                    rest: Default::default(),
+                })
             })
             .thinking_level = Some(level);
     }
@@ -35,7 +37,7 @@ pub(super) fn generation(
         ),
         None => (None, None),
     };
-    Ok(gemini::GenerationConfig {
+    Ok(crate::wire!(gemini::GenerationConfig {
         stop_sequences: input.stop_sequences.clone(),
         response_mime_type,
         response_schema: None,
@@ -59,7 +61,7 @@ pub(super) fn generation(
         image_config: None,
         media_resolution: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn request_tier(
@@ -90,24 +92,24 @@ fn thinking_to_gemini(
         return Ok(None);
     };
     Ok(Some(match thinking {
-        claude::ThinkingConfig::Disabled(_) => gemini::ThinkingConfig {
+        claude::ThinkingConfig::Disabled(_) => crate::wire!(gemini::ThinkingConfig {
             include_thoughts: Some(false),
             thinking_budget: None,
             thinking_level: None,
             rest: Default::default(),
-        },
-        claude::ThinkingConfig::Enabled(config) => gemini::ThinkingConfig {
+        }),
+        claude::ThinkingConfig::Enabled(config) => crate::wire!(gemini::ThinkingConfig {
             include_thoughts: Some(true),
             thinking_budget: Some(to_i32(config.budget_tokens)?),
             thinking_level: None,
             rest: Default::default(),
-        },
-        claude::ThinkingConfig::Adaptive(_) => gemini::ThinkingConfig {
+        }),
+        claude::ThinkingConfig::Adaptive(_) => crate::wire!(gemini::ThinkingConfig {
             include_thoughts: Some(true),
             thinking_budget: None,
             thinking_level: None,
             rest: Default::default(),
-        },
+        }),
         claude::ThinkingConfig::Unknown(_) => return Ok(None),
         _ => return Ok(None),
     }))

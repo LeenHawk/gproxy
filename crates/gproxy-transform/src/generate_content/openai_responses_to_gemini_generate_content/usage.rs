@@ -35,7 +35,7 @@ pub(in crate::generate_content) fn to_gemini(
                 "output_tokens is below reasoning_tokens",
             )
         })?;
-    Ok(Some(gemini::UsageMetadata {
+    Ok(Some(crate::wire!(gemini::UsageMetadata {
         prompt_token_count: Some(to_i32(usage.input_tokens)?),
         cached_content_token_count: cached_tokens.map(to_i32).transpose()?,
         candidates_token_count: Some(to_i32(candidate_tokens)?),
@@ -48,7 +48,7 @@ pub(in crate::generate_content) fn to_gemini(
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
         rest: Default::default(),
-    }))
+    })))
 }
 
 fn to_i32(value: u32) -> Result<i32, crate::TransformError> {

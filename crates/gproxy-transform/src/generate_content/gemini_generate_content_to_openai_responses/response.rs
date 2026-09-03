@@ -10,6 +10,13 @@ use super::config;
 
 pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai::ResponseObject = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ResponseObject,
+) -> Result<gemini::GenerateContentResponse, TransformError> {
     let finish_reason = finish_reason(input.status.as_ref(), input.incomplete_details.as_ref())?;
     let mut converter = ContentConverter::new();
     let contents = input
@@ -25,25 +32,27 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
     if let Some(usage) = usage_metadata.as_mut() {
         usage.service_tier = config::openai_service_tier(input.service_tier);
     }
-    let candidate = (!parts.is_empty() || finish_reason.is_some()).then(|| gemini::Candidate {
-        content: (!parts.is_empty()).then(|| gemini::Content {
-            parts,
-            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
+    let candidate = (!parts.is_empty() || finish_reason.is_some()).then(|| {
+        crate::wire!(gemini::Candidate {
+            content: (!parts.is_empty()).then(|| gemini::Content {
+                parts,
+                role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
+                rest: Default::default(),
+            }),
+            finish_reason,
+            safety_ratings: Vec::new(),
+            citation_metadata: None,
+            token_count: None,
+            grounding_metadata: None,
+            avg_logprobs: None,
+            logprobs_result: None,
+            url_context_metadata: None,
+            index: Some(0),
+            finish_message: None,
             rest: Default::default(),
-        }),
-        finish_reason,
-        safety_ratings: Vec::new(),
-        citation_metadata: None,
-        token_count: None,
-        grounding_metadata: None,
-        avg_logprobs: None,
-        logprobs_result: None,
-        url_context_metadata: None,
-        index: Some(0),
-        finish_message: None,
-        rest: Default::default(),
+        })
     });
-    let output = gemini::GenerateContentResponse {
+    let output = crate::wire!(gemini::GenerateContentResponse {
         candidates: candidate.into_iter().collect(),
         prompt_feedback: None,
         usage_metadata,
@@ -51,8 +60,8 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
         response_id: Some(input.id),
         model_status: None,
         rest: Default::default(),
-    };
-    Ok(Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 pub(in crate::generate_content) fn finish_reason(

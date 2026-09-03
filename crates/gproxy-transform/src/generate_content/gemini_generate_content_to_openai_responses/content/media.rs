@@ -14,13 +14,15 @@ pub(super) fn media_message(
     let mime = blob.mime_type;
     if mime.starts_with("image/") {
         return Ok(Some(MessagePart::Input(
-            openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
-                detail: None,
-                file_id: None,
-                image_url: Some(format!("data:{mime};base64,{}", blob.data)),
-                prompt_cache_breakpoint: None,
-                rest: Default::default(),
-            }),
+            openai::ResponseInputContentPart::InputImage(crate::wire!(
+                openai::ResponseInputImage {
+                    detail: None,
+                    file_id: None,
+                    image_url: Some(format!("data:{mime};base64,{}", blob.data)),
+                    prompt_cache_breakpoint: None,
+                    rest: Default::default(),
+                }
+            )),
         )));
     }
     if mime.starts_with("audio/") {
@@ -30,18 +32,20 @@ pub(super) fn media_message(
             _ => return Ok(None),
         };
         return Ok(Some(MessagePart::Input(
-            openai::ResponseInputContentPart::InputAudio(openai::ResponseInputAudio {
-                input_audio: openai::InputAudioContent {
-                    data: blob.data,
-                    format,
+            openai::ResponseInputContentPart::InputAudio(crate::wire!(
+                openai::ResponseInputAudio {
+                    input_audio: openai::InputAudioContent {
+                        data: blob.data,
+                        format,
+                        rest: Default::default(),
+                    },
                     rest: Default::default(),
-                },
-                rest: Default::default(),
-            }),
+                }
+            )),
         )));
     }
     Ok(Some(MessagePart::Input(
-        openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
+        openai::ResponseInputContentPart::InputFile(crate::wire!(openai::ResponseInputFile {
             detail: None,
             file_data: Some(format!("data:{mime};base64,{}", blob.data)),
             file_id: None,
@@ -49,7 +53,7 @@ pub(super) fn media_message(
             filename: None,
             prompt_cache_breakpoint: None,
             rest: Default::default(),
-        }),
+        })),
     )))
 }
 
@@ -66,17 +70,19 @@ pub(super) fn file_message(
         .is_some_and(|mime| mime.starts_with("image/"))
     {
         return Ok(Some(MessagePart::Input(
-            openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
-                detail: None,
-                file_id: None,
-                image_url: Some(file.file_uri),
-                prompt_cache_breakpoint: None,
-                rest: Default::default(),
-            }),
+            openai::ResponseInputContentPart::InputImage(crate::wire!(
+                openai::ResponseInputImage {
+                    detail: None,
+                    file_id: None,
+                    image_url: Some(file.file_uri),
+                    prompt_cache_breakpoint: None,
+                    rest: Default::default(),
+                }
+            )),
         )));
     }
     Ok(Some(MessagePart::Input(
-        openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
+        openai::ResponseInputContentPart::InputFile(crate::wire!(openai::ResponseInputFile {
             detail: None,
             file_data: None,
             file_id: None,
@@ -84,6 +90,6 @@ pub(super) fn file_message(
             filename: None,
             prompt_cache_breakpoint: None,
             rest: Default::default(),
-        }),
+        })),
     )))
 }

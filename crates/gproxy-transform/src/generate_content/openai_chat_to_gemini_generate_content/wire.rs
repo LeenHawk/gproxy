@@ -55,7 +55,7 @@ pub(crate) fn usage(
             "total_tokens does not equal prompt_tokens + completion_tokens",
         ));
     }
-    Ok(gemini::UsageMetadata {
+    Ok(crate::wire!(gemini::UsageMetadata {
         prompt_token_count: Some(signed(usage.prompt_tokens, "prompt_tokens")?),
         cached_content_token_count: usage
             .prompt_tokens_details
@@ -74,7 +74,7 @@ pub(crate) fn usage(
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn index(value: u32) -> Result<i32, TransformError> {

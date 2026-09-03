@@ -17,11 +17,13 @@ pub(crate) fn apply(
             })
     {
         output_config
-            .get_or_insert_with(|| claude::OutputConfig {
-                effort: None,
-                format: None,
-                task_budget: None,
-                rest: Default::default(),
+            .get_or_insert_with(|| {
+                crate::wire!(claude::OutputConfig {
+                    effort: None,
+                    format: None,
+                    task_budget: None,
+                    rest: Default::default(),
+                })
             })
             .effort = Some(effort);
     }

@@ -31,6 +31,13 @@ pub(super) fn convert(
                 openai::ApplyPatchOperation::DeleteFile { path, .. } => {
                     format!("delete_file {path}")
                 }
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
         ),
         openai::TypedResponseItem::CodeInterpreterCall { id, code, .. } => (
@@ -67,20 +74,29 @@ pub(super) fn convert(
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => return Ok(None),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     };
-    Ok(Some(super::model_content(vec![gemini::Part {
-        data: Some(gemini::PartData::ExecutableCode {
-            executable_code: gemini::ExecutableCode {
-                id: Some(call_id),
-                language: gemini::ExecutableCodeLanguage::Known(
-                    gemini::ExecutableCodeLanguageKnown::Python,
-                ),
-                code,
+    Ok(Some(super::model_content(vec![crate::wire!(
+        gemini::Part {
+            data: Some(gemini::PartData::ExecutableCode {
+                executable_code: gemini::ExecutableCode {
+                    id: Some(call_id),
+                    language: gemini::ExecutableCodeLanguage::Known(
+                        gemini::ExecutableCodeLanguageKnown::Python,
+                    ),
+                    code,
+                    rest: Default::default(),
+                },
                 rest: Default::default(),
-            },
+            }),
             rest: Default::default(),
-        }),
-        rest: Default::default(),
-        ..Default::default()
-    }])))
+            ..Default::default()
+        }
+    )])))
 }

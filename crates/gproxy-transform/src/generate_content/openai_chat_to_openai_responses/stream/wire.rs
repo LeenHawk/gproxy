@@ -1,7 +1,7 @@
 use gproxy_protocol::openai;
 
 pub(super) fn empty_delta() -> openai::ChatDelta {
-    openai::ChatDelta {
+    crate::wire!(openai::ChatDelta {
         role: None,
         content: None,
         reasoning_content: None,
@@ -10,5 +10,5 @@ pub(super) fn empty_delta() -> openai::ChatDelta {
         function_call: None,
         obfuscation: None,
         rest: Default::default(),
-    }
+    })
 }

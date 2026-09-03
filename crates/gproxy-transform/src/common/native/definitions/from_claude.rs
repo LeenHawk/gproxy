@@ -113,13 +113,15 @@ fn text_editor(editor: claude::TextEditorTool) -> Result<openai::ResponseTool, T
 
 fn code_interpreter(callers: Option<Vec<claude::ToolCaller>>) -> openai::ResponseTool {
     openai::ResponseTool::CodeInterpreter {
-        container: openai::CodeInterpreterContainer::Auto(openai::CodeInterpreterAutoContainer {
-            type_: openai::CodeInterpreterContainerType::Auto,
-            file_ids: None,
-            memory_limit: None,
-            network_policy: None,
-            rest: Default::default(),
-        }),
+        container: openai::CodeInterpreterContainer::Auto(crate::wire!(
+            openai::CodeInterpreterAutoContainer {
+                type_: openai::CodeInterpreterContainerType::Auto,
+                file_ids: None,
+                memory_limit: None,
+                network_policy: None,
+                rest: Default::default(),
+            }
+        )),
         allowed_callers: callers_to_openai(callers),
         rest: Default::default(),
     }
@@ -173,11 +175,11 @@ fn web_search(search: claude::WebSearchTool) -> Result<openai::ResponseTool, Tra
         other => return fallback(claude::Tool::WebSearch(other)),
     };
     let filters = if params.allowed_domains.is_some() || params.blocked_domains.is_some() {
-        Some(openai::WebSearchFilters {
+        Some(crate::wire!(openai::WebSearchFilters {
             allowed_domains: params.allowed_domains,
             blocked_domains: params.blocked_domains,
             rest: Default::default(),
-        })
+        }))
     } else {
         None
     };
@@ -208,14 +210,14 @@ fn web_fetch(fetch: claude::WebFetchTool) -> Result<openai::ResponseTool, Transf
 }
 
 fn location(location: claude::UserLocation) -> openai::WebSearchUserLocation {
-    openai::WebSearchUserLocation {
+    crate::wire!(openai::WebSearchUserLocation {
         city: location.city,
         country: location.country,
         region: location.region,
         timezone: location.timezone,
         type_: Some(openai::ApproximateLocationType::Approximate),
         rest: Default::default(),
-    }
+    })
 }
 
 fn fallback(tool: claude::Tool) -> Result<openai::ResponseTool, TransformError> {

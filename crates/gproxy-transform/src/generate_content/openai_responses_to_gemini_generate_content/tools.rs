@@ -21,6 +21,13 @@ pub(super) fn to_gemini(
                 match parameters {
                     openai::ResponseFunctionParameters::Schema(schema) => Some(schema),
                     openai::ResponseFunctionParameters::Null => None,
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 },
                 output_schema,
             )?),
@@ -45,6 +52,13 @@ pub(super) fn to_gemini(
                         openai::ResponseNamespaceTool::Custom {
                             name, description, ..
                         } => (name, description, None, None),
+                        #[cfg(not(feature = "exhaustive"))]
+                        _ => {
+                            return Err(crate::TransformError::unsupported(
+                                "protocol enum",
+                                "unrecognized external variant",
+                            ));
+                        }
                     };
                     declarations.push(function(name, description, parameters, output_schema)?);
                 }
@@ -54,7 +68,7 @@ pub(super) fn to_gemini(
                 max_num_results,
                 ..
             } => {
-                output.push(gemini::Tool {
+                output.push(crate::wire!(gemini::Tool {
                     file_search: Some(gemini::FileSearch {
                         file_search_store_names: vector_store_ids,
                         metadata_filter: None,
@@ -62,11 +76,11 @@ pub(super) fn to_gemini(
                         rest: Default::default(),
                     }),
                     ..Default::default()
-                });
+                }));
             }
             openai::ResponseTool::CollectionsSearch {
                 vector_store_ids, ..
-            } => output.push(gemini::Tool {
+            } => output.push(crate::wire!(gemini::Tool {
                 file_search: Some(gemini::FileSearch {
                     file_search_store_names: vector_store_ids,
                     metadata_filter: None,
@@ -74,67 +88,76 @@ pub(super) fn to_gemini(
                     rest: Default::default(),
                 }),
                 ..Default::default()
-            }),
+            })),
             openai::ResponseTool::WebSearch { .. }
             | openai::ResponseTool::WebSearch20250826 { .. } => {
-                output.push(gemini::Tool {
+                output.push(crate::wire!(gemini::Tool {
                     google_search: Some(gemini::GoogleSearch::default()),
                     url_context: Some(gemini::UrlContext::default()),
                     rest: Default::default(),
                     ..Default::default()
-                });
+                }));
             }
             openai::ResponseTool::WebSearchPreview { .. }
             | openai::ResponseTool::WebSearchPreview20250311 { .. }
-            | openai::ResponseTool::XSearch { .. } => output.push(gemini::Tool {
+            | openai::ResponseTool::XSearch { .. } => output.push(crate::wire!(gemini::Tool {
                 google_search: Some(gemini::GoogleSearch::default()),
                 rest: Default::default(),
                 ..Default::default()
-            }),
+            })),
             openai::ResponseTool::CodeExecution { .. }
             | openai::ResponseTool::CodeInterpreter { .. }
             | openai::ResponseTool::Shell { .. }
             | openai::ResponseTool::LocalShell { .. }
-            | openai::ResponseTool::ApplyPatch { .. } => output.push(gemini::Tool {
+            | openai::ResponseTool::ApplyPatch { .. } => output.push(crate::wire!(gemini::Tool {
                 code_execution: Some(gemini::CodeExecution::default()),
                 rest: Default::default(),
                 ..Default::default()
-            }),
+            })),
             openai::ResponseTool::Computer { .. }
-            | openai::ResponseTool::ComputerUsePreview { .. } => output.push(gemini::Tool {
-                computer_use: Some(gemini::ComputerUse {
-                    rest: Default::default(),
+            | openai::ResponseTool::ComputerUsePreview { .. } => {
+                output.push(crate::wire!(gemini::Tool {
+                    computer_use: Some(gemini::ComputerUse {
+                        rest: Default::default(),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
-            }),
+                }))
+            }
             openai::ResponseTool::Mcp {
                 server_label,
                 server_url,
                 headers,
                 ..
-            } => output.push(gemini::Tool {
-                mcp_servers: Some(vec![gemini::McpServer {
+            } => output.push(crate::wire!(gemini::Tool {
+                mcp_servers: Some(vec![crate::wire!(gemini::McpServer {
                     name: Some(server_label),
                     streamable_http_transport: mcp_transport(server_url, headers),
                     rest: Default::default(),
-                }]),
+                })]),
                 ..Default::default()
-            }),
+            })),
             openai::ResponseTool::WebFetch { .. }
             | openai::ResponseTool::Memory { .. }
             | openai::ResponseTool::ImageGeneration { .. }
             | openai::ResponseTool::ToolSearch { .. }
             | openai::ResponseTool::ProgrammaticToolCalling { .. } => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
     if !declarations.is_empty() {
         output.insert(
             0,
-            gemini::Tool {
+            crate::wire!(gemini::Tool {
                 function_declarations: Some(declarations),
                 ..Default::default()
-            },
+            }),
         );
     }
     Ok((!output.is_empty()).then_some(output))
@@ -182,6 +205,8 @@ pub(super) fn choice_to_gemini(
                     | openai::ResponseAllowedTool::LocalShell { .. }
                     | openai::ResponseAllowedTool::Shell { .. }
                     | openai::ResponseAllowedTool::ApplyPatch { .. } => None,
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => None,
                 })
                 .collect();
             (mode, names)
@@ -190,7 +215,7 @@ pub(super) fn choice_to_gemini(
         | openai::ResponseToolChoice::Unknown(_) => return None,
         _ => return None,
     };
-    Some(gemini::ToolConfig {
+    Some(crate::wire!(gemini::ToolConfig {
         function_calling_config: Some(gemini::FunctionCallingConfig {
             mode: Some(gemini::FunctionCallingMode::Known(mode)),
             allowed_function_names: (!names.is_empty()).then_some(names),
@@ -199,7 +224,7 @@ pub(super) fn choice_to_gemini(
         retrieval_config: None,
         include_server_side_tool_invocations: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn function(
@@ -208,7 +233,7 @@ fn function(
     parameters: Option<openai::JsonSchema>,
     output_schema: Option<openai::JsonSchema>,
 ) -> Result<gemini::FunctionDeclaration, TransformError> {
-    Ok(gemini::FunctionDeclaration {
+    Ok(crate::wire!(gemini::FunctionDeclaration {
         name,
         description: description
             .ok_or_else(|| TransformError::shape("Responses tool", "description is missing"))?,
@@ -218,7 +243,7 @@ fn function(
         response: None,
         response_json_schema: output_schema.map(serde_json::Value::Object),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn to_i32(value: u32) -> Result<i32, TransformError> {
@@ -234,12 +259,12 @@ fn mcp_transport(
     if url.is_none() && headers.is_none() {
         return None;
     }
-    Some(gemini::StreamableHttpTransport {
+    Some(crate::wire!(gemini::StreamableHttpTransport {
         url,
         headers,
         timeout: None,
         sse_read_timeout: None,
         terminate_on_close: None,
         rest: Default::default(),
-    })
+    }))
 }

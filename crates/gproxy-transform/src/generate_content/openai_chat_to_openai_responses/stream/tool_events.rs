@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -10,7 +9,7 @@ impl State {
         &mut self,
         event: openai::ResponseItemStringDeltaEvent,
         kind: ToolKind,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let tool = self.tools.get_mut(&event.item_id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool delta before output item")
         })?;
@@ -28,7 +27,7 @@ impl State {
     pub(super) fn function_done(
         &mut self,
         event: openai::ResponseFunctionCallArgumentsDoneEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let id = self.tool_source_id(event.item_id, event.output_index)?;
         self.finish_tool_event(
             &id,
@@ -42,7 +41,7 @@ impl State {
     pub(super) fn custom_done(
         &mut self,
         event: openai::ResponseCustomToolCallInputDoneEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         self.finish_tool_event(
             &event.item_id,
             event.output_index,
@@ -59,7 +58,7 @@ impl State {
         kind: ToolKind,
         full: String,
         name: Option<String>,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         if let Some(name) = name {
             let tool = self.tools.get(id).ok_or_else(|| {
                 TransformError::shape("Responses stream", "tool done before output item")

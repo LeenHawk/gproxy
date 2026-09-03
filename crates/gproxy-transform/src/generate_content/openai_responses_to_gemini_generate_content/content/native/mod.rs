@@ -13,7 +13,7 @@ pub(super) fn function_call(
     arguments: String,
     signature: Option<String>,
 ) -> Result<gemini::Content, TransformError> {
-    Ok(model_content(vec![gemini::Part {
+    Ok(model_content(vec![crate::wire!(gemini::Part {
         thought_signature: signature,
         data: Some(gemini::PartData::FunctionCall {
             function_call: gemini::FunctionCall {
@@ -26,7 +26,7 @@ pub(super) fn function_call(
         }),
         rest: Default::default(),
         ..Default::default()
-    }]))
+    })]))
 }
 
 pub(super) fn function_result(
@@ -35,7 +35,7 @@ pub(super) fn function_result(
     output: openai::ResponseOutput,
 ) -> Result<gemini::Content, TransformError> {
     let (response, parts) = wire::function_result(output)?;
-    Ok(user_content(vec![gemini::Part {
+    Ok(user_content(vec![crate::wire!(gemini::Part {
         data: Some(gemini::PartData::FunctionResponse {
             function_response: gemini::FunctionResponse {
                 id: Some(call_id),
@@ -50,7 +50,7 @@ pub(super) fn function_result(
         }),
         rest: Default::default(),
         ..Default::default()
-    }]))
+    })]))
 }
 
 pub(super) fn reasoning(
@@ -89,9 +89,9 @@ pub(super) fn user_content(parts: Vec<gemini::Part>) -> gemini::Content {
 }
 
 fn content(role: gemini::ContentRoleKnown, parts: Vec<gemini::Part>) -> gemini::Content {
-    gemini::Content {
+    crate::wire!(gemini::Content {
         parts,
         role: Some(gemini::ContentRole::Known(role)),
         rest: Default::default(),
-    }
+    })
 }

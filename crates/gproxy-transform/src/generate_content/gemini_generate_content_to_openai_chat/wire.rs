@@ -124,7 +124,7 @@ pub(crate) fn usage(
         }
         None => expected_total,
     };
-    Ok(openai::CompletionUsage {
+    Ok(crate::wire!(openai::CompletionUsage {
         completion_tokens: completion,
         prompt_tokens: prompt,
         total_tokens: total,
@@ -151,7 +151,7 @@ pub(crate) fn usage(
             })
             .transpose()?,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn count(value: i32, field: &'static str) -> Result<u32, TransformError> {

@@ -20,7 +20,7 @@ pub(super) struct OpenBlock {
 }
 
 #[derive(Default)]
-pub(super) struct State {
+pub(crate) struct State {
     pub(super) correlation: Correlation,
     pub(super) next_index: u64,
     pub(super) open: Option<OpenBlock>,
@@ -32,10 +32,10 @@ pub(super) struct State {
 }
 
 impl State {
-    fn chunk(
+    pub(crate) fn push_typed(
         &mut self,
         mut chunk: gemini::GenerateContentResponse,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         if self.stopped || self.saw_finish {
             return Err(TransformError::shape(
                 "Gemini stream",
@@ -50,11 +50,7 @@ impl State {
             let model = chunk.model_version.take().ok_or_else(|| {
                 TransformError::shape("Gemini stream", "modelVersion is missing on first chunk")
             })?;
-            output.push(events::encode(events::start(
-                id,
-                model,
-                Default::default(),
-            ))?);
+            output.push(events::wrap(events::start(id, model, Default::default())));
             self.started = true;
         }
         if chunk.candidates.len() > 1 {
@@ -78,20 +74,20 @@ impl State {
             }
             if let Some(reason) = candidate.finish_reason {
                 output.extend(self.close_open()?);
-                output.push(events::encode(events::message_delta(
+                output.push(events::wrap(events::message_delta(
                     Some(response::finish_reason(reason, self.has_tool)?),
                     candidate.finish_message,
                     usage,
                     Default::default(),
-                ))?);
+                )));
                 self.saw_finish = true;
             } else if usage.is_some() {
-                output.push(events::encode(events::message_delta(
+                output.push(events::wrap(events::message_delta(
                     None,
                     None,
                     usage,
                     Default::default(),
-                ))?);
+                )));
             }
         } else if chunk
             .prompt_feedback
@@ -100,20 +96,20 @@ impl State {
             .unwrap_or(false)
         {
             output.extend(self.close_open()?);
-            output.push(events::encode(events::message_delta(
+            output.push(events::wrap(events::message_delta(
                 Some(claude::StopReason::Known(claude::StopReasonKnown::Refusal)),
                 None,
                 usage,
                 Default::default(),
-            ))?);
+            )));
             self.saw_finish = true;
         } else if usage.is_some() {
-            output.push(events::encode(events::message_delta(
+            output.push(events::wrap(events::message_delta(
                 None,
                 None,
                 usage,
                 Default::default(),
-            ))?);
+            )));
         }
         Ok(output)
     }
@@ -125,24 +121,35 @@ impl State {
         index
     }
 
-    pub(super) fn close_open(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        self.open
+    pub(super) fn close_open(&mut self) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        Ok(self
+            .open
             .take()
-            .map(|open| events::encode(events::block_stop(open.index)).map(|event| vec![event]))
-            .unwrap_or_else(|| Ok(Vec::new()))
+            .map(|open| vec![events::wrap(events::block_stop(open.index))])
+            .unwrap_or_default())
+    }
+
+    pub(crate) fn finish_typed(&mut self) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        if !self.started || !self.saw_finish || self.stopped || self.open.is_some() {
+            return Err(TransformError::IncompleteStream);
+        }
+        self.stopped = true;
+        Ok(vec![events::wrap(events::message_stop())])
     }
 }
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.chunk(serde_json::from_str(&frame.data)?)
+        self.push_typed(serde_json::from_str(&frame.data)?)?
+            .into_iter()
+            .map(|event| SseFrame::typed(event.event_name(), &event))
+            .collect()
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        if !self.started || !self.saw_finish || self.stopped || self.open.is_some() {
-            return Err(TransformError::IncompleteStream);
-        }
-        self.stopped = true;
-        Ok(vec![events::encode(events::message_stop())?])
+        self.finish_typed()?
+            .into_iter()
+            .map(|event| SseFrame::typed(event.event_name(), &event))
+            .collect()
     }
 }

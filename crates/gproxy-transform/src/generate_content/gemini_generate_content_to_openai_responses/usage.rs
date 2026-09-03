@@ -61,7 +61,7 @@ pub(in crate::generate_content) fn to_responses(
         .cached_content_token_count
         .map(nonnegative_value)
         .transpose()?;
-    Ok(openai::ResponseUsage {
+    Ok(crate::wire!(openai::ResponseUsage {
         input_tokens,
         output_tokens,
         total_tokens,
@@ -79,7 +79,7 @@ pub(in crate::generate_content) fn to_responses(
             }
         }),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn validate_details(details: &[gemini::ModalityTokenCount]) -> Result<(), TransformError> {

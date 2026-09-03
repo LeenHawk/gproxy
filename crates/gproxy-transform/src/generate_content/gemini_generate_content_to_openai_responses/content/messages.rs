@@ -28,7 +28,7 @@ pub(super) fn flush(
             })
             .collect();
         output.push(openai::ResponseItem::Message(
-            openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
+            openai::ResponseMessageItem::Output(crate::wire!(openai::ResponseOutputMessageItem {
                 type_: openai::ResponseMessageItemType::Message,
                 id,
                 role: openai::ResponseOutputMessageRole::Assistant,
@@ -36,7 +36,7 @@ pub(super) fn flush(
                 status: openai::ResponseItemLifecycleStatus::Completed,
                 phase: None,
                 rest: Default::default(),
-            }),
+            })),
         ));
         return;
     }
@@ -59,12 +59,14 @@ pub(super) fn flush(
         })
         .collect();
     output.push(openai::ResponseItem::Message(
-        openai::ResponseMessageItem::EasyInput(openai::ResponseEasyInputMessageItem {
-            type_: Some(openai::ResponseMessageItemType::Message),
-            role,
-            content: openai::ResponseEasyInputContent::Parts(content),
-            phase: None,
-            rest: Default::default(),
-        }),
+        openai::ResponseMessageItem::EasyInput(crate::wire!(
+            openai::ResponseEasyInputMessageItem {
+                type_: Some(openai::ResponseMessageItemType::Message),
+                role,
+                content: openai::ResponseEasyInputContent::Parts(content),
+                phase: None,
+                rest: Default::default(),
+            }
+        )),
     ));
 }

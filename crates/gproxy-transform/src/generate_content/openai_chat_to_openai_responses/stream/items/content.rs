@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -14,19 +13,26 @@ impl State {
         _item_id: String,
         _output_index: u32,
         _content_index: u32,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         match part {
             openai::ResponseContentPart::OutputText(part) => self.finish_text(part.text),
             openai::ResponseContentPart::Refusal(part) => self.finish_refusal(part.refusal),
             openai::ResponseContentPart::ReasoningText(part) => self.finish_reasoning(part.text),
             openai::ResponseContentPart::Unknown(_) => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn finish_text(
         &mut self,
         full: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let delta = suffix(&self.text, &full, "output text")?;
         self.text = full;
         self.content_chunk(delta, ContentKind::Text)
@@ -35,7 +41,7 @@ impl State {
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn finish_reasoning(
         &mut self,
         full: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let delta = suffix(&self.reasoning, &full, "reasoning text")?;
         self.reasoning = full;
         self.content_chunk(delta, ContentKind::Reasoning)
@@ -44,7 +50,7 @@ impl State {
     pub(in crate::generate_content::openai_chat_to_openai_responses::stream) fn finish_refusal(
         &mut self,
         full: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let delta = suffix(&self.refusal, &full, "refusal")?;
         self.refusal = full;
         self.content_chunk(delta, ContentKind::Refusal)
@@ -54,7 +60,7 @@ impl State {
         &self,
         delta: String,
         kind: ContentKind,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         if delta.is_empty() {
             return Ok(Vec::new());
         }

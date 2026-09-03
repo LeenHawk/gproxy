@@ -1,5 +1,5 @@
 use crate::TransformError;
-use bytes::Bytes;
+use gproxy_protocol::openai;
 
 use super::{State, ToolStart};
 
@@ -8,7 +8,7 @@ impl State {
         &mut self,
         start: ToolStart,
         arguments: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let source_id = start.source_id.clone();
         let output_index = start.output_index;
         let kind = start.kind;

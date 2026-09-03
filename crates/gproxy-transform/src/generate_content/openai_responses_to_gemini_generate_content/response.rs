@@ -8,6 +8,13 @@ use crate::generate_content::gemini_generate_content_to_openai_responses::{
 
 pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::GenerateContentResponse = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: gemini::GenerateContentResponse,
+) -> Result<openai::ResponseObject, TransformError> {
     let id = input.response_id.unwrap_or_default();
     let (status, incomplete_details) = response_status(&input.candidates);
     let service_tier = input
@@ -34,6 +41,8 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
                         Some(part.refusal.as_str())
                     }
                     openai::ResponseMessageOutputContentPart::Unknown(_) => None,
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => None,
                 })
                 .collect::<String>(),
         ),
@@ -44,8 +53,10 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
         )
         | openai::ResponseItem::Typed(_)
         | openai::ResponseItem::Unknown(_) => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => None,
     });
-    let output = openai::ResponseObject {
+    let output = crate::wire!(openai::ResponseObject {
         id,
         created_at: Some(0),
         background: None,
@@ -84,8 +95,8 @@ pub(crate) fn transform(body: Bytes) -> Result<Bytes, TransformError> {
         usage: input.usage_metadata.map(usage::to_responses).transpose()?,
         user: None,
         rest: Default::default(),
-    };
-    Ok(Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 pub(in crate::generate_content) fn response_status(
@@ -144,9 +155,9 @@ fn incomplete(
 ) {
     (
         Some(openai::ResponseStatus::Incomplete),
-        Some(openai::IncompleteDetails {
+        Some(crate::wire!(openai::IncompleteDetails {
             reason: Some(reason),
             rest: Default::default(),
-        }),
+        })),
     )
 }

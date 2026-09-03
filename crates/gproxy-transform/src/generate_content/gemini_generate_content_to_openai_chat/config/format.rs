@@ -20,7 +20,7 @@ pub(super) fn convert(
             .as_object()
             .cloned()
             .ok_or_else(|| TransformError::shape("Gemini response schema", "expected an object"))?;
-        return Ok(Some(openai::ChatResponseFormat::JsonSchema(
+        return Ok(Some(openai::ChatResponseFormat::JsonSchema(crate::wire!(
             openai::ChatJsonSchemaFormat {
                 type_: openai::JsonSchemaResponseFormatType::JsonSchema,
                 json_schema: openai::JsonSchemaFormat {
@@ -31,26 +31,26 @@ pub(super) fn convert(
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            },
-        )));
+            }
+        ))));
     }
     Ok(match config.response_mime_type.as_ref() {
         Some(gemini::ResponseMimeType::Known(gemini::ResponseMimeTypeKnown::ApplicationJson)) => {
-            Some(openai::ChatResponseFormat::JsonObject(
+            Some(openai::ChatResponseFormat::JsonObject(crate::wire!(
                 openai::JsonObjectResponseFormat {
                     type_: openai::JsonObjectResponseFormatType::JsonObject,
                     rest: Default::default(),
-                },
-            ))
+                }
+            )))
         }
         Some(gemini::ResponseMimeType::Known(
             gemini::ResponseMimeTypeKnown::TextPlain | gemini::ResponseMimeTypeKnown::TextXEnum,
-        )) => Some(openai::ChatResponseFormat::Text(
+        )) => Some(openai::ChatResponseFormat::Text(crate::wire!(
             openai::TextResponseFormat {
                 type_: openai::TextResponseFormatType::Text,
                 rest: Default::default(),
-            },
-        )),
+            }
+        ))),
         Some(other) => {
             return Err(TransformError::unsupported(
                 "Gemini response MIME type",

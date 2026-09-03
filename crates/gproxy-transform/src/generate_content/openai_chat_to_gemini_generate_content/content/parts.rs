@@ -3,7 +3,7 @@ use gproxy_protocol::{gemini, openai};
 use crate::TransformError;
 
 pub(crate) fn text_part(text: String, thought: bool) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: thought.then_some(true),
         thought_signature: None,
         part_metadata: None,
@@ -14,7 +14,7 @@ pub(crate) fn text_part(text: String, thought: bool) -> gemini::Part {
         }),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(crate) fn function_call(
@@ -23,7 +23,7 @@ pub(crate) fn function_call(
     arguments: &str,
 ) -> Result<gemini::Part, TransformError> {
     let args = serde_json::from_str(arguments).ok();
-    Ok(gemini::Part {
+    Ok(crate::wire!(gemini::Part {
         data: Some(gemini::PartData::FunctionCall {
             function_call: gemini::FunctionCall {
                 id,
@@ -35,7 +35,7 @@ pub(crate) fn function_call(
         }),
         rest: Default::default(),
         ..Default::default()
-    })
+    }))
 }
 
 pub(super) fn user_parts(
@@ -49,6 +49,13 @@ pub(super) fn user_parts(
             .collect::<Result<Vec<_>, _>>()
             .map(|parts| parts.into_iter().flatten().collect()),
         openai::ChatContent::Unknown(_) => Ok(Vec::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -60,10 +67,24 @@ pub(super) fn text_content(content: openai::ChatTextContent) -> Result<String, T
             .map(|part| match part {
                 openai::ChatTextContentPart::Text(part) => Ok(part.text),
                 openai::ChatTextContentPart::Unknown(_) => Ok(String::new()),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             })
             .collect::<Result<Vec<_>, _>>()
             .map(|parts| parts.join("")),
         openai::ChatTextContent::Unknown(_) => Ok(String::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -78,10 +99,24 @@ pub(super) fn assistant_parts(
                 openai::ChatAssistantContentPart::Text(part) => Ok(non_empty_text(part.text)),
                 openai::ChatAssistantContentPart::Refusal(part) => Ok(non_empty_text(part.refusal)),
                 openai::ChatAssistantContentPart::Unknown(_) => Ok(None),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             })
             .collect::<Result<Vec<_>, _>>()
             .map(|parts| parts.into_iter().flatten().collect()),
         openai::ChatAssistantContent::Unknown(_) => Ok(Vec::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 

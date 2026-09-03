@@ -4,12 +4,12 @@ use crate::TransformError;
 
 pub(crate) fn shell_action(input: &claude::JsonObject) -> Option<openai::ShellAction> {
     let commands = strings(input, "commands").or_else(|| strings(input, "command"))?;
-    Some(openai::ShellAction {
+    Some(crate::wire!(openai::ShellAction {
         commands,
         max_output_length: number(input, "max_output_length"),
         timeout_ms: number(input, "timeout_ms").or_else(|| number(input, "timeout")),
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn patch_operation(input: &claude::JsonObject) -> Option<openai::ApplyPatchOperation> {
@@ -78,8 +78,10 @@ pub(crate) fn local_bash_input(
     Ok(Some(input))
 }
 
-pub(crate) fn editor_input(operation: openai::ApplyPatchOperation) -> claude::JsonObject {
-    match operation {
+pub(crate) fn editor_input(
+    operation: openai::ApplyPatchOperation,
+) -> Result<claude::JsonObject, TransformError> {
+    Ok(match operation {
         openai::ApplyPatchOperation::CreateFile { diff, path, .. } => [
             ("path".into(), path.into()),
             ("command".into(), "create".into()),
@@ -104,7 +106,14 @@ pub(crate) fn editor_input(operation: openai::ApplyPatchOperation) -> claude::Js
             .into_iter()
             .collect()
         }
-    }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(TransformError::unsupported(
+                "OpenAI apply patch operation",
+                "unrecognized external variant",
+            ));
+        }
+    })
 }
 
 pub(crate) fn arguments_object(arguments: &str) -> Result<claude::JsonObject, TransformError> {

@@ -7,9 +7,18 @@ use super::{config, content::ContentConverter, tools};
 
 pub(crate) fn transform(body: Bytes, model: &str, stream: bool) -> Result<Bytes, TransformError> {
     let input: gemini::GenerateContentRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: gemini::GenerateContentRequest,
+    model: &str,
+    stream: bool,
+) -> Result<openai::ResponseCreateRequest, TransformError> {
     let generation = input.generation_config;
     let mut converter = ContentConverter::new();
-    let output = openai::ResponseCreateRequest {
+    let output = crate::wire!(openai::ResponseCreateRequest {
         background: None,
         context_management: None,
         conversation: None,
@@ -65,8 +74,8 @@ pub(crate) fn transform(body: Bytes, model: &str, stream: bool) -> Result<Bytes,
         truncation: None,
         user: None,
         rest: Default::default(),
-    };
-    Ok(Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn system_text(content: gemini::Content) -> Result<String, TransformError> {
@@ -93,7 +102,7 @@ fn text_config(
             .transpose()?
             .map(serde_json::Value::Object));
     let format = if let Some(schema) = schema {
-        Some(openai::ResponseFormat::JsonSchema(
+        Some(openai::ResponseFormat::JsonSchema(crate::wire!(
             openai::JsonSchemaResponseFormat {
                 type_: openai::JsonSchemaResponseFormatType::JsonSchema,
                 name: "gemini_response".into(),
@@ -101,19 +110,19 @@ fn text_config(
                 description: None,
                 strict: None,
                 rest: Default::default(),
-            },
-        ))
+            }
+        )))
     } else {
         match config.response_mime_type.as_ref() {
             Some(gemini::ResponseMimeType::Known(
                 gemini::ResponseMimeTypeKnown::ApplicationJson
                 | gemini::ResponseMimeTypeKnown::TextXEnum,
-            )) => Some(openai::ResponseFormat::JsonObject(
+            )) => Some(openai::ResponseFormat::JsonObject(crate::wire!(
                 openai::JsonObjectResponseFormat {
                     type_: openai::JsonObjectResponseFormatType::JsonObject,
                     rest: Default::default(),
-                },
-            )),
+                }
+            ))),
             Some(gemini::ResponseMimeType::Known(gemini::ResponseMimeTypeKnown::TextPlain))
             | None => None,
             Some(other) => {
@@ -124,10 +133,12 @@ fn text_config(
             }
         }
     };
-    Ok(format.map(|format| openai::TextConfig {
-        format: Some(format),
-        verbosity: None,
-        rest: Default::default(),
+    Ok(format.map(|format| {
+        crate::wire!(openai::TextConfig {
+            format: Some(format),
+            verbosity: None,
+            rest: Default::default(),
+        })
     }))
 }
 

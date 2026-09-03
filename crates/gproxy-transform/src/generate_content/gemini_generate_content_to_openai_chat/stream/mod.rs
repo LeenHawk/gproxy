@@ -16,7 +16,7 @@ pub(crate) fn converter() -> Box<dyn Converter> {
 }
 
 #[derive(Default)]
-struct State {
+pub(crate) struct State {
     tools: BTreeMap<(u32, u32), tools::Pending>,
     seen: BTreeSet<u32>,
     finished: BTreeSet<u32>,
@@ -24,7 +24,13 @@ struct State {
 }
 
 impl State {
-    fn chunk(&mut self, input: openai::ChatCompletionChunk) -> Result<Vec<Bytes>, TransformError> {
+    pub(crate) fn push_typed(
+        &mut self,
+        input: openai::ChatCompletionChunk,
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
+        if self.stopped {
+            return Err(TransformError::shape("Chat stream", "chunk after finish"));
+        }
         let model = wire_string(&input.model)?;
         let response_id = input.id;
         let mut usage = input.usage.map(wire::usage).transpose()?;
@@ -56,7 +62,7 @@ impl State {
                 parts.extend(tools::finish_choice(&mut self.tools, choice.index)?);
                 self.finished.insert(choice.index);
             }
-            candidates.push(gemini::Candidate {
+            candidates.push(crate::wire!(gemini::Candidate {
                 content: (!parts.is_empty()).then_some(gemini::Content {
                     parts,
                     role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
@@ -73,9 +79,9 @@ impl State {
                 index: Some(wire::index(choice.index)?),
                 finish_message: None,
                 rest: Default::default(),
-            });
+            }));
         }
-        let output = gemini::GenerateContentResponse {
+        let output = crate::wire!(gemini::GenerateContentResponse {
             candidates,
             prompt_feedback: None,
             usage_metadata: usage,
@@ -83,24 +89,33 @@ impl State {
             response_id: Some(response_id),
             model_status: None,
             rest: Default::default(),
-        };
-        Ok(vec![SseFrame::typed(None, &output)?])
+        });
+        Ok(vec![output])
+    }
+
+    pub(crate) fn finish_typed(
+        &mut self,
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
+        if self.seen.is_empty() || self.seen != self.finished || !self.tools.is_empty() {
+            return Err(TransformError::IncompleteStream);
+        }
+        self.stopped = true;
+        Ok(Vec::new())
     }
 }
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
         if frame.data == "[DONE]" {
-            if self.seen.is_empty() || self.seen != self.finished || !self.tools.is_empty() {
-                return Err(TransformError::IncompleteStream);
-            }
-            self.stopped = true;
-            return Ok(Vec::new());
+            return self.finish_typed().map(|_| Vec::new());
         }
         if self.stopped {
             return Err(TransformError::shape("Chat stream", "frame after [DONE]"));
         }
-        self.chunk(serde_json::from_str(&frame.data)?)
+        self.push_typed(serde_json::from_str(&frame.data)?)?
+            .into_iter()
+            .map(|event| SseFrame::typed(None, &event))
+            .collect()
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {

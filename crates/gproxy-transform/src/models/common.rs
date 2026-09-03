@@ -2,12 +2,12 @@ use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 
-pub(super) fn claude_to_openai(model: claude::ModelInfo) -> Result<openai::Model, TransformError> {
+pub(crate) fn claude_to_openai(model: claude::ModelInfo) -> Result<openai::Model, TransformError> {
     let thinking_supported = model
         .capabilities
         .as_ref()
         .map(|capabilities| capabilities.thinking.supported);
-    Ok(openai::Model {
+    Ok(crate::wire!(openai::Model {
         id: wire_string(&model.id)?.into(),
         created: None,
         display_name: model.display_name,
@@ -18,12 +18,12 @@ pub(super) fn claude_to_openai(model: claude::ModelInfo) -> Result<openai::Model
         object: openai::ModelObjectType::Model,
         owned_by: Some("unknown".into()),
         rest: Default::default(),
-    })
+    }))
 }
 
-pub(super) fn openai_to_claude(model: openai::Model) -> Result<claude::ModelInfo, TransformError> {
+pub(crate) fn openai_to_claude(model: openai::Model) -> Result<claude::ModelInfo, TransformError> {
     let id = wire_string(&model.id)?;
-    Ok(claude::ModelInfo {
+    Ok(crate::wire!(claude::ModelInfo {
         id: id.clone().into(),
         allowed_fallback_models: None,
         type_: claude::ModelObjectType::Known(claude::ModelObjectTypeKnown::Model),
@@ -33,15 +33,17 @@ pub(super) fn openai_to_claude(model: openai::Model) -> Result<claude::ModelInfo
         max_tokens: model.max_output_tokens,
         capabilities: model.thinking_supported.map(capabilities),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn capabilities(supported: bool) -> claude::ModelCapabilities {
-    let support = || claude::CapabilitySupport {
-        supported: false,
-        rest: Default::default(),
+    let support = || {
+        crate::wire!(claude::CapabilitySupport {
+            supported: false,
+            rest: Default::default(),
+        })
     };
-    claude::ModelCapabilities {
+    crate::wire!(claude::ModelCapabilities {
         batch: support(),
         citations: support(),
         code_execution: support(),
@@ -74,7 +76,7 @@ fn capabilities(supported: bool) -> claude::ModelCapabilities {
             rest: Default::default(),
         },
         rest: Default::default(),
-    }
+    })
 }
 
 pub(crate) fn wire_string<T: serde::Serialize>(value: &T) -> Result<String, TransformError> {

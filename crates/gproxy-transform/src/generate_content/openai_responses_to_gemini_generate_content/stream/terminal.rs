@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -7,19 +6,19 @@ use crate::generate_content::gemini_generate_content_to_openai_responses::{confi
 use super::{Item, State, events};
 
 impl State {
-    pub(super) fn created(&mut self) -> Result<Bytes, TransformError> {
+    pub(super) fn created(&mut self) -> Result<openai::ResponseStreamEvent, TransformError> {
         let response = self.response(openai::ResponseStatus::InProgress, None, None, Vec::new())?;
         let sequence_number = Some(self.next_sequence());
         events::emit(openai::KnownResponseStreamEvent::ResponseCreated(
-            openai::ResponseLifecycleEvent {
+            crate::wire!(openai::ResponseLifecycleEvent {
                 response: Box::new(response),
                 sequence_number,
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 
-    pub(super) fn terminal(&mut self) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn terminal(&mut self) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         if self.stopped {
             return Ok(Vec::new());
         }
@@ -29,10 +28,10 @@ impl State {
         let (mut status, mut details) = super::super::response::response_status(&self.candidates);
         if status.is_none() && self.blocked {
             status = Some(openai::ResponseStatus::Incomplete);
-            details = Some(openai::IncompleteDetails {
+            details = Some(crate::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::ContentFilter),
                 rest: Default::default(),
-            });
+            }));
         }
         let status = status.ok_or(TransformError::IncompleteStream)?;
         let mut output = Vec::new();
@@ -45,12 +44,12 @@ impl State {
         if self.audio {
             let sequence_number = Some(self.next_sequence());
             output.push(events::emit(
-                openai::KnownResponseStreamEvent::ResponseAudioDone(
+                openai::KnownResponseStreamEvent::ResponseAudioDone(crate::wire!(
                     openai::ResponseSequenceEvent {
                         sequence_number,
                         rest: Default::default(),
-                    },
-                ),
+                    }
+                )),
             )?);
         }
         self.items.sort_by_key(|(index, _)| *index);
@@ -64,37 +63,37 @@ impl State {
             .as_ref()
             .and_then(|usage| config::gemini_service_tier(usage.service_tier.clone()));
         let converted_usage = self.usage.take().map(usage::to_responses).transpose()?;
-        let response = Box::new(openai::ResponseObject {
+        let response = Box::new(crate::wire!(openai::ResponseObject {
             service_tier,
             ..self.response(status.clone(), details, converted_usage, items)?
-        });
+        }));
         let sequence_number = Some(self.next_sequence());
         let event = match status {
             openai::ResponseStatus::Completed => {
-                openai::KnownResponseStreamEvent::ResponseCompleted(
+                openai::KnownResponseStreamEvent::ResponseCompleted(crate::wire!(
                     openai::ResponseLifecycleEvent {
                         response,
                         sequence_number,
                         rest: Default::default(),
-                    },
-                )
+                    }
+                ))
             }
             openai::ResponseStatus::Incomplete => {
-                openai::KnownResponseStreamEvent::ResponseIncomplete(
+                openai::KnownResponseStreamEvent::ResponseIncomplete(crate::wire!(
                     openai::ResponseLifecycleEvent {
                         response,
                         sequence_number,
                         rest: Default::default(),
-                    },
-                )
+                    }
+                ))
             }
-            openai::ResponseStatus::Failed => {
-                openai::KnownResponseStreamEvent::ResponseFailed(openai::ResponseLifecycleEvent {
+            openai::ResponseStatus::Failed => openai::KnownResponseStreamEvent::ResponseFailed(
+                crate::wire!(openai::ResponseLifecycleEvent {
                     response,
                     sequence_number,
                     rest: Default::default(),
-                })
-            }
+                }),
+            ),
             openai::ResponseStatus::InProgress
             | openai::ResponseStatus::Cancelled
             | openai::ResponseStatus::Queued
@@ -113,7 +112,7 @@ impl State {
     pub(super) fn finish_candidate(
         &mut self,
         candidate_index: i32,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         let mut output = Vec::new();
         if let Some(item) = self.text.remove(&candidate_index) {
             output.extend(self.finish_text(item)?);
@@ -124,8 +123,11 @@ impl State {
         Ok(output)
     }
 
-    fn finish_text(&mut self, item: Item) -> Result<Vec<Bytes>, TransformError> {
-        let text_done = openai::KnownResponseStreamEvent::ResponseOutputTextDone(
+    fn finish_text(
+        &mut self,
+        item: Item,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
+        let text_done = openai::KnownResponseStreamEvent::ResponseOutputTextDone(crate::wire!(
             openai::ResponseOutputTextDoneEvent {
                 content_index: 0,
                 item_id: item.id.clone(),
@@ -134,9 +136,9 @@ impl State {
                 sequence_number: Some(self.next_sequence()),
                 text: item.text.clone(),
                 rest: Default::default(),
-            },
-        );
-        let part_done = openai::KnownResponseStreamEvent::ResponseContentPartDone(
+            }
+        ));
+        let part_done = openai::KnownResponseStreamEvent::ResponseContentPartDone(crate::wire!(
             openai::ResponseContentPartEvent {
                 content_index: 0,
                 item_id: item.id.clone(),
@@ -144,8 +146,8 @@ impl State {
                 part: openai::ResponseContentPart::OutputText(events::message_part(&item)),
                 sequence_number: Some(self.next_sequence()),
                 rest: Default::default(),
-            },
-        );
+            }
+        ));
         let response_item =
             events::message_item(&item, openai::ResponseItemLifecycleStatus::Completed);
         let done = self.item_done(item.index, response_item.clone())?;
@@ -157,18 +159,21 @@ impl State {
         ])
     }
 
-    fn finish_reasoning(&mut self, item: Item) -> Result<Vec<Bytes>, TransformError> {
+    fn finish_reasoning(
+        &mut self,
+        item: Item,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         let mut output = Vec::new();
         if !item.text.is_empty() {
             let text_done = openai::KnownResponseStreamEvent::ResponseReasoningTextDone(
-                openai::ResponseContentTextDoneEvent {
+                crate::wire!(openai::ResponseContentTextDoneEvent {
                     content_index: 0,
                     item_id: item.id.clone(),
                     output_index: item.index,
                     sequence_number: Some(self.next_sequence()),
                     text: item.text.clone(),
                     rest: Default::default(),
-                },
+                }),
             );
             output.push(events::emit(text_done)?);
         }
@@ -183,14 +188,14 @@ impl State {
         &mut self,
         index: u32,
         item: openai::ResponseItem,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<openai::ResponseStreamEvent, TransformError> {
         events::emit(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
-            openai::ResponseOutputItemEvent {
+            crate::wire!(openai::ResponseOutputItemEvent {
                 item: Box::new(item),
                 output_index: index,
                 sequence_number: Some(self.next_sequence()),
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 }

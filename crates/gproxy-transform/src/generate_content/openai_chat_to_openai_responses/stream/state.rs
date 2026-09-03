@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use gproxy_protocol::openai;
 
 #[derive(Default)]
-pub(super) struct State {
+pub(crate) struct State {
     pub(super) id: Option<String>,
     pub(super) created_at: Option<u64>,
     pub(super) model: Option<openai::OpenAiModelId>,

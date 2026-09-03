@@ -22,76 +22,46 @@ pub(crate) fn response(
 
 fn from_gemini_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
     if let Ok(list) = serde_json::from_slice::<gemini::ListModelsResponse>(&body) {
-        let output = openai::ModelListResponse {
-            data: list.models.into_iter().map(gemini_to_openai).collect(),
-            object: openai::ListObjectType::List,
-            rest: Default::default(),
-        };
+        let output = crate::typed::models::openai_to_gemini::list_response(list);
         return encode(&output);
     }
-    encode(&gemini_to_openai(serde_json::from_slice(&body)?))
+    encode(&crate::typed::models::openai_to_gemini::get_response(
+        serde_json::from_slice(&body)?,
+    ))
 }
 
 fn from_openai_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
     if let Ok(list) = serde_json::from_slice::<openai::ModelListResponse>(&body) {
-        let output = gemini::ListModelsResponse {
-            models: list
-                .data
-                .into_iter()
-                .map(openai_to_gemini)
-                .collect::<Result<_, _>>()?,
-            next_page_token: None,
-            rest: Default::default(),
-        };
+        let output = crate::typed::models::gemini_to_openai::list_response(list)?;
         return encode(&output);
     }
-    encode(&openai_to_gemini(serde_json::from_slice(&body)?)?)
+    encode(&crate::typed::models::gemini_to_openai::get_response(
+        serde_json::from_slice(&body)?,
+    )?)
 }
 
 fn from_gemini_to_claude(body: Bytes) -> Result<Bytes, TransformError> {
     if let Ok(list) = serde_json::from_slice::<gemini::ListModelsResponse>(&body) {
-        let has_more = list.next_page_token.is_some();
-        let data = list
-            .models
-            .into_iter()
-            .map(gemini_to_claude)
-            .collect::<Vec<_>>();
-        let output = claude::ListModelsResponse {
-            first_id: data.first().map(|model| wire(&model.id)).transpose()?,
-            last_id: list
-                .next_page_token
-                .or(data.last().map(|model| wire(&model.id)).transpose()?),
-            data,
-            has_more: Some(has_more),
-            rest: Default::default(),
-        };
+        let output = crate::typed::models::claude_to_gemini::list_response(list)?;
         return encode(&output);
     }
-    encode(&gemini_to_claude(serde_json::from_slice(&body)?))
+    encode(&crate::typed::models::claude_to_gemini::get_response(
+        serde_json::from_slice(&body)?,
+    ))
 }
 
 fn from_claude_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
     if let Ok(list) = serde_json::from_slice::<claude::ListModelsResponse>(&body) {
-        let output = gemini::ListModelsResponse {
-            models: list
-                .data
-                .into_iter()
-                .map(claude_to_gemini)
-                .collect::<Result<_, _>>()?,
-            next_page_token: list
-                .has_more
-                .unwrap_or(false)
-                .then_some(list.last_id)
-                .flatten(),
-            rest: Default::default(),
-        };
+        let output = crate::typed::models::gemini_to_claude::list_response(list)?;
         return encode(&output);
     }
-    encode(&claude_to_gemini(serde_json::from_slice(&body)?)?)
+    encode(&crate::typed::models::gemini_to_claude::get_response(
+        serde_json::from_slice(&body)?,
+    )?)
 }
 
-fn gemini_to_openai(model: gemini::Model) -> openai::Model {
-    openai::Model {
+pub(crate) fn gemini_to_openai(model: gemini::Model) -> openai::Model {
+    crate::wire!(openai::Model {
         id: gemini_id(&model).into(),
         created: None,
         display_name: model.display_name,
@@ -102,12 +72,12 @@ fn gemini_to_openai(model: gemini::Model) -> openai::Model {
         object: openai::ModelObjectType::Model,
         owned_by: Some("google".into()),
         rest: Default::default(),
-    }
+    })
 }
 
-fn openai_to_gemini(model: openai::Model) -> Result<gemini::Model, TransformError> {
+pub(crate) fn openai_to_gemini(model: openai::Model) -> Result<gemini::Model, TransformError> {
     let id = wire(&model.id)?;
-    Ok(gemini::Model {
+    Ok(crate::wire!(gemini::Model {
         name: Some(format!("models/{id}")),
         base_model_id: Some(id.clone()),
         version: None,
@@ -123,12 +93,12 @@ fn openai_to_gemini(model: openai::Model) -> Result<gemini::Model, TransformErro
         top_p: None,
         top_k: None,
         rest: Default::default(),
-    })
+    }))
 }
 
-fn gemini_to_claude(model: gemini::Model) -> claude::ModelInfo {
+pub(crate) fn gemini_to_claude(model: gemini::Model) -> claude::ModelInfo {
     let id = gemini_id(&model);
-    claude::ModelInfo {
+    crate::wire!(claude::ModelInfo {
         id: id.clone().into(),
         allowed_fallback_models: None,
         type_: claude::ModelObjectType::Known(claude::ModelObjectTypeKnown::Model),
@@ -138,12 +108,12 @@ fn gemini_to_claude(model: gemini::Model) -> claude::ModelInfo {
         max_tokens: model.output_token_limit.map(nonnegative_u64),
         capabilities: None,
         rest: Default::default(),
-    }
+    })
 }
 
-fn claude_to_gemini(model: claude::ModelInfo) -> Result<gemini::Model, TransformError> {
+pub(crate) fn claude_to_gemini(model: claude::ModelInfo) -> Result<gemini::Model, TransformError> {
     let id = wire(&model.id)?;
-    Ok(gemini::Model {
+    Ok(crate::wire!(gemini::Model {
         name: Some(format!("models/{id}")),
         base_model_id: Some(id.clone()),
         version: None,
@@ -161,7 +131,7 @@ fn claude_to_gemini(model: claude::ModelInfo) -> Result<gemini::Model, Transform
         top_p: None,
         top_k: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn gemini_id(model: &gemini::Model) -> String {

@@ -47,7 +47,7 @@ pub(super) fn convert(usage: gemini::UsageMetadata) -> Result<claude::Usage, Tra
             ));
         }
     }
-    Ok(claude::Usage {
+    Ok(crate::wire!(claude::Usage {
         input_tokens,
         output_tokens,
         cache_creation_input_tokens: None,
@@ -69,7 +69,7 @@ pub(super) fn convert(usage: gemini::UsageMetadata) -> Result<claude::Usage, Tra
         )
         .then_some(claude::Speed::Known(claude::SpeedKnown::Fast)),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn service_tier(tier: Option<gemini::ServiceTier>) -> Option<claude::UsageServiceTier> {

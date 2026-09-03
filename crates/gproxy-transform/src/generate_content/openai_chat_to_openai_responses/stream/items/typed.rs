@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -11,7 +10,7 @@ impl State {
         &mut self,
         item: openai::TypedResponseItem,
         output_index: u32,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         match item {
             openai::TypedResponseItem::FunctionCall {
                 arguments,
@@ -130,6 +129,13 @@ impl State {
             | openai::TypedResponseItem::AgentMessage { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
             | openai::TypedResponseItem::ItemReference { .. } => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 }

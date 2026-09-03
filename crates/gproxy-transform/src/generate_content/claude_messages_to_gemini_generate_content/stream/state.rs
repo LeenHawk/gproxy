@@ -1,16 +1,14 @@
 use std::collections::BTreeMap;
 
-use bytes::Bytes;
 use gproxy_protocol::{claude, gemini};
 
 use crate::TransformError;
-use crate::envelope::SseFrame;
 use crate::models::common::wire_string;
 
 use super::chunks;
 
 #[derive(Default)]
-pub(super) struct State {
+pub(crate) struct State {
     pub(super) tools: BTreeMap<u64, PendingTool>,
     pub(super) pending_signature: Option<String>,
     pub(super) started: bool,
@@ -24,13 +22,20 @@ pub(super) struct PendingTool {
 }
 
 impl State {
-    pub(super) fn event(
+    pub(crate) fn push_typed(
         &mut self,
         event: claude::StreamEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         let event = match event {
             claude::StreamEvent::Known(event) => event,
             claude::StreamEvent::Unknown(_) => return Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         if self.stopped {
             return Err(TransformError::shape(
@@ -110,10 +115,25 @@ impl State {
                     error.message,
                 ));
             }
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
-        chunk
-            .map(|chunk| SseFrame::typed(None, &chunk).map(|frame| vec![frame]))
-            .unwrap_or_else(|| Ok(Vec::new()))
+        Ok(chunk.into_iter().collect())
+    }
+
+    pub(crate) fn finish_typed(
+        &mut self,
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
+        if self.started && self.saw_finish && self.stopped && self.tools.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Err(TransformError::IncompleteStream)
+        }
     }
 
     fn block_delta(
@@ -124,6 +144,13 @@ impl State {
         let delta = match delta {
             claude::EventDelta::Known(delta) => delta,
             claude::EventDelta::Unknown(_) => return Ok(None),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         let part = match *delta {
             claude::KnownEventDelta::Text { text, .. } => chunks::text(text, false),
@@ -141,6 +168,13 @@ impl State {
             }
             claude::KnownEventDelta::Compaction { content, .. } => chunks::text(content, false),
             claude::KnownEventDelta::Citations { .. } => return Ok(None),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         Ok(Some(chunks::candidate(Some(part), None, None)))
     }

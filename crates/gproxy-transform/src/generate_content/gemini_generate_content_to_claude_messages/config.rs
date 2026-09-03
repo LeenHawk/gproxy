@@ -24,12 +24,12 @@ pub(super) fn output(
         .and_then(|thinking| thinking.thinking_level.as_ref())
         .and_then(effort);
     Ok(
-        (format.is_some() || effort.is_some()).then_some(claude::OutputConfig {
+        (format.is_some() || effort.is_some()).then_some(crate::wire!(claude::OutputConfig {
             effort,
             format,
             task_budget: None,
             rest: Default::default(),
-        }),
+        })),
     )
 }
 
@@ -40,26 +40,26 @@ pub(super) fn thinking(
         return Ok(None);
     };
     if thinking.include_thoughts == Some(false) {
-        return Ok(Some(claude::ThinkingConfig::Disabled(
+        return Ok(Some(claude::ThinkingConfig::Disabled(crate::wire!(
             claude::ThinkingDisabled {
                 type_: claude::ThinkingDisabledType::Disabled,
                 rest: Default::default(),
-            },
-        )));
+            }
+        ))));
     }
     if let Some(budget) = thinking.thinking_budget {
         let budget_tokens = u64::try_from(budget).map_err(|_| {
             TransformError::shape("Gemini thinking config", "thinkingBudget is negative")
         })?;
-        return Ok(Some(claude::ThinkingConfig::Enabled(
+        return Ok(Some(claude::ThinkingConfig::Enabled(crate::wire!(
             claude::ThinkingEnabled {
                 budget_tokens,
                 type_: claude::ThinkingEnabledType::Enabled,
                 block_binding: None,
                 display: None,
                 rest: Default::default(),
-            },
-        )));
+            }
+        ))));
     }
     if let Some(level) = thinking.thinking_level.as_ref() {
         let budget_tokens = match level {
@@ -73,25 +73,25 @@ pub(super) fn thinking(
             gemini::ThinkingLevel::Unknown(_) => 4_096,
             _ => 4_096,
         };
-        return Ok(Some(claude::ThinkingConfig::Enabled(
+        return Ok(Some(claude::ThinkingConfig::Enabled(crate::wire!(
             claude::ThinkingEnabled {
                 budget_tokens,
                 type_: claude::ThinkingEnabledType::Enabled,
                 block_binding: None,
                 display: None,
                 rest: Default::default(),
-            },
-        )));
+            }
+        ))));
     }
-    Ok(Some(claude::ThinkingConfig::Enabled(
+    Ok(Some(claude::ThinkingConfig::Enabled(crate::wire!(
         claude::ThinkingEnabled {
             budget_tokens: 4_096,
             type_: claude::ThinkingEnabledType::Enabled,
             block_binding: None,
             display: None,
             rest: Default::default(),
-        },
-    )))
+        }
+    ))))
 }
 
 pub(super) fn request_tier(
@@ -128,11 +128,11 @@ fn json_format(value: serde_json::Value) -> Result<claude::JsonSchemaFormat, Tra
             "expected an object",
         ));
     };
-    Ok(claude::JsonSchemaFormat {
+    Ok(crate::wire!(claude::JsonSchemaFormat {
         type_: claude::JsonSchemaFormatType::Known(claude::JsonSchemaFormatTypeKnown::JsonSchema),
         schema,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn effort(level: &gemini::ThinkingLevel) -> Option<claude::OutputEffort> {

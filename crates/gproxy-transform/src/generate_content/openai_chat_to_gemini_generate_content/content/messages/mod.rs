@@ -60,6 +60,13 @@ impl State {
                 self.function_result(message)
             }
             openai::ChatCompletionMessageParam::Unknown(_) => Ok(()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 
@@ -87,19 +94,21 @@ impl State {
                 previous.parts.extend(parts);
                 return;
             }
-            self.contents.push(gemini::Content {
+            self.contents.push(crate::wire!(gemini::Content {
                 parts,
                 role: Some(gemini::ContentRole::Known(role)),
                 rest: Default::default(),
-            });
+            }));
         }
     }
 
     fn finish(mut self) -> (Vec<gemini::Content>, Option<gemini::Content>) {
-        let system = (!self.system_parts.is_empty()).then(|| gemini::Content {
-            parts: self.system_parts,
-            role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)),
-            rest: Default::default(),
+        let system = (!self.system_parts.is_empty()).then(|| {
+            crate::wire!(gemini::Content {
+                parts: self.system_parts,
+                role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)),
+                rest: Default::default(),
+            })
         });
         (std::mem::take(&mut self.contents), system)
     }

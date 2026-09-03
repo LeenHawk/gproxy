@@ -1,10 +1,8 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
-use crate::envelope::SseFrame;
 
-use super::super::claude_to_openai::State;
+use super::super::claude_to_openai::{OutputEvent, State};
 
 pub(in crate::common::stream) enum ResponseDelta {
     OutputText,
@@ -19,12 +17,12 @@ impl State {
         item_id: String,
         index: u64,
         delta: String,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         let sequence_number = Some(self.next_sequence());
         let output_index = index as u32;
         let event = match kind {
             ResponseDelta::OutputText => openai::KnownResponseStreamEvent::ResponseOutputTextDelta(
-                openai::ResponseOutputTextDeltaEvent {
+                crate::wire!(openai::ResponseOutputTextDeltaEvent {
                     content_index: Some(0),
                     delta,
                     item_id,
@@ -32,10 +30,10 @@ impl State {
                     output_index,
                     sequence_number,
                     rest: Default::default(),
-                },
+                }),
             ),
             ResponseDelta::ReasoningText => {
-                openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(
+                openai::KnownResponseStreamEvent::ResponseReasoningTextDelta(crate::wire!(
                     openai::ResponseContentDeltaEvent {
                         content_index: 0,
                         delta,
@@ -43,19 +41,19 @@ impl State {
                         output_index,
                         sequence_number,
                         rest: Default::default(),
-                    },
-                )
+                    }
+                ))
             }
             ResponseDelta::FunctionArguments => {
-                openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta(
+                openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta(crate::wire!(
                     openai::ResponseItemStringDeltaEvent {
                         delta,
                         item_id,
                         output_index,
                         sequence_number,
                         rest: Default::default(),
-                    },
-                )
+                    }
+                ))
             }
         };
         typed_response_event(event)
@@ -66,31 +64,31 @@ impl State {
         item_id: String,
         output_index: u32,
         part: openai::ResponseContentPart,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseContentPartAdded(
-            openai::ResponseContentPartEvent {
+            crate::wire!(openai::ResponseContentPartEvent {
                 content_index: 0,
                 item_id,
                 output_index,
                 part,
                 sequence_number,
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 
     pub(in crate::common::stream) fn response_created(
         &mut self,
         response: openai::ResponseObject,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseCreated(
-            openai::ResponseLifecycleEvent {
+            crate::wire!(openai::ResponseLifecycleEvent {
                 response: Box::new(response),
                 sequence_number,
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 
@@ -98,12 +96,12 @@ impl State {
         &mut self,
         incomplete: bool,
         response: openai::ResponseObject,
-    ) -> Result<Bytes, TransformError> {
-        let payload = openai::ResponseLifecycleEvent {
+    ) -> Result<OutputEvent, TransformError> {
+        let payload = crate::wire!(openai::ResponseLifecycleEvent {
             response: Box::new(response),
             sequence_number: Some(self.next_sequence()),
             rest: Default::default(),
-        };
+        });
         typed_response_event(if incomplete {
             openai::KnownResponseStreamEvent::ResponseIncomplete(payload)
         } else {
@@ -115,15 +113,15 @@ impl State {
         &mut self,
         item: openai::ResponseItem,
         output_index: u32,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
-            openai::ResponseOutputItemEvent {
+            crate::wire!(openai::ResponseOutputItemEvent {
                 item: Box::new(item),
                 output_index,
                 sequence_number,
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 
@@ -131,22 +129,23 @@ impl State {
         &mut self,
         item: openai::ResponseItem,
         output_index: u32,
-    ) -> Result<Bytes, TransformError> {
+    ) -> Result<OutputEvent, TransformError> {
         let sequence_number = Some(self.next_sequence());
         typed_response_event(openai::KnownResponseStreamEvent::ResponseOutputItemDone(
-            openai::ResponseOutputItemEvent {
+            crate::wire!(openai::ResponseOutputItemEvent {
                 item: Box::new(item),
                 output_index,
                 sequence_number,
                 rest: Default::default(),
-            },
+            }),
         ))
     }
 }
 
-fn typed_response_event(event: openai::KnownResponseStreamEvent) -> Result<Bytes, TransformError> {
-    SseFrame::typed(
-        Some(event.event_name()),
-        &openai::ResponseStreamEvent::Known(Box::new(event)),
-    )
+fn typed_response_event(
+    event: openai::KnownResponseStreamEvent,
+) -> Result<OutputEvent, TransformError> {
+    Ok(OutputEvent::Responses(openai::ResponseStreamEvent::Known(
+        Box::new(event),
+    )))
 }

@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -20,7 +19,7 @@ impl State {
         namespace: Option<String>,
         status: Option<openai::ResponseItemLifecycleStatus>,
         context: CallContext,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let CallContext {
             call_id,
             id,
@@ -45,7 +44,7 @@ impl State {
         name: String,
         namespace: Option<String>,
         context: CallContext,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let CallContext {
             call_id,
             id,
@@ -71,7 +70,7 @@ impl State {
         status: Option<openai::ResponseItemLifecycleStatus>,
         created_by: Option<String>,
         context: CallContext,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let CallContext {
             call_id,
             id,
@@ -97,7 +96,7 @@ impl State {
         status: openai::ResponseApplyPatchCallStatus,
         created_by: Option<String>,
         context: CallContext,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
         let CallContext {
             call_id,
             id,

@@ -17,7 +17,7 @@ pub(crate) fn converter() -> Box<dyn Converter> {
     Box::new(State::new())
 }
 
-struct State {
+pub(crate) struct State {
     id: Option<String>,
     model: Option<openai::OpenAiModelId>,
     pending: Vec<gemini::GenerateContentResponse>,
@@ -46,7 +46,7 @@ struct Item {
 }
 
 impl State {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             id: None,
             model: None,
@@ -68,10 +68,10 @@ impl State {
         }
     }
 
-    fn frame(
+    pub(crate) fn push_typed(
         &mut self,
         input: gemini::GenerateContentResponse,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         if self.stopped {
             return Err(TransformError::shape(
                 "Gemini stream",
@@ -116,10 +116,25 @@ impl State {
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.frame(serde_json::from_str(&frame.data)?)
+        encode(self.push_typed(serde_json::from_str(&frame.data)?)?)
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
+        encode(self.finish_typed()?)
+    }
+}
+
+impl State {
+    pub(crate) fn finish_typed(
+        &mut self,
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         self.terminal()
     }
+}
+
+fn encode(events: Vec<openai::ResponseStreamEvent>) -> Result<Vec<Bytes>, TransformError> {
+    events
+        .into_iter()
+        .map(|event| SseFrame::typed(event.event_name(), &event))
+        .collect()
 }

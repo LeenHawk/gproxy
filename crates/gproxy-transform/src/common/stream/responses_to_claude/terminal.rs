@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
@@ -11,7 +10,7 @@ impl State {
     pub(super) fn response_created(
         &mut self,
         event: openai::ResponseLifecycleEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         self.update_response(&event.response)?;
         self.ensure_start()
     }
@@ -19,7 +18,7 @@ impl State {
     pub(super) fn response_pending(
         &mut self,
         event: openai::ResponseLifecycleEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         self.update_response(&event.response)?;
         let output = self.ensure_start()?;
         Ok(output)
@@ -28,16 +27,14 @@ impl State {
     pub(super) fn response_completed(
         &mut self,
         event: openai::ResponseLifecycleEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         self.update_response(&event.response)?;
         let mut output = self.ensure_start()?;
         let response = event.response;
         if self.next_index == 0 && !response.output.is_empty() {
-            let converted =
-                crate::generate_content::claude_messages_to_openai_responses::response::transform(
-                    Bytes::from(serde_json::to_vec(response.as_ref())?),
-                )?;
-            let message: claude::CreateMessageResponseBody = serde_json::from_slice(&converted)?;
+            let message = crate::generate_content::claude_messages_to_openai_responses::response::transform_typed(
+                response.as_ref().clone(),
+            )?;
             for block in message.content {
                 self.has_tool |= matches!(block, claude::ResponseContentBlock::ToolUse(_));
                 let index = self.allocate();
@@ -60,7 +57,7 @@ impl State {
     pub(super) fn response_incomplete(
         &mut self,
         event: openai::ResponseLifecycleEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         self.update_response(&event.response)?;
         let mut output = self.ensure_start()?;
         let usage = usage::responses_to_claude(event.response.usage);

@@ -41,7 +41,7 @@ impl Converter for GeminiImageStream {
         if let Some(usage) = input.usage_metadata {
             let input_tokens = nonnegative(usage.prompt_token_count);
             let output_tokens = nonnegative(usage.candidates_token_count);
-            self.usage = Some(openai_images::ImageUsage {
+            self.usage = Some(crate::wire!(openai_images::ImageUsage {
                 input_tokens,
                 input_tokens_details: openai_images::ImageTokenDetails {
                     image_tokens: 0,
@@ -52,7 +52,7 @@ impl Converter for GeminiImageStream {
                 total_tokens: nonnegative(usage.total_token_count),
                 output_tokens_details: None,
                 rest: Default::default(),
-            });
+            }));
         }
         let mut output = Vec::new();
         for candidate in input.candidates {
@@ -147,11 +147,11 @@ fn image_partial(
     b64_json: String,
     partial_image_index: u32,
 ) -> Result<Bytes, TransformError> {
-    let event = openai_images::ImagePartialEvent {
+    let event = crate::wire!(openai_images::ImagePartialEvent {
         b64_json,
         partial_image_index,
         rest: Default::default(),
-    };
+    });
     let name = if edit {
         "image_edit.partial_image"
     } else {
@@ -170,11 +170,11 @@ fn image_completed(
     b64_json: String,
     usage: Option<openai_images::ImageUsage>,
 ) -> Result<Bytes, TransformError> {
-    let event = openai_images::ImageCompletedEvent {
+    let event = crate::wire!(openai_images::ImageCompletedEvent {
         b64_json,
         usage,
         rest: Default::default(),
-    };
+    });
     let name = if edit {
         "image_edit.completed"
     } else {
@@ -189,7 +189,7 @@ fn image_completed(
 }
 
 fn response_usage(usage: openai::ResponseUsage) -> openai_images::ImageUsage {
-    openai_images::ImageUsage {
+    crate::wire!(openai_images::ImageUsage {
         input_tokens: u64::from(usage.input_tokens),
         input_tokens_details: openai_images::ImageTokenDetails {
             image_tokens: 0,
@@ -200,7 +200,7 @@ fn response_usage(usage: openai::ResponseUsage) -> openai_images::ImageUsage {
         total_tokens: u64::from(usage.total_tokens),
         output_tokens_details: None,
         rest: Default::default(),
-    }
+    })
 }
 
 fn nonnegative(value: Option<i32>) -> u64 {

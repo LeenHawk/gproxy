@@ -14,6 +14,13 @@ pub(crate) fn chat_text_blocks(
                     Ok(text_block(part.text, part.prompt_cache_breakpoint))
                 }
                 openai::ChatTextContentPart::Unknown(_) => Ok(None),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             })
             .filter_map(Result::transpose)
             .collect(),
@@ -21,6 +28,13 @@ pub(crate) fn chat_text_blocks(
             "OpenAI Chat text content",
             raw.to_string(),
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -37,6 +51,13 @@ pub(crate) fn chat_user_blocks(
             "OpenAI Chat content",
             raw.to_string(),
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -57,6 +78,13 @@ pub(crate) fn chat_assistant_blocks(
                     Ok(text_block(part.refusal, part.prompt_cache_breakpoint))
                 }
                 openai::ChatAssistantContentPart::Unknown(_) => Ok(None),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             })
             .filter_map(Result::transpose)
             .collect(),
@@ -64,6 +92,13 @@ pub(crate) fn chat_assistant_blocks(
             "OpenAI Chat assistant content",
             raw.to_string(),
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -76,12 +111,14 @@ pub(crate) fn claude_system_to_chat(
             blocks
                 .into_iter()
                 .map(|block| {
-                    Ok(openai::ChatTextContentPart::Text(openai::ChatTextPart {
-                        type_: openai::ChatTextPartType::Text,
-                        text: block.text,
-                        prompt_cache_breakpoint: cache_breakpoint(block.cache_control),
-                        rest: Default::default(),
-                    }))
+                    Ok(openai::ChatTextContentPart::Text(crate::wire!(
+                        openai::ChatTextPart {
+                            type_: openai::ChatTextPartType::Text,
+                            text: block.text,
+                            prompt_cache_breakpoint: cache_breakpoint(block.cache_control),
+                            rest: Default::default(),
+                        }
+                    )))
                 })
                 .collect::<Result<_, TransformError>>()?,
         )),
@@ -102,14 +139,14 @@ pub(crate) fn claude_user_parts(
     blocks
         .into_iter()
         .filter_map(|block| match block {
-            claude::ContentBlockParam::Text(block) => {
-                Some(Ok(openai::ChatContentPart::Text(openai::ChatTextPart {
+            claude::ContentBlockParam::Text(block) => Some(Ok(openai::ChatContentPart::Text(
+                crate::wire!(openai::ChatTextPart {
                     type_: openai::ChatTextPartType::Text,
                     text: block.text,
                     prompt_cache_breakpoint: cache_breakpoint(block.cache_control),
                     rest: Default::default(),
-                })))
-            }
+                }),
+            ))),
             claude::ContentBlockParam::Image(block) => Some(image_to_chat(block)),
             claude::ContentBlockParam::Document(block) => Some(document_to_chat(block)),
             claude::ContentBlockParam::Raw(_) => None,
@@ -128,16 +165,16 @@ fn chat_part_to_claude(
         openai::ChatContentPart::Text(part) => {
             Ok(text_block(part.text, part.prompt_cache_breakpoint))
         }
-        openai::ChatContentPart::ImageUrl(part) => {
-            Ok(Some(claude::ContentBlockParam::Image(claude::ImageBlock {
+        openai::ChatContentPart::ImageUrl(part) => Ok(Some(claude::ContentBlockParam::Image(
+            crate::wire!(claude::ImageBlock {
                 source: image_source(part.image_url.url)?,
                 type_: claude::ImageBlockType::Image,
                 cache_control: cache_control(part.prompt_cache_breakpoint),
                 rest: Default::default(),
-            })))
-        }
+            }),
+        ))),
         openai::ChatContentPart::File(part) => Ok(Some(claude::ContentBlockParam::Document(
-            claude::DocumentBlock {
+            crate::wire!(claude::DocumentBlock {
                 source: document_source(&part.file)?,
                 type_: claude::DocumentBlockType::Document,
                 cache_control: cache_control(part.prompt_cache_breakpoint),
@@ -145,13 +182,20 @@ fn chat_part_to_claude(
                 context: None,
                 title: part.file.filename,
                 rest: Default::default(),
-            },
+            }),
         ))),
         openai::ChatContentPart::InputAudio(_) => Err(TransformError::unsupported(
             "OpenAI Chat content",
             "input_audio",
         )),
         openai::ChatContentPart::Unknown(_) => Ok(None),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -160,42 +204,48 @@ fn text_block(
     breakpoint: Option<openai::PromptCacheBreakpoint>,
 ) -> Option<claude::ContentBlockParam> {
     (!text.is_empty()).then(|| {
-        claude::ContentBlockParam::Text(claude::TextBlock {
+        claude::ContentBlockParam::Text(crate::wire!(claude::TextBlock {
             text,
             type_: claude::TextBlockType::Text,
             cache_control: cache_control(breakpoint),
             citations: None,
             rest: Default::default(),
-        })
+        }))
     })
 }
 
 fn cache_control(
     breakpoint: Option<openai::PromptCacheBreakpoint>,
 ) -> Option<claude::CacheControl> {
-    breakpoint.map(|_| claude::CacheControl {
-        type_: claude::CacheControlType::Ephemeral,
-        ttl: None,
-        rest: Default::default(),
+    breakpoint.map(|_| {
+        crate::wire!(claude::CacheControl {
+            type_: claude::CacheControlType::Ephemeral,
+            ttl: None,
+            rest: Default::default(),
+        })
     })
 }
 
 fn cache_breakpoint(
     control: Option<claude::CacheControl>,
 ) -> Option<openai::PromptCacheBreakpoint> {
-    control.map(|_| openai::PromptCacheBreakpoint {
-        mode: openai::PromptCacheBreakpointMode::Explicit,
-        rest: Default::default(),
+    control.map(|_| {
+        crate::wire!(openai::PromptCacheBreakpoint {
+            mode: openai::PromptCacheBreakpointMode::Explicit,
+            rest: Default::default(),
+        })
     })
 }
 
 fn image_source(url: String) -> Result<claude::ImageSource, TransformError> {
     let Some(data) = url.strip_prefix("data:") else {
-        return Ok(claude::ImageSource::Url(claude::UrlImageSource {
-            type_: claude::UrlSourceType::Url,
-            url,
-            rest: Default::default(),
-        }));
+        return Ok(claude::ImageSource::Url(crate::wire!(
+            claude::UrlImageSource {
+                type_: claude::UrlSourceType::Url,
+                url,
+                rest: Default::default(),
+            }
+        )));
     };
     let (media_type, data) = data
         .split_once(";base64,")
@@ -207,32 +257,38 @@ fn image_source(url: String) -> Result<claude::ImageSource, TransformError> {
         "image/webp" => claude::ImageMediaType::Webp,
         other => return Err(TransformError::unsupported("image media type", other)),
     };
-    Ok(claude::ImageSource::Base64(claude::Base64ImageSource {
-        data: data.into(),
-        media_type,
-        type_: claude::Base64SourceType::Base64,
-        rest: Default::default(),
-    }))
+    Ok(claude::ImageSource::Base64(crate::wire!(
+        claude::Base64ImageSource {
+            data: data.into(),
+            media_type,
+            type_: claude::Base64SourceType::Base64,
+            rest: Default::default(),
+        }
+    )))
 }
 
 fn document_source(file: &openai::ChatFileRef) -> Result<claude::DocumentSource, TransformError> {
     if let Some(file_id) = &file.file_id {
-        return Ok(claude::DocumentSource::File(claude::FileDocumentSource {
-            file_id: file_id.clone(),
-            type_: claude::FileSourceType::File,
-            rest: Default::default(),
-        }));
+        return Ok(claude::DocumentSource::File(crate::wire!(
+            claude::FileDocumentSource {
+                file_id: file_id.clone(),
+                type_: claude::FileSourceType::File,
+                rest: Default::default(),
+            }
+        )));
     }
     let data = file
         .file_data
         .clone()
         .ok_or_else(|| TransformError::shape("OpenAI Chat file", "file data is missing"))?;
-    Ok(claude::DocumentSource::Text(claude::PlainTextSource {
-        data,
-        media_type: claude::PlainTextMediaType::TextPlain,
-        type_: claude::TextSourceType::Text,
-        rest: Default::default(),
-    }))
+    Ok(claude::DocumentSource::Text(crate::wire!(
+        claude::PlainTextSource {
+            data,
+            media_type: claude::PlainTextMediaType::TextPlain,
+            type_: claude::TextSourceType::Text,
+            rest: Default::default(),
+        }
+    )))
 }
 
 fn image_to_chat(block: claude::ImageBlock) -> Result<openai::ChatContentPart, TransformError> {
@@ -248,12 +304,12 @@ fn image_to_chat(block: claude::ImageBlock) -> Result<openai::ChatContentPart, T
         claude::ImageSource::File(source) => {
             return Ok(openai::ChatContentPart::File(openai::ChatFilePart {
                 type_: openai::ChatFilePartType::File,
-                file: openai::ChatFileRef {
+                file: crate::wire!(openai::ChatFileRef {
                     file_data: None,
                     file_id: Some(source.file_id),
                     filename: None,
                     rest: Default::default(),
-                },
+                }),
                 prompt_cache_breakpoint: cache_breakpoint(block.cache_control),
                 rest: Default::default(),
             }));
@@ -274,11 +330,11 @@ fn image_to_chat(block: claude::ImageBlock) -> Result<openai::ChatContentPart, T
     Ok(openai::ChatContentPart::ImageUrl(
         openai::ChatImageUrlPart {
             type_: openai::ChatImageUrlPartType::ImageUrl,
-            image_url: openai::ImageUrl {
+            image_url: crate::wire!(openai::ImageUrl {
                 url,
                 detail: None,
                 rest: Default::default(),
-            },
+            }),
             prompt_cache_breakpoint: cache_breakpoint(block.cache_control),
             rest: Default::default(),
         },
@@ -289,18 +345,18 @@ fn document_to_chat(
     block: claude::DocumentBlock,
 ) -> Result<openai::ChatContentPart, TransformError> {
     let file = match block.source {
-        claude::DocumentSource::File(source) => openai::ChatFileRef {
+        claude::DocumentSource::File(source) => crate::wire!(openai::ChatFileRef {
             file_data: None,
             file_id: Some(source.file_id),
             filename: block.title,
             rest: Default::default(),
-        },
-        claude::DocumentSource::Text(source) => openai::ChatFileRef {
+        }),
+        claude::DocumentSource::Text(source) => crate::wire!(openai::ChatFileRef {
             file_data: Some(source.data),
             file_id: None,
             filename: block.title,
             rest: Default::default(),
-        },
+        }),
         claude::DocumentSource::Raw(raw) => {
             return Err(TransformError::unsupported(
                 "Claude document source",

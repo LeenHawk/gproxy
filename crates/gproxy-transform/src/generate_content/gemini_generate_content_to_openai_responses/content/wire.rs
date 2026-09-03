@@ -21,11 +21,11 @@ pub(super) fn function_output(
         return output(response);
     }
     let mut output = vec![openai::ResponseToolOutputContentPart::InputText(
-        openai::ResponseInputText {
+        crate::wire!(openai::ResponseInputText {
             text: serde_json::to_string(&response)?,
             prompt_cache_breakpoint: None,
             rest: Default::default(),
-        },
+        }),
     )];
     for part in parts {
         let converted = match part.data {
@@ -51,13 +51,13 @@ fn response_blob(
 ) -> Result<openai::ResponseToolOutputContentPart, TransformError> {
     if blob.mime_type.starts_with("image/") {
         return Ok(openai::ResponseToolOutputContentPart::InputImage(
-            openai::ResponseInputImage {
+            crate::wire!(openai::ResponseInputImage {
                 detail: None,
                 file_id: None,
                 image_url: Some(format!("data:{};base64,{}", blob.mime_type, blob.data)),
                 prompt_cache_breakpoint: None,
                 rest: Default::default(),
-            },
+            }),
         ));
     }
     if blob.mime_type.starts_with("audio/") {
@@ -68,7 +68,7 @@ fn response_blob(
     }
     let file_data = format!("data:{};base64,{}", blob.mime_type, blob.data);
     Ok(openai::ResponseToolOutputContentPart::InputFile(
-        openai::ResponseInputFile {
+        crate::wire!(openai::ResponseInputFile {
             detail: None,
             file_data: Some(file_data),
             file_id: None,
@@ -76,7 +76,7 @@ fn response_blob(
             filename: None,
             prompt_cache_breakpoint: None,
             rest: Default::default(),
-        },
+        }),
     ))
 }
 

@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
@@ -11,7 +10,7 @@ impl State {
     pub(super) fn tool_delta(
         &mut self,
         call: openai::ChatToolCallDelta,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
         let mut output = Vec::new();
         let chat_index = call.index;
         if !self.tools.contains_key(&chat_index) {
@@ -28,7 +27,7 @@ impl State {
                 kind,
             };
             output.push(emit(
-                openai::KnownResponseStreamEvent::ResponseOutputItemAdded(
+                openai::KnownResponseStreamEvent::ResponseOutputItemAdded(crate::wire!(
                     openai::ResponseOutputItemEvent {
                         item: Box::new(tool_item(
                             &item,
@@ -37,8 +36,8 @@ impl State {
                         output_index: item.index,
                         sequence_number: Some(self.next_sequence()),
                         rest: Default::default(),
-                    },
-                ),
+                    }
+                )),
             )?);
             self.tools.insert(chat_index, item);
         }
@@ -69,13 +68,13 @@ impl State {
             (item.id.clone(), item.index)
         };
         if !delta.is_empty() {
-            let payload = openai::ResponseItemStringDeltaEvent {
+            let payload = crate::wire!(openai::ResponseItemStringDeltaEvent {
                 delta,
                 item_id: id,
                 output_index,
                 sequence_number: Some(self.next_sequence()),
                 rest: Default::default(),
-            };
+            });
             output.push(emit(match kind {
                 ToolKind::Function => {
                     openai::KnownResponseStreamEvent::ResponseFunctionCallArgumentsDelta(payload)

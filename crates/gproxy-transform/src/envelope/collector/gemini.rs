@@ -70,7 +70,7 @@ impl GeminiCollector {
         if !self.is_complete() {
             return Err(TransformError::IncompleteStream);
         }
-        Ok(gemini::GenerateContentResponse {
+        Ok(crate::wire!(gemini::GenerateContentResponse {
             candidates: self.candidates.into_values().collect(),
             prompt_feedback: self.prompt_feedback,
             usage_metadata: self.usage,
@@ -78,7 +78,7 @@ impl GeminiCollector {
             response_id: self.response_id,
             model_status: self.model_status,
             rest: Default::default(),
-        })
+        }))
     }
 }
 

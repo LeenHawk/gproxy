@@ -6,6 +6,13 @@ use crate::common::usage;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ResponseObject = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ResponseObject,
+) -> Result<claude::CreateMessageResponseBody, TransformError> {
     let model = input
         .model
         .as_ref()
@@ -31,7 +38,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         _ if has_tool => claude::StopReason::Known(claude::StopReasonKnown::ToolUse),
         _ => claude::StopReason::Known(claude::StopReasonKnown::EndTurn),
     };
-    let output = claude::CreateMessageResponseBody {
+    let output = crate::wire!(claude::CreateMessageResponseBody {
         id: input.id,
         type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
         role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -46,8 +53,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         input_transformations: None,
         stop_details: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn item_blocks(
@@ -61,29 +68,38 @@ fn item_blocks(
                     .into_iter()
                     .map(|part| match part {
                         openai::ResponseMessageOutputContentPart::OutputText(part) => {
-                            claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                            claude::ResponseContentBlock::Text(crate::wire!(claude::ResponseTextBlock {
                                 citations: None,
                                 text: part.text,
                                 type_: claude::TextBlockType::Text,
                                 rest: Default::default(),
-                            })
+                            }))
                         }
                         openai::ResponseMessageOutputContentPart::Refusal(part) => {
-                            claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                            claude::ResponseContentBlock::Text(crate::wire!(claude::ResponseTextBlock {
                                 citations: None,
                                 text: part.refusal,
                                 type_: claude::TextBlockType::Text,
                                 rest: Default::default(),
-                            })
+                            }))
                         }
                         openai::ResponseMessageOutputContentPart::Unknown(_) => {
-                            claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                            claude::ResponseContentBlock::Text(crate::wire!(claude::ResponseTextBlock {
                                 citations: None,
                                 text: String::new(),
                                 type_: claude::TextBlockType::Text,
                                 rest: Default::default(),
-                            })
-                        }
+                            }))
+                        },
+                        #[cfg(not(feature = "exhaustive"))]
+                        _ => claude::ResponseContentBlock::Text(crate::wire!(
+                            claude::ResponseTextBlock {
+                                citations: None,
+                                text: String::new(),
+                                type_: claude::TextBlockType::Text,
+                                rest: Default::default(),
+                            }
+                        )),
                     })
                     .filter(|block| !matches!(block, claude::ResponseContentBlock::Text(text) if text.text.is_empty()))
                     .collect::<Vec<_>>();
@@ -92,9 +108,23 @@ fn item_blocks(
             openai::ResponseMessageItem::Unknown(_)
             | openai::ResponseMessageItem::Input(_)
             | openai::ResponseMessageItem::EasyInput(_) => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         },
         openai::ResponseItem::Typed(item) => typed_blocks(*item),
         openai::ResponseItem::Unknown(_) => Ok(Vec::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -107,7 +137,7 @@ fn typed_blocks(
             call_id,
             name,
             ..
-        } => vec![claude::ResponseContentBlock::ToolUse(
+        } => vec![claude::ResponseContentBlock::ToolUse(crate::wire!(
             claude::ResponseToolUseBlock {
                 id: call_id,
                 input: serde_json::from_str(&arguments).unwrap_or_default(),
@@ -115,14 +145,14 @@ fn typed_blocks(
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 rest: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
             name,
             ..
-        } => vec![claude::ResponseContentBlock::ToolUse(
+        } => vec![claude::ResponseContentBlock::ToolUse(crate::wire!(
             claude::ResponseToolUseBlock {
                 id: call_id,
                 input: string_input(input),
@@ -130,8 +160,8 @@ fn typed_blocks(
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 rest: Default::default(),
-            },
-        )],
+            }
+        ))],
         openai::TypedResponseItem::Reasoning {
             content,
             encrypted_content,
@@ -144,41 +174,41 @@ fn typed_blocks(
                 .collect::<String>();
             match (thinking.is_empty(), encrypted_content) {
                 (false, Some(signature)) => vec![claude::ResponseContentBlock::Thinking(
-                    claude::ThinkingBlock {
+                    crate::wire!(claude::ThinkingBlock {
                         signature: Some(signature),
                         thinking,
                         type_: claude::ThinkingBlockType::Thinking,
                         rest: Default::default(),
-                    },
+                    }),
                 )],
-                (false, None) => vec![claude::ResponseContentBlock::Text(
+                (false, None) => vec![claude::ResponseContentBlock::Text(crate::wire!(
                     claude::ResponseTextBlock {
                         citations: None,
                         text: thinking,
                         type_: claude::TextBlockType::Text,
                         rest: Default::default(),
-                    },
-                )],
+                    }
+                ))],
                 (true, Some(data)) => vec![claude::ResponseContentBlock::RedactedThinking(
-                    claude::RedactedThinkingBlock {
+                    crate::wire!(claude::RedactedThinkingBlock {
                         data,
                         type_: claude::RedactedThinkingBlockType::RedactedThinking,
                         rest: Default::default(),
-                    },
+                    }),
                 )],
                 (true, None) => Vec::new(),
             }
         }
         openai::TypedResponseItem::Compaction {
             encrypted_content, ..
-        } => vec![claude::ResponseContentBlock::Compaction(
+        } => vec![claude::ResponseContentBlock::Compaction(crate::wire!(
             claude::ResponseCompactionBlock {
                 content: None,
                 encrypted_content,
                 type_: claude::CompactionBlockType::Compaction,
                 rest: Default::default(),
-            },
-        )],
+            }
+        ))],
         other @ (openai::TypedResponseItem::FileSearchCall { .. }
         | openai::TypedResponseItem::ComputerCall { .. }
         | openai::TypedResponseItem::ComputerCallOutput { .. }
@@ -213,6 +243,13 @@ fn typed_blocks(
                 Vec::new()
             }
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
@@ -225,7 +262,7 @@ fn string_input(input: String) -> claude::JsonObject {
 }
 
 fn empty_usage() -> claude::Usage {
-    claude::Usage {
+    crate::wire!(claude::Usage {
         input_tokens: Some(0),
         output_tokens: Some(0),
         cache_creation_input_tokens: None,
@@ -238,5 +275,5 @@ fn empty_usage() -> claude::Usage {
         service_tier: None,
         speed: None,
         rest: Default::default(),
-    }
+    })
 }

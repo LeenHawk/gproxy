@@ -1,10 +1,9 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 use crate::common::native::items;
 
-use super::super::claude_to_openai::{Output, State};
+use super::super::claude_to_openai::{Output, OutputEvent, State};
 use super::super::claude_to_responses::{function_item, reasoning_item};
 use super::Block;
 
@@ -12,7 +11,7 @@ impl State {
     pub(in crate::common::stream) fn block_stop(
         &mut self,
         index: u64,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<OutputEvent>, TransformError> {
         let Some(block) = self.blocks.remove(&index) else {
             return Ok(Vec::new());
         };
@@ -52,25 +51,27 @@ impl State {
             ]);
         }
         let item = match block {
-            Block::Text { id, text } => openai::ResponseItem::Message(
-                openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
-                    type_: openai::ResponseMessageItemType::Message,
-                    id,
-                    role: openai::ResponseOutputMessageRole::Assistant,
-                    content: vec![openai::ResponseMessageOutputContentPart::OutputText(
-                        openai::ResponseOutputText {
-                            type_: openai::ResponseOutputTextType::OutputText,
-                            annotations: Vec::new(),
-                            logprobs: None,
-                            text,
-                            rest: Default::default(),
-                        },
-                    )],
-                    status: openai::ResponseItemLifecycleStatus::Completed,
-                    phase: None,
-                    rest: Default::default(),
-                }),
-            ),
+            Block::Text { id, text } => {
+                openai::ResponseItem::Message(openai::ResponseMessageItem::Output(crate::wire!(
+                    openai::ResponseOutputMessageItem {
+                        type_: openai::ResponseMessageItemType::Message,
+                        id,
+                        role: openai::ResponseOutputMessageRole::Assistant,
+                        content: vec![openai::ResponseMessageOutputContentPart::OutputText(
+                            crate::wire!(openai::ResponseOutputText {
+                                type_: openai::ResponseOutputTextType::OutputText,
+                                annotations: Vec::new(),
+                                logprobs: None,
+                                text,
+                                rest: Default::default(),
+                            }),
+                        )],
+                        status: openai::ResponseItemLifecycleStatus::Completed,
+                        phase: None,
+                        rest: Default::default(),
+                    }
+                )))
+            }
             Block::Thinking {
                 id,
                 text,

@@ -31,24 +31,24 @@ pub(crate) fn request_messages(
             }
         }
         if !blocks.is_empty() {
-            output.push(claude::MessageParam {
+            output.push(crate::wire!(claude::MessageParam {
                 role,
                 content: claude::StringOrArray::Array(blocks),
                 clear_at: None,
                 output_config: None,
                 rest: Default::default(),
-            });
+            }));
         }
     }
     Ok(output)
 }
 
 fn signature_block(signature: String) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::RedactedThinking(claude::RedactedThinkingBlock {
+    claude::ContentBlockParam::RedactedThinking(crate::wire!(claude::RedactedThinkingBlock {
         data: signature,
         type_: claude::RedactedThinkingBlockType::RedactedThinking,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn part_to_block(
@@ -84,12 +84,12 @@ pub(super) fn part_to_block(
     }
     Ok(Some(match data {
         gemini::PartData::Text { text, .. } if thought == Some(true) => {
-            claude::ContentBlockParam::Thinking(claude::ThinkingBlock {
+            claude::ContentBlockParam::Thinking(crate::wire!(claude::ThinkingBlock {
                 signature,
                 thinking: text,
                 type_: claude::ThinkingBlockType::Thinking,
                 rest: Default::default(),
-            })
+            }))
         }
         gemini::PartData::Text { text, .. } => functions::text_block(text),
         gemini::PartData::InlineData { inline_data, .. } => match media::inline(inline_data) {

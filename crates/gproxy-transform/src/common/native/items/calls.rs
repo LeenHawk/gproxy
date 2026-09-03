@@ -26,7 +26,7 @@ pub(crate) fn openai_call(
             operation,
             id,
             ..
-        } => Some(execution::apply_patch(call_id, operation, id)),
+        } => Some(execution::apply_patch(call_id, operation, id)?),
         openai::TypedResponseItem::ComputerCall {
             id,
             call_id,
@@ -86,11 +86,18 @@ pub(crate) fn openai_call(
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
 pub(crate) fn request_block(call: ClaudeCall) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
+    claude::ContentBlockParam::ToolUse(crate::wire!(claude::ToolUseBlock {
         id: call.id,
         input: call.input,
         name: call.name,
@@ -98,16 +105,16 @@ pub(crate) fn request_block(call: ClaudeCall) -> claude::ContentBlockParam {
         cache_control: None,
         caller: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn response_block(call: ClaudeCall) -> claude::ResponseContentBlock {
-    claude::ResponseContentBlock::ToolUse(claude::ResponseToolUseBlock {
+    claude::ResponseContentBlock::ToolUse(crate::wire!(claude::ResponseToolUseBlock {
         id: call.id,
         input: call.input,
         name: call.name,
         type_: claude::ToolUseBlockType::ToolUse,
         caller: None,
         rest: Default::default(),
-    })
+    }))
 }

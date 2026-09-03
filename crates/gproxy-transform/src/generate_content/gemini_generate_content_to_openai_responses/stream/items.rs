@@ -1,5 +1,4 @@
-use bytes::Bytes;
-use gproxy_protocol::openai;
+use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 
@@ -9,7 +8,7 @@ impl State {
     pub(super) fn item_added(
         &mut self,
         event: openai::ResponseOutputItemEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         let item = *event.item;
         match item {
             openai::ResponseItem::Typed(item) => match *item {
@@ -85,6 +84,13 @@ impl State {
                 | openai::TypedResponseItem::AgentMessage { .. }
                 | openai::TypedResponseItem::CompactionTrigger { .. }
                 | openai::TypedResponseItem::ItemReference { .. } => {}
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             openai::ResponseItem::Message(
                 openai::ResponseMessageItem::Output(_)
@@ -93,6 +99,13 @@ impl State {
                 | openai::ResponseMessageItem::Unknown(_),
             )
             | openai::ResponseItem::Unknown(_) => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
         Ok(Vec::new())
     }
@@ -100,7 +113,7 @@ impl State {
     pub(super) fn item_done(
         &mut self,
         event: openai::ResponseOutputItemEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         let item = *event.item;
         let key = item_id(&item).unwrap_or_else(|| format!("index:{}", event.output_index));
         self.emit_item(item, key)
@@ -110,7 +123,7 @@ impl State {
         &mut self,
         mut item: openai::ResponseItem,
         key: String,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         if self.emitted.contains(&key) {
             return Ok(Vec::new());
         }
@@ -172,8 +185,22 @@ impl State {
                     | openai::TypedResponseItem::ItemReference { .. }) => {
                         openai::ResponseItem::Typed(Box::new(other))
                     }
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 },
                 openai::ResponseItem::Unknown(_) => return Ok(Vec::new()),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             };
         }
         let content = self.content.item(item)?;
@@ -231,6 +258,8 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::TypedResponseItem::AgentMessage { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
             | openai::TypedResponseItem::ItemReference { .. } => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => None,
         },
         openai::ResponseItem::Message(
             openai::ResponseMessageItem::Input(_)
@@ -238,5 +267,7 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::ResponseMessageItem::Unknown(_),
         )
         | openai::ResponseItem::Unknown(_) => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => None,
     }
 }

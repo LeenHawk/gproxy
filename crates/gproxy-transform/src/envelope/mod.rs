@@ -2,6 +2,7 @@ mod collector;
 mod json_array;
 mod response;
 mod sse;
+mod synthesize;
 
 use bytes::Bytes;
 use gproxy_protocol::OperationKey;
@@ -10,6 +11,7 @@ pub use collector::{BufferedResponse, ResponseCollector};
 pub(crate) use response::Converter;
 pub use response::ResponseStream;
 pub(crate) use sse::{SseDecoder, SseFrame};
+pub use synthesize::synthesize_response;
 
 use crate::TransformError;
 
@@ -17,14 +19,14 @@ pub(crate) fn is_promotion(source: OperationKey, target: OperationKey) -> bool {
     let (
         gproxy_protocol::OperationKind::ContentGeneration(source_kind),
         gproxy_protocol::OperationKind::ContentGeneration(target_kind),
-    ) = (source.kind, target.kind)
+    ) = (source.kind(), target.kind())
     else {
         return false;
     };
     let source_semantic = semantic_kind(source_kind);
     let target_semantic = semantic_kind(target_kind);
     source_semantic == target_semantic
-        && (source.operation != target.operation || source.kind != target.kind)
+        && (source.operation() != target.operation() || source.kind() != target.kind())
 }
 
 pub(crate) fn promotion_request(
@@ -33,7 +35,7 @@ pub(crate) fn promotion_request(
     body: Bytes,
 ) -> Result<Bytes, TransformError> {
     use gproxy_protocol::{ContentGenerationKind as Kind, OperationKind::ContentGeneration};
-    match (source.kind, target.kind) {
+    match (source.kind(), target.kind()) {
         (
             ContentGeneration(Kind::OpenAiResponsesWebSocket),
             ContentGeneration(Kind::OpenAiResponses),
@@ -57,13 +59,13 @@ pub(crate) fn promotion_request(
         ) => {
             let response: gproxy_protocol::openai::ResponseCreateRequest =
                 serde_json::from_slice(&body)?;
-            let request = gproxy_protocol::openai::ResponseCreateWebSocketRequest {
+            let request = crate::wire!(gproxy_protocol::openai::ResponseCreateWebSocketRequest {
                 type_: gproxy_protocol::openai::ResponseCreateWebSocketRequestType::ResponseCreate,
                 response,
                 generate: None,
                 client_metadata: None,
                 rest: Default::default(),
-            };
+            });
             Ok(Bytes::from(serde_json::to_vec(&request)?))
         }
         _ => Ok(body),

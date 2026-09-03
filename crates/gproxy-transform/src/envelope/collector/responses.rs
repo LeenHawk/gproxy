@@ -70,8 +70,22 @@ impl ResponsesCollector {
                 | openai::KnownResponseStreamEvent::ResponseMcpListToolsCompleted(_)
                 | openai::KnownResponseStreamEvent::ResponseMcpListToolsFailed(_)
                 | openai::KnownResponseStreamEvent::Error(_) => {}
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             openai::ResponseStreamEvent::Unknown(_) => {}
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
         Ok(())
     }

@@ -6,6 +6,13 @@ use crate::generate_content::gemini_generate_content_to_openai_chat::{content, w
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: gemini::GenerateContentResponse = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: gemini::GenerateContentResponse,
+) -> Result<openai::ChatCompletionResponse, TransformError> {
     let id = input.response_id.unwrap_or_default();
     let model = input.model_version.unwrap_or_else(|| "unknown".into());
     let service_tier = match input
@@ -29,7 +36,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                     TransformError::shape("Gemini candidate", "fallback index exceeds u32")
                 })?,
             };
-            Ok(openai::ChatCompletionChoice {
+            Ok(crate::wire!(openai::ChatCompletionChoice {
                 finish_reason: finish_reason
                     .map(wire::finish_reason)
                     .transpose()?
@@ -38,10 +45,10 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 logprobs: None,
                 message: content::message(candidate.content, fallback)?,
                 rest: Default::default(),
-            })
+            }))
         })
         .collect::<Result<Vec<_>, TransformError>>()?;
-    let output = openai::ChatCompletionResponse {
+    let output = crate::wire!(openai::ChatCompletionResponse {
         id,
         choices,
         created: Some(0),
@@ -52,8 +59,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         system_fingerprint: None,
         usage,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn v2_usage(usage: gemini::UsageMetadata) -> openai::CompletionUsage {
@@ -65,7 +72,7 @@ fn v2_usage(usage: gemini::UsageMetadata) -> openai::CompletionUsage {
         .candidates_token_count
         .map(nonnegative)
         .unwrap_or_default();
-    openai::CompletionUsage {
+    crate::wire!(openai::CompletionUsage {
         completion_tokens,
         prompt_tokens,
         total_tokens: usage
@@ -90,7 +97,7 @@ fn v2_usage(usage: gemini::UsageMetadata) -> openai::CompletionUsage {
             }
         }),
         rest: Default::default(),
-    }
+    })
 }
 
 fn nonnegative(value: i32) -> u32 {

@@ -60,6 +60,13 @@ fn message_to_items(
             )])
         }
         openai::ChatCompletionMessageParam::Unknown(_) => Ok(Vec::new()),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
@@ -92,11 +99,11 @@ fn assistant_items(
             openai::TypedResponseItem::Reasoning {
                 id: None,
                 summary: Vec::new(),
-                content: Some(vec![openai::ResponseReasoningTextPart {
+                content: Some(vec![crate::wire!(openai::ResponseReasoningTextPart {
                     type_: openai::ResponseReasoningTextType::ReasoningText,
                     text: reasoning,
                     rest: Default::default(),
-                }]),
+                })]),
                 encrypted_content: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 rest: Default::default(),
@@ -149,6 +156,13 @@ fn assistant_items(
                 }))
             }
             openai::ChatToolCall::Unknown(_) => continue,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         });
     }
     if output.is_empty() {
@@ -169,7 +183,11 @@ fn assistant_has_breakpoint(content: &openai::ChatAssistantContent) -> bool {
                 part.prompt_cache_breakpoint.is_some()
             }
             openai::ChatAssistantContentPart::Unknown(_) => false,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => false,
         }),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => false,
     }
 }
 
@@ -186,15 +204,15 @@ fn output_message(
     };
     if let Some(refusal) = refusal.filter(|value| !value.is_empty()) {
         content.push(openai::ResponseMessageOutputContentPart::Refusal(
-            openai::ResponseRefusal {
+            crate::wire!(openai::ResponseRefusal {
                 type_: openai::ResponseRefusalType::Refusal,
                 refusal,
                 rest: Default::default(),
-            },
+            }),
         ));
     }
     Ok(openai::ResponseItem::Message(
-        openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
+        openai::ResponseMessageItem::Output(crate::wire!(openai::ResponseOutputMessageItem {
             type_: openai::ResponseMessageItemType::Message,
             id: format!("msg_{index}"),
             role: openai::ResponseOutputMessageRole::Assistant,
@@ -202,7 +220,7 @@ fn output_message(
             status: openai::ResponseItemLifecycleStatus::Completed,
             phase: None,
             rest: Default::default(),
-        }),
+        })),
     ))
 }
 
@@ -210,15 +228,15 @@ fn easy_message(
     role: openai::ResponseEasyInputMessageRole,
     content: openai::ResponseEasyInputContent,
 ) -> openai::ResponseItem {
-    openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
+    openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(crate::wire!(
         openai::ResponseEasyInputMessageItem {
             type_: Some(openai::ResponseMessageItemType::Message),
             role,
             content,
             phase: None,
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn tool_output_part(
@@ -238,6 +256,13 @@ pub(super) fn tool_output_part(
             return Err(TransformError::unsupported(
                 "Chat tool output",
                 "input_audio",
+            ));
+        }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
             ));
         }
     })

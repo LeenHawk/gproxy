@@ -10,6 +10,15 @@ pub(crate) fn transform(
     _stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, _stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ChatCompletionRequest,
+    model: &str,
+    _stream: bool,
+) -> Result<gemini::GenerateContentRequest, TransformError> {
     let (contents, system_instruction) = content::messages(input.messages)?;
     let generation_config = config::to_gemini(config::Input {
         audio: input.audio,
@@ -27,7 +36,7 @@ pub(crate) fn transform(
         top_logprobs: input.top_logprobs,
         top_p: input.top_p,
     })?;
-    let output = gemini::GenerateContentRequest {
+    let output = crate::wire!(gemini::GenerateContentRequest {
         model: Some(model.into()),
         contents,
         tools: tools::transform(input.tools, input.web_search_options.is_some())?,
@@ -39,6 +48,6 @@ pub(crate) fn transform(
         service_tier: wire::service_tier(input.service_tier),
         store: input.store,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }

@@ -5,6 +5,13 @@ use crate::common::usage;
 
 pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformError> {
     let input: openai::ChatCompletionResponse = serde_json::from_slice(&body)?;
+    let output = transform_typed(input)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    input: openai::ChatCompletionResponse,
+) -> Result<openai::ResponseObject, TransformError> {
     let id = input.id.clone();
     let mut output = Vec::new();
     let mut output_text = None;
@@ -19,11 +26,11 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
             openai::TypedResponseItem::Reasoning {
                 id: None,
                 summary: Vec::new(),
-                content: Some(vec![openai::ResponseReasoningTextPart {
+                content: Some(vec![crate::wire!(openai::ResponseReasoningTextPart {
                     type_: openai::ResponseReasoningTextType::ReasoningText,
                     text: reasoning,
                     rest: Default::default(),
-                }]),
+                })]),
                 encrypted_content: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 rest: Default::default(),
@@ -36,23 +43,23 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
     {
         output_text = (!text.is_empty()).then(|| text.clone());
         output.push(openai::ResponseItem::Message(
-            openai::ResponseMessageItem::Output(openai::ResponseOutputMessageItem {
+            openai::ResponseMessageItem::Output(crate::wire!(openai::ResponseOutputMessageItem {
                 type_: openai::ResponseMessageItemType::Message,
                 id: format!("msg_{}", choice.as_ref().expect("choice exists").index),
                 role: openai::ResponseOutputMessageRole::Assistant,
                 content: vec![openai::ResponseMessageOutputContentPart::OutputText(
-                    openai::ResponseOutputText {
+                    crate::wire!(openai::ResponseOutputText {
                         type_: openai::ResponseOutputTextType::OutputText,
                         annotations: Vec::new(),
                         logprobs: None,
                         text,
                         rest: Default::default(),
-                    },
+                    }),
                 )],
                 status: openai::ResponseItemLifecycleStatus::Completed,
                 phase: None,
                 rest: Default::default(),
-            }),
+            })),
         ));
     }
     for call in choice
@@ -88,6 +95,13 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 }))
             }
             openai::ChatToolCall::Unknown(_) => continue,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         });
     }
     if let Some(reason) = choice.as_ref().map(|choice| &choice.finish_reason)
@@ -97,7 +111,7 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         )
     {
         status = openai::ResponseStatus::Incomplete;
-        incomplete_details = Some(openai::IncompleteDetails {
+        incomplete_details = Some(crate::wire!(openai::IncompleteDetails {
             reason: Some(
                 if matches!(reason, openai::ChatFinishReason::ContentFilter) {
                     openai::IncompleteReason::ContentFilter
@@ -106,9 +120,9 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
                 },
             ),
             rest: Default::default(),
-        });
+        }));
     }
-    let response = openai::ResponseObject {
+    let response = crate::wire!(openai::ResponseObject {
         id,
         created_at: input.created,
         background: None,
@@ -147,8 +161,8 @@ pub(crate) fn transform(body: bytes::Bytes) -> Result<bytes::Bytes, TransformErr
         usage: input.usage.map(usage::chat_to_responses),
         user: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&response)?))
+    });
+    Ok(response)
 }
 
 fn response_call_id(original: &str) -> String {

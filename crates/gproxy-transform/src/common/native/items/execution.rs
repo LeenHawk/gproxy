@@ -54,12 +54,12 @@ pub(super) fn apply_patch(
     call_id: String,
     operation: openai::ApplyPatchOperation,
     _id: Option<String>,
-) -> ClaudeCall {
-    ClaudeCall {
+) -> Result<ClaudeCall, TransformError> {
+    Ok(ClaudeCall {
         id: call_id,
         name: "str_replace_based_edit_tool".into(),
-        input: shape::editor_input(operation),
-    }
+        input: shape::editor_input(operation)?,
+    })
 }
 
 pub(super) fn computer(

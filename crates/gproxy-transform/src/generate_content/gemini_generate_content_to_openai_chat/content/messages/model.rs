@@ -98,7 +98,7 @@ fn assistant(
     reasoning: Vec<String>,
     calls: Vec<openai::ChatToolCall>,
 ) -> openai::ChatCompletionMessageParam {
-    openai::ChatCompletionMessageParam::Assistant(openai::ChatAssistantMessageParam {
+    openai::ChatCompletionMessageParam::Assistant(crate::wire!(openai::ChatAssistantMessageParam {
         role: openai::ChatAssistantRole::Assistant,
         content: (!text.is_empty()).then(|| openai::ChatAssistantContent::Text(text.join(""))),
         audio: None,
@@ -108,7 +108,7 @@ fn assistant(
         refusal: None,
         tool_calls: (!calls.is_empty()).then_some(calls),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn function_call_to_chat(
@@ -118,7 +118,7 @@ fn function_call_to_chat(
     let arguments = call
         .args
         .ok_or_else(|| TransformError::shape("Gemini function call", "args is missing"))?;
-    Ok(openai::ChatToolCall::Function(
+    Ok(openai::ChatToolCall::Function(crate::wire!(
         openai::ChatFunctionToolCall {
             id,
             type_: openai::FunctionToolChoiceType::Function,
@@ -128,15 +128,15 @@ fn function_call_to_chat(
                 rest: Default::default(),
             },
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 fn code_call(
     code: gemini::ExecutableCode,
     id: String,
 ) -> Result<openai::ChatToolCall, TransformError> {
-    Ok(openai::ChatToolCall::Function(
+    Ok(openai::ChatToolCall::Function(crate::wire!(
         openai::ChatFunctionToolCall {
             id,
             type_: openai::FunctionToolChoiceType::Function,
@@ -146,15 +146,15 @@ fn code_call(
                 rest: Default::default(),
             },
             rest: Default::default(),
-        },
-    ))
+        }
+    )))
 }
 
 pub(super) fn tool_message(id: String, content: String) -> openai::ChatCompletionMessageParam {
-    openai::ChatCompletionMessageParam::Tool(openai::ChatToolMessageParam {
+    openai::ChatCompletionMessageParam::Tool(crate::wire!(openai::ChatToolMessageParam {
         role: openai::ChatToolRole::Tool,
         content: openai::ChatTextContent::Text(content),
         tool_call_id: id,
         rest: Default::default(),
-    })
+    }))
 }

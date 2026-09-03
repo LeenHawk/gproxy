@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use gproxy_protocol::gemini;
 
 use crate::TransformError;
 
@@ -10,7 +10,7 @@ impl State {
         text: String,
         item_id: String,
         thought: bool,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         self.text_items.insert(item_id);
         let chunk = events::chunk(
             Some(events::text(text, thought)),

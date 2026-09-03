@@ -5,7 +5,7 @@ pub(crate) fn claude_to_chat(usage: claude::Usage) -> Option<openai::CompletionU
     let cache_write = usage.cache_creation_total();
     let input = add_present(usage.input_tokens?, [cached, cache_write]);
     let output = usage.output_tokens?;
-    Some(openai::CompletionUsage {
+    Some(crate::wire!(openai::CompletionUsage {
         completion_tokens: clamp(output),
         prompt_tokens: clamp(input),
         total_tokens: clamp(input.saturating_add(output)),
@@ -20,7 +20,7 @@ pub(crate) fn claude_to_chat(usage: claude::Usage) -> Option<openai::CompletionU
         }),
         prompt_tokens_details: cache_details_to_chat(cached, cache_write),
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn chat_to_claude(usage: Option<openai::CompletionUsage>) -> Option<claude::Usage> {
@@ -33,7 +33,7 @@ pub(crate) fn chat_to_claude(usage: Option<openai::CompletionUsage>) -> Option<c
         .prompt_tokens_details
         .as_ref()
         .and_then(|details| details.cache_write_tokens);
-    Some(claude::Usage {
+    Some(crate::wire!(claude::Usage {
         input_tokens: Some(subtract_present(
             u64::from(usage.prompt_tokens),
             [cached, cache_write],
@@ -54,7 +54,7 @@ pub(crate) fn chat_to_claude(usage: Option<openai::CompletionUsage>) -> Option<c
         service_tier: None,
         speed: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn claude_to_responses(usage: claude::Usage) -> Option<openai::ResponseUsage> {
@@ -62,7 +62,7 @@ pub(crate) fn claude_to_responses(usage: claude::Usage) -> Option<openai::Respon
     let cache_write = usage.cache_creation_total();
     let input = add_present(usage.input_tokens?, [cached, cache_write]);
     let output = usage.output_tokens?;
-    Some(openai::ResponseUsage {
+    Some(crate::wire!(openai::ResponseUsage {
         input_tokens: clamp(input),
         output_tokens: clamp(output),
         total_tokens: clamp(input.saturating_add(output)),
@@ -74,7 +74,7 @@ pub(crate) fn claude_to_responses(usage: claude::Usage) -> Option<openai::Respon
             }
         }),
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn responses_to_claude(usage: Option<openai::ResponseUsage>) -> Option<claude::Usage> {
@@ -87,7 +87,7 @@ pub(crate) fn responses_to_claude(usage: Option<openai::ResponseUsage>) -> Optio
         .input_tokens_details
         .as_ref()
         .and_then(|details| details.cache_write_tokens);
-    Some(claude::Usage {
+    Some(crate::wire!(claude::Usage {
         input_tokens: Some(subtract_present(
             u64::from(usage.input_tokens),
             [cached, cache_write],
@@ -108,11 +108,11 @@ pub(crate) fn responses_to_claude(usage: Option<openai::ResponseUsage>) -> Optio
         service_tier: None,
         speed: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 pub(crate) fn responses_to_chat(usage: openai::ResponseUsage) -> openai::CompletionUsage {
-    openai::CompletionUsage {
+    crate::wire!(openai::CompletionUsage {
         completion_tokens: usage.output_tokens,
         prompt_tokens: usage.input_tokens,
         total_tokens: usage.total_tokens,
@@ -134,11 +134,11 @@ pub(crate) fn responses_to_chat(usage: openai::ResponseUsage) -> openai::Complet
             }
         }),
         rest: Default::default(),
-    }
+    })
 }
 
 pub(crate) fn chat_to_responses(usage: openai::CompletionUsage) -> openai::ResponseUsage {
-    openai::ResponseUsage {
+    crate::wire!(openai::ResponseUsage {
         input_tokens: usage.prompt_tokens,
         output_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
@@ -156,18 +156,20 @@ pub(crate) fn chat_to_responses(usage: openai::CompletionUsage) -> openai::Respo
             }
         }),
         rest: Default::default(),
-    }
+    })
 }
 
 fn cache_details_to_chat(
     cached: Option<u64>,
     cache_write: Option<u64>,
 ) -> Option<openai::PromptTokensDetails> {
-    (cached.is_some() || cache_write.is_some()).then(|| openai::PromptTokensDetails {
-        audio_tokens: None,
-        cache_write_tokens: cache_write.map(clamp),
-        cached_tokens: cached.map(clamp),
-        rest: Default::default(),
+    (cached.is_some() || cache_write.is_some()).then(|| {
+        crate::wire!(openai::PromptTokensDetails {
+            audio_tokens: None,
+            cache_write_tokens: cache_write.map(clamp),
+            cached_tokens: cached.map(clamp),
+            rest: Default::default(),
+        })
     })
 }
 
@@ -175,10 +177,12 @@ fn cache_details_to_responses(
     cached: Option<u64>,
     cache_write: Option<u64>,
 ) -> Option<openai::ResponseInputTokensDetails> {
-    (cached.is_some() || cache_write.is_some()).then(|| openai::ResponseInputTokensDetails {
-        cache_write_tokens: cache_write.map(clamp),
-        cached_tokens: cached.map(clamp),
-        rest: Default::default(),
+    (cached.is_some() || cache_write.is_some()).then(|| {
+        crate::wire!(openai::ResponseInputTokensDetails {
+            cache_write_tokens: cache_write.map(clamp),
+            cached_tokens: cached.map(clamp),
+            rest: Default::default(),
+        })
     })
 }
 

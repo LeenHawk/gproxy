@@ -99,7 +99,7 @@ impl State {
 }
 
 fn delta(index: u32, id: String, name: String, arguments: String) -> openai::ChatToolCallDelta {
-    openai::ChatToolCallDelta {
+    crate::wire!(openai::ChatToolCallDelta {
         index,
         id: Some(id),
         type_: Some(openai::ChatToolCallType::Function),
@@ -110,5 +110,5 @@ fn delta(index: u32, id: String, name: String, arguments: String) -> openai::Cha
         }),
         custom: None,
         rest: Default::default(),
-    }
+    })
 }

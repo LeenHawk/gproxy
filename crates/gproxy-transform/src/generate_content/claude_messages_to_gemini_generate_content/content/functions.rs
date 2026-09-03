@@ -10,7 +10,7 @@ pub(super) fn function_call(
     block: claude::ToolUseBlock,
     signature: Option<String>,
 ) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: None,
         thought_signature: signature,
         part_metadata: None,
@@ -26,7 +26,7 @@ pub(super) fn function_call(
         }),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }
 
 pub(super) fn function_result(
@@ -51,7 +51,7 @@ pub(super) fn function_result(
         ));
     }
     Ok(part(gemini::PartData::FunctionResponse {
-        function_response: gemini::FunctionResponse {
+        function_response: crate::wire!(gemini::FunctionResponse {
             id: Some(block.tool_use_id),
             name,
             response,
@@ -59,7 +59,7 @@ pub(super) fn function_result(
             will_continue: None,
             scheduling: None,
             rest: Default::default(),
-        },
+        }),
         rest: Default::default(),
     }))
 }
@@ -75,7 +75,7 @@ pub(super) fn thought(block: claude::ThinkingBlock) -> gemini::Part {
 }
 
 fn part(data: gemini::PartData) -> gemini::Part {
-    gemini::Part {
+    crate::wire!(gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
@@ -83,5 +83,5 @@ fn part(data: gemini::PartData) -> gemini::Part {
         data: Some(data),
         metadata: None,
         rest: Default::default(),
-    }
+    })
 }

@@ -6,17 +6,17 @@ mod terminal;
 
 use item_id::item_id;
 
-use bytes::Bytes;
-use gproxy_protocol::openai;
+use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
-use crate::envelope::SseFrame;
 
 use super::openai_to_claude::{Scalar, State};
 
 impl State {
-    pub(super) fn responses(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        let event: openai::ResponseStreamEvent = serde_json::from_str(&frame.data)?;
+    pub(crate) fn push_responses_typed(
+        &mut self,
+        event: openai::ResponseStreamEvent,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let openai::ResponseStreamEvent::Known(event) = event else {
             return Ok(Vec::new());
         };
@@ -120,6 +120,13 @@ impl State {
             | openai::KnownResponseStreamEvent::ResponseMcpListToolsInProgress(_)
             | openai::KnownResponseStreamEvent::ResponseMcpListToolsCompleted(_)
             | openai::KnownResponseStreamEvent::ResponseMcpListToolsFailed(_) => Ok(Vec::new()),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
     }
 }

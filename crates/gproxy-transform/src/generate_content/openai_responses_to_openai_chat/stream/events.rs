@@ -1,16 +1,13 @@
-use bytes::Bytes;
 use gproxy_protocol::openai;
 
 use crate::TransformError;
-use crate::envelope::SseFrame;
 
 use super::{Tool, ToolKind};
 
-pub(super) fn emit(event: openai::KnownResponseStreamEvent) -> Result<Bytes, TransformError> {
-    SseFrame::typed(
-        Some(event.event_name()),
-        &openai::ResponseStreamEvent::Known(Box::new(event)),
-    )
+pub(super) fn emit(
+    event: openai::KnownResponseStreamEvent,
+) -> Result<openai::ResponseStreamEvent, TransformError> {
+    Ok(openai::ResponseStreamEvent::Known(Box::new(event)))
 }
 
 pub(super) fn tool_item(
@@ -41,7 +38,7 @@ pub(super) fn tool_item(
 }
 
 pub(super) fn stream_logprob(value: openai::TokenLogprob) -> openai::StreamTokenLogprob {
-    openai::StreamTokenLogprob {
+    crate::wire!(openai::StreamTokenLogprob {
         token: value.token,
         logprob: value.logprob,
         top_logprobs: Some(
@@ -56,5 +53,5 @@ pub(super) fn stream_logprob(value: openai::TokenLogprob) -> openai::StreamToken
                 .collect(),
         ),
         rest: Default::default(),
-    }
+    })
 }

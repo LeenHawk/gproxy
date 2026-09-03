@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, gemini};
 
 use crate::TransformError;
@@ -7,7 +6,10 @@ use super::events;
 use super::state::{OpenKind, State};
 
 impl State {
-    pub(super) fn part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
+    pub(super) fn part(
+        &mut self,
+        part: gemini::Part,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let kind = if part.thought == Some(true) {
             OpenKind::Thinking
         } else {
@@ -24,7 +26,7 @@ impl State {
         &mut self,
         part: gemini::Part,
         kind: OpenKind,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = Vec::new();
         if self.open.as_ref().is_some_and(|open| open.kind != kind) {
             output.extend(self.close_open()?);
@@ -34,24 +36,24 @@ impl State {
             None => {
                 let index = self.next_block(kind);
                 let block = match kind {
-                    OpenKind::Text => {
-                        claude::ResponseContentBlock::Text(claude::ResponseTextBlock {
+                    OpenKind::Text => claude::ResponseContentBlock::Text(crate::wire!(
+                        claude::ResponseTextBlock {
                             citations: None,
                             text: String::new(),
                             type_: claude::TextBlockType::Text,
                             rest: Default::default(),
-                        })
-                    }
-                    OpenKind::Thinking => {
-                        claude::ResponseContentBlock::Thinking(claude::ThinkingBlock {
+                        }
+                    )),
+                    OpenKind::Thinking => claude::ResponseContentBlock::Thinking(crate::wire!(
+                        claude::ThinkingBlock {
                             signature: None,
                             thinking: String::new(),
                             type_: claude::ThinkingBlockType::Thinking,
                             rest: Default::default(),
-                        })
-                    }
+                        }
+                    )),
                 };
-                output.push(events::encode(events::block_start(index, block))?);
+                output.push(events::wrap(events::block_start(index, block)));
                 index
             }
         };
@@ -73,23 +75,26 @@ impl State {
                     rest: Default::default(),
                 },
             };
-            output.push(events::encode(events::block_delta(index, delta))?);
+            output.push(events::wrap(events::block_delta(index, delta)));
         }
         if kind == OpenKind::Thinking
             && let Some(signature) = part.thought_signature
         {
-            output.push(events::encode(events::block_delta(
+            output.push(events::wrap(events::block_delta(
                 index,
                 claude::KnownEventDelta::Signature {
                     signature,
                     rest: Default::default(),
                 },
-            ))?);
+            )));
         }
         Ok(output)
     }
 
-    fn signature_only(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
+    fn signature_only(
+        &mut self,
+        part: gemini::Part,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let signature = part
             .thought_signature
             .ok_or_else(|| TransformError::shape("Gemini stream", "signature is missing"))?;
@@ -101,16 +106,19 @@ impl State {
             self.pending_signature = Some(signature);
             return Ok(Vec::new());
         }
-        Ok(vec![events::encode(events::block_delta(
+        Ok(vec![events::wrap(events::block_delta(
             open.index,
             claude::KnownEventDelta::Signature {
                 signature,
                 rest: Default::default(),
             },
-        ))?])
+        ))])
     }
 
-    fn closed_part(&mut self, part: gemini::Part) -> Result<Vec<Bytes>, TransformError> {
+    fn closed_part(
+        &mut self,
+        part: gemini::Part,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.close_open()?;
         if matches!(part.data, Some(gemini::PartData::FunctionCall { .. }))
             && let Some(signature) = part
@@ -120,14 +128,15 @@ impl State {
         {
             let index = self.next_index;
             self.next_index = self.next_index.saturating_add(1);
-            let block =
-                claude::ResponseContentBlock::RedactedThinking(claude::RedactedThinkingBlock {
+            let block = claude::ResponseContentBlock::RedactedThinking(crate::wire!(
+                claude::RedactedThinkingBlock {
                     data: signature,
                     type_: claude::RedactedThinkingBlockType::RedactedThinking,
                     rest: Default::default(),
-                });
-            output.push(events::encode(events::block_start(index, block))?);
-            output.push(events::encode(events::block_stop(index))?);
+                }
+            ));
+            output.push(events::wrap(events::block_start(index, block)));
+            output.push(events::wrap(events::block_stop(index)));
         } else {
             self.pending_signature = None;
         }
@@ -139,22 +148,22 @@ impl State {
         if let claude::ResponseContentBlock::ToolUse(mut tool) = block {
             self.has_tool = true;
             let input = std::mem::take(&mut tool.input);
-            output.push(events::encode(events::block_start(
+            output.push(events::wrap(events::block_start(
                 index,
                 claude::ResponseContentBlock::ToolUse(tool),
-            ))?);
-            output.push(events::encode(events::block_delta(
+            )));
+            output.push(events::wrap(events::block_delta(
                 index,
                 claude::KnownEventDelta::InputJson {
                     partial_json: serde_json::to_string(&input)?,
                     rest: Default::default(),
                 },
-            ))?);
+            )));
         } else {
             self.has_tool |= matches!(&block, claude::ResponseContentBlock::ServerToolUse(_));
-            output.push(events::encode(events::block_start(index, block))?);
+            output.push(events::wrap(events::block_start(index, block)));
         }
-        output.push(events::encode(events::block_stop(index))?);
+        output.push(events::wrap(events::block_stop(index)));
         Ok(output)
     }
 }

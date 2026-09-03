@@ -85,6 +85,8 @@ pub(crate) fn chat_to_responses(
                 rest: Default::default(),
             }),
             openai::ChatTool::Unknown(_) => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => None,
         })
         .collect::<Vec<_>>();
     Ok((!output.is_empty()).then_some(output))
@@ -105,39 +107,47 @@ pub(crate) fn responses_to_chat(
                 strict,
                 description,
                 ..
-            } => Some(openai::ChatTool::Function(openai::ChatFunctionTool {
-                type_: openai::FunctionToolChoiceType::Function,
-                function: openai::FunctionDefinition {
-                    name,
-                    description,
-                    parameters: match parameters {
-                        openai::ResponseFunctionParameters::Schema(schema) => Some(schema),
-                        openai::ResponseFunctionParameters::Null => None,
-                    },
-                    strict: match strict {
-                        openai::ResponseFunctionStrict::Value(strict) => Some(strict),
-                        openai::ResponseFunctionStrict::Null
-                        | openai::ResponseFunctionStrict::Absent => None,
+            } => Some(openai::ChatTool::Function(crate::wire!(
+                openai::ChatFunctionTool {
+                    type_: openai::FunctionToolChoiceType::Function,
+                    function: openai::FunctionDefinition {
+                        name,
+                        description,
+                        parameters: match parameters {
+                            openai::ResponseFunctionParameters::Schema(schema) => Some(schema),
+                            openai::ResponseFunctionParameters::Null => None,
+                            #[cfg(not(feature = "exhaustive"))]
+                            _ => None,
+                        },
+                        strict: match strict {
+                            openai::ResponseFunctionStrict::Value(strict) => Some(strict),
+                            openai::ResponseFunctionStrict::Null
+                            | openai::ResponseFunctionStrict::Absent => None,
+                            #[cfg(not(feature = "exhaustive"))]
+                            _ => None,
+                        },
+                        rest: Default::default(),
                     },
                     rest: Default::default(),
-                },
-                rest: Default::default(),
-            })),
+                }
+            ))),
             openai::ResponseTool::Custom {
                 name,
                 description,
                 format,
                 ..
-            } => Some(openai::ChatTool::Custom(openai::ChatCustomTool {
-                type_: openai::CustomToolChoiceType::Custom,
-                custom: openai::CustomToolDefinition {
-                    name,
-                    description,
-                    format,
+            } => Some(openai::ChatTool::Custom(crate::wire!(
+                openai::ChatCustomTool {
+                    type_: openai::CustomToolChoiceType::Custom,
+                    custom: openai::CustomToolDefinition {
+                        name,
+                        description,
+                        format,
+                        rest: Default::default(),
+                    },
                     rest: Default::default(),
-                },
-                rest: Default::default(),
-            })),
+                }
+            ))),
             unsupported @ (openai::ResponseTool::FileSearch { .. }
             | openai::ResponseTool::Computer { .. }
             | openai::ResponseTool::ComputerUsePreview { .. }
@@ -162,6 +172,8 @@ pub(crate) fn responses_to_chat(
                 let _ = unsupported;
                 None
             }
+            #[cfg(not(feature = "exhaustive"))]
+            _ => None,
         })
         .collect::<Vec<_>>();
     Ok((!output.is_empty()).then_some(output))
@@ -174,38 +186,47 @@ pub(crate) fn chat_choice_to_claude(
     let disable_parallel_tool_use = parallel.map(|parallel| !parallel);
     Ok(match choice {
         None => None,
-        Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::Auto)) => {
-            Some(claude::ToolChoice::Auto(claude::ToolChoiceAuto {
+        Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::Auto)) => Some(
+            claude::ToolChoice::Auto(crate::wire!(claude::ToolChoiceAuto {
                 type_: claude::ToolChoiceAutoType::Auto,
                 disable_parallel_tool_use,
                 rest: Default::default(),
-            }))
-        }
-        Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::Required)) => {
-            Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
+            })),
+        ),
+        Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::Required)) => Some(
+            claude::ToolChoice::Any(crate::wire!(claude::ToolChoiceAny {
                 type_: claude::ToolChoiceAnyType::Any,
                 disable_parallel_tool_use,
                 rest: Default::default(),
-            }))
-        }
-        Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::None)) => {
-            Some(claude::ToolChoice::None(claude::ToolChoiceNone {
+            })),
+        ),
+        Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::None)) => Some(
+            claude::ToolChoice::None(crate::wire!(claude::ToolChoiceNone {
                 type_: claude::ToolChoiceNoneType::None,
                 rest: Default::default(),
-            }))
-        }
+            })),
+        ),
         Some(openai::ChatToolChoice::Named(named)) => {
             let name = match named {
                 openai::ChatNamedToolChoice::Function(choice) => choice.function.name,
                 openai::ChatNamedToolChoice::Custom(choice) => choice.custom.name,
                 openai::ChatNamedToolChoice::Unknown(_) => return Ok(None),
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             };
-            Some(claude::ToolChoice::Tool(claude::ToolChoiceTool {
-                name,
-                type_: claude::ToolChoiceToolType::Tool,
-                disable_parallel_tool_use,
-                rest: Default::default(),
-            }))
+            Some(claude::ToolChoice::Tool(crate::wire!(
+                claude::ToolChoiceTool {
+                    name,
+                    type_: claude::ToolChoiceToolType::Tool,
+                    disable_parallel_tool_use,
+                    rest: Default::default(),
+                }
+            )))
         }
         Some(openai::ChatToolChoice::Allowed(choice)) => {
             return Err(TransformError::unsupported(
@@ -221,6 +242,13 @@ pub(crate) fn chat_choice_to_claude(
             return Err(TransformError::unsupported(
                 "OpenAI Chat tool choice",
                 value,
+            ));
+        }
+        #[cfg(not(feature = "exhaustive"))]
+        Some(_) => {
+            return Err(TransformError::unsupported(
+                "OpenAI Chat tool choice",
+                "unrecognized external variant",
             ));
         }
     })
@@ -241,14 +269,16 @@ pub(crate) fn claude_choice_to_chat(
             Some(openai::ChatToolChoice::Mode(openai::ToolChoiceMode::None))
         }
         Some(claude::ToolChoice::Tool(choice)) => Some(openai::ChatToolChoice::Named(
-            openai::ChatNamedToolChoice::Function(openai::ChatNamedFunctionToolChoice {
-                type_: openai::FunctionToolChoiceType::Function,
-                function: openai::NamedTool {
-                    name: choice.name,
+            openai::ChatNamedToolChoice::Function(crate::wire!(
+                openai::ChatNamedFunctionToolChoice {
+                    type_: openai::FunctionToolChoiceType::Function,
+                    function: openai::NamedTool {
+                        name: choice.name,
+                        rest: Default::default(),
+                    },
                     rest: Default::default(),
-                },
-                rest: Default::default(),
-            }),
+                }
+            )),
         )),
         Some(claude::ToolChoice::Unknown(_)) => None,
         Some(_) => {
@@ -262,19 +292,21 @@ pub(crate) fn claude_choice_to_chat(
 
 fn chat_tool_to_claude(tool: openai::ChatTool) -> Result<claude::Tool, TransformError> {
     match tool {
-        openai::ChatTool::Function(tool) => Ok(claude::Tool::Custom(claude::CustomTool {
-            input_schema: schema_to_claude(tool.function.parameters)?,
-            name: tool.function.name,
-            type_: Some(claude::CustomToolType::Custom),
-            description: tool.function.description,
-            eager_input_streaming: None,
-            common: claude::ToolCommon {
-                strict: tool.function.strict,
+        openai::ChatTool::Function(tool) => {
+            Ok(claude::Tool::Custom(crate::wire!(claude::CustomTool {
+                input_schema: schema_to_claude(tool.function.parameters)?,
+                name: tool.function.name,
+                type_: Some(claude::CustomToolType::Custom),
+                description: tool.function.description,
+                eager_input_streaming: None,
+                common: claude::ToolCommon {
+                    strict: tool.function.strict,
+                    rest: Default::default(),
+                    ..Default::default()
+                },
                 rest: Default::default(),
-                ..Default::default()
-            },
-            rest: Default::default(),
-        })),
+            })))
+        }
         openai::ChatTool::Custom(tool) => Err(TransformError::unsupported(
             "OpenAI Chat tool",
             format!("custom tool {}", tool.custom.name),
@@ -283,22 +315,31 @@ fn chat_tool_to_claude(tool: openai::ChatTool) -> Result<claude::Tool, Transform
             "OpenAI Chat tool",
             "unknown tool",
         )),
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     }
 }
 
 fn claude_tool_to_chat(tool: claude::Tool) -> Result<openai::ChatTool, TransformError> {
     match tool {
-        claude::Tool::Custom(tool) => Ok(openai::ChatTool::Function(openai::ChatFunctionTool {
-            type_: openai::FunctionToolChoiceType::Function,
-            function: openai::FunctionDefinition {
-                name: tool.name,
-                description: tool.description,
-                parameters: Some(schema_to_openai(tool.input_schema)?),
-                strict: tool.common.strict,
+        claude::Tool::Custom(tool) => Ok(openai::ChatTool::Function(crate::wire!(
+            openai::ChatFunctionTool {
+                type_: openai::FunctionToolChoiceType::Function,
+                function: openai::FunctionDefinition {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: Some(schema_to_openai(tool.input_schema)?),
+                    strict: tool.common.strict,
+                    rest: Default::default(),
+                },
                 rest: Default::default(),
-            },
-            rest: Default::default(),
-        })),
+            }
+        ))),
         claude::Tool::Unknown(_) => Err(TransformError::unsupported("Claude tool", "unknown tool")),
         other => Err(TransformError::unsupported(
             "Claude tool",

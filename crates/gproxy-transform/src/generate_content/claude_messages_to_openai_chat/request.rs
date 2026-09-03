@@ -8,7 +8,16 @@ pub(crate) fn transform(
     model: &str,
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
-    let mut input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let input: claude::CreateMessageRequestBody = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+pub(crate) fn transform_typed(
+    mut input: claude::CreateMessageRequestBody,
+    model: &str,
+    stream: bool,
+) -> Result<openai::ChatCompletionRequest, TransformError> {
     crate::common::claude_message_controls::apply(&mut input.messages, &mut input.output_config);
     let mut messages = Vec::new();
     if let Some(system) = input.system {
@@ -52,7 +61,7 @@ pub(crate) fn transform(
             }
         }
     }
-    let output = openai::ChatCompletionRequest {
+    let output = crate::wire!(openai::ChatCompletionRequest {
         messages,
         model: model.into(),
         audio: None,
@@ -91,8 +100,8 @@ pub(crate) fn transform(
         verbosity: None,
         web_search_options: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }
 
 fn assistant(
@@ -108,7 +117,7 @@ fn assistant(
             claude::ContentBlockParam::Thinking(block) => reasoning.push(block.thinking),
             claude::ContentBlockParam::RedactedThinking(_) => {}
             claude::ContentBlockParam::ToolUse(block) => calls.push(
-                openai::ChatToolCall::Function(openai::ChatFunctionToolCall {
+                openai::ChatToolCall::Function(crate::wire!(openai::ChatFunctionToolCall {
                     id: block.id,
                     type_: openai::FunctionToolChoiceType::Function,
                     function: openai::FunctionCall {
@@ -117,7 +126,7 @@ fn assistant(
                         rest: Default::default(),
                     },
                     rest: Default::default(),
-                }),
+                })),
             ),
             claude::ContentBlockParam::Raw(_) => {}
             other => {
@@ -128,7 +137,7 @@ fn assistant(
             }
         }
     }
-    Ok(openai::ChatAssistantMessageParam {
+    Ok(crate::wire!(openai::ChatAssistantMessageParam {
         role: openai::ChatAssistantRole::Assistant,
         content: (!text.is_empty()).then(|| openai::ChatAssistantContent::Text(text.join(""))),
         audio: None,
@@ -138,7 +147,7 @@ fn assistant(
         refusal: None,
         tool_calls: (!calls.is_empty()).then_some(calls),
         rest: Default::default(),
-    })
+    }))
 }
 
 fn user(
@@ -146,12 +155,12 @@ fn user(
 ) -> Result<Vec<openai::ChatCompletionMessageParam>, TransformError> {
     if let claude::StringOrArray::String(text) = content_value {
         return Ok(vec![openai::ChatCompletionMessageParam::User(
-            openai::ChatUserMessageParam {
+            crate::wire!(openai::ChatUserMessageParam {
                 role: openai::ChatUserRole::User,
                 content: openai::ChatContent::Text(text),
                 name: None,
                 rest: Default::default(),
-            },
+            }),
         )]);
     }
     let mut output = Vec::new();
@@ -162,14 +171,14 @@ fn user(
                 if !parts.is_empty() {
                     output.push(user_message(std::mem::take(&mut parts)));
                 }
-                output.push(openai::ChatCompletionMessageParam::Tool(
+                output.push(openai::ChatCompletionMessageParam::Tool(crate::wire!(
                     openai::ChatToolMessageParam {
                         role: openai::ChatToolRole::Tool,
                         content: tool_result(block.content)?,
                         tool_call_id: block.tool_use_id,
                         rest: Default::default(),
-                    },
-                ));
+                    }
+                )));
             }
             block => parts.extend(content::claude_user_parts(vec![block])?),
         }
@@ -181,12 +190,12 @@ fn user(
 }
 
 fn user_message(parts: Vec<openai::ChatContentPart>) -> openai::ChatCompletionMessageParam {
-    openai::ChatCompletionMessageParam::User(openai::ChatUserMessageParam {
+    openai::ChatCompletionMessageParam::User(crate::wire!(openai::ChatUserMessageParam {
         role: openai::ChatUserRole::User,
         content: openai::ChatContent::Parts(parts),
         name: None,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn chat_text(
@@ -199,12 +208,14 @@ fn chat_text(
             for block in blocks {
                 match block {
                     claude::ContentBlockParam::Text(block) => {
-                        parts.push(openai::ChatTextContentPart::Text(openai::ChatTextPart {
-                            type_: openai::ChatTextPartType::Text,
-                            text: block.text,
-                            prompt_cache_breakpoint: None,
-                            rest: Default::default(),
-                        }));
+                        parts.push(openai::ChatTextContentPart::Text(crate::wire!(
+                            openai::ChatTextPart {
+                                type_: openai::ChatTextPartType::Text,
+                                text: block.text,
+                                prompt_cache_breakpoint: None,
+                                rest: Default::default(),
+                            }
+                        )));
                     }
                     claude::ContentBlockParam::Raw(_) => {}
                     other => {
@@ -244,12 +255,12 @@ fn tool_result(
                 .into_iter()
                 .filter_map(|block| match block {
                     claude::ToolResultContentBlock::Text(block) => Some(Ok(
-                        openai::ChatTextContentPart::Text(openai::ChatTextPart {
+                        openai::ChatTextContentPart::Text(crate::wire!(openai::ChatTextPart {
                             type_: openai::ChatTextPartType::Text,
                             text: block.text,
                             prompt_cache_breakpoint: None,
                             rest: Default::default(),
-                        }),
+                        })),
                     )),
                     claude::ToolResultContentBlock::Raw(_) => None,
                     _ => Some(Err(TransformError::unsupported(
@@ -277,13 +288,15 @@ fn tool_result(
 fn blocks(content: claude::MessageContent) -> Vec<claude::ContentBlockParam> {
     match content {
         claude::StringOrArray::String(text) => {
-            vec![claude::ContentBlockParam::Text(claude::TextBlock {
-                text,
-                type_: claude::TextBlockType::Text,
-                cache_control: None,
-                citations: None,
-                rest: Default::default(),
-            })]
+            vec![claude::ContentBlockParam::Text(crate::wire!(
+                claude::TextBlock {
+                    text,
+                    type_: claude::TextBlockType::Text,
+                    cache_control: None,
+                    citations: None,
+                    rest: Default::default(),
+                }
+            ))]
         }
         claude::StringOrArray::Array(blocks) => blocks,
         claude::StringOrArray::Raw(_) => Vec::new(),
@@ -316,7 +329,7 @@ fn response_format(
     let Some(format) = output.and_then(|output| output.format.as_ref()) else {
         return Ok(None);
     };
-    Ok(Some(openai::ChatResponseFormat::JsonSchema(
+    Ok(Some(openai::ChatResponseFormat::JsonSchema(crate::wire!(
         openai::ChatJsonSchemaFormat {
             type_: openai::JsonSchemaResponseFormatType::JsonSchema,
             json_schema: openai::JsonSchemaFormat {
@@ -327,8 +340,8 @@ fn response_format(
                 rest: Default::default(),
             },
             rest: Default::default(),
-        },
-    )))
+        }
+    ))))
 }
 
 fn service_tier(

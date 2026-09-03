@@ -11,24 +11,38 @@ pub(crate) fn openai_request(
 ) -> Result<Bytes, TransformError> {
     if !edit {
         let input: openai_images::CreateImageRequest = serde_json::from_slice(&body)?;
-        return super::encode(&build_gemini_request(
-            input.prompt,
-            Vec::new(),
-            input.n,
-            input.output_format,
-            input.size.as_ref().and_then(wire_string),
-            model,
-        ));
+        return super::encode(&openai_create_request_typed(input, model));
     }
     let input: openai_images::EditImageRequest = serde_json::from_slice(&body)?;
-    super::encode(&build_gemini_request(
+    super::encode(&openai_edit_request_typed(input, model))
+}
+
+pub(crate) fn openai_create_request_typed(
+    input: openai_images::CreateImageRequest,
+    model: &str,
+) -> gemini::GenerateContentRequest {
+    build_gemini_request(
+        input.prompt,
+        Vec::new(),
+        input.n,
+        input.output_format,
+        input.size.as_ref().and_then(wire_string),
+        model,
+    )
+}
+
+pub(crate) fn openai_edit_request_typed(
+    input: openai_images::EditImageRequest,
+    model: &str,
+) -> gemini::GenerateContentRequest {
+    build_gemini_request(
         input.prompt,
         input.images,
         input.n,
         input.output_format,
         input.size.as_ref().and_then(wire_string),
         model,
-    ))
+    )
 }
 
 pub(crate) fn gemini_request(
@@ -37,6 +51,22 @@ pub(crate) fn gemini_request(
     edit: bool,
 ) -> Result<Bytes, TransformError> {
     let input: gemini::GenerateContentRequest = serde_json::from_slice(&body)?;
+    match gemini_request_typed(input, model, edit) {
+        OpenAiImageRequest::Create(request) => super::encode(&request),
+        OpenAiImageRequest::Edit(request) => super::encode(&request),
+    }
+}
+
+enum OpenAiImageRequest {
+    Create(openai_images::CreateImageRequest),
+    Edit(openai_images::EditImageRequest),
+}
+
+fn gemini_request_typed(
+    input: gemini::GenerateContentRequest,
+    model: &str,
+    edit: bool,
+) -> OpenAiImageRequest {
     let mut prompt = String::new();
     let mut images = Vec::new();
     for content in input.contents {
@@ -44,28 +74,28 @@ pub(crate) fn gemini_request(
             match part.data {
                 Some(gemini::PartData::Text { text, .. }) => prompt.push_str(&text),
                 Some(gemini::PartData::InlineData { inline_data, .. }) => {
-                    images.push(openai_images::ImageReference {
+                    images.push(crate::wire!(openai_images::ImageReference {
                         file_id: None,
                         image_url: Some(format!(
                             "data:{};base64,{}",
                             inline_data.mime_type, inline_data.data
                         )),
                         rest: Default::default(),
-                    });
+                    }));
                 }
                 Some(gemini::PartData::FileData { file_data, .. }) => {
-                    images.push(openai_images::ImageReference {
+                    images.push(crate::wire!(openai_images::ImageReference {
                         file_id: None,
                         image_url: Some(file_data.file_uri),
                         rest: Default::default(),
-                    });
+                    }));
                 }
                 Some(_) | None => {}
             }
         }
     }
     if edit {
-        return super::encode(&openai_images::EditImageRequest {
+        return OpenAiImageRequest::Edit(crate::wire!(openai_images::EditImageRequest {
             images,
             prompt,
             background: None,
@@ -82,9 +112,9 @@ pub(crate) fn gemini_request(
             stream: None,
             user: None,
             rest: Default::default(),
-        });
+        }));
     }
-    super::encode(&openai_images::CreateImageRequest {
+    OpenAiImageRequest::Create(crate::wire!(openai_images::CreateImageRequest {
         prompt,
         background: None,
         model: Some(model.into()),
@@ -100,11 +130,37 @@ pub(crate) fn gemini_request(
         style: None,
         user: None,
         rest: Default::default(),
-    })
+    }))
+}
+
+pub(crate) fn gemini_create_request_typed(
+    input: gemini::GenerateContentRequest,
+    model: &str,
+) -> openai_images::CreateImageRequest {
+    let OpenAiImageRequest::Create(request) = gemini_request_typed(input, model, false) else {
+        unreachable!("create mode returns a create request")
+    };
+    request
+}
+
+pub(crate) fn gemini_edit_request_typed(
+    input: gemini::GenerateContentRequest,
+    model: &str,
+) -> openai_images::EditImageRequest {
+    let OpenAiImageRequest::Edit(request) = gemini_request_typed(input, model, true) else {
+        unreachable!("edit mode returns an edit request")
+    };
+    request
 }
 
 pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformError> {
     let input: gemini::GenerateContentResponse = serde_json::from_slice(&body)?;
+    super::encode(&gemini_response_to_openai_typed(input))
+}
+
+pub(crate) fn gemini_response_to_openai_typed(
+    input: gemini::GenerateContentResponse,
+) -> openai_images::ImagesResponse {
     let mut data = Vec::new();
     let mut text = Vec::new();
     for candidate in input.candidates {
@@ -112,20 +168,20 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
             for part in content.parts {
                 match part.data {
                     Some(gemini::PartData::InlineData { inline_data, .. }) => {
-                        data.push(openai_images::Image {
+                        data.push(crate::wire!(openai_images::Image {
                             b64_json: Some(inline_data.data),
                             revised_prompt: None,
                             url: None,
                             rest: Default::default(),
-                        });
+                        }));
                     }
                     Some(gemini::PartData::FileData { file_data, .. }) => {
-                        data.push(openai_images::Image {
+                        data.push(crate::wire!(openai_images::Image {
                             b64_json: None,
                             revised_prompt: None,
                             url: Some(file_data.file_uri),
                             rest: Default::default(),
-                        });
+                        }));
                     }
                     Some(gemini::PartData::Text { text: value, .. }) => text.push(value),
                     Some(_) | None => {}
@@ -141,7 +197,7 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
     let usage = input.usage_metadata.map(|usage| {
         let input_tokens = nonnegative(usage.prompt_token_count);
         let output_tokens = nonnegative(usage.candidates_token_count);
-        openai_images::ImageUsage {
+        crate::wire!(openai_images::ImageUsage {
             input_tokens,
             input_tokens_details: openai_images::ImageTokenDetails {
                 image_tokens: 0,
@@ -152,9 +208,9 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
             total_tokens: nonnegative(usage.total_token_count),
             output_tokens_details: None,
             rest: Default::default(),
-        }
+        })
     });
-    super::encode(&openai_images::ImagesResponse {
+    crate::wire!(openai_images::ImagesResponse {
         created: 0,
         background: None,
         data: Some(data),
@@ -168,10 +224,16 @@ pub(crate) fn gemini_response_to_openai(body: Bytes) -> Result<Bytes, TransformE
 
 pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformError> {
     let input: openai_images::ImagesResponse = serde_json::from_slice(&body)?;
+    super::encode(&openai_response_to_gemini_typed(input))
+}
+
+pub(crate) fn openai_response_to_gemini_typed(
+    input: openai_images::ImagesResponse,
+) -> gemini::GenerateContentResponse {
     let mut parts = Vec::new();
     for image in input.data.unwrap_or_default() {
         if let Some(data) = image.b64_json {
-            parts.push(gemini::Part {
+            parts.push(crate::wire!(gemini::Part {
                 data: Some(gemini::PartData::InlineData {
                     inline_data: gemini::Blob {
                         mime_type: mime(input.output_format.as_ref()),
@@ -181,9 +243,9 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
                     rest: Default::default(),
                 }),
                 ..Default::default()
-            });
+            }));
         } else if let Some(file_uri) = image.url {
-            parts.push(gemini::Part {
+            parts.push(crate::wire!(gemini::Part {
                 data: Some(gemini::PartData::FileData {
                     file_data: gemini::FileData {
                         mime_type: Some(mime(input.output_format.as_ref())),
@@ -193,17 +255,19 @@ pub(crate) fn openai_response_to_gemini(body: Bytes) -> Result<Bytes, TransformE
                     rest: Default::default(),
                 }),
                 ..Default::default()
-            });
+            }));
         }
     }
-    let candidate = (!parts.is_empty()).then(|| gemini::Candidate {
-        content: Some(gemini::Content {
-            parts,
+    let candidate = (!parts.is_empty()).then(|| {
+        crate::wire!(gemini::Candidate {
+            content: Some(gemini::Content {
+                parts,
+                ..Default::default()
+            }),
             ..Default::default()
-        }),
-        ..Default::default()
+        })
     });
-    super::encode(&gemini::GenerateContentResponse {
+    crate::wire!(gemini::GenerateContentResponse {
         candidates: candidate.into_iter().collect(),
         response_id: Some(input.created.to_string()),
         rest: Default::default(),
@@ -219,22 +283,22 @@ fn build_gemini_request(
     size: Option<String>,
     model: &str,
 ) -> gemini::GenerateContentRequest {
-    let mut parts = vec![gemini::Part {
+    let mut parts = vec![crate::wire!(gemini::Part {
         data: Some(gemini::PartData::Text {
             text: prompt,
             rest: Default::default(),
         }),
         ..Default::default()
-    }];
+    })];
     parts.extend(images.into_iter().filter_map(reference_part));
     let image_config = size.and_then(|size| serde_json::from_value(serde_json::json!(size)).ok());
-    gemini::GenerateContentRequest {
+    crate::wire!(gemini::GenerateContentRequest {
         model: Some(model.to_owned()),
-        contents: vec![gemini::Content {
+        contents: vec![crate::wire!(gemini::Content {
             parts,
             role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
             rest: Default::default(),
-        }],
+        })],
         generation_config: Some(gemini::GenerationConfig {
             response_modalities: Some(vec![gemini::ResponseModality::Known(
                 gemini::ResponseModalityKnown::Image,
@@ -250,7 +314,7 @@ fn build_gemini_request(
             ..Default::default()
         }),
         ..Default::default()
-    }
+    })
 }
 
 fn reference_part(reference: openai_images::ImageReference) -> Option<gemini::Part> {
@@ -258,27 +322,27 @@ fn reference_part(reference: openai_images::ImageReference) -> Option<gemini::Pa
     let data = if let Some(data) = url.strip_prefix("data:") {
         let (mime_type, data) = data.split_once(";base64,")?;
         gemini::PartData::InlineData {
-            inline_data: gemini::Blob {
+            inline_data: crate::wire!(gemini::Blob {
                 mime_type: mime_type.into(),
                 data: data.into(),
                 rest: Default::default(),
-            },
+            }),
             rest: Default::default(),
         }
     } else {
         gemini::PartData::FileData {
-            file_data: gemini::FileData {
+            file_data: crate::wire!(gemini::FileData {
                 mime_type: None,
                 file_uri: url,
                 rest: Default::default(),
-            },
+            }),
             rest: Default::default(),
         }
     };
-    Some(gemini::Part {
+    Some(crate::wire!(gemini::Part {
         data: Some(data),
         ..Default::default()
-    })
+    }))
 }
 
 fn candidate_count(config: Option<&gemini::GenerationConfig>) -> Option<u32> {

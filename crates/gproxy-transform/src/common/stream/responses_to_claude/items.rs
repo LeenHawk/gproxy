@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
@@ -19,11 +18,18 @@ impl State {
     pub(super) fn response_output_item_added(
         &mut self,
         event: openai::ResponseOutputItemEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let mut output = self.ensure_start()?;
         let native_id = match event.item.as_ref() {
             openai::ResponseItem::Typed(item) => items::item_id(item),
             openai::ResponseItem::Message(_) | openai::ResponseItem::Unknown(_) => None,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         };
         let item_id = item_id(&event.item).or(native_id);
         match *event.item {
@@ -69,12 +75,14 @@ impl State {
                     let index = self.allocate();
                     output.extend(self.block_start(
                         index,
-                        claude::ResponseContentBlock::Thinking(claude::ThinkingBlock {
-                            signature: encrypted_content,
-                            thinking: String::new(),
-                            type_: claude::ThinkingBlockType::Thinking,
-                            rest: Default::default(),
-                        }),
+                        claude::ResponseContentBlock::Thinking(crate::wire!(
+                            claude::ThinkingBlock {
+                                signature: encrypted_content,
+                                thinking: String::new(),
+                                type_: claude::ThinkingBlockType::Thinking,
+                                rest: Default::default(),
+                            }
+                        )),
                     )?);
                     self.response_indices.insert((item_id, None), index);
                 }
@@ -122,6 +130,13 @@ impl State {
                         return Ok(output);
                     }
                 }
+                #[cfg(not(feature = "exhaustive"))]
+                _ => {
+                    return Err(crate::TransformError::unsupported(
+                        "protocol enum",
+                        "unrecognized external variant",
+                    ));
+                }
             },
             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
                 if !message.content.is_empty() {
@@ -132,11 +147,21 @@ impl State {
             | openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(_))
             | openai::ResponseItem::Message(openai::ResponseMessageItem::Unknown(_))
             | openai::ResponseItem::Unknown(_) => return Ok(output),
+            #[cfg(not(feature = "exhaustive"))]
+            _ => {
+                return Err(crate::TransformError::unsupported(
+                    "protocol enum",
+                    "unrecognized external variant",
+                ));
+            }
         }
         Ok(output)
     }
 
-    fn response_tool(&mut self, start: ToolStart) -> Result<Vec<Bytes>, TransformError> {
+    fn response_tool(
+        &mut self,
+        start: ToolStart,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         let ToolStart {
             item_id,
             id,
@@ -147,14 +172,14 @@ impl State {
         let index = self.allocate();
         let mut output = self.block_start(
             index,
-            claude::ResponseContentBlock::ToolUse(claude::ResponseToolUseBlock {
+            claude::ResponseContentBlock::ToolUse(crate::wire!(claude::ResponseToolUseBlock {
                 id,
                 input: Default::default(),
                 name,
                 type_: claude::ToolUseBlockType::ToolUse,
                 caller: None,
                 rest: Default::default(),
-            }),
+            })),
         )?;
         self.response_indices.insert((item_id, None), index);
         self.response_tool_inputs.insert(index, input.clone());

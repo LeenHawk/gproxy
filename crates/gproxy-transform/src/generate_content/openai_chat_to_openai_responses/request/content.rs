@@ -13,17 +13,26 @@ pub(super) fn text_content(
             parts
                 .into_iter()
                 .map(|part| match part {
-                    openai::ChatTextContentPart::Text(part) => Ok(
-                        openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
-                            text: part.text,
-                            prompt_cache_breakpoint: part.prompt_cache_breakpoint,
-                            rest: Default::default(),
-                        }),
-                    ),
+                    openai::ChatTextContentPart::Text(part) => {
+                        Ok(openai::ResponseInputContentPart::InputText(crate::wire!(
+                            openai::ResponseInputText {
+                                text: part.text,
+                                prompt_cache_breakpoint: part.prompt_cache_breakpoint,
+                                rest: Default::default(),
+                            }
+                        )))
+                    }
                     openai::ChatTextContentPart::Unknown(raw) => Err(TransformError::unsupported(
                         "Chat text content",
                         raw.to_string(),
                     )),
+                    #[cfg(not(feature = "exhaustive"))]
+                    _ => {
+                        return Err(crate::TransformError::unsupported(
+                            "protocol enum",
+                            "unrecognized external variant",
+                        ));
+                    }
                 })
                 .collect::<Result<_, _>>()?,
         ),
@@ -31,6 +40,13 @@ pub(super) fn text_content(
             return Err(TransformError::unsupported(
                 "Chat text content",
                 raw.to_string(),
+            ));
+        }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
             ));
         }
     })
@@ -53,6 +69,13 @@ pub(super) fn user_content(
                 raw.to_string(),
             ));
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
@@ -62,13 +85,15 @@ pub(super) fn assistant_content(
     Ok(match content {
         openai::ChatAssistantContent::Text(text) => {
             openai::ResponseEasyInputContent::OutputParts(vec![
-                openai::ResponseMessageOutputContentPart::OutputText(openai::ResponseOutputText {
-                    type_: openai::ResponseOutputTextType::OutputText,
-                    annotations: Vec::new(),
-                    logprobs: None,
-                    text,
-                    rest: Default::default(),
-                }),
+                openai::ResponseMessageOutputContentPart::OutputText(crate::wire!(
+                    openai::ResponseOutputText {
+                        type_: openai::ResponseOutputTextType::OutputText,
+                        annotations: Vec::new(),
+                        logprobs: None,
+                        text,
+                        rest: Default::default(),
+                    }
+                )),
             ])
         }
         openai::ChatAssistantContent::Parts(parts) => {
@@ -78,27 +103,34 @@ pub(super) fn assistant_content(
                     .map(|part| match part {
                         openai::ChatAssistantContentPart::Text(part) => {
                             Ok(openai::ResponseMessageOutputContentPart::OutputText(
-                                openai::ResponseOutputText {
+                                crate::wire!(openai::ResponseOutputText {
                                     type_: openai::ResponseOutputTextType::OutputText,
                                     annotations: Vec::new(),
                                     logprobs: None,
                                     text: part.text,
                                     rest: Default::default(),
-                                },
+                                }),
                             ))
                         }
                         openai::ChatAssistantContentPart::Refusal(part) => {
                             Ok(openai::ResponseMessageOutputContentPart::Refusal(
-                                openai::ResponseRefusal {
+                                crate::wire!(openai::ResponseRefusal {
                                     type_: openai::ResponseRefusalType::Refusal,
                                     refusal: part.refusal,
                                     rest: Default::default(),
-                                },
+                                }),
                             ))
                         }
                         openai::ChatAssistantContentPart::Unknown(raw) => Err(
                             TransformError::unsupported("Chat assistant content", raw.to_string()),
                         ),
+                        #[cfg(not(feature = "exhaustive"))]
+                        _ => {
+                            return Err(crate::TransformError::unsupported(
+                                "protocol enum",
+                                "unrecognized external variant",
+                            ));
+                        }
                     })
                     .collect::<Result<_, _>>()?,
             )
@@ -109,6 +141,13 @@ pub(super) fn assistant_content(
                 raw.to_string(),
             ));
         }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
+            ));
+        }
     })
 }
 
@@ -117,23 +156,23 @@ fn chat_part_to_response(
 ) -> Result<openai::ResponseInputContentPart, TransformError> {
     Ok(match part {
         openai::ChatContentPart::Text(part) => {
-            openai::ResponseInputContentPart::InputText(openai::ResponseInputText {
+            openai::ResponseInputContentPart::InputText(crate::wire!(openai::ResponseInputText {
                 text: part.text,
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
                 rest: Default::default(),
-            })
+            }))
         }
         openai::ChatContentPart::ImageUrl(part) => {
-            openai::ResponseInputContentPart::InputImage(openai::ResponseInputImage {
+            openai::ResponseInputContentPart::InputImage(crate::wire!(openai::ResponseInputImage {
                 detail: None,
                 file_id: None,
                 image_url: Some(part.image_url.url),
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
                 rest: Default::default(),
-            })
+            }))
         }
         openai::ChatContentPart::File(part) => {
-            openai::ResponseInputContentPart::InputFile(openai::ResponseInputFile {
+            openai::ResponseInputContentPart::InputFile(crate::wire!(openai::ResponseInputFile {
                 detail: None,
                 file_data: part.file.file_data,
                 file_id: part.file.file_id,
@@ -141,22 +180,29 @@ fn chat_part_to_response(
                 filename: part.file.filename,
                 prompt_cache_breakpoint: part.prompt_cache_breakpoint,
                 rest: Default::default(),
-            })
+            }))
         }
         openai::ChatContentPart::InputAudio(part) => {
-            openai::ResponseInputContentPart::InputAudio(openai::ResponseInputAudio {
+            openai::ResponseInputContentPart::InputAudio(crate::wire!(openai::ResponseInputAudio {
                 input_audio: openai::InputAudioContent {
                     data: part.input_audio.data,
                     format: part.input_audio.format,
                     rest: Default::default(),
                 },
                 rest: Default::default(),
-            })
+            }))
         }
         openai::ChatContentPart::Unknown(raw) => {
             return Err(TransformError::unsupported(
                 "Chat content part",
                 raw.to_string(),
+            ));
+        }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
             ));
         }
     })
@@ -183,6 +229,13 @@ pub(super) fn text_output(
             return Err(TransformError::shape(
                 "Chat tool output",
                 "unexpected assistant output parts",
+            ));
+        }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
             ));
         }
     })

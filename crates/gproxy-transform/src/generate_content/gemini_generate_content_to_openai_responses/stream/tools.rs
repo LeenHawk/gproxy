@@ -1,5 +1,4 @@
-use bytes::Bytes;
-use gproxy_protocol::openai;
+use gproxy_protocol::{gemini, openai};
 
 use crate::TransformError;
 
@@ -10,7 +9,7 @@ impl State {
         &mut self,
         event: openai::ResponseItemStringDeltaEvent,
         custom: bool,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         let call = self.calls.get_mut(&event.item_id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool delta before output item")
         })?;
@@ -27,7 +26,7 @@ impl State {
     pub(super) fn function_done(
         &mut self,
         event: openai::ResponseFunctionCallArgumentsDoneEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         let id = event
             .item_id
             .or_else(|| self.call_indices.remove(&event.output_index))
@@ -38,7 +37,7 @@ impl State {
     pub(super) fn custom_done(
         &mut self,
         event: openai::ResponseCustomToolCallInputDoneEvent,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         self.finish_tool(event.item_id, event.output_index, event.input, true)
     }
 
@@ -48,7 +47,7 @@ impl State {
         output_index: u32,
         input: String,
         custom: bool,
-    ) -> Result<Vec<Bytes>, TransformError> {
+    ) -> Result<Vec<gemini::GenerateContentResponse>, TransformError> {
         self.call_indices.remove(&output_index);
         let mut call = self.calls.remove(&id).ok_or_else(|| {
             TransformError::shape("Responses stream", "tool done before output item")

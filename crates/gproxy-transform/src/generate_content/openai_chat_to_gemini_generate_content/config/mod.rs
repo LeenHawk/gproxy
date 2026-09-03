@@ -36,7 +36,7 @@ pub(crate) fn to_gemini(input: Input) -> Result<Option<gemini::GenerationConfig>
     }
     let response_modalities = input.modalities.map(modalities).transpose()?;
     let (response_mime_type, response_json_schema) = format::convert(input.response_format)?;
-    let config = gemini::GenerationConfig {
+    let config = crate::wire!(gemini::GenerationConfig {
         stop_sequences: input.stop.map(stop),
         response_mime_type,
         response_schema: None,
@@ -66,7 +66,7 @@ pub(crate) fn to_gemini(input: Input) -> Result<Option<gemini::GenerationConfig>
         image_config: None,
         media_resolution: None,
         rest: Default::default(),
-    };
+    });
     Ok(has_values(&config).then_some(config))
 }
 
@@ -126,12 +126,12 @@ fn reasoning(effort: Option<openai::ReasoningEffort>) -> Option<gemini::Thinking
         ),
         openai::ReasoningEffort::Unknown(_) => return None,
     };
-    Some(gemini::ThinkingConfig {
+    Some(crate::wire!(gemini::ThinkingConfig {
         include_thoughts,
         thinking_budget: None,
         thinking_level: level,
         rest: Default::default(),
-    })
+    }))
 }
 
 fn signed(value: u32, field: &'static str) -> Result<i32, TransformError> {

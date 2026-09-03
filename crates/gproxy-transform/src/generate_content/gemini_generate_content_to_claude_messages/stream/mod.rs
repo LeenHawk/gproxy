@@ -3,7 +3,8 @@ mod parts;
 mod state;
 
 use crate::envelope::Converter;
+pub(crate) use state::State;
 
 pub(crate) fn converter() -> Box<dyn Converter> {
-    Box::new(state::State::default())
+    Box::new(State::default())
 }

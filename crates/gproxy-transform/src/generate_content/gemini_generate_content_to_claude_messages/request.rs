@@ -11,6 +11,16 @@ pub(crate) fn transform(
     stream: bool,
 ) -> Result<bytes::Bytes, TransformError> {
     let input: gemini::GenerateContentRequest = serde_json::from_slice(&body)?;
+    let output = transform_typed(input, model, stream)?;
+    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+}
+
+#[allow(deprecated)] // The public Claude wire still requires writing the legacy slot as absent.
+pub(crate) fn transform_typed(
+    input: gemini::GenerateContentRequest,
+    model: &str,
+    stream: bool,
+) -> Result<claude::CreateMessageRequestBody, TransformError> {
     let max_tokens = input
         .generation_config
         .as_ref()
@@ -31,7 +41,7 @@ pub(crate) fn transform(
             .map(i64::from)
     })
     .flatten();
-    let output = claude::CreateMessageRequestBody {
+    let output = crate::wire!(claude::CreateMessageRequestBody {
         model: model.to_owned().into(),
         messages: content::request_messages(input.contents)?,
         max_tokens,
@@ -72,6 +82,6 @@ pub(crate) fn transform(
             .and_then(|config| config.top_p),
         user_profile_id: None,
         rest: Default::default(),
-    };
-    Ok(bytes::Bytes::from(serde_json::to_vec(&output)?))
+    });
+    Ok(output)
 }

@@ -14,6 +14,8 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
             let failed = output.iter().any(|part| match &part.outcome {
                 openai::ShellCallOutcome::Exit { exit_code, .. } => *exit_code != 0,
                 openai::ShellCallOutcome::Timeout { .. } => true,
+                #[cfg(not(feature = "exhaustive"))]
+                _ => true,
             });
             let text = output
                 .into_iter()
@@ -84,16 +86,18 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
         | openai::TypedResponseItem::AgentMessage { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => None,
+        #[cfg(not(feature = "exhaustive"))]
+        _ => None,
     }
 }
 
 pub(crate) fn result_block(result: ClaudeResult) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::ToolResult(claude::ToolResultBlock {
+    claude::ContentBlockParam::ToolResult(crate::wire!(claude::ToolResultBlock {
         tool_use_id: result.call_id,
         type_: claude::ToolResultBlockType::ToolResult,
         cache_control: None,
         content: result.content,
         is_error: result.is_error,
         rest: Default::default(),
-    })
+    }))
 }

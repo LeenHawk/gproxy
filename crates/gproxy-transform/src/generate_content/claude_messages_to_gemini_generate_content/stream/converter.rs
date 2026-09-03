@@ -7,14 +7,13 @@ use super::state::State;
 
 impl Converter for State {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        self.event(serde_json::from_str(&frame.data)?)
+        self.push_typed(serde_json::from_str(&frame.data)?)?
+            .into_iter()
+            .map(|event| SseFrame::typed(None, &event))
+            .collect()
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {
-        if self.started && self.saw_finish && self.stopped && self.tools.is_empty() {
-            Ok(Vec::new())
-        } else {
-            Err(TransformError::IncompleteStream)
-        }
+        self.finish_typed().map(|_| Vec::new())
     }
 }

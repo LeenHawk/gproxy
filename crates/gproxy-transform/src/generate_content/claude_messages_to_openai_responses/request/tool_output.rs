@@ -25,11 +25,11 @@ pub(super) fn reasoning_item(
     block: claude::ThinkingBlock,
 ) -> Result<openai::ResponseItem, TransformError> {
     let content = (!block.thinking.is_empty()).then(|| {
-        vec![openai::ResponseReasoningTextPart {
+        vec![crate::wire!(openai::ResponseReasoningTextPart {
             type_: openai::ResponseReasoningTextType::ReasoningText,
             text: block.thinking,
             rest: Default::default(),
-        }]
+        })]
     });
     Ok(openai::ResponseItem::Typed(Box::new(
         openai::TypedResponseItem::Reasoning {
@@ -110,6 +110,13 @@ fn tool_output_part(
             return Err(TransformError::unsupported(
                 "Claude tool output",
                 "audio content",
+            ));
+        }
+        #[cfg(not(feature = "exhaustive"))]
+        _ => {
+            return Err(crate::TransformError::unsupported(
+                "protocol enum",
+                "unrecognized external variant",
             ));
         }
     })
