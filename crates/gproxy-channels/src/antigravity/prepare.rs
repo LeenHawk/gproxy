@@ -10,18 +10,20 @@ pub(super) const USER_AGENT_VALUE: &str = "antigravity/cli/1.0.6 linux/amd64";
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access = super::auth::access_token(ctx.secret)?;
     let project = super::auth::project_id(ctx.secret)?;
-    let (endpoint, path, query, body) = match ctx.key.operation {
+    let (endpoint, path, query, body, framing) = match ctx.key.operation {
         Operation::ListModels => (
             "gemini_list_models",
             "/v1internal:fetchAvailableModels",
             None,
             Bytes::from_static(b"{}"),
+            None,
         ),
         Operation::CountTokens => (
             "gemini_count_tokens",
             "/v1internal:countTokens",
             None,
             crate::shared::code_assist::wrap_count(ctx.body)?,
+            None,
         ),
         Operation::GenerateContent | Operation::StreamGenerateContent => {
             let stream = ctx.key.operation == Operation::StreamGenerateContent;
@@ -32,19 +34,25 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             )?;
             let body = crate::shared::code_assist::sanitize(&body)?;
             let body = apply_model_defaults(&body, ctx.upstream_model)?;
+            let buffered = stream && buffered_claude_flash(&ctx);
             (
-                if stream {
+                if stream && !buffered {
                     "gemini_stream_generate_content"
                 } else {
                     "gemini_generate_content"
                 },
-                if stream {
+                if stream && !buffered {
                     "/v1internal:streamGenerateContent"
                 } else {
                     "/v1internal:generateContent"
                 },
-                stream.then_some("alt=sse"),
+                (stream && !buffered).then_some("alt=sse"),
                 crate::shared::code_assist::wrap(&body, ctx.upstream_model, project)?,
+                stream.then_some(if buffered {
+                    StreamFraming::JsonArray
+                } else {
+                    StreamFraming::Sse
+                }),
             )
         }
         _ => {
@@ -72,11 +80,19 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
-        framing: (ctx.key.operation == Operation::StreamGenerateContent)
-            .then_some(StreamFraming::Sse),
+        framing,
         websocket: false,
         profile: Some(&super::profile::PROFILE),
     })
+}
+
+fn buffered_claude_flash(ctx: &PrepareCtx<'_>) -> bool {
+    crate::shared::gemini::model::model_id(ctx.upstream_model) == "gemini-2.5-flash"
+        && ctx
+            .headers
+            .get(http::header::USER_AGENT)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("claude-cli/"))
 }
 
 pub(super) fn apply_model_defaults(body: &Bytes, model: &str) -> Result<Bytes, ChannelError> {

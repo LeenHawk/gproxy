@@ -108,6 +108,7 @@ impl State {
                 merge(block_rest, rest.clone()),
                 openai::ResponseItemLifecycleStatus::Completed,
             ),
+            Block::Ignored => return Ok(Vec::new()),
         };
         self.completed.push(item.clone());
         Ok(vec![self.response_output_item_done(

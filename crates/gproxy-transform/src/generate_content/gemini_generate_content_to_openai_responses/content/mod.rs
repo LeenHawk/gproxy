@@ -35,7 +35,11 @@ impl ContentConverter {
     ) -> Result<Vec<openai::ResponseItem>, TransformError> {
         let mut output = Vec::new();
         for content in contents {
-            output.extend(self.content(content, false)?);
+            let response = matches!(
+                content.role,
+                Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model))
+            );
+            output.extend(self.content(content, response)?);
         }
         Ok(output)
     }

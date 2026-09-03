@@ -219,3 +219,56 @@ fn removes_only_root_store_and_unwraps_stream_frames() {
     let usage = decoder.finish(StreamEnd::Complete).unwrap().usage.unwrap();
     assert_eq!((usage.input_tokens, usage.output_tokens), (4, 2));
 }
+
+#[test]
+fn claude_code_uses_buffered_antigravity_25_flash() {
+    let secret = json!({"access_token":"access","project_id":"p1"});
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        http::header::USER_AGENT,
+        HeaderValue::from_static("claude-cli/2.1.258 (external, sdk-cli)"),
+    );
+    let key = gemini(Operation::StreamGenerateContent);
+    let prepared = AntigravityChannel
+        .prepare(PrepareCtx {
+            key,
+            stream: true,
+            method: &Method::POST,
+            path: "/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+            query: None,
+            headers: &headers,
+            body: &Bytes::from_static(br#"{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}"#),
+            upstream_model: "gemini-2.5-flash",
+            provider_settings: &json!({}),
+            secret: &secret,
+        })
+        .unwrap();
+    assert_eq!(
+        prepared.request.uri(),
+        "https://daily-cloudcode-pa.googleapis.com/v1internal:generateContent"
+    );
+    assert_eq!(prepared.framing, Some(StreamFraming::JsonArray));
+
+    let request_body = prepared.request.body().clone();
+    let response_headers = HeaderMap::new();
+    let mut decoder = AntigravityChannel
+        .stream_decoder(StreamCtx {
+            key,
+            framing: StreamFraming::JsonArray,
+            request_body: &request_body,
+            response_headers: &response_headers,
+        })
+        .unwrap();
+    assert!(
+        decoder
+            .push(Bytes::from_static(br#"{"response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2,"totalTokenCount":6}}}"#))
+            .unwrap()
+            .is_empty()
+    );
+    let tail = decoder.finish(StreamEnd::Complete).unwrap();
+    assert_eq!(tail.frames.len(), 1);
+    assert_eq!(
+        (tail.usage.unwrap().input_tokens, tail.frames[0].0[0]),
+        (4, b'[')
+    );
+}

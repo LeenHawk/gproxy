@@ -24,6 +24,7 @@ pub(super) enum Block {
         arguments: String,
         rest: openai::Rest,
     },
+    Ignored,
 }
 
 enum Emission {

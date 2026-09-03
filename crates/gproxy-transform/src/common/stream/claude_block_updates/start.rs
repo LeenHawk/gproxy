@@ -164,7 +164,7 @@ impl State {
             | claude::ResponseContentBlock::ContainerUpload(_)
             | claude::ResponseContentBlock::Compaction(_)
             | claude::ResponseContentBlock::Fallback(_)
-            | claude::ResponseContentBlock::Raw(_) => return Ok(Vec::new()),
+            | claude::ResponseContentBlock::Raw(_) => (Block::Ignored, Vec::new()),
             future => {
                 return Err(TransformError::unsupported(
                     "Claude stream block",

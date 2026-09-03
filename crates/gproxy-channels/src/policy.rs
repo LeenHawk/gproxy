@@ -41,7 +41,7 @@ pub(crate) const AISTUDIO: ChannelTrafficPolicy = ChannelTrafficPolicy::new(
     GEMINI_QUERY,
 );
 pub(crate) const ANTIGRAVITY: ChannelTrafficPolicy =
-    ChannelTrafficPolicy::new(NONE, GEMINI_RESPONSE, NONE);
+    ChannelTrafficPolicy::new(&["user-agent"], GEMINI_RESPONSE, NONE);
 pub(crate) const AWS_BEDROCK: ChannelTrafficPolicy = ChannelTrafficPolicy::new(
     &["anthropic-beta", "openai-beta"],
     &["x-amz-*", "x-amzn-*"],

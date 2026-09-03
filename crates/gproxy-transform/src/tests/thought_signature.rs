@@ -178,3 +178,103 @@ fn streamed_claude_signature_is_attached_to_the_gemini_function_call() {
     assert_eq!(part["functionCall"]["name"], "Read");
     assert_eq!(part["thoughtSignature"], "opaque-signature", "{wire}");
 }
+
+#[test]
+fn ignored_claude_server_tool_deltas_do_not_break_responses_streams() {
+    let mut stream = ResponseStream::new(
+        content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
+        content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
+    )
+    .unwrap();
+    let wire = concat!(
+        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srv-1\",\"name\":\"text_editor_code_execution\",\"input\":{}}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"path\\\":\\\"edit.txt\\\"}\"}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"exec_command\",\"input\":{}}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"cmd\\\":\\\"printf ok\\\"}\"}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\n",
+        "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":2}}\n\n",
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+    );
+    let output = stream.push(Bytes::from_static(wire.as_bytes())).unwrap();
+    let output = String::from_utf8(output.concat()).unwrap();
+    assert!(output.contains("exec_command"), "{output}");
+    assert!(output.contains("response.completed"), "{output}");
+    stream.finish().unwrap();
+}
+
+#[test]
+fn gemini_model_history_uses_responses_output_text() {
+    let converted = convert_request(
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        content(Operation::GenerateContent, Kind::OpenAiResponses),
+        json!({
+            "contents":[
+                {"role":"user","parts":[{"text":"run it"}]},
+                {"role":"model","parts":[
+                    {"text":"running"},
+                    {"functionCall":{"id":"call-1","name":"run_shell_command","args":{"command":"printf ok"}}}
+                ]},
+                {"role":"user","parts":[{
+                    "functionResponse":{"id":"call-1","name":"run_shell_command","response":{"output":"ok"}}
+                }]}
+            ]
+        }),
+    );
+    assert_eq!(converted["input"][1]["role"], "assistant");
+    assert_eq!(converted["input"][1]["content"][0]["type"], "output_text");
+    assert_eq!(converted["input"][2]["type"], "function_call");
+    assert_eq!(converted["input"][3]["type"], "function_call_output");
+}
+
+#[test]
+fn plain_gemini_search_uses_the_current_responses_tool() {
+    let converted = convert_request(
+        content(Operation::GenerateContent, Kind::GeminiGenerateContent),
+        content(Operation::GenerateContent, Kind::OpenAiResponses),
+        json!({
+            "contents":[{"role":"user","parts":[{"text":"search"}]}],
+            "tools":[{"googleSearch":{}}]
+        }),
+    );
+    assert_eq!(converted["tools"][0]["type"], "web_search");
+}
+
+#[test]
+fn buffered_gemini_function_arguments_reach_claude() {
+    let mut stream = ResponseStream::new_framed(
+        content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
+        content(
+            Operation::StreamGenerateContent,
+            Kind::GeminiGenerateContent,
+        ),
+        gproxy_protocol::StreamFraming::Sse,
+        gproxy_protocol::StreamFraming::JsonArray,
+    )
+    .unwrap();
+    let output = stream
+        .push(Bytes::from_static(
+            br#"[{"responseId":"response-1","modelVersion":"gemini-2.5-flash","candidates":[{"content":{"role":"model","parts":[{"functionCall":{"id":"call-1","name":"Read","args":{"file_path":"/tmp/source.txt"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}]"#,
+        ))
+        .unwrap();
+    let output = String::from_utf8(output.concat()).unwrap();
+    let events = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    let start = events
+        .iter()
+        .find(|event| event["type"] == "content_block_start")
+        .unwrap();
+    assert_eq!(start["content_block"]["name"], "Read");
+    assert_eq!(start["content_block"]["input"], json!({}));
+    let delta = events
+        .iter()
+        .find(|event| event["delta"]["type"] == "input_json_delta")
+        .unwrap();
+    let input: serde_json::Value =
+        serde_json::from_str(delta["delta"]["partial_json"].as_str().unwrap()).unwrap();
+    assert_eq!(input["file_path"], "/tmp/source.txt");
+}

@@ -3,11 +3,53 @@ use gproxy_channel_api::{ChannelError, Frame, StreamCtx, StreamDecoder, StreamEn
 use serde_json::Value;
 
 pub(crate) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
+    let framing = ctx.framing;
     let inner = crate::shared::gemini::stream::GeminiStreamDecoder::for_operation(ctx)?;
-    Some(Box::new(CodeAssistSse {
-        inner,
-        buffer: Vec::new(),
-    }))
+    Some(match framing {
+        gproxy_protocol::StreamFraming::Sse => Box::new(CodeAssistSse {
+            inner,
+            buffer: Vec::new(),
+        }),
+        gproxy_protocol::StreamFraming::JsonArray => Box::new(CodeAssistJsonArray {
+            inner,
+            buffer: Vec::new(),
+        }),
+        gproxy_protocol::StreamFraming::WebSocket => return None,
+    })
+}
+
+struct CodeAssistJsonArray {
+    inner: crate::shared::gemini::stream::GeminiStreamDecoder,
+    buffer: Vec<u8>,
+}
+
+impl StreamDecoder for CodeAssistJsonArray {
+    fn push(&mut self, chunk: Bytes) -> Result<Vec<Frame>, ChannelError> {
+        self.buffer.extend_from_slice(&chunk);
+        if self.buffer.len() > 100 * 1024 * 1024 {
+            return Err(ChannelError::Decode(
+                "Code Assist JSON response exceeds 100 MiB".into(),
+            ));
+        }
+        Ok(Vec::new())
+    }
+
+    fn finish(&mut self, end: StreamEnd) -> Result<StreamTail, ChannelError> {
+        if end == StreamEnd::Interrupted {
+            self.buffer.clear();
+            return self.inner.finish(end);
+        }
+        let value: Value = serde_json::from_slice(&std::mem::take(&mut self.buffer))
+            .map_err(|error| ChannelError::Decode(format!("Code Assist JSON: {error}")))?;
+        let frame = Bytes::from(
+            serde_json::to_vec(&[super::unwrap_value(&value)])
+                .map_err(|error| ChannelError::Decode(error.to_string()))?,
+        );
+        self.inner.push(frame.clone())?;
+        let mut tail = self.inner.finish(end)?;
+        tail.frames = vec![Frame(frame)];
+        Ok(tail)
+    }
 }
 
 struct CodeAssistSse {

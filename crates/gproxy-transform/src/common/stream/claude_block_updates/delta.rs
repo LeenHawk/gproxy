@@ -119,6 +119,7 @@ impl State {
                     }
                 }
                 (claude::KnownEventDelta::Citations { .. }, _, _) => Emission::None,
+                (_, Block::Ignored, _) => Emission::None,
                 (
                     other @ (claude::KnownEventDelta::Text { .. }
                     | claude::KnownEventDelta::InputJson { .. }

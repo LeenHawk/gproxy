@@ -93,7 +93,7 @@ fn web_search(
     let _ = url;
     let _ = maps;
     let search_content_types = search.map(search_types).transpose()?.flatten();
-    Ok(Some(if hosted_search {
+    Ok(Some(if search_content_types.is_some() {
         openai::ResponseTool::WebSearchPreview {
             search_content_types,
             search_context_size: None,

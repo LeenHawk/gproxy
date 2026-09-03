@@ -92,6 +92,19 @@ fn coerce_prefill(body: &mut Value) {
     else {
         return;
     };
+    let text_prefill = match last.get("content") {
+        Some(Value::String(_)) => true,
+        Some(Value::Array(blocks)) => {
+            !blocks.is_empty()
+                && blocks
+                    .iter()
+                    .all(|block| block.get("type").and_then(Value::as_str) == Some("text"))
+        }
+        _ => false,
+    };
+    if !text_prefill {
+        return;
+    }
     if !matches!(
         last.get("role").and_then(Value::as_str),
         Some("user" | "tool")
@@ -157,5 +170,30 @@ pub(crate) fn json_object(body: &[u8]) -> Result<Value, ChannelError> {
         Err(ChannelError::Prepare(
             "request body must be a JSON object".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn prefill_coercion_never_turns_thinking_into_user_content() {
+        let mut text = json!({
+            "model":"claude-fable-5",
+            "messages":[{"role":"assistant","content":"prefix"}]
+        });
+        coerce_prefill(&mut text);
+        assert_eq!(text["messages"][0]["role"], "user");
+
+        let mut thinking = json!({
+            "model":"claude-fable-5",
+            "messages":[{"role":"assistant","content":[{
+                "type":"thinking","thinking":"","signature":"opaque"
+            }]}]
+        });
+        coerce_prefill(&mut thinking);
+        assert_eq!(thinking["messages"][0]["role"], "assistant");
     }
 }

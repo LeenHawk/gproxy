@@ -127,14 +127,26 @@ impl State {
         let Some(block) = super::super::content::response_part(part, &mut self.correlation)? else {
             return Ok(output);
         };
-        self.has_tool |= matches!(
-            &block,
-            claude::ResponseContentBlock::ToolUse(_)
-                | claude::ResponseContentBlock::ServerToolUse(_)
-        );
         let index = self.next_index;
         self.next_index = self.next_index.saturating_add(1);
-        output.push(events::encode(events::block_start(index, block))?);
+        if let claude::ResponseContentBlock::ToolUse(mut tool) = block {
+            self.has_tool = true;
+            let input = std::mem::take(&mut tool.input);
+            output.push(events::encode(events::block_start(
+                index,
+                claude::ResponseContentBlock::ToolUse(tool),
+            ))?);
+            output.push(events::encode(events::block_delta(
+                index,
+                claude::KnownEventDelta::InputJson {
+                    partial_json: serde_json::to_string(&input)?,
+                    rest: Default::default(),
+                },
+            ))?);
+        } else {
+            self.has_tool |= matches!(&block, claude::ResponseContentBlock::ServerToolUse(_));
+            output.push(events::encode(events::block_start(index, block))?);
+        }
         output.push(events::encode(events::block_stop(index))?);
         Ok(output)
     }
