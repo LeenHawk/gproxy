@@ -5,15 +5,17 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
-pub(super) const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub(super) const ORIGINATOR: &str = "codex_cli_rs";
+// The backend gates catalog rollout by Codex identity, not by gproxy's release version.
+pub(super) const CODEX_CLI_VERSION: &str = "0.153.0";
+const GPROXY_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub(super) const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 pub(super) const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const EXPIRY_SKEW_SECONDS: i64 = 5 * 60;
 
 pub(super) fn fallback_user_agent() -> String {
-    format!("{ORIGINATOR}/{VERSION} (gproxy; {VERSION})")
+    format!("{ORIGINATOR}/{CODEX_CLI_VERSION} (gproxy; {GPROXY_VERSION})")
 }
 
 pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
@@ -127,7 +129,7 @@ pub(super) fn apply_headers(
     if !headers.contains_key("version") {
         headers.insert(
             HeaderName::from_static("version"),
-            HeaderValue::from_static(VERSION),
+            HeaderValue::from_static(CODEX_CLI_VERSION),
         );
     }
     insert(headers, HeaderName::from_static("session-id"), session_id)?;

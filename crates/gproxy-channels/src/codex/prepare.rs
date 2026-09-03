@@ -190,7 +190,7 @@ fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
         .iter()
         .any(|pair| pair.split('=').next() == Some("client_version"))
     {
-        kept.push(format!("client_version={}", super::auth::VERSION));
+        kept.push(format!("client_version={}", super::auth::CODEX_CLI_VERSION));
     }
     Ok((!kept.is_empty()).then(|| kept.join("&")))
 }

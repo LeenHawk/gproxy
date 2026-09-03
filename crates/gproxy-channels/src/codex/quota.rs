@@ -242,7 +242,7 @@ fn authenticated(
         .header(http::header::ACCEPT, "application/json")
         .header(http::header::USER_AGENT, super::auth::fallback_user_agent())
         .header("originator", super::auth::ORIGINATOR)
-        .header("version", super::auth::VERSION);
+        .header("version", super::auth::CODEX_CLI_VERSION);
     if let Some(account_id) = super::auth::account_id(secret) {
         builder = builder.header("chatgpt-account-id", account_id);
     }
