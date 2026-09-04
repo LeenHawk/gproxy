@@ -5,7 +5,7 @@ import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ChevronDownIcon, ChevronsUpDownIcon, PencilIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
-import { useId, useMemo, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ApiError } from "@/api/client"
@@ -53,15 +53,20 @@ export function CredentialCard(props: Props) {
     gcTime: Infinity,
   })
   const quota = probe.data ?? null
-  const refresh = async () => {
-    const result = await probe.refetch()
+  const refetchQuota = probe.refetch
+  const refresh = useCallback(async (notifySuccess = true) => {
+    const result = await refetchQuota()
     if (result.isSuccess) {
       await client.invalidateQueries({ queryKey: ["credential-cycles"] })
-      toast.success(t("providers.credentials.quotaProbe.success", { count: result.data.windows.length }))
+      if (notifySuccess) toast.success(t("providers.credentials.quotaProbe.success", { count: result.data.windows.length }))
     } else if (result.isError) {
       toast.error(result.error instanceof ApiError ? result.error.message : t("providers.credentials.quotaProbe.error"))
     }
-  }
+  }, [client, refetchQuota, t])
+  useEffect(() => {
+    if (!quotaOpen || probe.isFetched || probe.isFetching) return
+    void refresh(false)
+  }, [probe.isFetched, probe.isFetching, quotaOpen, refresh])
   const reset = useMutation({
     mutationFn: () => resetCredentialQuota(credential.id),
     onSuccess: async (result) => {
@@ -160,7 +165,11 @@ export function CredentialCard(props: Props) {
               {probe.isFetching ? t("providers.credentials.quotaProbe.pending") : t("providers.credentials.quotaProbe.action")}
             </Button>
           </div>
-          <CredentialCycleList cycles={props.cycles} loading={props.cyclesLoading} error={props.cyclesError} />
+          <CredentialCycleList
+            cycles={props.cycles}
+            loading={props.cyclesLoading || (probe.isFetching && props.cycles.length === 0)}
+            error={props.cyclesError}
+          />
             {resetCredits ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
                 <p className="min-w-0 text-sm">
