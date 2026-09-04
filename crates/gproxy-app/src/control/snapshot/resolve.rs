@@ -9,6 +9,22 @@ impl CompiledSnapshot {
             .get(model)
             .map(String::as_str)
             .unwrap_or(model);
+        if matches!(mode, RoutingMode::Aggregated)
+            && !self.exposed.contains_key(global)
+            && !self.model_variants.contains_key(global)
+        {
+            let Some((provider_name, provider, local_model)) = self.provider_model(global) else {
+                return global.to_owned();
+            };
+            return self
+                .provider_aliases
+                .get(&provider)
+                .and_then(|aliases| aliases.get(local_model))
+                .map_or_else(
+                    || global.to_owned(),
+                    |resolved| format!("{provider_name}/{resolved}"),
+                );
+        }
         let provider = match mode {
             RoutingMode::Scoped { provider } => self.provider_names.get(provider),
             RoutingMode::Named { name }
@@ -44,7 +60,21 @@ impl CompiledSnapshot {
             RoutingMode::Named { name } if !self.route_names.contains_key(name) => {
                 return self.provider_variant(name, model);
             }
-            RoutingMode::Aggregated | RoutingMode::Named { .. } => (model.to_owned(), None),
+            RoutingMode::Aggregated => {
+                if self.exposed.contains_key(model) {
+                    return None;
+                }
+                if let Some(base) = self.model_variants.get(model) {
+                    return Some(base.clone());
+                }
+                let (provider_name, provider, local_model) = self.provider_model(model)?;
+                let base = self
+                    .provider_model_variants
+                    .get(&provider)?
+                    .get(local_model)?;
+                return Some(format!("{provider_name}/{base}"));
+            }
+            RoutingMode::Named { .. } => (model.to_owned(), None),
         };
         let base = self.model_variants.get(&lookup)?;
         match namespace {
@@ -62,6 +92,14 @@ impl CompiledSnapshot {
             .get(provider)?
             .get(model)
             .cloned()
+    }
+
+    fn provider_model<'a>(&self, model: &'a str) -> Option<(&'a str, i64, &'a str)> {
+        let (provider, model) = model.split_once('/')?;
+        if provider.is_empty() || model.is_empty() {
+            return None;
+        }
+        Some((provider, *self.provider_names.get(provider)?, model))
     }
 
     pub(super) fn resolve_preprocessed(
@@ -102,11 +140,16 @@ impl CompiledSnapshot {
         let Some(model) = model else {
             return self.all_providers("", affinity, health, counters);
         };
-        let route_id = self
-            .exposed
-            .get(model)
-            .ok_or_else(|| CoreError::UnknownRoute(model.to_owned()))?;
-        self.route(*route_id, affinity, health, counters)
+        if let Some(route_id) = self.exposed.get(model) {
+            return self.route(*route_id, affinity, health, counters);
+        }
+        let Some((provider, upstream_model)) = model.split_once('/') else {
+            return Err(CoreError::UnknownRoute(model.to_owned()));
+        };
+        if provider.is_empty() || upstream_model.is_empty() {
+            return Err(CoreError::UnknownRoute(model.to_owned()));
+        }
+        self.scoped(provider, Some(upstream_model), affinity, health, counters)
     }
 
     fn namespace(

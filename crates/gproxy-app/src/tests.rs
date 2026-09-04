@@ -5,6 +5,7 @@ mod migrate_v2;
 mod oauth;
 mod pressure;
 mod quota;
+mod routing;
 mod setup;
 mod tokenizer;
 mod v2_schema;
