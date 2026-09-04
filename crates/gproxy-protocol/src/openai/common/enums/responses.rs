@@ -9,6 +9,7 @@ strict_string_enum!(ResponseStatus {
 strict_string_enum!(IncompleteReason {
     MaxOutputTokens => "max_output_tokens",
     ContentFilter => "content_filter",
+    Steered => "steered",
 });
 extensible_string_enum!(ResponseErrorCode, ResponseErrorCodeKnown {
     ServerError => "server_error",
@@ -30,6 +31,7 @@ extensible_string_enum!(ResponseErrorCode, ResponseErrorCodeKnown {
     FailedToDownloadImage => "failed_to_download_image",
     ImageFileNotFound => "image_file_not_found",
     DataResidencyMismatch => "data_residency_mismatch",
+    MisalignmentPolicyViolation => "misalignment_policy_violation",
 });
 strict_string_enum!(ResponseItemLifecycleStatus {
     InProgress => "in_progress",
@@ -124,6 +126,7 @@ extensible_string_enum!(ResponseItemType, ResponseItemTypeKnown {
     MultiAgentCall => "multi_agent_call",
     MultiAgentCallOutput => "multi_agent_call_output",
     AgentMessage => "agent_message",
+    ConfigurationUpdate => "configuration_update",
     CompactionTrigger => "compaction_trigger",
     ItemReference => "item_reference",
 });
@@ -146,6 +149,9 @@ extensible_string_enum!(ResponseStreamEventType, ResponseStreamEventTypeKnown {
     ResponseQueued => "response.queued",
     ResponseInjectCreated => "response.inject.created",
     ResponseInjectFailed => "response.inject.failed",
+    ResponseSteerAccepted => "response.steer.accepted",
+    ResponseSteerPending => "response.steer.pending",
+    ResponseSteerFailed => "response.steer.failed",
     ResponseOutputItemAdded => "response.output_item.added",
     ResponseOutputItemDone => "response.output_item.done",
     ResponseContentPartAdded => "response.content_part.added",

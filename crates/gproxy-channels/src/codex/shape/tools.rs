@@ -192,6 +192,7 @@ pub(super) fn normalize_history(items: &mut Vec<ResponseItem>) -> Result<(), Cha
             | TypedResponseItem::MultiAgentCall { .. }
             | TypedResponseItem::MultiAgentCallOutput { .. }
             | TypedResponseItem::AgentMessage { .. }
+            | TypedResponseItem::ConfigurationUpdate { .. }
             | TypedResponseItem::CompactionTrigger { .. }
             | TypedResponseItem::ItemReference { .. } => None,
         };
@@ -224,6 +225,7 @@ fn shell_tool() -> ResponseTool {
         description: Some("Runs a shell command and returns its output.".into()),
         output_schema: None,
         allowed_callers: None,
+        async_: None,
         rest: Default::default(),
     }
 }
@@ -243,6 +245,7 @@ fn apply_patch_tool() -> ResponseTool {
             rest: Default::default(),
         })),
         allowed_callers: None,
+        async_: None,
         rest: Default::default(),
     }
 }
@@ -336,6 +339,7 @@ fn function_call(
         id: id.map(|id| mapped_id(&id, "fc_")),
         caller: None,
         namespace: None,
+        async_: None,
         status,
         rest: Default::default(),
     }
@@ -368,6 +372,7 @@ fn custom_call(id: Option<String>, call_id: String, input: String) -> TypedRespo
         id: id.map(|id| mapped_id(&id, "ctc_")),
         caller: None,
         namespace: None,
+        async_: None,
         rest: Default::default(),
     }
 }

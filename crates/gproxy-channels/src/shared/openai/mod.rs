@@ -1,4 +1,5 @@
 pub(crate) mod cache;
+pub(crate) mod disposition;
 pub(crate) mod endpoint;
 pub(crate) mod model;
 pub(crate) mod realtime;

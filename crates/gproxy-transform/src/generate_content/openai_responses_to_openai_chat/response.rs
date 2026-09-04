@@ -78,6 +78,7 @@ pub(crate) fn transform_typed(
                     id: Some(response_item_id(&call.id)),
                     caller: None,
                     namespace: None,
+                    async_: None,
                     status: Some(openai::ResponseItemLifecycleStatus::Completed),
                     rest: Default::default(),
                 }))
@@ -91,6 +92,7 @@ pub(crate) fn transform_typed(
                     id: None,
                     caller: None,
                     namespace: None,
+                    async_: None,
                     rest: Default::default(),
                 }))
             }

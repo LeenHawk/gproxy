@@ -121,6 +121,7 @@ fn assistant_items(
                 id: Some(response_item_id(&call_id)),
                 caller: None,
                 namespace: None,
+                async_: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 rest: Default::default(),
             },
@@ -138,6 +139,7 @@ fn assistant_items(
                     id: Some(response_item_id(&call.id)),
                     caller: None,
                     namespace: None,
+                    async_: None,
                     status: Some(openai::ResponseItemLifecycleStatus::Completed),
                     rest: Default::default(),
                 }))
@@ -152,6 +154,7 @@ fn assistant_items(
                     id: None,
                     caller: None,
                     namespace: None,
+                    async_: None,
                     rest: Default::default(),
                 }))
             }

@@ -65,6 +65,7 @@ fn function_tool(
         description: Some(function.description),
         output_schema: None,
         allowed_callers: None,
+        async_: None,
         rest: Default::default(),
     })
 }

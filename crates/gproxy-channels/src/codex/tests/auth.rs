@@ -28,14 +28,14 @@ fn model_discovery_uses_upstream_cli_identity() {
 
     assert_eq!(
         prepared.request.uri(),
-        "https://chatgpt.com/backend-api/codex/models?client_version=0.153.0"
+        "https://chatgpt.com/backend-api/codex/models?client_version=0.153.2"
     );
-    assert_eq!(prepared.request.headers()["version"], "0.153.0");
+    assert_eq!(prepared.request.headers()["version"], "0.153.2");
     assert!(
         prepared.request.headers()[http::header::USER_AGENT]
             .to_str()
             .unwrap()
-            .starts_with("codex_cli_rs/0.153.0 ")
+            .starts_with("codex_cli_rs/0.153.2 ")
     );
 }
 

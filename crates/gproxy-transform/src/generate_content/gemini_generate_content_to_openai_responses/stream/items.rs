@@ -82,6 +82,7 @@ impl State {
                 | openai::TypedResponseItem::MultiAgentCall { .. }
                 | openai::TypedResponseItem::MultiAgentCallOutput { .. }
                 | openai::TypedResponseItem::AgentMessage { .. }
+                | openai::TypedResponseItem::ConfigurationUpdate { .. }
                 | openai::TypedResponseItem::CompactionTrigger { .. }
                 | openai::TypedResponseItem::ItemReference { .. } => {}
                 #[cfg(not(feature = "exhaustive"))]
@@ -181,6 +182,7 @@ impl State {
                     | openai::TypedResponseItem::MultiAgentCall { .. }
                     | openai::TypedResponseItem::MultiAgentCallOutput { .. }
                     | openai::TypedResponseItem::AgentMessage { .. }
+                    | openai::TypedResponseItem::ConfigurationUpdate { .. }
                     | openai::TypedResponseItem::CompactionTrigger { .. }
                     | openai::TypedResponseItem::ItemReference { .. }) => {
                         openai::ResponseItem::Typed(Box::new(other))
@@ -256,6 +258,7 @@ pub(super) fn item_id(item: &openai::ResponseItem) -> Option<String> {
             | openai::TypedResponseItem::MultiAgentCall { .. }
             | openai::TypedResponseItem::MultiAgentCallOutput { .. }
             | openai::TypedResponseItem::AgentMessage { .. }
+            | openai::TypedResponseItem::ConfigurationUpdate { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
             | openai::TypedResponseItem::ItemReference { .. } => None,
             #[cfg(not(feature = "exhaustive"))]

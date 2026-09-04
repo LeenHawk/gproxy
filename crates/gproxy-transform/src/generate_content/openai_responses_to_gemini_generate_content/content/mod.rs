@@ -156,6 +156,7 @@ impl ContentConverter {
             | openai::TypedResponseItem::MultiAgentCall { .. }
             | openai::TypedResponseItem::MultiAgentCallOutput { .. }
             | openai::TypedResponseItem::AgentMessage { .. }
+            | openai::TypedResponseItem::ConfigurationUpdate { .. }
             | openai::TypedResponseItem::CompactionTrigger { .. }
             | openai::TypedResponseItem::ItemReference { .. }) => native::native_item(self, other),
             #[cfg(not(feature = "exhaustive"))]

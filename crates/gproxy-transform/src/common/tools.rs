@@ -74,6 +74,7 @@ pub(crate) fn chat_to_responses(
                 description: tool.function.description,
                 output_schema: None,
                 allowed_callers: None,
+                async_: None,
                 rest: Default::default(),
             }),
             openai::ChatTool::Custom(tool) => Some(openai::ResponseTool::Custom {
@@ -82,6 +83,7 @@ pub(crate) fn chat_to_responses(
                 description: tool.custom.description,
                 format: tool.custom.format,
                 allowed_callers: None,
+                async_: None,
                 rest: Default::default(),
             }),
             openai::ChatTool::Unknown(_) => None,

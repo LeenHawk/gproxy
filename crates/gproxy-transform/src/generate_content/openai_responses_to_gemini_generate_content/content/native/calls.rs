@@ -72,6 +72,7 @@ pub(super) fn convert(
         | openai::TypedResponseItem::MultiAgentCall { .. }
         | openai::TypedResponseItem::MultiAgentCallOutput { .. }
         | openai::TypedResponseItem::AgentMessage { .. }
+        | openai::TypedResponseItem::ConfigurationUpdate { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => return Ok(None),
         #[cfg(not(feature = "exhaustive"))]

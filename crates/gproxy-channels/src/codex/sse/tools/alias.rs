@@ -82,6 +82,7 @@ pub(super) fn alias(item: &ResponseItem) -> Option<Alias> {
         | TypedResponseItem::MultiAgentCall { .. }
         | TypedResponseItem::MultiAgentCallOutput { .. }
         | TypedResponseItem::AgentMessage { .. }
+        | TypedResponseItem::ConfigurationUpdate { .. }
         | TypedResponseItem::CompactionTrigger { .. }
         | TypedResponseItem::ItemReference { .. } => None,
     }

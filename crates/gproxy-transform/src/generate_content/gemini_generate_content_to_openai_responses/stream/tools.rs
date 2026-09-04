@@ -67,6 +67,7 @@ impl State {
                 id: Some(id.clone()),
                 caller: None,
                 namespace: None,
+                async_: None,
                 rest: Default::default(),
             }
         } else {
@@ -77,6 +78,7 @@ impl State {
                 id: Some(id.clone()),
                 caller: None,
                 namespace: None,
+                async_: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 rest: Default::default(),
             }

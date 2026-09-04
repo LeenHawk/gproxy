@@ -6,8 +6,8 @@ use sha2::{Digest, Sha256};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 pub(super) const ORIGINATOR: &str = "codex_cli_rs";
-// The backend gates catalog rollout by Codex identity, not by gproxy's release version.
-pub(super) const CODEX_CLI_VERSION: &str = "0.153.0";
+// Catalog compatibility is keyed by Codex identity, not by gproxy's release version.
+pub(super) const CODEX_CLI_VERSION: &str = "0.153.2";
 const GPROXY_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub(super) const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";

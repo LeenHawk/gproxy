@@ -59,6 +59,7 @@ pub(crate) fn claude_call(
             id: None,
             caller: None,
             namespace: None,
+            async_: None,
             status: Some(status),
             rest: Default::default(),
         },

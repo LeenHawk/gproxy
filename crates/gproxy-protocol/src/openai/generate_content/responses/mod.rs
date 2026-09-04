@@ -6,6 +6,9 @@ mod stream;
 pub mod tools;
 mod websocket;
 
+#[cfg(test)]
+mod astra_tests;
+
 pub use items::*;
 pub use multi_agent::*;
 pub use request::*;

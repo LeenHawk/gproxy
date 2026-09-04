@@ -47,6 +47,7 @@ impl ItemState {
                 | TypedResponseItem::MultiAgentCall { .. }
                 | TypedResponseItem::MultiAgentCallOutput { .. }
                 | TypedResponseItem::AgentMessage { .. }
+                | TypedResponseItem::ConfigurationUpdate { .. }
                 | TypedResponseItem::CompactionTrigger { .. }
                 | TypedResponseItem::ItemReference { .. } => {}
             },

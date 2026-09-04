@@ -347,6 +347,7 @@ fn typed_messages(
         | openai::TypedResponseItem::MultiAgentCall { .. }
         | openai::TypedResponseItem::MultiAgentCallOutput { .. }
         | openai::TypedResponseItem::AgentMessage { .. }
+        | openai::TypedResponseItem::ConfigurationUpdate { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. }) => Vec::new(),
         #[cfg(not(feature = "exhaustive"))]

@@ -16,6 +16,41 @@ pub(super) fn response_usage(
     })
 }
 
+pub(super) fn combined_response_usage(
+    channel: &dyn Channel,
+    facts: &crate::funnel::FunnelCtx,
+    bodies: &[Bytes],
+) -> Option<gproxy_channel_api::NormalizedUsage> {
+    let mut total: Option<gproxy_channel_api::NormalizedUsage> = None;
+    for usage in bodies
+        .iter()
+        .filter_map(|body| response_usage(channel, facts, body))
+    {
+        let Some(current) = total.as_mut() else {
+            total = Some(usage);
+            continue;
+        };
+        current.input_tokens = current.input_tokens.saturating_add(usage.input_tokens);
+        current.output_tokens = current.output_tokens.saturating_add(usage.output_tokens);
+        current.cached_input_tokens = current
+            .cached_input_tokens
+            .saturating_add(usage.cached_input_tokens);
+        for (name, value) in usage.metrics {
+            current
+                .metrics
+                .entry(name)
+                .and_modify(|total| {
+                    if let Some(sum) = total.checked_add(value) {
+                        *total = sum;
+                    }
+                })
+                .or_insert(value);
+        }
+        current.dimensions.extend(usage.dimensions);
+    }
+    total
+}
+
 pub(super) fn wire_string(value: &impl serde::Serialize) -> Option<String> {
     serde_json::to_value(value)
         .ok()?

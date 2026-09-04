@@ -45,6 +45,7 @@ pub(super) fn clear_started_payload(item: &mut ResponseItem) {
             | TypedResponseItem::MultiAgentCall { .. }
             | TypedResponseItem::MultiAgentCallOutput { .. }
             | TypedResponseItem::AgentMessage { .. }
+            | TypedResponseItem::ConfigurationUpdate { .. }
             | TypedResponseItem::CompactionTrigger { .. }
             | TypedResponseItem::ItemReference { .. } => {}
         },
@@ -158,6 +159,7 @@ pub(super) fn item_id(item: &ResponseItem) -> Option<String> {
             | TypedResponseItem::MultiAgentCall { .. }
             | TypedResponseItem::MultiAgentCallOutput { .. }
             | TypedResponseItem::AgentMessage { .. }
+            | TypedResponseItem::ConfigurationUpdate { .. }
             | TypedResponseItem::CompactionTrigger { .. }
             | TypedResponseItem::ItemReference { .. } => None,
         },

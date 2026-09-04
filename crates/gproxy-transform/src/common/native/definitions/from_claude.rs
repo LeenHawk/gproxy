@@ -70,6 +70,7 @@ fn custom(tool: claude::CustomTool) -> Result<openai::ResponseTool, TransformErr
         description: tool.description,
         output_schema: None,
         allowed_callers: callers_to_openai(tool.common.allowed_callers),
+        async_: None,
         rest: Default::default(),
     })
 }
@@ -139,6 +140,7 @@ fn memory(common: claude::ToolCommon) -> openai::ResponseTool {
         description: Some("Read or update persistent agent memory".into()),
         output_schema: None,
         allowed_callers: callers_to_openai(common.allowed_callers),
+        async_: None,
         rest: Default::default(),
     }
 }

@@ -107,6 +107,7 @@ pub(super) fn function_item(
         id: Some(id),
         caller: None,
         namespace: None,
+        async_: None,
         status: Some(status),
         rest: Default::default(),
     }))

@@ -169,12 +169,7 @@ impl Channel for CodexChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::openai::disposition::classify(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

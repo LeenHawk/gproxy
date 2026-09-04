@@ -81,6 +81,9 @@ pub(in crate::generate_content) fn finish_reason(
                 Some(openai::IncompleteReason::ContentFilter) => {
                     gemini::FinishReason::Known(gemini::FinishReasonKnown::Safety)
                 }
+                Some(openai::IncompleteReason::Steered) => {
+                    gemini::FinishReason::Known(gemini::FinishReasonKnown::Other)
+                }
                 Some(openai::IncompleteReason::Unknown(value)) if value.is_empty() => {
                     gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens)
                 }

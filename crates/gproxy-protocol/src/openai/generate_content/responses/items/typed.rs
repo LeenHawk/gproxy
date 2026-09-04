@@ -68,6 +68,8 @@ pub enum TypedResponseItem {
         caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
         #[serde(default, flatten)]
@@ -318,6 +320,8 @@ pub enum TypedResponseItem {
         caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(default, flatten)]
         rest: Rest,
     },
@@ -399,6 +403,12 @@ pub enum TypedResponseItem {
         #[serde(default, flatten)]
         rest: Rest,
     },
+    #[serde(rename = "configuration_update")]
+    ConfigurationUpdate {
+        reasoning: ConfigurationUpdateReasoning,
+        #[serde(default, flatten)]
+        rest: Rest,
+    },
     #[serde(rename = "compaction_trigger")]
     CompactionTrigger {
         #[serde(default, flatten)]
@@ -410,4 +420,12 @@ pub enum TypedResponseItem {
         #[serde(default, flatten)]
         rest: Rest,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ConfigurationUpdateReasoning {
+    pub effort: ReasoningEffort,
+    #[serde(default, flatten)]
+    pub rest: Rest,
 }

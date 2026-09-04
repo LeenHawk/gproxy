@@ -26,6 +26,8 @@ pub enum ResponseTool {
         output_schema: Option<JsonSchema>,
         #[serde(skip_serializing_if = "Option::is_none")]
         allowed_callers: Option<Vec<ToolCaller>>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(default, flatten)]
         rest: Rest,
     },
@@ -206,6 +208,8 @@ pub enum ResponseTool {
         format: Option<CustomToolInputFormat>,
         #[serde(skip_serializing_if = "Option::is_none")]
         allowed_callers: Option<Vec<ToolCaller>>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(default, flatten)]
         rest: Rest,
     },
@@ -290,6 +294,8 @@ pub enum ResponseNamespaceTool {
         strict: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         allowed_callers: Option<Vec<ToolCaller>>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(default, flatten)]
         rest: Rest,
     },
@@ -304,6 +310,8 @@ pub enum ResponseNamespaceTool {
         format: Option<CustomToolInputFormat>,
         #[serde(skip_serializing_if = "Option::is_none")]
         allowed_callers: Option<Vec<ToolCaller>>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(default, flatten)]
         rest: Rest,
     },

@@ -22,6 +22,7 @@ pub(super) fn tool_item(
             id: Some(item.id.clone()),
             caller: None,
             namespace: None,
+            async_: None,
             status: Some(status),
             rest: Default::default(),
         },
@@ -32,6 +33,7 @@ pub(super) fn tool_item(
             id: Some(item.id.clone()),
             caller: None,
             namespace: None,
+            async_: None,
             rest: Default::default(),
         },
     }))

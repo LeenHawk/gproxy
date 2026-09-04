@@ -235,6 +235,7 @@ fn typed_blocks(
         | openai::TypedResponseItem::MultiAgentCall { .. }
         | openai::TypedResponseItem::MultiAgentCallOutput { .. }
         | openai::TypedResponseItem::AgentMessage { .. }
+        | openai::TypedResponseItem::ConfigurationUpdate { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. }) => {
             if let Some(call) = items::openai_call(other.clone())? {

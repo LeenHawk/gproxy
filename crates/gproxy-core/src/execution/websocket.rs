@@ -17,7 +17,9 @@ use gproxy_protocol::{ContentGenerationKind, OperationKind};
 use super::request::Classified;
 
 mod native;
+mod state;
 mod wire;
+use state::ActiveResponse;
 use wire::*;
 
 pub(super) fn run<H: Host>(
@@ -70,14 +72,6 @@ struct ResponsesBridge<H: Host> {
     http_pending: String,
     queued: VecDeque<WsFrame>,
     closed: bool,
-}
-
-struct ActiveResponse {
-    facts: crate::funnel::FunnelCtx,
-    response_id: Option<String>,
-    pending_injections: u32,
-    terminal: Option<(Ended, Bytes)>,
-    output_chars: u64,
 }
 
 impl<H: Host> WsDuplex for ResponsesBridge<H> {
@@ -151,6 +145,29 @@ impl<H: Host> ResponsesBridge<H> {
                     return Ok(());
                 }
                 active.pending_injections = active.pending_injections.saturating_add(1);
+                self.native
+                    .as_mut()
+                    .expect("active native response has a socket")
+                    .send(WsFrame::Text(text))
+                    .await
+            }
+            ResponseWebSocketRequest::ResponseSteer(request) => {
+                if self.http_active.is_some() {
+                    self.queue_steer_failed(request, "steering_not_supported");
+                    return Ok(());
+                }
+                let Some(active) = self.active.as_ref() else {
+                    self.queue_steer_failed(request, "response_not_found");
+                    return Ok(());
+                };
+                if active.response_id.as_deref() != Some(&request.previous_response_id) {
+                    self.queue_steer_failed(request, "response_not_found");
+                    return Ok(());
+                }
+                self.active
+                    .as_mut()
+                    .expect("checked active response")
+                    .pending_steers = active.pending_steers.saturating_add(1);
                 self.native
                     .as_mut()
                     .expect("active native response has a socket")
@@ -309,35 +326,44 @@ impl<H: Host> ResponsesBridge<H> {
             .saturating_add(crate::usage::utf8_chars(text.as_bytes()));
         match *event {
             KnownResponseStreamEvent::ResponseCreated(event) => {
+                if active.response_id.is_some() && active.pending_steers > 0 {
+                    active.pending_steers = 0;
+                    active.terminal = None;
+                }
                 active.response_id = Some(event.response.id.clone());
             }
             KnownResponseStreamEvent::ResponseInjectCreated(_)
             | KnownResponseStreamEvent::ResponseInjectFailed(_) => {
                 active.pending_injections = active.pending_injections.saturating_sub(1);
             }
+            KnownResponseStreamEvent::ResponseSteerAccepted(_) => {}
+            KnownResponseStreamEvent::ResponseSteerPending(_)
+            | KnownResponseStreamEvent::ResponseSteerFailed(_) => {
+                active.pending_steers = active.pending_steers.saturating_sub(1);
+            }
             KnownResponseStreamEvent::ResponseCompleted(event)
             | KnownResponseStreamEvent::ResponseIncomplete(event) => {
-                active.terminal = Some((
-                    Ended::Complete,
-                    Bytes::from(serde_json::to_vec(&event.response).expect("response serializes")),
+                active.terminal = Some(Ended::Complete);
+                active.responses.push(Bytes::from(
+                    serde_json::to_vec(&event.response).expect("response serializes"),
                 ));
             }
             KnownResponseStreamEvent::ResponseFailed(event) => {
-                active.terminal = Some((
-                    Ended::Interrupted,
-                    Bytes::from(serde_json::to_vec(&event.response).expect("response serializes")),
+                active.terminal = Some(Ended::Interrupted);
+                active.responses.push(Bytes::from(
+                    serde_json::to_vec(&event.response).expect("response serializes"),
                 ));
             }
             KnownResponseStreamEvent::Error(_) => {
-                active.terminal = Some((Ended::Interrupted, Bytes::new()));
+                active.terminal = Some(Ended::Interrupted);
             }
             _ => {}
         }
-        if self
-            .active
-            .as_ref()
-            .is_some_and(|active| active.terminal.is_some() && active.pending_injections == 0)
-        {
+        if self.active.as_ref().is_some_and(|active| {
+            active.terminal.is_some()
+                && active.pending_injections == 0
+                && active.pending_steers == 0
+        }) {
             self.finish_active(Ended::Complete).await;
         }
     }
@@ -346,14 +372,16 @@ impl<H: Host> ResponsesBridge<H> {
         let Some(mut active) = self.active.take() else {
             return;
         };
-        let (ended, response) = active.terminal.take().unwrap_or((fallback, Bytes::new()));
+        let ended = active.terminal.take().unwrap_or(fallback);
         let channel = self
             .core
             .channels
             .get(&active.facts.target.provider.channel)
             .expect("pinned channel remains registered");
-        let usage = response_usage(channel, &active.facts, &response);
-        let tier = crate::control::response_service_tier(&http::HeaderMap::new(), &response);
+        let usage = combined_response_usage(channel, &active.facts, &active.responses);
+        let tier = active.responses.last().and_then(|response| {
+            crate::control::response_service_tier(&http::HeaderMap::new(), response)
+        });
         crate::funnel::complete_stream(
             self.core.host.clone(),
             active.facts,
@@ -375,42 +403,5 @@ impl<H: Host> ResponsesBridge<H> {
         self.http_active = None;
         self.queued.push_back(WsFrame::Close(code));
         Ok(())
-    }
-
-    fn queue_error(&mut self, status: u16, message: &str) {
-        self.queued.push_back(WsFrame::Text(
-            serde_json::json!({
-                "type":"error","status":status,"status_code":status,
-                "error":{"type":"gproxy_error","message":message}
-            })
-            .to_string(),
-        ));
-    }
-
-    fn queue_inject_failed(
-        &mut self,
-        response_id: &str,
-        input: Vec<gproxy_protocol::openai::ResponseItem>,
-        code: &str,
-    ) {
-        self.queued.push_back(WsFrame::Text(
-            serde_json::json!({
-                "type":"response.inject.failed","response_id":response_id,"input":input,
-                "error":{"code":code,"message":"response is not active"}
-            })
-            .to_string(),
-        ));
-    }
-}
-
-impl ActiveResponse {
-    fn new(facts: crate::funnel::FunnelCtx) -> Self {
-        Self {
-            facts,
-            response_id: None,
-            pending_injections: 0,
-            terminal: None,
-            output_chars: 0,
-        }
     }
 }

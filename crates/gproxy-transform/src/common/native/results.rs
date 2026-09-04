@@ -84,6 +84,7 @@ pub(crate) fn openai_result(item: openai::TypedResponseItem) -> Option<ClaudeRes
         | openai::TypedResponseItem::MultiAgentCall { .. }
         | openai::TypedResponseItem::MultiAgentCallOutput { .. }
         | openai::TypedResponseItem::AgentMessage { .. }
+        | openai::TypedResponseItem::ConfigurationUpdate { .. }
         | openai::TypedResponseItem::CompactionTrigger { .. }
         | openai::TypedResponseItem::ItemReference { .. } => None,
         #[cfg(not(feature = "exhaustive"))]
