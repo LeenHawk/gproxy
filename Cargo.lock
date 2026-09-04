@@ -4657,9 +4657,9 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "wreq"
-version = "6.0.0-rc.31"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b100d81c46113fa7f0719e43b26b13264b38589a4f059e6ebfccb5308159336"
+checksum = "16454175c8cb23d4a7285bab53b72460686195f5aef655d1abad70ab97ef46d4"
 dependencies = [
  "btls",
  "btls-sys",
@@ -4723,9 +4723,9 @@ dependencies = [
 
 [[package]]
 name = "wreq-util"
-version = "3.0.0-rc.14"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d8d73c75be86fbde675988dbe5cb15f02567025c13f6ffab910361ad1ba6c89"
+checksum = "833a5528fd9346f1f61a351104878be96024b5905f39774fc66909502da3acd5"
 dependencies = [
  "brotli",
  "flate2",
