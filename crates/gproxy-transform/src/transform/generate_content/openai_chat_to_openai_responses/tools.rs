@@ -66,6 +66,7 @@ pub(super) fn chat_tool_call_to_response_item_and_output_kind(
                     id: Some(common::response_function_call_item_id(&id)),
                     caller: None,
                     namespace: None,
+                    async_: None,
                     status: Some(openai::ResponseItemLifecycleStatus::Completed),
                     extra: Default::default(),
                 }
@@ -82,6 +83,7 @@ pub(super) fn chat_tool_call_to_response_item_and_output_kind(
                     id: None,
                     caller: None,
                     namespace: None,
+                    async_: None,
                     extra: Default::default(),
                 }
             ));
@@ -138,6 +140,7 @@ pub(super) fn legacy_function_call_to_response_item(
             id: Some(common::response_function_call_item_id(&call_id)),
             caller: None,
             namespace: None,
+            async_: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             extra: Default::default(),
         }
@@ -157,6 +160,7 @@ fn chat_tool_to_response_tool(tool: openai::ChatTool) -> openai::ResponseTool {
             defer_loading: None,
             description: function.description,
             allowed_callers: None,
+            async_: None,
             extra: Default::default(),
         },
         openai::ChatTool::Custom { custom, .. } => openai::ResponseTool::Custom {
@@ -165,6 +169,7 @@ fn chat_tool_to_response_tool(tool: openai::ChatTool) -> openai::ResponseTool {
             description: custom.description,
             format: custom.format,
             allowed_callers: None,
+            async_: None,
             extra: Default::default(),
         },
         _ => {

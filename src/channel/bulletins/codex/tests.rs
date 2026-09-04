@@ -388,7 +388,7 @@ fn prepare_url_body_and_headers() {
         "https://chatgpt.com/backend-api/codex/responses"
     );
     assert_eq!(request.headers()["authorization"], "Bearer tok-abc");
-    assert_eq!(request.headers()["originator"], "codex_exec");
+    assert_eq!(request.headers()["originator"], "codex_cli_rs");
     assert_eq!(request.headers()["chatgpt-account-id"], "acct-9");
     assert_eq!(
         request.headers()["session-id"],
@@ -419,10 +419,12 @@ fn model_list_request_carries_client_version() {
         .unwrap();
     assert_eq!(
         request.uri().to_string(),
-        format!(
-            "https://chatgpt.com/backend-api/codex/models?client_version={}",
-            model_metadata::CODEX_VERSION
-        )
+        "https://chatgpt.com/backend-api/codex/models?client_version=0.153.2"
+    );
+    assert_eq!(request.headers()["originator"], "codex_cli_rs");
+    assert_eq!(
+        request.headers()[http::header::USER_AGENT],
+        "codex_cli_rs/0.153.2 (Debian 13.0.0; x86_64) xterm-256color"
     );
     assert!(request.body().is_empty());
 }
@@ -468,7 +470,7 @@ fn forwards_codex_client_headers() {
         request.headers()["x-codex-beta-features"],
         "terminal_resize_reflow,memories"
     );
-    assert_eq!(request.headers()["originator"], "codex_exec");
+    assert_eq!(request.headers()["originator"], "codex_cli_rs");
 }
 
 #[tokio::test]

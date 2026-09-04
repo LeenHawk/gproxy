@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::super::common::*;
-use super::{ResponseCreateRequest, ResponseStreamEvent};
+use super::{ResponseCreateRequest, ResponseInput, ResponseStreamEvent};
 
 pub type ResponseWebSocketWireModel =
     OpenAiWireModel<ResponseWebSocketRequest, ResponseStreamEvent>;
@@ -13,6 +13,8 @@ pub type ResponseWebSocketWireModel =
 pub enum ResponseWebSocketRequest {
     #[serde(rename = "response.create")]
     ResponseCreate(ResponseCreateWebSocketRequest),
+    #[serde(rename = "response.steer")]
+    ResponseSteer(ResponseSteerWebSocketRequest),
 }
 
 #[derive(
@@ -26,6 +28,62 @@ pub struct ResponseCreateWebSocketRequest {
     pub generate: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_metadata: Option<Metadata>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
+pub struct ResponseSteerWebSocketRequest {
+    pub previous_response_id: String,
+    pub input: ResponseInput,
+    #[serde(
+        default,
+        flatten,
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub extra: Extra,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
+pub struct ResponseSteerReference {
+    pub id: String,
+    pub previous_response_id: String,
+    #[serde(
+        default,
+        flatten,
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub extra: Extra,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
+pub struct ResponseSteerFailure {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub previous_response_id: String,
+    pub input: ResponseInput,
+    #[serde(
+        default,
+        flatten,
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub extra: Extra,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
+pub struct ResponseSteerError {
+    pub code: String,
+    pub message: String,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub type_: Option<String>,
+    #[serde(
+        default,
+        flatten,
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub extra: Extra,
 }
 
 #[cfg(test)]
@@ -49,7 +107,9 @@ mod tests {
         });
 
         let parsed: ResponseWebSocketRequest = serde_json::from_value(value).unwrap();
-        let ResponseWebSocketRequest::ResponseCreate(frame) = parsed;
+        let ResponseWebSocketRequest::ResponseCreate(frame) = parsed else {
+            panic!("expected response.create")
+        };
         assert_eq!(
             frame.response.model,
             Some(OpenAiModelId::Unknown("gpt-x".to_owned()))

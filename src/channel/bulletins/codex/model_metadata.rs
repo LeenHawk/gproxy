@@ -4,7 +4,7 @@ use bytes::Bytes;
 use serde_json::{Value, json};
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
-pub(super) const CODEX_VERSION: &str = "0.147.0";
+pub(super) const CODEX_VERSION: &str = "0.153.2";
 
 /// Codex reports two windows: `context_window` is the CLI's *default* budget,
 /// and `max_context_window` is documented upstream as the "maximum context

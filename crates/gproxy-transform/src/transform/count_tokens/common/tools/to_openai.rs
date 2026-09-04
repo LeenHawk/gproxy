@@ -18,6 +18,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
                 defer_loading: tool.common.defer_loading,
                 description: tool.description,
                 allowed_callers: None,
+                async_: None,
                 extra: Default::default(),
             }),
             claude::Tool::WebSearch(_) => output.push(openai::ResponseTool::WebSearchPreview {
@@ -116,6 +117,7 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
                 defer_loading: None,
                 description: empty_string_to_none(function.description),
                 allowed_callers: None,
+                async_: None,
                 extra: Default::default(),
             }
         }));

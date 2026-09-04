@@ -140,3 +140,48 @@ pub fn decode_video_task_id(id: &str) -> Result<String, ChannelError> {
     String::from_utf8(bytes)
         .map_err(|error| ChannelError::Build(format!("invalid native video task id: {error}")))
 }
+
+pub fn openai_disposition(
+    status: http::StatusCode,
+    headers: &http::HeaderMap,
+    body: &Bytes,
+) -> crate::channel::Disposition {
+    if status == http::StatusCode::FORBIDDEN
+        && serde_json::from_slice::<serde_json::Value>(body)
+            .ok()
+            .is_some_and(|value| {
+                value
+                    .pointer("/error/code")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("misalignment_policy_violation")
+            })
+    {
+        return crate::channel::Disposition::Permanent;
+    }
+    crate::channel::Disposition::from_http(status, headers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn misalignment_block_does_not_kill_the_credential() {
+        let headers = http::HeaderMap::new();
+        let body = Bytes::from_static(
+            br#"{"error":{"type":"invalid_request_error","code":"misalignment_policy_violation"}}"#,
+        );
+        assert_eq!(
+            openai_disposition(http::StatusCode::FORBIDDEN, &headers, &body),
+            crate::channel::Disposition::Permanent
+        );
+        assert_eq!(
+            openai_disposition(
+                http::StatusCode::FORBIDDEN,
+                &headers,
+                &Bytes::from_static(b"{}")
+            ),
+            crate::channel::Disposition::AuthDead
+        );
+    }
+}

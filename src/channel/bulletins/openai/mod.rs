@@ -35,6 +35,15 @@ impl Channel for OpenAiChannel {
         "openai"
     }
 
+    fn classify(
+        &self,
+        status: http::StatusCode,
+        headers: &http::HeaderMap,
+        body: &Bytes,
+    ) -> crate::channel::Disposition {
+        common::openai_disposition(status, headers, body)
+    }
+
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         use crate::channel::routes::{cg, local, pass, pv, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};

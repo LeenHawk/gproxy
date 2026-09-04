@@ -67,6 +67,8 @@ pub enum TypedResponseItem {
         caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
@@ -314,6 +316,8 @@ pub enum TypedResponseItem {
         caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
+        #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+        async_: Option<bool>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -395,6 +399,12 @@ pub enum TypedResponseItem {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
+    #[serde(rename = "configuration_update")]
+    ConfigurationUpdate {
+        reasoning: ConfigurationUpdateReasoning,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
     #[serde(rename = "compaction_trigger")]
     CompactionTrigger {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
@@ -406,4 +416,12 @@ pub enum TypedResponseItem {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
+pub struct ConfigurationUpdateReasoning {
+    pub effort: ReasoningEffort,
+    #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: Extra,
 }

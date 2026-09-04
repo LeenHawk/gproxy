@@ -8,6 +8,7 @@ pub(super) struct FunctionCallState {
     pub(super) call_id: Option<String>,
     pub(super) name: Option<String>,
     pub(super) namespace: Option<String>,
+    pub(super) async_: Option<bool>,
     pub(super) status: Option<openai::ResponseItemLifecycleStatus>,
     pub(super) arguments: String,
     pub(super) done_arguments: Option<String>,
@@ -21,6 +22,7 @@ impl FunctionCallState {
             call_id: None,
             name: None,
             namespace: None,
+            async_: None,
             status: None,
             arguments: String::new(),
             done_arguments: None,
@@ -44,6 +46,7 @@ impl FunctionCallState {
                 id: self.item_id,
                 caller: None,
                 namespace: self.namespace,
+                async_: self.async_,
                 status: self
                     .status
                     .or(Some(openai::ResponseItemLifecycleStatus::Completed)),
@@ -59,6 +62,7 @@ pub(super) struct CustomToolCallState {
     pub(super) call_id: Option<String>,
     pub(super) name: Option<String>,
     pub(super) namespace: Option<String>,
+    pub(super) async_: Option<bool>,
     pub(super) input: String,
     pub(super) done_input: Option<String>,
 }
@@ -71,6 +75,7 @@ impl CustomToolCallState {
             call_id: None,
             name: None,
             namespace: None,
+            async_: None,
             input: String::new(),
             done_input: None,
         }
@@ -93,6 +98,7 @@ impl CustomToolCallState {
                 id: self.item_id,
                 caller: None,
                 namespace: self.namespace,
+                async_: self.async_,
                 extra: Default::default(),
             }
         ))

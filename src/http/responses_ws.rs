@@ -70,6 +70,14 @@ pub(crate) async fn execute_frame(
             "request body too large",
         ));
     }
+    if serde_json::from_str::<Value>(frame)
+        .ok()
+        .and_then(|value| value.get("type")?.as_str().map(str::to_owned))
+        .as_deref()
+        == Some("response.steer")
+    {
+        return Err(WsFrameError::steering_not_supported(frame));
+    }
     validate_response_create_frame(frame.as_bytes()).map_err(WsFrameError::from_transform)?;
     let body = Bytes::copy_from_slice(frame.as_bytes());
 
@@ -202,6 +210,7 @@ pub(crate) struct WsFrameError {
     body: String,
     retry_after_secs: Option<u64>,
     headers: Box<HeaderMap>,
+    direct_frame: Option<String>,
 }
 
 impl WsFrameError {
@@ -211,6 +220,32 @@ impl WsFrameError {
             body: json!({ "error": { "message": message, "type": "gproxy_error" } }).to_string(),
             retry_after_secs: None,
             headers: Box::new(HeaderMap::new()),
+            direct_frame: None,
+        }
+    }
+
+    fn steering_not_supported(frame: &str) -> Self {
+        let request = serde_json::from_str::<Value>(frame).unwrap_or_default();
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            body: String::new(),
+            retry_after_secs: None,
+            headers: Box::new(HeaderMap::new()),
+            direct_frame: Some(
+                json!({
+                    "type":"response.steer.failed",
+                    "steer":{
+                        "previous_response_id":request.get("previous_response_id"),
+                        "input":request.get("input")
+                    },
+                    "error":{
+                        "type":"invalid_request_error",
+                        "code":"steering_not_supported",
+                        "message":"mid-turn steering requires the v3 native WebSocket bridge"
+                    }
+                })
+                .to_string(),
+            ),
         }
     }
 
@@ -224,10 +259,14 @@ impl WsFrameError {
             body: body.to_owned(),
             retry_after_secs: None,
             headers: Box::new(headers.clone()),
+            direct_frame: None,
         }
     }
 
     pub(crate) fn to_frame(&self) -> String {
+        if let Some(frame) = self.direct_frame.as_ref() {
+            return frame.clone();
+        }
         let mut payload = json!({
             "type": "error",
             "status": self.status.as_u16(),
@@ -259,6 +298,7 @@ impl From<PipelineError> for WsFrameError {
             body: error.error_json(),
             retry_after_secs: error.retry_after_secs(),
             headers: Box::new(HeaderMap::new()),
+            direct_frame: None,
         }
     }
 }
@@ -307,6 +347,18 @@ mod tests {
         assert_eq!(value["status"], 422);
         assert_eq!(value["status_code"], 422);
         assert_eq!(value["error"]["message"], "bad frame");
+    }
+
+    #[test]
+    fn steering_failure_uses_the_responses_control_event() {
+        let frame = WsFrameError::steering_not_supported(
+            r#"{"type":"response.steer","previous_response_id":"resp_1","input":"focus"}"#,
+        )
+        .to_frame();
+        let value: Value = serde_json::from_str(&frame).unwrap();
+        assert_eq!(value["type"], "response.steer.failed");
+        assert_eq!(value["steer"]["previous_response_id"], "resp_1");
+        assert_eq!(value["error"]["code"], "steering_not_supported");
     }
 
     #[test]

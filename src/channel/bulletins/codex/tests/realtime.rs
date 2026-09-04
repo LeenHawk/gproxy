@@ -47,7 +47,7 @@ fn defaults_to_api_openai_and_preserves_v1_path_and_rewritten_query() {
     );
     assert_eq!(request.headers()["authorization"], "Bearer oauth-token");
     assert_eq!(request.headers()["chatgpt-account-id"], "acct-1");
-    assert_eq!(request.headers()["originator"], "codex_exec");
+    assert_eq!(request.headers()["originator"], "codex_cli_rs");
 
     let live = prepare(
         "/v1/live",
@@ -92,7 +92,7 @@ fn normal_codex_request_drops_realtime_only_headers() {
     assert!(request.headers().get("openai-alpha").is_none());
     assert!(request.headers().get("x-session-id").is_none());
     assert_eq!(request.headers()["thread-id"], "thread-1");
-    assert_eq!(request.headers()["originator"], "codex_exec");
+    assert_eq!(request.headers()["originator"], "codex_cli_rs");
 }
 
 #[test]

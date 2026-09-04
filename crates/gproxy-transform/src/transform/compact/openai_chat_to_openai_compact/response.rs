@@ -110,6 +110,7 @@ fn chat_message_to_compact_items(
                         id: None,
                         caller: None,
                         namespace: None,
+                        async_: None,
                         extra: Default::default(),
                     },
                 ));
@@ -134,6 +135,7 @@ fn function_call_item(
         arguments,
         caller: None,
         namespace: None,
+        async_: None,
         status: Some(openai::ResponseItemLifecycleStatus::Completed),
         extra: Default::default(),
     })

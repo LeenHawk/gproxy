@@ -47,6 +47,7 @@ impl OutputState {
                 name,
                 id,
                 namespace,
+                async_,
                 status,
                 ..
             }) => {
@@ -55,6 +56,7 @@ impl OutputState {
                 self.function_call.name = Some(name);
                 self.function_call.item_id = id;
                 self.function_call.namespace = namespace;
+                self.function_call.async_ = async_;
                 self.function_call.status = status;
             }
             openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
@@ -63,6 +65,7 @@ impl OutputState {
                 name,
                 id,
                 namespace,
+                async_,
                 ..
             }) => {
                 self.custom_tool_call.call_id = Some(call_id);
@@ -70,6 +73,7 @@ impl OutputState {
                 self.custom_tool_call.name = Some(name);
                 self.custom_tool_call.item_id = id;
                 self.custom_tool_call.namespace = namespace;
+                self.custom_tool_call.async_ = async_;
             }
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
                 id,
