@@ -20,6 +20,16 @@ codesign --force --deep --sign - "$app"
 cp README.md LICENSE "$work/image/"
 ln -s /Applications "$work/image/Applications"
 
-hdiutil create -quiet -volname GPROXY -srcfolder "$work/image" -ov -format UDZO "$output_dir/$artifact.dmg"
-hdiutil verify -quiet "$output_dir/$artifact.dmg"
+dmg="$output_dir/$artifact.dmg"
+for attempt in 1 2 3; do
+  rm -f "$dmg"
+  if hdiutil create -volname GPROXY -srcfolder "$work/image" -ov -format UDZO "$dmg" \
+    && hdiutil verify "$dmg"; then
+    break
+  fi
+  if [ "$attempt" -eq 3 ]; then
+    exit 1
+  fi
+  sleep 2
+done
 (cd "$output_dir" && shasum -a 256 "$artifact.dmg" > "$artifact.dmg.sha256")

@@ -14,27 +14,34 @@
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="AppProgramMenuDir" Name="GPROXY" />
     </StandardDirectory>
-    <StandardDirectory Id="StartupFolder" />
-
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="ApplicationFiles" Guid="*">
+      <Component Id="GproxyExecutable" Guid="*">
         <File Id="GproxyExe" Source="__SOURCE__\gproxy.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="ReadmeFile" Guid="*">
         <File Id="Readme" Source="__SOURCE__\README.md" />
+      </Component>
+      <Component Id="LicenseFile" Guid="*">
         <File Id="License" Source="__SOURCE__\LICENSE" />
+      </Component>
+      <Component Id="LaunchScriptFile" Guid="*">
         <File Id="LaunchScript" Source="__SOURCE__\GPROXY.vbs" />
-        <File Id="PowerShellLauncher" Source="__SOURCE__\GPROXY.ps1" />
         <Shortcut Id="StartMenuShortcut" Directory="AppProgramMenuDir"
                   Name="GPROXY" Target="[SystemFolder]wscript.exe"
                   Arguments="&quot;[#LaunchScript]&quot; open" />
-        <Shortcut Id="StartupShortcut" Directory="StartupFolder"
-                  Name="GPROXY" Target="[SystemFolder]wscript.exe"
-                  Arguments="&quot;[#LaunchScript]&quot;" />
         <RemoveFolder Id="RemoveProgramMenuDir" Directory="AppProgramMenuDir" On="uninstall" />
+      </Component>
+      <Component Id="PowerShellLauncherFile" Guid="*">
+        <File Id="PowerShellLauncher" Source="__SOURCE__\GPROXY.ps1" />
       </Component>
     </DirectoryRef>
 
     <Feature Id="MainFeature" Title="GPROXY" Level="1">
-      <ComponentRef Id="ApplicationFiles" />
+      <ComponentRef Id="GproxyExecutable" />
+      <ComponentRef Id="ReadmeFile" />
+      <ComponentRef Id="LicenseFile" />
+      <ComponentRef Id="LaunchScriptFile" />
+      <ComponentRef Id="PowerShellLauncherFile" />
     </Feature>
   </Package>
 </Wix>

@@ -118,7 +118,7 @@ jobs:
               target="${{ matrix.target }}"
               bindgen="BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}"
               export "$bindgen=--target=${target}28"
-              cargo ndk -p 28 -t "${{ matrix.ndk_target }}" \
+              cargo ndk --platform 28 -t "${{ matrix.ndk_target }}" \
                 build --locked --release --bin gproxy
               ;;
           esac
