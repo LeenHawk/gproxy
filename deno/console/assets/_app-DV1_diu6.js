@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-BNmTiJ-I.js";import{Fn as t}from"./vendor-Do5CxQUN.js";import{t as n}from"./app-shell-CmSmzxfu.js";var r=e();function i(){return(0,r.jsx)(n,{children:(0,r.jsx)(t,{})})}export{i as component};

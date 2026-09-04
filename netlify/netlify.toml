@@ -1,0 +1,24 @@
+# GPROXY v2 — Netlify site config.
+#
+# `public/` hosts the Console SPA. Gateway/admin/user/ops traffic routes to the
+# `gproxy` edge function; Console paths are excluded so Netlify can serve the
+# static files and `_redirects` SPA fallback.
+
+[build]
+  publish = "public"
+  # Edge functions live in deploy/netlify/edge-functions/ (not Netlify's default
+  # netlify/edge-functions), so point at the directory explicitly.
+  edge_functions = "edge-functions"
+
+[template.environment]
+  TURSO_URL = "Required Turso/libSQL HTTP URL used by GPROXY edge persistence, for example https://your-db.turso.io. Do not use libsql:// on edge."
+  TURSO_TOKEN = "Required Turso database token with access to the TURSO_URL database."
+  GPROXY_ADMIN_USER = "Required admin username for the first Console login, for example admin."
+  GPROXY_ADMIN_PASSWORD = "Required non-blank admin password for the first Console login."
+
+# Route every request to the `gproxy` edge function. The function name matches the
+# file basename in deploy/netlify/edge-functions/ (gproxy.ts → "gproxy").
+[[edge_functions]]
+  path = "/*"
+  excludedPath = ["/", "/console", "/console/*", "/favicon.ico", "/favicon-96x96.png", "/apple-touch-icon.png"]
+  function = "gproxy"

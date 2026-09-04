@@ -1,0 +1,34 @@
+name = "gproxy"
+main = "src/worker.js"
+compatibility_date = "2025-05-01"
+
+# `account_id` is not a secret. Sourced from CLOUDFLARE_ACCOUNT_ID in CI/local;
+# wrangler also reads CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN from the env.
+
+# Bundle the wasm-bindgen artifact as a `WebAssembly.Module` so the static
+# `import wasm from "./_lib/gproxy_bg.wasm"` in src/worker.js resolves.
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+
+# Serve the React Console from the same Worker deployment. `run_worker_first`
+# lets src/worker.js keep gateway/admin/user paths on the wasm router while
+# forwarding `/console/*` and root icons to this static asset binding.
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
+# Storage credentials are set as encrypted secrets (NOT vars):
+#   echo -n "$VALUE" | wrangler secret put TURSO_URL   (and TURSO_TOKEN,
+#   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD, UPSTASH_URL, UPSTASH_TOKEN).
+#   They arrive via the `env` arg of fetch().
+#
+# Cloudflare Deploy Button reads .dev.vars.example to prompt users for these
+# secrets. Keep this list in sync so CLI deploys also warn when required values
+# are missing.
+[secrets]
+required = ["TURSO_URL", "TURSO_TOKEN", "GPROXY_ADMIN_USER", "GPROXY_ADMIN_PASSWORD"]
+
+[observability]
+enabled = true

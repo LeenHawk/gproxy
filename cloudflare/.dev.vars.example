@@ -1,0 +1,6 @@
+# Required by the GPROXY edge runtime. The Deploy to Cloudflare flow prompts
+# for these values and stores them as Worker secrets.
+TURSO_URL=
+TURSO_TOKEN=
+GPROXY_ADMIN_USER=admin
+GPROXY_ADMIN_PASSWORD=

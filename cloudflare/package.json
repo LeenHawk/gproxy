@@ -1,0 +1,26 @@
+{
+  "name": "gproxy-cloudflare-worker",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.110.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "TURSO_URL": {
+        "description": "Required Turso/libSQL HTTP URL used by GPROXY edge persistence, for example https://your-db.turso.io. Do not use libsql:// on edge."
+      },
+      "TURSO_TOKEN": {
+        "description": "Required Turso database token with access to the TURSO_URL database. It is stored as a Worker secret."
+      },
+      "GPROXY_ADMIN_USER": {
+        "description": "Required admin username for the first Console login, for example admin."
+      },
+      "GPROXY_ADMIN_PASSWORD": {
+        "description": "Required non-blank admin password for the first Console login. It is stored as a Worker secret."
+      }
+    }
+  }
+}

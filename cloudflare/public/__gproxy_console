@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/console/favicon-96x96.png" sizes="96x96" />
+    <link rel="shortcut icon" href="/console/favicon.ico" />
+    <link rel="apple-touch-icon" href="/console/apple-touch-icon.png" />
+    <title>GPROXY Console</title>
+    <script>
+      // Apply persisted theme before first paint to avoid flash.
+      let t = null;
+      try { t = localStorage.getItem("gproxy-console-theme"); } catch {}
+      const dark = t === "dark" || ((t === null || t === "system") && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.classList.toggle("dark", dark);
+    </script>
+    <script type="module" crossorigin src="/console/assets/index-za8VmeHn.js"></script>
+    <link rel="modulepreload" crossorigin href="/console/assets/rolldown-runtime-hePW80VL.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/react-vendor-BNmTiJ-I.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/chart-vendor-CHvPNEaI.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/vendor-Do5CxQUN.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/http-DoIi-BQ5.js">
+    <link rel="stylesheet" crossorigin href="/console/assets/index-BssxnWwd.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
