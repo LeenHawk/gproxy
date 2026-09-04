@@ -1,0 +1,21 @@
+pub(super) const V2_SCHEMA: &str = r#"
+CREATE TABLE providers(id INTEGER PRIMARY KEY,name TEXT,channel TEXT,label TEXT,settings_json TEXT,credential_strategy TEXT,proxy_url TEXT,tls_fingerprint TEXT,enabled INTEGER);
+CREATE TABLE credentials(id INTEGER PRIMARY KEY,provider_id INTEGER,name TEXT,kind TEXT,secret_json TEXT,weight INTEGER,rpm_limit INTEGER,tpm_limit INTEGER,proxy_url TEXT,tls_fingerprint TEXT,enabled INTEGER);
+CREATE TABLE routes(id INTEGER PRIMARY KEY,name TEXT,enabled INTEGER);
+CREATE TABLE route_members(id INTEGER PRIMARY KEY,route_id INTEGER,provider_id INTEGER,upstream_model_id TEXT,tier INTEGER,weight INTEGER,enabled INTEGER);
+CREATE TABLE aliases(id INTEGER PRIMARY KEY,provider TEXT,alias TEXT,target TEXT,sort_order INTEGER,enabled INTEGER);
+CREATE TABLE price_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,match_type TEXT,model_match TEXT,input_price TEXT,output_price TEXT,cache_read_price TEXT,cache_creation_5m_price TEXT,cache_creation_30m_price TEXT,cache_creation_1h_price TEXT,image_output_price TEXT,pricing_tiers_json TEXT,enabled INTEGER);
+CREATE TABLE price_rule_rates(id INTEGER PRIMARY KEY,price_rule_id INTEGER,metric TEXT,unit_size INTEGER,price_usd TEXT,conditions_json TEXT,sort_order INTEGER);
+CREATE TABLE orgs(id INTEGER PRIMARY KEY,name TEXT,enabled INTEGER);
+CREATE TABLE teams(id INTEGER PRIMARY KEY,org_id INTEGER,name TEXT,enabled INTEGER);
+CREATE TABLE users(id INTEGER PRIMARY KEY,name TEXT,org_id INTEGER,team_id INTEGER,password TEXT,enabled INTEGER,is_admin INTEGER);
+CREATE TABLE user_keys(id INTEGER PRIMARY KEY,user_id INTEGER,api_key_ciphertext TEXT,api_key_digest TEXT,api_key_digest_version INTEGER,label TEXT,enabled INTEGER);
+CREATE TABLE provider_models(id INTEGER PRIMARY KEY,provider_id INTEGER,model_id TEXT,display_name TEXT,variants_json TEXT,context_window INTEGER,max_output_tokens INTEGER,thinking_supported INTEGER,thinking_adaptive_supported INTEGER,thinking_enabled_supported INTEGER,enabled INTEGER);
+CREATE TABLE quotas(id INTEGER PRIMARY KEY,scope TEXT,scope_id INTEGER,quota_total TEXT,quota_daily TEXT,quota_weekly TEXT,quota_monthly TEXT,quota_5h TEXT,quota_7d TEXT);
+CREATE TABLE routing_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,operation TEXT,kind TEXT,implementation TEXT,dest_operation TEXT,dest_kind TEXT,sort_order INTEGER,enabled INTEGER);
+CREATE TABLE rule_sets(id INTEGER PRIMARY KEY,name TEXT,description TEXT,enabled INTEGER);
+CREATE TABLE rules(id INTEGER PRIMARY KEY,rule_set_id INTEGER,kind TEXT,config_json TEXT,filter_model_pattern TEXT,filter_operation_keys TEXT,filter_header_pattern TEXT,sort_order INTEGER,enabled INTEGER);
+CREATE TABLE provider_rule_sets(id INTEGER PRIMARY KEY,provider_id INTEGER,rule_set_id INTEGER,sort_order INTEGER,enabled INTEGER);
+CREATE TABLE instance_settings(id INTEGER PRIMARY KEY,instance_name TEXT,proxy TEXT,spoof_emulation INTEGER,enable_usage INTEGER,enable_upstream_log INTEGER,enable_upstream_log_body INTEGER,enable_downstream_log INTEGER,enable_downstream_log_body INTEGER,disable_log_redaction INTEGER,enable_tokenizer_download INTEGER,update_channel TEXT,enable_auto_update_check INTEGER,retention_days INTEGER,max_database_size_mb INTEGER,file_upload_max_in_flight INTEGER);
+CREATE TABLE usages(id INTEGER PRIMARY KEY,request_id TEXT,at INTEGER,route_name TEXT,provider_id INTEGER,credential_id INTEGER,org_id INTEGER,team_id INTEGER,user_id INTEGER,user_key_id INTEGER,thread_id TEXT,operation TEXT,kind TEXT,model TEXT,input_tokens INTEGER,output_tokens INTEGER,image_output_tokens INTEGER,cache_read_tokens INTEGER,cache_creation_5m_tokens INTEGER,cache_creation_30m_tokens INTEGER,cache_creation_1h_tokens INTEGER,metrics_json TEXT,cost TEXT,latency_ms INTEGER,usage_source TEXT,ended TEXT);
+"#;

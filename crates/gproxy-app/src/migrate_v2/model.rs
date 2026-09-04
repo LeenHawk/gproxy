@@ -150,4 +150,6 @@ pub(super) struct SourceData {
     pub provider_rule_sets: Vec<Legacy<ProviderRuleSetInput>>,
     pub settings: Vec<Legacy<Settings>>,
     pub usage: Vec<Legacy<Usage>>,
+    pub usage_tombstone_providers: Vec<Legacy<ProviderInput>>,
+    pub usage_tombstone_credentials: Vec<Legacy<Credential>>,
 }

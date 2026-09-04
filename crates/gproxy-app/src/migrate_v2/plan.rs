@@ -11,7 +11,7 @@ pub(super) struct Plan {
 }
 
 pub(super) fn prepare(mut data: SourceData, cipher: &V2Cipher) -> Plan {
-    let found = counts(&data);
+    let mut found = counts(&data);
     let mut issues = Vec::new();
     data.credentials.retain_mut(
         |credential| match cipher.open(&credential.value.stored_secret) {
@@ -48,6 +48,17 @@ pub(super) fn prepare(mut data: SourceData, cipher: &V2Cipher) -> Plan {
                 false
             }
         });
+    super::tombstone::prepare(&mut data, &mut issues);
+    found.extend([
+        (
+            "usage_provider_tombstones",
+            data.usage_tombstone_providers.len(),
+        ),
+        (
+            "usage_credential_tombstones",
+            data.usage_tombstone_credentials.len(),
+        ),
+    ]);
     loop {
         super::validate::run(&data, &mut issues);
         if !prune(&mut data, &issues) {

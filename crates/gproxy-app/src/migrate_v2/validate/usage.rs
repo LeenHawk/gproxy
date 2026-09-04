@@ -7,10 +7,6 @@ use crate::migrate_v2::report::ImportIssue;
 pub(super) struct References<'a> {
     pub providers: &'a BTreeSet<i64>,
     pub credentials: &'a BTreeSet<i64>,
-    pub organizations: &'a BTreeSet<i64>,
-    pub teams: &'a BTreeSet<i64>,
-    pub users: &'a BTreeSet<i64>,
-    pub keys: &'a BTreeSet<i64>,
 }
 
 pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>, refs: References<'_>) {
@@ -21,13 +17,7 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>, refs: Refere
             .is_some_and(|id| refs.providers.contains(&id))
             && usage
                 .credential_id
-                .is_some_and(|id| refs.credentials.contains(&id))
-            && usage
-                .organization_id
-                .is_none_or(|id| refs.organizations.contains(&id))
-            && usage.team_id.is_none_or(|id| refs.teams.contains(&id))
-            && usage.user_id.is_none_or(|id| refs.users.contains(&id))
-            && usage.user_key_id.is_none_or(|id| refs.keys.contains(&id));
+                .is_some_and(|id| refs.credentials.contains(&id));
         let counters = [
             usage.input_tokens,
             usage.output_tokens,
@@ -44,7 +34,7 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>, refs: Refere
             issues.push(issue(
                 "usage",
                 value.id,
-                "has a missing reference, negative counter, or invalid metrics object",
+                "has a missing provider or credential, negative counter, or invalid metrics object",
             ));
         }
     }

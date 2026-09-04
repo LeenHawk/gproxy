@@ -44,6 +44,7 @@ pub(super) fn run(
             issues.push(issue("price_rates", value.id, "unit_size must be positive"));
         }
     }
+    let mut routing_keys = BTreeSet::new();
     for value in &data.routing_rules {
         require(
             issues,
@@ -53,6 +54,28 @@ pub(super) fn run(
             value.value.provider_id,
             "provider",
         );
+        let rule = &value.value;
+        let key = (rule.provider_id, rule.operation.clone(), rule.kind.clone());
+        if !routing_keys.insert(key) {
+            issues.push(issue(
+                "routing_rules",
+                value.id,
+                "duplicates a provider operation after v3 kind normalization",
+            ));
+        }
+        let spec = gproxy_core::routing::RoutingRuleSpec {
+            id: value.id,
+            operation: rule.operation.clone(),
+            kind: rule.kind.clone(),
+            implementation: rule.implementation.clone(),
+            dest_operation: rule.dest_operation.clone(),
+            dest_kind: rule.dest_kind.clone(),
+            sort_order: rule.sort_order,
+            enabled: rule.enabled,
+        };
+        if let Err(reason) = gproxy_core::routing::compile(&spec) {
+            issues.push(issue("routing_rules", value.id, reason));
+        }
     }
     for value in &data.rules {
         require(

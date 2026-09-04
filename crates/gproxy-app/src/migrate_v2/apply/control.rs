@@ -23,32 +23,28 @@ pub(super) async fn base(
     )
     .await?;
     mark(counts, "providers", data.providers.len());
+    let tombstone_providers = mapped(
+        context,
+        &data.usage_tombstone_providers,
+        RecordBatch::Providers(
+            data.usage_tombstone_providers
+                .iter()
+                .map(|value| value.value.clone())
+                .collect(),
+        ),
+    )
+    .await?;
+    context.providers.extend(tombstone_providers);
+    mark(
+        counts,
+        "usage_provider_tombstones",
+        data.usage_tombstone_providers.len(),
+    );
 
     let credentials = data
         .credentials
         .iter()
-        .map(|value| {
-            Ok(CredentialInput {
-                provider_id: id(&context.providers, value.value.provider_id)?,
-                label: value.value.label.clone(),
-                kind: value.value.kind.clone(),
-                envelope: context.cipher.seal(&value.value.stored_secret)?,
-                enabled: value.value.enabled,
-                weight: unsigned32(value.value.weight, "credential weight")?,
-                rpm_limit: value
-                    .value
-                    .rpm_limit
-                    .map(|limit| unsigned32(limit, "credential rpm limit"))
-                    .transpose()?,
-                tpm_limit: value
-                    .value
-                    .tpm_limit
-                    .map(|limit| unsigned(limit, "credential tpm limit"))
-                    .transpose()?,
-                proxy_url: value.value.proxy_url.clone(),
-                tls_fingerprint: value.value.tls_fingerprint.clone(),
-            })
-        })
+        .map(|value| credential(context, &value.value))
         .collect::<Result<Vec<_>, crate::AppError>>()?;
     context.credentials = mapped(
         context,
@@ -57,6 +53,23 @@ pub(super) async fn base(
     )
     .await?;
     mark(counts, "credentials", data.credentials.len());
+    let tombstone_credentials = data
+        .usage_tombstone_credentials
+        .iter()
+        .map(|value| credential(context, &value.value))
+        .collect::<Result<Vec<_>, crate::AppError>>()?;
+    let tombstone_credentials = mapped(
+        context,
+        &data.usage_tombstone_credentials,
+        RecordBatch::Credentials(tombstone_credentials),
+    )
+    .await?;
+    context.credentials.extend(tombstone_credentials);
+    mark(
+        counts,
+        "usage_credential_tombstones",
+        data.usage_tombstone_credentials.len(),
+    );
 
     context.routes = mapped(
         context,
@@ -159,6 +172,30 @@ pub(super) async fn base(
         .await?;
     mark(counts, "aliases", data.aliases.len());
     Ok(())
+}
+
+fn credential(
+    context: &Context<'_>,
+    value: &crate::migrate_v2::model::Credential,
+) -> Result<CredentialInput, crate::AppError> {
+    Ok(CredentialInput {
+        provider_id: id(&context.providers, value.provider_id)?,
+        label: value.label.clone(),
+        kind: value.kind.clone(),
+        envelope: context.cipher.seal(&value.stored_secret)?,
+        enabled: value.enabled,
+        weight: unsigned32(value.weight, "credential weight")?,
+        rpm_limit: value
+            .rpm_limit
+            .map(|limit| unsigned32(limit, "credential rpm limit"))
+            .transpose()?,
+        tpm_limit: value
+            .tpm_limit
+            .map(|limit| unsigned(limit, "credential tpm limit"))
+            .transpose()?,
+        proxy_url: value.proxy_url.clone(),
+        tls_fingerprint: value.tls_fingerprint.clone(),
+    })
 }
 
 pub(super) async fn pricing(

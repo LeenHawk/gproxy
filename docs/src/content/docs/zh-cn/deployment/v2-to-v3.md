@@ -84,9 +84,9 @@ dry run wrote nothing; rerun with --apply to import
 | `quotas` | 组织、团队或用户范围的配额，六个窗口全部保留。 |
 | `price_rules` | 价格规则。`exact` 保留模型名；`contains` 变为 glob `*text*`。`pricing_tiers_json` 变为 `tiers`。精确规则排在最前，然后是更长的 `contains` 模式。 |
 | `price_rule_rates` | 维度化价格费率。`cache_read_tokens` 改名为 `cached_input_tokens`。没有显式费率的规则会从 v2 的平铺字段合成七条按 1,000,000 token 计价的费率：输入、输出、缓存读取、缓存创建 5m/30m/1h、图像输出。 |
-| `routing_rules`、`rule_sets`、`rules`、`provider_rule_sets` | 相同的实体，id 重新映射。 |
+| `routing_rules`、`rule_sets`、`rules`、`provider_rule_sets` | 相同的实体，id 重新映射。旧 `open_ai*` wire kind 会规范化为 v3 的 `openai*`，并在 dry run 时用运行时 compiler 校验。 |
 | `instance_settings`（第一行） | 实例名、代理、用量开关、分词器下载、上传并发、更新 channel 与自动检查、保留天数、数据库大小上限、四个日志开关、脱敏覆盖。`inherit_system_proxy` 设为 `false`。 |
-| `usages` | 用量行，并在导入时重新计算小时汇总。图像输出与缓存创建计数移入 `metrics`；`route_name`、`kind`、`thread_id` 作为维度 `v2_route`、`v2_kind`、`v2_thread_id` 保留。 |
+| `usages` | 用量行，并在导入时重新计算小时汇总。图像输出与缓存创建计数移入 `metrics`；`route_name`、`kind`、`thread_id` 作为维度 `v2_route`、`v2_kind`、`v2_thread_id` 保留。必填引用由禁用的历史专用 Provider/凭证承接，已删除的可选主体 id 保存在 `v2_deleted_*` 维度中；用量按有界批次写入。 |
 
 ## 不导入的内容
 
@@ -114,10 +114,13 @@ v2 加密保存的值是带 `kek_id`、`wrapped_dek`、`nonce` 和 `ciphertext` 
 
 写入之前，源数据必须自洽：团队引用一个组织，密钥引用一个用户，凭证和路由规则引用
 一个 Provider，路由成员引用一条路由和一个 Provider，别名引用一个 Provider 名称，
-配额引用存在的主体，费率引用一条价格规则，规则引用一个规则集。权重、限制、计数器和
-单位大小必须非负。匹配类型既非 `exact` 也非 `contains`、或模式中含 `*` 的价格规则
-无法表示为 v3 的 glob。只接受一行 `instance_settings`，且名称不能为空。一行失败会
-连带移除引用它的行，每次移除都会列出。任何列出的问题都意味着不会写入任何内容。
+配额引用存在的主体，费率引用一条价格规则，规则引用一个规则集。旧 wire id 规范化后，
+路由规则必须能通过运行时 compiler。用量行仍必须有非空的 Provider/凭证 id、合法
+metrics 和非负计数器；若记录产生后对应控制实体被删除，则转换为历史 tombstone，而不
+阻断导入。权重、限制和单位大小必须非负。匹配类型既非 `exact` 也非 `contains`、或
+模式中含 `*` 的价格规则无法表示为 v3 的 glob。只接受一行 `instance_settings`，且名称
+不能为空。一行失败会连带移除引用它的行，每次移除都会列出。任何列出的问题都意味着
+不会写入任何内容。
 
 对目标有两条规则：
 

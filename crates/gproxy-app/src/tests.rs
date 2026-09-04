@@ -1,11 +1,13 @@
 mod admin;
 mod fingerprint;
 mod lifecycle;
+mod migrate_v2;
 mod oauth;
 mod pressure;
 mod quota;
 mod setup;
 mod tokenizer;
+mod v2_schema;
 mod variants;
 
 use base64::Engine as _;

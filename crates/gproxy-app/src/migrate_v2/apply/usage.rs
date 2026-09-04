@@ -1,9 +1,10 @@
 use gproxy_store::records::*;
 use rust_decimal::Decimal;
 use serde_json::{Map, Value};
+use std::collections::BTreeSet;
 
-use super::{Context, id, mark, optional, unsigned};
-use crate::migrate_v2::model::SourceData;
+use super::{Context, id, mark, unsigned};
+use crate::migrate_v2::model::{Legacy, SourceData, Usage};
 use crate::migrate_v2::report::ImportCount;
 
 pub(super) async fn settings(
@@ -71,74 +72,155 @@ pub(super) async fn history(
     data: &SourceData,
     counts: &mut [ImportCount],
 ) -> Result<(), crate::AppError> {
-    let rows = data
-        .usage
+    let tombstone_providers = data
+        .usage_tombstone_providers
         .iter()
-        .map(|value| {
-            let usage = &value.value;
-            let mut metrics = usage
-                .metrics
-                .as_object()
-                .cloned()
-                .expect("usage metrics were validated");
-            metric(
-                &mut metrics,
-                "image_output_tokens",
-                usage.image_output_tokens,
-            );
-            metric(
-                &mut metrics,
-                "cache_creation_5m_tokens",
-                usage.cache_creation_5m_tokens,
-            );
-            metric(
-                &mut metrics,
-                "cache_creation_30m_tokens",
-                usage.cache_creation_30m_tokens,
-            );
-            metric(
-                &mut metrics,
-                "cache_creation_1h_tokens",
-                usage.cache_creation_1h_tokens,
-            );
-            let dimensions = serde_json::json!({
-                "v2_route": usage.route_name,
-                "v2_kind": usage.kind,
-                "v2_thread_id": usage.thread_id,
-            });
-            Ok(UsageInput {
-                request_id: usage.request_id.clone(),
-                at: usage.at,
-                provider_id: id(&context.providers, required(usage.provider_id, "provider")?)?,
-                credential_id: id(
-                    &context.credentials,
-                    required(usage.credential_id, "credential")?,
-                )?,
-                organization_id: optional(&context.organizations, usage.organization_id)?,
-                team_id: optional(&context.teams, usage.team_id)?,
-                user_id: optional(&context.users, usage.user_id)?,
-                user_key_id: optional(&context.user_keys, usage.user_key_id)?,
-                operation: Some(usage.operation.clone()),
-                upstream_model: usage.model.clone().unwrap_or_default(),
-                input_tokens: unsigned(usage.input_tokens, "input tokens")?,
-                output_tokens: unsigned(usage.output_tokens, "output tokens")?,
-                cached_input_tokens: unsigned(usage.cache_read_tokens, "cache tokens")?,
-                metrics: Value::Object(metrics),
-                dimensions,
-                cost: usage.cost,
-                usage_source: usage.usage_source.clone(),
-                ended: usage.ended.clone(),
-                latency_ms: unsigned(usage.latency_ms, "latency")?,
-            })
-        })
-        .collect::<Result<Vec<_>, crate::AppError>>()?;
-    let imported = context.store.import_usage(&rows).await?;
+        .map(|value| value.id)
+        .collect::<BTreeSet<_>>();
+    let tombstone_credentials = data
+        .usage_tombstone_credentials
+        .iter()
+        .map(|value| value.id)
+        .collect::<BTreeSet<_>>();
+    let mut imported = 0;
+    for chunk in data.usage.chunks(1_000) {
+        let rows = chunk
+            .iter()
+            .map(|value| history_row(context, value, &tombstone_providers, &tombstone_credentials))
+            .collect::<Result<Vec<_>, crate::AppError>>()?;
+        imported += context.store.import_usage(&rows).await?;
+    }
     mark(
         counts,
         "usage",
         usize::try_from(imported).unwrap_or(usize::MAX),
     );
     Ok(())
+}
+
+fn history_row(
+    context: &Context<'_>,
+    value: &Legacy<Usage>,
+    tombstone_providers: &BTreeSet<i64>,
+    tombstone_credentials: &BTreeSet<i64>,
+) -> Result<UsageInput, crate::AppError> {
+    let usage = &value.value;
+    let mut metrics = usage
+        .metrics
+        .as_object()
+        .cloned()
+        .expect("usage metrics were validated");
+    metric(
+        &mut metrics,
+        "image_output_tokens",
+        usage.image_output_tokens,
+    );
+    metric(
+        &mut metrics,
+        "cache_creation_5m_tokens",
+        usage.cache_creation_5m_tokens,
+    );
+    metric(
+        &mut metrics,
+        "cache_creation_30m_tokens",
+        usage.cache_creation_30m_tokens,
+    );
+    metric(
+        &mut metrics,
+        "cache_creation_1h_tokens",
+        usage.cache_creation_1h_tokens,
+    );
+    let mut dimensions = Map::from_iter([
+        ("v2_route".into(), Value::from(usage.route_name.clone())),
+        ("v2_kind".into(), Value::from(usage.kind.clone())),
+        ("v2_thread_id".into(), Value::from(usage.thread_id.clone())),
+    ]);
+    retain_deleted_reference(
+        &mut dimensions,
+        "v2_deleted_provider_id",
+        usage.provider_id,
+        tombstone_providers,
+    );
+    retain_deleted_reference(
+        &mut dimensions,
+        "v2_deleted_credential_id",
+        usage.credential_id,
+        tombstone_credentials,
+    );
+    retain_missing_reference(
+        &mut dimensions,
+        "v2_deleted_organization_id",
+        usage.organization_id,
+        &context.organizations,
+    );
+    retain_missing_reference(
+        &mut dimensions,
+        "v2_deleted_team_id",
+        usage.team_id,
+        &context.teams,
+    );
+    retain_missing_reference(
+        &mut dimensions,
+        "v2_deleted_user_id",
+        usage.user_id,
+        &context.users,
+    );
+    retain_missing_reference(
+        &mut dimensions,
+        "v2_deleted_user_key_id",
+        usage.user_key_id,
+        &context.user_keys,
+    );
+    Ok(UsageInput {
+        request_id: usage.request_id.clone(),
+        at: usage.at,
+        provider_id: id(&context.providers, required(usage.provider_id, "provider")?)?,
+        credential_id: id(
+            &context.credentials,
+            required(usage.credential_id, "credential")?,
+        )?,
+        organization_id: retained(&context.organizations, usage.organization_id),
+        team_id: retained(&context.teams, usage.team_id),
+        user_id: retained(&context.users, usage.user_id),
+        user_key_id: retained(&context.user_keys, usage.user_key_id),
+        operation: Some(usage.operation.clone()),
+        upstream_model: usage.model.clone().unwrap_or_default(),
+        input_tokens: unsigned(usage.input_tokens, "input tokens")?,
+        output_tokens: unsigned(usage.output_tokens, "output tokens")?,
+        cached_input_tokens: unsigned(usage.cache_read_tokens, "cache tokens")?,
+        metrics: Value::Object(metrics),
+        dimensions: Value::Object(dimensions),
+        cost: usage.cost,
+        usage_source: usage.usage_source.clone(),
+        ended: usage.ended.clone(),
+        latency_ms: unsigned(usage.latency_ms, "latency")?,
+    })
+}
+
+fn retained(map: &std::collections::BTreeMap<i64, i64>, old: Option<i64>) -> Option<i64> {
+    old.and_then(|id| map.get(&id).copied())
+}
+
+fn retain_missing_reference(
+    dimensions: &mut Map<String, Value>,
+    name: &str,
+    old: Option<i64>,
+    map: &std::collections::BTreeMap<i64, i64>,
+) {
+    if let Some(id) = old.filter(|id| !map.contains_key(id)) {
+        dimensions.insert(name.into(), Value::from(id));
+    }
+}
+
+fn retain_deleted_reference(
+    dimensions: &mut Map<String, Value>,
+    name: &str,
+    old: Option<i64>,
+    tombstones: &BTreeSet<i64>,
+) {
+    if let Some(id) = old.filter(|id| tombstones.contains(id)) {
+        dimensions.insert(name.into(), Value::from(id));
+    }
 }
 
 fn setting(key: &str, value: Value) -> SettingInput {

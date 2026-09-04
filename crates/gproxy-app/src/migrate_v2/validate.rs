@@ -8,8 +8,10 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>) {
     let organizations = ids(&data.organizations);
     let teams = ids(&data.teams);
     let users = ids(&data.users);
-    let providers = ids(&data.providers);
-    let credentials = ids(&data.credentials);
+    let mut providers = ids(&data.providers);
+    providers.extend(ids(&data.usage_tombstone_providers));
+    let mut credentials = ids(&data.credentials);
+    credentials.extend(ids(&data.usage_tombstone_credentials));
     let routes = ids(&data.routes);
     let price_rules = ids(&data.price_rules);
     let rule_sets = ids(&data.rule_sets);
@@ -139,10 +141,6 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>) {
         usage::References {
             providers: &providers,
             credentials: &credentials,
-            organizations: &organizations,
-            teams: &teams,
-            users: &users,
-            keys: &ids(&data.user_keys),
         },
     );
 }

@@ -22,17 +22,34 @@ fn routing_rules(connection: &Connection) -> Result<Vec<Legacy<RoutingRuleInput>
                 id: row.get(0)?,
                 value: RoutingRuleInput {
                     provider_id: row.get(1)?,
-                    operation: row.get(2)?,
-                    kind: row.get(3)?,
+                    operation: canonical_operation(row.get(2)?),
+                    kind: canonical_kind(row.get(3)?),
                     implementation: row.get(4)?,
-                    dest_operation: row.get(5)?,
-                    dest_kind: row.get(6)?,
+                    dest_operation: row.get::<_, Option<String>>(5)?.map(canonical_operation),
+                    dest_kind: row.get::<_, Option<String>>(6)?.map(canonical_kind),
                     sort_order: row.get(7)?,
                     enabled: row.get(8)?,
                 },
             })
         })?
         .collect()
+}
+
+fn canonical_operation(value: String) -> String {
+    match value.as_str() {
+        "download_file_content" => "retrieve_file_content".into(),
+        _ => value,
+    }
+}
+
+fn canonical_kind(value: String) -> String {
+    match value.as_str() {
+        "open_ai" => "openai".into(),
+        "open_ai_chat_completions" => "openai_chat".into(),
+        "open_ai_responses" => "openai_responses".into(),
+        "open_ai_responses_websocket" => "openai_responses_websocket".into(),
+        _ => value,
+    }
 }
 
 fn rule_sets(connection: &Connection) -> Result<Vec<Legacy<RuleSetInput>>> {

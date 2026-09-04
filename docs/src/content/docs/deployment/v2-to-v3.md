@@ -89,9 +89,9 @@ prints `this v2 source was already imported; no rows were written`.
 | `quotas` | Quotas for organization, team, or user scope with all six windows. |
 | `price_rules` | Price rules. `exact` keeps the model name; `contains` becomes the glob `*text*`. `pricing_tiers_json` becomes `tiers`. Exact rules rank first, then longer `contains` patterns. |
 | `price_rule_rates` | Dimensional price rates. `cache_read_tokens` is renamed `cached_input_tokens`. A rule with no explicit rates gets seven synthesized per-1,000,000-token rates from its flat v2 columns: input, output, cache read, cache creation 5m/30m/1h, image output. |
-| `routing_rules`, `rule_sets`, `rules`, `provider_rule_sets` | The same entities with remapped ids. |
+| `routing_rules`, `rule_sets`, `rules`, `provider_rule_sets` | The same entities with remapped ids. Legacy `open_ai*` wire-kind ids are normalized to v3 `openai*` ids and compiled during the dry run. |
 | `instance_settings` (first row) | Instance name, proxy, usage flag, tokenizer download, upload concurrency, update channel and auto-check, retention days, database size cap, the four log flags, redaction override. `inherit_system_proxy` is set to `false`. |
-| `usages` | Usage rows plus hourly rollups recomputed on import. Image-output and cache-creation counters move into `metrics`; `route_name`, `kind`, and `thread_id` are kept as the dimensions `v2_route`, `v2_kind`, `v2_thread_id`. |
+| `usages` | Usage rows plus hourly rollups recomputed on import. Image-output and cache-creation counters move into `metrics`; `route_name`, `kind`, and `thread_id` are kept as the dimensions `v2_route`, `v2_kind`, `v2_thread_id`. Disabled history-only providers and credentials preserve required references deleted after recording; deleted optional subject ids remain in `v2_deleted_*` dimensions. Usage is written in bounded batches. |
 
 ## What Is Not Imported
 
@@ -122,12 +122,15 @@ right key or remove that row in v2 first.
 Before anything is written the source must be internally consistent: teams
 reference an organization, keys a user, credentials and routing rules a
 provider, route members a route and a provider, aliases a provider name,
-quotas an existing subject, rates a price rule, rules a rule set. Weights,
-limits, counters, and unit sizes must be non-negative. A price rule whose
-match type is neither `exact` nor `contains`, or whose pattern contains `*`,
-cannot be expressed as a v3 glob. Only one `instance_settings` row is
-accepted and its name must not be blank. A row that fails also removes the
-rows that reference it, and every removal is listed. Any listed problem
+quotas an existing subject, rates a price rule, and rules a rule set. Routing
+rules must compile after legacy wire ids are normalized. Usage rows still need
+non-null provider and credential ids, valid metrics, and non-negative counters;
+references deleted after recording become history tombstones instead of
+blocking the import. Weights, limits, and unit sizes must be non-negative. A
+price rule whose match type is neither `exact` nor `contains`, or whose pattern
+contains `*`, cannot be expressed as a v3 glob. Only one `instance_settings`
+row is accepted and its name must not be blank. A row that fails also removes
+the rows that reference it, and every removal is listed. Any listed problem
 means nothing is written.
 
 Two rules apply to the target:

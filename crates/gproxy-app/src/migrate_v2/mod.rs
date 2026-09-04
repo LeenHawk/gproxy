@@ -4,6 +4,7 @@ mod model;
 mod plan;
 mod report;
 mod source;
+mod tombstone;
 mod validate;
 
 use std::path::PathBuf;
