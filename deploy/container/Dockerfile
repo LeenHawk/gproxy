@@ -1,11 +1,14 @@
 FROM public.ecr.aws/docker/library/node:lts-trixie-slim AS console
 
+ARG GPROXY_BUILD_HASH=unknown
+WORKDIR /source
+COPY Cargo.toml ./
 WORKDIR /source/console
 RUN corepack enable
 COPY console/package.json console/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY console/ ./
-RUN pnpm build
+RUN GPROXY_BUILD_HASH="$GPROXY_BUILD_HASH" pnpm build
 
 FROM scratch AS console-dist
 COPY --from=console /source/console/dist/ /

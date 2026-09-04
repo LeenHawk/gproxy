@@ -48,6 +48,7 @@ jobs:
       - name: Build console once
         run: |
           docker buildx build -f deploy/container/Dockerfile --target console-dist \
+            --build-arg "GPROXY_BUILD_HASH=$GITHUB_SHA" \
             --output type=local,dest=dist/console .
       - name: Build, archive, and push container
         env:
