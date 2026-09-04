@@ -56,7 +56,7 @@ jobs:
         run: |
           test -n "$GPROXY_UPDATE_PUBKEY" || { echo "missing update signing public key" >&2; exit 1; }
           image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}"
-          docker buildx build -f deploy/container/Dockerfile --load \
+          docker buildx build -f deploy/container/Dockerfile --push \
             --provenance=mode=max --sbom=true \
             --build-arg "GPROXY_UPDATE_PUBKEY=$GPROXY_UPDATE_PUBKEY" \
             --build-arg "GPROXY_VERSION=${{ needs.prepare.outputs.version }}" \
@@ -65,11 +65,11 @@ jobs:
             --build-arg "GPROXY_BUILD_CHANNEL=${{ needs.prepare.outputs.channel }}" \
             --build-arg "GPROXY_BUILD_HASH=$GITHUB_SHA" \
             --tag "$image" .
+          docker pull "$image"
           mkdir -p dist/container
           docker save "$image" | gzip -9 > dist/container/gproxy-container-linux-amd64.tar.gz
           (cd dist/container && sha256sum gproxy-container-linux-amd64.tar.gz \
             > gproxy-container-linux-amd64.tar.gz.sha256)
-          docker push "$image"
       - name: Record build provenance
         env:
           ARTIFACT_NAME: gproxy-container-linux-amd64
