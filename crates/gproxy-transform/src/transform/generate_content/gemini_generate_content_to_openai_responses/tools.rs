@@ -20,6 +20,7 @@ pub(super) fn gemini_tools_to_responses(
                 defer_loading: None,
                 description: (!function.description.is_empty()).then_some(function.description),
                 allowed_callers: None,
+                async_: None,
                 extra: Default::default(),
             }
         }));

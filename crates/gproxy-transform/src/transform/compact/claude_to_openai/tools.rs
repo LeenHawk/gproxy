@@ -80,6 +80,7 @@ pub(crate) fn typed_tool_call(
             id: Some(id),
             caller: None,
             namespace: None,
+            async_: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             extra: Default::default(),
         }),
@@ -275,6 +276,7 @@ pub(crate) fn server_tool_call(
             id: Some(id),
             caller: None,
             namespace: None,
+            async_: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             extra: Default::default(),
         }),
@@ -293,6 +295,7 @@ fn generic_server_tool_call(
         id: Some(id),
         caller: None,
         namespace: None,
+        async_: None,
         status: Some(openai::ResponseItemLifecycleStatus::Completed),
         extra: Default::default(),
     })
@@ -547,6 +550,7 @@ pub(crate) fn tool_search_result<T: serde::Serialize>(
             defer_loading: None,
             description: None,
             allowed_callers: None,
+            async_: None,
             extra: Default::default(),
         })
         .collect();

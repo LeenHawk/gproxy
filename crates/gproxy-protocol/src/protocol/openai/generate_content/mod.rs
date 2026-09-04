@@ -8,6 +8,9 @@ mod responses_tail;
 mod responses_websocket;
 mod stream;
 
+#[cfg(test)]
+mod astra_tests;
+
 pub use chat::*;
 pub use chat_stream::*;
 pub use chat_tail::*;

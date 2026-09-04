@@ -6,6 +6,7 @@ use serde_json::Value;
 use super::super::common::*;
 use super::{
     ResponseContentPart, ResponseObject, ResponseOutputItem, ResponseReasoningSummaryPart,
+    ResponseSteerError, ResponseSteerFailure, ResponseSteerReference,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +114,39 @@ pub enum KnownResponseStreamEvent {
         response: Box<ResponseObject>,
         #[serde(skip_serializing_if = "Option::is_none")]
         sequence_number: Option<u64>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "response.steer.accepted")]
+    ResponseSteerAccepted {
+        steer: ResponseSteerReference,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sequence_number: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stream_id: Option<String>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "response.steer.pending")]
+    ResponseSteerPending {
+        steer: ResponseSteerReference,
+        reason: String,
+        required_input: Vec<Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sequence_number: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stream_id: Option<String>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "response.steer.failed")]
+    ResponseSteerFailed {
+        steer: ResponseSteerFailure,
+        error: ResponseSteerError,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sequence_number: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stream_id: Option<String>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -593,6 +627,9 @@ impl KnownResponseStreamEvent {
             Self::ResponseFailed { .. } => T::ResponseFailed,
             Self::ResponseIncomplete { .. } => T::ResponseIncomplete,
             Self::ResponseQueued { .. } => T::ResponseQueued,
+            Self::ResponseSteerAccepted { .. } => T::ResponseSteerAccepted,
+            Self::ResponseSteerPending { .. } => T::ResponseSteerPending,
+            Self::ResponseSteerFailed { .. } => T::ResponseSteerFailed,
             Self::ResponseOutputItemAdded { .. } => T::ResponseOutputItemAdded,
             Self::ResponseOutputItemDone { .. } => T::ResponseOutputItemDone,
             Self::ResponseContentPartAdded { .. } => T::ResponseContentPartAdded,

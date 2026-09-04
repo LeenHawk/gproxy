@@ -12,6 +12,7 @@ pub(super) struct ResponsesToolItemState {
     kind: Option<ResponsesToolKind>,
     pub(super) item_id: Option<String>,
     call_id: Option<String>,
+    async_: Option<bool>,
     pub(super) name: Option<String>,
     output_index: Option<u32>,
     pub(super) input: String,
@@ -38,20 +39,29 @@ impl ResponsesToolItemState {
                 call_id,
                 name,
                 id,
+                async_,
                 ..
-            } => self.note_item_parts(id.as_deref(), call_id, name, arguments),
+            } => self.note_item_parts(id.as_deref(), call_id, name, arguments, *async_),
             TypedResponseItem::CustomToolCall {
                 call_id,
                 input,
                 name,
                 id,
+                async_,
                 ..
-            } => self.note_item_parts(id.as_deref(), call_id, name, input),
+            } => self.note_item_parts(id.as_deref(), call_id, name, input, *async_),
             _ => {}
         }
     }
 
-    fn note_item_parts(&mut self, id: Option<&str>, call_id: &str, name: &str, input: &str) {
+    fn note_item_parts(
+        &mut self,
+        id: Option<&str>,
+        call_id: &str,
+        name: &str,
+        input: &str,
+        async_: Option<bool>,
+    ) {
         if self.item_id.is_none() {
             self.item_id = id.map(str::to_owned);
         }
@@ -63,6 +73,9 @@ impl ResponsesToolItemState {
         }
         if self.input.is_empty() {
             self.input.push_str(input);
+        }
+        if self.async_.is_none() {
+            self.async_ = async_;
         }
     }
 
@@ -128,6 +141,7 @@ impl ResponsesToolItemState {
                     id: Some(self.item_id().to_owned()),
                     caller: None,
                     namespace: None,
+                    async_: self.async_,
                     status: Some(ResponseItemLifecycleStatus::Completed),
                     extra: Extra::new(),
                 })
@@ -140,6 +154,7 @@ impl ResponsesToolItemState {
                     id: Some(self.item_id().to_owned()),
                     caller: None,
                     namespace: None,
+                    async_: self.async_,
                     extra: Extra::new(),
                 })
             }

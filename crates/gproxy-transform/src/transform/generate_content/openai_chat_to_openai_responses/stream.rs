@@ -166,6 +166,7 @@ impl StreamTransform {
                         id: Some(state.item_id.clone()),
                         caller: None,
                         namespace: None,
+                        async_: None,
                         status: Some(openai::ResponseItemLifecycleStatus::InProgress),
                         extra: Default::default(),
                     }
@@ -208,6 +209,7 @@ impl StreamTransform {
                             id: Some(state.item_id.clone()),
                             caller: None,
                             namespace: None,
+                            async_: None,
                             status: Some(openai::ResponseItemLifecycleStatus::InProgress),
                             extra: Default::default(),
                         }
@@ -245,6 +247,7 @@ impl StreamTransform {
                             id: None,
                             caller: None,
                             namespace: None,
+                            async_: None,
                             extra: Default::default(),
                         }
                     )),

@@ -19,6 +19,7 @@ pub(super) fn claude_tools_to_responses(
                     defer_loading: common.defer_loading,
                     description: tool.description,
                     allowed_callers: claude_callers_to_responses(common.allowed_callers),
+                    async_: None,
                     extra: Default::default(),
                 })
             }
@@ -284,6 +285,7 @@ fn claude_command_to_response(command: claude::CommandTool) -> Option<openai::Re
                 defer_loading: tool.common.defer_loading,
                 description: Some("Read or update persistent agent memory".to_owned()),
                 allowed_callers: claude_callers_to_responses(tool.common.allowed_callers),
+                async_: None,
                 extra: Default::default(),
             })
         }

@@ -210,6 +210,7 @@ impl StreamTransform {
                                     id: Some(item_id),
                                     caller: None,
                                     namespace: None,
+                                    async_: None,
                                     status: Some(openai::ResponseItemLifecycleStatus::Completed,),
                                     extra,
                                 }

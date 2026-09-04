@@ -6,9 +6,9 @@ use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue,
 
 use crate::channel::ChannelError;
 
-pub(super) const ORIGINATOR: &str = "codex_exec";
+pub(super) const ORIGINATOR: &str = "codex_cli_rs";
 pub(super) const USER_AGENT_VALUE: &str =
-    "codex_exec/0.147.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.147.0)";
+    "codex_cli_rs/0.153.2 (Debian 13.0.0; x86_64) xterm-256color";
 
 /// Inject the OAuth bearer and Codex CLI fingerprint. Client-provided session
 /// identifiers are preserved; otherwise a matching pair is generated.

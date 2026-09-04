@@ -26,6 +26,8 @@ impl From<String> for OpenAiModelId {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum OpenAiModelIdKnown {
+    #[serde(rename = "gpt-6-astra")]
+    Gpt6Astra,
     #[serde(rename = "gpt-5.6")]
     Gpt56,
     #[serde(rename = "gpt-5.6-sol")]

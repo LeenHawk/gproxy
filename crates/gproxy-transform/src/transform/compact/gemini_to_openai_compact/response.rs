@@ -69,6 +69,7 @@ fn gemini_content_to_compact_items(
                             .unwrap_or_else(|_| "{}".to_owned()),
                         caller: None,
                         namespace: None,
+                        async_: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
                         extra: Default::default(),
                     },

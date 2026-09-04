@@ -26,6 +26,7 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
             id,
             caller: None,
             namespace,
+            async_,
             status,
             ..
         }) => openai::ResponseItem::Typed(crate::protocol::wire!(
@@ -36,6 +37,7 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
                 id,
                 caller: None,
                 namespace,
+                async_,
                 status,
                 extra: Default::default(),
             }
@@ -46,6 +48,7 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
             name,
             id,
             namespace,
+            async_,
             ..
         }) => openai::ResponseItem::Typed(crate::protocol::wire!(
             openai::TypedResponseItem::CustomToolCall {
@@ -55,6 +58,7 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
                 id,
                 caller: None,
                 namespace,
+                async_,
                 extra: Default::default(),
             }
         )),

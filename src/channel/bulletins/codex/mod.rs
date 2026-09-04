@@ -1,5 +1,5 @@
 //! Codex channel — OpenAI ChatGPT-backend Responses API over OAuth2
-//! (`refresh_token` grant) plus the `codex_exec` impersonation header set.
+//! (`refresh_token` grant) plus the current Codex CLI identity headers.
 //!
 //! Its stream decoder backfills an empty terminal `response.completed` output
 //! from preceding items. Request shaping forces `stream`/`store`, strips
@@ -48,6 +48,15 @@ pub(crate) fn default_emulation() -> wreq::Emulation {
 impl Channel for CodexChannel {
     fn id(&self) -> &'static str {
         "codex"
+    }
+
+    fn classify(
+        &self,
+        status: http::StatusCode,
+        headers: &http::HeaderMap,
+        body: &Bytes,
+    ) -> crate::channel::Disposition {
+        crate::channel::bulletins::common::openai_disposition(status, headers, body)
     }
 
     /// ChatGPT-subscription account: the OAuth token is account-wide.
