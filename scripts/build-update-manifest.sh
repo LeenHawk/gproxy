@@ -31,7 +31,7 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 command -v openssl >/dev/null || { echo "openssl is required" >&2; exit 1; }
 
 schema_file="crates/gproxy-store/src/schema/catalog.rs"
-minimum="$(sed -n 's/^    Control = \([0-9][0-9]*\),$/\1/p' "$schema_file")"
+minimum="$(sed -n 's/^    Initial = \([0-9][0-9]*\),$/\1/p' "$schema_file")"
 if [ -z "$minimum" ]; then
   echo "could not derive minimum schema version" >&2
   exit 1
