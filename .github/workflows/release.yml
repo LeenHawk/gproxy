@@ -33,8 +33,36 @@ jobs:
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "matrix=$(jq -c . scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
 
+  console:
+    name: Console bundle
+    needs: prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          GPROXY_BUILD_HASH: ${{ github.sha }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: console-dist
+          path: console/dist
+          include-hidden-files: true
+          retention-days: 1
+
   container:
-    name: Console and container image
+    name: Container image
     needs: prepare
     runs-on: ubuntu-latest
     steps:
@@ -45,11 +73,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build console once
-        run: |
-          docker buildx build -f deploy/container/Dockerfile --target console-dist \
-            --build-arg "GPROXY_BUILD_HASH=$GITHUB_SHA" \
-            --output type=local,dest=dist/console .
       - name: Build, archive, and push container
         env:
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
@@ -80,24 +103,13 @@ jobs:
           mv dist/release/*.provenance.json dist/container/
       - uses: actions/upload-artifact@v7
         with:
-          name: console-embed
-          path: dist/console
-          include-hidden-files: true
-          retention-days: 1
-      - uses: actions/upload-artifact@v7
-        with:
-          name: console-dist
-          path: dist/console
-          retention-days: 1
-      - uses: actions/upload-artifact@v7
-        with:
           name: container-image
           path: dist/container/*
           retention-days: 1
 
   native:
     name: Native ${{ matrix.target }}
-    needs: [prepare, container]
+    needs: [prepare, console]
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -116,7 +128,7 @@ jobs:
             echo "update signing public key must decode to 32 bytes" >&2; exit 1; }
       - uses: actions/download-artifact@v8
         with:
-          name: console-embed
+          name: console-dist
           path: crates/gproxy-host-axum/assets/web
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -246,7 +258,7 @@ jobs:
 
   edge:
     name: Edge bundles
-    needs: container
+    needs: [prepare, console]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -308,7 +320,7 @@ jobs:
 
   publish:
     name: Publish release
-    needs: [prepare, manifest, edge, container]
+    needs: [prepare, manifest, edge, container, publish-crates]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
