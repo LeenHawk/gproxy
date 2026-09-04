@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn missing_usage_and_optional_details_stay_absent() {
-        let usage = claude::Usage {
+        let usage = crate::wire!(claude::Usage {
             input_tokens: Some(10),
             output_tokens: Some(3),
             cache_creation_input_tokens: None,
@@ -223,7 +223,7 @@ mod tests {
             service_tier: None,
             speed: None,
             rest: Default::default(),
-        };
+        });
         let response = claude_to_responses(usage.clone()).unwrap();
         let details = response.input_tokens_details.as_ref().unwrap();
         assert_eq!(details.cached_tokens, Some(2));
@@ -239,7 +239,7 @@ mod tests {
         assert_eq!(chat_to_claude(None), None);
         assert_eq!(responses_to_claude(None), None);
 
-        let incomplete = claude::Usage {
+        let incomplete = crate::wire!(claude::Usage {
             input_tokens: Some(10),
             output_tokens: None,
             cache_creation_input_tokens: None,
@@ -252,7 +252,7 @@ mod tests {
             service_tier: None,
             speed: None,
             rest: Default::default(),
-        };
+        });
         assert_eq!(claude_to_chat(incomplete.clone()), None);
         assert_eq!(claude_to_responses(incomplete), None);
     }

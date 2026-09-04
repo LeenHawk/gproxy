@@ -11,9 +11,14 @@ concurrency:
 jobs:
   backend:
     name: Backend
+    needs: console
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: console-dist
+          path: crates/gproxy-host-axum/assets/web
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -47,6 +52,11 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm i18n:check
+      - uses: actions/upload-artifact@v7
+        with:
+          name: console-dist
+          path: console/dist
+          retention-days: 1
 
   docs:
     name: Docs
