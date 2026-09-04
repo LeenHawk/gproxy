@@ -61,52 +61,6 @@ jobs:
           include-hidden-files: true
           retention-days: 1
 
-  container:
-    name: Container image
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build, archive, and push container
-        env:
-          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
-        run: |
-          test -n "$GPROXY_UPDATE_PUBKEY" || { echo "missing update signing public key" >&2; exit 1; }
-          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}"
-          docker buildx build -f deploy/container/Dockerfile --push \
-            --provenance=mode=max --sbom=true \
-            --build-arg "GPROXY_UPDATE_PUBKEY=$GPROXY_UPDATE_PUBKEY" \
-            --build-arg "GPROXY_VERSION=${{ needs.prepare.outputs.version }}" \
-            --build-arg "GPROXY_REVISION=$GITHUB_SHA" \
-            --build-arg "GPROXY_BUILD_VERSION=${{ needs.prepare.outputs.version }}" \
-            --build-arg "GPROXY_BUILD_CHANNEL=${{ needs.prepare.outputs.channel }}" \
-            --build-arg "GPROXY_BUILD_HASH=$GITHUB_SHA" \
-            --tag "$image" .
-          docker pull "$image"
-          mkdir -p dist/container
-          docker save "$image" | gzip -9 > dist/container/gproxy-container-linux-amd64.tar.gz
-          (cd dist/container && sha256sum gproxy-container-linux-amd64.tar.gz \
-            > gproxy-container-linux-amd64.tar.gz.sha256)
-      - name: Record build provenance
-        env:
-          ARTIFACT_NAME: gproxy-container-linux-amd64
-          GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
-          BUILDER: docker
-        run: |
-          scripts/build-provenance.sh
-          mv dist/release/*.provenance.json dist/container/
-      - uses: actions/upload-artifact@v7
-        with:
-          name: container-image
-          path: dist/container/*
-          retention-days: 1
-
   native:
     name: Native ${{ matrix.target }}
     needs: [prepare, console]
@@ -168,6 +122,18 @@ jobs:
                 build --locked --release --bin gproxy
               ;;
           esac
+      - name: Stage container binary
+        if: ${{ matrix.os == 'linux' }}
+        run: |
+          mkdir -p container-binary
+          cp "target/${{ matrix.target }}/release/gproxy" container-binary/gproxy
+      - name: Upload container binary
+        if: ${{ matrix.os == 'linux' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-bin-${{ matrix.target }}
+          path: container-binary/gproxy
+          retention-days: 1
       - name: Codesign binary
         if: ${{ matrix.os == 'macos' }}
         run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
@@ -212,6 +178,102 @@ jobs:
             dist/release/${{ matrix.artifact }}.apk
             dist/release/${{ matrix.artifact }}.apk.sha256
           retention-days: 1
+
+  container:
+    name: Container ${{ matrix.variant }}-${{ matrix.arch }}
+    needs: native
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: gnu
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: gnu
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: gnu
+            arch: riscv64
+            runner: ubuntu-latest
+            target: riscv64gc-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: musl
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            suffix: -musl
+            runtime_base: gcr.io/distroless/static-debian13
+          - variant: musl
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            suffix: -musl
+            runtime_base: gcr.io/distroless/static-debian13
+          - variant: musl
+            arch: riscv64
+            runner: ubuntu-latest
+            target: riscv64gc-unknown-linux-musl
+            suffix: -musl
+            runtime_base: gcr.io/distroless/static-debian13
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: container-bin-${{ matrix.target }}
+          path: dist
+      - run: |
+          chmod +x dist/gproxy
+          mkdir -p dist/data
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: metadata
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gproxy
+          tags: type=raw,value=${{ github.ref_name }}-${{ matrix.arch }}${{ matrix.suffix }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/container/Dockerfile.release
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: RUNTIME_BASE=${{ matrix.runtime_base }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+
+  container-manifest:
+    name: Container manifests
+    needs: container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GNU and musl manifests
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tag="$image:$GITHUB_REF_NAME"
+          docker buildx imagetools create -t "$tag" \
+            "$tag-amd64" "$tag-arm64" "$tag-riscv64"
+          docker buildx imagetools create -t "$tag-musl" \
+            "$tag-amd64-musl" "$tag-arm64-musl" "$tag-riscv64-musl"
 
   manifest:
     name: Signed update manifest
@@ -320,7 +382,7 @@ jobs:
 
   publish:
     name: Publish release
-    needs: [prepare, manifest, edge, container, publish-crates]
+    needs: [prepare, manifest, edge, container-manifest, publish-crates]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -336,10 +398,6 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: edge-bundles
-          path: dist/publish
-      - uses: actions/download-artifact@v8
-        with:
-          name: container-image
           path: dist/publish
       - name: Publish GitHub Release assets
         env:

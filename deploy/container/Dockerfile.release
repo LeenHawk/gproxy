@@ -1,0 +1,17 @@
+# Thin release image assembled from a prebuilt Linux binary.
+ARG RUNTIME_BASE=gcr.io/distroless/cc-debian13
+FROM ${RUNTIME_BASE}
+
+WORKDIR /app
+
+COPY --chmod=755 dist/gproxy /usr/local/bin/gproxy
+COPY --chown=65532:65532 dist/data /app/data
+
+USER 65532:65532
+EXPOSE 8787
+ENV GPROXY_HOST=0.0.0.0 \
+    GPROXY_PORT=8787 \
+    GPROXY_DATA_DIR=/app/data \
+    GPROXY_PERSISTENCE=sqlite
+
+ENTRYPOINT ["/usr/local/bin/gproxy"]
