@@ -4,8 +4,8 @@ import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDt
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ChevronDownIcon, ChevronsUpDownIcon, PencilIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
-import { useCallback, useEffect, useId, useMemo, useState } from "react"
+import { ChevronsUpDownIcon, PencilIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
+import { useId, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ApiError } from "@/api/client"
@@ -40,33 +40,26 @@ export function CredentialCard(props: Props) {
   const name = credential.label ?? t("providers.credentials.unnamed", { id: credential.id })
   const client = useQueryClient()
   const [resetOpen, setResetOpen] = useState(false)
-  const [quotaOpen, setQuotaOpen] = useState(false)
-  /* The probe result lives in the query cache, not component state — v2 kept
-     it with an infinite staleTime so leaving and revisiting the credential
-     does not discard the last observed snapshot. */
   const probe = useQuery({
-    queryKey: ["credential-quota-probe", credential.id],
-    queryFn: () => probeCredentialQuota(credential.id),
-    enabled: false,
+    queryKey: ["credential-quota-probe", credential.id, credential.version],
+    queryFn: async () => {
+      const result = await probeCredentialQuota(credential.id)
+      void client.invalidateQueries({ queryKey: ["credential-cycles"] })
+      return result
+    },
     retry: false,
     staleTime: Infinity,
     gcTime: Infinity,
   })
   const quota = probe.data ?? null
-  const refetchQuota = probe.refetch
-  const refresh = useCallback(async (notifySuccess = true) => {
-    const result = await refetchQuota()
+  const refresh = async () => {
+    const result = await probe.refetch()
     if (result.isSuccess) {
-      await client.invalidateQueries({ queryKey: ["credential-cycles"] })
-      if (notifySuccess) toast.success(t("providers.credentials.quotaProbe.success", { count: result.data.windows.length }))
+      toast.success(t("providers.credentials.quotaProbe.success", { count: result.data.windows.length }))
     } else if (result.isError) {
       toast.error(result.error instanceof ApiError ? result.error.message : t("providers.credentials.quotaProbe.error"))
     }
-  }, [client, refetchQuota, t])
-  useEffect(() => {
-    if (!quotaOpen || probe.isFetched || probe.isFetching) return
-    void refresh(false)
-  }, [probe.isFetched, probe.isFetching, quotaOpen, refresh])
+  }
   const reset = useMutation({
     mutationFn: () => resetCredentialQuota(credential.id),
     onSuccess: async (result) => {
@@ -141,25 +134,14 @@ export function CredentialCard(props: Props) {
             }
           />
           <EntityDeleteButton entity="credentials" id={credential.id} label={name} queryKeys={["credentials", "credential-cycles"]} />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("providers.credentials.quota.title")}
-            aria-expanded={quotaOpen}
-            onClick={() => setQuotaOpen((open) => !open)}
-          >
-            <ChevronDownIcon aria-hidden className={quotaOpen ? "transition-transform" : "-rotate-90 transition-transform"} />
-          </Button>
         </CardAction>
       </CardHeader>
-      {quotaOpen ? (
         <CardContent className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-medium">{t("providers.credentials.quota.title")}</p>
               <p className="text-xs text-muted-foreground">{t("providers.credentials.quota.hint")}</p>
             </div>
-            {/* Live upstream call; some upstreams rate-limit it, so it only fires on demand. */}
             <Button variant="outline" size="sm" className="shrink-0" disabled={probe.isFetching || reset.isPending} onClick={() => void refresh()}>
               <RefreshCwIcon aria-hidden className={probe.isFetching ? "animate-spin" : undefined} />
               {probe.isFetching ? t("providers.credentials.quotaProbe.pending") : t("providers.credentials.quotaProbe.action")}
@@ -167,9 +149,11 @@ export function CredentialCard(props: Props) {
           </div>
           <CredentialCycleList
             cycles={props.cycles}
-            loading={props.cyclesLoading || (probe.isFetching && props.cycles.length === 0)}
-            error={props.cyclesError}
+            windows={quota?.windows}
+            loading={!quota && (props.cyclesLoading || probe.isFetching)}
+            error={!quota && props.cyclesError}
           />
+          {probe.isError ? <p role="alert" className="text-sm text-destructive">{probe.error instanceof ApiError ? probe.error.message : t("providers.credentials.quotaProbe.error")}</p> : null}
             {resetCredits ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
                 <p className="min-w-0 text-sm">
@@ -204,7 +188,6 @@ export function CredentialCard(props: Props) {
               </Collapsible>
             ) : null}
         </CardContent>
-      ) : null}
       </Card>
       <ConfirmDangerous
         open={resetOpen}

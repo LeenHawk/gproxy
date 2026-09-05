@@ -4,4 +4,4 @@
  * One window returned by a credential quota probe, echoing what was folded
  * into the credential's quota cycles.
  */
-export type QuotaProbeWindowDto = { window_key: string, used_percent: string | null, period_end: number | null, };
+export type QuotaProbeWindowDto = { window_key: string, label: string | null, used_percent: string | null, period_end: number | null, };

@@ -44,14 +44,11 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         return Vec::new();
     };
     let mut observations = Vec::new();
-    // Top-level windows follow a naming scheme, not a fixed set: five_hour,
-    // seven_day, and one seven_day_<model> per model family the account
-    // meters (opus, sonnet, fable, ...). Match the scheme so new model
-    // windows surface without a code change.
     for (key, value) in &usage.windows {
         let duration = match key.as_str() {
-            "five_hour" => FIVE_HOURS,
-            key if key == "seven_day" || key.starts_with("seven_day_") => SEVEN_DAYS,
+            "five_hour" => Some(FIVE_HOURS),
+            key if key == "seven_day" || key.starts_with("seven_day_") => Some(SEVEN_DAYS),
+            _ if value.get("utilization").is_some() && value.get("resets_at").is_some() => None,
             _ => continue,
         };
         let Ok(window) = serde_json::from_value::<ClaudeWindow>(value.clone()) else {
@@ -69,13 +66,8 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             continue;
         };
         let (key, duration) = match kind {
-            // The windows block wins when both report the same limit.
-            "session" if !usage.windows.contains_key("five_hour") => {
-                ("five_hour".to_owned(), FIVE_HOURS)
-            }
-            "weekly_all" if !usage.windows.contains_key("seven_day") => {
-                ("seven_day".to_owned(), SEVEN_DAYS)
-            }
+            "session" => ("five_hour".to_owned(), FIVE_HOURS),
+            "weekly_all" => ("seven_day".to_owned(), SEVEN_DAYS),
             "weekly_scoped" => match limit.scope_key() {
                 Some(key) => (key, SEVEN_DAYS),
                 None => continue,
@@ -88,19 +80,25 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         {
             continue;
         }
-        observations.push(observation(
+        let mut observed = observation(
             key,
-            duration,
+            Some(duration),
             limit.percent,
             limit.resets_at.as_deref(),
-        ));
+        );
+        observed.label = limit
+            .scope
+            .as_ref()
+            .and_then(|scope| scope.model.as_ref())
+            .and_then(|model| model.display_name.clone());
+        observations.push(observed);
     }
     observations
 }
 
 fn observation(
     window_key: String,
-    duration: i64,
+    duration: Option<i64>,
     percent: Option<f64>,
     resets_at: Option<&str>,
 ) -> QuotaObservation {
@@ -108,7 +106,9 @@ fn observation(
     QuotaObservation {
         window_key,
         label: None,
-        period_start: period_end.map(|end| end - duration),
+        period_start: period_end
+            .zip(duration)
+            .map(|(end, duration)| end - duration),
         period_end,
         used_percent: percent.and_then(|value| Decimal::try_from(value).ok()),
         upstream_used: None,

@@ -106,6 +106,7 @@ pub struct DiscoveredModelDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct QuotaProbeWindowDto {
     pub window_key: String,
+    pub label: Option<String>,
     pub used_percent: Option<String>,
     pub period_end: Option<i64>,
 }

@@ -21,7 +21,6 @@ import {
 } from "@/api/observability"
 import { ProvidersView } from "@/components/providers/providers-view"
 import { useRuleMutations } from "@/components/rules/use-rule-mutations"
-import { useNow } from "@/lib/use-now"
 
 const MAX_CYCLE_RANGE_SECONDS = 366 * 24 * 60 * 60
 const PROVIDER_QUERY_KEYS = [["providers"], ["rule-sets"], ["provider-rule-sets"], ["routing-rules"]]
@@ -32,15 +31,17 @@ type CredentialMutation = { value: CredentialWriteRequest; id?: number }
 export function ProvidersPage() {
   const queryClient = useQueryClient()
   const ruleMutations = useRuleMutations()
-  const to = useNow() + 1
-  const cycleRange = { from: to - MAX_CYCLE_RANGE_SECONDS, to }
   const providers = useQuery({ queryKey: ["providers"], queryFn: fetchProviders })
   const credentials = useQuery({ queryKey: ["credentials"], queryFn: fetchCredentials })
   const channels = useQuery({ queryKey: ["channels"], queryFn: fetchChannels })
   const presets = useQuery({ queryKey: ["tls-presets"], queryFn: fetchTlsPresets })
   const cycles = useQuery({
-    queryKey: ["credential-cycles", cycleRange.from, cycleRange.to],
-    queryFn: () => fetchCredentialCycles(cycleRange.from, cycleRange.to),
+    queryKey: ["credential-cycles", "providers"],
+    queryFn: () => {
+      const to = Math.floor(Date.now() / 1000) + 1
+      return fetchCredentialCycles(to - MAX_CYCLE_RANGE_SECONDS, to)
+    },
+    refetchInterval: 60_000,
   })
   const setQuery = useQuery({ queryKey: ["rule-sets"], queryFn: ruleSets })
   const ruleQuery = useQuery({ queryKey: ["rules"], queryFn: rules })

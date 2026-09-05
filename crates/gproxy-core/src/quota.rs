@@ -43,6 +43,11 @@ impl<H: Host> Core<H> {
         };
         crate::fingerprint::apply_request(&mut request, provider)?;
         let (status, body) = self.buffered(request).await?;
+        if !status.is_success() {
+            return Err(CoreError::UpstreamExhausted(format!(
+                "usage endpoint returned HTTP {status}"
+            )));
+        }
         let raw = String::from_utf8_lossy(&body).into_owned();
         let observations = channel.parse_quota_probe(status, &body);
         let mut reset_credits = channel.parse_quota_probe_credits(status, &body);

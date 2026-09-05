@@ -35,6 +35,7 @@ pub(super) async fn run(
             .into_iter()
             .map(|observation| QuotaProbeWindowDto {
                 window_key: observation.window_key,
+                label: observation.label,
                 used_percent: observation.used_percent.map(|value| value.to_string()),
                 period_end: observation.period_end,
             })

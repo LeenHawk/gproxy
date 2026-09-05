@@ -1,7 +1,6 @@
 import type { CredentialDto } from "@/generated/CredentialDto"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import "@/i18n"
 import { CredentialCard } from "@/components/providers/credential-card"
@@ -31,7 +30,7 @@ const credential: CredentialDto = {
 describe("CredentialCard", () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it("probes a new credential when its quota panel is first opened", async () => {
+  it("loads usage when the credential opens", async () => {
     let resolveProbe!: (response: Response) => void
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(() => new Promise((resolve) => { resolveProbe = resolve }))
     vi.stubGlobal("fetch", fetchMock)
@@ -52,8 +51,6 @@ describe("CredentialCard", () => {
       </QueryClientProvider>,
     )
 
-    await userEvent.click(screen.getByRole("button", { name: "Upstream quota" }))
-
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/admin/api/credentials/7/quota-probe")
     expect(screen.getByText("Loading…")).toBeInTheDocument()
@@ -62,6 +59,6 @@ describe("CredentialCard", () => {
       status: 200,
       headers: { "content-type": "application/json" },
     }))
-    await waitFor(() => expect(screen.getByText("No upstream quota cycle observed.")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("The usage endpoint reported no quota windows.")).toBeInTheDocument())
   })
 })
