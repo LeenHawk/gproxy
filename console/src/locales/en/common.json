@@ -179,7 +179,8 @@
     },
     "closeReason": {
       "boundary_crossed": "Boundary crossed",
-      "manual_reset": "Manual reset"
+      "manual_reset": "Manual reset",
+      "usage_decreased": "Upstream usage reset"
     },
     "usageUnknown": "Upstream usage is unavailable for this period."
   }

@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+mod regression;
 use serde_json::json;
 
 use crate::records::{
@@ -51,7 +52,8 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
         .observe_credential_quota_cycle(&observation(credential_id, "primary", 0, 200, 110, 5))
         .await?;
     assert_ne!(crossed.id, first.id);
-    assert_eq!(crossed.period_start, Some(100));
+    assert_eq!(crossed.period_start, Some(0));
+    assert_eq!(crossed.accounting_start_ms, 100_000);
     assert_eq!(crossed.coverage, QuotaCoverage::FullPeriodLowerBound);
     let history = store
         .credential_quota_cycle_history(credential_id, "primary")
@@ -165,7 +167,8 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     let resumed = store
         .observe_credential_quota_cycle(&observation(credential_id, "gap", 0, 200, 110, 1))
         .await?;
-    assert_eq!(resumed.period_start, Some(100));
+    assert_eq!(resumed.period_start, Some(0));
+    assert_eq!(resumed.accounting_start_ms, 100_000);
     let skipped = store
         .observe_credential_quota_cycle(&observation(credential_id, "skip", 0, 100, 10, 1))
         .await?;
@@ -199,6 +202,13 @@ fn observation(
     used: i64,
 ) -> CredentialQuotaObservation {
     CredentialQuotaObservation {
+        unit: Some("requests".into()),
+        reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
+        scope: gproxy_core::QuotaScope::All,
+        sample: gproxy_core::QuotaSample {
+            started_at_ms: observed_at * 1000,
+            received_at_ms: observed_at * 1000,
+        },
         credential_id,
         window_key: window_key.into(),
         label: None,

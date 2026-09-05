@@ -4,6 +4,22 @@ use sha2::{Digest, Sha256};
 
 use crate::AppHandle;
 
+pub(super) async fn reveal_credential_secret(
+    app: &AppHandle,
+    id: i64,
+) -> Result<serde_json::Value, AdminError> {
+    let services = &app.inner.host.services;
+    let stored = services
+        .store
+        .credential(id)
+        .await?
+        .ok_or(AdminError::NotFound)?;
+    services
+        .cipher
+        .open(&stored.envelope)
+        .map_err(|error| AdminError::Internal(error.to_string()))
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) fn tokenizer_dto(
     vocab: gproxy_store::records::TokenizerVocabRecord,

@@ -1,158 +1,117 @@
-use sea_query::{Alias, Expr, ExprTrait, Query};
-use serde::Serialize;
-
-use super::COLUMNS;
-use crate::StoreError;
-use crate::backend::Statement;
 use crate::query::common::{decimal, json, value};
-use crate::records::{
-    CredentialQuotaCycleRecord, CredentialQuotaObservation, QuotaBoundaryConfidence,
-    QuotaBoundarySource, QuotaCoverage, QuotaCycleCloseReason, QuotaCycleStatus,
-};
+use crate::records::CredentialQuotaCycleRecord;
+use crate::{StoreError, backend::Statement};
+use sea_query::{Alias, Expr, ExprTrait, Query, SimpleExpr};
 
-pub(crate) fn insert_credential_quota_cycle(
-    input: &CredentialQuotaObservation,
-    coverage: QuotaCoverage,
-    metrics: &serde_json::Value,
+fn values(record: &CredentialQuotaCycleRecord) -> Result<Vec<SimpleExpr>, StoreError> {
+    Ok(vec![
+        value(record.version),
+        value(record.credential_id),
+        value(record.window_key.clone()),
+        value(record.period_start),
+        value(record.period_end),
+        value(text(&record.boundary_source)?),
+        value(text(&record.boundary_confidence)?),
+        value(text(&record.status)?),
+        value(
+            record
+                .close_reason
+                .map(|reason| text(&reason))
+                .transpose()?,
+        ),
+        value((record.status == crate::records::QuotaCycleStatus::Open).then_some(1)),
+        value(record.last_observed_at),
+        value(record.upstream_used.map(decimal)),
+        value(record.upstream_limit.map(decimal)),
+        value(record.used_percent.map(decimal)),
+        value(text(&record.coverage)?),
+        value(json(&record.metrics, "metrics")?),
+        value(record.label.clone()),
+        value(record.accounting_start_ms),
+        value(record.accounting_end_ms),
+        value(
+            serde_json::to_string(&record.tracking)
+                .map_err(|error| StoreError::Database(error.to_string()))?,
+        ),
+    ])
+}
+
+pub(crate) fn insert_tracked_cycle(
+    record: &CredentialQuotaCycleRecord,
+    previous: Option<&CredentialQuotaCycleRecord>,
 ) -> Result<Statement, StoreError> {
+    let mut selected = Query::select();
+    selected.exprs(values(record)?);
+    if let Some(previous) = previous {
+        let mut guard = Query::select();
+        guard
+            .expr(Expr::val(1))
+            .from(Alias::new("credential_quota_cycles"))
+            .and_where(Expr::col(Alias::new("id")).eq(previous.id))
+            .and_where(Expr::col(Alias::new("version")).eq(previous.version))
+            .and_where(Expr::col(Alias::new("status")).eq("closed"));
+        selected.and_where(Expr::exists(guard));
+        let mut newer = Query::select();
+        newer
+            .expr(Expr::val(1))
+            .from(Alias::new("credential_quota_cycles"))
+            .and_where(Expr::col(Alias::new("credential_id")).eq(record.credential_id))
+            .and_where(Expr::col(Alias::new("window_key")).eq(&record.window_key))
+            .and_where(Expr::col(Alias::new("id")).gt(previous.id));
+        selected.and_where(Expr::exists(newer).not());
+    }
     let mut query = Query::insert();
     query
         .into_table(Alias::new("credential_quota_cycles"))
-        .columns(COLUMNS[1..].iter().copied().map(Alias::new))
-        .values_panic([
-            value(0),
-            value(input.credential_id),
-            value(input.window_key.clone()),
-            value(input.period_start),
-            value(input.period_end),
-            value(enum_text(&input.boundary_source, "boundary_source")?),
-            value(enum_text(
-                &input.boundary_confidence,
-                "boundary_confidence",
-            )?),
-            value(enum_text(&QuotaCycleStatus::Open, "status")?),
-            value(Option::<String>::None),
-            value(1),
-            value(input.observed_at),
-            value(input.upstream_used.map(decimal)),
-            value(input.upstream_limit.map(decimal)),
-            value(input.used_percent.map(decimal)),
-            value(enum_text(&coverage, "coverage")?),
-            value(json(metrics, "metrics")?),
-            value(input.label.clone()),
-        ])
-        .returning_col(Alias::new("id"));
+        .columns(super::COLUMNS[1..].iter().copied().map(Alias::new))
+        .select_from(selected)
+        .map_err(|error| StoreError::Database(error.to_string()))?;
     Statement::query(&query)
 }
 
-pub(crate) fn update_credential_quota_cycle(
-    expected: &CredentialQuotaCycleRecord,
-    input: &CredentialQuotaObservation,
-    coverage: QuotaCoverage,
-    metrics: &serde_json::Value,
+pub(crate) fn update_tracked_cycle(
+    record: &CredentialQuotaCycleRecord,
+    expected: u64,
 ) -> Result<Statement, StoreError> {
     let mut query = Query::update();
     query
         .table(Alias::new("credential_quota_cycles"))
-        .values([
-            (
-                Alias::new("version"),
-                value(expected.version.saturating_add(1)),
-            ),
-            (Alias::new("period_start"), value(input.period_start)),
-            (Alias::new("period_end"), value(input.period_end)),
-            (
-                Alias::new("boundary_source"),
-                value(enum_text(&input.boundary_source, "boundary_source")?),
-            ),
-            (
-                Alias::new("boundary_confidence"),
-                value(enum_text(
-                    &input.boundary_confidence,
-                    "boundary_confidence",
-                )?),
-            ),
-            (Alias::new("last_observed_at"), value(input.observed_at)),
-            (
-                Alias::new("upstream_used"),
-                value(input.upstream_used.map(decimal)),
-            ),
-            (
-                Alias::new("upstream_limit"),
-                value(input.upstream_limit.map(decimal)),
-            ),
-            (
-                Alias::new("used_percent"),
-                value(input.used_percent.map(decimal)),
-            ),
-            (
-                Alias::new("coverage"),
-                value(enum_text(&coverage, "coverage")?),
-            ),
-            (Alias::new("metrics_json"), value(json(metrics, "metrics")?)),
-            (Alias::new("label"), value(input.label.clone())),
-        ])
-        .and_where(Expr::col(Alias::new("id")).eq(expected.id))
-        .and_where(Expr::col(Alias::new("open_slot")).eq(1))
-        .and_where(Expr::col(Alias::new("version")).eq(expected.version));
+        .values(
+            super::COLUMNS[1..]
+                .iter()
+                .copied()
+                .map(Alias::new)
+                .zip(values(record)?),
+        )
+        .and_where(Expr::col(Alias::new("id")).eq(record.id))
+        .and_where(Expr::col(Alias::new("version")).eq(expected));
     Statement::query(&query)
 }
 
-pub(crate) fn close_credential_quota_cycle(
-    expected: &CredentialQuotaCycleRecord,
-    period_end: i64,
-    boundary_source: QuotaBoundarySource,
-    boundary_confidence: QuotaBoundaryConfidence,
-    reason: QuotaCycleCloseReason,
-    observed_before: Option<i64>,
-    metrics: &serde_json::Value,
+pub(crate) fn update_cycle_after_link(
+    record: &CredentialQuotaCycleRecord,
+    expected: u64,
 ) -> Result<Statement, StoreError> {
     let mut query = Query::update();
     query
         .table(Alias::new("credential_quota_cycles"))
-        .values([
-            (
-                Alias::new("version"),
-                value(expected.version.saturating_add(1)),
-            ),
-            (Alias::new("period_end"), value(period_end)),
-            (
-                Alias::new("boundary_source"),
-                value(enum_text(&boundary_source, "boundary_source")?),
-            ),
-            (
-                Alias::new("boundary_confidence"),
-                value(enum_text(&boundary_confidence, "boundary_confidence")?),
-            ),
-            (
-                Alias::new("status"),
-                value(enum_text(&QuotaCycleStatus::Closed, "status")?),
-            ),
-            (
-                Alias::new("close_reason"),
-                value(enum_text(&reason, "close_reason")?),
-            ),
-            (
-                Alias::new("metrics_json"),
-                value(json(metrics, "metrics_json")?),
-            ),
-            (Alias::new("open_slot"), value(Option::<i64>::None)),
-        ])
-        .and_where(Expr::col(Alias::new("id")).eq(expected.id))
-        .and_where(Expr::col(Alias::new("open_slot")).eq(1))
-        .and_where(Expr::col(Alias::new("version")).eq(expected.version));
-    if let Some(observed_at) = observed_before {
-        query.and_where(Expr::col(Alias::new("last_observed_at")).lte(observed_at));
-    }
+        .values(
+            super::COLUMNS[1..]
+                .iter()
+                .copied()
+                .map(Alias::new)
+                .zip(values(record)?),
+        )
+        .and_where(Expr::col(Alias::new("id")).eq(record.id))
+        .and_where(Expr::col(Alias::new("version")).eq(expected))
+        .and_where(Expr::from(sea_query::Func::cust(Alias::new("changes"))).gt(0));
     Statement::query(&query)
 }
 
-fn enum_text(value: &impl Serialize, field: &'static str) -> Result<String, StoreError> {
+fn text(value: &impl serde::Serialize) -> Result<String, StoreError> {
     serde_json::to_value(value)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .ok_or_else(|| StoreError::InvalidData {
-            field,
-            message: "enum did not serialize as text".into(),
-        })
+        .map_err(|error| StoreError::Database(error.to_string()))?
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| StoreError::Database("invalid enum".into()))
 }

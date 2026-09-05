@@ -21,6 +21,19 @@ pub struct QuotaProbeResult {
 }
 
 impl<H: Host> Core<H> {
+    pub async fn quota_capabilities(
+        &self,
+        channel: &str,
+        credential: CredentialId,
+    ) -> Result<Option<gproxy_channel_api::QuotaCapabilities>, CoreError> {
+        let channel = self
+            .channels
+            .get(channel)
+            .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
+        let record = self.host.credentials().load(credential).await?;
+        Ok(channel.quota_capabilities(&record.secret))
+    }
+
     pub async fn quota_probe(
         &self,
         channel: &str,
@@ -37,19 +50,33 @@ impl<H: Host> Core<H> {
             .get(channel)
             .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
         let record = self.host.credentials().load(credential).await?;
+        if !channel
+            .quota_capabilities(&record.secret)
+            .is_some_and(|capability| capability.probe)
+        {
+            return Err(CoreError::Unsupported);
+        }
         let Some(mut request) = channel.prepare_quota_probe(&record.secret, &provider.settings)?
         else {
             return Err(CoreError::Unsupported);
         };
         crate::fingerprint::apply_request(&mut request, provider)?;
+        let started_at_ms = now_ms();
         let (status, body) = self.buffered(request).await?;
+        let received_at_ms = now_ms();
         if !status.is_success() {
             return Err(CoreError::UpstreamExhausted(format!(
                 "usage endpoint returned HTTP {status}"
             )));
         }
         let raw = String::from_utf8_lossy(&body).into_owned();
-        let observations = channel.parse_quota_probe(status, &body);
+        let mut observations = channel.parse_quota_probe(status, &body);
+        for observation in &mut observations {
+            observation.sample = Some(gproxy_channel_api::QuotaSample {
+                started_at_ms,
+                received_at_ms,
+            });
+        }
         let mut reset_credits = channel.parse_quota_probe_credits(status, &body);
         // The dedicated credits endpoint carries per-credit expiry the usage
         // summary lacks; a failed detail call keeps the summary's count.
@@ -92,6 +119,12 @@ impl<H: Host> Core<H> {
             .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
         let record = self.host.credentials().load(credential).await?;
         let redeem_request_id = redeem_request_id()?;
+        if !channel
+            .quota_capabilities(&record.secret)
+            .is_some_and(|capability| capability.reset)
+        {
+            return Err(CoreError::Unsupported);
+        }
         let Some(mut request) =
             channel.prepare_quota_reset(&record.secret, &provider.settings, &redeem_request_id)?
         else {
@@ -112,6 +145,15 @@ impl<H: Host> Core<H> {
     ) -> Result<(http::StatusCode, BytesMut), CoreError> {
         let response = self.host.transport().send(request).await?;
         let (parts, mut stream) = response.into_parts();
+        if !parts.status.is_success()
+            && let Some(retry_after_secs) = parts
+                .headers
+                .get(http::header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<u32>().ok())
+        {
+            return Err(CoreError::RateLimited { retry_after_secs });
+        }
         let mut body = BytesMut::new();
         while let Some(chunk) = stream.next().await {
             body.extend_from_slice(&chunk?);
@@ -125,4 +167,11 @@ fn redeem_request_id() -> Result<String, CoreError> {
     getrandom::fill(&mut bytes)
         .map_err(|_| CoreError::Internal("secure randomness unavailable".into()))?;
     Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes))
+}
+
+pub(crate) fn now_ms() -> i64 {
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .expect("system clock is after Unix epoch")
+        .as_millis() as i64
 }

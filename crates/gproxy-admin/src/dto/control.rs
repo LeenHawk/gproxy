@@ -59,6 +59,8 @@ pub struct CredentialModelHealthDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct CredentialDto {
+    #[serde(default)]
+    pub quota_capabilities: Option<super::QuotaCapabilitiesDto>,
     pub id: i64,
     pub provider_id: i64,
     pub label: Option<String>,

@@ -105,6 +105,9 @@ pub struct DiscoveredModelDto {
 /// into the credential's quota cycles.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct QuotaProbeWindowDto {
+    pub upstream_used: Option<String>,
+    pub upstream_limit: Option<String>,
+    pub unit: Option<String>,
     pub window_key: String,
     pub label: Option<String>,
     pub used_percent: Option<String>,
@@ -117,6 +120,8 @@ pub struct QuotaProbeResponse {
     pub reset_credits: Option<QuotaResetCreditsDto>,
     /// Verbatim usage-endpoint body for operator inspection.
     pub raw: String,
+    pub cycles: Vec<super::CredentialQuotaCycleDto>,
+    pub local_error: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

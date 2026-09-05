@@ -122,6 +122,7 @@ async fn finish<H: Host>(
         Disposition::Terminal
     };
     let ctx = FunnelCtx {
+        upstream_started_at_ms: None,
         request_id: request.request_id.clone(),
         target: selected.target,
         credential_version: None,

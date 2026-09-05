@@ -5,7 +5,8 @@ use crate::backend::Statement;
 use crate::query::common::{decimal, json, unsigned, value};
 use crate::records::UsageInput;
 
-const COLUMNS: &[&str] = &[
+pub(crate) const COLUMNS: &[&str] = &[
+    "upstream_started_at_ms",
     "request_id",
     "at",
     "provider_id",
@@ -33,6 +34,7 @@ pub(crate) fn insert_usage(input: &UsageInput) -> Result<Statement, StoreError> 
         .into_table(Alias::new("usage_rows"))
         .columns(COLUMNS.iter().copied().map(Alias::new))
         .values_panic([
+            value(input.upstream_started_at_ms),
             value(input.request_id.clone()),
             value(input.at),
             value(input.provider_id),

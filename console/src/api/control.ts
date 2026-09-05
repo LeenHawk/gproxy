@@ -59,8 +59,8 @@ import { api, json } from "@/api/client"
 const save = <T, R = unknown>(path: string, value: T, id?: number) =>
   api<R>(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
 
-export const probeCredentialQuota = (id: number) =>
-  api<QuotaProbeResponse>(`/admin/api/credentials/${id}/quota-probe`, json("POST", {}))
+export const probeCredentialQuota = (id: number, force = false) =>
+  api<QuotaProbeResponse>(`/admin/api/credentials/${id}/quota-probe${force ? "?force=true" : ""}`, json("POST", {}))
 export const resetCredentialQuota = (id: number) =>
   api<QuotaResetResponse>(`/admin/api/credentials/${id}/quota-reset`, json("POST", {}))
 export const resetCredentialHealth = (id: number) =>

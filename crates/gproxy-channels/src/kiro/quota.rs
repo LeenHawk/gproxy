@@ -60,6 +60,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         .iter()
         .enumerate()
         .map(|(index, item)| QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: gproxy_channel_api::QuotaScope::All,
+            sample: None,
             window_key: item
                 .resource_type
                 .as_deref()

@@ -73,6 +73,10 @@ fn window(record: &Value, window_key: String, seconds: Option<i64>) -> Option<Qu
     }
     let period_end = text(record.get("resetTime")).and_then(crate::shared::quota::iso_to_unix);
     Some(QuotaObservation {
+        unit: None,
+        reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+        scope: gproxy_channel_api::QuotaScope::All,
+        sample: None,
         window_key,
         label: None,
         period_start: period_end

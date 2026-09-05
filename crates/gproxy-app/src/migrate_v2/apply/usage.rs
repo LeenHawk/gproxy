@@ -172,6 +172,7 @@ fn history_row(
         &context.user_keys,
     );
     Ok(UsageInput {
+        upstream_started_at_ms: None,
         request_id: usage.request_id.clone(),
         at: usage.at,
         provider_id: id(&context.providers, required(usage.provider_id, "provider")?)?,

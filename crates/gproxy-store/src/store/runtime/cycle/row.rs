@@ -8,7 +8,12 @@ use crate::records::{
 };
 
 pub(super) fn parse(row: Row) -> Result<CredentialQuotaCycleRecord, StoreError> {
-    Ok(CredentialQuotaCycleRecord {
+    let mut cycle = CredentialQuotaCycleRecord {
+        estimate: None,
+        accounting_start_ms: row.i64("accounting_start_ms")?,
+        accounting_end_ms: row.optional_i64("accounting_end_ms")?,
+        tracking: serde_json::from_str(row.text("tracking_json")?)
+            .map_err(|error| invalid("tracking_json", error))?,
         id: row.i64("id")?,
         version: u64::try_from(row.i64("version")?).map_err(|error| invalid("version", error))?,
         credential_id: row.i64("credential_id")?,
@@ -31,7 +36,21 @@ pub(super) fn parse(row: Row) -> Result<CredentialQuotaCycleRecord, StoreError> 
         metrics: serde_json::from_str(row.text("metrics_json")?)
             .map_err(|error| invalid("metrics_json", error))?,
         models: Vec::new(),
-    })
+    };
+    {
+        let tracking = &cycle.tracking;
+        cycle.models = tracking
+            .models
+            .iter()
+            .map(
+                |(model, metrics)| crate::records::CredentialQuotaCycleModelRecord {
+                    model: model.clone(),
+                    metrics: metrics.clone(),
+                },
+            )
+            .collect();
+    }
+    Ok(cycle)
 }
 
 fn decimal(row: &Row, field: &'static str) -> Result<Option<rust_decimal::Decimal>, StoreError> {

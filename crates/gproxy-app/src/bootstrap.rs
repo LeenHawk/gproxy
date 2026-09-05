@@ -95,6 +95,7 @@ impl App {
         };
         handle.sync_invalidation().await?;
         crate::invalidation::schedule(&handle);
+        crate::quota_refresh::schedule(&handle);
         Ok(handle)
     }
 }

@@ -80,6 +80,10 @@ fn personal(accounts: &[Value]) -> Vec<QuotaObservation> {
             let left = number(resource, "CycleCapacityRemainPrecise").unwrap_or(Decimal::ZERO);
             let used = (limit - left).max(Decimal::ZERO);
             QuotaObservation {
+                unit: None,
+                reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+                scope: gproxy_channel_api::QuotaScope::All,
+                sample: None,
                 window_key: string(resource, "PackageCode")
                     .or_else(|| string(resource, "ResourceId"))
                     .map(str::to_owned)
@@ -100,6 +104,10 @@ fn enterprise(data: &Value) -> Option<QuotaObservation> {
     let limit = number(data, "limitNum")?;
     let used = number(data, "credit").unwrap_or(Decimal::ZERO);
     Some(QuotaObservation {
+        unit: None,
+        reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+        scope: gproxy_channel_api::QuotaScope::All,
+        sample: None,
         window_key: "enterprise".into(),
         label: None,
         period_start: None,

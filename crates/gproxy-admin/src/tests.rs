@@ -24,6 +24,12 @@ struct TestState {
 }
 
 impl State for TestState {
+    fn credential_quota_capabilities(
+        &self,
+        _: i64,
+    ) -> BoxFuture<'_, Result<Option<crate::dto::QuotaCapabilitiesDto>, AdminError>> {
+        Box::pin(async { Ok(None) })
+    }
     fn store(&self) -> &gproxy_store::Store {
         &self.store
     }
@@ -92,6 +98,7 @@ impl State for TestState {
     fn quota_probe<'a>(
         &'a self,
         _: i64,
+        _: bool,
     ) -> BoxFuture<'a, Result<crate::dto::QuotaProbeResponse, AdminError>> {
         Box::pin(async {
             Err(AdminError::BadRequest(

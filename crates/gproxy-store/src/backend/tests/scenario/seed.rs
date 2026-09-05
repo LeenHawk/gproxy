@@ -105,6 +105,7 @@ pub(super) async fn seed_pricing(store: &Store, provider_id: i64) -> Result<(), 
 
 pub(super) fn usage(provider_id: i64, credential_id: i64) -> UsageInput {
     UsageInput {
+        upstream_started_at_ms: Some(3_601_000),
         request_id: "request-1".into(),
         at: 3_601,
         provider_id,

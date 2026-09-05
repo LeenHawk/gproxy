@@ -41,7 +41,7 @@ export function ProvidersPage() {
       const to = Math.floor(Date.now() / 1000) + 1
       return fetchCredentialCycles(to - MAX_CYCLE_RANGE_SECONDS, to)
     },
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
   const setQuery = useQuery({ queryKey: ["rule-sets"], queryFn: ruleSets })
   const ruleQuery = useQuery({ queryKey: ["rules"], queryFn: rules })

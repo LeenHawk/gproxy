@@ -158,6 +158,10 @@ impl Channel for ClaudeCodeChannel {
         usage::from_body(ctx.response_body)
     }
 
+    fn quota_capabilities(&self, _secret: &Value) -> Option<gproxy_channel_api::QuotaCapabilities> {
+        Some(gproxy_channel_api::QuotaCapabilities::SUBSCRIPTION)
+    }
+
     fn prepare_quota_probe(
         &self,
         secret: &Value,

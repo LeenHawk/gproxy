@@ -80,7 +80,13 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
     if let Some(tier) = actual_service_tier.as_ref() {
         usage.dimensions.insert("service_tier".into(), tier.clone());
     }
+    if ctx.settle == SettleMode::OnSessionEnd {
+        usage
+            .dimensions
+            .insert("quota_attribution".into(), "session".into());
+    }
     let settlement = Settlement {
+        upstream_started_at_ms: ctx.upstream_started_at_ms,
         request_id: ctx.request_id.clone(),
         provider_id: ctx.target.provider.id,
         credential_id: ctx.target.credential,

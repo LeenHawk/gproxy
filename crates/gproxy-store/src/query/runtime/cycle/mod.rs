@@ -1,8 +1,10 @@
-mod model;
+mod activity;
+mod links;
 mod read;
 mod write;
 
-pub(crate) use model::*;
+pub(crate) use activity::*;
+pub(crate) use links::*;
 pub(crate) use read::*;
 pub(crate) use write::*;
 
@@ -25,4 +27,7 @@ const COLUMNS: &[&str] = &[
     "coverage",
     "metrics_json",
     "label",
+    "accounting_start_ms",
+    "accounting_end_ms",
+    "tracking_json",
 ];

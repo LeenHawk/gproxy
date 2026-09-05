@@ -13,6 +13,7 @@ mod secrets;
 mod snapshot;
 mod tokenizers;
 mod usage;
+mod usage_records;
 
 pub use runtime::CleanupResult;
 

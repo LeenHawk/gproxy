@@ -6,18 +6,27 @@ use crate::host::Host;
 pub(crate) async fn response(
     host: &impl Host,
     channel: &dyn Channel,
-    target: &Target,
-    credential_version: Option<u64>,
+    facts: &super::FunnelCtx,
     disposition: Disposition,
     status: http::StatusCode,
     headers: &http::HeaderMap,
 ) {
-    let observations = channel.observe_quota(headers);
+    let target = &facts.target;
+    let mut observations = channel.observe_quota(headers);
+    let received_at_ms = crate::quota::now_ms();
+    for observation in &mut observations {
+        observation.sample = Some(gproxy_channel_api::QuotaSample {
+            started_at_ms: facts
+                .upstream_started_at_ms
+                .expect("upstream response has a send time"),
+            received_at_ms,
+        });
+    }
     if !observations.is_empty() {
         host.observe_credential_quota(target.credential, observations)
             .await;
     }
-    let Some(credential_version) = credential_version else {
+    let Some(credential_version) = facts.credential_version else {
         return;
     };
     let (health, detail) = match disposition {

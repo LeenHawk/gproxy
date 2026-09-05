@@ -124,15 +124,8 @@ impl Store {
                 window_key,
             )?)
             .await?;
-        let cycles = result
-            .rows
-            .into_iter()
-            .next()
-            .map(row::parse)
-            .transpose()?
-            .into_iter()
-            .collect();
-        Ok(self.with_models(cycles).await?.pop())
+        let cycle = result.rows.into_iter().next().map(row::parse).transpose()?;
+        Ok(cycle)
     }
 
     pub(super) async fn credential_quota_cycle(
@@ -143,15 +136,8 @@ impl Store {
             .backend()
             .execute(runtime::read_credential_quota_cycle(id)?)
             .await?;
-        let cycles = result
-            .rows
-            .into_iter()
-            .next()
-            .map(row::parse)
-            .transpose()?
-            .into_iter()
-            .collect();
-        Ok(self.with_models(cycles).await?.pop())
+        let cycle = result.rows.into_iter().next().map(row::parse).transpose()?;
+        Ok(cycle)
     }
 
     pub(super) async fn latest_credential_quota_cycle(
@@ -166,24 +152,8 @@ impl Store {
                 window_key,
             )?)
             .await?;
-        let cycles = result
-            .rows
-            .into_iter()
-            .next()
-            .map(row::parse)
-            .transpose()?
-            .into_iter()
-            .collect();
-        Ok(self.with_models(cycles).await?.pop())
-    }
-
-    pub(super) async fn require_credential_quota_cycle(
-        &self,
-        id: i64,
-    ) -> Result<CredentialQuotaCycleRecord, StoreError> {
-        self.credential_quota_cycle(id)
-            .await?
-            .ok_or_else(|| StoreError::Database("credential quota cycle vanished".into()))
+        let cycle = result.rows.into_iter().next().map(row::parse).transpose()?;
+        Ok(cycle)
     }
 }
 

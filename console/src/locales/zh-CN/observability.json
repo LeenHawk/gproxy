@@ -122,19 +122,28 @@
     "cacheCreation1h": "缓存写入 1h",
     "outputTokens": "输出令牌",
     "cost": {
-      "title": "用量与成本",
       "label": "成本"
     },
-    "windows": "配额窗口",
     "credentialCycles": "上游凭证配额窗口",
     "cycleUsage": {
       "used": "本周期已用（本机）",
       "estimated": "预估本周期总额度",
       "tokens": "{{value}} 令牌",
       "requests": "{{value}} 次请求",
-      "unavailable": "数据不足",
       "unknown": "暂无本机用量记录",
-      "hint": "截至最近观测：本机已记录用量 ÷ 上游已用比例，折算当前模型组合的周期总额度，并非上游承诺。网关外消耗不计入，记录不全可能低估；已用比例为 0% 或无用量时不估算。"
+      "hint": "按样本模型组合估算：同轮次本地用量增量 ÷ 上游使用率增量。USD 是本地已结算费用，不是订阅实际扣款；不用于准入或扣费，网关外消费可能影响估算。",
+      "localUnavailable": "本地统计暂不可用；上游读数仍可查看。",
+      "history": "历史轮次（{{count}}）",
+      "starts": "周期开始：{{value}}",
+      "observed": "最后观测：{{value}}",
+      "localBoundary": "本轮从 {{value}} 记账（本地估计边界）",
+      "reasons": {
+        "insufficient_samples": "数据不足",
+        "unknown_scope": "无法确定对应模型范围",
+        "unordered_observations": "观测顺序不确定，等待复查",
+        "incomplete_usage": "样本用量未完整结算或缺失",
+        "usage_disabled": "用量记录已关闭"
+      }
     },
     "cycleStates": {
       "empty": "该时段未观测到上游凭证配额窗口。"
@@ -158,6 +167,22 @@
       "additional_primary": "{{scope}} 主窗口",
       "additional_secondary": "{{scope}} 次窗口",
       "product": "{{scope}}"
+    },
+    "record": {
+      "time": "时间",
+      "requestId": "请求 ID",
+      "latency": "耗时",
+      "source": "用量来源",
+      "ended": "完成状态",
+      "operation": "操作",
+      "summary": "筛选范围汇总",
+      "tokens": "Token 总量",
+      "detail": "本次用量明细",
+      "noLogs": "未找到请求日志（未开启或已清理），用量记录不受影响。",
+      "upstream": "上游报告",
+      "estimated": "本地估算",
+      "complete": "完成",
+      "interrupted": "中断"
     }
   },
   "overview": {

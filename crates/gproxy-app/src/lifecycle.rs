@@ -26,7 +26,14 @@ impl AppHandle {
         parts: &http::request::Parts,
         body: bytes::Bytes,
     ) -> Option<http::Response<bytes::Bytes>> {
-        gproxy_admin::dispatch(self, parts, body).await
+        let response = gproxy_admin::dispatch(self, parts, body).await;
+        if response
+            .as_ref()
+            .is_some_and(|response| response.status().is_success())
+        {
+            crate::quota_refresh::opportunistic(self).await;
+        }
+        response
     }
 
     pub async fn portal_dispatch(
@@ -49,6 +56,9 @@ impl AppHandle {
             .await;
         if let Some(capture) = capture {
             crate::logging::finish(&self.inner.host, capture, &mut result).await;
+        }
+        if result.is_ok() {
+            crate::quota_refresh::opportunistic(self).await;
         }
         result
     }

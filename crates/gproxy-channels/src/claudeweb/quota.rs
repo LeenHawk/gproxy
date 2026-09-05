@@ -84,6 +84,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             .as_deref()
             .and_then(crate::shared::quota::iso_to_unix);
         observations.push(QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: gproxy_channel_api::QuotaScope::Unknown,
+            sample: None,
             window_key: scope.window_key(),
             label: None,
             period_start: period_end.map(|end| end - SEVEN_DAYS),
@@ -101,6 +105,14 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
 fn observation(window_key: String, duration: i64, window: &WebWindow) -> QuotaObservation {
     let period_end = crate::shared::quota::iso_to_unix(&window.resets_at);
     QuotaObservation {
+        unit: None,
+        reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+        scope: if matches!(window_key.as_str(), "five_hour" | "seven_day") {
+            gproxy_channel_api::QuotaScope::All
+        } else {
+            gproxy_channel_api::QuotaScope::Unknown
+        },
+        sample: None,
         window_key,
         label: None,
         period_start: period_end.map(|end| end - duration),

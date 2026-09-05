@@ -51,6 +51,26 @@ impl Host for AppHost {
     type Usage = Self;
     type Capture = Self;
 
+    fn begin_credential_usage<'a>(
+        &'a self,
+        request_id: &'a str,
+        target: &'a gproxy_core::Target,
+        started_at_ms: i64,
+    ) -> BoxFuture<'a, Result<(), gproxy_core::CoreError>> {
+        Box::pin(async move {
+            self.services
+                .store
+                .begin_credential_usage(
+                    request_id,
+                    target.credential.0,
+                    &target.upstream_model,
+                    started_at_ms,
+                )
+                .await
+                .map_err(|error| gproxy_core::CoreError::Internal(error.to_string()))
+        })
+    }
+
     fn credentials(&self) -> &Self::Credentials {
         self
     }
@@ -220,6 +240,12 @@ impl Host for AppHost {
                     ),
                 };
                 let observation = gproxy_store::records::CredentialQuotaObservation {
+                    unit: value.unit,
+                    reset_behavior: value.reset_behavior,
+                    scope: value.scope,
+                    sample: value
+                        .sample
+                        .expect("upstream quota carries its sampling interval"),
                     credential_id: credential.0,
                     window_key: value.window_key,
                     label: value.label,
@@ -227,7 +253,9 @@ impl Host for AppHost {
                     period_end: value.period_end,
                     boundary_source: source,
                     boundary_confidence: confidence,
-                    observed_at,
+                    observed_at: value
+                        .sample
+                        .map_or(observed_at, |sample| sample.received_at_ms / 1000),
                     upstream_used: value.upstream_used,
                     upstream_limit: value.upstream_limit,
                     used_percent: value.used_percent,

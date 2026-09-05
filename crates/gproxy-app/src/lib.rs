@@ -15,6 +15,7 @@ mod lifecycle;
 mod logging;
 #[cfg(not(target_arch = "wasm32"))]
 mod migrate_v2;
+mod quota_refresh;
 mod secrets;
 
 pub use config::{Config, MasterKeyConfig};

@@ -179,7 +179,8 @@
     },
     "closeReason": {
       "boundary_crossed": "跨越週期邊界",
-      "manual_reset": "手動重設"
+      "manual_reset": "手動重設",
+      "usage_decreased": "上游已用額度倒降"
     },
     "usageUnknown": "此週期的上游用量無法取得。"
   }

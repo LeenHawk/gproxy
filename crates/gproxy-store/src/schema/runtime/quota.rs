@@ -33,6 +33,9 @@ pub(super) const TABLES: &[TableSpec] = &[
         name: "credential_quota_cycles",
         columns: &[
             Col::id(),
+            Col::required("accounting_start_ms", Integer),
+            Col::optional("accounting_end_ms", Integer),
+            Col::required("tracking_json", Text),
             Col::required("version", Integer),
             Col::required("credential_id", Integer),
             Col::required("window_key", Text),
@@ -61,30 +64,6 @@ pub(super) const TABLES: &[TableSpec] = &[
             IndexSpec {
                 name: "ix_credential_quota_cycles_history",
                 columns: &["credential_id", "window_key", "period_start", "id"],
-                unique: false,
-                added_in: None,
-            },
-        ],
-    },
-    TableSpec {
-        version: SchemaVersion::Initial,
-        name: "credential_quota_cycle_models",
-        columns: &[
-            Col::id(),
-            Col::required("cycle_id", Integer),
-            Col::required("model", Text),
-            Col::required("metrics_json", Text),
-        ],
-        indexes: &[
-            IndexSpec {
-                name: "uq_credential_quota_cycle_models",
-                columns: &["cycle_id", "model"],
-                unique: true,
-                added_in: None,
-            },
-            IndexSpec {
-                name: "ix_credential_quota_cycle_models_model",
-                columns: &["model", "cycle_id"],
                 unique: false,
                 added_in: None,
             },

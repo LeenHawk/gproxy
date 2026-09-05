@@ -47,6 +47,13 @@ async fn near_limit_credential_is_deprioritized() {
     let now = unix_now();
     let cycle = app
         .observe_credential_quota_cycle(CredentialQuotaObservation {
+            unit: Some("requests".into()),
+            reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
+            scope: gproxy_core::QuotaScope::All,
+            sample: gproxy_core::QuotaSample {
+                started_at_ms: now * 1000,
+                received_at_ms: now * 1000,
+            },
             credential_id: credential,
             window_key: "five-hour".into(),
             label: None,

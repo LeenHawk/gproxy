@@ -175,6 +175,7 @@ pub(crate) async fn prepare<H: Host>(
     .await?;
     let target_framing = gproxy_protocol::default_framing(support.target.kind(), false);
     let facts = FunnelCtx {
+        upstream_started_at_ms: None,
         request_id: ctx.request_id.clone(),
         target: target.clone(),
         credential_version: Some(credential.version),
@@ -209,6 +210,8 @@ pub(crate) async fn prepare<H: Host>(
     if let Some(driver) = driver {
         driver::validate(core, channel, target, admission, driver.as_ref())?;
         return Ok(Prepared {
+            quota_accounted: channel.quota_capabilities(&credential.secret).is_some()
+                && facts.settle != gproxy_protocol::SettleMode::Free,
             channel: channel.descriptor().id,
             stream: true,
             downstream_stream: classified.stream,
@@ -229,6 +232,8 @@ pub(crate) async fn prepare<H: Host>(
     facts.request_body = prepared.request.body().clone();
     facts.request_headers = Some(prepared.request.headers().clone());
     Ok(Prepared {
+        quota_accounted: channel.quota_capabilities(&credential.secret).is_some()
+            && facts.settle != gproxy_protocol::SettleMode::Free,
         channel: channel.descriptor().id,
         stream,
         downstream_stream: classified.stream,

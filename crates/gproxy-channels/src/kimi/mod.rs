@@ -95,6 +95,11 @@ impl Channel for KimiChannel {
         usage::from_body(ctx)
     }
 
+    fn quota_capabilities(&self, secret: &Value) -> Option<gproxy_channel_api::QuotaCapabilities> {
+        (auth::mode(secret) == auth::Mode::Oauth)
+            .then_some(gproxy_channel_api::QuotaCapabilities::SUBSCRIPTION)
+    }
+
     fn prepare_quota_probe(
         &self,
         secret: &Value,

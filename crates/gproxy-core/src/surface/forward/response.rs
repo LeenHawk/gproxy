@@ -21,8 +21,7 @@ pub(super) async fn relay<H: Host>(
         crate::funnel::health::response(
             core.host.as_ref(),
             channel,
-            &facts.target,
-            facts.credential_version,
+            &facts,
             disposition,
             response.status(),
             response.headers(),
@@ -81,8 +80,7 @@ pub(super) async fn relay<H: Host>(
     crate::funnel::health::response(
         core.host.as_ref(),
         channel,
-        &facts.target,
-        facts.credential_version,
+        &facts,
         disposition,
         response.status(),
         response.headers(),
@@ -124,8 +122,7 @@ pub(super) async fn discard_retryable<H: Host>(
     crate::funnel::health::response(
         core.host.as_ref(),
         channel,
-        &facts.target,
-        facts.credential_version,
+        facts,
         disposition,
         status,
         response.headers(),

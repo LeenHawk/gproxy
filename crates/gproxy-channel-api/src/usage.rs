@@ -4,6 +4,38 @@
 use rust_decimal::Decimal;
 use std::collections::BTreeMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotaCapabilities {
+    pub probe: bool,
+    pub reset: bool,
+}
+
+impl QuotaCapabilities {
+    pub const SUBSCRIPTION: Self = Self {
+        probe: true,
+        reset: false,
+    };
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "models", rename_all = "snake_case")]
+pub enum QuotaScope {
+    All,
+    Models(Vec<String>),
+    #[default]
+    Unknown,
+}
+
+impl QuotaScope {
+    pub fn includes(&self, model: &str) -> bool {
+        match self {
+            Self::All => true,
+            Self::Models(models) => models.iter().any(|allowed| allowed == model),
+            Self::Unknown => false,
+        }
+    }
+}
+
 /// Usage for one exchange. First-class token fields stay deliberately few;
 /// everything else is dimensional — a new measure is an entry in `metrics`
 /// priced by a data-driven rate rule, not a new column (a first-class
@@ -24,6 +56,10 @@ pub struct NormalizedUsage {
 /// upstream, never inferred locally.
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuotaObservation {
+    pub unit: Option<String>,
+    pub reset_behavior: QuotaResetBehavior,
+    pub scope: QuotaScope,
+    pub sample: Option<QuotaSample>,
     pub window_key: String,
     /// Upstream display name for the limit (e.g. codex `limit_name`), when
     /// the wire carries one beside the stable key.
@@ -33,6 +69,21 @@ pub struct QuotaObservation {
     pub used_percent: Option<Decimal>,
     pub upstream_used: Option<Decimal>,
     pub upstream_limit: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QuotaSample {
+    pub started_at_ms: i64,
+    pub received_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuotaResetBehavior {
+    Periodic,
+    Recovering,
+    #[default]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

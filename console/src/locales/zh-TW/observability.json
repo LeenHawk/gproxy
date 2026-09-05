@@ -122,19 +122,28 @@
     "cacheCreation1h": "快取寫入 1h",
     "outputTokens": "輸出 Token",
     "cost": {
-      "title": "用量與成本",
       "label": "成本"
     },
-    "windows": "配額視窗",
     "credentialCycles": "上游憑證配額視窗",
     "cycleUsage": {
       "used": "本週期已用（本機）",
       "estimated": "預估本週期總額度",
       "tokens": "{{value}} 權杖",
       "requests": "{{value}} 次請求",
-      "unavailable": "資料不足",
       "unknown": "暫無本機用量記錄",
-      "hint": "截至最近觀測：本機已記錄用量 ÷ 上游已用比例，換算目前模型組合的週期總額度，並非上游承諾。閘道外消耗不計入，記錄不全可能低估；已用比例為 0% 或無用量時不估算。"
+      "hint": "依樣本模型組合估算：同輪次本機用量增量 ÷ 上游使用率增量。USD 是本機已結算費用，不是訂閱實際扣款；不用於准入或扣費，閘道外消耗可能影響估算。",
+      "localUnavailable": "本機統計暫不可用；仍可查看上游讀數。",
+      "history": "歷史輪次（{{count}}）",
+      "starts": "週期開始：{{value}}",
+      "observed": "最後觀測：{{value}}",
+      "localBoundary": "本輪從 {{value}} 記帳（本機估計邊界）",
+      "reasons": {
+        "insufficient_samples": "資料不足",
+        "unknown_scope": "無法確定對應模型範圍",
+        "unordered_observations": "觀測順序不確定，等待複查",
+        "incomplete_usage": "樣本用量未完整結算或缺失",
+        "usage_disabled": "用量記錄已關閉"
+      }
     },
     "cycleStates": {
       "empty": "此期間未觀測到上游憑證配額視窗。"
@@ -158,6 +167,22 @@
       "additional_primary": "{{scope}} 主視窗",
       "additional_secondary": "{{scope}} 次視窗",
       "product": "{{scope}}"
+    },
+    "record": {
+      "time": "時間",
+      "requestId": "請求 ID",
+      "latency": "耗時",
+      "source": "用量來源",
+      "ended": "完成狀態",
+      "operation": "操作",
+      "summary": "篩選範圍彙總",
+      "tokens": "Token 總量",
+      "detail": "本次用量明細",
+      "noLogs": "未找到請求日誌（未開啟或已清理），用量記錄不受影響。",
+      "upstream": "上游回報",
+      "estimated": "本機估算",
+      "complete": "完成",
+      "interrupted": "中斷"
     }
   },
   "overview": {

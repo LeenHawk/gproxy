@@ -104,6 +104,12 @@ impl Store {
     }
 
     pub async fn record_usage(&self, input: &UsageInput) -> Result<bool, StoreError> {
+        if input.upstream_started_at_ms.is_none() {
+            return Err(StoreError::InvalidData {
+                field: "upstream_started_at_ms",
+                message: "new usage requires the actual upstream send time".into(),
+            });
+        }
         let results = self
             .backend()
             .batch(vec![
@@ -111,9 +117,13 @@ impl Store {
                 usage::accumulate_hourly(input)?,
             ])
             .await?;
-        Ok(results
+        let inserted = results
             .first()
-            .is_some_and(|result| result.affected_rows == 1))
+            .is_some_and(|result| result.affected_rows == 1);
+        if let Some(record) = self.usage_by_request(&input.request_id).await? {
+            self.attribute_usage(&record).await?;
+        }
+        Ok(inserted)
     }
 
     pub async fn usage_by_request(
@@ -303,10 +313,11 @@ fn checked_add(target: &mut u64, value: u64, field: &'static str) -> Result<(), 
     Ok(())
 }
 
-fn parse_usage(row: Row) -> Result<UsageRecord, StoreError> {
+pub(super) fn parse_usage(row: Row) -> Result<UsageRecord, StoreError> {
     Ok(UsageRecord {
         id: row.i64("id")?,
         usage: UsageInput {
+            upstream_started_at_ms: row.optional_i64("upstream_started_at_ms")?,
             request_id: row.text("request_id")?.to_owned(),
             at: row.i64("at")?,
             provider_id: row.i64("provider_id")?,

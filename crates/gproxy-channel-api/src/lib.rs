@@ -60,7 +60,8 @@ pub use surface::{
 };
 pub use traffic::{TrafficBlacklistConfig, TrafficPolicyConfig};
 pub use usage::{
-    NormalizedUsage, QuotaObservation, QuotaResetCredits, QuotaResetOutcome, QuotaResetResult,
+    NormalizedUsage, QuotaCapabilities, QuotaObservation, QuotaResetBehavior, QuotaResetCredits,
+    QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaScope,
 };
 pub use wire::{
     Alpn, ByteStream, ClientProfile, ClientProfilePreset, CredentialId, Http2Profile, Http2Setting,

@@ -4,6 +4,8 @@ use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageInput {
+    #[serde(default)]
+    pub upstream_started_at_ms: Option<i64>,
     pub request_id: String,
     pub at: i64,
     pub provider_id: i64,

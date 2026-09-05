@@ -53,6 +53,7 @@ pub enum Ended {
 /// `UsageSink`; the same struct reconciles quota pre-charges internally.
 #[derive(Debug, Clone)]
 pub struct Settlement {
+    pub upstream_started_at_ms: Option<i64>,
     pub request_id: String,
     pub provider_id: i64,
     pub credential_id: crate::host::CredentialId,

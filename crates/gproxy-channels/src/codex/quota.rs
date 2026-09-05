@@ -148,6 +148,14 @@ fn push_windows(
             .zip(snapshot.limit_window_seconds.filter(|seconds| *seconds > 0))
             .map(|(end, seconds)| end - seconds);
         observations.push(QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: if feature.is_none() {
+                gproxy_channel_api::QuotaScope::All
+            } else {
+                gproxy_channel_api::QuotaScope::Unknown
+            },
+            sample: None,
             window_key,
             label,
             period_start,
@@ -350,6 +358,14 @@ fn observe(headers: &http::HeaderMap, limit: &str, window: &str) -> Option<Quota
         )
     };
     Some(QuotaObservation {
+        unit: None,
+        reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+        scope: if limit == "codex" {
+            gproxy_channel_api::QuotaScope::All
+        } else {
+            gproxy_channel_api::QuotaScope::Unknown
+        },
+        sample: None,
         window_key,
         label,
         period_start,

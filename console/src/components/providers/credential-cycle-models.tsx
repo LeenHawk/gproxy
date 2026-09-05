@@ -28,7 +28,7 @@ export function CredentialCycleModels({ values }: { values: Array<CredentialQuot
 function ModelRow({ value }: { value: CredentialQuotaCycleModelDto }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const tokens = tokenMetrics.reduce((sum, key) => sum + metric(value.metrics, key), 0)
+  const tokens = metric(value.metrics, "total_tokens")
   const breakdown = [
     `${t("providers.credentials.cycleModels.requests")} ${formatCount(metric(value.metrics, "requests"), locale)}`,
     ...tokenMetrics

@@ -29,8 +29,14 @@ pub(super) async fn model_test(
 pub(super) async fn quota_probe(
     state: &impl State,
     credential_id: i64,
+    parts: &http::request::Parts,
 ) -> Result<Response<Bytes>, AdminError> {
-    response::json(StatusCode::OK, &state.quota_probe(credential_id).await?)
+    let query = util::query(parts);
+    let force = util::value(&query, "force") == Some("true");
+    response::json(
+        StatusCode::OK,
+        &state.quota_probe(credential_id, force).await?,
+    )
 }
 
 pub(super) async fn quota_reset(

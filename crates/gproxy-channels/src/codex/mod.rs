@@ -188,6 +188,13 @@ impl Channel for CodexChannel {
         quota::from_headers(headers)
     }
 
+    fn quota_capabilities(&self, _secret: &Value) -> Option<gproxy_channel_api::QuotaCapabilities> {
+        Some(gproxy_channel_api::QuotaCapabilities {
+            probe: true,
+            reset: true,
+        })
+    }
+
     fn prepare_quota_probe(
         &self,
         secret: &serde_json::Value,

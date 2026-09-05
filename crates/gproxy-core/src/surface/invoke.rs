@@ -183,6 +183,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 .transpose()
                 .map_err(TransportError::Interrupted)?;
             let mut facts = FunnelCtx {
+                upstream_started_at_ms: Some(crate::quota::now_ms()),
                 request_id,
                 target: self.target.clone(),
                 credential_version: None,

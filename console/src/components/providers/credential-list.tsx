@@ -32,13 +32,14 @@ type Props = {
 export function CredentialList(props: Props) {
   const { t } = useTranslation()
   const [expandedCredentialId, setExpandedCredentialId] = useState<number | null>(null)
+  const hasQuota = props.credentials.some((credential) => credential.quota_capabilities != null)
   const columns: Array<DataTableColumn<CredentialDto>> = [
     { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => credential.label ? <div><p className="font-mono text-xs">{credential.label}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> : <p className="font-mono text-xs">{t("providers.credentials.unnamed", { id: credential.id })}</p> },
     { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
     { key: "kind", label: t("providers.credentials.kind"), header: t("providers.credentials.kind"), cell: (credential) => <span className="text-xs">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })}</span> },
     { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },
-    { key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential) => <QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /> },
+    ...(hasQuota ? [{ key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential: CredentialDto) => credential.quota_capabilities ? <QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /> : null }] : []),
   ]
 
   return (
@@ -63,13 +64,13 @@ export function CredentialList(props: Props) {
           rows={props.credentials}
           rowKey={(credential) => credential.id}
           searchText={(credential) => `${credential.label ?? ""} ${credential.kind} ${credential.id} ${credential.health}`}
-          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><div className="flex items-center gap-2"><QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /><CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /></div></div><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
+          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><div className="flex items-center gap-2">{credential.quota_capabilities ? <QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /> : null}<CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /></div></div><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /></div>}
           empty={t("providers.credentials.empty")}
           storageKey="credentials"
           selectable
           batchActions={(rows, onApplied) => <BatchActions entity="credentials" rows={rows} queryKeys={["credentials", "credential-cycles"]} onApplied={onApplied} />}
           activeRowKey={expandedCredentialId}
-          onRowClick={(credential) => setExpandedCredentialId((current) => current === credential.id ? null : credential.id)}
+          onRowClick={(credential) => { if (!credential.quota_capabilities) return; setExpandedCredentialId((current) => current === credential.id ? null : credential.id) }}
           renderExpandedRow={(credential) => (
             <CredentialCard
               credential={credential}

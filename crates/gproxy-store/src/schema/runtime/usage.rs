@@ -6,6 +6,7 @@ pub(super) const TABLES: &[TableSpec] = &[
         name: "usage_rows",
         columns: &[
             Col::id(),
+            Col::optional("upstream_started_at_ms", Integer),
             Col::required("request_id", Text).unique(),
             Col::required("at", Integer),
             Col::required("provider_id", Integer),
@@ -27,6 +28,12 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("latency_ms", Integer),
         ],
         indexes: &[
+            IndexSpec {
+                name: "ix_usage_rows_credential_started",
+                columns: &["credential_id", "upstream_started_at_ms", "id"],
+                unique: false,
+                added_in: None,
+            },
             IndexSpec {
                 name: "ix_usage_rows_user_provider_at",
                 columns: &["user_id", "provider_id", "at", "id"],

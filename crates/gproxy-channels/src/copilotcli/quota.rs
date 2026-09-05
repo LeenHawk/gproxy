@@ -40,6 +40,14 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             return None;
         }
         Some(QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: if window_key == "premium_interactions" {
+                gproxy_channel_api::QuotaScope::All
+            } else {
+                gproxy_channel_api::QuotaScope::Unknown
+            },
+            sample: None,
             window_key: window_key.to_owned(),
             label: None,
             period_start: None,

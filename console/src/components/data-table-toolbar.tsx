@@ -21,6 +21,7 @@ export function DataTableToolbar<T>({
   batchMode,
   onToggleBatch,
   createAction,
+  searchable = true,
 }: {
   query: string
   onQuery: (value: string) => void
@@ -30,12 +31,13 @@ export function DataTableToolbar<T>({
   batchMode?: boolean
   onToggleBatch?: () => void
   createAction?: ReactNode
+  searchable?: boolean
 }) {
   const { t } = useTranslation()
   const searchId = useId()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="min-w-48 flex-1 sm:max-w-sm">
+      {searchable ? <div className="min-w-48 flex-1 sm:max-w-sm">
         <Input
           id={searchId}
           value={query}
@@ -43,7 +45,7 @@ export function DataTableToolbar<T>({
           placeholder={t("common.dataTable.search")}
           aria-label={t("common.dataTable.search")}
         />
-      </div>
+      </div> : null}
       {onToggleBatch ? <Button size="sm" variant="outline" onClick={onToggleBatch}>{t(`common.batch.${batchMode ? "cancel" : "select"}`)}</Button> : null}
       {!batchMode ? createAction : null}
       <DropdownMenu>

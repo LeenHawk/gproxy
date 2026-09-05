@@ -104,6 +104,14 @@ fn observation(
 ) -> QuotaObservation {
     let period_end = resets_at.and_then(iso_to_unix);
     QuotaObservation {
+        unit: None,
+        reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+        scope: if matches!(window_key.as_str(), "five_hour" | "seven_day") {
+            gproxy_channel_api::QuotaScope::All
+        } else {
+            gproxy_channel_api::QuotaScope::Unknown
+        },
+        sample: None,
         window_key,
         label: None,
         period_start: period_end

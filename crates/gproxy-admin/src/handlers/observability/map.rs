@@ -75,55 +75,69 @@ fn limit(quota: &QuotaRecord, kind: QuotaWindowKind) -> Option<rust_decimal::Dec
 }
 
 pub(super) fn credential_cycle(value: &CredentialQuotaCycleRecord) -> CredentialQuotaCycleDto {
-    CredentialQuotaCycleDto {
-        id: value.id,
-        version: value.version,
-        credential_id: value.credential_id,
-        window_key: value.window_key.clone(),
-        label: value.label.clone(),
-        period_start: value.period_start,
-        period_end: value.period_end,
-        boundary_source: match value.boundary_source {
-            QuotaBoundarySource::Upstream => BoundarySourceDto::Upstream,
-            QuotaBoundarySource::Inferred => BoundarySourceDto::Inferred,
-            QuotaBoundarySource::Unknown => BoundarySourceDto::Unknown,
-        },
-        boundary_confidence: match value.boundary_confidence {
-            QuotaBoundaryConfidence::Exact => BoundaryConfidenceDto::Exact,
-            QuotaBoundaryConfidence::Derived => BoundaryConfidenceDto::Derived,
-            QuotaBoundaryConfidence::Partial => BoundaryConfidenceDto::Partial,
-            QuotaBoundaryConfidence::Unknown => BoundaryConfidenceDto::Unknown,
-        },
-        status: match value.status {
-            QuotaCycleStatus::Open => QuotaCycleStatusDto::Open,
-            QuotaCycleStatus::Closed => QuotaCycleStatusDto::Closed,
-        },
-        close_reason: value.close_reason.map(|reason| match reason {
-            gproxy_store::records::QuotaCycleCloseReason::BoundaryCrossed => {
-                QuotaCycleCloseReasonDto::BoundaryCrossed
-            }
-            gproxy_store::records::QuotaCycleCloseReason::ManualReset => {
-                QuotaCycleCloseReasonDto::ManualReset
-            }
-        }),
-        last_observed_at: value.last_observed_at,
-        upstream_used: value.upstream_used.map(decimal),
-        upstream_limit: value.upstream_limit.map(decimal),
-        used_percent: value.used_percent.map(decimal),
-        coverage: match value.coverage {
-            QuotaCoverage::FullPeriodLowerBound => QuotaCoverageDto::FullPeriodLowerBound,
-            QuotaCoverage::PartialLowerBound => QuotaCoverageDto::PartialLowerBound,
-            QuotaCoverage::Unknown => QuotaCoverageDto::Unknown,
-        },
-        metrics: value.metrics.clone(),
-        models: value
-            .models
-            .iter()
-            .map(|model| CredentialQuotaCycleModelDto {
-                model: model.model.clone(),
-                metrics: model.metrics.clone(),
-            })
-            .collect(),
+    value.into()
+}
+
+impl From<&CredentialQuotaCycleRecord> for CredentialQuotaCycleDto {
+    fn from(value: &CredentialQuotaCycleRecord) -> Self {
+        CredentialQuotaCycleDto {
+            unit: value.tracking.unit.clone(),
+            accounting_start_ms: value.accounting_start_ms,
+            accounting_end_ms: value.accounting_end_ms,
+            local_boundary: value.tracking.local_boundary,
+            estimate: value.estimate.clone().map(Into::into),
+            id: value.id,
+            version: value.version,
+            credential_id: value.credential_id,
+            window_key: value.window_key.clone(),
+            label: value.label.clone(),
+            period_start: value.period_start,
+            period_end: value.period_end,
+            boundary_source: match value.boundary_source {
+                QuotaBoundarySource::Upstream => BoundarySourceDto::Upstream,
+                QuotaBoundarySource::Inferred => BoundarySourceDto::Inferred,
+                QuotaBoundarySource::Unknown => BoundarySourceDto::Unknown,
+            },
+            boundary_confidence: match value.boundary_confidence {
+                QuotaBoundaryConfidence::Exact => BoundaryConfidenceDto::Exact,
+                QuotaBoundaryConfidence::Derived => BoundaryConfidenceDto::Derived,
+                QuotaBoundaryConfidence::Partial => BoundaryConfidenceDto::Partial,
+                QuotaBoundaryConfidence::Unknown => BoundaryConfidenceDto::Unknown,
+            },
+            status: match value.status {
+                QuotaCycleStatus::Open => QuotaCycleStatusDto::Open,
+                QuotaCycleStatus::Closed => QuotaCycleStatusDto::Closed,
+            },
+            close_reason: value.close_reason.map(|reason| match reason {
+                gproxy_store::records::QuotaCycleCloseReason::UsageDecreased => {
+                    QuotaCycleCloseReasonDto::UsageDecreased
+                }
+                gproxy_store::records::QuotaCycleCloseReason::BoundaryCrossed => {
+                    QuotaCycleCloseReasonDto::BoundaryCrossed
+                }
+                gproxy_store::records::QuotaCycleCloseReason::ManualReset => {
+                    QuotaCycleCloseReasonDto::ManualReset
+                }
+            }),
+            last_observed_at: value.last_observed_at,
+            upstream_used: value.upstream_used.map(decimal),
+            upstream_limit: value.upstream_limit.map(decimal),
+            used_percent: value.used_percent.map(decimal),
+            coverage: match value.coverage {
+                QuotaCoverage::FullPeriodLowerBound => QuotaCoverageDto::FullPeriodLowerBound,
+                QuotaCoverage::PartialLowerBound => QuotaCoverageDto::PartialLowerBound,
+                QuotaCoverage::Unknown => QuotaCoverageDto::Unknown,
+            },
+            metrics: value.metrics.clone(),
+            models: value
+                .models
+                .iter()
+                .map(|model| CredentialQuotaCycleModelDto {
+                    model: model.model.clone(),
+                    metrics: model.metrics.clone(),
+                })
+                .collect(),
+        }
     }
 }
 

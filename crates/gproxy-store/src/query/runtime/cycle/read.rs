@@ -48,44 +48,6 @@ pub(crate) fn select_open_credential_quota_cycles(
     Statement::query(&query)
 }
 
-pub(crate) fn select_credential_cycle_usage(
-    credential_id: i64,
-    period_start: i64,
-    observed_at: i64,
-) -> Result<Statement, StoreError> {
-    let mut query = Query::select();
-    query
-        .columns([
-            Alias::new("upstream_model"),
-            Alias::new("input_tokens"),
-            Alias::new("output_tokens"),
-            Alias::new("cached_input_tokens"),
-            Alias::new("metrics_json"),
-            Alias::new("cost"),
-        ])
-        .from(Alias::new("usage_rows"))
-        .and_where(Expr::col(Alias::new("credential_id")).eq(credential_id))
-        .and_where(Expr::col(Alias::new("at")).gte(period_start))
-        .and_where(Expr::col(Alias::new("at")).lt(observed_at))
-        .order_by(Alias::new("id"), Order::Asc);
-    Statement::query(&query)
-}
-
-pub(crate) fn select_credential_cycle_models(cycle_ids: &[i64]) -> Result<Statement, StoreError> {
-    let mut query = Query::select();
-    query
-        .columns([
-            Alias::new("cycle_id"),
-            Alias::new("model"),
-            Alias::new("metrics_json"),
-        ])
-        .from(Alias::new("credential_quota_cycle_models"))
-        .and_where(Expr::col(Alias::new("cycle_id")).is_in(cycle_ids.iter().copied()))
-        .order_by(Alias::new("cycle_id"), Order::Asc)
-        .order_by(Alias::new("model"), Order::Asc);
-    Statement::query(&query)
-}
-
 pub(crate) fn select_credential_quota_cycle_history(
     credential_id: i64,
     window_key: &str,

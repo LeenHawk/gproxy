@@ -330,6 +330,11 @@ pub trait Channel: Send + Sync {
         Vec::new()
     }
 
+    fn quota_capabilities(&self, secret: &Value) -> Option<crate::QuotaCapabilities> {
+        let _ = secret;
+        None
+    }
+
     fn prepare_quota_probe(
         &self,
         secret: &Value,

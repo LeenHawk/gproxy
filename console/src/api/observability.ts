@@ -5,6 +5,9 @@ import type { QuotaWindowDto } from "@/generated/QuotaWindowDto"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import type { UsageQueryDto } from "@/generated/UsageQueryDto"
 import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
+import type { UsageRecordQueryDto } from "@/generated/UsageRecordQueryDto"
+import type { UsageRecordPageDto } from "@/generated/UsageRecordPageDto"
+import type { UsageSummaryDto } from "@/generated/UsageSummaryDto"
 import type { UsageTrendPointDto } from "@/generated/UsageTrendPointDto"
 import type { UsageTrendQueryDto } from "@/generated/UsageTrendQueryDto"
 import type { LogDetailDto } from "@/generated/LogDetailDto"
@@ -24,6 +27,12 @@ export const channels = () => api<Array<ChannelDto>>("/admin/api/channels")
 export const tlsPresets = () => api<Array<TlsPresetDto>>("/admin/api/tls-presets")
 export const usage = (value: UsageQueryDto) =>
   api<Array<UsageStatisticsDto>>(`/admin/api/usage?${queryString(value)}`)
+export const usageRecords = (value: UsageRecordQueryDto) =>
+  api<UsageRecordPageDto>(`/admin/api/usage-records?${queryString(value)}`)
+export const usageSummary = (value: UsageRecordQueryDto) => {
+  const filter = { ...value, page: null, page_size: null }
+  return api<UsageSummaryDto>(`/admin/api/usage-summary?${queryString(filter)}`)
+}
 export const usageTrend = (value: UsageTrendQueryDto) =>
   api<Array<UsageTrendPointDto>>(`/admin/api/usage-trend?${queryString(value)}`)
 export const quotaWindows = (subjectKind?: string, subjectId?: number) =>

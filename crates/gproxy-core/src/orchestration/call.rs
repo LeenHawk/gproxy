@@ -27,6 +27,7 @@ pub(super) async fn run<H: Host>(
     let headers = prepared.request.headers().clone();
     let body = prepared.request.body().clone();
     let mut facts = FunnelCtx {
+        upstream_started_at_ms: Some(crate::quota::now_ms()),
         request_id,
         target,
         credential_version,
@@ -104,8 +105,7 @@ pub(super) async fn run<H: Host>(
         crate::funnel::health::response(
             host.as_ref(),
             channel,
-            &facts.target,
-            facts.credential_version,
+            &facts,
             disposition,
             parts.status,
             &parts.headers,

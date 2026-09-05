@@ -1,15 +1,17 @@
+mod accounting;
 mod boundary;
 mod close;
+mod links;
 mod metrics;
 mod models;
-mod persist;
 mod read;
 mod row;
 mod state;
 
 use crate::query::runtime;
 use crate::records::{
-    CredentialQuotaCycleRecord, CredentialQuotaObservation, QuotaCycleCloseReason, QuotaCycleStatus,
+    CredentialQuotaCycleRecord, CredentialQuotaObservation, QuotaCoverage, QuotaCycleCloseReason,
+    QuotaCycleStatus,
 };
 use crate::{Store, StoreError};
 
@@ -19,148 +21,246 @@ impl Store {
         observation: &CredentialQuotaObservation,
     ) -> Result<CredentialQuotaCycleRecord, StoreError> {
         state::validate(observation)?;
-        let mut continuation_start = None;
-        const RETRIES: usize = 8;
-        for _ in 0..RETRIES {
+        for _ in 0..8 {
             let mut input = observation.clone();
-            if let Some(start) = continuation_start {
-                input.period_start = Some(start);
-            }
+            let sample = state::sample(&input);
             let open = self
                 .open_credential_quota_cycle(input.credential_id, &input.window_key)
                 .await?;
-            if let Some(open) = open.as_ref() {
-                state::preserve_cycle_bounds(open, &mut input);
-                state::validate(&input)?;
-                // A header-borne observation may omit the display label the
-                // probe recorded; absence is not removal.
-                if input.label.is_none() {
-                    input.label = open.label.clone();
+            if let Some(mut open) = open {
+                let previous_sample = open.tracking.sample;
+                if sample.received_at_ms < previous_sample.started_at_ms {
+                    return Ok(open);
                 }
-            }
-            match open {
-                Some(open) if state::stale_open(&open, &input) => return Ok(open),
-                Some(open) if state::crossed_boundary(&open, &input) => {
-                    let Some(boundary) = boundary::resolve(&open, &input) else {
-                        state::retain_cycle_boundary(&open, &mut input);
-                        state::merge_same_second(&open, &mut input);
-                        let metrics = metrics::collect(self, &input).await?;
-                        let statement = runtime::update_credential_quota_cycle(
-                            &open,
-                            &input,
-                            state::update_coverage(&open, &input),
-                            &metrics.totals,
-                        )?;
-                        let result = persist::known(
-                            self,
-                            statement,
-                            open.id,
-                            open.version.saturating_add(1),
-                            &metrics,
-                        )
-                        .await?;
-                        if result.affected_rows == 1 {
-                            return self.require_credential_quota_cycle(open.id).await;
-                        }
-                        continue;
-                    };
-                    let metrics = metrics::collect_range(
-                        self,
-                        open.credential_id,
-                        open.period_start,
-                        boundary.at,
-                    )
-                    .await?;
-                    let statement = runtime::close_credential_quota_cycle(
-                        &open,
-                        boundary.at,
-                        boundary.source,
-                        boundary.confidence,
-                        QuotaCycleCloseReason::BoundaryCrossed,
-                        Some(input.observed_at),
-                        &metrics.totals,
-                    )?;
-                    let result = persist::known(
-                        self,
-                        statement,
-                        open.id,
-                        open.version.saturating_add(1),
-                        &metrics,
-                    )
-                    .await;
+                input.label = input.label.or_else(|| open.label.clone());
+                input.period_start = input.period_start.or(open.period_start);
+                input.period_end = input.period_end.or(open.period_end);
+                if open.boundary_source == crate::records::QuotaBoundarySource::Upstream
+                    && input.boundary_source == crate::records::QuotaBoundarySource::Inferred
+                {
+                    input.period_start = open.period_start;
+                    input.period_end = open.period_end;
+                }
+                let changed = state::changed(&open, &input);
+                let decreased = state::decreased(&open, &input);
+                if (changed
+                    || decreased
+                    || sample.received_at_ms < previous_sample.received_at_ms
+                    || sample.started_at_ms < previous_sample.started_at_ms)
+                    && (sample == previous_sample
+                        || sample.started_at_ms < previous_sample.received_at_ms)
+                {
+                    open.tracking.uncertain = true;
+                    let expected = open.version;
+                    open.version += 1;
+                    if self
+                        .backend()
+                        .execute(runtime::update_tracked_cycle(&open, expected)?)
+                        .await?
+                        .affected_rows
+                        == 1
+                    {
+                        return Ok(open);
+                    }
+                    continue;
+                }
+                if sample == previous_sample {
+                    return Ok(open);
+                }
+                if changed || decreased {
+                    let (at, local) = boundary::transition(&open, &input, changed);
+                    let expected = open.version;
+                    open.version += 1;
+                    open.status = QuotaCycleStatus::Closed;
+                    open.accounting_end_ms = Some(at);
+                    open.tracking.needs_rebuild = true;
+                    open.close_reason = Some(if changed {
+                        QuotaCycleCloseReason::BoundaryCrossed
+                    } else {
+                        QuotaCycleCloseReason::UsageDecreased
+                    });
+                    let next = new_cycle(&input, Some(at), local, Some(&open));
+                    let result = self
+                        .backend()
+                        .batch(vec![
+                            runtime::update_tracked_cycle(&open, expected)?,
+                            runtime::insert_tracked_cycle(&next, Some(&open))?,
+                        ])
+                        .await;
                     match result {
-                        Ok(result) if result.affected_rows == 1 => {
-                            continuation_start = Some(
-                                observation
-                                    .period_start
-                                    .filter(|start| *start >= boundary.at)
-                                    .unwrap_or(boundary.at),
-                            );
-                            continue;
+                        Ok(results)
+                            if results[0].affected_rows == 1 && results[1].affected_rows == 1 =>
+                        {
+                            return self
+                                .repair_and_read(input.credential_id, &input.window_key)
+                                .await;
                         }
                         Ok(_) => continue,
+                        Err(error) if constraint_conflict(&error) => continue,
                         Err(error) => return Err(error),
                     }
                 }
-                Some(open) => {
-                    state::merge_same_second(&open, &mut input);
-                    let metrics = metrics::collect(self, &input).await?;
-                    let statement = runtime::update_credential_quota_cycle(
-                        &open,
-                        &input,
-                        state::update_coverage(&open, &input),
-                        &metrics.totals,
-                    )?;
-                    let result = persist::known(
-                        self,
-                        statement,
-                        open.id,
-                        open.version.saturating_add(1),
-                        &metrics,
-                    )
-                    .await?;
-                    if result.affected_rows == 1 {
-                        return self.require_credential_quota_cycle(open.id).await;
+                let expected = open.version;
+                let adjusted = state::adjusted(&open, &input);
+                let mut tracking = if adjusted || open.tracking.uncertain {
+                    state::tracking(&input, open.tracking.local_boundary)
+                } else {
+                    open.tracking.clone()
+                };
+                tracking.sample = sample;
+                tracking.uncertain = false;
+                let start = open.accounting_start_ms;
+                let end = open
+                    .accounting_end_ms
+                    .or(input.period_end.map(|end| end * 1000));
+                tracking.needs_rebuild |=
+                    open.accounting_start_ms != start || open.accounting_end_ms != end;
+                open.accounting_start_ms = start;
+                open.accounting_end_ms = end;
+                open.tracking = tracking;
+                open.version += 1;
+                open.period_start = input.period_start;
+                open.period_end = input.period_end;
+                open.label = input.label;
+                open.last_observed_at = input.observed_at;
+                open.upstream_used = input.upstream_used;
+                open.upstream_limit = input.upstream_limit;
+                open.used_percent = input.used_percent;
+                if self
+                    .backend()
+                    .execute(runtime::update_tracked_cycle(&open, expected)?)
+                    .await?
+                    .affected_rows
+                    == 1
+                {
+                    if open.tracking.needs_rebuild {
+                        return self
+                            .repair_and_read(input.credential_id, &input.window_key)
+                            .await;
                     }
+                    return Ok(open);
                 }
-                None => {
-                    let latest = self
-                        .latest_credential_quota_cycle(input.credential_id, &input.window_key)
-                        .await?;
-                    if let Some(latest) = latest.as_ref() {
-                        state::continue_after_natural_close(latest, &mut input);
-                    }
-                    if let Some(latest) = latest.as_ref()
-                        && latest.status == QuotaCycleStatus::Closed
-                        && state::stale_after_close(latest, &input)
+            } else {
+                let latest = self
+                    .latest_credential_quota_cycle(input.credential_id, &input.window_key)
+                    .await?;
+                if let Some(latest) = &latest {
+                    let cutoff = latest
+                        .accounting_end_ms
+                        .unwrap_or(latest.last_observed_at * 1000);
+                    if input.period_end.is_some_and(|end| end * 1000 <= cutoff)
+                        || sample.received_at_ms < cutoff
+                        || sample.started_at_ms < latest.tracking.sample.started_at_ms
                     {
                         return Ok(latest.clone());
                     }
-                    let metrics = metrics::collect(self, &input).await?;
-                    let statement = runtime::insert_credential_quota_cycle(
-                        &input,
-                        state::new_coverage(latest.as_ref(), &input),
-                        &metrics.totals,
-                    )?;
-                    match persist::insert(self, statement, &input, &metrics).await {
-                        Ok(result) => {
-                            let id = result.last_insert_id.ok_or_else(|| {
-                                StoreError::Database("cycle insert returned no id".into())
-                            })?;
-                            return self.require_credential_quota_cycle(id).await;
-                        }
-                        Err(error) if unique_conflict(&error) => continue,
-                        Err(error) => return Err(error),
+                    if latest.period_end == input.period_end
+                        && !state::decreased(latest, &input)
+                        && !state::changed(latest, &input)
+                    {
+                        return Ok(latest.clone());
                     }
+                }
+                let start = latest
+                    .as_ref()
+                    .and_then(|previous| previous.accounting_end_ms)
+                    .map(|cutoff| {
+                        input
+                            .period_start
+                            .map(|start| start * 1000)
+                            .unwrap_or(cutoff)
+                            .max(cutoff)
+                    });
+                let next = new_cycle(&input, start, false, latest.as_ref());
+                match self
+                    .backend()
+                    .execute(runtime::insert_tracked_cycle(&next, latest.as_ref())?)
+                    .await
+                {
+                    Ok(result) if result.affected_rows == 1 => {
+                        return self
+                            .repair_and_read(input.credential_id, &input.window_key)
+                            .await;
+                    }
+                    Ok(_) => continue,
+                    Err(error) if constraint_conflict(&error) => continue,
+                    Err(error) => return Err(error),
                 }
             }
         }
         Err(StoreError::Database(
-            "credential quota-cycle observation remained contended".into(),
+            "credential cycle remained contended".into(),
         ))
+    }
+
+    async fn repair_and_read(
+        &self,
+        credential: i64,
+        window: &str,
+    ) -> Result<CredentialQuotaCycleRecord, StoreError> {
+        self.repair_cycle_links(credential, window).await?;
+        self.latest_credential_quota_cycle(credential, window)
+            .await?
+            .ok_or_else(|| StoreError::Database("quota cycle disappeared".into()))
     }
 }
 
-fn unique_conflict(error: &StoreError) -> bool {
-    matches!(error, StoreError::Database(message) if message.to_ascii_lowercase().contains("unique"))
+fn new_cycle(
+    input: &CredentialQuotaObservation,
+    start: Option<i64>,
+    local: bool,
+    previous: Option<&CredentialQuotaCycleRecord>,
+) -> CredentialQuotaCycleRecord {
+    let sample = state::sample(input);
+    let start = start
+        .or(input.period_start.map(|start| start * 1000))
+        .unwrap_or(sample.received_at_ms);
+    CredentialQuotaCycleRecord {
+        id: 0,
+        version: 1,
+        credential_id: input.credential_id,
+        window_key: input.window_key.clone(),
+        label: input.label.clone(),
+        period_start: input.period_start,
+        period_end: input.period_end,
+        boundary_source: input.boundary_source,
+        boundary_confidence: input.boundary_confidence,
+        status: QuotaCycleStatus::Open,
+        close_reason: None,
+        last_observed_at: input.observed_at,
+        upstream_used: input.upstream_used,
+        upstream_limit: input.upstream_limit,
+        used_percent: input.used_percent,
+        coverage: if input.scope == gproxy_core::QuotaScope::Unknown {
+            QuotaCoverage::Unknown
+        } else if previous.is_some_and(|previous| {
+            previous.accounting_end_ms == Some(start)
+                && previous.close_reason == Some(QuotaCycleCloseReason::BoundaryCrossed)
+        }) {
+            QuotaCoverage::FullPeriodLowerBound
+        } else {
+            QuotaCoverage::PartialLowerBound
+        },
+        metrics: serde_json::json!({}),
+        models: Vec::new(),
+        accounting_start_ms: start,
+        accounting_end_ms: input
+            .period_end
+            .map(|end| end * 1000)
+            .filter(|end| *end > start),
+        tracking: state::tracking(input, local),
+        estimate: None,
+    }
+}
+
+fn constraint_conflict(error: &StoreError) -> bool {
+    match error {
+        StoreError::Database(message) => {
+            let message = message.to_ascii_lowercase();
+            message.contains("unique")
+                || message.contains("duplicate")
+                || message.contains("locked")
+        }
+        _ => false,
+    }
 }

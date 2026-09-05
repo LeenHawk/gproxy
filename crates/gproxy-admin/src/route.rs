@@ -50,6 +50,8 @@ pub(crate) enum Route {
     RevealUserKey(i64),
     UserPassword(i64),
     Usage,
+    UsageRecords,
+    UsageSummary,
     UsageTrend,
     QuotaWindows,
     CredentialCycles,
@@ -186,6 +188,8 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
 fn special(method: &Method, name: &str) -> Option<Route> {
     match (method, name) {
         (&Method::GET, "usage") => Some(Route::Usage),
+        (&Method::GET, "usage-records") => Some(Route::UsageRecords),
+        (&Method::GET, "usage-summary") => Some(Route::UsageSummary),
         (&Method::GET, "usage-trend") => Some(Route::UsageTrend),
         (&Method::GET, "quota-windows") => Some(Route::QuotaWindows),
         (&Method::GET, "credential-cycles") => Some(Route::CredentialCycles),
@@ -304,6 +308,8 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         | Route::PriceCatalog
         | Route::ConnectivityTest
         | Route::Usage
+        | Route::UsageRecords
+        | Route::UsageSummary
         | Route::UsageTrend
         | Route::QuotaWindows
         | Route::CredentialCycles

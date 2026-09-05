@@ -24,6 +24,7 @@ use self::stream::FunnelStream;
 pub(crate) struct Settled(());
 
 pub(crate) struct FunnelCtx {
+    pub upstream_started_at_ms: Option<i64>,
     pub request_id: String,
     pub target: Target,
     pub credential_version: Option<u64>,

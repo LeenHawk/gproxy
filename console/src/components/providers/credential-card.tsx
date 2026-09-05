@@ -22,6 +22,11 @@ type Props = {
 }
 
 export function CredentialCard(props: Props) {
+  if (!props.credential.quota_capabilities) return null
+  return <SubscriptionCredentialCard {...props} />
+}
+
+function SubscriptionCredentialCard(props: Props) {
   const { t, i18n } = useTranslation()
   const credential = props.credential
   const client = useQueryClient()
@@ -33,17 +38,29 @@ export function CredentialCard(props: Props) {
       void client.invalidateQueries({ queryKey: ["credential-cycles"] })
       return result
     },
+    enabled: credential.quota_capabilities?.probe === true,
     retry: false,
-    staleTime: Infinity,
+    staleTime: 10 * 60 * 1000,
     gcTime: Infinity,
   })
   const quota = probe.data ?? null
+  const manual = useMutation({ mutationFn: () => probeCredentialQuota(credential.id, true) })
+  const mergedCycles = useMemo(() => {
+    const byId = new Map<number, CredentialQuotaCycleDto>()
+    for (const cycle of [...(quota?.cycles ?? []), ...props.cycles]) {
+      const current = byId.get(cycle.id)
+      if (!current || cycle.version >= current.version) byId.set(cycle.id, cycle)
+    }
+    return [...byId.values()]
+  }, [quota?.cycles, props.cycles])
   const refresh = async () => {
-    const result = await probe.refetch()
-    if (result.isSuccess) {
-      toast.success(t("providers.credentials.quotaProbe.success", { count: result.data.windows.length }))
-    } else if (result.isError) {
-      toast.error(result.error instanceof ApiError ? result.error.message : t("providers.credentials.quotaProbe.error"))
+    try {
+      const result = await manual.mutateAsync()
+      client.setQueryData(["credential-quota-probe", credential.id, credential.version], result)
+      await client.invalidateQueries({ queryKey: ["credential-cycles"] })
+      toast.success(t("providers.credentials.quotaProbe.success", { count: result.windows.length }))
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : t("providers.credentials.quotaProbe.error"))
     }
   }
   const reset = useMutation({
@@ -74,19 +91,20 @@ export function CredentialCard(props: Props) {
               <p className="text-sm font-medium">{t("providers.credentials.quota.title")}</p>
               <p className="text-xs text-muted-foreground">{t("providers.credentials.quota.hint")}</p>
             </div>
-            <Button variant="outline" size="sm" className="shrink-0" disabled={probe.isFetching || reset.isPending} onClick={() => void refresh()}>
+            <Button variant="outline" size="sm" className="shrink-0" disabled={probe.isFetching || manual.isPending || reset.isPending} onClick={() => void refresh()}>
               <RefreshCwIcon aria-hidden className={probe.isFetching ? "animate-spin" : undefined} />
               {probe.isFetching ? t("providers.credentials.quotaProbe.pending") : t("providers.credentials.quotaProbe.action")}
             </Button>
           </div>
           <CredentialCycleList
-            cycles={props.cycles}
+            cycles={mergedCycles}
+            localError={quota?.local_error}
             windows={quota?.windows}
             loading={!quota && (props.cyclesLoading || probe.isFetching)}
             error={!quota && props.cyclesError}
           />
           {probe.isError ? <p role="alert" className="text-sm text-destructive">{probe.error instanceof ApiError ? probe.error.message : t("providers.credentials.quotaProbe.error")}</p> : null}
-            {resetCredits ? (
+            {resetCredits && credential.quota_capabilities?.reset ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
                 <p className="min-w-0 text-sm">
                   <span className="text-muted-foreground">{t("providers.credentials.quotaReset.available")}: </span>

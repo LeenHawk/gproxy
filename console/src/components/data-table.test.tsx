@@ -62,6 +62,31 @@ describe("DataTable", () => {
     expect(onRowClick).toHaveBeenCalledTimes(1)
   })
 
+  it("renders a server page without slicing it again or exposing local search", async () => {
+    const user = userEvent.setup()
+    const onPage = vi.fn()
+    const onPageSize = vi.fn()
+    render(
+      <DataTable
+        columns={[{ key: "name", label: "Name", header: "Name", cell: (row) => row.name }]}
+        rows={[{ id: 11, name: "Server item 11" }]}
+        rowKey={(row) => row.id}
+        searchText={(row) => row.name}
+        renderCard={(row) => row.name}
+        empty={null}
+        storageKey="server-pagination"
+        pagination={{ page: 2, pageSize: 10, total: 21, onPage, onPageSize }}
+      />,
+    )
+    expect(screen.getAllByText("Server item 11")).toHaveLength(2)
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "common.dataTable.next" }))
+    expect(onPage).toHaveBeenCalledWith(3)
+    screen.getByRole("combobox", { name: "common.dataTable.itemsPerPage" }).focus()
+    await user.keyboard("{Enter}{ArrowDown}{Enter}")
+    expect(onPageSize).toHaveBeenCalledWith(20)
+  })
+
   it("changes the number of visible items and resets to the first page", async () => {
     const user = userEvent.setup()
     const rows = Array.from({ length: 21 }, (_, index) => ({ id: index + 1, name: `Item ${index + 1}` }))

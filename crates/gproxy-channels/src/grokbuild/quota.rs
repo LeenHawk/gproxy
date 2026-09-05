@@ -76,6 +76,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             .map(period_window_key)
             .unwrap_or("usage");
         observations.push(QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: gproxy_channel_api::QuotaScope::Unknown,
+            sample: None,
             window_key: window_key.to_owned(),
             label: None,
             period_start,
@@ -95,6 +99,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             .map(str::trim)
             .filter(|value| !value.is_empty());
         observations.push(QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: gproxy_channel_api::QuotaScope::Unknown,
+            sample: None,
             window_key: format!(
                 "product:{}",
                 crate::shared::quota::slug(label.unwrap_or("Product"), "product")

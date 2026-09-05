@@ -122,19 +122,28 @@
     "cacheCreation1h": "Cache write 1h",
     "outputTokens": "Output tokens",
     "cost": {
-      "title": "Usage and cost",
       "label": "Cost"
     },
-    "windows": "Quota windows",
     "credentialCycles": "Upstream credential quota windows",
     "cycleUsage": {
       "used": "Used this cycle (local)",
       "estimated": "Estimated total cycle capacity",
       "tokens": "{{value}} tokens",
       "requests": "{{value}} requests",
-      "unavailable": "Insufficient data",
       "unknown": "No local usage recorded",
-      "hint": "At the last observation: local usage ÷ upstream used fraction estimates capacity for the current model mix, not an upstream guarantee. Usage outside this gateway is excluded; incomplete records can underestimate capacity. No estimate at 0% or without usage."
+      "hint": "Estimated for the sampled model mix: local usage delta ÷ upstream usage fraction delta. USD is locally settled cost, not subscription charges. Not used for admission or billing; activity outside this gateway can affect estimates.",
+      "localUnavailable": "Local statistics are unavailable; upstream readings are still shown.",
+      "history": "Previous rounds ({{count}})",
+      "starts": "Period starts: {{value}}",
+      "observed": "Last observed: {{value}}",
+      "localBoundary": "This round accounts from {{value}} (locally estimated boundary)",
+      "reasons": {
+        "insufficient_samples": "Insufficient data",
+        "unknown_scope": "Model scope is unknown",
+        "unordered_observations": "Observations are unordered; awaiting another reading",
+        "incomplete_usage": "Usage is incomplete or not fully settled",
+        "usage_disabled": "Usage recording is disabled"
+      }
     },
     "cycleStates": {
       "empty": "No upstream credential quota windows were observed in this period."
@@ -158,6 +167,22 @@
       "additional_primary": "{{scope}} primary window",
       "additional_secondary": "{{scope}} secondary window",
       "product": "{{scope}}"
+    },
+    "record": {
+      "time": "Time",
+      "requestId": "Request ID",
+      "latency": "Latency",
+      "source": "Usage source",
+      "ended": "Completion",
+      "operation": "Operation",
+      "summary": "Filtered totals",
+      "tokens": "Total tokens",
+      "detail": "Usage record",
+      "noLogs": "Request logs are unavailable (disabled or cleaned up). This usage record remains available.",
+      "upstream": "Upstream",
+      "estimated": "Estimated",
+      "complete": "Complete",
+      "interrupted": "Interrupted"
     }
   },
   "overview": {

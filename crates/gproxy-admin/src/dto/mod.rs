@@ -13,11 +13,13 @@ mod model_catalog;
 mod native;
 mod portal;
 mod pricing;
+mod quota;
 mod rules;
 mod settings;
 mod traffic;
 mod transfer;
 mod usage;
+mod usage_records;
 
 pub use audit::*;
 pub use auth::*;
@@ -34,11 +36,13 @@ pub use model_catalog::*;
 pub use native::*;
 pub use portal::*;
 pub use pricing::*;
+pub use quota::*;
 pub use rules::*;
 pub use settings::*;
 pub use traffic::*;
 pub use transfer::*;
 pub use usage::*;
+pub use usage_records::*;
 
 #[cfg(test)]
 mod export;

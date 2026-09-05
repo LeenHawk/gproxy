@@ -93,6 +93,14 @@ impl Bucket {
             (None, None) => None,
         });
         QuotaObservation {
+            unit: None,
+            reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+            scope: self
+                .model_id
+                .clone()
+                .map(|model| gproxy_channel_api::QuotaScope::Models(vec![model]))
+                .unwrap_or_default(),
+            sample: None,
             window_key: window_key(self.model_id.as_deref(), self.token_type.as_deref(), index),
             label: None,
             period_start: None,

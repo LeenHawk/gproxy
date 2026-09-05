@@ -39,6 +39,7 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
     dimensions.insert("instance_name".into(), settings.instance_name.clone());
     dimensions.insert("instance_id".into(), settings.instance_id.to_string());
     let input = gproxy_store::records::UsageInput {
+        upstream_started_at_ms: settlement.upstream_started_at_ms,
         request_id: settlement.request_id.clone(),
         at: unix_now(),
         provider_id: settlement.provider_id,

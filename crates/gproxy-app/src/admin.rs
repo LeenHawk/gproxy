@@ -4,13 +4,16 @@ mod import;
 mod model_discover;
 mod model_test;
 mod portal;
-mod quota_probe;
+mod quota_capabilities;
+pub(crate) mod quota_probe;
 mod quota_reset;
 mod tokenizer_auth;
 
 use std::time::Duration;
 
-use gproxy_admin::dto::{ChannelDto, ExportSourceKeyDto, PortalModelDto, channel_dto};
+use gproxy_admin::dto::{
+    ChannelDto, ExportSourceKeyDto, PortalModelDto, QuotaCapabilitiesDto, channel_dto,
+};
 use gproxy_admin::{AdminError, PortalIdentity, State};
 use gproxy_channel_api::{AuthCodeStart, BoxFuture, DeviceInit, DevicePoll};
 use gproxy_core::CacheBackend;
@@ -22,6 +25,13 @@ use helpers::{auth_limit_key, cache_error, login_error, operator_key};
 use helpers::{tokenizer_dto, tokenizer_progress_dto};
 
 impl State for AppHandle {
+    fn credential_quota_capabilities(
+        &self,
+        id: i64,
+    ) -> BoxFuture<'_, Result<Option<QuotaCapabilitiesDto>, AdminError>> {
+        Box::pin(quota_capabilities::read(self, id))
+    }
+
     fn store(&self) -> &gproxy_store::Store {
         &self.inner.host.services.store
     }
@@ -111,24 +121,7 @@ impl State for AppHandle {
         &self,
         id: i64,
     ) -> BoxFuture<'_, Result<serde_json::Value, AdminError>> {
-        Box::pin(async move {
-            let stored = self
-                .inner
-                .host
-                .services
-                .store
-                .credential(id)
-                .await?
-                .ok_or(AdminError::NotFound)?;
-            let secret = self
-                .inner
-                .host
-                .services
-                .cipher
-                .open(&stored.envelope)
-                .map_err(|error| AdminError::Internal(error.to_string()))?;
-            Ok(secret)
-        })
+        Box::pin(helpers::reveal_credential_secret(self, id))
     }
 
     fn admit_auth_attempt(
@@ -216,8 +209,9 @@ impl State for AppHandle {
     fn quota_probe<'a>(
         &'a self,
         credential_id: i64,
+        force: bool,
     ) -> BoxFuture<'a, Result<gproxy_admin::dto::QuotaProbeResponse, AdminError>> {
-        Box::pin(quota_probe::run(self, credential_id))
+        Box::pin(quota_probe::run(self, credential_id, force))
     }
 
     fn quota_reset<'a>(

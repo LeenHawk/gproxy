@@ -23,6 +23,7 @@ pub(crate) enum Egress {
 }
 
 pub(crate) struct Prepared {
+    pub(crate) quota_accounted: bool,
     pub(crate) channel: &'static str,
     pub(crate) egress: Egress,
     pub(crate) stream: bool,
@@ -71,6 +72,7 @@ pub(crate) async fn send<H: Host>(
     prepared: Prepared,
 ) -> Result<Completed, Box<Failure>> {
     let Prepared {
+        quota_accounted,
         channel,
         egress,
         stream,
@@ -78,6 +80,22 @@ pub(crate) async fn send<H: Host>(
         mut facts,
     } = prepared;
     let committed = matches!(&egress, Egress::Orchestrated(_));
+    facts.upstream_started_at_ms = Some(crate::quota::now_ms());
+    if quota_accounted
+        && let Err(error) = core
+            .host
+            .begin_credential_usage(
+                &facts.request_id,
+                &facts.target,
+                facts.upstream_started_at_ms.expect("send time"),
+            )
+            .await
+    {
+        return Err(Box::new(Failure::Transport {
+            facts,
+            error: TransportError::Interrupted(error.to_string()),
+        }));
+    }
     let response = match egress {
         Egress::Http(request) => match core.host.transport().send(*request).await {
             Ok(response) => response,
@@ -115,8 +133,7 @@ pub(crate) async fn send<H: Host>(
         crate::funnel::health::response(
             core.host.as_ref(),
             channel,
-            &facts.target,
-            facts.credential_version,
+            &facts,
             disposition,
             response.status(),
             response.headers(),
@@ -274,8 +291,7 @@ pub(crate) async fn send<H: Host>(
     crate::funnel::health::response(
         core.host.as_ref(),
         channel,
-        &facts.target,
-        facts.credential_version,
+        &facts,
         disposition,
         response.status(),
         response.headers(),

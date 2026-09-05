@@ -179,7 +179,8 @@
     },
     "closeReason": {
       "boundary_crossed": "跨越周期边界",
-      "manual_reset": "手动重置"
+      "manual_reset": "手动重置",
+      "usage_decreased": "上游已用额度倒降"
     },
     "usageUnknown": "此周期的上游用量不可用。"
   }

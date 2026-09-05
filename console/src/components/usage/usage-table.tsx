@@ -1,40 +1,57 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import type { UsageStatisticsDto } from "@/generated/UsageStatisticsDto"
+import type { UsageRecordDto } from "@/generated/UsageRecordDto"
+import type { UsageRecordPageDto } from "@/generated/UsageRecordPageDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
+import type { CredentialDto } from "@/generated/CredentialDto"
 import type { UserDto } from "@/generated/UserDto"
 import type { UserKeyDto } from "@/generated/UserKeyDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
-import { formatCost, formatCount } from "@/lib/format"
+import type { PageSize } from "@/components/data-table-pagination"
+import { UsageRecordDetail } from "@/components/usage/usage-record-detail"
+import { formatCost, formatCount, formatInstant } from "@/lib/format"
 
-function Metric({ label, value, locale }: { label: string; value: number; locale: string }) {
-  return <div><dt className="text-muted-foreground">{label}</dt><dd className="font-mono">{formatCount(value, locale)}</dd></div>
+type Props = {
+  page: UsageRecordPageDto
+  providers: Array<ProviderDto>
+  credentials: Array<CredentialDto>
+  users: Array<UserDto>
+  keys: Array<UserKeyDto>
+  pending: boolean
+  onPage: (page: number) => void
+  onPageSize: (size: PageSize) => void
 }
 
-export function UsageTable({ rows, providers, users, keys }: { rows: Array<UsageStatisticsDto>; providers: Array<ProviderDto>; users: Array<UserDto>; keys: Array<UserKeyDto> }) {
+export function UsageTable({ page, providers, credentials, users, keys, pending, onPage, onPageSize }: Props) {
   const { t, i18n } = useTranslation()
-  const providerNames = useMemo(() => new Map(providers.map((provider) => [provider.id, provider.name])), [providers])
-  const userNames = useMemo(() => new Map(users.map((user) => [user.id, user.name])), [users])
-  const keyNames = useMemo(() => new Map(keys.map((key) => [key.id, key.label ?? key.prefix ?? String(key.id)])), [keys])
-  const userName = (id: number | null) => id == null ? t("common.none") : userNames.get(id) ?? String(id)
-  const keyName = (id: number | null) => id == null ? t("common.none") : keyNames.get(id) ?? String(id)
-  const providerName = (id: number | null) => id == null ? t("common.none") : providerNames.get(id) ?? String(id)
-  const modelName = (model: string | null) => model ?? t("common.none")
-  const columns: Array<DataTableColumn<UsageStatisticsDto>> = [
-    { key: "key", label: t("usage.filters.key"), header: t("usage.filters.key"), cell: (row) => <span className="text-xs">{keyName(row.user_key_id)}</span> },
-    { key: "user", label: t("usage.filters.user"), header: t("usage.filters.user"), cell: (row) => <span className="text-xs">{userName(row.user_id)}</span> },
-    { key: "provider", label: t("usage.filters.provider"), header: t("usage.filters.provider"), cell: (row) => <span className="text-xs">{providerName(row.provider_id)}</span> },
-    { key: "model", label: t("usage.filters.model"), header: t("usage.filters.model"), cell: (row) => <span className="font-mono text-xs">{modelName(row.model)}</span> },
-    { key: "requests", label: t("usage.requests"), header: t("usage.requests"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.requests, i18n.language)}</span>, className: "text-right" },
-    { key: "input", label: t("usage.inputTokens"), header: t("usage.inputTokens"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.input_tokens, i18n.language)}</span>, className: "text-right" },
-    { key: "cached", label: t("usage.cachedTokens"), header: t("usage.cachedTokens"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.cached_input_tokens, i18n.language)}</span>, className: "text-right" },
-    { key: "cache5m", label: t("usage.cacheCreation5m"), header: t("usage.cacheCreation5m"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.cache_creation_5m_tokens, i18n.language)}</span>, className: "text-right" },
-    { key: "cache30m", label: t("usage.cacheCreation30m"), header: t("usage.cacheCreation30m"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.cache_creation_30m_tokens, i18n.language)}</span>, className: "text-right" },
-    { key: "cache1h", label: t("usage.cacheCreation1h"), header: t("usage.cacheCreation1h"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.cache_creation_1h_tokens, i18n.language)}</span>, className: "text-right" },
-    { key: "output", label: t("usage.outputTokens"), header: t("usage.outputTokens"), cell: (row) => <span className="font-mono text-xs">{formatCount(row.output_tokens, i18n.language)}</span>, className: "text-right" },
-    { key: "cost", label: t("usage.cost.label"), header: t("usage.cost.label"), cell: (row) => <span className="font-mono text-xs">{formatCost(row.cost, i18n.language)}</span>, className: "text-right" },
+  const [selected, setSelected] = useState<UsageRecordDto | null>(null)
+  const names = useMemo(() => ({
+    providers: new Map(providers.map((value) => [value.id, value.name])),
+    credentials: new Map(credentials.map((value) => [value.id, value.label ?? `#${value.id}`])),
+    users: new Map(users.map((value) => [value.id, value.name])),
+    keys: new Map(keys.map((value) => [value.id, value.label ?? value.prefix ?? `#${value.id}`])),
+  }), [providers, credentials, users, keys])
+  const name = (kind: keyof typeof names, id: number | null) => id == null ? "—" : names[kind].get(id) ?? `#${id}`
+  const count = (value: number | string) => <span className="font-mono text-xs tabular-nums">{formatCount(Number(value), i18n.language)}</span>
+  const columns: Array<DataTableColumn<UsageRecordDto>> = [
+    { key: "at", label: t("usage.record.time"), header: t("usage.record.time"), cell: (row) => <span className="whitespace-nowrap text-xs">{formatInstant(row.at, i18n.language)}</span> },
+    { key: "request", label: t("usage.record.requestId"), header: t("usage.record.requestId"), cell: (row) => <span className="block max-w-40 truncate font-mono text-xs" title={row.request_id}>{row.request_id}</span> },
+    { key: "model", label: t("usage.filters.model"), header: t("usage.filters.model"), cell: (row) => <span className="font-mono text-xs">{row.model}</span> },
+    ...(["provider", "credential", "user", "key"] as const).map((key) => ({ key, label: t(`usage.filters.${key}`), header: t(`usage.filters.${key}`), cell: (row: UsageRecordDto) => name(`${key}s` as keyof typeof names, row[key === "key" ? "user_key_id" : `${key}_id` as const]) })),
+    { key: "input", label: t("usage.inputTokens"), header: t("usage.inputTokens"), cell: (row) => count(row.input_tokens) },
+    { key: "output", label: t("usage.outputTokens"), header: t("usage.outputTokens"), cell: (row) => count(row.output_tokens) },
+    { key: "cached", label: t("usage.cachedTokens"), header: t("usage.cachedTokens"), cell: (row) => count(row.cached_input_tokens) },
+    ...(["5m", "30m", "1h"] as const).map((duration) => ({ key: `cache${duration}`, label: t(`usage.cacheCreation${duration}`), header: t(`usage.cacheCreation${duration}`), cell: (row: UsageRecordDto) => count(row.metrics[`cache_creation_${duration}_tokens`] ?? 0) })),
+    { key: "cost", label: t("usage.cost.label"), header: "USD", cell: (row) => <span className="font-mono tabular-nums">{formatCost(row.cost, i18n.language)}</span> },
+    { key: "latency", label: t("usage.record.latency"), header: t("usage.record.latency"), cell: (row) => `${row.latency_ms} ms` },
+    { key: "source", label: t("usage.record.source"), header: t("usage.record.source"), cell: (row) => t(`usage.record.${row.usage_source}`) },
+    { key: "ended", label: t("usage.record.ended"), header: t("usage.record.ended"), cell: (row) => t(`usage.record.${row.ended}`) },
   ]
-  return (
-    <DataTable columns={columns} rows={rows} rowKey={(row) => JSON.stringify([row.user_key_id, row.user_id, row.provider_id, row.model])} searchText={(row) => `${keyName(row.user_key_id)} ${userName(row.user_id)} ${providerName(row.provider_id)} ${modelName(row.model)}`} renderCard={(row) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs">{modelName(row.model)}</p><p className="text-xs text-muted-foreground">{providerName(row.provider_id)}</p></div><p className="font-mono text-sm">{formatCost(row.cost, i18n.language)}</p></div><dl className="grid grid-cols-2 gap-2 text-xs"><Metric label={t("usage.requests")} value={row.requests} locale={i18n.language} /><Metric label={t("usage.inputTokens")} value={row.input_tokens} locale={i18n.language} /><Metric label={t("usage.cachedTokens")} value={row.cached_input_tokens} locale={i18n.language} /><Metric label={t("usage.cacheCreation5m")} value={row.cache_creation_5m_tokens} locale={i18n.language} /><Metric label={t("usage.cacheCreation30m")} value={row.cache_creation_30m_tokens} locale={i18n.language} /><Metric label={t("usage.cacheCreation1h")} value={row.cache_creation_1h_tokens} locale={i18n.language} /><Metric label={t("usage.outputTokens")} value={row.output_tokens} locale={i18n.language} /></dl><p className="text-xs text-muted-foreground">{keyName(row.user_key_id)} · {userName(row.user_id)}</p></div>} empty={t("usage.empty")} storageKey="usage" />
-  )
+  return <div aria-busy={pending}>
+    <DataTable columns={columns} rows={page.items} rowKey={(row) => row.id} searchText={(row) => row.request_id}
+      renderCard={(row) => <div className="grid gap-2 text-xs"><div className="flex justify-between gap-3"><span className="break-all font-mono">{row.model}</span><strong className="tabular-nums">{formatCost(row.cost, i18n.language)}</strong></div><p>{formatInstant(row.at, i18n.language)} · {name("providers", row.provider_id)}</p><p className="break-all font-mono">{row.request_id}</p><p>{t("usage.inputTokens")}: {row.input_tokens} · {t("usage.outputTokens")}: {row.output_tokens} · {row.latency_ms} ms</p><p>{t(`usage.record.${row.usage_source}`)} · {t(`usage.record.${row.ended}`)}</p></div>}
+      onRowClick={setSelected} empty={t("usage.empty")} storageKey="usage-records"
+      pagination={{ page: page.page, pageSize: page.page_size as PageSize, total: page.total, onPage: (next) => { if (!pending) onPage(next) }, onPageSize }} />
+    <UsageRecordDetail record={selected} onClose={() => setSelected(null)} providers={providers} />
+  </div>
 }

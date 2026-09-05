@@ -49,6 +49,7 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
         .await
         .expect("second admission");
     let settlement = gproxy_core::Settlement {
+        upstream_started_at_ms: None,
         request_id: second.request_id.clone(),
         provider_id: provider,
         credential_id: gproxy_core::CredentialId(credential),

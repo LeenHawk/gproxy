@@ -25,7 +25,7 @@ pub(super) async fn list(
                 grouped
             },
         );
-        let values = records
+        let mut values = records
             .iter()
             .map(|credential| {
                 let current = health
@@ -35,6 +35,9 @@ pub(super) async fn list(
                 map::credential(credential, current)
             })
             .collect::<Vec<_>>();
+        for value in &mut values {
+            value.quota_capabilities = state.credential_quota_capabilities(value.id).await?;
+        }
         return response::json(StatusCode::OK, &values);
     }
     let snapshot = state.store().control_snapshot().await?;

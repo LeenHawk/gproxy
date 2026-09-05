@@ -11,6 +11,11 @@ use crate::{AdminError, PortalIdentity};
 pub trait State: MaybeSend + MaybeSync {
     fn store(&self) -> &gproxy_store::Store;
 
+    fn credential_quota_capabilities(
+        &self,
+        id: i64,
+    ) -> BoxFuture<'_, Result<Option<crate::dto::QuotaCapabilitiesDto>, AdminError>>;
+
     fn seal_credential(&self, secret: &serde_json::Value)
     -> Result<CredentialEnvelope, AdminError>;
 
@@ -72,6 +77,7 @@ pub trait State: MaybeSend + MaybeSync {
     fn quota_probe<'a>(
         &'a self,
         credential_id: i64,
+        force: bool,
     ) -> BoxFuture<'a, Result<QuotaProbeResponse, AdminError>>;
 
     fn quota_reset<'a>(

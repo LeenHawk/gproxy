@@ -112,6 +112,7 @@ pub enum QuotaCycleStatusDto {
 pub enum QuotaCycleCloseReasonDto {
     BoundaryCrossed,
     ManualReset,
+    UsageDecreased,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -136,6 +137,11 @@ pub struct CredentialQuotaCycleDto {
     #[ts(type = "unknown")]
     pub metrics: Value,
     pub models: Vec<CredentialQuotaCycleModelDto>,
+    pub unit: Option<String>,
+    pub accounting_start_ms: i64,
+    pub accounting_end_ms: Option<i64>,
+    pub local_boundary: bool,
+    pub estimate: Option<super::CycleEstimateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

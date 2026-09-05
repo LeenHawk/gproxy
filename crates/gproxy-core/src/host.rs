@@ -245,6 +245,16 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
     ) -> BoxFuture<'a, ()>;
     /// Sink for upstream quota-window readings observed on responses.
     /// Optional: an embedder without cycle accounting drops them.
+    fn begin_credential_usage<'a>(
+        &'a self,
+        request_id: &'a str,
+        target: &'a crate::control::Target,
+        started_at_ms: i64,
+    ) -> BoxFuture<'a, Result<(), CoreError>> {
+        let _ = (request_id, target, started_at_ms);
+        Box::pin(async { Ok(()) })
+    }
+
     fn observe_credential_quota<'a>(
         &'a self,
         credential: CredentialId,

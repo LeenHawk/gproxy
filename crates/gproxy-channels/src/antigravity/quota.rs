@@ -47,6 +47,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         .filter_map(|(model_id, model)| {
             let quota = model.get("quotaInfo").filter(|value| value.is_object())?;
             Some(QuotaObservation {
+                unit: None,
+                reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
+                scope: gproxy_channel_api::QuotaScope::Models(vec![model_id.clone()]),
+                sample: None,
                 window_key: model_id.clone(),
                 label: None,
                 period_start: None,

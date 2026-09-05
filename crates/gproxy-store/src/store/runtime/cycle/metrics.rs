@@ -1,113 +1,118 @@
-use std::collections::BTreeMap;
-
+use crate::query::runtime;
+use crate::records::{
+    CredentialQuotaCycleModelRecord, CredentialQuotaCycleRecord, CycleEstimate, UsageTotals,
+};
+use crate::{Store, StoreError};
 use rust_decimal::Decimal;
 use serde_json::Value;
 
-use crate::query::runtime;
-use crate::records::{CredentialQuotaCycleModelRecord, CredentialQuotaObservation};
-use crate::{Store, StoreError};
-
-pub(super) struct Collected {
-    pub totals: Value,
-    pub models: Vec<CredentialQuotaCycleModelRecord>,
-}
-
-pub(super) async fn collect(
+pub(super) async fn hydrate(
     store: &Store,
-    input: &CredentialQuotaObservation,
-) -> Result<Collected, StoreError> {
-    collect_range(
-        store,
-        input.credential_id,
-        input.period_start,
-        input.observed_at,
-    )
-    .await
-}
-
-pub(super) async fn collect_range(
-    store: &Store,
-    credential_id: i64,
-    period_start: Option<i64>,
-    observed_at: i64,
-) -> Result<Collected, StoreError> {
-    let Some(period_start) = period_start else {
-        return Ok(Collected {
-            totals: Value::Object(serde_json::Map::new()),
-            models: Vec::new(),
-        });
-    };
-    let rows = store
-        .backend()
-        .execute(runtime::select_credential_cycle_usage(
-            credential_id,
-            period_start,
-            observed_at,
-        )?)
-        .await?
-        .rows;
-    let mut totals = empty_totals();
-    let mut models = BTreeMap::<String, BTreeMap<String, Decimal>>::new();
-    for row in rows {
-        let model = row.text("upstream_model")?.to_owned();
-        let model_totals = models.entry(model).or_insert_with(empty_totals);
-        add_row(&row, &mut totals)?;
-        add_row(&row, model_totals)?;
-    }
-    let totals = serde_json::to_value(totals).map_err(|error| invalid("metrics_json", error))?;
-    let models = models
-        .into_iter()
-        .map(|(model, metrics)| {
-            Ok(CredentialQuotaCycleModelRecord {
-                model,
-                metrics: serde_json::to_value(metrics)
-                    .map_err(|error| invalid("metrics_json", error))?,
-            })
-        })
-        .collect::<Result<Vec<_>, StoreError>>()?;
-    Ok(Collected { totals, models })
-}
-
-fn empty_totals() -> BTreeMap<String, Decimal> {
-    BTreeMap::from([
-        ("requests".to_owned(), Decimal::ZERO),
-        ("input_tokens".to_owned(), Decimal::ZERO),
-        ("output_tokens".to_owned(), Decimal::ZERO),
-        ("cached_input_tokens".to_owned(), Decimal::ZERO),
-        ("cost".to_owned(), Decimal::ZERO),
-    ])
-}
-
-fn add_row(
-    row: &crate::backend::Row,
-    totals: &mut BTreeMap<String, Decimal>,
+    cycle: &mut CredentialQuotaCycleRecord,
 ) -> Result<(), StoreError> {
-    add(totals, "requests", Decimal::ONE);
-    for field in ["input_tokens", "output_tokens", "cached_input_tokens"] {
-        add(totals, field, Decimal::from(row.i64(field)?));
+    let tracking = &cycle.tracking;
+    if tracking.scope == gproxy_core::QuotaScope::Unknown {
+        cycle.metrics = serde_json::json!({});
+        cycle.models.clear();
+        cycle.estimate = Some(unavailable("unknown_scope", cycle));
+        return Ok(());
     }
-    let cost = row
-        .text("cost")?
-        .parse::<Decimal>()
-        .map_err(|error| invalid("cost", error))?;
-    add(totals, "cost", cost);
-    let metrics = serde_json::from_str::<serde_json::Map<String, Value>>(row.text("metrics_json")?)
-        .map_err(|error| invalid("metrics_json", error))?;
-    for (metric, value) in metrics {
-        let amount = serde_json::from_value::<Decimal>(value)
-            .map_err(|error| invalid("metrics_json", error))?;
-        add(totals, &metric, amount);
+    let mut delta = UsageTotals::default();
+    let mut after = 0;
+    let mut incomplete = tracking.needs_rebuild
+        || !store
+            .backend()
+            .execute(runtime::incomplete_cycle_usage(cycle)?)
+            .await?
+            .rows
+            .is_empty();
+    loop {
+        let rows = store
+            .backend()
+            .execute(runtime::cycle_usage_rows(cycle, after, Some(false))?)
+            .await?
+            .rows;
+        if rows.is_empty() {
+            break;
+        }
+        for row in rows {
+            let record = crate::store::usage::parse_usage(row)?;
+            after = record.id;
+            let usage = record.usage;
+            if !tracking.scope.includes(&usage.upstream_model) {
+                continue;
+            }
+            let sent = usage
+                .upstream_started_at_ms
+                .expect("cycle query selects rows with an upstream send time");
+            if sent >= tracking.baseline_at_ms && sent < tracking.sample.received_at_ms {
+                delta.add(&usage)?;
+                incomplete |= usage.ended != "complete"
+                    || usage
+                        .dimensions
+                        .get("quota_attribution")
+                        .and_then(Value::as_str)
+                        == Some("session");
+            }
+        }
     }
+    cycle.models = tracking
+        .models
+        .iter()
+        .map(|(model, metrics)| CredentialQuotaCycleModelRecord {
+            model: model.clone(),
+            metrics: metrics.clone(),
+        })
+        .collect();
+    let current = super::state::percent(
+        cycle.used_percent,
+        cycle.upstream_used,
+        cycle.upstream_limit,
+    );
+    let growth = current
+        .zip(tracking.baseline_percent)
+        .map(|(current, baseline)| current - baseline);
+    cycle.estimate = Some(if tracking.uncertain {
+        unavailable("unordered_observations", cycle)
+    } else if incomplete {
+        unavailable("incomplete_usage", cycle)
+    } else if delta.requests == 0 || growth.is_none_or(|growth| growth < Decimal::ONE) {
+        unavailable("insufficient_samples", cycle)
+    } else {
+        let factor = Decimal::ONE_HUNDRED / growth.expect("positive growth");
+        CycleEstimate {
+            tokens: Some(delta.total_tokens() * factor),
+            cost: Some(delta.cost * factor),
+            reason: None,
+            from_ms: Some(tracking.baseline_at_ms),
+            to_ms: Some(tracking.sample.received_at_ms),
+        }
+    });
     Ok(())
 }
 
-fn add(totals: &mut BTreeMap<String, Decimal>, metric: &str, amount: Decimal) {
-    *totals.entry(metric.to_owned()).or_default() += amount;
+fn unavailable(reason: &str, cycle: &CredentialQuotaCycleRecord) -> CycleEstimate {
+    CycleEstimate {
+        tokens: None,
+        cost: None,
+        reason: Some(reason.into()),
+        from_ms: Some(cycle.tracking.baseline_at_ms),
+        to_ms: Some(cycle.tracking.sample.received_at_ms),
+    }
 }
 
-fn invalid(field: &'static str, error: impl std::fmt::Display) -> StoreError {
-    StoreError::InvalidData {
-        field,
-        message: error.to_string(),
-    }
+pub(super) fn metrics(totals: &UsageTotals) -> Value {
+    let mut metrics = totals.metrics.clone();
+    metrics.extend([
+        ("requests".into(), Decimal::from(totals.requests)),
+        ("input_tokens".into(), Decimal::from(totals.input_tokens)),
+        ("output_tokens".into(), Decimal::from(totals.output_tokens)),
+        (
+            "cached_input_tokens".into(),
+            Decimal::from(totals.cached_input_tokens),
+        ),
+        ("total_tokens".into(), totals.total_tokens()),
+        ("cost".into(), totals.cost),
+    ]);
+    serde_json::to_value(metrics).expect("decimal metrics serialize")
 }

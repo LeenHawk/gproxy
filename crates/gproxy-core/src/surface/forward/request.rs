@@ -124,6 +124,7 @@ pub(crate) async fn request<H: Host>(
         });
     let target_framing = prepared.framing.unwrap_or(source_framing);
     let mut facts = FunnelCtx {
+        upstream_started_at_ms: Some(crate::quota::now_ms()),
         request_id,
         target: target.clone(),
         credential_version: Some(credential.version),
@@ -152,6 +153,16 @@ pub(crate) async fn request<H: Host>(
         traffic_policy: Some(traffic_policy),
         traffic_blacklist: Some(target.provider.traffic_blacklist.clone()),
     };
+    if channel.quota_capabilities(&credential.secret).is_some() && facts.settle != SettleMode::Free
+    {
+        core.host
+            .begin_credential_usage(
+                &facts.request_id,
+                &facts.target,
+                facts.upstream_started_at_ms.expect("send time"),
+            )
+            .await?;
+    }
     if websocket {
         return match core.host.transport().open_websocket(prepared.request).await {
             Ok(socket) => {

@@ -31,6 +31,7 @@ pub enum QuotaCycleStatus {
 pub enum QuotaCycleCloseReason {
     BoundaryCrossed,
     ManualReset,
+    UsageDecreased,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,6 +44,10 @@ pub enum QuotaCoverage {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CredentialQuotaObservation {
+    pub unit: Option<String>,
+    pub reset_behavior: gproxy_core::QuotaResetBehavior,
+    pub scope: gproxy_core::QuotaScope,
+    pub sample: gproxy_core::QuotaSample,
     pub credential_id: i64,
     pub window_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,6 +69,11 @@ pub struct CredentialQuotaObservation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CredentialQuotaCycleRecord {
+    pub accounting_start_ms: i64,
+    pub accounting_end_ms: Option<i64>,
+    pub tracking: super::CycleTracking,
+    #[serde(default)]
+    pub estimate: Option<super::CycleEstimate>,
     pub id: i64,
     pub version: u64,
     pub credential_id: i64,

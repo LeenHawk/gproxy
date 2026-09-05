@@ -32,6 +32,13 @@ export type DataTableProps<T> = {
   batchActions?: (selectedRows: Array<T>, onApplied: () => void) => ReactNode
   createAction?: ReactNode
   pageSize?: PageSize
+  pagination?: {
+    page: number
+    pageSize: PageSize
+    total: number
+    onPage: (page: number) => void
+    onPageSize: (size: PageSize) => void
+  }
 }
 
 const INTERACTIVE = "button, a, input, select, textarea, [role=switch], [role=checkbox], [role=menuitem]"
@@ -55,6 +62,7 @@ export function DataTable<T>({
   batchActions,
   createAction,
   pageSize: initialPageSize = 10,
+  pagination,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const [query, setQuery] = useState("")
@@ -65,12 +73,13 @@ export function DataTable<T>({
   const [selected, setSelected] = useState<Set<string | number>>(() => new Set())
   const { hidden, toggle } = useColumnVisibility(`gproxy.table.${storageKey}.columns`)
   const visibleColumns = columns.filter((column) => !hidden.has(column.key))
-  const filtered = useMemo(() => deferredQuery
+  const filtered = useMemo(() => !pagination && deferredQuery
     ? rows.filter((row) => searchText(row).toLocaleLowerCase().includes(deferredQuery))
-    : rows, [deferredQuery, rows, searchText])
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const currentPage = Math.min(page, pages)
-  const visibleRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : rows, [deferredQuery, rows, searchText, pagination])
+  const effectiveSize = pagination?.pageSize ?? pageSize
+  const pages = Math.max(1, Math.ceil((pagination?.total ?? filtered.length) / effectiveSize))
+  const currentPage = pagination?.page ?? Math.min(page, pages)
+  const visibleRows = pagination ? rows : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const selectedRows = rows.filter((row) => selected.has(rowKey(row)))
   const selecting = selectable && batchMode
   const allSelected = filtered.length > 0 && filtered.every((row) => selected.has(rowKey(row)))
@@ -113,6 +122,7 @@ export function DataTable<T>({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <DataTableToolbar
+        searchable={!pagination}
         query={query}
         onQuery={(value) => { setQuery(value); setPage(1) }}
         columns={columns}
@@ -160,7 +170,7 @@ export function DataTable<T>({
           })}</div>
         </>
       )}
-      {filtered.length > 0 ? <DataTablePagination page={currentPage} pages={pages} pageSize={pageSize} onPage={setPage} onPageSize={(size) => { setPageSize(size); setPage(1) }} /> : null}
+      {filtered.length > 0 || pagination ? <DataTablePagination page={currentPage} pages={pages} pageSize={effectiveSize} onPage={pagination?.onPage ?? setPage} onPageSize={pagination?.onPageSize ?? ((size) => { setPageSize(size); setPage(1) })} /> : null}
       {selecting ? (
         <div className="sticky bottom-3 flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
           <span className="px-2 text-sm text-muted-foreground">{t("common.dataTable.selected", { count: selectedRows.length })}</span>
