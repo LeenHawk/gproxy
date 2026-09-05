@@ -6,7 +6,7 @@ async fn fresh_instance_loads_global_prices_once() {
     let config = || super::test_config(directory.path(), crate::MasterKeyConfig::new(None));
     let app = crate::App::start(config()).await.unwrap();
     let snapshot = app.inner.host.services.control.current();
-    assert_eq!(snapshot.price_rules.len(), 493);
+    assert_eq!(snapshot.price_rules.len(), 497);
     assert!(
         snapshot
             .price_rules
@@ -18,7 +18,7 @@ async fn fresh_instance_loads_global_prices_once() {
     let app = crate::App::start(config()).await.unwrap();
     assert_eq!(
         app.inner.host.services.control.current().price_rules.len(),
-        493
+        497
     );
 }
 
