@@ -171,7 +171,9 @@
     "record": {
       "time": "Time",
       "requestId": "Request ID",
-      "latency": "Latency",
+      "latency": "Total duration",
+      "tps": "TPS",
+      "tpsHint": "Average output tokens/second = output tokens ÷ total duration in seconds, including time to first token, not generation-only speed. Not calculated for zero duration.",
       "source": "Usage source",
       "ended": "Completion",
       "operation": "Operation",

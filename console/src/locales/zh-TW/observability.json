@@ -171,7 +171,9 @@
     "record": {
       "time": "時間",
       "requestId": "請求 ID",
-      "latency": "耗時",
+      "latency": "總耗時",
+      "tps": "TPS",
+      "tpsHint": "平均輸出 Token/秒 = 輸出 Token ÷ 總耗時（秒），含首 Token 等待時間，並非純生成速度；耗時為 0 時不計算。",
       "source": "用量來源",
       "ended": "完成狀態",
       "operation": "操作",

@@ -16,6 +16,10 @@ export function formatNumber(value: number, locale: string) {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)
 }
 
+export function formatTokensPerSecond(outputTokens: number, latencyMs: number, locale: string) {
+  return latencyMs > 0 ? formatNumber(outputTokens * 1000 / latencyMs, locale) : "—"
+}
+
 export function formatByteSize(value: number, locale: string) {
   const units = ["B", "KiB", "MiB", "GiB"]
   let amount = Math.max(0, value)
