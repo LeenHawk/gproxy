@@ -1,43 +1,29 @@
-import type { ChannelDto } from "@/generated/ChannelDto"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
-import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
-import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ChevronsUpDownIcon, PencilIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
-import { useId, useMemo, useState } from "react"
+import { ChevronsUpDownIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ApiError } from "@/api/client"
 import { probeCredentialQuota, resetCredentialQuota } from "@/api/control"
 import { ConfirmDangerous } from "@/components/confirm-dangerous"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
-import { CredentialHealthBadge } from "@/components/providers/credential-model-health"
-import { CredentialDialog } from "@/components/providers/credential-dialog"
-import { EntityDeleteButton } from "@/components/entity-delete-button"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Switch } from "@/components/ui/switch"
 import { formatInstant } from "@/lib/format"
 
 type Props = {
   credential: CredentialDto
-  channel?: ChannelDto
-  presets: Array<TlsPresetDto>
   cycles: Array<CredentialQuotaCycleDto>
   cyclesLoading: boolean
   cyclesError: boolean
-  saving: boolean
-  onSave: (value: CredentialWriteRequest, id?: number) => Promise<void>
 }
 
 export function CredentialCard(props: Props) {
   const { t, i18n } = useTranslation()
-  const id = useId()
   const credential = props.credential
-  const name = credential.label ?? t("providers.credentials.unnamed", { id: credential.id })
   const client = useQueryClient()
   const [resetOpen, setResetOpen] = useState(false)
   const probe = useQuery({
@@ -79,63 +65,9 @@ export function CredentialCard(props: Props) {
     }
   }, [quota])
 
-  const setEnabled = async (enabled: boolean) => {
-    try {
-      await props.onSave({
-        provider_id: credential.provider_id,
-        label: credential.label,
-        kind: credential.kind,
-        secret: null,
-        enabled,
-        weight: credential.weight,
-        rpm_limit: credential.rpm_limit,
-        tpm_limit: credential.tpm_limit,
-        proxy_url: credential.proxy_url,
-        tls_fingerprint: credential.tls_fingerprint,
-      }, credential.id)
-      toast.success(t("providers.credentials.updated"))
-    } catch {
-      toast.error(t("providers.credentials.updateError"))
-    }
-  }
-
   return (
     <>
       <Card size="sm">
-      <CardHeader>
-        <CardTitle headingLevel={3} className="machine-text">{name}</CardTitle>
-        {/* Status is information, not an action — it rides the description line
-            with the abnormal-model detail folded into its tooltip. */}
-        <CardDescription className="machine-text flex flex-wrap items-center gap-2">
-          <span>{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</span>
-          <CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} />
-        </CardDescription>
-        <CardAction className="flex items-center justify-end gap-1">
-          <Field orientation="horizontal" className="w-auto">
-            <FieldLabel htmlFor={`${id}-enabled`} className="sr-only">{t("providers.credentials.enabled")}</FieldLabel>
-            <Switch
-              id={`${id}-enabled`}
-              size="sm"
-              checked={credential.enabled}
-              onCheckedChange={(value) => void setEnabled(value)}
-              disabled={props.saving}
-            />
-          </Field>
-          <CredentialDialog
-            providerId={credential.provider_id}
-            credential={credential}
-            channel={props.channel}
-            presets={props.presets}
-            onSave={props.onSave}
-            trigger={
-              <Button variant="ghost" size="icon-sm" aria-label={`${t("common.actions.edit")}: ${name}`}>
-                <PencilIcon aria-hidden />
-              </Button>
-            }
-          />
-          <EntityDeleteButton entity="credentials" id={credential.id} label={name} queryKeys={["credentials", "credential-cycles"]} />
-        </CardAction>
-      </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">

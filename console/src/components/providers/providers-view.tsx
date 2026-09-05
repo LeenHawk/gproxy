@@ -68,7 +68,6 @@ export function ProvidersView(props: Props) {
     : ["models", "rules", "routing", "settings"].includes(requestedTab)
       ? requestedTab as "models" | "rules" | "routing" | "settings"
       : "credentials"
-  const activeCredentialId = tab === "credentials" ? Number(location.segments[2]) : Number.NaN
   const credentialsByProvider = useMemo(() => {
     const groups = new Map<number, Array<CredentialDto>>()
     for (const credential of props.credentials) {
@@ -152,9 +151,6 @@ export function ProvidersView(props: Props) {
         savingCredentialId={props.savingCredentialId}
         onSaveProvider={props.onSaveProvider}
         onSaveCredential={props.onSaveCredential}
-        activeCredentialId={Number.isFinite(activeCredentialId) ? activeCredentialId : null}
-        onCredentialOpen={(credential) => navigateAdminPath(`/admin/providers/${selected.id}/credentials/${credential.id}`)}
-        onCredentialClose={() => navigateAdminPath(`/admin/providers/${selected.id}/credentials`)}
         ruleSets={props.ruleSets}
         rules={props.rules}
         attachments={props.attachments}

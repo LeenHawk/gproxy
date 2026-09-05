@@ -3,10 +3,12 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import { BatchActions } from "@/components/batch-actions"
 import { CredentialDialog } from "@/components/providers/credential-dialog"
+import { CredentialCard } from "@/components/providers/credential-card"
 import { CredentialHealthBadge } from "@/components/providers/credential-model-health"
 import { CredentialRowActions } from "@/components/providers/credential-row-actions"
 import { QueryState } from "@/components/query-state"
@@ -25,19 +27,17 @@ type Props = {
   cyclesError: boolean
   savingCredentialId: number | null
   onSave: (value: CredentialWriteRequest, id?: number) => Promise<void>
-  activeCredentialId?: number | null
-  onCredentialOpen?: (credential: CredentialDto) => void
 }
 
 export function CredentialList(props: Props) {
   const { t } = useTranslation()
+  const [expandedCredentialId, setExpandedCredentialId] = useState<number | null>(null)
   const columns: Array<DataTableColumn<CredentialDto>> = [
     { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => credential.label ? <div><p className="font-mono text-xs">{credential.label}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> : <p className="font-mono text-xs">{t("providers.credentials.unnamed", { id: credential.id })}</p> },
     { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
     { key: "kind", label: t("providers.credentials.kind"), header: t("providers.credentials.kind"), cell: (credential) => <span className="text-xs">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })}</span> },
     { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },
-    // The row opens the credential, where the cycles live behind their own control; the list carries the pressure only.
     { key: "quota", label: t("usage.credentialCycles"), header: t("usage.credentialCycles"), cell: (credential) => <QuotaPressure cycles={props.cyclesByCredential.get(credential.id) ?? []} /> },
   ]
 
@@ -68,8 +68,16 @@ export function CredentialList(props: Props) {
           storageKey="credentials"
           selectable
           batchActions={(rows, onApplied) => <BatchActions entity="credentials" rows={rows} queryKeys={["credentials", "credential-cycles"]} onApplied={onApplied} />}
-          activeRowKey={props.activeCredentialId}
-          onRowClick={props.onCredentialOpen}
+          activeRowKey={expandedCredentialId}
+          onRowClick={(credential) => setExpandedCredentialId((current) => current === credential.id ? null : credential.id)}
+          renderExpandedRow={(credential) => (
+            <CredentialCard
+              credential={credential}
+              cycles={props.cyclesByCredential.get(credential.id) ?? []}
+              cyclesLoading={props.cyclesLoading}
+              cyclesError={props.cyclesError}
+            />
+          )}
         />
       </QueryState>
     </section>

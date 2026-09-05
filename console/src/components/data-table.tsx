@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useDeferredValue, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { DataTablePagination, type PageSize } from "@/components/data-table-pagination"
 import { useColumnVisibility } from "@/components/data-table-state"
@@ -23,6 +23,7 @@ export type DataTableProps<T> = {
   rowKey: (row: T) => string | number
   searchText: (row: T) => string
   renderCard: (row: T) => ReactNode
+  renderExpandedRow?: (row: T) => ReactNode
   empty: ReactNode
   storageKey: string
   onRowClick?: (row: T) => void
@@ -45,6 +46,7 @@ export function DataTable<T>({
   rowKey,
   searchText,
   renderCard,
+  renderExpandedRow,
   empty,
   storageKey,
   onRowClick,
@@ -133,22 +135,28 @@ export function DataTable<T>({
               <TableBody>{visibleRows.map((row) => {
                 const id = rowKey(row)
                 const clickable = selecting || onRowClick != null
-                return <TableRow key={id} data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} tabIndex={clickable ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
+                const expanded = !selecting && id === activeRowKey && renderExpandedRow != null
+                return <Fragment key={id}><TableRow data-state={selected.has(id) || id === activeRowKey ? "selected" : undefined} aria-expanded={renderExpandedRow && !selecting ? expanded : undefined} tabIndex={clickable ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset")}>
                   {selecting ? <TableCell><Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /></TableCell> : null}
                   {visibleColumns.map((column) => <TableCell key={column.key} className={column.className}>{column.cell(row)}</TableCell>)}
                 </TableRow>
+                  {expanded ? <TableRow><TableCell colSpan={Math.max(visibleColumns.length, 1)} className="whitespace-normal">{renderExpandedRow(row)}</TableCell></TableRow> : null}
+                </Fragment>
               })}</TableBody>
             </Table>
           </div>
           <div className="grid gap-2 md:hidden">{visibleRows.map((row) => {
             const id = rowKey(row)
             const clickable = selecting || onRowClick != null
-            return <Card key={id} role={clickable ? "button" : undefined} tabIndex={clickable ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
+            const expanded = !selecting && id === activeRowKey && renderExpandedRow != null
+            return <Fragment key={id}><Card role={clickable ? "button" : undefined} aria-expanded={renderExpandedRow && !selecting ? expanded : undefined} tabIndex={clickable ? 0 : undefined} onClick={open(row)} onKeyDown={activate(row)} className={cn(clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring", (selected.has(id) || id === activeRowKey) && "ring-2 ring-ring")}>
               <CardContent className="flex items-start gap-3">
                 {selecting ? <Checkbox checked={selected.has(id)} onClick={(event) => event.stopPropagation()} onCheckedChange={() => toggleRow(id)} aria-label={t("common.dataTable.selectRow")} /> : null}
                 <div className="min-w-0 flex-1">{renderCard(row)}</div>
               </CardContent>
             </Card>
+              {expanded ? renderExpandedRow(row) : null}
+            </Fragment>
           })}</div>
         </>
       )}

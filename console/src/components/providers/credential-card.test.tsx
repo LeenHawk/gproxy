@@ -40,12 +40,9 @@ describe("CredentialCard", () => {
         <TooltipProvider>
           <CredentialCard
             credential={credential}
-            presets={[]}
             cycles={[]}
             cyclesLoading={false}
             cyclesError={false}
-            saving={false}
-            onSave={async () => undefined}
           />
         </TooltipProvider>
       </QueryClientProvider>,
