@@ -6,14 +6,14 @@
       "title": "更新设置",
       "description": "这些设置由此实例的所有管理员共享。",
       "channel": "更新通道",
-      "channelHint": "构建默认跟随当前二进制内置的通道；alpha 构建留在 Dev，预发布通道跟踪持续替换的构建。",
+      "channelHint": "构建默认跟随当前二进制内置的通道；开发(alpha) 跟踪 alpha 构建，预发布(beta) 跟踪持续替换的构建，稳定(release) 跟踪正式发布。",
       "automatic": "自动检查更新",
       "automaticHint": "Console 打开时检查更新，仅在有新构建时提示；默认关闭。",
       "channels": {
         "default": "构建默认",
-        "dev": "Dev（alpha）",
-        "releases": "稳定版",
-        "staging": "预发布版"
+        "dev": "开发(alpha)",
+        "releases": "稳定(release)",
+        "staging": "预发布(beta)"
       },
       "channelSaved": "已保存更新通道。",
       "automaticSaved": "已保存自动检查更新设置。",

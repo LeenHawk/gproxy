@@ -6,14 +6,14 @@
       "title": "更新設定",
       "description": "這些設定由此執行個體的所有管理員共用。",
       "channel": "更新頻道",
-      "channelHint": "建置預設跟隨目前二進位檔內建的頻道；alpha 建置留在 Dev，預發佈頻道追蹤持續替換的建置。",
+      "channelHint": "建置預設跟隨目前二進位檔內建的頻道；開發(alpha) 追蹤 alpha 建置，預發佈(beta) 追蹤持續替換的建置，穩定(release) 追蹤正式發佈。",
       "automatic": "自動檢查更新",
       "automaticHint": "Console 開啟時檢查更新，僅在有新建置時提示；預設關閉。",
       "channels": {
         "default": "建置預設",
-        "dev": "Dev（alpha）",
-        "releases": "穩定版",
-        "staging": "預發佈版"
+        "dev": "開發(alpha)",
+        "releases": "穩定(release)",
+        "staging": "預發佈(beta)"
       },
       "channelSaved": "已儲存更新頻道。",
       "automaticSaved": "已儲存自動檢查更新設定。",

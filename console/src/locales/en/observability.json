@@ -127,6 +127,15 @@
     },
     "windows": "Quota windows",
     "credentialCycles": "Upstream credential quota windows",
+    "cycleUsage": {
+      "used": "Used this cycle (local)",
+      "estimated": "Estimated total cycle capacity",
+      "tokens": "{{value}} tokens",
+      "requests": "{{value}} requests",
+      "unavailable": "Insufficient data",
+      "unknown": "No local usage recorded",
+      "hint": "At the last observation: local usage ÷ upstream used fraction estimates capacity for the current model mix, not an upstream guarantee. Usage outside this gateway is excluded; incomplete records can underestimate capacity. No estimate at 0% or without usage."
+    },
     "cycleStates": {
       "empty": "No upstream credential quota windows were observed in this period."
     },

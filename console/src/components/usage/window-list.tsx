@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import { CycleWindow } from "@/components/cycle-window"
+import { CycleUsage } from "@/components/usage/cycle-usage"
 import { windowName } from "@/lib/quota-window"
 
 export function WindowList({ cycles }: { cycles: Array<CredentialQuotaCycleDto> }) {
@@ -23,7 +24,12 @@ export function WindowList({ cycles }: { cycles: Array<CredentialQuotaCycleDto> 
       <h2 className="text-sm font-semibold">{t("usage.credentialCycles")}</h2>
       {cycles.length ? cycles.map((cycle) => {
         const label = latestLabels.get(`${cycle.credential_id}:${cycle.window_key}`)?.label
-        return <CycleWindow key={cycle.id} cycle={cycle} label={`${windowName(cycle.window_key, t, label)} · #${cycle.credential_id}`} />
+        return (
+          <div key={cycle.id} className="flex flex-col gap-3">
+            <CycleWindow cycle={cycle} label={`${windowName(cycle.window_key, t, label)} · #${cycle.credential_id}`} />
+            <CycleUsage cycle={cycle} />
+          </div>
+        )
       }) : <p className="text-sm text-muted-foreground">{t("usage.cycleStates.empty")}</p>}
     </section>
   )

@@ -6,14 +6,14 @@
       "title": "Update preferences",
       "description": "These preferences are shared by every administrator of this instance.",
       "channel": "Update channel",
-      "channelHint": "Build default follows the channel embedded in this binary. Alpha builds stay on Dev; Staging tracks continuously replaced builds.",
+      "channelHint": "Build default follows the channel embedded in this binary. Alpha builds use dev(alpha); staging(beta) tracks continuously replaced builds; stable(release) follows stable releases.",
       "automatic": "Automatically check for updates",
       "automaticHint": "Check when the Console opens and show a notice only when a newer build is available. Disabled by default.",
       "channels": {
         "default": "Build default",
-        "dev": "Dev (alpha)",
-        "releases": "Stable releases",
-        "staging": "Staging (prerelease)"
+        "dev": "dev(alpha)",
+        "releases": "stable(release)",
+        "staging": "staging(beta)"
       },
       "channelSaved": "Update channel saved.",
       "automaticSaved": "Automatic update checking saved.",

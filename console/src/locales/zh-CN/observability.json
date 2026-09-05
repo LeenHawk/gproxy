@@ -127,6 +127,15 @@
     },
     "windows": "配额窗口",
     "credentialCycles": "上游凭证配额窗口",
+    "cycleUsage": {
+      "used": "本周期已用（本机）",
+      "estimated": "预估本周期总额度",
+      "tokens": "{{value}} 令牌",
+      "requests": "{{value}} 次请求",
+      "unavailable": "数据不足",
+      "unknown": "暂无本机用量记录",
+      "hint": "截至最近观测：本机已记录用量 ÷ 上游已用比例，折算当前模型组合的周期总额度，并非上游承诺。网关外消耗不计入，记录不全可能低估；已用比例为 0% 或无用量时不估算。"
+    },
     "cycleStates": {
       "empty": "该时段未观测到上游凭证配额窗口。"
     },

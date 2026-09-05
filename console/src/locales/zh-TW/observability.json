@@ -127,6 +127,15 @@
     },
     "windows": "配額視窗",
     "credentialCycles": "上游憑證配額視窗",
+    "cycleUsage": {
+      "used": "本週期已用（本機）",
+      "estimated": "預估本週期總額度",
+      "tokens": "{{value}} 權杖",
+      "requests": "{{value}} 次請求",
+      "unavailable": "資料不足",
+      "unknown": "暫無本機用量記錄",
+      "hint": "截至最近觀測：本機已記錄用量 ÷ 上游已用比例，換算目前模型組合的週期總額度，並非上游承諾。閘道外消耗不計入，記錄不全可能低估；已用比例為 0% 或無用量時不估算。"
+    },
     "cycleStates": {
       "empty": "此期間未觀測到上游憑證配額視窗。"
     },
