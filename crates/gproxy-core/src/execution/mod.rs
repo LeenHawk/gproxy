@@ -7,6 +7,7 @@ use crate::error::CoreError;
 use crate::funnel::error as funnel_error;
 use crate::host::Host;
 
+mod codex_models;
 pub(crate) mod credential;
 mod failover;
 pub(crate) mod forwarding;
@@ -96,7 +97,7 @@ async fn execute_admitted<H: Host>(
             .await;
         funnel_error::request_failed(&telemetry_ctx, Some(key), error);
     }
-    result
+    result.and_then(|outcome| codex_models::render(&telemetry_ctx.headers, key, outcome))
 }
 
 fn reject<T>(
