@@ -52,8 +52,23 @@ pub(super) fn message_items(
     };
     let mut output = Vec::new();
     let mut message_blocks = Vec::new();
+    let mut output_parts = Vec::new();
+    let assistant = role == openai::ResponseEasyInputMessageRole::Assistant;
     for block in blocks {
         match block {
+            claude::ContentBlockParam::Text(block) if assistant => {
+                output_parts.push(openai::ResponseMessageOutputContentPart::OutputText(
+                    crate::wire!(openai::ResponseOutputText {
+                        type_: openai::ResponseOutputTextType::OutputText,
+                        annotations: Vec::new(),
+                        logprobs: None,
+                        text: block.text,
+                        rest: Default::default(),
+                    }),
+                ));
+            }
+            claude::ContentBlockParam::Image(_) | claude::ContentBlockParam::Document(_)
+                if assistant => {}
             claude::ContentBlockParam::Text(_)
             | claude::ContentBlockParam::Image(_)
             | claude::ContentBlockParam::Document(_) => message_blocks.push(block),
@@ -157,15 +172,19 @@ pub(super) fn message_items(
             _future => {}
         }
     }
-    if !message_blocks.is_empty() {
-        let content = responses::claude_to_input(message_blocks)?;
+    if !message_blocks.is_empty() || !output_parts.is_empty() {
+        let content = if assistant {
+            openai::ResponseEasyInputContent::OutputParts(output_parts)
+        } else {
+            openai::ResponseEasyInputContent::Parts(responses::claude_to_input(message_blocks)?)
+        };
         output.insert(
             0,
             openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(crate::wire!(
                 openai::ResponseEasyInputMessageItem {
                     type_: Some(openai::ResponseMessageItemType::Message),
                     role,
-                    content: openai::ResponseEasyInputContent::Parts(content),
+                    content,
                     phase: None,
                     rest: Default::default(),
                 }

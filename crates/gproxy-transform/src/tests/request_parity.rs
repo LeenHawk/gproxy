@@ -5,6 +5,60 @@ use serde_json::{Value, json};
 use super::{content, convert_request, family, request};
 
 #[test]
+fn claude_assistant_history_uses_responses_output_parts() {
+    let image = json!({"type":"image","source":{"type":"url","url":"https://image.invalid/a.png"}});
+    for assistant_content in [
+        json!("previous answer"),
+        json!([
+            {"type":"text","text":"previous answer","cache_control":{"type":"ephemeral"}},
+            image.clone(),
+            {"type":"tool_use","id":"call_1","name":"lookup","input":{}}
+        ]),
+    ] {
+        for stream in [false, true] {
+            let converted: Value = serde_json::from_slice(
+                &request(
+                    content(Operation::GenerateContent, Kind::ClaudeMessages),
+                    content(Operation::GenerateContent, Kind::OpenAiResponses),
+                    Bytes::from(
+                        serde_json::to_vec(&json!({
+                            "model":"route","max_tokens":32,"system":"policy",
+                            "messages":[
+                                {"role":"user","content":[{"type":"text","text":"hello"},image]},
+                                {"role":"assistant","content":assistant_content},
+                                {"role":"user","content":"continue"}
+                            ]
+                        }))
+                        .unwrap(),
+                    ),
+                    "upstream-model",
+                    stream,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let items = converted["input"].as_array().unwrap();
+            assert_eq!(items[0]["content"][0]["type"], "input_text");
+            assert_eq!(items[1]["content"][0]["type"], "input_text");
+            assert_eq!(items[1]["content"][1]["type"], "input_image");
+            assert_eq!(items[2]["role"], "assistant");
+            assert_eq!(
+                items[2]["content"],
+                json!([
+                    {"type":"output_text","text":"previous answer","annotations":[]}
+                ])
+            );
+            assert_eq!(items.last().unwrap()["content"][0]["type"], "input_text");
+            assert_eq!(converted["stream"], stream);
+            if assistant_content.is_array() {
+                assert_eq!(items[3]["type"], "function_call");
+                assert_eq!(items[3]["call_id"], "call_1");
+            }
+        }
+    }
+}
+
+#[test]
 fn responses_only_options_do_not_block_pairwise_requests() {
     let responses = content(Operation::GenerateContent, Kind::OpenAiResponses);
     for target in [
