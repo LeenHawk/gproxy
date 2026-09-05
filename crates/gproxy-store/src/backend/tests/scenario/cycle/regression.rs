@@ -25,6 +25,18 @@ async fn quota_rounds_and_usage_records_have_backend_parity() {
         .await
         .unwrap();
     assert_eq!(native_history, remote_history);
+    for (native_cycle, remote_cycle) in native_history.iter().zip(&remote_history) {
+        assert_eq!(
+            reopened
+                .credential_quota_observations(native_cycle, true)
+                .await
+                .unwrap(),
+            remote
+                .credential_quota_observations(remote_cycle, true)
+                .await
+                .unwrap(),
+        );
+    }
     reopened.repair_credential_quota(7, 150).await.unwrap();
     assert_eq!(
         reopened
@@ -56,6 +68,15 @@ async fn exercise(store: &Store) {
         pending[0].estimate.as_ref().unwrap().reason.as_deref(),
         Some("incomplete_usage")
     );
+    let samples = store
+        .credential_quota_observations(&pending[0], true)
+        .await
+        .unwrap();
+    assert_eq!(samples.len(), 2);
+    assert_eq!(
+        samples[1].estimate.as_ref().unwrap().reason.as_deref(),
+        Some("incomplete_usage")
+    );
     let sample = usage("sample", "model-a", 10_500, 21);
     assert!(store.record_usage(&sample).await.unwrap());
     assert!(!store.record_usage(&sample).await.unwrap());
@@ -79,6 +100,30 @@ async fn exercise(store: &Store) {
         .observe_credential_quota_cycle(&reading(30_100, 5))
         .await
         .unwrap();
+    let samples = store
+        .credential_quota_observations(&estimated[0], true)
+        .await
+        .unwrap();
+    assert_eq!(
+        samples
+            .iter()
+            .map(|sample| sample.observed_at_ms)
+            .collect::<Vec<_>>(),
+        vec![10_000, 20_000]
+    );
+    assert_eq!(samples[0].estimate.as_ref().unwrap().tokens, None);
+    assert_eq!(
+        samples[1].estimate.as_ref().unwrap().tokens,
+        Some(Decimal::from(1300))
+    );
+    assert!(
+        store
+            .credential_quota_observations(&estimated[0], false)
+            .await
+            .unwrap()
+            .iter()
+            .all(|sample| sample.estimate.is_none())
+    );
     assert_ne!(reset.id, first.id);
     assert_eq!(reset.accounting_start_ms, 30_100);
     store
@@ -121,6 +166,14 @@ async fn exercise(store: &Store) {
         .await
         .unwrap();
     assert_eq!(same.id, again.id);
+    assert_eq!(
+        store
+            .credential_quota_observations(&same, false)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
     let verified = store
         .observe_credential_quota_cycle(&reading(30_300, 1))
         .await
@@ -139,6 +192,15 @@ async fn exercise(store: &Store) {
     scoped.scope = QuotaScope::Models(vec!["model-a".into()]);
     let scoped = store.observe_credential_quota_cycle(&scoped).await.unwrap();
     assert_eq!(scoped.id, verified.id);
+    let samples = store
+        .credential_quota_observations(&scoped, false)
+        .await
+        .unwrap();
+    assert_eq!(samples.len(), 3);
+    assert_eq!(samples[0].upstream_limit, Some(Decimal::from(100)));
+    assert_eq!(samples[1].upstream_limit, Some(Decimal::from(200)));
+    assert_eq!(samples[0].scope, QuotaScope::All);
+    assert_eq!(samples[2].scope, QuotaScope::Models(vec!["model-a".into()]));
     store
         .record_usage(&usage("outside", "model-b", 51_000, 52))
         .await

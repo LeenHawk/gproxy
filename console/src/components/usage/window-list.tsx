@@ -2,11 +2,11 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import { CycleWindow } from "@/components/cycle-window"
-import { CycleUsage } from "@/components/usage/cycle-usage"
+import { formatInstant } from "@/lib/format"
 import { windowName } from "@/lib/quota-window"
 
-export function WindowList({ cycles }: { cycles: Array<CredentialQuotaCycleDto> }) {
-  const { t } = useTranslation()
+export function WindowList({ cycles, labels }: { cycles: Array<CredentialQuotaCycleDto>; labels?: Map<number, string> }) {
+  const { t, i18n } = useTranslation()
   const latestLabels = useMemo(() => {
     const values = new Map<string, { label: string; observedAt: number }>()
     for (const cycle of cycles) {
@@ -26,8 +26,8 @@ export function WindowList({ cycles }: { cycles: Array<CredentialQuotaCycleDto> 
         const label = latestLabels.get(`${cycle.credential_id}:${cycle.window_key}`)?.label
         return (
           <div key={cycle.id} className="flex flex-col gap-3">
-            <CycleWindow cycle={cycle} label={`${windowName(cycle.window_key, t, label)} · #${cycle.credential_id}`} />
-            <CycleUsage cycle={cycle} />
+            <CycleWindow cycle={cycle} label={labels?.get(cycle.id) ?? `${windowName(cycle.window_key, t, label)} · #${cycle.credential_id}`} />
+            <p className="text-xs text-muted-foreground">#{cycle.id} · {t("usage.cycleUsage.starts", { value: formatInstant(cycle.accounting_start_ms / 1000, i18n.language) })} · {t("usage.cycleUsage.observed", { value: formatInstant(cycle.last_observed_at, i18n.language) })}</p>
           </div>
         )
       }) : <p className="text-sm text-muted-foreground">{t("usage.cycleStates.empty")}</p>}

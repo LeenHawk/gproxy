@@ -1,5 +1,6 @@
 mod binding;
 mod cycle;
+mod cycle_observation;
 mod cycle_tracking;
 mod health;
 mod log;
@@ -9,6 +10,7 @@ mod usage_query;
 
 pub use binding::*;
 pub use cycle::*;
+pub use cycle_observation::*;
 pub use cycle_tracking::*;
 pub use health::*;
 pub use log::*;

@@ -43,6 +43,7 @@ export * from "./CredentialQuotaCycleModelDto";
 export * from "./CredentialSecretResponse";
 export * from "./CredentialWriteRequest";
 export * from "./CycleEstimateDto";
+export * from "./CycleObservationDto";
 export * from "./DefaultModelCatalogDto";
 export * from "./DefaultModelCatalogSourceDto";
 export * from "./DefaultModelDto";

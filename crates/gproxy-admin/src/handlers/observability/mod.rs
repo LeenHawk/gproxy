@@ -157,18 +157,39 @@ pub(super) async fn credential_cycles(
         .ok_or_else(|| AdminError::BadRequest("to is required".into()))?;
     let (from, to) = range(from, to)?;
     let credential_id = util::parse_i64(util::value(&query, "credential_id"), "credential_id")?;
-    let mut values = state
+    let include_history = util::value(&query, "include_history")
+        .map(|value| {
+            value
+                .parse::<bool>()
+                .map_err(|_| AdminError::BadRequest("include_history must be true or false".into()))
+        })
+        .transpose()?
+        .unwrap_or(false);
+    let records = state
         .store()
         .credential_quota_cycles(credential_id, from, to)
-        .await?
+        .await?;
+    let mut values = records
         .iter()
         .map(map::credential_cycle)
         .collect::<Vec<_>>();
     let settings = state.store().control_snapshot().await?.settings;
-    if settings.iter().any(|setting| {
+    let usage_disabled = settings.iter().any(|setting| {
         setting.key == gproxy_store::records::ENABLE_USAGE
             && setting.value == serde_json::json!(false)
-    }) {
+    });
+    if include_history {
+        for (record, value) in records.iter().zip(&mut values) {
+            value.observations = state
+                .store()
+                .credential_quota_observations(record, !usage_disabled)
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect();
+        }
+    }
+    if usage_disabled {
         for cycle in &mut values {
             cycle.metrics = serde_json::json!({});
             cycle.models.clear();

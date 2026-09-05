@@ -13,6 +13,7 @@ use crate::{AdminError, PortalIdentity, State};
 
 mod control;
 mod helpers;
+mod observability;
 
 use helpers::*;
 

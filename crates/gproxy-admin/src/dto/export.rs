@@ -82,6 +82,7 @@ fn export_console_types() {
         CredentialDto,
         QuotaCapabilitiesDto,
         CycleEstimateDto,
+        CycleObservationDto,
         CredentialWriteRequest,
         CredentialSecretResponse,
         RouteDto,

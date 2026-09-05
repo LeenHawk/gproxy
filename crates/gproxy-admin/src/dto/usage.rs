@@ -142,6 +142,7 @@ pub struct CredentialQuotaCycleDto {
     pub accounting_end_ms: Option<i64>,
     pub local_boundary: bool,
     pub estimate: Option<super::CycleEstimateDto>,
+    pub observations: Vec<super::CycleObservationDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

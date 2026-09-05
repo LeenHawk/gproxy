@@ -124,14 +124,35 @@
     "cost": {
       "label": "Cost"
     },
-    "credentialCycles": "Upstream credential quota windows",
+    "credentialCycles": "Upstream credential quota cycles",
+    "quotaHistory": {
+      "title": "Upstream quota history",
+      "providers": "Channels",
+      "series": "Credentials and quota periods",
+      "rounds": "Rounds",
+      "metric": "Remaining quota metric",
+      "selectAll": "Select all",
+      "selectNone": "Clear selection",
+      "unknownProvider": "Deleted channel",
+      "withinTitle": "Remaining quota within each round",
+      "withinDescription": "Observed remaining quota over time. Each round has its own line.",
+      "acrossTitle": "Remaining quota across rounds",
+      "acrossDescription": "Bar: minimum to maximum of every valid value in the round. Dot: last valid value. The horizontal axis marks each round's start.",
+      "noSamples": "No valid samples for this metric.",
+      "noSelection": "Select channels and rounds to compare.",
+      "range": "{{min}} – {{max}} · {{count}} valid samples",
+      "metrics": {
+        "percent": "Remaining %",
+        "tokens": "Calculated remaining tokens",
+        "cost": "Calculated remaining USD"
+      }
+    },
     "cycleUsage": {
       "used": "Used this cycle (local)",
       "estimated": "Estimated total cycle capacity",
       "tokens": "{{value}} tokens",
       "requests": "{{value}} requests",
       "unknown": "No local usage recorded",
-      "hint": "Estimated for the sampled model mix: local usage delta ÷ upstream usage fraction delta. USD is locally settled cost, not subscription charges. Not used for admission or billing; activity outside this gateway can affect estimates.",
       "localUnavailable": "Local statistics are unavailable; upstream readings are still shown.",
       "history": "Previous rounds ({{count}})",
       "starts": "Period starts: {{value}}",

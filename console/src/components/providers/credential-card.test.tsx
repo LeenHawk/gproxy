@@ -1,4 +1,5 @@
 import type { CredentialDto } from "@/generated/CredentialDto"
+import type { QuotaResetCreditsDto } from "@/generated/QuotaResetCreditsDto"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
@@ -73,6 +74,40 @@ describe("CredentialCard", () => {
     const { container } = render(<CredentialCard credential={{ ...credential, quota_capabilities: null }} cycles={[]} cyclesLoading={false} cyclesError={false} />)
     expect(container).toBeEmptyDOMElement()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("keeps reset credits visible when unknown or empty and refreshes their count after redemption", async () => {
+    const result = (reset_credits: QuotaResetCreditsDto | null) => ({ windows: [], cycles: [], local_error: false, reset_credits, raw: "{}" })
+    const response = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(result(null)))
+      .mockResolvedValueOnce(response(result({ available_count: 2, expires_at: 2_000_000_000 })))
+      .mockResolvedValueOnce(response({ outcome: "reset", windows_reset: 1 }))
+      .mockResolvedValueOnce(response(result({ available_count: 0, expires_at: null })))
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = (reset: boolean) => <QueryClientProvider client={client}><TooltipProvider>
+      <CredentialCard credential={{ ...credential, quota_capabilities: { probe: true, reset } }} cycles={[]} cyclesLoading={false} cyclesError={false} />
+    </TooltipProvider></QueryClientProvider>
+    const mounted = render(view(true))
+    const credits = screen.getByRole("region", { name: "Reset credits" })
+    expect(within(credits).getByText("—")).toBeInTheDocument()
+    expect(within(credits).getByRole("button", { name: "Consume reset credit" })).toBeDisabled()
+    await screen.findByText("The usage endpoint reported no quota windows.")
+    await user.click(screen.getByRole("button", { name: "Refresh" }))
+    expect(await within(credits).findByText("2")).toBeInTheDocument()
+    expect(within(credits).getByText(/Expires/)).toBeInTheDocument()
+    await user.click(within(credits).getByRole("button", { name: "Consume reset credit" }))
+    const dialog = screen.getByRole("alertdialog")
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await user.click(within(dialog).getByRole("button", { name: "Consume credit" }))
+    expect(await within(credits).findByText("0")).toBeInTheDocument()
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/admin/api/credentials/7/quota-reset")
+    expect(within(credits).getByRole("button", { name: "Consume reset credit" })).toBeDisabled()
+    mounted.rerender(view(false))
+    expect(within(credits).getByText("0")).toBeInTheDocument()
+    expect(within(credits).queryByRole("button")).not.toBeInTheDocument()
   })
 
   it("omits the quota column without removing expandable quota details", async () => {

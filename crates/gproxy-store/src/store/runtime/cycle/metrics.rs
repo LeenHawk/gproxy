@@ -1,6 +1,7 @@
 use crate::query::runtime;
 use crate::records::{
-    CredentialQuotaCycleModelRecord, CredentialQuotaCycleRecord, CycleEstimate, UsageTotals,
+    CredentialQuotaCycleModelRecord, CredentialQuotaCycleRecord, CycleEstimate,
+    CycleObservationRecord, UsageTotals,
 };
 use crate::{Store, StoreError};
 use rust_decimal::Decimal;
@@ -14,18 +15,20 @@ pub(super) async fn hydrate(
     if tracking.scope == gproxy_core::QuotaScope::Unknown {
         cycle.metrics = serde_json::json!({});
         cycle.models.clear();
-        cycle.estimate = Some(unavailable("unknown_scope", cycle));
+        cycle.estimate = Some(unavailable(
+            "unknown_scope",
+            &CycleObservationRecord::from(&*cycle),
+        ));
         return Ok(());
     }
     let mut delta = UsageTotals::default();
     let mut after = 0;
-    let mut incomplete = tracking.needs_rebuild
-        || !store
-            .backend()
-            .execute(runtime::incomplete_cycle_usage(cycle)?)
-            .await?
-            .rows
-            .is_empty();
+    let pending = store
+        .backend()
+        .execute(runtime::incomplete_cycle_usage(cycle)?)
+        .await?
+        .rows;
+    let mut incomplete = tracking.needs_rebuild || !pending.is_empty();
     loop {
         let rows = store
             .backend()
@@ -64,40 +67,54 @@ pub(super) async fn hydrate(
             metrics: metrics.clone(),
         })
         .collect();
+    cycle.estimate = Some(calculate(
+        &CycleObservationRecord::from(&*cycle),
+        &delta,
+        incomplete,
+    ));
+    Ok(())
+}
+
+pub(super) fn calculate(
+    sample: &CycleObservationRecord,
+    delta: &UsageTotals,
+    incomplete: bool,
+) -> CycleEstimate {
     let current = super::state::percent(
-        cycle.used_percent,
-        cycle.upstream_used,
-        cycle.upstream_limit,
+        sample.used_percent,
+        sample.upstream_used,
+        sample.upstream_limit,
     );
     let growth = current
-        .zip(tracking.baseline_percent)
+        .zip(sample.baseline_percent)
         .map(|(current, baseline)| current - baseline);
-    cycle.estimate = Some(if tracking.uncertain {
-        unavailable("unordered_observations", cycle)
+    if sample.scope == gproxy_core::QuotaScope::Unknown {
+        unavailable("unknown_scope", sample)
+    } else if sample.uncertain {
+        unavailable("unordered_observations", sample)
     } else if incomplete {
-        unavailable("incomplete_usage", cycle)
+        unavailable("incomplete_usage", sample)
     } else if delta.requests == 0 || growth.is_none_or(|growth| growth < Decimal::ONE) {
-        unavailable("insufficient_samples", cycle)
+        unavailable("insufficient_samples", sample)
     } else {
         let factor = Decimal::ONE_HUNDRED / growth.expect("positive growth");
         CycleEstimate {
             tokens: Some(delta.total_tokens() * factor),
             cost: Some(delta.cost * factor),
             reason: None,
-            from_ms: Some(tracking.baseline_at_ms),
-            to_ms: Some(tracking.sample.received_at_ms),
+            from_ms: Some(sample.baseline_at_ms),
+            to_ms: Some(sample.observed_at_ms),
         }
-    });
-    Ok(())
+    }
 }
 
-fn unavailable(reason: &str, cycle: &CredentialQuotaCycleRecord) -> CycleEstimate {
+fn unavailable(reason: &str, sample: &CycleObservationRecord) -> CycleEstimate {
     CycleEstimate {
         tokens: None,
         cost: None,
         reason: Some(reason.into()),
-        from_ms: Some(cycle.tracking.baseline_at_ms),
-        to_ms: Some(cycle.tracking.sample.received_at_ms),
+        from_ms: Some(sample.baseline_at_ms),
+        to_ms: Some(sample.observed_at_ms),
     }
 }
 

@@ -124,14 +124,35 @@
     "cost": {
       "label": "成本"
     },
-    "credentialCycles": "上游凭证配额窗口",
+    "credentialCycles": "上游凭证配额周期",
+    "quotaHistory": {
+      "title": "上游额度变化",
+      "providers": "渠道",
+      "series": "凭证与配额周期",
+      "rounds": "具体轮次",
+      "metric": "剩余额度指标",
+      "selectAll": "全选",
+      "selectNone": "取消选择",
+      "unknownProvider": "已删除渠道",
+      "withinTitle": "单个周期内的剩余额度变化",
+      "withinDescription": "按观测时间展示剩余额度，每轮独立连线。",
+      "acrossTitle": "不同周期的剩余额度对比",
+      "acrossDescription": "范围条：本轮所有有效值的最小—最大范围；圆点：最后一个有效值。横轴按各轮开始时间排列。",
+      "noSamples": "该指标暂无有效样本。",
+      "noSelection": "请选择要比较的渠道和周期。",
+      "range": "{{min}} – {{max}} · {{count}} 个有效样本",
+      "metrics": {
+        "percent": "剩余比例",
+        "tokens": "折算剩余令牌",
+        "cost": "折算剩余 USD"
+      }
+    },
     "cycleUsage": {
       "used": "本周期已用（本机）",
       "estimated": "预估本周期总额度",
       "tokens": "{{value}} 令牌",
       "requests": "{{value}} 次请求",
       "unknown": "暂无本机用量记录",
-      "hint": "按样本模型组合估算：同轮次本地用量增量 ÷ 上游使用率增量。USD 是本地已结算费用，不是订阅实际扣款；不用于准入或扣费，网关外消费可能影响估算。",
       "localUnavailable": "本地统计暂不可用；上游读数仍可查看。",
       "history": "历史轮次（{{count}}）",
       "starts": "周期开始：{{value}}",

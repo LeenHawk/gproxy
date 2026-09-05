@@ -8,6 +8,19 @@ use crate::schema::{Dialect, tables};
 async fn native_and_libsql_share_schema_and_query_behavior() {
     let native_dir = tempfile::tempdir().expect("native tempdir");
     let remote_dir = tempfile::tempdir().expect("libsql tempdir");
+    for path in [
+        native_dir.path().join("native.db"),
+        remote_dir.path().join("remote.db"),
+    ] {
+        let database = super::super::native::NativeSql::open(path).await.unwrap();
+        crate::migration::migrate_to(
+            &database,
+            Dialect::NativeSqlite,
+            crate::schema::SchemaVersion::Initial,
+        )
+        .await
+        .unwrap();
+    }
     let (native, native_db) = native_store(native_dir.path().join("native.db"))
         .await
         .expect("native store");
@@ -17,8 +30,11 @@ async fn native_and_libsql_share_schema_and_query_behavior() {
 
     assert_eq!(schema_shape(native_db.as_ref()).await, expected_shape());
     assert_eq!(index_shape(native_db.as_ref()).await, expected_indexes());
-    assert_eq!(migration_versions(native_db.as_ref()).await, vec![1]);
-    assert_eq!(migration_versions(remote_db.as_ref()).await, vec![1]);
+    let versions = crate::schema::SchemaVersion::ALL
+        .map(|version| version.number())
+        .to_vec();
+    assert_eq!(migration_versions(native_db.as_ref()).await, versions);
+    assert_eq!(migration_versions(remote_db.as_ref()).await, versions);
     assert_eq!(
         schema_shape(native_db.as_ref()).await,
         schema_shape(remote_db.as_ref()).await

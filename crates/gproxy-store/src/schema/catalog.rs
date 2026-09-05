@@ -4,11 +4,12 @@ use super::{admin, control, identity, runtime, tokenizer};
 #[repr(i64)]
 pub enum SchemaVersion {
     Initial = 1,
+    QuotaObservations = 2,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 1] = [Self::Initial];
-    pub const LATEST: Self = Self::Initial;
+    pub const ALL: [Self; 2] = [Self::Initial, Self::QuotaObservations];
+    pub const LATEST: Self = Self::QuotaObservations;
 
     pub const fn number(self) -> i64 {
         self as i64

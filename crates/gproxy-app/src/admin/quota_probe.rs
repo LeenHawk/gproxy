@@ -15,15 +15,13 @@ pub(crate) async fn run(
     credential_id: i64,
     force: bool,
 ) -> Result<QuotaProbeResponse, AdminError> {
-    if !app
+    let capabilities = app
         .credential_quota_capabilities(credential_id)
         .await?
-        .is_some_and(|capability| capability.probe)
-    {
-        return Err(AdminError::BadRequest(
-            "credential has no subscription quota endpoint".into(),
-        ));
-    }
+        .filter(|capability| capability.probe)
+        .ok_or_else(|| {
+            AdminError::BadRequest("credential has no subscription quota endpoint".into())
+        })?;
     let cache = &app.inner.host.services.cache;
     let key = format!("quota:probe:{credential_id}");
     let lease = format!("{key}:lease");
@@ -69,13 +67,18 @@ pub(crate) async fn run(
             if let Some(bytes) = cache.get(&key).await.map_err(internal)? {
                 return serde_json::from_slice(&bytes).map_err(internal);
             }
-            if let Ok(cycles) = app
-                .inner
-                .host
-                .services
-                .store
-                .credential_quota_cycles(Some(credential_id), 0, crate::quota_refresh::now() + 1)
-                .await
+            if !capabilities.reset
+                && let Ok(cycles) = app
+                    .inner
+                    .host
+                    .services
+                    .store
+                    .credential_quota_cycles(
+                        Some(credential_id),
+                        0,
+                        crate::quota_refresh::now() + 1,
+                    )
+                    .await
                 && cycles
                     .iter()
                     .any(|cycle| cycle.last_observed_at > crate::quota_refresh::now() - 600)

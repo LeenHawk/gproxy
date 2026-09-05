@@ -4,6 +4,7 @@ mod close;
 mod links;
 mod metrics;
 mod models;
+mod observations;
 mod read;
 mod row;
 mod state;
@@ -85,6 +86,7 @@ impl Store {
                         .batch(vec![
                             runtime::update_tracked_cycle(&open, expected)?,
                             runtime::insert_tracked_cycle(&next, Some(&open))?,
+                            runtime::insert_cycle_observation(&next)?,
                         ])
                         .await;
                     match result {
@@ -128,8 +130,11 @@ impl Store {
                 open.used_percent = input.used_percent;
                 if self
                     .backend()
-                    .execute(runtime::update_tracked_cycle(&open, expected)?)
-                    .await?
+                    .batch(vec![
+                        runtime::update_tracked_cycle(&open, expected)?,
+                        runtime::insert_cycle_observation(&open)?,
+                    ])
+                    .await?[0]
                     .affected_rows
                     == 1
                 {
@@ -174,10 +179,13 @@ impl Store {
                 let next = new_cycle(&input, start, false, latest.as_ref());
                 match self
                     .backend()
-                    .execute(runtime::insert_tracked_cycle(&next, latest.as_ref())?)
+                    .batch(vec![
+                        runtime::insert_tracked_cycle(&next, latest.as_ref())?,
+                        runtime::insert_cycle_observation(&next)?,
+                    ])
                     .await
                 {
-                    Ok(result) if result.affected_rows == 1 => {
+                    Ok(result) if result[0].affected_rows == 1 => {
                         return self
                             .repair_and_read(input.credential_id, &input.window_key)
                             .await;

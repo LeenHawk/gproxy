@@ -7,6 +7,35 @@ pub struct QuotaCapabilitiesDto {
     pub reset: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct CycleObservationDto {
+    pub observed_at_ms: i64,
+    pub unit: Option<String>,
+    pub upstream_used: Option<String>,
+    pub upstream_limit: Option<String>,
+    pub used_percent: Option<String>,
+    pub estimate: Option<CycleEstimateDto>,
+}
+
+impl From<gproxy_store::records::CycleObservationRecord> for CycleObservationDto {
+    fn from(value: gproxy_store::records::CycleObservationRecord) -> Self {
+        Self {
+            observed_at_ms: value.observed_at_ms,
+            unit: value.unit,
+            upstream_used: value
+                .upstream_used
+                .map(|value| value.normalize().to_string()),
+            upstream_limit: value
+                .upstream_limit
+                .map(|value| value.normalize().to_string()),
+            used_percent: value
+                .used_percent
+                .map(|value| value.normalize().to_string()),
+            estimate: value.estimate.map(Into::into),
+        }
+    }
+}
+
 impl From<gproxy_channel_api::QuotaCapabilities> for QuotaCapabilitiesDto {
     fn from(value: gproxy_channel_api::QuotaCapabilities) -> Self {
         Self {

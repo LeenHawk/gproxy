@@ -29,6 +29,21 @@ pub(crate) fn begin_usage(
 pub(crate) fn incomplete_cycle_usage(
     cycle: &CredentialQuotaCycleRecord,
 ) -> Result<Statement, StoreError> {
+    let mut query = unsettled_cycle_usage(cycle);
+    query.limit(1);
+    if let gproxy_core::QuotaScope::Models(models) = &cycle.tracking.scope {
+        query.and_where(Expr::col(Alias::new("model")).is_in(models.iter().cloned()));
+    }
+    Statement::query(&query)
+}
+
+pub(crate) fn pending_cycle_usage(
+    cycle: &CredentialQuotaCycleRecord,
+) -> Result<Statement, StoreError> {
+    Statement::query(&unsettled_cycle_usage(cycle))
+}
+
+fn unsettled_cycle_usage(cycle: &CredentialQuotaCycleRecord) -> sea_query::SelectStatement {
     let tracking = &cycle.tracking;
     let mut settled = Query::select();
     settled
@@ -52,15 +67,11 @@ pub(crate) fn incomplete_cycle_usage(
         )));
     let mut query = Query::select();
     query
-        .column(Alias::new("request_id"))
+        .columns(["started_at_ms", "model"].map(Alias::new))
         .from(Alias::new("credential_quota_activity"))
         .and_where(Expr::col(Alias::new("credential_id")).eq(cycle.credential_id))
         .and_where(Expr::col(Alias::new("started_at_ms")).gte(cycle.accounting_start_ms))
         .and_where(Expr::col(Alias::new("started_at_ms")).lt(tracking.sample.received_at_ms))
-        .and_where(Expr::exists(settled).not())
-        .limit(1);
-    if let gproxy_core::QuotaScope::Models(models) = &tracking.scope {
-        query.and_where(Expr::col(Alias::new("model")).is_in(models.iter().cloned()));
-    }
-    Statement::query(&query)
+        .and_where(Expr::exists(settled).not());
+    query
 }

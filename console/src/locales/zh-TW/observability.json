@@ -124,14 +124,35 @@
     "cost": {
       "label": "成本"
     },
-    "credentialCycles": "上游憑證配額視窗",
+    "credentialCycles": "上游憑證配額週期",
+    "quotaHistory": {
+      "title": "上游額度變化",
+      "providers": "渠道",
+      "series": "憑證與配額週期",
+      "rounds": "具體輪次",
+      "metric": "剩餘額度指標",
+      "selectAll": "全選",
+      "selectNone": "取消選取",
+      "unknownProvider": "已刪除渠道",
+      "withinTitle": "單個週期內的剩餘額度變化",
+      "withinDescription": "按觀測時間顯示剩餘額度，每輪獨立連線。",
+      "acrossTitle": "不同週期的剩餘額度比較",
+      "acrossDescription": "範圍條：本輪所有有效值的最小—最大範圍；圓點：最後一個有效值。橫軸按各輪開始時間排列。",
+      "noSamples": "該指標暫無有效樣本。",
+      "noSelection": "請選取要比較的渠道和週期。",
+      "range": "{{min}} – {{max}} · {{count}} 個有效樣本",
+      "metrics": {
+        "percent": "剩餘比例",
+        "tokens": "折算剩餘權杖",
+        "cost": "折算剩餘 USD"
+      }
+    },
     "cycleUsage": {
       "used": "本週期已用（本機）",
       "estimated": "預估本週期總額度",
       "tokens": "{{value}} 權杖",
       "requests": "{{value}} 次請求",
       "unknown": "暫無本機用量記錄",
-      "hint": "依樣本模型組合估算：同輪次本機用量增量 ÷ 上游使用率增量。USD 是本機已結算費用，不是訂閱實際扣款；不用於准入或扣費，閘道外消耗可能影響估算。",
       "localUnavailable": "本機統計暫不可用；仍可查看上游讀數。",
       "history": "歷史輪次（{{count}}）",
       "starts": "週期開始：{{value}}",

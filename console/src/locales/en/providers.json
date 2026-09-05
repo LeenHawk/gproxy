@@ -238,8 +238,7 @@
       "quota": {
         "empty": "The usage endpoint reported no quota windows.",
         "raw": "Raw response",
-        "title": "Upstream quota",
-        "hint": "Queries the upstream account live — some upstreams rate-limit this; use sparingly."
+        "title": "Upstream quota"
       },
       "quotaProbe": {
         "action": "Refresh",

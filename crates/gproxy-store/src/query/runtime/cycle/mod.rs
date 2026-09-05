@@ -1,10 +1,12 @@
 mod activity;
 mod links;
+mod observations;
 mod read;
 mod write;
 
 pub(crate) use activity::*;
 pub(crate) use links::*;
+pub(crate) use observations::*;
 pub(crate) use read::*;
 pub(crate) use write::*;
 

@@ -2,6 +2,23 @@ use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, T
 
 pub(super) const TABLES: &[TableSpec] = &[
     TableSpec {
+        version: SchemaVersion::QuotaObservations,
+        name: "credential_quota_observations",
+        columns: &[
+            Col::id(),
+            Col::required("cycle_id", Integer),
+            Col::required("started_at_ms", Integer),
+            Col::required("observed_at_ms", Integer),
+            Col::required("snapshot_json", Text),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_credential_quota_observation",
+            columns: &["cycle_id", "observed_at_ms", "started_at_ms"],
+            unique: true,
+            added_in: None,
+        }],
+    },
+    TableSpec {
         version: SchemaVersion::Initial,
         name: "quota_windows",
         columns: &[

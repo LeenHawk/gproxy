@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import "@/i18n"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
 import { WindowList } from "@/components/usage/window-list"
+import { CycleUsage } from "@/components/usage/cycle-usage"
 import { validDateRange } from "@/lib/date-range"
 
 const cycle: CredentialQuotaCycleDto = {
@@ -19,6 +20,7 @@ const cycle: CredentialQuotaCycleDto = {
   accounting_end_ms: 200000,
   local_boundary: false,
   estimate: null,
+  observations: [],
   boundary_source: "upstream",
   boundary_confidence: "exact",
   status: "open",
@@ -71,34 +73,35 @@ describe("CredentialCycleList", () => {
   })
 
   it("shows local cycle usage and equivalent capacity without double-counting cache reads", () => {
-    render(<WindowList cycles={[{ ...cycle, used_percent: "25", estimate: { tokens: "6400", cost: "8", reason: null, from_ms: 100000, to_ms: 150000 }, metrics: {
+    render(<CycleUsage cycle={{ ...cycle, used_percent: "25", estimate: { tokens: "6400", cost: "8", reason: null, from_ms: 100000, to_ms: 150000 }, metrics: {
       input_tokens: "800", output_tokens: "200", cached_input_tokens: "600",
       cache_creation_5m_tokens: "100", cache_creation_30m_tokens: "200", cache_creation_1h_tokens: "300",
       cost: "2", requests: "4", total_tokens: "1600",
-    } }]} />)
+    } }} />)
 
     expect(screen.getByText("1,600 tokens · $2.00 · 4 requests")).toBeInTheDocument()
     expect(screen.getByText("≈ 6,400 tokens · $8.00")).toBeInTheDocument()
+    expect(screen.queryByText(/Estimated for the sampled model mix/)).not.toBeInTheDocument()
   })
 
   it("does not extrapolate cumulative usage when the backend has no valid sample", () => {
     const metrics = { total_tokens: "1000", cost: "2" }
-    const { rerender } = render(<WindowList cycles={[{ ...cycle, used_percent: null, metrics }]} />)
+    const { rerender } = render(<CycleUsage cycle={{ ...cycle, used_percent: null, metrics }} />)
     expect(screen.getByText("Insufficient data")).toBeInTheDocument()
     expect(screen.queryByText(/≈/)).toBeNull()
 
-    rerender(<WindowList cycles={[{ ...cycle, used_percent: "0", metrics }]} />)
+    rerender(<CycleUsage cycle={{ ...cycle, used_percent: "0", metrics }} />)
     expect(screen.getByText("Insufficient data")).toBeInTheDocument()
     expect(screen.queryByText(/≈/)).toBeNull()
   })
 
   it("keeps missing local usage unknown and does not extrapolate zero usage", () => {
-    const { rerender } = render(<WindowList cycles={[cycle]} />)
+    const { rerender } = render(<CycleUsage cycle={cycle} />)
     expect(within(screen.getByText("Used this cycle (local)").parentElement!).getByRole("definition"))
       .toHaveTextContent("No local usage recorded")
     expect(screen.getByText("Insufficient data")).toBeInTheDocument()
 
-    rerender(<WindowList cycles={[{ ...cycle, metrics: { total_tokens: "0", cost: "0", requests: "0" } }]} />)
+    rerender(<CycleUsage cycle={{ ...cycle, metrics: { total_tokens: "0", cost: "0", requests: "0" } }} />)
     expect(screen.getByText(/0 tokens .* 0 requests/)).toBeInTheDocument()
     expect(screen.getByText("Insufficient data")).toBeInTheDocument()
   })

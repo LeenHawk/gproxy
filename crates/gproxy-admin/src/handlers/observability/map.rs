@@ -81,6 +81,7 @@ pub(super) fn credential_cycle(value: &CredentialQuotaCycleRecord) -> Credential
 impl From<&CredentialQuotaCycleRecord> for CredentialQuotaCycleDto {
     fn from(value: &CredentialQuotaCycleRecord) -> Self {
         CredentialQuotaCycleDto {
+            observations: Vec::new(),
             unit: value.tracking.unit.clone(),
             accounting_start_ms: value.accounting_start_ms,
             accounting_end_ms: value.accounting_end_ms,

@@ -51,6 +51,9 @@ async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
             .await
             .unwrap();
         assert_eq!(capability.is_some(), subscription);
+        if subscription {
+            assert_reset_credits_need_full_probe(&fixture.app, credential).await;
+        }
         assert!(
             fixture
                 .app
@@ -81,6 +84,80 @@ async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
             .await
             .unwrap()
             .is_none()
+    );
+}
+
+async fn assert_reset_credits_need_full_probe(app: &crate::AppHandle, credential: i64) {
+    use gproxy_admin::{AdminError, State};
+    use gproxy_core::CacheBackend;
+    use gproxy_store::records::{
+        CredentialQuotaObservation, QuotaBoundaryConfidence, QuotaBoundarySource,
+    };
+
+    let now = crate::quota_refresh::now();
+    app.inner
+        .host
+        .services
+        .store
+        .observe_credential_quota_cycle(&CredentialQuotaObservation {
+            credential_id: credential,
+            window_key: "primary".into(),
+            label: None,
+            period_start: Some(now - 60),
+            period_end: Some(now + 3600),
+            observed_at: now,
+            boundary_source: QuotaBoundarySource::Upstream,
+            boundary_confidence: QuotaBoundaryConfidence::Exact,
+            sample: gproxy_core::QuotaSample {
+                started_at_ms: now * 1000,
+                received_at_ms: now * 1000,
+            },
+            scope: gproxy_core::QuotaScope::All,
+            reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
+            unit: None,
+            upstream_used: None,
+            upstream_limit: None,
+            used_percent: Some(10.into()),
+        })
+        .await
+        .unwrap();
+    let cache = &app.inner.host.services.cache;
+    cache
+        .set(
+            &format!("quota:upstream-retry:{credential}"),
+            vec![1],
+            Some(std::time::Duration::from_secs(60)),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(app.quota_probe(credential, false).await,
+        Err(AdminError::Conflict(message)) if message == "upstream requested a longer quota retry interval"));
+    let cached = gproxy_admin::dto::QuotaProbeResponse {
+        windows: Vec::new(),
+        cycles: Vec::new(),
+        local_error: false,
+        raw: String::new(),
+        reset_credits: Some(gproxy_admin::dto::QuotaResetCreditsDto {
+            available_count: 2,
+            expires_at: None,
+        }),
+    };
+    cache
+        .set(
+            &format!("quota:probe:{credential}"),
+            serde_json::to_vec(&cached).unwrap(),
+            Some(std::time::Duration::from_secs(60)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        app.quota_probe(credential, false)
+            .await
+            .unwrap()
+            .reset_credits
+            .unwrap()
+            .available_count,
+        2
     );
 }
 

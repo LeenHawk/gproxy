@@ -3,6 +3,7 @@ import type { BoundaryConfidenceDto } from "./BoundaryConfidenceDto";
 import type { BoundarySourceDto } from "./BoundarySourceDto";
 import type { CredentialQuotaCycleModelDto } from "./CredentialQuotaCycleModelDto";
 import type { CycleEstimateDto } from "./CycleEstimateDto";
+import type { CycleObservationDto } from "./CycleObservationDto";
 import type { QuotaCoverageDto } from "./QuotaCoverageDto";
 import type { QuotaCycleCloseReasonDto } from "./QuotaCycleCloseReasonDto";
 import type { QuotaCycleStatusDto } from "./QuotaCycleStatusDto";
@@ -11,4 +12,4 @@ export type CredentialQuotaCycleDto = { id: number, version: number, credential_
 /**
  * Upstream display name for the limit, when the wire declared one.
  */
-label: string | null, period_start: number | null, period_end: number | null, boundary_source: BoundarySourceDto, boundary_confidence: BoundaryConfidenceDto, status: QuotaCycleStatusDto, close_reason: QuotaCycleCloseReasonDto | null, last_observed_at: number, upstream_used: string | null, upstream_limit: string | null, used_percent: string | null, coverage: QuotaCoverageDto, metrics: unknown, models: Array<CredentialQuotaCycleModelDto>, unit: string | null, accounting_start_ms: number, accounting_end_ms: number | null, local_boundary: boolean, estimate: CycleEstimateDto | null, };
+label: string | null, period_start: number | null, period_end: number | null, boundary_source: BoundarySourceDto, boundary_confidence: BoundaryConfidenceDto, status: QuotaCycleStatusDto, close_reason: QuotaCycleCloseReasonDto | null, last_observed_at: number, upstream_used: string | null, upstream_limit: string | null, used_percent: string | null, coverage: QuotaCoverageDto, metrics: unknown, models: Array<CredentialQuotaCycleModelDto>, unit: string | null, accounting_start_ms: number, accounting_end_ms: number | null, local_boundary: boolean, estimate: CycleEstimateDto | null, observations: Array<CycleObservationDto>, };

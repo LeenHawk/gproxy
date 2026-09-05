@@ -39,9 +39,9 @@ export const quotaWindows = (subjectKind?: string, subjectId?: number) =>
   api<Array<QuotaWindowDto>>(
     `/admin/api/quota-windows?${queryString({ subject_kind: subjectKind ?? "", subject_id: subjectId ?? null })}`,
   )
-export const credentialCycles = (from: number, to: number, credentialId?: number) =>
+export const credentialCycles = (from: number, to: number, credentialId?: number, includeHistory = false) =>
   api<Array<CredentialQuotaCycleDto>>(
-    `/admin/api/credential-cycles?${queryString({ from, to, credential_id: credentialId ?? null })}`,
+    `/admin/api/credential-cycles?${queryString({ from, to, credential_id: credentialId ?? null, include_history: includeHistory ? "true" : null })}`,
   )
 export const audit = (limit = 100) => api<Array<AuditEventDto>>(`/admin/api/audit?limit=${limit}`)
 export const logs = (value: LogQueryDto) => api<LogPageDto>(`/admin/api/logs?${queryString(value)}`)

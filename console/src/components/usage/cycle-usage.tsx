@@ -40,7 +40,6 @@ export function CycleUsage({ cycle }: { cycle: CredentialQuotaCycleDto }) {
           <dd className="tabular-nums">{estimated ? `≈ ${estimated}` : t(`usage.cycleUsage.reasons.${cycle.estimate?.reason ?? "insufficient_samples"}`)}</dd>
         </div>
       </dl>
-      <p className="text-muted-foreground">{t("usage.cycleUsage.hint")}</p>
     </div>
   )
 }

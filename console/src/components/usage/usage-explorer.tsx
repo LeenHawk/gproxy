@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { UsageRecordPageDto } from "@/generated/UsageRecordPageDto"
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { UsageTable } from "@/components/usage/usage-table"
 
 type Props = {
+  children?: ReactNode
   draft: UsageRecordQueryDto
   onDraft: (value: UsageRecordQueryDto) => void
   onApply: () => void
@@ -32,7 +33,7 @@ type Props = {
   keys: Array<UserKeyDto>
 }
 
-export function UsageExplorer({ draft, onDraft, onApply, onReset, page, summary, summaryError, pending, onPage, onPageSize, credentials, providers, users, keys }: Props) {
+export function UsageExplorer({ children, draft, onDraft, onApply, onReset, page, summary, summaryError, pending, onPage, onPageSize, credentials, providers, users, keys }: Props) {
   const { t, i18n } = useTranslation()
   const credentialOptions = useMemo(() => {
     const providerNames = new Map(providers.map((provider) => [provider.id, provider.name]))
@@ -62,6 +63,7 @@ export function UsageExplorer({ draft, onDraft, onApply, onReset, page, summary,
         {[[t("usage.requests"), summary ? formatCount(summary.requests, i18n.language) : "—"], [t("usage.record.tokens"), summary ? formatCount(Number(summary.total_tokens), i18n.language) : "—"], [t("usage.cost.label"), summary ? formatCost(summary.cost, i18n.language) : "—"]].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>)}
       </dl>
       {summaryError ? <p role="alert" className="text-sm text-destructive">{t("common.loadError")}</p> : null}
+      {children}
       <UsageTable page={page} providers={providers} credentials={credentials} users={users} keys={keys} pending={pending} onPage={onPage} onPageSize={onPageSize} />
     </div>
   )

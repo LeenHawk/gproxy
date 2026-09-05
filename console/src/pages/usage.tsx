@@ -2,12 +2,13 @@ import { useState } from "react"
 import { keepPreviousData, useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { UsageRecordQueryDto } from "@/generated/UsageRecordQueryDto"
-import { usageRecords, usageSummary } from "@/api/observability"
+import { credentialCycles, usageRecords, usageSummary } from "@/api/observability"
 import { credentials as fetchCredentials, providers as fetchProviders } from "@/api/control"
 import { userKeys as fetchUserKeys, users as fetchUsers } from "@/api/identity"
 import { PageLayout } from "@/components/page-layout"
 import { QueryState } from "@/components/query-state"
 import { UsageExplorer } from "@/components/usage/usage-explorer"
+import { QuotaHistory } from "@/components/usage/quota-history"
 import { ObservabilityTabs } from "@/components/observability-tabs"
 
 function initialQuery(): UsageRecordQueryDto {
@@ -20,13 +21,14 @@ export function UsagePage() {
   const [draft, setDraft] = useState<UsageRecordQueryDto>(initialQuery)
   const [query, setQuery] = useState<UsageRecordQueryDto>(draft)
   const filter = { ...query, page: null, page_size: null }
-  const [records, summary, credentialQuery, providerQuery, userQuery, keyQuery] = useQueries({ queries: [
+  const [records, summary, credentialQuery, providerQuery, userQuery, keyQuery, cycleQuery] = useQueries({ queries: [
     { queryKey: ["usage-records", query], queryFn: () => usageRecords(query), placeholderData: keepPreviousData },
     { queryKey: ["usage-summary", filter], queryFn: () => usageSummary(query) },
     { queryKey: ["credentials"], queryFn: fetchCredentials },
     { queryKey: ["providers"], queryFn: fetchProviders },
     { queryKey: ["users"], queryFn: fetchUsers },
     { queryKey: ["user-keys"], queryFn: fetchUserKeys },
+    { queryKey: ["credential-cycles", "history", query.from, query.to, query.credential_id], queryFn: () => credentialCycles(query.from, query.to, query.credential_id ?? undefined, true), refetchInterval: 60_000 },
   ] })
   return (
     <PageLayout title={t("nav.usage")} description={t("usage.description")}>
@@ -42,7 +44,14 @@ export function UsagePage() {
           onPageSize={(page_size) => setQuery((current) => ({ ...current, page: 1, page_size }))}
           credentials={credentialQuery.data ?? []} providers={providerQuery.data ?? []}
           users={userQuery.data ?? []} keys={keyQuery.data ?? []}
-        />
+        >
+          <QuotaHistory
+            cycles={(cycleQuery.data ?? []).filter((cycle) => query.provider_id == null || credentialQuery.data?.some((credential) => credential.id === cycle.credential_id && credential.provider_id === query.provider_id))}
+            providers={providerQuery.data ?? []} credentials={credentialQuery.data ?? []}
+            loading={cycleQuery.isLoading || providerQuery.isLoading || credentialQuery.isLoading}
+            error={cycleQuery.isError || providerQuery.isError || credentialQuery.isError}
+          />
+        </UsageExplorer>
       </QueryState>
     </PageLayout>
   )

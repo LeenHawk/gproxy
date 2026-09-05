@@ -89,13 +89,32 @@ function SubscriptionCredentialCard(props: Props) {
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-medium">{t("providers.credentials.quota.title")}</p>
-              <p className="text-xs text-muted-foreground">{t("providers.credentials.quota.hint")}</p>
             </div>
             <Button variant="outline" size="sm" className="shrink-0" disabled={probe.isFetching || manual.isPending || reset.isPending} onClick={() => void refresh()}>
               <RefreshCwIcon aria-hidden className={probe.isFetching ? "animate-spin" : undefined} />
               {probe.isFetching ? t("providers.credentials.quotaProbe.pending") : t("providers.credentials.quotaProbe.action")}
             </Button>
           </div>
+          {resetCredits || credential.quota_capabilities?.reset ? (
+            <section aria-label={t("providers.credentials.quotaReset.available")} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
+              <p className="min-w-0 text-sm">
+                <span className="text-muted-foreground">{t("providers.credentials.quotaReset.available")}: </span>
+                <span className="font-medium tabular-nums">{resetCredits?.available_count ?? "—"}</span>
+                {resetCredits?.expires_at != null ? (
+                  <span className="text-xs text-muted-foreground"> · {t("providers.credentials.quotaReset.expires", { time: formatInstant(resetCredits.expires_at, i18n.language) })}</span>
+                ) : null}
+              </p>
+              {credential.quota_capabilities?.reset ? <Button
+                variant="outline"
+                size="sm"
+                disabled={!resetCredits || resetCredits.available_count <= 0 || reset.isPending || probe.isFetching || manual.isPending}
+                onClick={() => setResetOpen(true)}
+              >
+                <RotateCcwIcon aria-hidden className={reset.isPending ? "animate-spin" : undefined} />
+                {t("providers.credentials.quotaReset.action")}
+              </Button> : null}
+            </section>
+          ) : null}
           <CredentialCycleList
             cycles={mergedCycles}
             localError={quota?.local_error}
@@ -104,26 +123,6 @@ function SubscriptionCredentialCard(props: Props) {
             error={!quota && props.cyclesError}
           />
           {probe.isError ? <p role="alert" className="text-sm text-destructive">{probe.error instanceof ApiError ? probe.error.message : t("providers.credentials.quotaProbe.error")}</p> : null}
-            {resetCredits && credential.quota_capabilities?.reset ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
-                <p className="min-w-0 text-sm">
-                  <span className="text-muted-foreground">{t("providers.credentials.quotaReset.available")}: </span>
-                  <span className="font-medium tabular-nums">{resetCredits.available_count}</span>
-                  {resetCredits.expires_at != null ? (
-                    <span className="text-xs text-muted-foreground"> · {t("providers.credentials.quotaReset.expires", { time: formatInstant(resetCredits.expires_at, i18n.language) })}</span>
-                  ) : null}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={resetCredits.available_count === 0 || reset.isPending || probe.isFetching}
-                  onClick={() => setResetOpen(true)}
-                >
-                  <RotateCcwIcon aria-hidden className={reset.isPending ? "animate-spin" : undefined} />
-                  {t("providers.credentials.quotaReset.action")}
-                </Button>
-              </div>
-            ) : null}
             {raw ? (
               <Collapsible>
                 <CollapsibleTrigger asChild>
