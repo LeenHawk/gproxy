@@ -29,6 +29,7 @@ impl Manager {
     pub(crate) fn new(data_dir: PathBuf, proxy: Option<&str>) -> Result<Self> {
         let manifest_url = std::env::var("GPROXY_UPDATE_SERVE").ok();
         let mut builder = wreq::Client::builder()
+            .redirect(wreq::redirect::Policy::limited(10))
             .user_agent(concat!("gproxy-selfupdate/", env!("CARGO_PKG_VERSION")));
         builder = match proxy {
             Some(url) => builder.proxy(wreq::Proxy::all(url).map_err(|_| Error::Configuration)?),
