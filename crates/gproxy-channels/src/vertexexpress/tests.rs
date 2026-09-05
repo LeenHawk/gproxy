@@ -52,6 +52,7 @@ fn builds_publisher_stream_framings_and_exact_override() {
     let prepare_stream = |query| {
         VertexExpressChannel
             .prepare(PrepareCtx {
+                session_id: None,
                 key: STREAM,
                 stream: true,
                 method: &Method::GET,
@@ -86,6 +87,7 @@ fn builds_publisher_stream_framings_and_exact_override() {
     });
     let count = VertexExpressChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CountTokens, WireFamily::Gemini),
             stream: false,
             method: &Method::POST,
@@ -113,6 +115,7 @@ fn strips_only_store_and_normalizes_vertex_response_quirks() {
     );
     let prepared = VertexExpressChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: GENERATE,
             stream: false,
             method: &Method::POST,

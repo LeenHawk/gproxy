@@ -47,6 +47,7 @@ fn resolves_base_and_exact_endpoints_with_target_wire_auth() {
     let body = Bytes::from_static(br#"{"model":"route","contents":[]}"#);
     let gemini = CustomChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(
                 Operation::StreamGenerateContent,
                 ContentGenerationKind::GeminiGenerateContent,
@@ -75,6 +76,7 @@ fn resolves_base_and_exact_endpoints_with_target_wire_auth() {
     let claude_body = Bytes::from_static(br#"{"model":"route","max_tokens":8,"messages":[]}"#);
     let claude = CustomChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(
                 Operation::GenerateContent,
                 ContentGenerationKind::ClaudeMessages,
@@ -107,6 +109,7 @@ fn rerank_routes_rewrites_and_observes_aggregate_usage() {
     });
     let rerank = CustomChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: false,
             method: &Method::POST,
@@ -159,6 +162,7 @@ fn applies_only_the_enabled_protocol_cache_and_fallback_shaping() {
     );
     let openai = CustomChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(
                 Operation::GenerateContent,
                 ContentGenerationKind::OpenAiChat,
@@ -199,6 +203,7 @@ fn applies_only_the_enabled_protocol_cache_and_fallback_shaping() {
     );
     let claude = CustomChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(
                 Operation::GenerateContent,
                 ContentGenerationKind::ClaudeMessages,

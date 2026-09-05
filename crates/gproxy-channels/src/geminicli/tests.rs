@@ -57,6 +57,7 @@ fn resolves_default_and_exact_override_urls() {
     let default_settings = json!({});
     let list = GeminiCliChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::ListModels),
             stream: false,
             method: &Method::GET,
@@ -82,6 +83,7 @@ fn resolves_default_and_exact_override_urls() {
     });
     let stream = GeminiCliChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: gemini(Operation::StreamGenerateContent),
             stream: true,
             method: &Method::POST,
@@ -109,6 +111,7 @@ fn shapes_code_assist_envelopes_and_stream_frames() {
     let key = gemini(Operation::StreamGenerateContent);
     let prepared = GeminiCliChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: true,
             method: &Method::POST,
@@ -139,6 +142,7 @@ fn shapes_code_assist_envelopes_and_stream_frames() {
 
     let count = GeminiCliChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::CountTokens),
             stream: false,
             method: &Method::POST,

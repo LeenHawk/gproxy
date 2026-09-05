@@ -165,6 +165,7 @@ fn prepare(
     headers.insert("accept", HeaderValue::from_static("text/event-stream"));
     ClineChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == Operation::StreamGenerateContent,
             method: &Method::PATCH,

@@ -18,6 +18,7 @@ pub mod login;
 pub mod model;
 pub mod oauth;
 pub mod operation;
+mod prepare;
 pub mod registry;
 pub mod resource;
 pub mod session;

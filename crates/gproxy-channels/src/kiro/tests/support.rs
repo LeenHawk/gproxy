@@ -12,6 +12,7 @@ pub(super) fn prepare(
 ) -> PreparedRequest {
     super::super::KiroChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == gproxy_protocol::Operation::StreamGenerateContent,
             method: &http::Method::PATCH,

@@ -56,6 +56,7 @@ fn resolves_runtime_override_and_sigv4_control_endpoints() {
     let settings = json!({"region":"us-west-2"});
     let runtime = AwsBedrockChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: STREAM,
             stream: true,
             method: &Method::GET,
@@ -90,6 +91,7 @@ fn resolves_runtime_override_and_sigv4_control_endpoints() {
     });
     let models = AwsBedrockChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::ListModels, WireFamily::OpenAi),
             stream: false,
             method: &Method::GET,
@@ -131,6 +133,7 @@ fn shapes_converse_and_strictly_decodes_fragmented_eventstream() {
     );
     let prepared = AwsBedrockChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::POST,

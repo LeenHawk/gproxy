@@ -22,6 +22,7 @@ pub(super) fn prepare(
     let secret = json!({"api_key":"deepseek-key"});
     super::super::DeepSeekChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == Operation::StreamGenerateContent,
             method: &http::Method::PATCH,

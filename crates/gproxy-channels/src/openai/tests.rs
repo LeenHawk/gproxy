@@ -108,6 +108,7 @@ fn prepare_sanitizes_and_shapes_json_and_exact_endpoints() {
         Bytes::from_static(br#"{"model":"route","stream":true,"stream_options":{"other":1}}"#);
     let prepared = OpenAiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: CHAT,
             stream: true,
             method: &Method::POST,
@@ -141,6 +142,7 @@ fn prepare_sanitizes_and_shapes_json_and_exact_endpoints() {
     let no_headers = HeaderMap::new();
     let file = OpenAiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::RetrieveFileContent, WireFamily::OpenAi),
             stream: false,
             method: &Method::GET,
@@ -179,6 +181,7 @@ fn prepare_applies_responses_cache_markers_after_existing_breakpoints() {
     );
     let prepared = OpenAiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: RESPONSES,
             stream: true,
             method: &Method::POST,
@@ -218,6 +221,7 @@ fn prepare_rewrites_binary_safe_multipart_model() {
     );
     let prepared = OpenAiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CreateTranscription, WireFamily::OpenAi),
             stream: false,
             method: &Method::POST,

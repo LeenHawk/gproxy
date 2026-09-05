@@ -16,6 +16,7 @@ fn raw_sdp_realtime_call_preserves_body_and_content_type() {
     let body = Bytes::from_static(b"v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\n");
     let prepared = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CreateRealtimeCall, WireFamily::OpenAi),
             stream: false,
             method: &Method::POST,

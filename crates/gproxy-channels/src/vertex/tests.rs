@@ -61,6 +61,7 @@ fn builds_regional_stream_and_exact_model_override_urls() {
     let body = Bytes::from_static(br#"{"contents":[]}"#);
     let prepared = VertexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: GEMINI_STREAM,
             stream: true,
             method: &Method::GET,
@@ -90,6 +91,7 @@ fn builds_regional_stream_and_exact_model_override_urls() {
     let empty = Bytes::new();
     let model = VertexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::GetModel, WireFamily::Gemini),
             stream: false,
             method: &Method::GET,
@@ -118,6 +120,7 @@ fn shapes_partner_claude_and_round_trips_video_operation_aliases() {
         Bytes::from_static(br#"{"model":"route","max_tokens":16,"messages":[],"future":true}"#);
     let claude = VertexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: CLAUDE_MESSAGES,
             stream: false,
             method: &Method::POST,
@@ -148,6 +151,7 @@ fn shapes_partner_claude_and_round_trips_video_operation_aliases() {
     );
     let video = VertexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CreateVideo, WireFamily::OpenAi),
             stream: false,
             method: &Method::POST,
@@ -189,6 +193,7 @@ fn shapes_partner_claude_and_round_trips_video_operation_aliases() {
     let empty = Bytes::new();
     let poll = VertexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::RetrieveVideo, WireFamily::Gemini),
             stream: false,
             method: &Method::GET,

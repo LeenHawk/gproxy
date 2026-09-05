@@ -65,6 +65,7 @@ fn resolves_tier_defaults_and_exact_override() {
     let zen_settings = json!({});
     let zen = OpenCodeChannel
         .prepare(PrepareCtx {
+            session_id: Some("opencode-test-session"),
             key: family(Operation::ListModels),
             stream: false,
             method: &Method::GET,
@@ -82,6 +83,7 @@ fn resolves_tier_defaults_and_exact_override() {
     let go_settings = json!({"tier":"go"});
     let go = OpenCodeChannel
         .prepare(PrepareCtx {
+            session_id: Some("opencode-test-session"),
             key: content(Operation::GenerateContent, Kind::OpenAiChat),
             stream: false,
             method: &Method::POST,
@@ -105,6 +107,7 @@ fn resolves_tier_defaults_and_exact_override() {
     });
     let exact = OpenCodeChannel
         .prepare(PrepareCtx {
+            session_id: Some("opencode-test-session"),
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,
@@ -136,6 +139,7 @@ fn leaves_claude_cache_markers_to_the_central_pass() {
     let secret = json!({"api_key":"oc-key"});
     let prepared = OpenCodeChannel
         .prepare(PrepareCtx {
+            session_id: Some("opencode-test-session"),
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,
@@ -171,6 +175,7 @@ fn leaves_claude_cache_markers_to_the_central_pass() {
     let raw = Bytes::from_static(br#"{ "model":"same", "messages":[] }"#);
     let disabled = json!({});
     let ctx = PrepareCtx {
+        session_id: Some("opencode-test-session"),
         key: content(Operation::GenerateContent, Kind::ClaudeMessages),
         stream: false,
         method: &Method::POST,
@@ -185,5 +190,76 @@ fn leaves_claude_cache_markers_to_the_central_pass() {
     assert_eq!(
         super::shape::request(&ctx, &mut HeaderMap::new(), raw.clone()).unwrap(),
         raw
+    );
+}
+
+#[test]
+fn session_header_covers_all_inference_formats_and_preserves_client_identity() {
+    let secret = json!({"api_key":"oc-key"});
+    for tier in ["go", "zen"] {
+        let settings = json!({"tier":tier});
+        for kind in [
+            Kind::OpenAiChat,
+            Kind::OpenAiResponses,
+            Kind::ClaudeMessages,
+        ] {
+            for stream in [false, true] {
+                let operation = if stream {
+                    Operation::StreamGenerateContent
+                } else {
+                    Operation::GenerateContent
+                };
+                let body =
+                    Bytes::from_static(br#"{"model":"test","messages":[],"input":"question"}"#);
+                for explicit in [false, true] {
+                    let mut headers = HeaderMap::new();
+                    if explicit {
+                        headers.insert(
+                            "x-opencode-session",
+                            HeaderValue::from_static("client-conversation"),
+                        );
+                    }
+                    let prepared = OpenCodeChannel
+                        .prepare(PrepareCtx {
+                            key: content(operation, kind),
+                            session_id: Some("core-conversation"),
+                            stream,
+                            method: &Method::POST,
+                            path: "/",
+                            query: None,
+                            headers: &headers,
+                            body: &body,
+                            upstream_model: "test",
+                            provider_settings: &settings,
+                            secret: &secret,
+                        })
+                        .unwrap();
+                    assert_eq!(
+                        prepared.request.headers()["x-opencode-session"],
+                        if explicit {
+                            "client-conversation"
+                        } else {
+                            "core-conversation"
+                        }
+                    );
+                }
+            }
+        }
+    }
+    let missing = OpenCodeChannel.prepare(PrepareCtx {
+        key: content(Operation::GenerateContent, Kind::OpenAiResponses),
+        session_id: None,
+        stream: false,
+        method: &Method::POST,
+        path: "/v1/responses",
+        query: None,
+        headers: &HeaderMap::new(),
+        body: &Bytes::from_static(br#"{"previous_response_id":"prior","input":"next"}"#),
+        upstream_model: "test",
+        provider_settings: &json!({}),
+        secret: &secret,
+    });
+    assert!(
+        matches!(missing, Err(gproxy_channel_api::ChannelError::Prepare(message)) if message.contains("x-opencode-session"))
     );
 }

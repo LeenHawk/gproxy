@@ -57,6 +57,7 @@ fn resolves_daily_default_and_exact_override_urls() {
     let defaults = json!({});
     let list = AntigravityChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::ListModels),
             stream: false,
             method: &Method::GET,
@@ -82,6 +83,7 @@ fn resolves_daily_default_and_exact_override_urls() {
     stream_headers.insert("accept", HeaderValue::from_static("text/event-stream"));
     let stream = AntigravityChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: gemini(Operation::StreamGenerateContent),
             stream: true,
             method: &Method::POST,
@@ -117,6 +119,7 @@ fn removes_only_root_store_and_unwraps_stream_frames() {
     let key = gemini(Operation::StreamGenerateContent);
     let prepared = AntigravityChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: true,
             method: &Method::POST,
@@ -166,6 +169,7 @@ fn removes_only_root_store_and_unwraps_stream_frames() {
 
     let count = AntigravityChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::CountTokens),
             stream: false,
             method: &Method::POST,
@@ -231,6 +235,7 @@ fn claude_code_uses_buffered_antigravity_25_flash() {
     let key = gemini(Operation::StreamGenerateContent);
     let prepared = AntigravityChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: true,
             method: &Method::POST,

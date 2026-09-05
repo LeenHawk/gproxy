@@ -58,6 +58,7 @@ fn resolves_rest_path_and_exact_override_without_account() {
     headers.insert("x-api-key", HeaderValue::from_static("untrusted"));
     let default = CloudflareAiGatewayChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::OpenAiChat),
             stream: false,
             method: &Method::POST,
@@ -89,6 +90,7 @@ fn resolves_rest_path_and_exact_override_without_account() {
     let no_account = json!({"api_key":"cf-token"});
     let exact = CloudflareAiGatewayChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,
@@ -114,6 +116,7 @@ fn rewrites_models_and_observes_stream_usage() {
     let key = content(Operation::StreamGenerateContent, Kind::OpenAiChat);
     let prepared = CloudflareAiGatewayChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: true,
             method: &Method::POST,

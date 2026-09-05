@@ -70,6 +70,7 @@ fn resolves_default_and_exact_override_with_dual_auth() {
     let defaults = json!({});
     let claude = VercelChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,
@@ -98,6 +99,7 @@ fn resolves_default_and_exact_override_with_dual_auth() {
     });
     let exact = VercelChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::GetModel, WireFamily::OpenAi),
             stream: false,
             method: &Method::GET,
@@ -128,6 +130,7 @@ fn applies_claude_policy_and_observes_stream_usage() {
     let key = content(Operation::StreamGenerateContent, Kind::ClaudeMessages);
     let prepared = VercelChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: true,
             method: &Method::POST,

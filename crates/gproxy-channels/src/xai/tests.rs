@@ -23,6 +23,7 @@ struct Req<'a> {
 fn prepare(req: Req<'_>) -> Result<http::Request<Bytes>, gproxy_channel_api::ChannelError> {
     XaiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: req.key,
             stream: req.stream,
             method: &Method::POST,

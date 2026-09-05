@@ -66,6 +66,7 @@ fn resolves_default_and_exact_override() {
     let default_settings = json!({});
     let default = GroqChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::ListModels),
             stream: false,
             method: &Method::GET,
@@ -89,6 +90,7 @@ fn resolves_default_and_exact_override() {
     });
     let override_request = GroqChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::GetModel),
             stream: false,
             method: &Method::GET,
@@ -119,6 +121,7 @@ fn rewrites_model_and_observes_stream_usage() {
     let key = content(Operation::StreamGenerateContent, Kind::OpenAiChat);
     let prepared = GroqChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: true,
             method: &Method::POST,

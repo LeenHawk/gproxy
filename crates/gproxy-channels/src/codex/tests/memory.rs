@@ -35,6 +35,7 @@ fn descriptor_prepares_typed_memory_summary_for_estimated_settlement() {
     );
     let prepared = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MEMORY,
             stream: false,
             method: &Method::POST,

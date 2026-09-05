@@ -65,6 +65,7 @@ fn resolves_default_and_exact_override() {
     let default_settings = json!({});
     let list = WorkBuddyChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::ListModels),
             stream: false,
             method: &Method::GET,
@@ -85,6 +86,7 @@ fn resolves_default_and_exact_override() {
     });
     let chat = WorkBuddyChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::OpenAiChat),
             stream: false,
             method: &Method::POST,
@@ -126,6 +128,7 @@ fn converts_multipart_edits_without_fabricating_response_time() {
     let secret = json!({"access_token":"token","user_id":"user-1"});
     let prepared = WorkBuddyChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: family(Operation::EditImage),
             stream: false,
             method: &Method::POST,
@@ -145,6 +148,7 @@ fn converts_multipart_edits_without_fabricating_response_time() {
     assert_eq!(shaped["response_format"], "b64_json");
 
     let streaming = WorkBuddyChannel.prepare(PrepareCtx {
+        session_id: None,
         key: family(Operation::EditImage),
         stream: true,
         method: &Method::POST,

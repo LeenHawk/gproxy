@@ -9,7 +9,21 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let tier = tier(ctx.provider_settings)?;
     let path = super::model::path(ctx.key);
     let uri = endpoint(&ctx, path, tier)?;
-    let mut headers = crate::policy::request_headers(crate::policy::OPENAI_COMPATIBLE, &ctx)?;
+    let mut headers = crate::policy::request_headers(crate::policy::OPENCODE, &ctx)?;
+    if ctx.key.operation().spec().affinity == gproxy_protocol::Affinity::Session {
+        let session = headers
+            .get("x-opencode-session")
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .or_else(|| ctx.session_id.map(str::trim).filter(|value| !value.is_empty()))
+            .ok_or_else(|| ChannelError::Prepare(
+                "OpenCode requires x-opencode-session when no conversation identity can be inferred".into(),
+            ))?;
+        let value = HeaderValue::from_str(session)
+            .map_err(|_| ChannelError::Prepare("invalid OpenCode session id".into()))?;
+        headers.insert("x-opencode-session", value);
+    }
     let body = super::model::body(&ctx)?;
     let body = super::shape::request(&ctx, &mut headers, body)?;
     if !body.is_empty() && !headers.contains_key(CONTENT_TYPE) {

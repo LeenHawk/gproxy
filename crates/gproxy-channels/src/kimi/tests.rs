@@ -46,6 +46,7 @@ fn prepares_api_and_oauth_urls_auth_identity_and_models() {
     let api_secret = json!({"api_key":"moonshot-key"});
     let api = KimiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::OpenAiChat),
             stream: false,
             method: &Method::POST,
@@ -80,6 +81,7 @@ fn prepares_api_and_oauth_urls_auth_identity_and_models() {
     });
     let oauth = KimiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,

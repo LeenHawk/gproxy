@@ -54,6 +54,7 @@ fn builds_documented_default_and_exact_override_urls() {
     let empty = Bytes::new();
     let listed = ClaudeApiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::ListModels, WireFamily::Claude),
             stream: false,
             method: &Method::GET,
@@ -82,6 +83,7 @@ fn builds_documented_default_and_exact_override_urls() {
     headers.insert("content-type", "application/json".parse().unwrap());
     let prepared = ClaudeApiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::GET,
@@ -142,6 +144,7 @@ fn shapes_cache_sampling_prefill_and_feature_betas_together() {
     );
     let prepared = ClaudeApiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::POST,
@@ -184,6 +187,7 @@ fn shapes_configured_and_existing_fallbacks_with_required_beta() {
     );
     let prepared = ClaudeApiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::POST,
@@ -208,6 +212,7 @@ fn shapes_configured_and_existing_fallbacks_with_required_beta() {
     );
     let defaulted = ClaudeApiChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::POST,

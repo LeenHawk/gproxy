@@ -20,6 +20,7 @@ fn prepare_keeps_opt_in_cache_breakpoint_through_codex_shaping() {
     );
     let prepared = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: RESPONSES,
             stream: true,
             method: &Method::POST,
@@ -48,6 +49,7 @@ fn prepare_strips_downstream_cache_breakpoints_without_opt_in() {
     );
     let prepared = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: RESPONSES,
             stream: true,
             method: &Method::POST,

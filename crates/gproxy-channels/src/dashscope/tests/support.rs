@@ -20,6 +20,7 @@ pub(super) fn prepare(
     let secret = json!({"api_key":"dashscope-key"});
     super::super::DashScopeChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == Operation::StreamGenerateContent,
             method: &http::Method::PATCH,

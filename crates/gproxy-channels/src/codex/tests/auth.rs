@@ -13,6 +13,7 @@ fn model_discovery_uses_upstream_cli_identity() {
     let body = Bytes::new();
     let prepared = super::super::CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::ListModels, WireFamily::OpenAi),
             stream: false,
             method: &Method::GET,

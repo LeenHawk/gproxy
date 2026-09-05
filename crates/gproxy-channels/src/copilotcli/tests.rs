@@ -145,6 +145,7 @@ fn prepare(
 ) -> gproxy_channel_api::PreparedRequest {
     CopilotCliChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == Operation::StreamGenerateContent,
             method: &Method::PATCH,

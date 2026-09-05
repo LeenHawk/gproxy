@@ -121,6 +121,7 @@ fn driver_uses_default_and_exact_step_urls() {
     let defaults = json!({});
     let mut default = ClaudeWebChannel
         .operation_driver(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,
@@ -151,6 +152,7 @@ fn driver_uses_default_and_exact_step_urls() {
     });
     let mut driver = ClaudeWebChannel
         .operation_driver(PrepareCtx {
+            session_id: None,
             key: content(Operation::GenerateContent, Kind::ClaudeMessages),
             stream: false,
             method: &Method::POST,

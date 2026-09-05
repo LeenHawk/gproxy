@@ -137,6 +137,79 @@ fn openai_native_session_header_overrides_conversation_changes() -> Result<(), I
     Ok(())
 }
 
+#[test]
+fn opencode_session_survives_turns_retry_targets_and_ingress_filtering() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    let channels =
+        gproxy_channel_api::ChannelRegistry::new([
+            Box::new(gproxy_channels::OpenCodeChannel) as Box<dyn Channel>
+        ])
+        .expect("channel registry");
+    let core = Core::new(host.clone(), channels)?;
+    let mut primary = target(7);
+    primary.provider.channel = "opencode".into();
+    primary.provider.settings = json!({"tier":"go"});
+    let mut secondary = primary.clone();
+    secondary.credential = CredentialId(8);
+    host.state.lock().expect("state lock").credential.channel = "opencode".into();
+    set_plan(&host, [primary.clone(), secondary.clone()]);
+    let run = |request| {
+        execute(&core, &host, request);
+        host.state
+            .lock()
+            .expect("state lock")
+            .upstream_requests
+            .last()
+            .unwrap()
+            .0["x-opencode-session"]
+            .clone()
+    };
+    let first = run(request("", "question", false));
+    assert_eq!(first, run(request("", "question", true)));
+    assert_ne!(first, run(request("", "another conversation", false)));
+    host.state.lock().expect("state lock").caller_user_id += 1;
+    assert_ne!(first, run(request("", "question", false)));
+
+    let explicit = |head| {
+        let mut request = request("", head, false);
+        request
+            .headers
+            .insert("x-opencode-session", "client-conversation".parse().unwrap());
+        request
+    };
+    assert_eq!(run(explicit("question")), "client-conversation");
+    assert_eq!(run(explicit("different head")), "client-conversation");
+
+    for header in [
+        "session-id",
+        "x-session-id",
+        "thread-id",
+        "x-session-affinity",
+    ] {
+        let mut first = request("", "question", false);
+        first
+            .headers
+            .insert(header, "native-session".parse().unwrap());
+        let session = run(first);
+        let mut next = claude_request("", "changed head", true);
+        next.headers
+            .insert(header, "native-session".parse().unwrap());
+        assert_eq!(session, run(next));
+    }
+
+    let fixed = run(request("gateway-session", "question", false));
+    set_plan(&host, [secondary, primary]);
+    host.state.lock().expect("state lock").statuses =
+        [StatusCode::TOO_MANY_REQUESTS, StatusCode::OK].into();
+    assert_eq!(fixed, run(request("gateway-session", "changed head", true)));
+    let state = host.state.lock().expect("state lock");
+    for (headers, _) in state.upstream_requests.iter().rev().take(2) {
+        assert_eq!(headers["x-opencode-session"], fixed);
+        assert!(!headers.contains_key("x-gproxy-session-id"));
+    }
+    Ok(())
+}
+
 fn core(host: &MemoryHost) -> Result<Core<MemoryHost>, InitError> {
     let channels =
         gproxy_channel_api::ChannelRegistry::new([Box::new(host.clone()) as Box<dyn Channel>])

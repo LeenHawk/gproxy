@@ -31,6 +31,7 @@ fn prepares_auth_path_query_and_framing() {
     let body = Bytes::from_static(br#"{"model":"models/client-alias","contents":[]}"#);
     let request = AiStudioChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: gemini_content(Operation::StreamGenerateContent),
             stream: true,
             method: &Method::POST,
@@ -57,6 +58,7 @@ fn prepares_auth_path_query_and_framing() {
 
     let default = AiStudioChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: gemini_content(Operation::StreamGenerateContent),
             stream: true,
             method: &Method::POST,
@@ -74,6 +76,7 @@ fn prepares_auth_path_query_and_framing() {
 
     let poll = AiStudioChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::RetrieveVideo, WireFamily::Gemini),
             stream: false,
             method: &Method::GET,
@@ -93,6 +96,7 @@ fn prepares_auth_path_query_and_framing() {
 
     let video = AiStudioChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CreateVideo, WireFamily::OpenAi),
             stream: false,
             method: &Method::POST,

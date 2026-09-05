@@ -22,6 +22,7 @@ struct Req<'a> {
 fn prepare(req: Req<'_>) -> http::Request<Bytes> {
     GrokBuildChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: req.key,
             stream: req.stream,
             method: &Method::POST,

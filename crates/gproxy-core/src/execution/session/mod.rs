@@ -16,9 +16,23 @@ const TTL: Duration = Duration::from_secs(60 * 60);
 const KEY_DOMAIN: &[u8] = b"gproxy:session-affinity:key:v1";
 const SELECTION_DOMAIN: &[u8] = b"gproxy:session-affinity:selection:v1";
 const SUBJECT_DOMAIN: &[u8] = b"gproxy:session-affinity:subject:v1";
+const UPSTREAM_DOMAIN: &[u8] = b"gproxy:upstream-session:v1";
 
 #[derive(Clone, Copy)]
 pub(super) struct SessionSubject([u8; 32]);
+
+impl SessionSubject {
+    pub(super) fn upstream_id(self, owner_user_id: Option<i64>) -> String {
+        let mut hasher = Sha256::new();
+        field(&mut hasher, UPSTREAM_DOMAIN);
+        field(
+            &mut hasher,
+            &owner_user_id.map(i64::to_be_bytes).unwrap_or_default(),
+        );
+        field(&mut hasher, &self.0);
+        hex(&hasher.finalize())
+    }
+}
 
 pub(super) struct SessionAffinity {
     key: String,
@@ -43,6 +57,10 @@ pub(super) fn subject(
 ) -> Option<SessionSubject> {
     header(&ctx.headers, "x-gproxy-session-id")
         .map(|value| digest_subject(b"gproxy", value.as_bytes()))
+        .or_else(|| {
+            header(&ctx.headers, "x-opencode-session")
+                .map(|value| digest_subject(b"opencode", value.as_bytes()))
+        })
         .or_else(|| match kind {
             OperationKind::ContentGeneration(
                 gproxy_protocol::ContentGenerationKind::ClaudeMessages,
@@ -54,18 +72,20 @@ pub(super) fn subject(
                 | gproxy_protocol::ContentGenerationKind::OpenAiResponses
                 | gproxy_protocol::ContentGenerationKind::OpenAiResponsesWebSocket,
             )
-            | OperationKind::Family(gproxy_protocol::WireFamily::OpenAi) => {
-                header(&ctx.headers, "session-id")
-                    .or_else(|| header(&ctx.headers, "x-session-id"))
-                    .or_else(|| header(&ctx.headers, "thread-id"))
-                    .map(|value| digest_subject(b"openai", value.as_bytes()))
-            }
+            | OperationKind::Family(gproxy_protocol::WireFamily::OpenAi) => None,
             OperationKind::ContentGeneration(
                 gproxy_protocol::ContentGenerationKind::GeminiGenerateContent,
             )
             | OperationKind::Family(
                 gproxy_protocol::WireFamily::Claude | gproxy_protocol::WireFamily::Gemini,
             ) => None,
+        })
+        .or_else(|| {
+            header(&ctx.headers, "session-id")
+                .or_else(|| header(&ctx.headers, "x-session-id"))
+                .or_else(|| header(&ctx.headers, "thread-id"))
+                .or_else(|| header(&ctx.headers, "x-session-affinity"))
+                .map(|value| digest_subject(b"openai", value.as_bytes()))
         })
         .or_else(|| body.and_then(|body| fingerprint::digest(kind, body)))
         .map(SessionSubject)

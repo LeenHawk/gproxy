@@ -33,6 +33,7 @@ fn prepare(
     };
     OpenRouterChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == Operation::StreamGenerateContent,
             method,

@@ -152,8 +152,10 @@ pub(crate) async fn prepare<H: Host>(
         &traffic_policy,
         &target.provider.traffic_blacklist,
     );
+    let session_id = classified.session_id(admission.owner_user_id);
     let context = || PrepareCtx {
         key: support.target,
+        session_id: session_id.as_deref(),
         stream,
         method: &method,
         path: &path,

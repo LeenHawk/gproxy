@@ -156,6 +156,8 @@ pub(crate) const GROK_BUILD: ChannelTrafficPolicy =
     ChannelTrafficPolicy::new(NONE, &["x-grok-*", "x-ratelimit-*", "x-request-id"], &["*"]);
 pub(crate) const OPENAI_COMPATIBLE: ChannelTrafficPolicy =
     ChannelTrafficPolicy::new(NONE, OPENAI_RESPONSE, NONE);
+pub(crate) const OPENCODE: ChannelTrafficPolicy =
+    ChannelTrafficPolicy::new(&["x-opencode-session"], OPENAI_RESPONSE, NONE);
 pub(crate) const KIMI: ChannelTrafficPolicy =
     ChannelTrafficPolicy::new(ANTHROPIC, OPENAI_RESPONSE, &["after", "limit"]);
 pub(crate) const KIRO: ChannelTrafficPolicy =

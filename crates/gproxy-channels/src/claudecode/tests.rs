@@ -138,6 +138,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     );
     let prepared = ClaudeCodeChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::POST,
@@ -196,6 +197,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     let empty = Bytes::new();
     let get = ClaudeCodeChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::GetModel, WireFamily::Claude),
             stream: false,
             method: &Method::GET,
@@ -222,6 +224,7 @@ fn prepare_applies_configured_fallback_and_merges_oauth_beta() {
     );
     let prepared = ClaudeCodeChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: MESSAGES,
             stream: false,
             method: &Method::POST,
@@ -252,6 +255,7 @@ fn count_tokens_and_surface_requests_preserve_their_wire_contracts() {
     );
     let count = ClaudeCodeChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CountTokens, WireFamily::Claude),
             stream: false,
             method: &Method::POST,

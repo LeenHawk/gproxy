@@ -16,6 +16,11 @@ pub(crate) struct Classified {
 }
 
 impl Classified {
+    pub(crate) fn session_id(&self, owner_user_id: Option<i64>) -> Option<String> {
+        self.session
+            .map(|session| session.upstream_id(owner_user_id))
+    }
+
     pub(super) fn responses_websocket(model: Option<String>) -> Self {
         Self {
             key: OperationKey::content(

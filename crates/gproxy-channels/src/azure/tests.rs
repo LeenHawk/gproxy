@@ -28,6 +28,7 @@ fn prepare(
     let secret = json!({"api_key":"azure-key"});
     AzureChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key,
             stream: key.operation() == Operation::StreamGenerateContent,
             method: &Method::PATCH,

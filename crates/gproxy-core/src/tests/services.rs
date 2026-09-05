@@ -212,6 +212,7 @@ impl UpstreamTransport for MemoryHost {
                 let authorization = request
                     .headers()
                     .get(http::header::AUTHORIZATION)
+                    .or_else(|| request.headers().get("x-api-key"))
                     .or_else(|| request.headers().get(http::header::COOKIE))
                     .expect("upstream authentication header")
                     .to_str()

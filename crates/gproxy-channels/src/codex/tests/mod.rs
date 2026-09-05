@@ -86,6 +86,7 @@ fn prepare_applies_codex_endpoint_headers_profile_and_typed_shape() {
     );
     let prepared = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: RESPONSES,
             stream: true,
             method: &Method::POST,
@@ -144,6 +145,7 @@ fn image_streaming_is_rejected_before_buffered_backend_send() {
     let body = Bytes::from(json!({"prompt":"draw", "model":"route", "stream":true}).to_string());
     let error = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::CreateImage, gproxy_protocol::WireFamily::OpenAi),
             stream: true,
             method: &Method::POST,
@@ -172,6 +174,7 @@ fn multipart_image_edit_is_binary_safe_and_preserves_future_fields() {
     );
     let prepared = CodexChannel
         .prepare(PrepareCtx {
+            session_id: None,
             key: OperationKey::family(Operation::EditImage, gproxy_protocol::WireFamily::OpenAi),
             stream: false,
             method: &Method::POST,
