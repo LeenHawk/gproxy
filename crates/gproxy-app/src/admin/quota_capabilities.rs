@@ -6,11 +6,9 @@ pub(super) async fn read(
     id: i64,
 ) -> Result<Option<QuotaCapabilitiesDto>, AdminError> {
     let services = &app.inner.host.services;
-    let credential = services
-        .store
-        .credential(id)
-        .await?
-        .ok_or(AdminError::NotFound)?;
+    let Some(credential) = services.store.credential(id).await? else {
+        return Ok(None);
+    };
     let secret = services
         .cipher
         .open(&credential.envelope)

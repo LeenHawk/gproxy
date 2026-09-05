@@ -61,6 +61,27 @@ async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
                 .is_err()
         );
     }
+    let MutationResult::Id(orphan) = fixture
+        .app
+        .mutate(ControlMutation::Credential {
+            provider_id: i64::MAX,
+            label: None,
+            secret: serde_json::json!({"api_key": setup::random_key()}),
+            enabled: false,
+        })
+        .await
+        .unwrap()
+    else {
+        panic!("orphan credential id")
+    };
+    assert!(
+        fixture
+            .app
+            .credential_quota_capabilities(orphan)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
