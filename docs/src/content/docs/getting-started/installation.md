@@ -164,7 +164,7 @@ to install unknown apps.
 | `GPROXY_UPDATE_CHANNEL` | Overrides the saved channel: `releases`, `staging`, or `dev`. |
 | `GPROXY_UPDATE_CHANNEL_SERVE` | Same, and wins over `GPROXY_UPDATE_CHANNEL`. |
 | `GPROXY_UPDATE_SERVE` | Manifest URL to fetch instead of GitHub, for a mirror. |
-| `GPROXY_UPDATE_RESTART` | `none` (default): restart the process yourself. `supervisor`: exit with code 42 after apply or rollback so a process manager restarts it. `re-exec`: re-execute the new binary in place (exits 42 on Windows). |
+| `GPROXY_UPDATE_RESTART` | `re-exec` (default): re-execute the new binary in place after apply or rollback (exits 42 on Windows). `supervisor`: exit with code 42 so a process manager restarts it. `none`: restart the process yourself. |
 
 The updater uses `GPROXY_UPSTREAM_PROXY_URL` when set. `releases` and `dev`
 compare semantic versions; `staging` compares build hashes.

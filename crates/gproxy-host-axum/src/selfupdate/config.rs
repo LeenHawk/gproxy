@@ -17,11 +17,12 @@ pub(super) fn channel(selected: Option<&str>) -> Result<String> {
 }
 
 pub(super) fn restart() -> Result<Restart> {
-    match std::env::var("GPROXY_UPDATE_RESTART")
-        .unwrap_or_else(|_| "none".into())
-        .to_ascii_lowercase()
-        .as_str()
-    {
+    let value = std::env::var("GPROXY_UPDATE_RESTART").ok();
+    parse_restart(value.as_deref())
+}
+
+fn parse_restart(value: Option<&str>) -> Result<Restart> {
+    match value.unwrap_or("re-exec").to_ascii_lowercase().as_str() {
         "none" => Ok(Restart::None),
         "supervisor" => Ok(Restart::Supervisor),
         "re-exec" | "reexec" => Ok(Restart::ReExec),
@@ -81,5 +82,20 @@ impl Error {
             Self::Configuration => StatusCode::BAD_REQUEST,
             _ => StatusCode::BAD_GATEWAY,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_restart;
+
+    #[test]
+    fn restart_defaults_to_reexec_but_allows_an_explicit_override() {
+        assert_eq!(parse_restart(None).unwrap().as_str(), "re-exec");
+        assert_eq!(parse_restart(Some("none")).unwrap().as_str(), "none");
+        assert_eq!(
+            parse_restart(Some("supervisor")).unwrap().as_str(),
+            "supervisor"
+        );
     }
 }

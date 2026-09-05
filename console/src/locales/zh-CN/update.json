@@ -43,19 +43,25 @@
     },
     "actions": {
       "apply": "验证并应用",
+      "applyAndRestart": "更新并重启",
       "current": "已是最新",
       "rollback": "回滚",
       "applied": "已应用版本 {{version}}。",
+      "restarting": "已安装版本 {{version}}，GPROXY 正在重启。",
       "applyError": "更新被拒绝或无法应用。",
       "rolledBack": "已恢复上一版可执行文件（{{version}}）。",
       "rollbackError": "没有可恢复的有效回滚可执行文件。",
       "applyConfirmTitle": "应用此更新？",
-      "applyConfirmDescription": "GPROXY 将下载并验证所选构建、替换可执行文件，然后按配置的方式重启。",
+      "applyConfirmDescription": "GPROXY 将下载并验证所选构建、替换可执行文件；此安装已禁用自动重启。",
+      "restartConfirmTitle": "更新并重启？",
+      "restartConfirmDescription": "GPROXY 将下载并验证所选构建、替换可执行文件，然后自动重启。",
       "rollbackConfirmTitle": "恢复上一版可执行文件？",
       "rollbackConfirmDescription": "GPROXY 将用保留的备份替换当前可执行文件，然后按配置的方式重启。"
     },
     "notes": {
-      "title": "发布说明"
+      "title": "发布说明",
+      "description": "GPROXY {{current}} → {{latest}}",
+      "action": "查看发布说明"
     },
     "banner": {
       "title": "GPROXY {{version}} 可更新",

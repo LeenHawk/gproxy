@@ -43,19 +43,25 @@
     },
     "actions": {
       "apply": "Verify and apply",
+      "applyAndRestart": "Update and restart",
       "current": "Up to date",
       "rollback": "Roll back",
       "applied": "Version {{version}} was applied.",
+      "restarting": "Version {{version}} was installed. GPROXY is restarting.",
       "applyError": "The update was refused or could not be applied.",
       "rolledBack": "The previous executable was restored ({{version}}).",
       "rollbackError": "No usable rollback executable could be restored.",
       "applyConfirmTitle": "Apply this update?",
-      "applyConfirmDescription": "GPROXY will download and verify the selected build, replace the executable, and use the configured restart mode.",
+      "applyConfirmDescription": "GPROXY will download and verify the selected build and replace the executable. Restart mode is disabled for this installation.",
+      "restartConfirmTitle": "Update and restart?",
+      "restartConfirmDescription": "GPROXY will download and verify the selected build, replace the executable, and restart automatically.",
       "rollbackConfirmTitle": "Restore the previous executable?",
       "rollbackConfirmDescription": "GPROXY will replace the current executable with the retained backup and use the configured restart mode."
     },
     "notes": {
-      "title": "Release notes"
+      "title": "Release notes",
+      "description": "GPROXY {{current}} → {{latest}}",
+      "action": "View release notes"
     },
     "banner": {
       "title": "GPROXY {{version}} is available",

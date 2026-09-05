@@ -146,7 +146,7 @@ DSN 格式与各后端行为见[存储与缓存后端](/zh-cn/reference/database
 | `GPROXY_UPDATE_CHANNEL_SERVE` | 构建通道 | 优先级最高的更新通道：`releases`（也接受 `release`、`stable`）、`staging` 或 `dev`（也接受 `development`）。 |
 | `GPROXY_UPDATE_CHANNEL` | 构建通道 | 取值相同；`GPROXY_UPDATE_CHANNEL_SERVE` 未设置时生效。完整优先级：`_SERVE`，然后 `GPROXY_UPDATE_CHANNEL`，然后控制台的更新通道设置，最后是构建通道。名称无效时更新请求返回 400。 |
 | `GPROXY_UPDATE_SERVE` | GitHub release URL | 覆盖所有通道的 manifest URL。默认：`dev` 和 `staging` 读取 `releases/download/<channel>/manifest.json`，`releases` 读取 `releases/latest/download/manifest.json`，均来自 GPROXY 仓库。 |
-| `GPROXY_UPDATE_RESTART` | `none` | 应用更新或回滚之后的动作：`none`（由你重启）、`supervisor`（250 ms 后以退出码 42 退出，交给守护进程重启）、`re-exec`（也接受 `reexec`；Unix 上以相同参数 exec 新二进制，其他平台退出码 42）。值无效会禁用自更新，其端点返回 503。 |
+| `GPROXY_UPDATE_RESTART` | `re-exec` | 应用更新或回滚之后的动作：`re-exec`（也接受 `reexec`；Unix 上以相同参数 exec 新二进制，其他平台退出码 42）、`supervisor`（250 ms 后以退出码 42 退出，交给守护进程重启）或 `none`（由你重启）。值无效会禁用自更新，其端点返回 503。 |
 
 当 manifest 要求的最低数据版本高于本二进制的 schema 版本、版本号无效，或
 回滚时不存在 `<exe>.prev`，更新会以 409 拒绝。

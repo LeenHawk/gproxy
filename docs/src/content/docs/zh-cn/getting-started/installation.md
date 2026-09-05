@@ -140,7 +140,7 @@ Provider，名称与通道相同，带该通道的路由默认值和一个空的
 | `GPROXY_UPDATE_CHANNEL` | 覆盖已保存的通道：`releases`、`staging` 或 `dev`。 |
 | `GPROXY_UPDATE_CHANNEL_SERVE` | 同上，且优先于 `GPROXY_UPDATE_CHANNEL`。 |
 | `GPROXY_UPDATE_SERVE` | 用于替代 GitHub 的清单 URL，适合镜像。 |
-| `GPROXY_UPDATE_RESTART` | `none`（默认）：由你自行重启进程。`supervisor`：应用或回滚后以退出码 42 退出，交给进程管理器重启。`re-exec`：原地重新执行新二进制（Windows 上以 42 退出）。 |
+| `GPROXY_UPDATE_RESTART` | `re-exec`（默认）：应用或回滚后原地重新执行新二进制（Windows 上以 42 退出）。`supervisor`：以退出码 42 退出，交给进程管理器重启。`none`：由你自行重启进程。 |
 
 设置了 `GPROXY_UPSTREAM_PROXY_URL` 时更新器会使用它。`releases` 和 `dev` 按语义化
 版本比较；`staging` 按构建哈希比较。

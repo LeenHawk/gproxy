@@ -161,7 +161,7 @@ from `.env` — and there are no flags for them.
 | `GPROXY_UPDATE_CHANNEL_SERVE` | build channel | Update channel with the highest precedence: `releases` (also `release`, `stable`), `staging`, or `dev` (also `development`). |
 | `GPROXY_UPDATE_CHANNEL` | build channel | Same values; consulted when `GPROXY_UPDATE_CHANNEL_SERVE` is unset. Full precedence: `_SERVE`, then `GPROXY_UPDATE_CHANNEL`, then the console's update channel setting, then the build channel. An invalid name makes update requests fail with 400. |
 | `GPROXY_UPDATE_SERVE` | GitHub release URLs | Manifest URL override for every channel. Defaults: `dev` and `staging` read `releases/download/<channel>/manifest.json`, `releases` reads `releases/latest/download/manifest.json`, all from the GPROXY repository. |
-| `GPROXY_UPDATE_RESTART` | `none` | What happens after an applied update or rollback: `none` (you restart), `supervisor` (exit code 42 after 250 ms so a supervisor restarts it), `re-exec` (also `reexec`; execs the new binary with the same arguments on Unix, exit 42 elsewhere). An invalid value disables self-update; its endpoints answer 503. |
+| `GPROXY_UPDATE_RESTART` | `re-exec` | What happens after an applied update or rollback: `re-exec` (also `reexec`; execs the new binary with the same arguments on Unix, exit 42 elsewhere), `supervisor` (exit code 42 after 250 ms so a supervisor restarts it), or `none` (you restart). An invalid value disables self-update; its endpoints answer 503. |
 
 An update is refused with 409 when the manifest's minimum data version is
 above this binary's schema version, when the version is invalid, or when
