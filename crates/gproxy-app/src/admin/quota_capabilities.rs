@@ -5,21 +5,19 @@ pub(super) async fn read(
     app: &AppHandle,
     id: i64,
 ) -> Result<Option<QuotaCapabilitiesDto>, AdminError> {
-    let snapshot = app.inner.host.services.control.current();
-    let credential = snapshot
-        .credentials
-        .iter()
-        .find(|value| value.id == id)
+    let services = &app.inner.host.services;
+    let credential = services
+        .store
+        .credential(id)
+        .await?
         .ok_or(AdminError::NotFound)?;
-    let provider = snapshot
-        .providers
-        .iter()
-        .find(|value| value.id == credential.provider_id)
-        .ok_or(AdminError::NotFound)?;
+    let secret = services
+        .cipher
+        .open(&credential.envelope)
+        .map_err(|error| AdminError::Internal(error.to_string()))?;
     app.inner
         .core
-        .quota_capabilities(&provider.channel, gproxy_core::CredentialId(id))
-        .await
+        .quota_capabilities(&credential.channel, &secret)
         .map(|value| value.map(Into::into))
         .map_err(|error| AdminError::BadRequest(error.to_string()))
 }

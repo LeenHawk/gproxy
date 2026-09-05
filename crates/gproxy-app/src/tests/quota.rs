@@ -6,6 +6,64 @@ use super::setup;
 const QUOTA_INPUT: &str = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
 
 #[tokio::test]
+async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
+    use crate::{ControlMutation, MutationResult};
+    use gproxy_admin::State;
+    use gproxy_core::CredentialStore;
+
+    let fixture = setup::fixture().await;
+    for (channel, subscription) in [("openai", false), ("codex", true)] {
+        let MutationResult::Id(provider) = fixture
+            .app
+            .mutate(ControlMutation::Provider(
+                gproxy_store::records::ProviderInput {
+                    name: format!("disabled-{channel}"),
+                    label: None,
+                    channel: channel.into(),
+                    settings: serde_json::json!({}),
+                    credential_strategy: "round_robin".into(),
+                    proxy_url: None,
+                    tls_fingerprint: None,
+                    enabled: true,
+                },
+            ))
+            .await
+            .unwrap()
+        else {
+            panic!("provider id")
+        };
+        let MutationResult::Id(credential) = fixture
+            .app
+            .mutate(ControlMutation::Credential {
+                provider_id: provider,
+                label: None,
+                secret: serde_json::json!({"api_key": setup::random_key()}),
+                enabled: false,
+            })
+            .await
+            .unwrap()
+        else {
+            panic!("credential id")
+        };
+        let capability = fixture
+            .app
+            .credential_quota_capabilities(credential)
+            .await
+            .unwrap();
+        assert_eq!(capability.is_some(), subscription);
+        assert!(
+            fixture
+                .app
+                .inner
+                .host
+                .load(gproxy_core::CredentialId(credential))
+                .await
+                .is_err()
+        );
+    }
+}
+
+#[tokio::test]
 async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
     let setup::Fixture {
         app,

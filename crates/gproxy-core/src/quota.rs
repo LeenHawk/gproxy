@@ -21,17 +21,16 @@ pub struct QuotaProbeResult {
 }
 
 impl<H: Host> Core<H> {
-    pub async fn quota_capabilities(
+    pub fn quota_capabilities(
         &self,
         channel: &str,
-        credential: CredentialId,
+        secret: &serde_json::Value,
     ) -> Result<Option<gproxy_channel_api::QuotaCapabilities>, CoreError> {
         let channel = self
             .channels
             .get(channel)
             .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
-        let record = self.host.credentials().load(credential).await?;
-        Ok(channel.quota_capabilities(&record.secret))
+        Ok(channel.quota_capabilities(secret))
     }
 
     pub async fn quota_probe(
