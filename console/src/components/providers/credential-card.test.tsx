@@ -1,9 +1,11 @@
 import type { CredentialDto } from "@/generated/CredentialDto"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import "@/i18n"
 import { CredentialCard } from "@/components/providers/credential-card"
+import { CredentialList } from "@/components/providers/credential-list"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 const credential: CredentialDto = {
@@ -71,5 +73,30 @@ describe("CredentialCard", () => {
     const { container } = render(<CredentialCard credential={{ ...credential, quota_capabilities: null }} cycles={[]} cyclesLoading={false} cyclesError={false} />)
     expect(container).toBeEmptyDOMElement()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("omits the quota column without removing expandable quota details", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      windows: [], cycles: [], local_error: false, reset_credits: null, raw: "{}",
+    }), { status: 200, headers: { "content-type": "application/json" } }))
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <CredentialList providerId={3} presets={[]} credentials={[credential]} cyclesByCredential={new Map()}
+            credentialsLoading={false} credentialsError={false} cyclesLoading={false} cyclesError={false}
+            savingCredentialId={null} onSave={vi.fn()} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.queryByRole("columnheader", { name: "Upstream credential quota windows" })).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("row", { name: /New credential/ }))
+    expect(await within(screen.getByRole("table")).findByText("The usage endpoint reported no quota windows.")).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/admin/api/credentials/7/quota-probe")
   })
 })
