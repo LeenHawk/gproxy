@@ -8,14 +8,16 @@ fi
 
 mapfile -d '' files < <(find dist/publish -maxdepth 1 -type f -print0 | sort -z)
 test "${#files[@]}" -gt 0
-release_flags=()
-if [[ "$VERSION" == *-* ]]; then release_flags+=(--prerelease); fi
+release_flags=(--prerelease=false --latest=true)
+if [[ "$VERSION" == *-* ]]; then release_flags=(--prerelease --latest=false); fi
+notes="docs/release-notes/v$VERSION.md"
+test -f "$notes"
 if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
   gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
-  if [[ "$VERSION" == *-* ]]; then gh release edit "$RELEASE_TAG" --prerelease; fi
+  gh release edit "$RELEASE_TAG" --draft=false --notes-file "$notes" "${release_flags[@]}"
 else
   gh release create "$RELEASE_TAG" "${files[@]}" \
-    --verify-tag --title "gproxy $RELEASE_TAG" --generate-notes "${release_flags[@]}"
+    --verify-tag --title "gproxy $RELEASE_TAG" --notes-file "$notes" "${release_flags[@]}"
 fi
 if [ "$PUBLISH_CHANNEL" = dev ]; then
   latest_dev_version="$(gh release list --limit 100 \

@@ -6,6 +6,7 @@ cd "$root"
 version="$(scripts/release-metadata.sh version)"
 tag="v$version"
 scripts/release-metadata.sh verify-tag "$tag"
+test -f "docs/release-notes/v$version.md" || { echo "release notes are required" >&2; exit 1; }
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "release requires a clean tracked worktree" >&2
