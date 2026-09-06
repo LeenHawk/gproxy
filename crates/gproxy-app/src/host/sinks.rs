@@ -70,7 +70,6 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
         .into(),
         latency_ms: settlement.latency_ms,
     };
-    super::admission::finish(host, &settlement.request_id, Some(settlement)).await;
     if !settings.enable_usage {
         return;
     }

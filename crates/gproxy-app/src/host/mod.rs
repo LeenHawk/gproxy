@@ -207,10 +207,22 @@ impl Host for AppHost {
                 response_status: response_status.map(|status| status.as_u16()),
                 detail: Some(detail.into()),
             };
-            if let Err(error) = self.services.store.record_credential_health(&input).await {
-                tracing::error!(error = %error, "credential health persistence failed");
-            } else {
-                self.services.control.observe_credential_health(&input);
+            let unchanged = self
+                .services
+                .control
+                .credential_health_state(credential, model)
+                == Some((credential_version, state));
+            // A transition must be durable and visible before failover continues.
+            // Re-observing the same state only refreshes the row, so a native host
+            // takes it off the request path; edge hosts have no spawner and stay inline.
+            match self.spawner().filter(|_| unchanged) {
+                Some(spawner) => {
+                    let host = self.clone();
+                    spawner.spawn(Box::pin(async move {
+                        persist_credential_health(&host, &input).await;
+                    }));
+                }
+                None => persist_credential_health(self, &input).await,
             }
         })
     }
@@ -334,6 +346,17 @@ fn health_version(sequence: &std::sync::atomic::AtomicU64) -> Option<i64> {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct TokioSpawner;
+
+async fn persist_credential_health(
+    host: &AppHost,
+    input: &gproxy_store::records::CredentialHealthInput,
+) {
+    if let Err(error) = host.services.store.record_credential_health(input).await {
+        tracing::error!(error = %error, "credential health persistence failed");
+    } else {
+        host.services.control.observe_credential_health(input);
+    }
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Spawner for TokioSpawner {

@@ -75,6 +75,18 @@ async fn boots_relays_settles_and_reconciles_quota() {
             .expect("gateway response json");
     assert_eq!(body["choices"][0]["message"]["content"], "booted");
 
+    // Native hosts settle after the response leaves; wait for the row to land.
+    for _ in 0..200 {
+        if !fixture
+            .app
+            .admission_pending(&request_id)
+            .await
+            .expect("read admission")
+        {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
     let usage = fixture
         .app
         .usage_by_request(&request_id)

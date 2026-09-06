@@ -159,29 +159,43 @@ pub(crate) async fn buffered<H: Host>(
         };
         transform_buffered(&ctx, upstream_status, upstream_headers, shaped, disposition)
     };
-    settlement::complete(
-        host.as_ref(),
-        &ctx,
-        settlement::Completion {
-            status: Some(upstream_status),
-            response_body: Some(capture_body.unwrap_or_else(|| body.clone())),
-            estimated_output_chars: None,
-            record_usage,
-            usage,
-            actual_service_tier,
-            cost_override: None,
-            capture_response: true,
-            ended: Ended::Complete,
-        },
-    )
-    .await;
+    let completion = settlement::Completion {
+        status: Some(upstream_status),
+        response_body: Some(capture_body.unwrap_or_else(|| body.clone())),
+        estimated_output_chars: None,
+        record_usage,
+        usage,
+        actual_service_tier,
+        cost_override: None,
+        capture_response: true,
+        ended: Ended::Complete,
+    };
     let headers = outward_headers(&ctx, headers);
+    settle_buffered(host, ctx, completion).await;
     ExecOutcome {
         status,
         headers,
         body: ResponseBody::Full(outward),
         disposition,
         _settled: Settled(()),
+    }
+}
+
+/// The spawner is the settle policy: native hosts release the response before
+/// the usage row lands, exactly as streams do; edge hosts settle inline.
+async fn settle_buffered<H: Host>(
+    host: Shared<H>,
+    ctx: FunnelCtx,
+    completion: settlement::Completion,
+) {
+    match host.spawner() {
+        Some(spawner) => {
+            let task_host = host.clone();
+            spawner.spawn(Box::pin(async move {
+                settlement::complete(task_host.as_ref(), &ctx, completion).await;
+            }));
+        }
+        None => settlement::complete(host.as_ref(), &ctx, completion).await,
     }
 }
 
