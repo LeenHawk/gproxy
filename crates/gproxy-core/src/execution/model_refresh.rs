@@ -49,7 +49,13 @@ pub(super) async fn run<H: Host>(
                         super::local_models::run(core, channel, &targets, namespace_models).await;
                     return Some((provider_id, provider.clone(), models));
                 }
-                let targets = targets.into_iter().filter(auto_refresh).collect::<Vec<_>>();
+                // A scoped listing names one provider on purpose, as the console's
+                // "import from upstream" does; the auto-refresh switch only governs
+                // the aggregated fan-out.
+                let targets = targets
+                    .into_iter()
+                    .filter(|target| !namespace_models || auto_refresh(target))
+                    .collect::<Vec<_>>();
                 if targets.is_empty() {
                     return None;
                 }
@@ -141,7 +147,11 @@ fn parse(family: WireFamily, provider: &str, body: &[u8], namespace: bool) -> Ve
 }
 
 fn entry(provider: &str, value: &serde_json::Value, namespace: bool) -> Option<ExposedModel> {
-    let raw_id = value.get("id").or_else(|| value.get("name"))?.as_str()?;
+    // OpenAI-compatible catalogues are not uniform: some gateways label the
+    // entry `model` and omit `id` entirely.
+    let raw_id = ["id", "model", "name"]
+        .iter()
+        .find_map(|name| value.get(*name)?.as_str())?;
     let id = raw_id.strip_prefix("models/").unwrap_or(raw_id);
     Some(ExposedModel {
         id: if namespace {
@@ -294,11 +304,12 @@ fn boolean(value: &serde_json::Value, name: &str) -> Option<bool> {
     value.get(name).and_then(serde_json::Value::as_bool)
 }
 
-/// Whether listing models may ask this provider what it serves.
+/// Whether an aggregated listing may ask this provider what it serves.
 ///
 /// On by default, as in v2: a catalogue that never refreshes goes stale silently.
 /// Off is for a provider whose list is maintained by hand, or one where a fan-out
-/// on every `/v1/models` costs more than the freshness is worth.
+/// on every `/v1/models` costs more than the freshness is worth. A scoped
+/// listing ignores it: naming the provider is the request to ask it.
 fn auto_refresh(target: &Target) -> bool {
     target
         .provider
@@ -306,4 +317,19 @@ fn auto_refresh(target: &Target) -> bool {
         .get("auto_refresh_models")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compatible_catalogues_may_label_the_entry_model() {
+        let body = br#"{"object":"list","data":[{"model":"vendor/one"},{"id":"two"},{"name":"three"},{"object":"model"}]}"#;
+        let ids = parse(WireFamily::OpenAi, "gw", body, false)
+            .into_iter()
+            .map(|model| model.id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["vendor/one", "two", "three"]);
+    }
 }
