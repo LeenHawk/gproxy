@@ -215,6 +215,14 @@ impl Host for AppHost {
             // A transition must be durable and visible before failover continues.
             // Re-observing the same state only refreshes the row, so a native host
             // takes it off the request path; edge hosts have no spawner and stay inline.
+            if unchanged
+                && !self
+                    .services
+                    .control
+                    .health_refresh_due(credential, model, input.observed_at)
+            {
+                return;
+            }
             match self.spawner().filter(|_| unchanged) {
                 Some(spawner) => {
                     let host = self.clone();
