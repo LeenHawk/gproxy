@@ -9,10 +9,13 @@ mod resolve;
 mod rules;
 mod types;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
-use gproxy_core::{ControlPlane, CoreError, Plan, Pricing, ProviderRef, RoutingMode};
+use gproxy_core::{
+    ControlPlane, CoreError, CredentialRecord, Plan, Pricing, ProviderRef, RoutingMode,
+};
 use gproxy_store::records::{
     ControlSnapshot, CredentialQuotaCycleRecord, QuotaBoundarySource, QuotaCycleStatus,
 };
@@ -32,6 +35,10 @@ pub(crate) struct SnapshotControl {
     credential_health: Arc<ArcSwap<CredentialHealthMap>>,
     rotation: Arc<balance::RotationCounters>,
     oauth_keys: Arc<ArcSwap<std::collections::BTreeSet<i64>>>,
+    /// Decrypted credentials, keyed by id. Every path that changes a stored
+    /// credential ends in `reload`, which drops the whole map; a rotation
+    /// this instance performs forgets its own entry immediately.
+    credential_records: Arc<Mutex<HashMap<i64, CredentialRecord>>>,
 }
 
 impl SnapshotControl {
@@ -56,6 +63,7 @@ impl SnapshotControl {
             credential_health: Arc::new(ArcSwap::from_pointee(credential_health)),
             rotation: Arc::new(balance::RotationCounters::default()),
             oauth_keys: Arc::new(ArcSwap::from_pointee(oauth_keys)),
+            credential_records: Arc::default(),
         })
     }
 
@@ -68,7 +76,33 @@ impl SnapshotControl {
         self.snapshot
             .store(Arc::new(CompiledSnapshot::build(stored, &self.runtime)?));
         self.credential_health.store(Arc::new(health));
+        self.credential_records
+            .lock()
+            .expect("credential cache")
+            .clear();
         Ok(())
+    }
+
+    pub(crate) fn cached_credential(&self, id: i64) -> Option<CredentialRecord> {
+        self.credential_records
+            .lock()
+            .expect("credential cache")
+            .get(&id)
+            .cloned()
+    }
+
+    pub(crate) fn cache_credential(&self, record: &CredentialRecord) {
+        self.credential_records
+            .lock()
+            .expect("credential cache")
+            .insert(record.id.0, record.clone());
+    }
+
+    pub(crate) fn forget_credential(&self, id: i64) {
+        self.credential_records
+            .lock()
+            .expect("credential cache")
+            .remove(&id);
     }
 
     pub(crate) fn credential_health_state(

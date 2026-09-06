@@ -11,6 +11,9 @@ impl CredentialStore for AppHost {
         id: CredentialId,
     ) -> BoxFuture<'a, Result<CredentialRecord, CoreStoreError>> {
         Box::pin(async move {
+            if let Some(record) = self.services.control.cached_credential(id.0) {
+                return Ok(record);
+            }
             let stored = self
                 .services
                 .store
@@ -24,13 +27,15 @@ impl CredentialStore for AppHost {
                 .cipher
                 .open(&stored.envelope)
                 .map_err(|_| encryption_error())?;
-            Ok(CredentialRecord {
+            let record = CredentialRecord {
                 id,
                 channel: gproxy_channels::canonical_channel_id(&stored.channel).into(),
                 kind: stored.kind,
                 secret,
                 version: stored.version,
-            })
+            };
+            self.services.control.cache_credential(&record);
+            Ok(record)
         })
     }
 
@@ -41,6 +46,9 @@ impl CredentialStore for AppHost {
         version: u64,
     ) -> BoxFuture<'a, Result<(), CoreStoreError>> {
         Box::pin(async move {
+            // Whether or not the write wins, the next load must see the row
+            // as it is now: a peer may have rotated first.
+            self.services.control.forget_credential(id.0);
             let result = match self.services.cipher.seal(&secret) {
                 Ok(envelope) => self
                     .services
