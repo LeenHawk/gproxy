@@ -7,7 +7,10 @@ pub(super) fn request(
     ctx: &PrepareCtx<'_>,
     headers: &mut HeaderMap,
 ) -> Result<Bytes, ChannelError> {
-    if !super::model::is_messages(ctx.key) && !super::model::is_count_tokens(ctx.key) {
+    if !super::model::is_messages(ctx.key)
+        && !super::model::is_count_tokens(ctx.key)
+        && !super::model::is_chat(ctx.key)
+    {
         return Ok(ctx.body.clone());
     }
     let mut body = crate::shared::claude::hygiene::json_object(ctx.body)?;
@@ -16,7 +19,20 @@ pub(super) fn request(
             .expect("JSON object was validated")
             .insert("model".into(), Value::String(ctx.upstream_model.into()));
     }
-    if super::model::is_messages(ctx.key) {
+    if super::model::is_chat(ctx.key) {
+        crate::shared::claude::hygiene::coerce_prefill(&mut body);
+        if ctx.stream {
+            let options = body
+                .as_object_mut()
+                .expect("validated object")
+                .entry("stream_options")
+                .or_insert_with(|| serde_json::json!({}));
+            options
+                .as_object_mut()
+                .ok_or_else(|| ChannelError::Prepare("stream_options must be an object".into()))?
+                .insert("include_usage".into(), Value::Bool(true));
+        }
+    } else if super::model::is_messages(ctx.key) {
         crate::shared::claude::hygiene::messages(&mut body, headers);
         crate::shared::claude::fallback::apply(&mut body, headers, ctx.provider_settings);
     } else {

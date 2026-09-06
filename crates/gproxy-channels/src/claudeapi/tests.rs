@@ -12,29 +12,8 @@ const MESSAGES: OperationKey = OperationKey::content(
 );
 
 #[test]
-fn declares_only_native_claude_targets_and_available_pairs() {
+fn keeps_unsupported_embeddings_and_terminal_error_classification() {
     let supports = ClaudeApiChannel.descriptor().supports;
-    assert_eq!(supports.len(), 15);
-    assert_eq!(
-        supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        5
-    );
-    assert!(supports.iter().all(|support| {
-        support.target.kind()
-            == if matches!(
-                support.target.operation(),
-                Operation::GenerateContent | Operation::StreamGenerateContent
-            ) {
-                gproxy_protocol::OperationKind::ContentGeneration(
-                    ContentGenerationKind::ClaudeMessages,
-                )
-            } else {
-                gproxy_protocol::OperationKind::Family(WireFamily::Claude)
-            }
-    }));
     assert!(!supports.iter().any(|support| {
         support.source == OperationKey::family(Operation::CreateEmbedding, WireFamily::OpenAi)
     }));

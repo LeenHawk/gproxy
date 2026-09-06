@@ -8,7 +8,8 @@ mod usage;
 
 use gproxy_channel_api::{
     Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage, PrepareCtx,
-    PreparedRequest, ResponseView, StreamCtx, StreamDecoder, UsageCtx,
+    PreparedRequest, ResourceCtx, ResourceMutation, ResponseView, StreamCtx, StreamDecoder,
+    UsageCtx,
 };
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 
@@ -22,7 +23,7 @@ const fn content(operation: Operation, kind: ContentGenerationKind) -> Operation
     OperationKey::content(operation, kind)
 }
 
-static SUPPORTS: [ChannelSupport; 16] = [
+static SUPPORTS: [ChannelSupport; 27] = [
     ChannelSupport::passthrough(family(Operation::ListModels, WireFamily::OpenAi)),
     ChannelSupport::passthrough(family(Operation::GetModel, WireFamily::OpenAi)),
     ChannelSupport::transform(
@@ -81,6 +82,17 @@ static SUPPORTS: [ChannelSupport; 16] = [
     ChannelSupport::passthrough(family(Operation::CreateEmbedding, WireFamily::OpenAi)),
     ChannelSupport::passthrough(family(Operation::CreateImage, WireFamily::OpenAi)),
     ChannelSupport::passthrough(family(Operation::EditImage, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::CreateVideo, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::RetrieveVideo, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::ListVideos, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::DeleteVideo, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::DownloadVideoContent, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::RemixVideo, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::CreateVideoCharacter, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::GetVideoCharacter, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::EditVideo, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::ExtendVideo, WireFamily::OpenAi)),
+    ChannelSupport::passthrough(family(Operation::CompactContent, WireFamily::OpenAi)),
 ];
 
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
@@ -124,6 +136,20 @@ impl Channel for AzureChannel {
 
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
         usage::from_body(ctx)
+    }
+
+    fn settlement_ready(
+        &self,
+        ctx: UsageCtx<'_>,
+    ) -> Result<bool, gproxy_channel_api::ChannelError> {
+        crate::shared::openai::resource::settlement_ready(ctx)
+    }
+
+    fn resource_mutations(
+        &self,
+        ctx: ResourceCtx<'_>,
+    ) -> Result<Vec<ResourceMutation>, gproxy_channel_api::ChannelError> {
+        crate::shared::openai::resource::mutations(ctx)
     }
 }
 

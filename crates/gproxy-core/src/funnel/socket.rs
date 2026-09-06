@@ -4,7 +4,9 @@ use crate::Shared;
 use crate::host::Host;
 use crate::usage::Ended;
 
-use super::{FunnelCtx, complete_stream};
+use super::{FunnelCtx, Settled, complete_stream};
+use crate::boundary::{ExecOutcome, ResponseBody};
+use gproxy_channel_api::Disposition;
 
 pub(crate) struct FunnelSocket<H: Host> {
     inner: Box<dyn WsDuplex>,
@@ -98,5 +100,29 @@ impl<H: Host> Drop for FunnelSocket<H> {
                 "websocket dropped before inline settlement could complete"
             );
         }
+    }
+}
+
+pub(crate) fn websocket<H: Host>(
+    host: Shared<H>,
+    ctx: FunnelCtx,
+    socket: Box<dyn gproxy_channel_api::WsDuplex>,
+) -> ExecOutcome {
+    ExecOutcome {
+        status: http::StatusCode::SWITCHING_PROTOCOLS,
+        headers: http::HeaderMap::new(),
+        body: ResponseBody::WebSocket(Box::new(FunnelSocket::new(host, ctx, socket))),
+        disposition: Disposition::Success,
+        _settled: Settled(()),
+    }
+}
+
+pub(crate) fn bridged_websocket(socket: Box<dyn gproxy_channel_api::WsDuplex>) -> ExecOutcome {
+    ExecOutcome {
+        status: http::StatusCode::SWITCHING_PROTOCOLS,
+        headers: http::HeaderMap::new(),
+        body: ResponseBody::WebSocket(socket),
+        disposition: Disposition::Success,
+        _settled: Settled(()),
     }
 }

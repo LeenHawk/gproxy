@@ -10,6 +10,54 @@ use crate::host::Host;
 
 use super::request::Classified;
 
+pub(crate) async fn restore_realtime_model<H: Host>(
+    core: &Core<H>,
+    plan: &mut Plan,
+    classified: &Classified,
+    owner_user_id: i64,
+) -> Result<(), CoreError> {
+    let Some(("realtime_call", id)) = classified.resource() else {
+        return Ok(());
+    };
+    let store = core.host.bindings().ok_or(CoreError::Unsupported)?;
+    let mut bindings = BTreeMap::new();
+    for target in &plan.targets {
+        if let std::collections::btree_map::Entry::Vacant(entry) =
+            bindings.entry(target.provider.id)
+        {
+            entry.insert(
+                store
+                    .find(target.provider.id, owner_user_id, "realtime_call", id)
+                    .await?,
+            );
+        }
+    }
+    plan.targets.retain_mut(|target| {
+        let Some(binding) = bindings.get(&target.provider.id).and_then(Option::as_ref) else {
+            return false;
+        };
+        let Some(model) = binding
+            .summary
+            .get("model")
+            .and_then(serde_json::Value::as_str)
+            .filter(|model| !model.is_empty())
+        else {
+            return false;
+        };
+        if binding.credential != target.credential {
+            return false;
+        }
+        target.upstream_model = model.into();
+        true
+    });
+    if plan.targets.is_empty() {
+        return Err(CoreError::UnknownRoute(
+            "Realtime call has no owned model and credential binding".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) async fn pins<H: Host>(
     core: &Core<H>,
     plan: &Plan,
@@ -41,7 +89,9 @@ pub(crate) async fn pins<H: Host>(
         let credential = match bindings.find(provider_id, owner_user_id, kind, id).await? {
             Some(binding) if credentials.contains(&binding.credential) => Some(binding.credential),
             Some(_) => None,
-            None if credentials.len() == 1 => credentials.first().copied(),
+            None if credentials.len() == 1 && kind != "realtime_call" => {
+                credentials.first().copied()
+            }
             None => None,
         };
         if let Some(credential) = credential {
@@ -115,8 +165,11 @@ async fn save_binding(
     owner_user_id: i64,
     kind: &'static str,
     id: &str,
-    summary: serde_json::Value,
+    mut summary: serde_json::Value,
 ) {
+    if kind == "realtime_call" {
+        summary["model"] = ctx.target.upstream_model.clone().into();
+    }
     if let Err(error) = bindings
         .save(
             ctx.target.provider.id,

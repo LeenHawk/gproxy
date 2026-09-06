@@ -8,6 +8,12 @@ use serde_json::Value;
 const ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 
 pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
+    if super::embeddings::uses_predict(ctx) {
+        return super::embeddings::request(ctx);
+    }
+    if ctx.key.operation() == Operation::CreateEmbedding {
+        return super::embeddings::single_request(ctx.body);
+    }
     if ctx.key.operation() == Operation::CreateVideo {
         return video::create(ctx.body);
     }
@@ -19,6 +25,22 @@ pub(super) fn request(ctx: &PrepareCtx<'_>) -> Result<Bytes, ChannelError> {
     }
     if is_claude(ctx) {
         return claude(ctx);
+    }
+    if ctx.key.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) {
+        let model = if let Some(publisher) = ctx.upstream_model.strip_prefix("publishers/") {
+            publisher.replace("/models/", "/")
+        } else if ctx.upstream_model.contains('/') {
+            ctx.upstream_model.to_owned()
+        } else {
+            format!("google/{}", ctx.upstream_model)
+        };
+        return crate::shared::openai::shape_request(
+            ctx.key,
+            ctx.stream,
+            &model,
+            ctx.headers,
+            ctx.body,
+        );
     }
     crate::shared::gemini::model::rewrite(ctx.key.operation(), ctx.body, ctx.upstream_model)
 }

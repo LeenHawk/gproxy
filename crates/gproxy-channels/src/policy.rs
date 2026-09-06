@@ -21,7 +21,9 @@ pub(crate) fn request_query(
 const NONE: &[&str] = &[];
 const ANTHROPIC: &[&str] = &["anthropic-beta"];
 const OPENAI: &[&str] = &["openai-beta", "openai-organization", "openai-project"];
-const OPENAI_QUERY: &[&str] = &["after", "limit", "order", "purpose", "variant"];
+const OPENAI_QUERY: &[&str] = &[
+    "after", "limit", "order", "purpose", "variant", "model", "call_id", "intent",
+];
 const CLAUDE_QUERY: &[&str] = &["after_id", "before_id", "limit"];
 const GEMINI_QUERY: &[&str] = &["alt", "pageSize", "pageToken"];
 const OPENAI_RESPONSE: &[&str] = &["openai-*", "x-ratelimit-*", "x-request-id"];

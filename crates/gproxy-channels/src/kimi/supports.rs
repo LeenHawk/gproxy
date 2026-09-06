@@ -15,7 +15,7 @@ const fn chat(operation: Operation) -> OperationKey {
     content(operation, ContentGenerationKind::OpenAiChat)
 }
 
-pub(super) static SUPPORTS: [ChannelSupport; 17] = [
+pub(super) static SUPPORTS: [ChannelSupport; 15] = [
     ChannelSupport::passthrough(family(Operation::ListModels, WireFamily::OpenAi)),
     ChannelSupport::transform(
         family(Operation::ListModels, WireFamily::Claude),
@@ -29,24 +29,10 @@ pub(super) static SUPPORTS: [ChannelSupport; 17] = [
         Operation::GenerateContent,
         ContentGenerationKind::OpenAiResponses,
     )),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        chat(Operation::GenerateContent),
-    ),
     ChannelSupport::passthrough(content(
         Operation::StreamGenerateContent,
         ContentGenerationKind::OpenAiResponses,
     )),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        chat(Operation::StreamGenerateContent),
-    ),
     ChannelSupport::passthrough(content(
         Operation::GenerateContent,
         ContentGenerationKind::ClaudeMessages,
@@ -100,7 +86,7 @@ pub(super) fn select(source: OperationKey, mode: Mode) -> Option<ChannelSupport>
             !matches!(
                 source.kind(),
                 gproxy_protocol::OperationKind::ContentGeneration(
-                    ContentGenerationKind::OpenAiResponses | ContentGenerationKind::ClaudeMessages
+                    ContentGenerationKind::ClaudeMessages
                 )
             ) || row.target.kind()
                 == gproxy_protocol::OperationKind::ContentGeneration(

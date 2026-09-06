@@ -15,16 +15,21 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let query = crate::policy::request_query(crate::policy::AISTUDIO, &ctx)?;
     let framing = framing(&ctx, query.as_deref());
     let uri = endpoint(&ctx, query.as_deref())?;
-    let body = super::model::rewrite(ctx.key.operation(), ctx.body, ctx.upstream_model)?;
+    let body = super::model::rewrite(&ctx)?;
     let mut request = http::Request::builder()
         .method(ctx.method)
         .uri(strip_userinfo(uri)?)
         .body(body)
         .map_err(|error| ChannelError::Prepare(error.to_string()))?;
     *request.headers_mut() = crate::policy::request_headers(crate::policy::AISTUDIO, &ctx)?;
+    let (header, value) = if super::model::is_openai(ctx.key) {
+        (http::header::AUTHORIZATION, format!("Bearer {api_key}"))
+    } else {
+        (API_KEY, api_key.to_owned())
+    };
     request.headers_mut().insert(
-        API_KEY,
-        HeaderValue::from_str(api_key)
+        header,
+        HeaderValue::from_str(&value)
             .map_err(|error| ChannelError::Secret(format!("api_key is invalid: {error}")))?,
     );
     Ok(PreparedRequest {
@@ -37,7 +42,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
 
 fn framing(ctx: &PrepareCtx<'_>, query: Option<&str>) -> Option<StreamFraming> {
     (ctx.key.operation() == Operation::StreamGenerateContent).then(|| {
-        if query.is_some_and(has_sse_alt) {
+        if super::model::is_openai(ctx.key) || query.is_some_and(has_sse_alt) {
             StreamFraming::Sse
         } else {
             StreamFraming::JsonArray
@@ -50,6 +55,20 @@ fn has_sse_alt(query: &str) -> bool {
 }
 
 fn endpoint(ctx: &PrepareCtx<'_>, query: Option<&str>) -> Result<Uri, ChannelError> {
+    if let Some(name) = gproxy_channel_api::endpoint_override_key(ctx.key)
+        && let Some(url) = ctx
+            .provider_settings
+            .get("endpoints")
+            .and_then(|endpoints| endpoints.get(name))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+    {
+        return crate::shared::http::exact(
+            &url.replace("{model}", &encode_component(ctx.upstream_model)),
+            query,
+        );
+    }
     let base = ctx
         .provider_settings
         .get("base_url")
@@ -64,6 +83,18 @@ fn endpoint(ctx: &PrepareCtx<'_>, query: Option<&str>) -> Result<Uri, ChannelErr
 }
 
 fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
+    if super::model::is_openai(ctx.key) {
+        if ctx.key.operation() == Operation::GetModel {
+            return format!(
+                "/v1beta/openai/models/{}",
+                encode_component(ctx.upstream_model)
+            );
+        }
+        return ctx.path.strip_prefix("/v1/").map_or_else(
+            || ctx.path.to_owned(),
+            |path| format!("/v1beta/openai/{path}"),
+        );
+    }
     if matches!(
         ctx.key.operation(),
         Operation::CreateVideo | Operation::RetrieveVideo

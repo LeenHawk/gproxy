@@ -97,6 +97,7 @@ impl<H: Host> Core<H> {
                 && channel.descriptor().supports.iter().any(|support| {
                     support.target.operation().spec().settle
                         == gproxy_protocol::SettleMode::OnSessionEnd
+                        && support.target.operation() != gproxy_protocol::Operation::ConnectRealtime
                 })
         }) {
             return Err(InitError::SessionMeterUnavailable {

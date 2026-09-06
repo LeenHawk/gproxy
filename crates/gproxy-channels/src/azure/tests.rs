@@ -63,6 +63,17 @@ fn declares_exactly_the_verified_native_targets_and_pairs() {
         family(O::CreateEmbedding, W::OpenAi),
         family(O::CreateImage, W::OpenAi),
         family(O::EditImage, W::OpenAi),
+        family(O::CreateVideo, W::OpenAi),
+        family(O::RetrieveVideo, W::OpenAi),
+        family(O::ListVideos, W::OpenAi),
+        family(O::DeleteVideo, W::OpenAi),
+        family(O::DownloadVideoContent, W::OpenAi),
+        family(O::RemixVideo, W::OpenAi),
+        family(O::CreateVideoCharacter, W::OpenAi),
+        family(O::GetVideoCharacter, W::OpenAi),
+        family(O::EditVideo, W::OpenAi),
+        family(O::ExtendVideo, W::OpenAi),
+        family(O::CompactContent, W::OpenAi),
     ];
     let pairs = [
         (
@@ -93,6 +104,45 @@ fn declares_exactly_the_verified_native_targets_and_pairs() {
             .iter()
             .any(|row| row.source == *source && row.target == *target)
     }));
+}
+
+#[test]
+fn video_and_compact_preserve_resource_paths_without_requiring_a_model() {
+    for operation in [
+        Operation::CreateVideo,
+        Operation::RetrieveVideo,
+        Operation::ListVideos,
+        Operation::DeleteVideo,
+        Operation::DownloadVideoContent,
+        Operation::RemixVideo,
+        Operation::CreateVideoCharacter,
+        Operation::GetVideoCharacter,
+        Operation::EditVideo,
+        Operation::ExtendVideo,
+        Operation::CompactContent,
+    ] {
+        let key = family(operation, WireFamily::OpenAi);
+        let (method, path) = gproxy_protocol::request_target(key, "video_1").unwrap();
+        let body = Bytes::from_static(br#"{"input":[],"model":"sora-test"}"#);
+        let prepared = AzureChannel
+            .prepare(PrepareCtx {
+                session_id: None,
+                key,
+                stream: false,
+                method: &method,
+                path: &path,
+                query: None,
+                headers: &HeaderMap::new(),
+                body: &body,
+                upstream_model: "",
+                provider_settings: &json!({"base_url":"https://azure.example"}),
+                secret: &json!({"api_key":"test-key"}),
+            })
+            .unwrap();
+        assert_eq!(prepared.request.method(), method);
+        assert_eq!(prepared.request.uri().path(), format!("/openai{path}"));
+        assert_eq!(prepared.request.headers()["api-key"], "test-key");
+    }
 }
 
 #[test]

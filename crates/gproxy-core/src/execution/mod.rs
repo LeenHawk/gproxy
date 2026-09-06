@@ -41,8 +41,11 @@ pub(crate) async fn resolved<H: Host>(
     identity: gproxy_channel_api::CallerIdentity,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
-    if ctx.upgrade {
+    if ctx.upgrade && classified.key.operation() != gproxy_protocol::Operation::ConnectRealtime {
         return websocket::run(core, control, ctx, plan, classified, identity);
+    }
+    if classified.key.operation() == gproxy_protocol::Operation::ConnectRealtime {
+        resource::restore_realtime_model(core, &mut plan, &classified, identity.user_id).await?;
     }
     let session_affinity =
         session::apply(core, &ctx, &classified, identity.user_key_id, &mut plan).await;

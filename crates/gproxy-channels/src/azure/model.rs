@@ -20,6 +20,18 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
     if key == family(Operation::ListModels, WireFamily::OpenAi) {
         return Ok(get("/openai/v1/models".into(), "openai_list_models"));
     }
+    if key.kind() == OperationKind::Family(WireFamily::OpenAi)
+        && (key.operation().group() == gproxy_protocol::OperationGroup::Video
+            || key.operation() == Operation::CompactContent)
+    {
+        return Ok(Target {
+            method: ctx.method.clone(),
+            path: format!("/openai{}", ctx.path),
+            endpoint: gproxy_channel_api::endpoint_override_key(key)
+                .expect("video and compact operations have endpoint keys"),
+            auth: AuthKind::OpenAi,
+        });
+    }
     let model = required_model(ctx)?;
     if key == family(Operation::GetModel, WireFamily::OpenAi) {
         return Ok(get(
