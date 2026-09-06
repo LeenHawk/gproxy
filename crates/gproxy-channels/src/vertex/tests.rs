@@ -26,7 +26,7 @@ fn secret() -> Value {
 #[test]
 fn declares_only_operations_with_verified_paths_and_pairs() {
     let supports = VertexChannel.descriptor().supports;
-    assert_eq!(supports.len(), 15);
+    assert_eq!(supports.len(), 17);
     assert!(supports.iter().any(|support| {
         support.source == OperationKey::family(Operation::CountTokens, WireFamily::Claude)
             && support.source == support.target
@@ -43,15 +43,127 @@ fn declares_only_operations_with_verified_paths_and_pairs() {
                     ContentGenerationKind::GeminiGenerateContent,
                 )
     }));
-    for unsupported in [Operation::CreateEmbedding, Operation::BatchCreateEmbedding] {
-        assert!(!supports.iter().any(|support| {
-            support.source == OperationKey::family(unsupported, WireFamily::Gemini)
+    for operation in [Operation::CreateEmbedding, Operation::BatchCreateEmbedding] {
+        assert!(supports.iter().any(|support| {
+            support.source == OperationKey::family(operation, WireFamily::Gemini)
         }));
     }
     assert!(!supports.iter().any(|support| {
         support.source == OperationKey::family(Operation::CreateVideo, WireFamily::OpenAi)
     }));
     assert_eq!(VertexChannel.refresh_due(&json!({})), Some(i64::MIN));
+}
+
+#[test]
+fn embedding_batch_uses_prediction_wire_and_preserves_order_and_usage() {
+    use gproxy_channel_api::UsageCtx;
+    let key = OperationKey::family(Operation::BatchCreateEmbedding, WireFamily::Gemini);
+    let body = Bytes::from_static(br#"{"requests":[{"content":{"parts":[{"text":"first"}]},"outputDimensionality":2},{"content":{"parts":[{"text":"second"}]},"outputDimensionality":2}]}"#);
+    let prepared = VertexChannel
+        .prepare(PrepareCtx {
+            session_id: None,
+            key,
+            stream: false,
+            method: &Method::POST,
+            path: "/v1beta/models/text-embedding-005:batchEmbedContents",
+            query: None,
+            headers: &HeaderMap::new(),
+            body: &body,
+            upstream_model: "text-embedding-005",
+            provider_settings: &json!({}),
+            secret: &secret(),
+        })
+        .unwrap();
+    assert_eq!(
+        prepared.request.uri().path(),
+        "/v1/projects/project-1/locations/us-central1/publishers/google/models/text-embedding-005:predict"
+    );
+    let request: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+    assert_eq!(
+        request["instances"],
+        json!([{"content":"first"},{"content":"second"}])
+    );
+    assert_eq!(request["parameters"]["outputDimensionality"], 2);
+    let response = Bytes::from_static(br#"{"predictions":[{"embeddings":{"values":[0.25,0.5],"statistics":{"token_count":3}}},{"embeddings":{"values":[0.5,0.25],"statistics":{"token_count":4}}}]}"#);
+    let headers = HeaderMap::new();
+    let usage = VertexChannel
+        .extract_usage(UsageCtx {
+            key,
+            request_body: &body,
+            response_headers: &headers,
+            response_body: &response,
+        })
+        .unwrap();
+    assert_eq!(usage.input_tokens, 7);
+    let normalized = VertexChannel
+        .shape_response(ResponseShapeCtx {
+            key,
+            status: StatusCode::OK,
+            headers: &headers,
+            body: &response,
+        })
+        .unwrap();
+    let normalized: Value = serde_json::from_slice(&normalized).unwrap();
+    assert_eq!(normalized["embeddings"][1]["values"], json!([0.5, 0.25]));
+    assert_eq!(normalized["usageMetadata"]["promptTokenCount"], 7);
+}
+
+#[test]
+fn single_embeddings_choose_legacy_prediction_or_native_embed_content() {
+    let key = OperationKey::family(Operation::CreateEmbedding, WireFamily::Gemini);
+    for (model, verb, reply) in [
+        (
+            "gemini-embedding-001",
+            ":predict",
+            br#"{"predictions":[{"embeddings":{"values":[0.5],"statistics":{"token_count":3}}}]}"#
+                .as_slice(),
+        ),
+        (
+            "gemini-embedding-2",
+            ":embedContent",
+            br#"{"embedding":{"values":[0.5]},"usageMetadata":{"promptTokenCount":3}}"#.as_slice(),
+        ),
+    ] {
+        let body = Bytes::from_static(
+            br#"{"model":"models/alias","content":{"parts":[{"text":"input"}]}}"#,
+        );
+        let prepared = VertexChannel
+            .prepare(PrepareCtx {
+                session_id: None,
+                key,
+                stream: false,
+                method: &Method::POST,
+                path: "/v1beta/models/alias:embedContent",
+                query: None,
+                headers: &HeaderMap::new(),
+                body: &body,
+                upstream_model: model,
+                provider_settings: &json!({}),
+                secret: &secret(),
+            })
+            .unwrap();
+        assert!(
+            prepared
+                .request
+                .uri()
+                .path()
+                .ends_with(&format!("{model}{verb}"))
+        );
+        let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+        assert!(shaped.get("model").is_none());
+        let reply = Bytes::copy_from_slice(reply);
+        let normalized = VertexChannel
+            .shape_response(ResponseShapeCtx {
+                key,
+                status: StatusCode::OK,
+                headers: &HeaderMap::new(),
+                body: &reply,
+            })
+            .unwrap();
+        let normalized: Value = serde_json::from_slice(&normalized).unwrap();
+        assert_eq!(normalized["embedding"]["values"], json!([0.5]));
+        assert_eq!(normalized["usageMetadata"]["promptTokenCount"], 3);
+    }
 }
 
 #[test]

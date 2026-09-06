@@ -42,6 +42,21 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
     if key == family(Operation::CountTokens, WireFamily::Gemini) {
         return google(":countTokens", "gemini_count_tokens", None);
     }
+    if key == family(Operation::CreateEmbedding, WireFamily::Gemini)
+        && !super::embeddings::uses_predict(ctx)
+    {
+        return google(":embedContent", "gemini_embeddings", None);
+    }
+    if super::embeddings::uses_predict(ctx) {
+        return post(
+            format!(
+                "/v1/projects/{project}/locations/{location}/publishers/google/models/{}:predict",
+                encoded_model(model)?
+            ),
+            "gemini_embeddings",
+            None,
+        );
+    }
     if is_content(key, ContentGenerationKind::GeminiGenerateContent) {
         return if key.operation() == Operation::StreamGenerateContent {
             google(
@@ -52,6 +67,15 @@ pub(super) fn target(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
         } else {
             google(":generateContent", "gemini_generate_content", None)
         };
+    }
+    if is_content(key, ContentGenerationKind::OpenAiChat) {
+        return post(
+            format!(
+                "/v1beta1/projects/{project}/locations/{location}/endpoints/openapi/chat/completions"
+            ),
+            "openai_chat_completions",
+            None,
+        );
     }
     if key == family(Operation::CreateImage, WireFamily::Gemini) {
         return post(

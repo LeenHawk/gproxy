@@ -8,6 +8,9 @@ pub(super) fn shape(ctx: ResponseShapeCtx<'_>) -> Result<Bytes, ChannelError> {
         return Ok(ctx.body.clone());
     }
     match ctx.key.operation() {
+        Operation::CreateEmbedding | Operation::BatchCreateEmbedding => {
+            super::embeddings::response(ctx.body, ctx.key.operation())
+        }
         Operation::ListModels => crate::shared::gemini::vertex::normalize_model(ctx.body, true),
         Operation::GetModel => crate::shared::gemini::vertex::normalize_model(ctx.body, false),
         Operation::GenerateContent | Operation::StreamGenerateContent

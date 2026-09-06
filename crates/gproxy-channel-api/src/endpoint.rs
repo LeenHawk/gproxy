@@ -47,6 +47,7 @@ pub fn endpoint_override_key(key: OperationKey) -> Option<&'static str> {
         (GetVideoCharacter, _) => "openai_video_character_get",
         (EditVideo, _) => "openai_video_edit",
         (ExtendVideo, _) => "openai_video_extend",
+        (ConnectRealtime, _) => "openai_realtime",
         _ => return None,
     })
 }

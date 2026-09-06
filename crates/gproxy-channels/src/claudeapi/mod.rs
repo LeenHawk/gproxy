@@ -28,32 +28,26 @@ static SUPPORTS: [ChannelSupport; 15] = [
     ChannelSupport::passthrough(family(Operation::CountTokens)),
     ChannelSupport::passthrough(content(Operation::GenerateContent)),
     ChannelSupport::passthrough(content(Operation::StreamGenerateContent)),
-    ChannelSupport::transform(
-        OperationKey::family(Operation::ListModels, WireFamily::OpenAi),
-        family(Operation::ListModels),
-    ),
-    ChannelSupport::transform(
-        OperationKey::family(Operation::GetModel, WireFamily::OpenAi),
-        family(Operation::GetModel),
-    ),
+    ChannelSupport::passthrough(OperationKey::family(
+        Operation::ListModels,
+        WireFamily::OpenAi,
+    )),
+    ChannelSupport::passthrough(OperationKey::family(
+        Operation::GetModel,
+        WireFamily::OpenAi,
+    )),
     ChannelSupport::transform(
         OperationKey::family(Operation::CountTokens, WireFamily::OpenAi),
         family(Operation::CountTokens),
     ),
-    ChannelSupport::transform(
-        OperationKey::content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        content(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        OperationKey::content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        content(Operation::StreamGenerateContent),
-    ),
+    ChannelSupport::passthrough(OperationKey::content(
+        Operation::GenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
+    ChannelSupport::passthrough(OperationKey::content(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
     ChannelSupport::transform(
         OperationKey::content(
             Operation::GenerateContent,
@@ -124,12 +118,20 @@ impl Channel for ClaudeApiChannel {
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
+        if model::is_chat(ctx.key) {
+            return crate::shared::openai::OpenAiSseDecoder::for_operation(ctx)
+                .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>);
+        }
         sse::ClaudeSseDecoder::for_operation(ctx)
             .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
     }
 
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-        usage::from_body(ctx.response_body)
+        if model::is_chat(ctx.key) {
+            crate::shared::openai::usage_from_body(ctx)
+        } else {
+            usage::from_body(ctx.response_body)
+        }
     }
 }
 

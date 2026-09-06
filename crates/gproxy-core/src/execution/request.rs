@@ -111,6 +111,11 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
                     .as_str()
                     .map(str::to_owned)
             })
+        })
+        .or_else(|| {
+            (operation == Operation::ConnectRealtime)
+                .then(|| decoded_query_value(ctx.query.as_deref(), "model"))
+                .flatten()
         });
     let resource = match spec.affinity {
         Affinity::Resource(kind) => matched
@@ -118,6 +123,9 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
             .iter()
             .find(|(name, _)| *name == "id")
             .map(|(_, id)| (kind, id.clone())),
+        Affinity::Session if operation == Operation::ConnectRealtime => {
+            decoded_query_value(ctx.query.as_deref(), "call_id").map(|id| ("realtime_call", id))
+        }
         Affinity::None | Affinity::Session => None,
     };
     let session = (spec.affinity == Affinity::Session)
@@ -132,6 +140,11 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
         resource,
         session,
     })
+}
+
+fn decoded_query_value(query: Option<&str>, name: &str) -> Option<String> {
+    form_urlencoded::parse(query?.as_bytes())
+        .find_map(|(key, value)| (key == name && !value.is_empty()).then(|| value.into_owned()))
 }
 
 fn query_value<'a>(query: Option<&'a str>, name: &str) -> Option<&'a str> {

@@ -1,3 +1,5 @@
+mod routes;
+
 use bytes::Bytes;
 use futures_util::StreamExt;
 use gproxy_channel_api::{Channel, QuotaWindow};
@@ -61,58 +63,6 @@ fn transformed_claude_attempts_settle_native_usage_before_relay() -> Result<(), 
         assert_eq!(state.settlements[0].usage.output_tokens, 5);
     }
     Ok(())
-}
-
-#[test]
-fn every_declared_builtin_transform_is_wired() {
-    let mut channels = vec![
-        &gproxy_channels::OpenAiChannel as &dyn Channel,
-        &gproxy_channels::AntigravityChannel,
-        &gproxy_channels::ClaudeApiChannel,
-        &gproxy_channels::ClaudeCodeChannel,
-        &gproxy_channels::GeminiCliChannel,
-        &gproxy_channels::ClineChannel,
-        &gproxy_channels::CloudflareAiGatewayChannel,
-        &gproxy_channels::CodexChannel,
-        &gproxy_channels::CopilotCliChannel,
-        &gproxy_channels::CustomChannel,
-        &gproxy_channels::DashScopeChannel,
-        &gproxy_channels::DeepSeekChannel,
-        &gproxy_channels::GroqChannel,
-        &gproxy_channels::GrokBuildChannel,
-        &gproxy_channels::KiroChannel,
-        &gproxy_channels::KimiChannel,
-        &gproxy_channels::NvidiaChannel,
-        &gproxy_channels::OpenCodeChannel,
-        &gproxy_channels::OpenRouterChannel,
-        &gproxy_channels::AiStudioChannel,
-        &gproxy_channels::AzureChannel,
-        &gproxy_channels::AwsBedrockChannel,
-        &gproxy_channels::VertexChannel,
-        &gproxy_channels::VertexExpressChannel,
-        &gproxy_channels::WorkBuddyChannel,
-        &gproxy_channels::XaiChannel,
-        &gproxy_channels::VercelChannel,
-    ];
-    #[cfg(not(target_arch = "wasm32"))]
-    channels.push(&gproxy_channels::ClaudeWebChannel);
-    for channel in channels {
-        for support in channel
-            .descriptor()
-            .supports
-            .iter()
-            .chain(channel.routing_table())
-        {
-            if support.action == gproxy_channel_api::ChannelRouteAction::TransformTo {
-                assert!(
-                    gproxy_transform::can_transform(support.source, support.target),
-                    "{} declares an unwired transform: {:?}",
-                    channel.descriptor().id,
-                    support
-                );
-            }
-        }
-    }
 }
 
 #[test]

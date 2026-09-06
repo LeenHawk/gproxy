@@ -88,4 +88,6 @@ pub fn canonical_channel_id(id: &str) -> &str {
 }
 
 #[cfg(test)]
+mod compatibility_tests;
+#[cfg(test)]
 mod login_tests;

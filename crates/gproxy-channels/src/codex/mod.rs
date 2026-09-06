@@ -33,7 +33,16 @@ const fn content(operation: Operation, kind: ContentGenerationKind) -> Operation
     OperationKey::content(operation, kind)
 }
 
-static SUPPORTS: [ChannelSupport; 19] = [
+static SUPPORTS: [ChannelSupport; 22] = [
+    ChannelSupport::passthrough(content(
+        Operation::GuardianReview,
+        ContentGenerationKind::OpenAiResponses,
+    )),
+    ChannelSupport::passthrough(content(
+        Operation::GuardianClassify,
+        ContentGenerationKind::OpenAiResponses,
+    )),
+    ChannelSupport::passthrough(family(Operation::ConnectRealtime)),
     ChannelSupport::passthrough(family(Operation::ListModels)),
     ChannelSupport::passthrough(family(Operation::GetModel)),
     ChannelSupport::passthrough(family(Operation::SummarizeMemory)),

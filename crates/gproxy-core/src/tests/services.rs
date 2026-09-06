@@ -231,6 +231,9 @@ impl UpstreamTransport for MemoryHost {
                         .push(value.to_str().expect("fingerprint header text").to_owned());
                 }
                 let body = match (method, path.as_str()) {
+                    (http::Method::POST, "/copilot-compact/chat/completions") => Bytes::from_static(
+                        br#"{"id":"chat_1","object":"chat.completion","created":0,"model":"upstream-model","choices":[{"index":0,"message":{"role":"assistant","content":"conversation summary"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#,
+                    ),
                     (http::Method::POST, "/v1/realtime/calls") => {
                         Bytes::from_static(b"v=answer")
                     }

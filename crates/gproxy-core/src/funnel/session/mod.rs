@@ -5,8 +5,11 @@ mod install;
 mod observer;
 mod ownership;
 mod runner;
+mod socket;
 mod termination;
 mod usage;
+
+pub(crate) use socket::realtime;
 
 use bytes::Bytes;
 use gproxy_channel_api::{Channel, Disposition};
@@ -78,6 +81,9 @@ pub(super) async fn buffered<H: Host>(
         }
     };
     ctx.request_headers = None;
+    if ctx.target.upstream_model.is_empty() {
+        ctx.target.upstream_model = installed.meter.primary_model().into();
+    }
     crate::execution::resource::observe(
         host.as_ref(),
         channel.as_ref(),

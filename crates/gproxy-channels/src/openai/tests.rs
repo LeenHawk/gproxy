@@ -34,7 +34,7 @@ fn descriptor_and_disposition_are_explicit() {
             .iter()
             .filter(|support| support.source == support.target)
             .count(),
-        29
+        30
     );
     for key in [
         OperationKey::family(Operation::ListModels, WireFamily::OpenAi),

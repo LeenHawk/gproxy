@@ -27,7 +27,15 @@ const fn gemini_content(operation: Operation) -> OperationKey {
     content(operation, ContentGenerationKind::GeminiGenerateContent)
 }
 
-static SUPPORTS: [ChannelSupport; 21] = [
+static SUPPORTS: [ChannelSupport; 23] = [
+    ChannelSupport::passthrough(OperationKey::family(
+        Operation::ListModels,
+        WireFamily::OpenAi,
+    )),
+    ChannelSupport::passthrough(OperationKey::family(
+        Operation::GetModel,
+        WireFamily::OpenAi,
+    )),
     ChannelSupport::passthrough(family(Operation::ListModels)),
     ChannelSupport::passthrough(family(Operation::GetModel)),
     ChannelSupport::passthrough(family(Operation::CountTokens)),
@@ -43,13 +51,10 @@ static SUPPORTS: [ChannelSupport; 21] = [
     ChannelSupport::passthrough(family(Operation::RetrieveFile)),
     ChannelSupport::passthrough(family(Operation::RetrieveFileContent)),
     ChannelSupport::passthrough(family(Operation::DeleteFile)),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        gemini_content(Operation::GenerateContent),
-    ),
+    ChannelSupport::passthrough(content(
+        Operation::GenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
     ChannelSupport::transform(
         content(
             Operation::GenerateContent,
@@ -64,13 +69,10 @@ static SUPPORTS: [ChannelSupport; 21] = [
         ),
         gemini_content(Operation::GenerateContent),
     ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        gemini_content(Operation::StreamGenerateContent),
-    ),
+    ChannelSupport::passthrough(content(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
     ChannelSupport::transform(
         content(
             Operation::StreamGenerateContent,
@@ -123,12 +125,20 @@ impl Channel for AiStudioChannel {
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
+        if model::is_openai(ctx.key) {
+            return crate::shared::openai::OpenAiSseDecoder::for_operation(ctx)
+                .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>);
+        }
         stream::GeminiStreamDecoder::for_operation(ctx)
             .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
     }
 
     fn extract_usage(&self, ctx: UsageCtx<'_>) -> Option<NormalizedUsage> {
-        usage::from_body(ctx)
+        if model::is_openai(ctx.key) {
+            crate::shared::openai::usage_from_body(ctx)
+        } else {
+            usage::from_body(ctx)
+        }
     }
 
     fn settlement_ready(

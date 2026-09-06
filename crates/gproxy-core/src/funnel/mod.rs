@@ -13,11 +13,12 @@ use crate::usage::Ended;
 pub(crate) mod error;
 pub(crate) mod health;
 mod session;
+pub(crate) use session::realtime;
 mod settlement;
 mod socket;
 mod stream;
 
-use self::socket::FunnelSocket;
+pub(crate) use self::socket::{bridged_websocket, websocket};
 use self::stream::FunnelStream;
 
 #[derive(Debug)]
@@ -419,30 +420,6 @@ pub(super) fn outward_headers(ctx: &FunnelCtx, headers: http::HeaderMap) -> http
             crate::execution::forwarding::response_headers(headers, policy, blacklist)
         }
         _ => headers,
-    }
-}
-
-pub(crate) fn websocket<H: Host>(
-    host: Shared<H>,
-    ctx: FunnelCtx,
-    socket: Box<dyn gproxy_channel_api::WsDuplex>,
-) -> ExecOutcome {
-    ExecOutcome {
-        status: http::StatusCode::SWITCHING_PROTOCOLS,
-        headers: http::HeaderMap::new(),
-        body: ResponseBody::WebSocket(Box::new(FunnelSocket::new(host, ctx, socket))),
-        disposition: Disposition::Success,
-        _settled: Settled(()),
-    }
-}
-
-pub(crate) fn bridged_websocket(socket: Box<dyn gproxy_channel_api::WsDuplex>) -> ExecOutcome {
-    ExecOutcome {
-        status: http::StatusCode::SWITCHING_PROTOCOLS,
-        headers: http::HeaderMap::new(),
-        body: ResponseBody::WebSocket(socket),
-        disposition: Disposition::Success,
-        _settled: Settled(()),
     }
 }
 

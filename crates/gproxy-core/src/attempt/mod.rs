@@ -14,6 +14,8 @@ mod media;
 mod prepare;
 mod transform;
 
+#[cfg(test)]
+pub(crate) use prepare::executable;
 pub(crate) use prepare::{native_support, prepare, support};
 
 pub(crate) enum Egress {
@@ -47,6 +49,7 @@ pub(crate) struct AdmissionCtx {
 enum AttemptBody {
     Buffered(funnel::BufferedRelay),
     Streaming(http::Response<ByteStream>, Option<Box<dyn StreamDecoder>>),
+    WebSocket(Box<dyn gproxy_channel_api::WsDuplex>),
 }
 
 pub(crate) enum Failure {
@@ -79,6 +82,15 @@ pub(crate) async fn send<H: Host>(
         downstream_stream,
         mut facts,
     } = prepared;
+    if matches!(&egress, Egress::WebSocket(_))
+        && !facts
+            .key
+            .is_some_and(|key| key.operation() == gproxy_protocol::Operation::ConnectRealtime)
+    {
+        return Err(Box::new(Failure::Committed {
+            error: CoreError::Unsupported,
+        }));
+    }
     let committed = matches!(&egress, Egress::Orchestrated(_));
     facts.upstream_started_at_ms = Some(crate::quota::now_ms());
     if quota_accounted
@@ -111,10 +123,68 @@ pub(crate) async fn send<H: Host>(
                 return Err(Box::new(Failure::Transport { facts, error }));
             }
         },
-        Egress::WebSocket(_) => {
-            return Err(Box::new(Failure::Committed {
-                error: CoreError::Unsupported,
-            }));
+        Egress::WebSocket(request) => {
+            let channel_impl = core.channels.get(channel).expect("prepared channel");
+            let socket = match core.host.transport().open_websocket(*request).await {
+                Ok(socket) => socket,
+                Err(error) => {
+                    if let TransportError::Status(status) = error {
+                        if let Ok(status) = http::StatusCode::from_u16(status) {
+                            let headers = http::HeaderMap::new();
+                            let disposition = channel_impl.classify(ResponseView {
+                                status,
+                                headers: &headers,
+                                body: &[],
+                            });
+                            funnel::health::response(
+                                core.host.as_ref(),
+                                channel_impl,
+                                &facts,
+                                disposition,
+                                status,
+                                &headers,
+                            )
+                            .await;
+                            let mut response = http::Response::new(Bytes::new());
+                            *response.status_mut() = status;
+                            facts.response_headers = Some(headers);
+                            return Ok(Completed {
+                                channel,
+                                facts,
+                                disposition,
+                                body: AttemptBody::Buffered(funnel::BufferedRelay::native(
+                                    response,
+                                )),
+                            });
+                        }
+                    } else {
+                        funnel::health::degraded(
+                            core.host.as_ref(),
+                            &facts.target,
+                            facts.credential_version,
+                            None,
+                            "upstream websocket handshake failed",
+                        )
+                        .await;
+                    }
+                    return Err(Box::new(Failure::Transport { facts, error }));
+                }
+            };
+            funnel::health::response(
+                core.host.as_ref(),
+                channel_impl,
+                &facts,
+                Disposition::Success,
+                http::StatusCode::SWITCHING_PROTOCOLS,
+                &http::HeaderMap::new(),
+            )
+            .await;
+            return Ok(Completed {
+                channel,
+                facts,
+                disposition: Disposition::Success,
+                body: AttemptBody::WebSocket(socket),
+            });
         }
         Egress::Orchestrated(driver) => {
             match crate::orchestration::run(core, channel, driver, &mut facts).await {
@@ -323,6 +393,9 @@ pub(crate) async fn finish<H: Host>(
         .shared(completed.channel)
         .expect("completed attempt channel remains registered");
     match completed.body {
+        AttemptBody::WebSocket(socket) => {
+            funnel::realtime(core.host.clone(), completed.facts, control, socket)
+        }
         AttemptBody::Buffered(response) => {
             funnel::buffered(
                 core.host.clone(),
@@ -352,6 +425,7 @@ pub(crate) fn discard(completed: Completed) -> (FunnelCtx, http::StatusCode, Opt
             (completed.facts, parts.status, Some(body))
         }
         AttemptBody::Streaming(response, _) => (completed.facts, response.status(), None),
+        AttemptBody::WebSocket(_) => (completed.facts, http::StatusCode::SWITCHING_PROTOCOLS, None),
     }
 }
 

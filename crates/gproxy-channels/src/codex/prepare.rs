@@ -4,10 +4,12 @@ use http::{HeaderValue, Uri};
 use serde_json::Value;
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-    let websocket = ctx.key.kind()
-        == gproxy_protocol::OperationKind::ContentGeneration(
-            gproxy_protocol::ContentGenerationKind::OpenAiResponsesWebSocket,
-        );
+    let realtime = ctx.key.operation() == Operation::ConnectRealtime;
+    let websocket = realtime
+        || ctx.key.kind()
+            == gproxy_protocol::OperationKind::ContentGeneration(
+                gproxy_protocol::ContentGenerationKind::OpenAiResponsesWebSocket,
+            );
     if ctx.stream
         && matches!(
             ctx.key.operation(),
@@ -20,7 +22,13 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     }
     let path = upstream_path(ctx.key.operation(), ctx.upstream_model);
     let query = query(&ctx)?;
-    let mut uri = endpoint(&ctx, &path, query.as_deref())?;
+    let mut uri = if realtime {
+        let url =
+            endpoint_override(&ctx).unwrap_or_else(|| "https://api.openai.com/v1/realtime".into());
+        exact_url(&url, query.as_deref())?
+    } else {
+        endpoint(&ctx, &path, query.as_deref())?
+    };
     if websocket {
         uri = websocket_uri(uri)?;
     }
@@ -42,7 +50,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             _ => "application/json",
         }),
     );
-    if websocket {
+    if websocket && !realtime {
         headers.append(
             http::HeaderName::from_static("openai-beta"),
             HeaderValue::from_static("responses_websockets=2026-02-06"),
@@ -62,7 +70,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     *request.headers_mut() = headers;
     Ok(PreparedRequest {
         request,
-        framing: None,
+        framing: realtime.then_some(gproxy_protocol::StreamFraming::WebSocket),
         websocket,
         profile: Some(&super::profile::CLIENT_PROFILE),
     })
@@ -176,6 +184,10 @@ fn upstream_path(operation: Operation, model: &str) -> String {
 
 fn query(ctx: &PrepareCtx<'_>) -> Result<Option<String>, ChannelError> {
     let query = crate::policy::request_query(crate::policy::CODEX, ctx)?;
+    if ctx.key.operation() == Operation::ConnectRealtime {
+        return crate::shared::openai::realtime::query(query.as_deref(), ctx.upstream_model)
+            .map(Some);
+    }
     let mut kept = query
         .as_deref()
         .unwrap_or_default()
@@ -220,7 +232,7 @@ fn endpoint_override(ctx: &PrepareCtx<'_>) -> Option<String> {
         Operation::EditImage => "image_edits",
         Operation::WebSearch => "openai_search",
         Operation::CreateRealtimeCall => "openai_realtime_call",
-        Operation::ConnectRealtime => return None,
+        Operation::ConnectRealtime => "openai_realtime",
         Operation::SummarizeMemory => return None,
         _ => return None,
     };

@@ -246,7 +246,7 @@ pub(crate) async fn prepare<H: Host>(
     })
 }
 
-fn executable(channel: &dyn Channel, selected: &ChannelSupport) -> bool {
+pub(crate) fn executable(channel: &dyn Channel, selected: &ChannelSupport) -> bool {
     channel.descriptor().supports.contains(selected)
         || (selected.action == ChannelRouteAction::TransformTo
             && channel.descriptor().supports.iter().any(|support| {

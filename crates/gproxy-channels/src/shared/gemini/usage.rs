@@ -113,7 +113,7 @@ pub(crate) fn normalize(metadata: &UsageMetadata) -> Result<NormalizedUsage, Str
     Ok(usage)
 }
 
-fn embedding(metadata: &gemini::EmbeddingUsageMetadata) -> Option<NormalizedUsage> {
+pub(crate) fn embedding(metadata: &gemini::EmbeddingUsageMetadata) -> Option<NormalizedUsage> {
     let input_tokens = nonnegative(metadata.prompt_token_count?, "promptTokenCount").ok()?;
     validate_details(&metadata.prompt_token_details).ok()?;
     Some(NormalizedUsage {

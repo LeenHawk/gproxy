@@ -11,9 +11,12 @@ pub(super) fn decoder(ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
             crate::shared::gemini::stream::GeminiStreamDecoder::for_operation(ctx)
                 .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
         }
+        OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChat) => {
+            crate::shared::openai::OpenAiSseDecoder::for_operation(ctx)
+                .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
+        }
         OperationKind::ContentGeneration(
-            ContentGenerationKind::OpenAiChat
-            | ContentGenerationKind::OpenAiResponses
+            ContentGenerationKind::OpenAiResponses
             | ContentGenerationKind::OpenAiResponsesWebSocket,
         )
         | OperationKind::Family(_) => None,

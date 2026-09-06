@@ -70,7 +70,7 @@ fn strip_sampling(body: &mut Value) {
     }
 }
 
-fn coerce_prefill(body: &mut Value) {
+pub(crate) fn coerce_prefill(body: &mut Value) {
     let Some(root) = body.as_object_mut() else {
         return;
     };

@@ -14,8 +14,18 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         .ok_or_else(|| ChannelError::Secret("api_key missing".into()))?;
     let path = upstream_path(&ctx);
     let query = crate::policy::request_query(crate::policy::OPENAI_API, &ctx)?;
-    let websocket = ctx.key.kind()
-        == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponsesWebSocket);
+    let realtime = ctx.key.operation() == Operation::ConnectRealtime;
+    let query = if realtime {
+        Some(crate::shared::openai::realtime::query(
+            query.as_deref(),
+            ctx.upstream_model,
+        )?)
+    } else {
+        query
+    };
+    let websocket = realtime
+        || ctx.key.kind()
+            == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponsesWebSocket);
     let mut uri = endpoint(&ctx, &path, query.as_deref())?;
     if websocket {
         uri = websocket_uri(uri)?;
@@ -34,7 +44,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
         HeaderValue::from_str(&format!("Bearer {key}"))
             .map_err(|error| ChannelError::Secret(format!("api_key is invalid: {error}")))?,
     );
-    if websocket {
+    if websocket && !realtime {
         request.headers_mut().append(
             HeaderName::from_static("openai-beta"),
             HeaderValue::from_static("responses_websockets=2026-02-06"),
@@ -46,7 +56,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     }
     Ok(PreparedRequest {
         request,
-        framing: None,
+        framing: realtime.then_some(gproxy_protocol::StreamFraming::WebSocket),
         websocket,
         profile: None,
     })
@@ -170,8 +180,8 @@ fn endpoint_name(key: gproxy_protocol::OperationKey, _stream: bool) -> Option<&'
         | CreateConversation
         | Rerank
         | WebSearch
-        | CreateRealtimeCall
-        | ConnectRealtime => None,
+        | CreateRealtimeCall => None,
+        ConnectRealtime => Some("openai_realtime"),
     }
 }
 

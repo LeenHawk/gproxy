@@ -1,3 +1,4 @@
+mod embeddings;
 mod routes;
 
 mod auth;
@@ -32,7 +33,9 @@ const fn gemini(operation: Operation) -> OperationKey {
     content(operation, ContentGenerationKind::GeminiGenerateContent)
 }
 
-static SUPPORTS: [ChannelSupport; 15] = [
+static SUPPORTS: [ChannelSupport; 17] = [
+    ChannelSupport::passthrough(family(Operation::CreateEmbedding, WireFamily::Gemini)),
+    ChannelSupport::passthrough(family(Operation::BatchCreateEmbedding, WireFamily::Gemini)),
     ChannelSupport::passthrough(family(Operation::ListModels, WireFamily::Gemini)),
     ChannelSupport::passthrough(family(Operation::GetModel, WireFamily::Gemini)),
     ChannelSupport::passthrough(family(Operation::CountTokens, WireFamily::Gemini)),
@@ -47,20 +50,14 @@ static SUPPORTS: [ChannelSupport; 15] = [
         Operation::StreamGenerateContent,
         ContentGenerationKind::ClaudeMessages,
     )),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        gemini(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        gemini(Operation::StreamGenerateContent),
-    ),
+    ChannelSupport::passthrough(content(
+        Operation::GenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
+    ChannelSupport::passthrough(content(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChat,
+    )),
     ChannelSupport::transform(
         content(
             Operation::GenerateContent,

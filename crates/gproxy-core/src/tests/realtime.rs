@@ -11,6 +11,7 @@ use crate::control::{FailoverBudget, Plan};
 use crate::{CoreError, InitError};
 
 mod resilience;
+mod socket;
 
 #[test]
 fn call_is_rejected_before_egress_without_a_spawner() -> Result<(), InitError> {

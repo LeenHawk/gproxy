@@ -15,7 +15,7 @@ fn content(operation: Operation, kind: Kind) -> OperationKey {
 #[test]
 fn catalog_and_credential_modes_select_only_declared_targets() {
     let descriptor = KimiChannel.descriptor();
-    assert_eq!(descriptor.supports.len(), 17);
+    assert_eq!(descriptor.supports.len(), 15);
     let claude = content(Operation::GenerateContent, Kind::ClaudeMessages);
     let api = KimiChannel
         .select_support(claude, &json!({"api_key":"key"}))
