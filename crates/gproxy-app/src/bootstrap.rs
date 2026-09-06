@@ -77,7 +77,7 @@ impl App {
             #[cfg(not(target_arch = "wasm32"))]
             tokenizers,
             #[cfg(not(target_arch = "wasm32"))]
-            spawner: crate::host::TokioSpawner::default(),
+            spawner: crate::host::TokioSpawner::new(config.max_in_flight()),
             #[cfg(not(target_arch = "wasm32"))]
             continuations: Default::default(),
         });
