@@ -192,6 +192,7 @@ pub(super) fn request(id: &str, input: &str, api_key: &str) -> gproxy_core::Requ
         headers,
         body: Bytes::from(json!({"model": "public-model", "input": input}).to_string()),
         upgrade: false,
+        force_model_refresh: false,
         mode: gproxy_core::RoutingMode::Aggregated,
     }
 }

@@ -484,6 +484,7 @@ fn request(stream: bool, id: &str) -> RequestCtx {
         headers: HeaderMap::new(),
         body: Bytes::from(format!(r#"{{"model":"alias","stream":{stream}}}"#)),
         upgrade: false,
+        force_model_refresh: false,
         mode: RoutingMode::Aggregated,
     }
 }

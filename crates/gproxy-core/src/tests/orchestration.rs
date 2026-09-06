@@ -118,6 +118,7 @@ fn request(id: &str, body: serde_json::Value) -> RequestCtx {
         headers: http::HeaderMap::new(),
         body: Bytes::from(body.to_string()),
         upgrade: false,
+        force_model_refresh: false,
         mode: RoutingMode::Aggregated,
     }
 }

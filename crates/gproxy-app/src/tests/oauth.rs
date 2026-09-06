@@ -167,6 +167,7 @@ async fn named_codex_oauth_issues_an_authenticating_access_token() {
             headers,
             body: Bytes::new(),
             upgrade: false,
+            force_model_refresh: false,
             mode: RoutingMode::Aggregated,
         })
         .await
@@ -232,6 +233,7 @@ async fn named_codex_oauth_issues_an_authenticating_access_token() {
             headers,
             body: Bytes::new(),
             upgrade: true,
+            force_model_refresh: false,
             mode,
         })
         .await
@@ -383,6 +385,7 @@ fn request(
         headers,
         body,
         upgrade: false,
+        force_model_refresh: false,
         mode,
     }
 }

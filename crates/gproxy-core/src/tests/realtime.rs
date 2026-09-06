@@ -113,6 +113,7 @@ fn request(request_id: &str) -> RequestCtx {
             br#"{"sdp":"v=offer","session":{"type":"realtime","model":"alias","audio":{"input":{"transcription":{"model":"client-model"}}}}}"#,
         ),
         upgrade: false,
+        force_model_refresh: false,
         mode: RoutingMode::Aggregated,
     }
 }

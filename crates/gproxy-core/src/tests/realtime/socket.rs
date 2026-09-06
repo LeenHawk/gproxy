@@ -46,6 +46,7 @@ fn request(query: &str) -> RequestCtx {
         headers: HeaderMap::new(),
         body: Bytes::new(),
         upgrade: true,
+        force_model_refresh: false,
         mode: RoutingMode::Aggregated,
     }
 }

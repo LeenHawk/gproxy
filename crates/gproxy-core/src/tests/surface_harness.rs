@@ -46,6 +46,7 @@ pub(super) fn outcome(
             body: body.map_or_else(Bytes::new, Bytes::from_static),
             upgrade,
             mode: crate::RoutingMode::Aggregated,
+            force_model_refresh: false,
         },
     ))
 }

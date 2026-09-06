@@ -30,6 +30,11 @@ pub struct RequestCtx {
     /// The host accepted a websocket upgrade for this request.
     pub upgrade: bool,
     pub mode: RoutingMode,
+    /// An operator asked for the provider's live catalogue, as the console's
+    /// import from upstream does. Overrides the provider's
+    /// `auto_refresh_models` switch, which only governs what a client's
+    /// model listing triggers.
+    pub force_model_refresh: bool,
 }
 
 /// How the request addresses a backend (v2 semantics, kept).
