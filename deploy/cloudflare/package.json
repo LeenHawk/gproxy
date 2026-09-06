@@ -16,5 +16,15 @@
     "@cloudflare/workers-types": "^4.20250826.0",
     "typescript": "^5.9.0",
     "wrangler": "^4.32.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "GPROXY_LIBSQL_URL": {
+        "description": "Required https:// URL of the libSQL (Turso) database, for example https://your-db-org.turso.io. libsql:// is rejected on edge."
+      },
+      "GPROXY_LIBSQL_AUTH_TOKEN": {
+        "description": "Required auth token for the GPROXY_LIBSQL_URL database. Stored as a Worker secret."
+      }
+    }
   }
 }

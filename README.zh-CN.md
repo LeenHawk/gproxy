@@ -61,6 +61,16 @@ docker run -d --name gproxy --restart unless-stopped \
 绑定宿主机目录时需给该用户写权限。镜像覆盖 amd64、arm64、riscv64，并提供
 `-musl` 变体。只有需要滚动开发版本时才使用 `:staging`。
 
+### Edge
+
+Cloudflare Workers 和 Netlify Edge 直接使用
+[`deploy`](https://github.com/LeenHawk/gproxy/tree/deploy) 分支上的预构建 wasm 包。
+两个按钮都会要求填写 `GPROXY_LIBSQL_URL` 和 `GPROXY_LIBSQL_AUTH_TOKEN`，
+即 libSQL（Turso）数据库的 HTTPS 地址和令牌；其余配置均为可选。
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
+
 更多方式见[容器部署](https://gproxy.leenhawk.com/zh-cn/deployment/docker/)和
 [Edge 部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
