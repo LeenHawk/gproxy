@@ -136,6 +136,7 @@ async fn handle_request(
         headers,
         body,
         upgrade: websocket.is_some(),
+        force_model_refresh: false,
         mode,
     };
     let _upload = if crate::request_policy::is_upload(&request) {

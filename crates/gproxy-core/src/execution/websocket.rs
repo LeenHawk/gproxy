@@ -198,6 +198,7 @@ impl<H: Host> ResponsesBridge<H> {
             headers: self.headers.clone(),
             body: Bytes::from(text),
             upgrade: false,
+            force_model_refresh: false,
             mode: self.mode.clone(),
         };
         let mut classified = Classified::responses_websocket(model);

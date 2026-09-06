@@ -19,6 +19,7 @@ pub(crate) fn request_ctx(
         headers: request.headers.clone(),
         body: request.body.clone(),
         upgrade: false,
+        force_model_refresh: false,
         mode: RoutingMode::Scoped {
             provider: target.provider.name.clone(),
         },

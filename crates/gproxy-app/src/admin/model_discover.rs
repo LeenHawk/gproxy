@@ -50,6 +50,7 @@ pub(super) async fn run(
         mode: gproxy_core::RoutingMode::Scoped {
             provider: provider.name.clone(),
         },
+        force_model_refresh: true,
     };
 
     let started = Instant::now();

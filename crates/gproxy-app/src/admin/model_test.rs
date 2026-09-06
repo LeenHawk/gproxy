@@ -53,6 +53,7 @@ pub(super) async fn run(
         headers,
         body: Bytes::from(serde_json::to_vec(&body).expect("static json")),
         upgrade: false,
+        force_model_refresh: false,
         mode: gproxy_core::RoutingMode::Scoped {
             provider: provider.name.clone(),
         },

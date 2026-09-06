@@ -157,6 +157,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 headers: parts.headers.clone(),
                 body: body.clone(),
                 upgrade: false,
+                force_model_refresh: false,
                 mode: crate::boundary::RoutingMode::Scoped {
                     provider: self.target.provider.name.clone(),
                 },

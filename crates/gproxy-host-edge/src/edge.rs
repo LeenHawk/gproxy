@@ -182,6 +182,7 @@ impl EdgeHost {
             headers: incoming.parts.headers,
             body: incoming.body,
             upgrade: upgrade.is_some(),
+            force_model_refresh: false,
             mode,
         };
         crate::response::outcome(

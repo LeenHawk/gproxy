@@ -49,12 +49,9 @@ pub(super) async fn run<H: Host>(
                         super::local_models::run(core, channel, &targets, namespace_models).await;
                     return Some((provider_id, provider.clone(), models));
                 }
-                // A scoped listing names one provider on purpose, as the console's
-                // "import from upstream" does; the auto-refresh switch only governs
-                // the aggregated fan-out.
                 let targets = targets
                     .into_iter()
-                    .filter(|target| !namespace_models || auto_refresh(target))
+                    .filter(|target| request.force_model_refresh || auto_refresh(target))
                     .collect::<Vec<_>>();
                 if targets.is_empty() {
                     return None;
@@ -304,12 +301,12 @@ fn boolean(value: &serde_json::Value, name: &str) -> Option<bool> {
     value.get(name).and_then(serde_json::Value::as_bool)
 }
 
-/// Whether an aggregated listing may ask this provider what it serves.
+/// Whether a client's model listing may ask this provider what it serves.
 ///
 /// On by default, as in v2: a catalogue that never refreshes goes stale silently.
 /// Off is for a provider whose list is maintained by hand, or one where a fan-out
-/// on every `/v1/models` costs more than the freshness is worth. A scoped
-/// listing ignores it: naming the provider is the request to ask it.
+/// on every `/v1/models` costs more than the freshness is worth. An operator's
+/// explicit import (`force_model_refresh`) asks regardless.
 fn auto_refresh(target: &Target) -> bool {
     target
         .provider

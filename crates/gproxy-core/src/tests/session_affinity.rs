@@ -263,6 +263,7 @@ fn request(session: &str, first_user: &str, with_tail: bool) -> RequestCtx {
             .unwrap(),
         ),
         upgrade: false,
+        force_model_refresh: false,
         mode: RoutingMode::Aggregated,
     }
 }
@@ -306,6 +307,7 @@ fn claude_request(session: &str, first_user: &str, with_tail: bool) -> RequestCt
             .unwrap(),
         ),
         upgrade: false,
+        force_model_refresh: false,
         mode: RoutingMode::Aggregated,
     }
 }
