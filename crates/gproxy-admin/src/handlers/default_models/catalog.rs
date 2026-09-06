@@ -65,6 +65,12 @@ pub(crate) fn has_price(model: &str) -> bool {
     price(model).is_some()
 }
 
+pub(crate) fn price_count() -> usize {
+    catalog()
+        .map(|catalog| catalog.source.priced_models)
+        .unwrap_or_default()
+}
+
 pub(super) fn catalog() -> Result<&'static DefaultModelCatalogDto, AdminError> {
     CATALOG
         .as_ref()
@@ -80,7 +86,10 @@ fn parse() -> Result<DefaultModelCatalogDto, AdminError> {
         .filter(|model| model.pricing.is_some())
         .count();
     if catalog.schema_version != 2
-        || catalog.source.catalog != "openrouter"
+        || !matches!(
+            catalog.source.catalog.as_str(),
+            "openrouter" | "openrouter+codex"
+        )
         || catalog.source.total_models != catalog.models.len()
         || catalog.source.priced_models != priced
     {
@@ -94,9 +103,12 @@ fn parse() -> Result<DefaultModelCatalogDto, AdminError> {
             || !ids.insert(model.model_id.as_str())
             || model.context_window.is_some_and(|value| value <= 0)
             || model.max_output_tokens.is_some_and(|value| value <= 0)
-            || !valid_strings(&model.input_modalities)
-            || !valid_strings(&model.output_modalities)
-            || !valid_strings(&model.supported_parameters)
+            || !valid_optional_strings(model.metadata.input_modalities.as_deref())
+            || !valid_optional_strings(model.metadata.output_modalities.as_deref())
+            || !valid_optional_strings(model.metadata.supported_parameters.as_deref())
+            || !valid_reasoning(model.metadata.reasoning_levels.as_deref())
+            || !valid_tiers(model.metadata.service_tiers.as_deref())
+            || model.metadata.truncation_mode.is_some() != model.metadata.truncation_limit.is_some()
         {
             return invalid("model");
         }
@@ -138,6 +150,33 @@ fn valid_strings(values: &[String]) -> bool {
     values
         .iter()
         .all(|value| !value.trim().is_empty() && seen.insert(value.as_str()))
+}
+
+fn valid_optional_strings(values: Option<&[String]>) -> bool {
+    values.is_none_or(valid_strings)
+}
+
+fn valid_reasoning(values: Option<&[crate::dto::ModelReasoningLevelDto]>) -> bool {
+    values.is_none_or(|values| {
+        let mut seen = BTreeSet::new();
+        values.iter().all(|value| {
+            matches!(
+                value.effort.as_str(),
+                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+            ) && seen.insert(value.effort.as_str())
+        })
+    })
+}
+
+fn valid_tiers(values: Option<&[crate::dto::ModelServiceTierDto]>) -> bool {
+    values.is_none_or(|values| {
+        let mut seen = BTreeSet::new();
+        values.iter().all(|value| {
+            !value.id.trim().is_empty()
+                && !value.name.trim().is_empty()
+                && seen.insert(value.id.as_str())
+        })
+    })
 }
 
 fn invalid<T>(part: &str) -> Result<T, AdminError> {

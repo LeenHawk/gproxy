@@ -132,7 +132,14 @@ impl Store {
         &self,
         input: &ProviderModelInput,
     ) -> Result<i64, StoreError> {
-        self.insert(control::insert_provider_model(input)?).await
+        let mut statements = vec![control::insert_provider_model(input)?];
+        statements.extend(control::replace_model_metadata(input)?);
+        self.backend()
+            .batch(statements)
+            .await?
+            .first()
+            .and_then(|result| result.last_insert_id)
+            .ok_or_else(|| StoreError::Database("provider model insert id missing".into()))
     }
 
     pub async fn update_provider_model(
@@ -140,8 +147,27 @@ impl Store {
         id: i64,
         input: &ProviderModelInput,
     ) -> Result<bool, StoreError> {
-        self.update(control::update_provider_model(id, input)?)
-            .await
+        let current = self
+            .control_snapshot()
+            .await?
+            .provider_models
+            .into_iter()
+            .find(|model| model.id == id);
+        let Some(current) = current else {
+            return Ok(false);
+        };
+        let mut statements = vec![control::update_provider_model(id, input)?];
+        statements.extend(control::delete_model_metadata(
+            current.provider_id,
+            &current.model_id,
+        )?);
+        statements.extend(control::replace_model_metadata(input)?);
+        Ok(self
+            .backend()
+            .batch(statements)
+            .await?
+            .first()
+            .is_some_and(|result| result.affected_rows == 1))
     }
 
     pub async fn insert_price_rule(&self, input: &PriceRuleInput) -> Result<i64, StoreError> {

@@ -45,6 +45,7 @@ pub use gproxy_channel_api::{
     QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaScope, QuotaWindow, UsageView, WsDuplex,
     WsFrame,
 };
+pub use gproxy_channel_api::{ModelMetadata, ModelReasoningLevel, ModelServiceTier};
 pub use gproxy_channels as channels;
 pub use gproxy_protocol as protocol;
 pub use gproxy_protocol::OperationKey;

@@ -145,6 +145,7 @@ pub(super) fn provider_model(
     }
     gproxy_store::records::parse_model_variants(request.variants.as_ref())
         .map_err(AdminError::BadRequest)?;
+    validate_model_metadata(&request.metadata)?;
     Ok(ProviderModelInput {
         provider_id: request.provider_id,
         model_id: request.model_id.trim().to_owned(),
@@ -158,6 +159,90 @@ pub(super) fn provider_model(
         thinking_supported: request.thinking_supported,
         thinking_adaptive_supported: request.thinking_adaptive_supported,
         thinking_enabled_supported: request.thinking_enabled_supported,
+        metadata: request.metadata.into(),
         enabled: request.enabled,
     })
+}
+
+fn validate_model_metadata(metadata: &crate::dto::ModelMetadataDto) -> Result<(), AdminError> {
+    for values in [
+        metadata.input_modalities.as_deref(),
+        metadata.output_modalities.as_deref(),
+        metadata.supported_parameters.as_deref(),
+        metadata.generation_methods.as_deref(),
+        metadata.supported_actions.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let mut seen = std::collections::BTreeSet::new();
+        if values
+            .iter()
+            .any(|value| value.trim().is_empty() || !seen.insert(value))
+        {
+            return Err(AdminError::BadRequest(
+                "model metadata lists require unique non-blank values".into(),
+            ));
+        }
+    }
+    if metadata.reasoning_levels.as_deref().is_some_and(|levels| {
+        let mut seen = std::collections::BTreeSet::new();
+        levels.iter().any(|level| {
+            !matches!(
+                level.effort.as_str(),
+                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+            ) || !seen.insert(&level.effort)
+        })
+    }) {
+        return Err(AdminError::BadRequest(
+            "model reasoning levels are invalid".into(),
+        ));
+    }
+    if metadata.service_tiers.as_deref().is_some_and(|tiers| {
+        let mut seen = std::collections::BTreeSet::new();
+        tiers.iter().any(|tier| {
+            tier.id.trim().is_empty() || tier.name.trim().is_empty() || !seen.insert(&tier.id)
+        })
+    }) {
+        return Err(AdminError::BadRequest(
+            "model service tiers are invalid".into(),
+        ));
+    }
+    for (value, allowed) in [
+        (
+            metadata.shell_type.as_deref(),
+            &["unified_exec", "disabled"][..],
+        ),
+        (
+            metadata.default_verbosity.as_deref(),
+            &["low", "medium", "high"],
+        ),
+        (
+            metadata.default_reasoning_summary.as_deref(),
+            &["none", "auto", "concise", "detailed"],
+        ),
+        (metadata.apply_patch_tool_type.as_deref(), &["freeform"]),
+        (
+            metadata.web_search_tool_type.as_deref(),
+            &["text", "text_and_image"],
+        ),
+        (metadata.truncation_mode.as_deref(), &["bytes", "tokens"]),
+    ] {
+        if value.is_some_and(|value| !allowed.contains(&value)) {
+            return Err(AdminError::BadRequest(
+                "model metadata contains an invalid enum value".into(),
+            ));
+        }
+    }
+    if metadata.truncation_mode.is_some() != metadata.truncation_limit.is_some()
+        || metadata.truncation_limit.is_some_and(|value| value <= 0)
+        || metadata
+            .effective_context_window_percent
+            .is_some_and(|value| !(1..=100).contains(&value))
+    {
+        return Err(AdminError::BadRequest(
+            "model metadata limits are invalid".into(),
+        ));
+    }
+    Ok(())
 }

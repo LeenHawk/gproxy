@@ -108,7 +108,102 @@ pub(crate) fn select_provider_models() -> Result<Statement, StoreError> {
             "thinking_supported",
             "thinking_adaptive_supported",
             "thinking_enabled_supported",
+            "description",
+            "instructions",
+            "max_context_window",
+            "default_reasoning_level",
+            "default_service_tier",
+            "shell_type",
+            "support_verbosity",
+            "default_verbosity",
+            "reasoning_summary_supported",
+            "default_reasoning_summary",
+            "apply_patch_tool_type",
+            "web_search_tool_type",
+            "truncation_mode",
+            "truncation_limit",
+            "auto_compact_token_limit",
+            "effective_context_window_percent",
+            "batch_supported",
+            "citations_supported",
+            "code_execution_supported",
+            "context_management_supported",
+            "structured_outputs_supported",
+            "pdf_input_supported",
+            "image_detail_original_supported",
+            "search_supported",
+            "input_modalities_known",
+            "output_modalities_known",
+            "parameters_known",
+            "reasoning_levels_known",
+            "service_tiers_known",
+            "generation_methods_known",
+            "supported_actions_known",
             "enabled",
+        ],
+    )
+}
+
+pub(crate) fn select_provider_model_modalities() -> Result<Statement, StoreError> {
+    select_all(
+        "provider_model_modalities",
+        &[
+            "id",
+            "provider_id",
+            "model_id",
+            "direction",
+            "modality",
+            "sort_order",
+        ],
+    )
+}
+
+pub(crate) fn select_provider_model_parameters() -> Result<Statement, StoreError> {
+    select_all(
+        "provider_model_parameters",
+        &["id", "provider_id", "model_id", "parameter", "sort_order"],
+    )
+}
+
+pub(crate) fn select_provider_model_reasoning_levels() -> Result<Statement, StoreError> {
+    select_all(
+        "provider_model_reasoning_levels",
+        &[
+            "id",
+            "provider_id",
+            "model_id",
+            "effort",
+            "description",
+            "sort_order",
+        ],
+    )
+}
+
+pub(crate) fn select_provider_model_service_tiers() -> Result<Statement, StoreError> {
+    select_all(
+        "provider_model_service_tiers",
+        &[
+            "id",
+            "provider_id",
+            "model_id",
+            "tier_id",
+            "name",
+            "description",
+            "sort_order",
+        ],
+    )
+}
+
+pub(crate) fn select_provider_model_methods() -> Result<Statement, StoreError> {
+    select_all(
+        "provider_model_methods",
+        &[
+            "id",
+            "provider_id",
+            "model_id",
+            "kind",
+            "method",
+            "sort_order",
         ],
     )
 }

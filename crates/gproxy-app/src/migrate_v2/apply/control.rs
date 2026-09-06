@@ -131,6 +131,7 @@ pub(super) async fn base(
                 thinking_supported: legacy.thinking_supported,
                 thinking_adaptive_supported: legacy.thinking_adaptive_supported,
                 thinking_enabled_supported: legacy.thinking_enabled_supported,
+                metadata: Default::default(),
                 enabled: legacy.enabled,
             })
         })

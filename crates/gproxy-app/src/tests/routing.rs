@@ -44,6 +44,7 @@ async fn aggregated_provider_models_match_the_catalogue_and_provider_preprocessi
             thinking_supported: Some(true),
             thinking_adaptive_supported: None,
             thinking_enabled_supported: None,
+            metadata: Default::default(),
             enabled: true,
         })
         .await

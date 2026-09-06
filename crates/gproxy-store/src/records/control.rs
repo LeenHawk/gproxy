@@ -227,6 +227,8 @@ pub struct ProviderModelInput {
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
     pub thinking_enabled_supported: Option<bool>,
+    #[serde(default)]
+    pub metadata: gproxy_core::ModelMetadata,
     pub enabled: bool,
 }
 
@@ -242,6 +244,8 @@ pub struct ProviderModelRecord {
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
     pub thinking_enabled_supported: Option<bool>,
+    #[serde(default)]
+    pub metadata: gproxy_core::ModelMetadata,
     pub enabled: bool,
 }
 

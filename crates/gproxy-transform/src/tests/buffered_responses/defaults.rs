@@ -334,10 +334,25 @@ fn model_transforms_restore_compatibility_defaults_and_ignore_bodies() {
     let to_claude = convert_response(
         claude,
         openai,
-        json!({"data":[{"id":"model-a","object":"model"}],"object":"list"}),
+        json!({"data":[{
+            "id":"model-a",
+            "object":"model",
+            "input_modalities":["text","image"],
+            "supported_parameters":["structured_outputs"],
+            "supported_reasoning_levels":[{"effort":"high","description":"Deep"}],
+            "thinking_supported":true
+        }],"object":"list"}),
     );
     assert_eq!(to_claude["data"][0]["created_at"], "1970-01-01T00:00:00Z");
     assert_eq!(to_claude["data"][0]["display_name"], "model-a");
+    assert_eq!(
+        to_claude["data"][0]["capabilities"]["image_input"]["supported"],
+        true
+    );
+    assert_eq!(
+        to_claude["data"][0]["capabilities"]["effort"]["high"]["supported"],
+        true
+    );
 
     let to_openai = convert_response(
         openai,

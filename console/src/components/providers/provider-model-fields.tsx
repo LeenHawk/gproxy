@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import type { ModelMetadataState } from "@/components/providers/provider-model-state"
 import { ProviderModelVariants } from "@/components/providers/provider-model-variants"
+import { ProviderModelMetadataFields } from "@/components/providers/provider-model-metadata-fields"
 
 export function ProviderModelFields({ modelId, channel, value, onChange }: { modelId: string; channel: string; value: ModelMetadataState; onChange: (value: ModelMetadataState) => void }) {
   const { t } = useTranslation()
@@ -32,6 +33,7 @@ export function ProviderModelFields({ modelId, channel, value, onChange }: { mod
         <ThinkingField label={t("providers.models.thinkingEnabledSupported")} value={value.thinkingEnabledSupported} onChange={(next) => set("thinkingEnabledSupported", next)} />
       </div>
     </FieldSet>
+    <ProviderModelMetadataFields value={value.metadata} onChange={(metadata) => set("metadata", metadata)} />
     <ProviderModelVariants
       modelId={modelId}
       channel={channel}

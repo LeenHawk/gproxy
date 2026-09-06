@@ -170,6 +170,69 @@ pub struct ModelAliasWriteRequest {
 }
 
 /// What one provider supports for one upstream model id.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ModelMetadataDto {
+    pub description: Option<String>,
+    pub instructions: Option<String>,
+    pub max_context_window: Option<i64>,
+    pub input_modalities: Option<Vec<String>>,
+    pub output_modalities: Option<Vec<String>>,
+    pub supported_parameters: Option<Vec<String>>,
+    pub reasoning_levels: Option<Vec<ModelReasoningLevelDto>>,
+    pub default_reasoning_level: Option<String>,
+    pub service_tiers: Option<Vec<ModelServiceTierDto>>,
+    pub default_service_tier: Option<String>,
+    pub generation_methods: Option<Vec<String>>,
+    pub supported_actions: Option<Vec<String>>,
+    pub shell_type: Option<String>,
+    pub support_verbosity: Option<bool>,
+    pub default_verbosity: Option<String>,
+    pub supports_reasoning_summary_parameter: Option<bool>,
+    pub default_reasoning_summary: Option<String>,
+    pub apply_patch_tool_type: Option<String>,
+    pub web_search_tool_type: Option<String>,
+    pub truncation_mode: Option<String>,
+    pub truncation_limit: Option<i64>,
+    pub auto_compact_token_limit: Option<i64>,
+    pub effective_context_window_percent: Option<i64>,
+    pub batch_supported: Option<bool>,
+    pub citations_supported: Option<bool>,
+    pub code_execution_supported: Option<bool>,
+    pub context_management_supported: Option<bool>,
+    pub structured_outputs_supported: Option<bool>,
+    pub pdf_input_supported: Option<bool>,
+    pub supports_image_detail_original: Option<bool>,
+    pub supports_search_tool: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ModelReasoningLevelDto {
+    pub effort: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ModelServiceTierDto {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+}
+
+impl From<gproxy_core::ModelMetadata> for ModelMetadataDto {
+    fn from(value: gproxy_core::ModelMetadata) -> Self {
+        let encoded = serde_json::to_value(value).expect("model metadata serializes");
+        serde_json::from_value(encoded).expect("model metadata DTO matches core")
+    }
+}
+
+impl From<ModelMetadataDto> for gproxy_core::ModelMetadata {
+    fn from(value: ModelMetadataDto) -> Self {
+        let encoded = serde_json::to_value(value).expect("model metadata DTO serializes");
+        serde_json::from_value(encoded).expect("model metadata DTO matches core")
+    }
+}
+
+/// What one provider supports for one upstream model id.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ProviderModelDto {
     pub id: i64,
@@ -183,6 +246,7 @@ pub struct ProviderModelDto {
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
     pub thinking_enabled_supported: Option<bool>,
+    pub metadata: ModelMetadataDto,
     pub enabled: bool,
 }
 
@@ -198,6 +262,7 @@ pub struct ProviderModelWriteRequest {
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
     pub thinking_enabled_supported: Option<bool>,
+    pub metadata: ModelMetadataDto,
     pub enabled: bool,
 }
 

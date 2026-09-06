@@ -170,6 +170,7 @@ pub(in crate::handlers) fn provider_model(
         thinking_supported: value.thinking_supported,
         thinking_adaptive_supported: value.thinking_adaptive_supported,
         thinking_enabled_supported: value.thinking_enabled_supported,
+        metadata: value.metadata.clone().into(),
         enabled: value.enabled,
     }
 }

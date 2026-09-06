@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile, writeFile } from "node:fs/promises"
+import { execFileSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -161,6 +162,79 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
   }
 }
 
+export function applyCodexCatalog(catalog, payload, revision = "unknown") {
+  if (!payload || !Array.isArray(payload.models)) {
+    throw new Error("Codex catalog does not contain a models array")
+  }
+  const openrouterModels = catalog.models.length
+  for (const source of payload.models) {
+    if (typeof source?.slug !== "string" || !source.slug.trim()) {
+      throw new Error(`invalid Codex model slug: ${String(source?.slug)}`)
+    }
+    const exact = catalog.models.find((model) => model.model_id === `openai/${source.slug}`)
+    const matches = catalog.models.filter((model) =>
+      model.model_id.slice(model.model_id.lastIndexOf("/") + 1) === source.slug)
+    let target = exact ?? (matches.length === 1 ? matches[0] : null)
+    if (!target) {
+      target = {
+        model_id: `openai/${source.slug}`,
+        display_name: null,
+        context_window: null,
+        max_output_tokens: null,
+        input_modalities: [],
+        output_modalities: ["text"],
+        supported_parameters: [],
+        pricing: null,
+      }
+      catalog.models.push(target)
+    }
+    const assign = (name, value) => {
+      if (value !== undefined && value !== null) target[name] = value
+    }
+    assign("display_name", source.display_name)
+    assign("description", source.description)
+    assign("instructions", source.base_instructions ?? source.model_messages?.instructions_template)
+    assign("context_window", source.context_window)
+    assign("max_context_window", source.max_context_window)
+    assign("input_modalities", source.input_modalities)
+    assign("supported_reasoning_levels", source.supported_reasoning_levels)
+    assign("default_reasoning_level", source.default_reasoning_level)
+    assign("service_tiers", source.service_tiers)
+    assign("default_service_tier", source.default_service_tier)
+    assign("shell_type", source.shell_type)
+    assign("support_verbosity", source.support_verbosity)
+    assign("default_verbosity", source.default_verbosity)
+    assign("supports_reasoning_summary_parameter", source.supports_reasoning_summary_parameter)
+    assign("default_reasoning_summary", source.default_reasoning_summary)
+    assign("apply_patch_tool_type", source.apply_patch_tool_type)
+    assign("web_search_tool_type", source.web_search_tool_type)
+    assign("auto_compact_token_limit", source.auto_compact_token_limit)
+    assign("effective_context_window_percent", source.effective_context_window_percent)
+    assign("supports_image_detail_original", source.supports_image_detail_original)
+    assign("supports_search_tool", source.supports_search_tool)
+    if (source.truncation_policy) {
+      assign("truncation_mode", source.truncation_policy.mode)
+      assign("truncation_limit", source.truncation_policy.limit)
+    }
+    const parameters = new Set(target.supported_parameters ?? [])
+    if ((source.supported_reasoning_levels ?? []).length > 0) parameters.add("reasoning_effort")
+    if (source.support_verbosity) parameters.add("verbosity")
+    target.supported_parameters = [...parameters].sort()
+  }
+  catalog.models.sort((left, right) => left.model_id.localeCompare(right.model_id))
+  catalog.source = {
+    ...catalog.source,
+    catalog: "openrouter+codex",
+    openrouter_models: openrouterModels,
+    codex_models: payload.models.length,
+    codex_revision: revision,
+    total_models: catalog.models.length,
+    context_models: catalog.models.filter((model) => model.context_window != null).length,
+    output_limit_models: catalog.models.filter((model) => model.max_output_tokens != null).length,
+  }
+  return catalog
+}
+
 function modelPricing(model, outputModalities, dynamic) {
   if (!outputModalities.some((modality) => SUPPORTED_OUTPUT_MODALITIES.has(modality))) return null
   const pricing = model.pricing
@@ -211,10 +285,23 @@ async function loadPayload(inputPath) {
 
 async function main() {
   const args = process.argv.slice(2)
-  if (args.length !== 0 && (args.length !== 2 || args[0] !== "--input")) {
-    throw new Error("usage: node scripts/update-openrouter-model-catalog.mjs [--input response.json]")
+  let inputPath
+  let codexPath = path.join(root, "samples", "codex", "codex-rs", "models-manager", "models.json")
+  for (let index = 0; index < args.length; index += 2) {
+    const option = args[index]
+    const value = args[index + 1]
+    if (!value || !["--input", "--codex-input"].includes(option)) {
+      throw new Error("usage: node scripts/update-openrouter-model-catalog.mjs [--input response.json] [--codex-input models.json]")
+    }
+    if (option === "--input") inputPath = value
+    if (option === "--codex-input") codexPath = path.resolve(process.cwd(), value)
   }
-  const catalog = buildCatalog(await loadPayload(args[1]))
+  const codex = JSON.parse(await readFile(codexPath, "utf8"))
+  let revision = "unknown"
+  try {
+    revision = execFileSync("git", ["-C", path.join(root, "samples", "codex"), "rev-parse", "HEAD"], { encoding: "utf8" }).trim()
+  } catch {}
+  const catalog = applyCodexCatalog(buildCatalog(await loadPayload(inputPath)), codex, revision)
   await writeFile(outputPath, `${JSON.stringify(catalog)}\n`, "utf8")
   console.log(`Updated ${outputPath} with ${catalog.models.length} models.`)
 }

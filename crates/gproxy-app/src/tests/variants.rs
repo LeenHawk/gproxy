@@ -42,6 +42,7 @@ async fn provider_creation_seeds_empty_rules_and_scoped_variants_resolve() {
             thinking_supported: None,
             thinking_adaptive_supported: None,
             thinking_enabled_supported: None,
+            metadata: Default::default(),
             enabled: true,
         })
         .await

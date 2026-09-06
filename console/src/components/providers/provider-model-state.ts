@@ -1,5 +1,6 @@
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
 import type { ProviderModelWriteRequest } from "@/generated/ProviderModelWriteRequest"
+import type { ModelMetadataDto } from "@/generated/ModelMetadataDto"
 import type { VariantAction } from "@/components/providers/variant-presets/types"
 import type { VariantRuleRow } from "@/components/providers/provider-model-variant-rules"
 
@@ -12,7 +13,42 @@ export type ModelMetadataState = {
   thinkingSupported: boolean | null
   thinkingAdaptiveSupported: boolean | null
   thinkingEnabledSupported: boolean | null
+  metadata: ModelMetadataDto
 }
+
+export const emptyModelMetadata = (): ModelMetadataDto => ({
+  description: null,
+  instructions: null,
+  max_context_window: null,
+  input_modalities: null,
+  output_modalities: null,
+  supported_parameters: null,
+  reasoning_levels: null,
+  default_reasoning_level: null,
+  service_tiers: null,
+  default_service_tier: null,
+  generation_methods: null,
+  supported_actions: null,
+  shell_type: null,
+  support_verbosity: null,
+  default_verbosity: null,
+  supports_reasoning_summary_parameter: null,
+  default_reasoning_summary: null,
+  apply_patch_tool_type: null,
+  web_search_tool_type: null,
+  truncation_mode: null,
+  truncation_limit: null,
+  auto_compact_token_limit: null,
+  effective_context_window_percent: null,
+  batch_supported: null,
+  citations_supported: null,
+  code_execution_supported: null,
+  context_management_supported: null,
+  structured_outputs_supported: null,
+  pdf_input_supported: null,
+  supports_image_detail_original: null,
+  supports_search_tool: null,
+})
 
 export function providerModelState(value: ProviderModelDto | null, actions: Map<string, Array<VariantAction>> = new Map()): ModelMetadataState {
   const variants = readVariants(value?.variants)
@@ -25,6 +61,7 @@ export function providerModelState(value: ProviderModelDto | null, actions: Map<
     thinkingSupported: value?.thinking_supported ?? null,
     thinkingAdaptiveSupported: value?.thinking_adaptive_supported ?? null,
     thinkingEnabledSupported: value?.thinking_enabled_supported ?? null,
+    metadata: value?.metadata ?? emptyModelMetadata(),
   }
 }
 
@@ -39,6 +76,7 @@ export function providerModelRequest(value: ModelMetadataState): Omit<ProviderMo
     thinking_supported: value.thinkingSupported,
     thinking_adaptive_supported: value.thinkingAdaptiveSupported,
     thinking_enabled_supported: value.thinkingEnabledSupported,
+    metadata: value.metadata,
   }
 }
 

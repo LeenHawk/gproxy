@@ -68,10 +68,16 @@ fn normalize(value: &Value) -> Result<Model, ChannelError> {
         "slug",
         "id",
         "display_name",
+        "description",
+        "base_instructions",
         "context_window",
         "max_context_window",
         "max_output_tokens",
         "supported_reasoning_levels",
+        "default_reasoning_level",
+        "service_tiers",
+        "default_service_tier",
+        "input_modalities",
     ] {
         rest.remove(name);
     }
@@ -82,6 +88,14 @@ fn normalize(value: &Value) -> Result<Model, ChannelError> {
             .get("display_name")
             .and_then(Value::as_str)
             .map(str::to_owned),
+        description: value
+            .get("description")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        instructions: value
+            .get("base_instructions")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
         context_window: max_context_window.or_else(|| positive(value, "context_window")),
         max_context_window,
         max_output_tokens: positive(value, "max_output_tokens"),
@@ -89,10 +103,60 @@ fn normalize(value: &Value) -> Result<Model, ChannelError> {
             .get("supported_reasoning_levels")
             .and_then(Value::as_array)
             .map(|levels| !levels.is_empty()),
+        input_modalities: strings(value, "input_modalities"),
+        output_modalities: None,
+        supported_parameters: None,
+        supported_reasoning_levels: reasoning_levels(value),
+        default_reasoning_level: value
+            .get("default_reasoning_level")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        service_tiers: structured(value, "service_tiers"),
+        default_service_tier: value
+            .get("default_service_tier")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        generation_methods: None,
+        supported_actions: None,
         object: ModelObjectType::Model,
         owned_by: None,
         rest,
     })
+}
+
+fn strings(value: &Value, name: &str) -> Option<Vec<String>> {
+    Some(
+        value
+            .get(name)?
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+    )
+}
+
+fn structured<T: serde::de::DeserializeOwned>(value: &Value, name: &str) -> Option<Vec<T>> {
+    serde_json::from_value(value.get(name)?.clone()).ok()
+}
+
+fn reasoning_levels(value: &Value) -> Option<Vec<gproxy_protocol::openai::ModelReasoningLevel>> {
+    Some(
+        value
+            .get("supported_reasoning_levels")?
+            .as_array()?
+            .iter()
+            .filter_map(|level| {
+                if let Some(effort) = level.as_str() {
+                    return Some(gproxy_protocol::openai::ModelReasoningLevel {
+                        effort: effort.into(),
+                        description: String::new(),
+                    });
+                }
+                serde_json::from_value(level.clone()).ok()
+            })
+            .collect(),
+    )
 }
 
 fn positive(value: &Value, name: &str) -> Option<u64> {

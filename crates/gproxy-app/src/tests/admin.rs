@@ -175,6 +175,7 @@ async fn portal_admin_sees_enabled_provider_models_without_exposed_routes() {
             thinking_supported: None,
             thinking_adaptive_supported: None,
             thinking_enabled_supported: None,
+            metadata: Default::default(),
             enabled: true,
         })
         .await

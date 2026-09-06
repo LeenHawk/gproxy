@@ -113,6 +113,7 @@ impl MemoryHost {
                     thinking_supported: None,
                     thinking_adaptive_supported: None,
                     thinking_enabled_supported: None,
+                    metadata: Default::default(),
                 }],
                 admission_finishes: Vec::new(),
                 bindings_enabled: true,

@@ -87,6 +87,7 @@ fn catalogue_entry(folded: &super::capability::Folded, id: String) -> gproxy_cor
         thinking_supported: folded.thinking_supported,
         thinking_adaptive_supported: folded.thinking_adaptive_supported,
         thinking_enabled_supported: folded.thinking_enabled_supported,
+        metadata: folded.metadata.clone(),
     }
 }
 

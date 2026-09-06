@@ -167,7 +167,114 @@ fn entry(provider: &str, value: &serde_json::Value, namespace: bool) -> Option<E
         thinking_supported: boolean(value, "thinking_supported"),
         thinking_adaptive_supported: boolean(value, "thinking_adaptive_supported"),
         thinking_enabled_supported: boolean(value, "thinking_enabled_supported"),
+        metadata: metadata(value),
     })
+}
+
+fn metadata(value: &serde_json::Value) -> crate::ModelMetadata {
+    let capabilities = value.get("capabilities");
+    crate::ModelMetadata {
+        description: text(value, &["description"]),
+        instructions: text(value, &["instructions", "base_instructions"]),
+        max_context_window: integer(value, &["max_context_window"]),
+        input_modalities: strings(value, &["input_modalities"]),
+        output_modalities: strings(value, &["output_modalities"]),
+        supported_parameters: strings(value, &["supported_parameters"]),
+        reasoning_levels: reasoning_levels(value),
+        default_reasoning_level: text(value, &["default_reasoning_level"]),
+        service_tiers: service_tiers(value),
+        default_service_tier: text(value, &["default_service_tier"]),
+        generation_methods: strings(value, &["supportedGenerationMethods"]),
+        supported_actions: strings(value, &["supportedActions"]),
+        shell_type: text(value, &["shell_type"]),
+        support_verbosity: boolean(value, "support_verbosity"),
+        default_verbosity: text(value, &["default_verbosity"]),
+        supports_reasoning_summary_parameter: boolean(
+            value,
+            "supports_reasoning_summary_parameter",
+        ),
+        default_reasoning_summary: text(value, &["default_reasoning_summary"]),
+        apply_patch_tool_type: text(value, &["apply_patch_tool_type"]),
+        web_search_tool_type: text(value, &["web_search_tool_type"]),
+        truncation_mode: value
+            .get("truncation_policy")
+            .and_then(|policy| text(policy, &["mode"])),
+        truncation_limit: value
+            .get("truncation_policy")
+            .and_then(|policy| integer(policy, &["limit"])),
+        auto_compact_token_limit: integer(value, &["auto_compact_token_limit"]),
+        effective_context_window_percent: integer(value, &["effective_context_window_percent"]),
+        batch_supported: capability(capabilities, "batch"),
+        citations_supported: capability(capabilities, "citations"),
+        code_execution_supported: capability(capabilities, "code_execution"),
+        context_management_supported: capability(capabilities, "context_management"),
+        structured_outputs_supported: capability(capabilities, "structured_outputs"),
+        pdf_input_supported: capability(capabilities, "pdf_input"),
+        supports_image_detail_original: boolean(value, "supports_image_detail_original"),
+        supports_search_tool: boolean(value, "supports_search_tool"),
+    }
+}
+
+fn strings(value: &serde_json::Value, names: &[&str]) -> Option<Vec<String>> {
+    let values = names.iter().find_map(|name| value.get(*name)?.as_array())?;
+    Some(
+        values
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+    )
+}
+
+fn reasoning_levels(value: &serde_json::Value) -> Option<Vec<crate::ModelReasoningLevel>> {
+    Some(
+        value
+            .get("supported_reasoning_levels")?
+            .as_array()?
+            .iter()
+            .filter_map(|level| {
+                if let Some(effort) = level.as_str() {
+                    return Some(crate::ModelReasoningLevel {
+                        effort: effort.into(),
+                        description: String::new(),
+                    });
+                }
+                Some(crate::ModelReasoningLevel {
+                    effort: level.get("effort")?.as_str()?.into(),
+                    description: level
+                        .get("description")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .into(),
+                })
+            })
+            .collect(),
+    )
+}
+
+fn service_tiers(value: &serde_json::Value) -> Option<Vec<crate::ModelServiceTier>> {
+    Some(
+        value
+            .get("service_tiers")?
+            .as_array()?
+            .iter()
+            .filter_map(|tier| {
+                Some(crate::ModelServiceTier {
+                    id: tier.get("id")?.as_str()?.into(),
+                    name: tier.get("name")?.as_str()?.into(),
+                    description: tier
+                        .get("description")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .into(),
+                })
+            })
+            .collect(),
+    )
+}
+
+fn capability(value: Option<&serde_json::Value>, name: &str) -> Option<bool> {
+    value?.get(name)?.get("supported")?.as_bool()
 }
 
 fn text(value: &serde_json::Value, names: &[&str]) -> Option<String> {

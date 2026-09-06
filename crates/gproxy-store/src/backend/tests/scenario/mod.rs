@@ -104,6 +104,24 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
             thinking_supported: None,
             thinking_adaptive_supported: None,
             thinking_enabled_supported: None,
+            metadata: gproxy_core::ModelMetadata {
+                description: Some("Test model".into()),
+                input_modalities: Some(vec!["text".into(), "image".into()]),
+                output_modalities: Some(Vec::new()),
+                supported_parameters: Some(vec!["tools".into()]),
+                reasoning_levels: Some(vec![gproxy_core::ModelReasoningLevel {
+                    effort: "high".into(),
+                    description: "Deep reasoning".into(),
+                }]),
+                service_tiers: Some(vec![gproxy_core::ModelServiceTier {
+                    id: "priority".into(),
+                    name: "Fast".into(),
+                    description: "Faster responses".into(),
+                }]),
+                generation_methods: Some(Vec::new()),
+                supported_actions: Some(Vec::new()),
+                ..Default::default()
+            },
             enabled: true,
         })
         .await?;
@@ -116,6 +134,17 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         })
         .await?;
     let snapshot = store.control_snapshot().await?;
+    let model = snapshot
+        .provider_models
+        .first()
+        .expect("seeded provider model");
+    assert_eq!(
+        model.metadata.input_modalities.as_deref(),
+        Some(&["text".to_owned(), "image".to_owned()][..])
+    );
+    assert_eq!(model.metadata.output_modalities, Some(Vec::new()));
+    assert_eq!(model.metadata.generation_methods, Some(Vec::new()));
+    assert_eq!(model.metadata.supported_actions, Some(Vec::new()));
     let admin = admin::run(store, user_key).await?;
 
     store

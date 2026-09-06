@@ -125,6 +125,56 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("thinking_supported", Integer),
             Col::optional("thinking_adaptive_supported", Integer),
             Col::optional("thinking_enabled_supported", Integer),
+            Col::optional("description", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("instructions", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("max_context_window", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("default_reasoning_level", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("default_service_tier", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("shell_type", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("support_verbosity", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("default_verbosity", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("reasoning_summary_supported", Integer)
+                .since(SchemaVersion::ModelMetadata),
+            Col::optional("default_reasoning_summary", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("apply_patch_tool_type", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("web_search_tool_type", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("truncation_mode", Text).since(SchemaVersion::ModelMetadata),
+            Col::optional("truncation_limit", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("auto_compact_token_limit", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("effective_context_window_percent", Integer)
+                .since(SchemaVersion::ModelMetadata),
+            Col::optional("batch_supported", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("citations_supported", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("code_execution_supported", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("context_management_supported", Integer)
+                .since(SchemaVersion::ModelMetadata),
+            Col::optional("structured_outputs_supported", Integer)
+                .since(SchemaVersion::ModelMetadata),
+            Col::optional("pdf_input_supported", Integer).since(SchemaVersion::ModelMetadata),
+            Col::optional("image_detail_original_supported", Integer)
+                .since(SchemaVersion::ModelMetadata),
+            Col::optional("search_supported", Integer).since(SchemaVersion::ModelMetadata),
+            Col::required("input_modalities_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
+            Col::required("output_modalities_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
+            Col::required("parameters_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
+            Col::required("reasoning_levels_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
+            Col::required("service_tiers_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
+            Col::required("generation_methods_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
+            Col::required("supported_actions_known", Integer)
+                .default("0")
+                .since(SchemaVersion::ModelMetadata),
             Col::required("enabled", Integer),
         ],
         indexes: &[IndexSpec {
@@ -294,5 +344,95 @@ pub const TABLES: &[TableSpec] = &[
                 added_in: None,
             },
         ],
+    },
+    TableSpec {
+        version: SchemaVersion::ModelMetadata,
+        name: "provider_model_modalities",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::required("model_id", Text),
+            Col::required("direction", Text),
+            Col::required("modality", Text),
+            Col::required("sort_order", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_provider_model_modalities",
+            columns: &["provider_id", "model_id", "direction", "modality"],
+            unique: true,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::ModelMetadata,
+        name: "provider_model_parameters",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::required("model_id", Text),
+            Col::required("parameter", Text),
+            Col::required("sort_order", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_provider_model_parameters",
+            columns: &["provider_id", "model_id", "parameter"],
+            unique: true,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::ModelMetadata,
+        name: "provider_model_reasoning_levels",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::required("model_id", Text),
+            Col::required("effort", Text),
+            Col::required("description", Text),
+            Col::required("sort_order", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_provider_model_reasoning_levels",
+            columns: &["provider_id", "model_id", "effort"],
+            unique: true,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::ModelMetadata,
+        name: "provider_model_service_tiers",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::required("model_id", Text),
+            Col::required("tier_id", Text),
+            Col::required("name", Text),
+            Col::required("description", Text),
+            Col::required("sort_order", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_provider_model_service_tiers",
+            columns: &["provider_id", "model_id", "tier_id"],
+            unique: true,
+            added_in: None,
+        }],
+    },
+    TableSpec {
+        version: SchemaVersion::ModelMetadata,
+        name: "provider_model_methods",
+        columns: &[
+            Col::id(),
+            Col::required("provider_id", Integer),
+            Col::required("model_id", Text),
+            Col::required("kind", Text),
+            Col::required("method", Text),
+            Col::required("sort_order", Integer),
+        ],
+        indexes: &[IndexSpec {
+            name: "uq_provider_model_methods",
+            columns: &["provider_id", "model_id", "kind", "method"],
+            unique: true,
+            added_in: None,
+        }],
     },
 ];

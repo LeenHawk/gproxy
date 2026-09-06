@@ -41,7 +41,7 @@ pub use login::{
     DevicePollCtx, DeviceStartCtx, LoginDescriptor, LoginMode, LoginParam, LoginParamCondition,
     LoginParamKind,
 };
-pub use model::ModelInfo;
+pub use model::{ModelInfo, ModelMetadata, ModelReasoningLevel, ModelServiceTier};
 pub use oauth::*;
 pub use operation::{
     DriverInput, OperationDriver, OperationStep, OperationStream, Pause, StepResponse, StreamOutput,

@@ -13,6 +13,12 @@ pub struct DefaultModelCatalogDto {
 pub struct DefaultModelCatalogSourceDto {
     pub catalog: String,
     pub fetched_at: String,
+    #[serde(default)]
+    pub openrouter_models: usize,
+    #[serde(default)]
+    pub codex_models: usize,
+    #[serde(default)]
+    pub codex_revision: Option<String>,
     pub total_models: usize,
     pub context_models: usize,
     pub output_limit_models: usize,
@@ -29,9 +35,9 @@ pub struct DefaultModelDto {
     pub display_name: Option<String>,
     pub context_window: Option<i64>,
     pub max_output_tokens: Option<i64>,
-    pub input_modalities: Vec<String>,
-    pub output_modalities: Vec<String>,
-    pub supported_parameters: Vec<String>,
+    #[serde(flatten)]
+    #[ts(flatten)]
+    pub metadata: super::ModelMetadataDto,
     pub pricing: Option<DefaultModelPricingDto>,
 }
 

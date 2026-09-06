@@ -141,10 +141,15 @@ fn models_count_and_embedding_pairs_preserve_semantic_values() {
     let models = convert_response(
         openai_models,
         gemini_models,
-        json!({"models":[{"name":"models/gemini-test","displayName":"Gemini","inputTokenLimit":32,"outputTokenLimit":8}]}),
+        json!({"models":[{"name":"models/gemini-test","displayName":"Gemini","description":"Test model","inputTokenLimit":32,"outputTokenLimit":8,"supportedGenerationMethods":["generateContent"]}]}),
     );
     assert_eq!(models["data"][0]["id"], "gemini-test");
     assert_eq!(models["data"][0]["context_window"], 32);
+    assert_eq!(models["data"][0]["description"], "Test model");
+    assert_eq!(
+        models["data"][0]["generation_methods"][0],
+        "generateContent"
+    );
 
     let openai_count = family(Operation::CountTokens, WireFamily::OpenAi);
     let gemini_count = family(Operation::CountTokens, WireFamily::Gemini);

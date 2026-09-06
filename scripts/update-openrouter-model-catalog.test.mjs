@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { buildCatalog, perMillion } from "./update-openrouter-model-catalog.mjs"
+import { applyCodexCatalog, buildCatalog, perMillion } from "./update-openrouter-model-catalog.mjs"
 
 test("converts exact OpenRouter token decimals to per-million prices", () => {
   assert.equal(perMillion("0.00000625"), "6.25")
@@ -102,4 +102,30 @@ test("rejects duplicate global basename patterns", () => {
     () => buildCatalog({ data: [model("one/shared"), model("two/shared")] }),
     /duplicate OpenRouter model basename/,
   )
+})
+
+test("overlays Codex capabilities and adds Codex-only models", () => {
+  const catalog = buildCatalog({ data: [{
+    id: "openai/gpt-test",
+    context_length: 1000,
+    top_provider: { max_completion_tokens: 100 },
+    supported_parameters: ["tools"],
+    architecture: { input_modalities: ["text"], output_modalities: ["text"] },
+    pricing: { prompt: "0", completion: "0" },
+  }] }, "2026-09-06T00:00:00.000Z")
+  applyCodexCatalog(catalog, { models: [{
+    slug: "gpt-test",
+    display_name: "GPT Test",
+    base_instructions: "Use tools carefully.",
+    context_window: 2000,
+    supported_reasoning_levels: [{ effort: "high", description: "Deep" }],
+    service_tiers: [],
+  }, { slug: "codex-only", input_modalities: ["text"] }] }, "abc123")
+  const model = catalog.models.find((entry) => entry.model_id === "openai/gpt-test")
+  assert.equal(model.context_window, 2000)
+  assert.equal(model.instructions, "Use tools carefully.")
+  assert.equal(model.supported_reasoning_levels[0].effort, "high")
+  assert(model.supported_parameters.includes("reasoning_effort"))
+  assert(catalog.models.some((entry) => entry.model_id === "openai/codex-only"))
+  assert.equal(catalog.source.codex_revision, "abc123")
 })

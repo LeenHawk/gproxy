@@ -6,6 +6,8 @@ use serde_json::{Value, json};
 use crate::boundary::{ExecOutcome, ResponseBody};
 use crate::error::CoreError;
 
+const DEFAULT_INSTRUCTIONS: &str = "You are Codex, a coding agent. Work with the user in the current workspace, follow repository instructions, and complete the requested task carefully.";
+
 pub(super) fn render(
     headers: &HeaderMap,
     key: OperationKey,
@@ -75,7 +77,10 @@ fn model(source: &Value) -> Result<Value, CoreError> {
         "visibility": "list",
         "supported_in_api": true,
         "priority": 0,
-        "base_instructions": "",
+        "base_instructions": source
+            .get("instructions")
+            .and_then(Value::as_str)
+            .unwrap_or(DEFAULT_INSTRUCTIONS),
         "support_verbosity": false,
         "supports_reasoning_summary_parameter": false,
         "truncation_policy": { "mode": "bytes", "limit": 10_000 },
@@ -87,6 +92,8 @@ fn model(source: &Value) -> Result<Value, CoreError> {
         "description",
         "default_reasoning_level",
         "supported_reasoning_levels",
+        "service_tiers",
+        "default_service_tier",
         "shell_type",
         "base_instructions",
         "model_messages",
@@ -101,6 +108,8 @@ fn model(source: &Value) -> Result<Value, CoreError> {
         "effective_context_window_percent",
         "experimental_supported_tools",
         "input_modalities",
+        "supports_image_detail_original",
+        "supports_search_tool",
     ] {
         if let Some(value) = source.get(field).filter(|value| !value.is_null()) {
             target[field] = value.clone();

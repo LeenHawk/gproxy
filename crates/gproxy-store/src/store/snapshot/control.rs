@@ -127,15 +127,60 @@ pub(super) fn exposed_models(result: QueryResult) -> Result<Vec<ExposedModelReco
         .collect()
 }
 
-pub(super) fn provider_models(result: QueryResult) -> Result<Vec<ProviderModelRecord>, StoreError> {
+pub(super) fn provider_models(
+    result: QueryResult,
+    modalities: QueryResult,
+    parameters: QueryResult,
+    reasoning: QueryResult,
+    tiers: QueryResult,
+    methods: QueryResult,
+) -> Result<Vec<ProviderModelRecord>, StoreError> {
+    let mut metadata = model_metadata(modalities, parameters, reasoning, tiers, methods)?;
     result
         .rows
         .into_iter()
         .map(|row| {
+            let key = (row.i64("provider_id")?, row.text("model_id")?.to_owned());
+            let mut collections = metadata.remove(&key).unwrap_or_default();
+            if row.i64("input_modalities_known")? == 0 {
+                collections.input_modalities = None;
+            } else {
+                collections.input_modalities.get_or_insert_default();
+            }
+            if row.i64("output_modalities_known")? == 0 {
+                collections.output_modalities = None;
+            } else {
+                collections.output_modalities.get_or_insert_default();
+            }
+            if row.i64("parameters_known")? == 0 {
+                collections.supported_parameters = None;
+            } else {
+                collections.supported_parameters.get_or_insert_default();
+            }
+            if row.i64("reasoning_levels_known")? == 0 {
+                collections.reasoning_levels = None;
+            } else {
+                collections.reasoning_levels.get_or_insert_default();
+            }
+            if row.i64("service_tiers_known")? == 0 {
+                collections.service_tiers = None;
+            } else {
+                collections.service_tiers.get_or_insert_default();
+            }
+            if row.i64("generation_methods_known")? == 0 {
+                collections.generation_methods = None;
+            } else {
+                collections.generation_methods.get_or_insert_default();
+            }
+            if row.i64("supported_actions_known")? == 0 {
+                collections.supported_actions = None;
+            } else {
+                collections.supported_actions.get_or_insert_default();
+            }
             Ok(ProviderModelRecord {
                 id: row.i64("id")?,
-                provider_id: row.i64("provider_id")?,
-                model_id: row.text("model_id")?.to_owned(),
+                provider_id: key.0,
+                model_id: key.1,
                 display_name: row.optional_text("display_name")?.map(str::to_owned),
                 variants: row
                     .optional_text("variants_json")?
@@ -152,10 +197,149 @@ pub(super) fn provider_models(result: QueryResult) -> Result<Vec<ProviderModelRe
                 thinking_enabled_supported: row
                     .optional_i64("thinking_enabled_supported")?
                     .map(|value| value != 0),
+                metadata: gproxy_core::ModelMetadata {
+                    description: optional_text(&row, "description")?,
+                    instructions: optional_text(&row, "instructions")?,
+                    max_context_window: row.optional_i64("max_context_window")?,
+                    default_reasoning_level: optional_text(&row, "default_reasoning_level")?,
+                    default_service_tier: optional_text(&row, "default_service_tier")?,
+                    shell_type: optional_text(&row, "shell_type")?,
+                    support_verbosity: optional_bool(&row, "support_verbosity")?,
+                    default_verbosity: optional_text(&row, "default_verbosity")?,
+                    supports_reasoning_summary_parameter: optional_bool(
+                        &row,
+                        "reasoning_summary_supported",
+                    )?,
+                    default_reasoning_summary: optional_text(&row, "default_reasoning_summary")?,
+                    apply_patch_tool_type: optional_text(&row, "apply_patch_tool_type")?,
+                    web_search_tool_type: optional_text(&row, "web_search_tool_type")?,
+                    truncation_mode: optional_text(&row, "truncation_mode")?,
+                    truncation_limit: row.optional_i64("truncation_limit")?,
+                    auto_compact_token_limit: row.optional_i64("auto_compact_token_limit")?,
+                    effective_context_window_percent: row
+                        .optional_i64("effective_context_window_percent")?,
+                    batch_supported: optional_bool(&row, "batch_supported")?,
+                    citations_supported: optional_bool(&row, "citations_supported")?,
+                    code_execution_supported: optional_bool(&row, "code_execution_supported")?,
+                    context_management_supported: optional_bool(
+                        &row,
+                        "context_management_supported",
+                    )?,
+                    structured_outputs_supported: optional_bool(
+                        &row,
+                        "structured_outputs_supported",
+                    )?,
+                    pdf_input_supported: optional_bool(&row, "pdf_input_supported")?,
+                    supports_image_detail_original: optional_bool(
+                        &row,
+                        "image_detail_original_supported",
+                    )?,
+                    supports_search_tool: optional_bool(&row, "search_supported")?,
+                    ..collections
+                },
                 enabled: row.i64("enabled")? != 0,
             })
         })
         .collect()
+}
+
+fn optional_text(
+    row: &crate::backend::Row,
+    name: &'static str,
+) -> Result<Option<String>, StoreError> {
+    Ok(row.optional_text(name)?.map(str::to_owned))
+}
+
+fn optional_bool(
+    row: &crate::backend::Row,
+    name: &'static str,
+) -> Result<Option<bool>, StoreError> {
+    Ok(row.optional_i64(name)?.map(|value| value != 0))
+}
+
+fn model_metadata(
+    modalities: QueryResult,
+    parameters: QueryResult,
+    reasoning: QueryResult,
+    tiers: QueryResult,
+    methods: QueryResult,
+) -> Result<std::collections::BTreeMap<(i64, String), gproxy_core::ModelMetadata>, StoreError> {
+    let mut result = std::collections::BTreeMap::new();
+    for row in modalities.rows {
+        let metadata = metadata_entry(&mut result, &row)?;
+        let value = row.text("modality")?.to_owned();
+        match row.text("direction")? {
+            "input" => metadata
+                .input_modalities
+                .get_or_insert_default()
+                .push(value),
+            "output" => metadata
+                .output_modalities
+                .get_or_insert_default()
+                .push(value),
+            direction => {
+                return Err(StoreError::InvalidData {
+                    field: "model modality direction",
+                    message: direction.to_owned(),
+                });
+            }
+        }
+    }
+    for row in parameters.rows {
+        metadata_entry(&mut result, &row)?
+            .supported_parameters
+            .get_or_insert_default()
+            .push(row.text("parameter")?.to_owned());
+    }
+    for row in reasoning.rows {
+        metadata_entry(&mut result, &row)?
+            .reasoning_levels
+            .get_or_insert_default()
+            .push(gproxy_core::ModelReasoningLevel {
+                effort: row.text("effort")?.to_owned(),
+                description: row.text("description")?.to_owned(),
+            });
+    }
+    for row in tiers.rows {
+        metadata_entry(&mut result, &row)?
+            .service_tiers
+            .get_or_insert_default()
+            .push(gproxy_core::ModelServiceTier {
+                id: row.text("tier_id")?.to_owned(),
+                name: row.text("name")?.to_owned(),
+                description: row.text("description")?.to_owned(),
+            });
+    }
+    for row in methods.rows {
+        let metadata = metadata_entry(&mut result, &row)?;
+        let value = row.text("method")?.to_owned();
+        match row.text("kind")? {
+            "generation" => metadata
+                .generation_methods
+                .get_or_insert_default()
+                .push(value),
+            "action" => metadata
+                .supported_actions
+                .get_or_insert_default()
+                .push(value),
+            kind => {
+                return Err(StoreError::InvalidData {
+                    field: "model method kind",
+                    message: kind.to_owned(),
+                });
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn metadata_entry<'a>(
+    metadata: &'a mut std::collections::BTreeMap<(i64, String), gproxy_core::ModelMetadata>,
+    row: &crate::backend::Row,
+) -> Result<&'a mut gproxy_core::ModelMetadata, StoreError> {
+    Ok(metadata
+        .entry((row.i64("provider_id")?, row.text("model_id")?.to_owned()))
+        .or_default())
 }
 
 pub(super) fn price_rules(result: QueryResult) -> Result<Vec<PriceRuleRecord>, StoreError> {

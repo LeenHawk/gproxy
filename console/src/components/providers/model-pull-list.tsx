@@ -28,8 +28,8 @@ export function ModelPullList({ models, selected, pending, actionFor, onToggle }
         <span className="min-w-0 flex-1">
           <span className="machine-text block truncate text-xs font-medium">{model.model_id}</span>
           <span className="block truncate text-xs text-muted-foreground">{model.display_name ?? t("providers.models.pullNoDisplayName")}</span>
-          {model.input_modalities.length > 0 || model.output_modalities.length > 0
-            ? <span className="machine-text block truncate text-[11px] text-muted-foreground">{model.input_modalities.join(", ") || "—"} → {model.output_modalities.join(", ") || "—"}</span>
+          {(model.metadata.input_modalities?.length ?? 0) > 0 || (model.metadata.output_modalities?.length ?? 0) > 0
+            ? <span className="machine-text block truncate text-[11px] text-muted-foreground">{model.metadata.input_modalities?.join(", ") || "—"} → {model.metadata.output_modalities?.join(", ") || "—"}</span>
             : null}
         </span>
         <span className="hidden shrink-0 text-right text-xs text-muted-foreground md:block">

@@ -35,6 +35,10 @@ pub fn default_model_price_available(model: &str) -> bool {
     handlers::default_models::has_price(model)
 }
 
+pub fn default_model_price_count() -> usize {
+    handlers::default_models::price_count()
+}
+
 pub async fn seed_first_admin(
     store: &gproxy_store::Store,
     username: &str,

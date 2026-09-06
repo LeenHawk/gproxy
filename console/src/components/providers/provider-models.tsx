@@ -142,6 +142,7 @@ function request(model: ProviderModelDto): ProviderModelWriteRequest {
     thinking_supported: model.thinking_supported,
     thinking_adaptive_supported: model.thinking_adaptive_supported,
     thinking_enabled_supported: model.thinking_enabled_supported,
+    metadata: model.metadata,
     enabled: model.enabled,
   }
 }

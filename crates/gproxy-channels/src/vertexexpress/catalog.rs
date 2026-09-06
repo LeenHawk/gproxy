@@ -99,6 +99,7 @@ pub(super) fn models() -> Vec<ModelInfo> {
                 thinking_supported: *thinking_supported,
                 thinking_adaptive_supported: None,
                 thinking_enabled_supported: None,
+                metadata: Default::default(),
             },
         )
         .collect()

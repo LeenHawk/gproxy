@@ -94,9 +94,7 @@ pub struct DiscoveredModelDto {
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
     pub thinking_enabled_supported: Option<bool>,
-    pub input_modalities: Vec<String>,
-    pub output_modalities: Vec<String>,
-    pub supported_parameters: Vec<String>,
+    pub metadata: super::ModelMetadataDto,
     pub default_price_available: bool,
     pub known: bool,
 }

@@ -48,6 +48,130 @@ fn openai(model: &ExposedModel) -> Value {
     if model.thinking_supported == Some(true) {
         value["supported_parameters"] = json!(["reasoning"]);
     }
+    let metadata = &model.metadata;
+    for (name, field) in [
+        (
+            "description",
+            metadata.description.as_ref().map(|value| json!(value)),
+        ),
+        (
+            "instructions",
+            metadata.instructions.as_ref().map(|value| json!(value)),
+        ),
+        (
+            "max_context_window",
+            metadata.max_context_window.map(|value| json!(value)),
+        ),
+        (
+            "input_modalities",
+            metadata.input_modalities.as_ref().map(|value| json!(value)),
+        ),
+        (
+            "output_modalities",
+            metadata
+                .output_modalities
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "supported_parameters",
+            metadata
+                .supported_parameters
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "supported_reasoning_levels",
+            metadata.reasoning_levels.as_ref().map(|value| json!(value)),
+        ),
+        (
+            "default_reasoning_level",
+            metadata
+                .default_reasoning_level
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "service_tiers",
+            metadata.service_tiers.as_ref().map(|value| json!(value)),
+        ),
+        (
+            "default_service_tier",
+            metadata
+                .default_service_tier
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "shell_type",
+            metadata.shell_type.as_ref().map(|value| json!(value)),
+        ),
+        (
+            "support_verbosity",
+            metadata.support_verbosity.map(|value| json!(value)),
+        ),
+        (
+            "default_verbosity",
+            metadata
+                .default_verbosity
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "supports_reasoning_summary_parameter",
+            metadata
+                .supports_reasoning_summary_parameter
+                .map(|value| json!(value)),
+        ),
+        (
+            "default_reasoning_summary",
+            metadata
+                .default_reasoning_summary
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "apply_patch_tool_type",
+            metadata
+                .apply_patch_tool_type
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "web_search_tool_type",
+            metadata
+                .web_search_tool_type
+                .as_ref()
+                .map(|value| json!(value)),
+        ),
+        (
+            "auto_compact_token_limit",
+            metadata.auto_compact_token_limit.map(|value| json!(value)),
+        ),
+        (
+            "effective_context_window_percent",
+            metadata
+                .effective_context_window_percent
+                .map(|value| json!(value)),
+        ),
+        (
+            "supports_image_detail_original",
+            metadata
+                .supports_image_detail_original
+                .map(|value| json!(value)),
+        ),
+        (
+            "supports_search_tool",
+            metadata.supports_search_tool.map(|value| json!(value)),
+        ),
+    ] {
+        if let Some(field) = field {
+            value[name] = field;
+        }
+    }
+    if let (Some(mode), Some(limit)) = (&metadata.truncation_mode, metadata.truncation_limit) {
+        value["truncation_policy"] = json!({ "mode": mode, "limit": limit });
+    }
     value
 }
 
@@ -67,8 +191,14 @@ fn claude(model: &ExposedModel) -> Value {
     if model.thinking_supported.is_some()
         || model.thinking_adaptive_supported.is_some()
         || model.thinking_enabled_supported.is_some()
+        || model.metadata.batch_supported.is_some()
+        || model.metadata.citations_supported.is_some()
+        || model.metadata.code_execution_supported.is_some()
+        || model.metadata.context_management_supported.is_some()
+        || model.metadata.structured_outputs_supported.is_some()
     {
-        let mut thinking = json!({});
+        let supported = |value: Option<bool>| json!({ "supported": value.unwrap_or(false) });
+        let mut thinking = json!({ "supported": model.thinking_supported.unwrap_or(false) });
         if let Some(supported) = model.thinking_supported {
             thinking["supported"] = json!(supported);
         }
@@ -80,7 +210,34 @@ fn claude(model: &ExposedModel) -> Value {
             types["enabled"] = json!({ "supported": supported });
         }
         thinking["types"] = types;
-        value["capabilities"] = json!({ "thinking": thinking });
+        let effort = model
+            .metadata
+            .reasoning_levels
+            .as_ref()
+            .map(|levels| {
+                let mut value = json!({ "supported": !levels.is_empty() });
+                for level in levels {
+                    if matches!(
+                        level.effort.as_str(),
+                        "low" | "medium" | "high" | "xhigh" | "max"
+                    ) {
+                        value[&level.effort] = supported(Some(true));
+                    }
+                }
+                value
+            })
+            .unwrap_or_else(|| json!({ "supported": false }));
+        value["capabilities"] = json!({
+            "batch": supported(model.metadata.batch_supported),
+            "citations": supported(model.metadata.citations_supported),
+            "code_execution": supported(model.metadata.code_execution_supported),
+            "context_management": { "supported": model.metadata.context_management_supported.unwrap_or(false) },
+            "effort": effort,
+            "image_input": supported(model.metadata.input_modalities.as_ref().map(|values| values.iter().any(|value| value == "image"))),
+            "pdf_input": supported(model.metadata.pdf_input_supported),
+            "structured_outputs": supported(model.metadata.structured_outputs_supported),
+            "thinking": thinking,
+        });
     }
     value
 }
@@ -98,6 +255,15 @@ fn gemini(model: &ExposedModel) -> Value {
     }
     if let Some(supported) = model.thinking_supported {
         value["thinking"] = json!(supported);
+    }
+    if let Some(description) = &model.metadata.description {
+        value["description"] = json!(description);
+    }
+    if let Some(methods) = &model.metadata.generation_methods {
+        value["supportedGenerationMethods"] = json!(methods);
+    }
+    if let Some(actions) = &model.metadata.supported_actions {
+        value["supportedActions"] = json!(actions);
     }
     value
 }

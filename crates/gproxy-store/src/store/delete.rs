@@ -36,8 +36,26 @@ impl Store {
     }
 
     pub async fn delete_provider_model(&self, id: i64) -> Result<bool, StoreError> {
-        self.delete(crate::query::delete_by_id("provider_models", id)?)
-            .await
+        let current = self
+            .control_snapshot()
+            .await?
+            .provider_models
+            .into_iter()
+            .find(|model| model.id == id);
+        let Some(current) = current else {
+            return Ok(false);
+        };
+        let mut statements = vec![crate::query::delete_by_id("provider_models", id)?];
+        statements.extend(crate::query::control::delete_model_metadata(
+            current.provider_id,
+            &current.model_id,
+        )?);
+        Ok(self
+            .backend()
+            .batch(statements)
+            .await?
+            .first()
+            .is_some_and(|result| result.affected_rows == 1))
     }
 
     pub async fn delete_organization(&self, id: i64) -> Result<bool, StoreError> {

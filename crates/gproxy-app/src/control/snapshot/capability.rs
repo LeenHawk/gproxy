@@ -25,6 +25,7 @@ pub(super) struct Folded {
     pub thinking_supported: Option<bool>,
     pub thinking_adaptive_supported: Option<bool>,
     pub thinking_enabled_supported: Option<bool>,
+    pub metadata: gproxy_core::ModelMetadata,
 }
 
 pub(super) fn by_provider_model(
@@ -68,7 +69,73 @@ pub(super) fn fold(
         thinking_enabled_supported: intersection(
             members.iter().map(|model| model.thinking_enabled_supported),
         ),
+        metadata: fold_metadata(&members),
     })
+}
+
+fn fold_metadata(members: &[&ProviderModelRecord]) -> gproxy_core::ModelMetadata {
+    let strings = |get: fn(&gproxy_core::ModelMetadata) -> &Option<String>| {
+        common(members.iter().map(|model| get(&model.metadata).as_ref())).cloned()
+    };
+    let numbers = |get: fn(&gproxy_core::ModelMetadata) -> Option<i64>| {
+        minimum(members.iter().map(|model| get(&model.metadata)))
+    };
+    let flags = |get: fn(&gproxy_core::ModelMetadata) -> Option<bool>| {
+        intersection(members.iter().map(|model| get(&model.metadata)))
+    };
+    gproxy_core::ModelMetadata {
+        description: strings(|value| &value.description),
+        instructions: strings(|value| &value.instructions),
+        max_context_window: numbers(|value| value.max_context_window),
+        input_modalities: intersect_values(members, |value| &value.input_modalities),
+        output_modalities: intersect_values(members, |value| &value.output_modalities),
+        supported_parameters: intersect_values(members, |value| &value.supported_parameters),
+        reasoning_levels: intersect_values(members, |value| &value.reasoning_levels),
+        default_reasoning_level: strings(|value| &value.default_reasoning_level),
+        service_tiers: intersect_values(members, |value| &value.service_tiers),
+        default_service_tier: strings(|value| &value.default_service_tier),
+        generation_methods: intersect_values(members, |value| &value.generation_methods),
+        supported_actions: intersect_values(members, |value| &value.supported_actions),
+        shell_type: strings(|value| &value.shell_type),
+        support_verbosity: flags(|value| value.support_verbosity),
+        default_verbosity: strings(|value| &value.default_verbosity),
+        supports_reasoning_summary_parameter: flags(|value| {
+            value.supports_reasoning_summary_parameter
+        }),
+        default_reasoning_summary: strings(|value| &value.default_reasoning_summary),
+        apply_patch_tool_type: strings(|value| &value.apply_patch_tool_type),
+        web_search_tool_type: strings(|value| &value.web_search_tool_type),
+        truncation_mode: strings(|value| &value.truncation_mode),
+        truncation_limit: numbers(|value| value.truncation_limit),
+        auto_compact_token_limit: numbers(|value| value.auto_compact_token_limit),
+        effective_context_window_percent: numbers(|value| value.effective_context_window_percent),
+        batch_supported: flags(|value| value.batch_supported),
+        citations_supported: flags(|value| value.citations_supported),
+        code_execution_supported: flags(|value| value.code_execution_supported),
+        context_management_supported: flags(|value| value.context_management_supported),
+        structured_outputs_supported: flags(|value| value.structured_outputs_supported),
+        pdf_input_supported: flags(|value| value.pdf_input_supported),
+        supports_image_detail_original: flags(|value| value.supports_image_detail_original),
+        supports_search_tool: flags(|value| value.supports_search_tool),
+    }
+}
+
+fn intersect_values<T: Clone + PartialEq>(
+    members: &[&ProviderModelRecord],
+    get: impl Fn(&gproxy_core::ModelMetadata) -> &Option<Vec<T>>,
+) -> Option<Vec<T>> {
+    let first = get(&members.first()?.metadata).as_ref()?.clone();
+    let rest = members
+        .iter()
+        .skip(1)
+        .map(|model| get(&model.metadata).as_ref())
+        .collect::<Option<Vec<_>>>()?;
+    Some(
+        first
+            .into_iter()
+            .filter(|value| rest.iter().all(|values| values.contains(value)))
+            .collect(),
+    )
 }
 
 fn variants(
@@ -156,6 +223,7 @@ pub(super) fn provider_catalogue(
                 thinking_supported: model.thinking_supported,
                 thinking_adaptive_supported: model.thinking_adaptive_supported,
                 thinking_enabled_supported: model.thinking_enabled_supported,
+                metadata: model.metadata.clone(),
             })
         })
         .collect()

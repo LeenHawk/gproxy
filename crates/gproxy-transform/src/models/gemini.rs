@@ -65,10 +65,33 @@ pub(crate) fn gemini_to_openai(model: gemini::Model) -> openai::Model {
         id: gemini_id(&model).into(),
         created: None,
         display_name: model.display_name,
+        description: model.description,
+        instructions: None,
         context_window: model.input_token_limit.map(nonnegative_u64),
         max_context_window: None,
         max_output_tokens: model.output_token_limit.map(nonnegative_u64),
         thinking_supported: model.thinking,
+        input_modalities: None,
+        output_modalities: None,
+        supported_parameters: None,
+        supported_reasoning_levels: None,
+        default_reasoning_level: None,
+        service_tiers: None,
+        default_service_tier: None,
+        generation_methods: Some(
+            model
+                .supported_generation_methods
+                .iter()
+                .filter_map(wire_value)
+                .collect()
+        ),
+        supported_actions: Some(
+            model
+                .supported_actions
+                .iter()
+                .filter_map(wire_value)
+                .collect()
+        ),
         object: openai::ModelObjectType::Model,
         owned_by: Some("google".into()),
         rest: Default::default(),
@@ -82,11 +105,11 @@ pub(crate) fn openai_to_gemini(model: openai::Model) -> Result<gemini::Model, Tr
         base_model_id: Some(id.clone()),
         version: None,
         display_name: model.display_name.or(Some(id)),
-        description: None,
+        description: model.description,
         input_token_limit: model.context_window.map(saturating_i32),
         output_token_limit: model.max_output_tokens.map(saturating_i32),
-        supported_generation_methods: Vec::new(),
-        supported_actions: Vec::new(),
+        supported_generation_methods: methods(model.generation_methods.as_deref()),
+        supported_actions: methods(model.supported_actions.as_deref()),
         thinking: model.thinking_supported,
         temperature: None,
         max_temperature: None,
@@ -154,6 +177,21 @@ fn wire<T: serde::Serialize>(value: &T) -> Result<String, TransformError> {
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| TransformError::shape("model id", "expected string"))
+}
+
+fn wire_value(value: &impl serde::Serialize) -> Option<String> {
+    serde_json::to_value(value)
+        .ok()?
+        .as_str()
+        .map(str::to_owned)
+}
+
+fn methods(values: Option<&[String]>) -> Vec<gemini::SupportedGenerationMethod> {
+    values
+        .into_iter()
+        .flatten()
+        .filter_map(|value| serde_json::from_value(serde_json::Value::String(value.clone())).ok())
+        .collect()
 }
 
 fn nonnegative_u64(value: i32) -> u64 {

@@ -5,11 +5,12 @@ use super::{admin, control, identity, runtime, tokenizer};
 pub enum SchemaVersion {
     Initial = 1,
     QuotaObservations = 2,
+    ModelMetadata = 3,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 2] = [Self::Initial, Self::QuotaObservations];
-    pub const LATEST: Self = Self::QuotaObservations;
+    pub const ALL: [Self; 3] = [Self::Initial, Self::QuotaObservations, Self::ModelMetadata];
+    pub const LATEST: Self = Self::ModelMetadata;
 
     pub const fn number(self) -> i64 {
         self as i64

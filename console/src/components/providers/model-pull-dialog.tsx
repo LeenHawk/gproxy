@@ -7,6 +7,7 @@ import { applyDefaultModelPrices, discoverModels, saveProviderModel } from "@/ap
 import type { DiscoveredModelDto } from "@/generated/DiscoveredModelDto"
 import type { PriceRuleDto } from "@/generated/PriceRuleDto"
 import type { ProviderModelDto } from "@/generated/ProviderModelDto"
+import type { ModelMetadataDto } from "@/generated/ModelMetadataDto"
 import { ModelPullList, type ModelPullAction } from "@/components/providers/model-pull-list"
 import { ModelPullPriceOption } from "@/components/providers/model-pull-price-option"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -43,7 +44,7 @@ export function ModelPullDialog({ providerId, existing, priceRules, trigger }: P
       row.display_name == null && model.display_name != null,
       row.context_window == null && model.context_window != null,
       row.max_output_tokens == null && model.max_output_tokens != null,
-    ].filter(Boolean).length
+    ].filter(Boolean).length + metadataGaps(row.metadata, model.metadata)
   }
   const modelWrite = (model: DiscoveredModelDto) => !model.known || gaps(model) > 0
   const priceAvailable = (model: DiscoveredModelDto) => !priced.has(model.model_id) && model.default_price_available
@@ -106,6 +107,7 @@ export function ModelPullDialog({ providerId, existing, priceRules, trigger }: P
           thinking_supported: row?.thinking_supported ?? model.thinking_supported,
           thinking_adaptive_supported: row?.thinking_adaptive_supported ?? model.thinking_adaptive_supported,
           thinking_enabled_supported: row?.thinking_enabled_supported ?? model.thinking_enabled_supported,
+          metadata: row ? mergeMetadata(row.metadata, model.metadata) : model.metadata,
           enabled: row?.enabled ?? true,
         }, row?.id)
         saved += 1
@@ -186,4 +188,14 @@ export function ModelPullDialog({ providerId, existing, priceRules, trigger }: P
       </DialogFooter>
     </DialogContent>
   </Dialog>
+}
+
+function metadataGaps(current: ModelMetadataDto, discovered: ModelMetadataDto) {
+  return (Object.keys(current) as Array<keyof ModelMetadataDto>)
+    .filter((key) => current[key] == null && discovered[key] != null).length
+}
+
+function mergeMetadata(current: ModelMetadataDto, discovered: ModelMetadataDto): ModelMetadataDto {
+  return Object.fromEntries((Object.keys(current) as Array<keyof ModelMetadataDto>)
+    .map((key) => [key, current[key] ?? discovered[key]])) as ModelMetadataDto
 }

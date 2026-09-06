@@ -18,6 +18,7 @@ pub(super) fn from_secret(secret: &Value) -> Vec<ModelInfo> {
             thinking_supported: None,
             thinking_adaptive_supported: None,
             thinking_enabled_supported: None,
+            metadata: Default::default(),
         })
         .collect()
 }
