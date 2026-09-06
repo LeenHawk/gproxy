@@ -16,10 +16,12 @@ pub(super) async fn list(
     identity: &PortalIdentity,
 ) -> Result<Response<Bytes>, AdminError> {
     let snapshot = state.store().control_snapshot().await?;
+    let oauth_keys = state.store().oauth_user_key_ids().await?;
     let keys = snapshot
         .user_keys
         .iter()
         .filter(|key| key.user_id == identity.user_id)
+        .filter(|key| !oauth_keys.contains(&key.id))
         .map(|key| UserKeyDto {
             id: key.id,
             user_id: key.user_id,
@@ -127,6 +129,9 @@ pub(super) async fn delete(
 }
 
 async fn own_key(state: &impl State, identity: &PortalIdentity, id: i64) -> Result<(), AdminError> {
+    if state.store().is_oauth_user_key(id).await? {
+        return Err(AdminError::NotFound);
+    }
     state
         .store()
         .control_snapshot()

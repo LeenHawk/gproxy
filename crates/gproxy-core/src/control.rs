@@ -63,6 +63,15 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
     /// in-memory snapshot used by [`Self::resolve`].
     fn exposed_models(&self) -> Vec<ExposedModel>;
 
+    fn catalogue_visible(
+        &self,
+        _identity: &gproxy_channel_api::CallerIdentity,
+        _model: Option<&str>,
+        _mode: &RoutingMode,
+    ) -> bool {
+        true
+    }
+
     /// What each provider is recorded as serving, namespaced as `provider/model`.
     /// This is the operator's list: a row disabled here never reaches a client,
     /// and a row edited here keeps its limits when discovery runs again.

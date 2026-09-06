@@ -17,6 +17,7 @@ impl App {
             .entity_counts()
             .await?
             .into_iter()
+            .filter(|(entity, _)| *entity != "oauth_clients")
             .all(|(_, count)| count == 0);
         if fresh_store {
             let rules = gproxy_admin::seed_global_default_prices(&store)

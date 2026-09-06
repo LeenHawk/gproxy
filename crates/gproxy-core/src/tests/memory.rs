@@ -191,6 +191,7 @@ impl Host for MemoryHost {
         let mut state = self.state.lock().expect("state lock");
         state.auth_calls += 1;
         let identity = CallerIdentity {
+            oauth_access_digest: None,
             user_id: state.caller_user_id,
             user_key_id: state.caller_key_id,
             org_id: None,

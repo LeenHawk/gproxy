@@ -6,6 +6,8 @@ mod delete;
 mod identity;
 mod import;
 mod oauth;
+mod oauth_clients;
+mod oauth_sessions;
 mod process;
 mod recent_usage;
 mod runtime;

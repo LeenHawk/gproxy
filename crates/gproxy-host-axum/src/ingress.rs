@@ -101,6 +101,9 @@ async fn handle_request(
         };
         return crate::response::buffered_response(response, permit, &request_id);
     }
+    if let Some(response) = state.app.oauth_dispatch(&parts, body.clone()).await {
+        return crate::response::buffered_response(response, permit, &request_id);
+    }
     if (path == "/admin/api" || path.starts_with("/admin/api/"))
         && let Some(response) = state.app.admin_dispatch(&parts, body.clone()).await
     {

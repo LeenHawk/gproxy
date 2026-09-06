@@ -8,6 +8,7 @@ mod identity;
 mod instance_settings;
 pub(crate) mod login;
 mod logs;
+mod oauth_clients;
 pub(crate) mod observability;
 mod portal_settings;
 mod pricing;
@@ -85,6 +86,10 @@ pub(crate) async fn dispatch(
         Route::TokenizerAuthReveal => tokenizer_auth::reveal(state).await,
         Route::PortalSettingsRead => portal_settings::get(state).await,
         Route::PortalSettingsWrite => portal_settings::update(state, body).await,
+        Route::OAuthClientsList => oauth_clients::list(state).await,
+        Route::OAuthClientCreate => oauth_clients::create(state, body).await,
+        Route::OAuthClientUpdate(id) => oauth_clients::update(state, id, body).await,
+        Route::OAuthClientDelete(id) => oauth_clients::delete(state, id).await,
         Route::LoginAuthCodeStart => login::authcode_start(state, body).await,
         Route::LoginAuthCodeComplete => login::authcode_complete(state, body).await,
         Route::LoginDeviceStart => login::device_start(state, body).await,

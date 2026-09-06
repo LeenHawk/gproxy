@@ -8,6 +8,7 @@ use crate::wire::{MaybeSend, MaybeSync};
 /// Who is asking (read-only).
 #[derive(Debug, Clone)]
 pub struct CallerIdentity {
+    pub oauth_access_digest: Option<[u8; 32]>,
     pub user_id: i64,
     pub user_key_id: i64,
     pub org_id: Option<i64>,

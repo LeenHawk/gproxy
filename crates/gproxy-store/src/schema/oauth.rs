@@ -2,19 +2,36 @@ use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpe
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
+        version: SchemaVersion::OAuthSessions,
+        name: "oauth_clients",
+        columns: &[
+            Col::id(),
+            Col::required("client_id", Text).unique(),
+            Col::required("name", Text),
+            Col::required("redirect_uris", Text),
+            Col::required("enabled", Integer),
+            Col::optional("deleted_at", Integer),
+        ],
+        indexes: &[],
+    },
+    TableSpec {
         version: SchemaVersion::Initial,
         name: "oauth_grants",
         columns: &[
             Col::id(),
             Col::required("user_id", Integer),
             Col::required("user_key_id", Integer),
-            Col::required("provider_id", Integer),
+            Col::required("provider_id", Integer).nullable_since(SchemaVersion::OAuthSessions),
             Col::required("client_id", Text),
             Col::required("scopes", Text),
             Col::required("chatgpt_user_id", Text),
             Col::required("chatgpt_account_id", Text),
             Col::required("created_at", Integer),
             Col::optional("revoked_at", Integer),
+            Col::optional("logged_in_at", Integer).since(SchemaVersion::OAuthSessions),
+            Col::optional("last_refreshed_at", Integer).since(SchemaVersion::OAuthSessions),
+            Col::optional("refresh_count", Integer).since(SchemaVersion::OAuthSessions),
+            Col::optional("refresh_expires_at", Integer).since(SchemaVersion::OAuthSessions),
         ],
         indexes: &[
             IndexSpec {
@@ -43,6 +60,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("expires_at", Integer),
             Col::optional("consumed_at", Integer),
+            Col::optional("consumed_by", Blob).since(SchemaVersion::OAuthSessions),
         ],
         indexes: &[IndexSpec {
             name: "ix_oauth_codes_expiry",
@@ -62,6 +80,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("expires_at", Integer),
             Col::optional("consumed_at", Integer),
+            Col::optional("consumed_by", Blob).since(SchemaVersion::OAuthSessions),
             Col::optional("revoked_at", Integer),
         ],
         indexes: &[
@@ -87,12 +106,13 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("device_digest", Blob).unique(),
             Col::required("user_code", Text).unique(),
             Col::required("client_id", Text),
-            Col::required("provider_id", Integer),
+            Col::required("provider_id", Integer).nullable_since(SchemaVersion::OAuthSessions),
             Col::required("created_at", Integer),
             Col::required("expires_at", Integer),
             Col::optional("grant_id", Integer),
             Col::optional("approved_at", Integer),
             Col::optional("consumed_at", Integer),
+            Col::optional("denied_at", Integer).since(SchemaVersion::OAuthSessions),
             Col::optional("ciphertext", Blob),
             Col::optional("wrapped_key", Blob),
             Col::optional("payload_nonce", Blob),

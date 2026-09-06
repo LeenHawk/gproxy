@@ -46,6 +46,9 @@ pub(crate) async fn migrate_to(
                 .await?;
         }
         let mut statements: Vec<_> = statements.into_iter().map(Statement::plain).collect();
+        if version == SchemaVersion::OAuthSessions {
+            statements.extend(crate::oauth_migration::statements()?);
+        }
         statements.push(record_version(version)?);
         executor.batch(statements).await?;
     }

@@ -34,6 +34,23 @@ one database transaction; after success, move the target into
 The stored fingerprint is never a key, and startup refuses a sealed store when
 the required fingerprint is not supplied.
 
+## Account OAuth and Pi
+
+Public clients can authorize a GPROXY user account with authorization-code +
+PKCE or device-code login, then discover and call the user's allowed models
+through the ordinary gateway pipeline. Configure client IDs and redirect URLs
+under **Console → Settings → OAuth clients**. The migrated Codex client stays
+enabled; `pi-gproxy` starts disabled until an administrator enables it.
+
+The Portal's **Authorized sessions** table shows successful logins, still-valid
+sessions and refresh counts, and revokes a session without exposing its tokens.
+Disabling or deleting a client revokes all its sessions and pending grants;
+re-enabling or explicitly re-registering it does not revive them.
+
+See [the OAuth contract](docs/account-oauth.md). The independent local
+`../pi-gproxy` project provides the Pi integration and its installation guide;
+it is not vendored into this repository or published automatically.
+
 ## Documentation
 
 The documentation site lives under `docs/` (Astro + Starlight) and is

@@ -15,6 +15,7 @@ pub(super) async fn list(
     entity: Entity,
 ) -> Result<Response<Bytes>, AdminError> {
     let snapshot = state.store().control_snapshot().await?;
+    let oauth_keys = state.store().oauth_user_key_ids().await?;
     match entity {
         Entity::Organizations => response::json(
             StatusCode::OK,
@@ -37,6 +38,7 @@ pub(super) async fn list(
             &snapshot
                 .user_keys
                 .iter()
+                .filter(|key| !oauth_keys.contains(&key.id))
                 .map(map::user_key)
                 .collect::<Vec<_>>(),
         ),
@@ -113,6 +115,9 @@ pub(super) async fn delete(
     entity: Entity,
     id: i64,
 ) -> Result<Response<Bytes>, AdminError> {
+    if matches!(entity, Entity::UserKeys) && state.store().is_oauth_user_key(id).await? {
+        return Err(AdminError::NotFound);
+    }
     let applied = match entity {
         Entity::Organizations => state.store().delete_organization(id).await?,
         Entity::Teams => state.store().delete_team(id).await?,

@@ -101,6 +101,7 @@ async fn run<H: Host>(
         };
         (
             gproxy_channel_api::CallerIdentity {
+                oauth_access_digest: None,
                 user_id: 0,
                 user_key_id: 0,
                 org_id: None,

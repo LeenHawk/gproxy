@@ -11,6 +11,7 @@ use crate::{AdminError, State, response};
 pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Bytes>, AdminError> {
     let request: ConfigurationExportRequest = util::parse(body)?;
     let snapshot = state.store().control_snapshot().await?;
+    let oauth_keys = state.store().oauth_user_key_ids().await?;
     let credentials = state.store().admin_credentials().await?;
     let inventory = if request.include_secrets {
         Some(state.store().secret_inventory().await?)
@@ -44,6 +45,7 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
         user_keys: snapshot
             .user_keys
             .iter()
+            .filter(|key| !oauth_keys.contains(&key.id))
             .map(|value| ExportUserKeyDto {
                 config: identity::map::user_key(value),
                 digest: value.digest.clone(),

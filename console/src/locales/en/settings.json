@@ -1,5 +1,24 @@
 {
   "settings": {
+    "oauth": {
+      "title": "OAuth clients",
+      "description": "Register public clients allowed to request account authorization. A client ID is an identifier, not proof of a trusted application.",
+      "clientId": "Client ID",
+      "name": "Application name",
+      "redirects": "Redirect URLs",
+      "redirectHint": "Exact URLs only. Registered HTTP loopback URLs allow a dynamic port, but the host and path must match. No client secret is required.",
+      "redirectNumber": "Redirect URL {{number}}",
+      "addRedirect": "Add redirect URL",
+      "actions": "Actions",
+      "addClient": "Add client",
+      "empty": "No OAuth clients",
+      "saved": "OAuth client saved.",
+      "saveError": "Could not save the OAuth client.",
+      "loadError": "Could not load OAuth clients.",
+      "revokeTitle": "Revoke client authorizations?",
+      "revokeDescription": "Disabling or deleting this client revokes all its sessions and pending authorizations. Re-enabling it does not restore old sessions.",
+      "confirm": "Confirm and revoke"
+    },
     "title": "Instance settings",
     "subtitle": "Bound log storage and choose exactly what this instance records.",
     "loadError": "Could not load instance settings. Retry.",

@@ -193,6 +193,7 @@ pub(super) fn identities(stored: &ControlSnapshot) -> BTreeMap<(u32, Vec<u8>), K
                         (key.digest_version, key.digest.clone()),
                         KeyIdentity {
                             caller: CallerIdentity {
+                                oauth_access_digest: None,
                                 user_id: user.id,
                                 user_key_id: key.id,
                                 org_id: user.organization_id,

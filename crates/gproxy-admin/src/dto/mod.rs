@@ -11,6 +11,7 @@ mod login;
 mod model_catalog;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
+mod oauth;
 mod portal;
 mod pricing;
 mod quota;
@@ -34,6 +35,7 @@ pub use login::*;
 pub use model_catalog::*;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::*;
+pub use oauth::*;
 pub use portal::*;
 pub use pricing::*;
 pub use quota::*;

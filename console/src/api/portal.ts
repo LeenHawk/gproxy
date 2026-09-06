@@ -1,5 +1,6 @@
 import type { ErrorEnvelope } from "@/generated/ErrorEnvelope"
 import type { PortalContextDto } from "@/generated/PortalContextDto"
+import type { OAuthSessionPageDto } from "@/generated/OAuthSessionPageDto"
 import type { PortalKeyCreateRequest } from "@/generated/PortalKeyCreateRequest"
 import type { PortalLoginRequest } from "@/generated/PortalLoginRequest"
 import type { PortalPasswordChangeRequest } from "@/generated/PortalPasswordChangeRequest"
@@ -66,6 +67,11 @@ export function portalRecentRequests(query: PortalRecentQueryDto, signal?: Abort
 }
 
 export const portalKeys = (signal?: AbortSignal) => portalApi<Array<UserKeyDto>>("/portal/api/keys", signal)
+
+export const portalOAuthSessions = (activeOnly: boolean, limit: number, offset: number, signal?: AbortSignal) =>
+  portalApi<OAuthSessionPageDto>(`/portal/api/oauth-sessions?${new URLSearchParams({ active_only: String(activeOnly), limit: String(limit), offset: String(offset) })}`, signal)
+
+export const revokePortalOAuthSession = (id: number) => portalApi<void>(`/portal/api/oauth-sessions/${id}`, undefined, { method: "DELETE" })
 
 export const createPortalKey = (value: PortalKeyCreateRequest) =>
   portalApi<UserKeyCreateResponse>("/portal/api/keys", undefined, json("POST", value))

@@ -26,6 +26,7 @@ export default defineConfig({
         bypass: (request) => request.method === "GET" && request.headers.accept?.includes("text/html") ? "/index.html" : undefined,
       },
       "/portal/api": { target: backend, changeOrigin: true, headers: { origin: backend } },
+      "/oauth": { target: backend, changeOrigin: false },
     },
   },
   build: { outDir: "dist", assetsDir: "assets", emptyOutDir: true },

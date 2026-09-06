@@ -1,5 +1,24 @@
 {
   "settings": {
+    "oauth": {
+      "title": "OAuth 客户端",
+      "description": "注册可申请账户授权的公开客户端。client_id 只是标识，不代表应用可信。",
+      "clientId": "客户端 ID",
+      "name": "应用名称",
+      "redirects": "回调地址",
+      "redirectHint": "仅接受完整匹配的地址。已注册的 HTTP 本地回环地址可使用动态端口，但主机和路径必须一致。无需客户端密钥。",
+      "redirectNumber": "回调地址 {{number}}",
+      "addRedirect": "添加回调地址",
+      "actions": "操作",
+      "addClient": "添加客户端",
+      "empty": "暂无 OAuth 客户端",
+      "saved": "OAuth 客户端已保存。",
+      "saveError": "无法保存 OAuth 客户端。",
+      "loadError": "无法加载 OAuth 客户端。",
+      "revokeTitle": "撤销客户端授权？",
+      "revokeDescription": "禁用或删除客户端会撤销其全部会话及待完成授权。重新启用不会恢复旧会话。",
+      "confirm": "确认并撤销"
+    },
     "title": "实例设置",
     "subtitle": "限制日志存储并选择此实例记录的内容。",
     "loadError": "无法加载实例设置，请重试。",

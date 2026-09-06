@@ -4,6 +4,7 @@ mod backend;
 mod cache;
 mod error;
 mod migration;
+mod oauth_migration;
 mod query;
 pub mod records;
 pub mod schema;

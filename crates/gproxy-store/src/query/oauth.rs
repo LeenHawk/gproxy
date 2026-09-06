@@ -1,4 +1,4 @@
-use sea_query::{Alias, Cond, Expr, ExprTrait, JoinType, Query};
+use sea_query::{Alias, Cond, Expr, ExprTrait, JoinType, Query, SelectStatement};
 
 use crate::StoreError;
 use crate::backend::Statement;
@@ -197,6 +197,8 @@ pub(crate) fn access_identity(digest: &[u8], now: i64) -> Result<Statement, Stor
             (users.clone(), Alias::new("organization_id")),
             (users.clone(), Alias::new("team_id")),
             (tokens.clone(), Alias::new("expires_at")),
+            (grants.clone(), Alias::new("scopes")),
+            (grants.clone(), Alias::new("client_id")),
         ])
         .from(tokens.clone())
         .join(
@@ -217,6 +219,14 @@ pub(crate) fn access_identity(digest: &[u8], now: i64) -> Result<Statement, Stor
             Expr::col((grants.clone(), Alias::new("user_key_id")))
                 .equals((keys.clone(), Alias::new("id"))),
         )
+        .join(
+            JoinType::InnerJoin,
+            Alias::new("oauth_clients"),
+            Expr::col((grants.clone(), Alias::new("client_id")))
+                .equals((Alias::new("oauth_clients"), Alias::new("client_id"))),
+        )
+        .and_where(Expr::col((Alias::new("oauth_clients"), Alias::new("enabled"))).eq(1))
+        .and_where(Expr::col((Alias::new("oauth_clients"), Alias::new("deleted_at"))).is_null())
         .and_where(Expr::col((tokens.clone(), Alias::new("digest"))).eq(digest.to_vec()))
         .and_where(Expr::col((tokens.clone(), Alias::new("kind"))).eq("access"))
         .and_where(Expr::col((tokens.clone(), Alias::new("expires_at"))).gt(now))
@@ -276,6 +286,7 @@ fn device(condition: sea_query::SimpleExpr) -> Result<Statement, StoreError> {
                 "grant_id",
                 "approved_at",
                 "consumed_at",
+                "denied_at",
                 "ciphertext",
                 "wrapped_key",
                 "payload_nonce",
@@ -315,6 +326,94 @@ pub(crate) fn approve_device(
         ])
         .and_where(Expr::col(Alias::new("id")).eq(id))
         .and_where(Expr::col(Alias::new("approved_at")).is_null())
+        .and_where(Expr::col(Alias::new("denied_at")).is_null())
         .and_where(Expr::col(Alias::new("expires_at")).gt(now));
     Statement::query(&query)
+}
+
+pub(crate) fn live_grants(client_id: &str, now: i64) -> SelectStatement {
+    let mut query = Query::select();
+    let field = |table: &str, column: &str| Expr::col((Alias::new(table), Alias::new(column)));
+    query
+        .column((Alias::new("oauth_grants"), Alias::new("id")))
+        .from(Alias::new("oauth_grants"))
+        .join(
+            JoinType::InnerJoin,
+            Alias::new("oauth_clients"),
+            field("oauth_grants", "client_id")
+                .equals((Alias::new("oauth_clients"), Alias::new("client_id"))),
+        )
+        .join(
+            JoinType::InnerJoin,
+            Alias::new("users"),
+            field("oauth_grants", "user_id").equals((Alias::new("users"), Alias::new("id"))),
+        )
+        .join(
+            JoinType::InnerJoin,
+            Alias::new("user_keys"),
+            field("oauth_grants", "user_key_id")
+                .equals((Alias::new("user_keys"), Alias::new("id"))),
+        )
+        .and_where(field("oauth_grants", "client_id").eq(client_id))
+        .and_where(field("oauth_grants", "revoked_at").is_null())
+        .and_where(field("oauth_clients", "enabled").eq(1))
+        .and_where(field("oauth_clients", "deleted_at").is_null())
+        .and_where(field("users", "enabled").eq(1))
+        .and_where(field("user_keys", "enabled").eq(1))
+        .cond_where(
+            Cond::any()
+                .add(field("user_keys", "expires_at").is_null())
+                .add(field("user_keys", "expires_at").gt(now)),
+        );
+    query
+}
+
+pub(crate) fn deny_device(id: i64, now: i64) -> Result<Statement, StoreError> {
+    let mut query = Query::update();
+    query
+        .table(Alias::new("oauth_devices"))
+        .value(Alias::new("denied_at"), now)
+        .and_where(Expr::col(Alias::new("id")).eq(id))
+        .and_where(Expr::col(Alias::new("approved_at")).is_null())
+        .and_where(Expr::col(Alias::new("denied_at")).is_null());
+    Statement::query(&query)
+}
+
+pub(crate) fn cancel_device(id: i64, now: i64) -> Result<Vec<Statement>, StoreError> {
+    let grants = Query::select()
+        .column(Alias::new("grant_id"))
+        .from(Alias::new("oauth_devices"))
+        .and_where(Expr::col(Alias::new("id")).eq(id))
+        .to_owned();
+    let keys = Query::select()
+        .column(Alias::new("user_key_id"))
+        .from(Alias::new("oauth_grants"))
+        .and_where(Expr::col(Alias::new("id")).in_subquery(grants.clone()))
+        .to_owned();
+    let mut device = Query::update();
+    device
+        .table(Alias::new("oauth_devices"))
+        .value(Alias::new("denied_at"), now)
+        .and_where(Expr::col(Alias::new("id")).eq(id));
+    let mut revoke = Query::update();
+    revoke
+        .table(Alias::new("oauth_grants"))
+        .value(Alias::new("revoked_at"), now)
+        .and_where(Expr::col(Alias::new("id")).in_subquery(grants.clone()))
+        .and_where(Expr::col(Alias::new("revoked_at")).is_null());
+    let mut tokens = Query::update();
+    tokens
+        .table(Alias::new("oauth_tokens"))
+        .value(Alias::new("revoked_at"), now)
+        .and_where(Expr::col(Alias::new("grant_id")).in_subquery(grants))
+        .and_where(Expr::col(Alias::new("revoked_at")).is_null());
+    let mut disable = Query::update();
+    disable
+        .table(Alias::new("user_keys"))
+        .value(Alias::new("enabled"), 0)
+        .and_where(Expr::col(Alias::new("id")).in_subquery(keys));
+    [&device, &revoke, &tokens, &disable]
+        .into_iter()
+        .map(Statement::query)
+        .collect()
 }

@@ -6,6 +6,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{App, Config, ControlMutation, MasterKeyConfig};
 
+mod unified;
+
 #[tokio::test]
 async fn named_codex_oauth_issues_an_authenticating_access_token() {
     let directory = tempfile::tempdir().unwrap();

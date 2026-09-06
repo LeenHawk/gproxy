@@ -2,7 +2,7 @@ mod admission;
 mod bindings;
 mod continuations;
 mod credentials;
-mod oauth;
+pub(crate) mod oauth;
 mod sinks;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod tokenizers;

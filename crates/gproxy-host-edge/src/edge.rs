@@ -108,6 +108,13 @@ impl EdgeHost {
                     .map(EdgeReply::from);
             }
         };
+        if let Some(response) = self
+            .app
+            .oauth_dispatch(&incoming.parts, incoming.body.clone())
+            .await
+        {
+            return crate::response::buffered(response, &request_id).map(EdgeReply::from);
+        }
         if is_prefix(&incoming.path, ADMIN_PREFIX)
             && let Some(response) = self
                 .app

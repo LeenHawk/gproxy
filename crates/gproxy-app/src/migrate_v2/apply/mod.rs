@@ -103,6 +103,7 @@ pub(super) fn existing(
 ) -> Vec<(&'static str, usize)> {
     let mut values = counts
         .into_iter()
+        .filter(|(entity, _)| *entity != "oauth_clients")
         .map(|(entity, count)| (entity, usize::try_from(count).unwrap_or(usize::MAX)))
         .collect::<Vec<_>>();
     if let Some((_, count)) = values.iter_mut().find(|(entity, _)| *entity == "settings") {

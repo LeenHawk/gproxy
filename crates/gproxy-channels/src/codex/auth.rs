@@ -11,7 +11,7 @@ pub(super) const CODEX_CLI_VERSION: &str = "0.153.2";
 const GPROXY_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub(super) const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
-pub(super) const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+pub(super) use gproxy_channel_api::CODEX_OAUTH_CLIENT_ID as CLIENT_ID;
 const EXPIRY_SKEW_SECONDS: i64 = 5 * 60;
 
 pub(super) fn fallback_user_agent() -> String {

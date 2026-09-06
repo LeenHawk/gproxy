@@ -33,6 +33,16 @@ pub fn migration_statements(version: SchemaVersion, dialect: Dialect) -> Vec<Str
         );
     }
     for table in tables().filter(|table| table.version != version) {
+        if table
+            .columns
+            .iter()
+            .any(|column| column.nullable_in == Some(version))
+        {
+            statements.extend(super::nullable::alter(table, version, dialect));
+            if matches!(dialect, Dialect::NativeSqlite | Dialect::Libsql) {
+                continue;
+            }
+        }
         for column in table
             .columns
             .iter()
@@ -65,7 +75,14 @@ pub(super) fn create_table(spec: &TableSpec, version: SchemaVersion, dialect: Di
                 .indexes
                 .iter()
                 .any(|index| index.columns.contains(&column.name));
-        let mut definition = column_definition(column, dialect, indexed);
+        let mut column = *column;
+        if column
+            .nullable_in
+            .is_some_and(|added| added.number() > version.number())
+        {
+            column.nullable = false;
+        }
+        let mut definition = column_definition(&column, dialect, indexed);
         table.col(&mut definition);
     }
     match dialect {
@@ -94,7 +111,11 @@ fn add_column(spec: &TableSpec, column: &super::ColumnSpec, dialect: Dialect) ->
     }
 }
 
-fn column_definition(column: &super::ColumnSpec, dialect: Dialect, indexed: bool) -> ColumnDef {
+pub(super) fn column_definition(
+    column: &super::ColumnSpec,
+    dialect: Dialect,
+    indexed: bool,
+) -> ColumnDef {
     let mut definition = ColumnDef::new(Alias::new(column.name));
     match column.kind {
         ColumnKind::Integer if matches!(dialect, Dialect::Postgres | Dialect::Mysql) => {

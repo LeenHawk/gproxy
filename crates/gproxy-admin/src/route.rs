@@ -76,6 +76,10 @@ pub(crate) enum Route {
     TokenizerAuthReveal,
     PortalSettingsRead,
     PortalSettingsWrite,
+    OAuthClientsList,
+    OAuthClientCreate,
+    OAuthClientUpdate(i64),
+    OAuthClientDelete(i64),
     LoginAuthCodeStart,
     LoginAuthCodeComplete,
     LoginDeviceStart,
@@ -88,6 +92,13 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
         .strip_prefix("/admin/api/")?
         .split('/')
         .collect::<Vec<_>>();
+    if let ["oauth-clients", id] = segments.as_slice() {
+        return match *method {
+            Method::PATCH => Some(Route::OAuthClientUpdate(id.parse().ok()?)),
+            Method::DELETE => Some(Route::OAuthClientDelete(id.parse().ok()?)),
+            _ => None,
+        };
+    }
     if method == Method::POST {
         let login = match segments.as_slice() {
             ["login", "authcode", "start"] => Some(Route::LoginAuthCodeStart),
@@ -187,6 +198,8 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
 
 fn special(method: &Method, name: &str) -> Option<Route> {
     match (method, name) {
+        (&Method::GET, "oauth-clients") => Some(Route::OAuthClientsList),
+        (&Method::POST, "oauth-clients") => Some(Route::OAuthClientCreate),
         (&Method::GET, "usage") => Some(Route::Usage),
         (&Method::GET, "usage-records") => Some(Route::UsageRecords),
         (&Method::GET, "usage-summary") => Some(Route::UsageSummary),
@@ -277,6 +290,9 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         }
         Route::LogSettingsWrite => action("log_settings.update", "settings", None),
         Route::InstanceSettingsWrite => action("instance_settings.update", "settings", None),
+        Route::OAuthClientCreate => action("oauth_clients.create", "oauth_clients", None),
+        Route::OAuthClientUpdate(id) => action("oauth_clients.update", "oauth_clients", Some(*id)),
+        Route::OAuthClientDelete(id) => action("oauth_clients.delete", "oauth_clients", Some(*id)),
         Route::TokenizerVocabFetch => action("tokenizer_vocab.fetch", "tokenizer_vocabs", None),
         Route::TokenizerVocabDelete => action("tokenizer_vocab.delete", "tokenizer_vocabs", None),
         Route::TokenizerAuthWrite => action("tokenizer_auth.update", "tokenizer_auth", None),
@@ -324,7 +340,8 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         | Route::TokenizerVocabsRead
         | Route::TokenizerVocabProgress
         | Route::TokenizerAuthRead
-        | Route::PortalSettingsRead => return None,
+        | Route::PortalSettingsRead
+        | Route::OAuthClientsList => return None,
     })
 }
 

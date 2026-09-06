@@ -33,6 +33,20 @@ pub(super) fn select_all(
     Statement::query(&query)
 }
 
+pub(super) fn insert_select(
+    table: &str,
+    columns: &[&str],
+    select: sea_query::SelectStatement,
+) -> Result<Statement, StoreError> {
+    let mut query = Query::insert();
+    query
+        .into_table(Alias::new(table))
+        .columns(columns.iter().map(|column| Alias::new(*column)))
+        .select_from(select)
+        .map_err(|error| StoreError::Database(error.to_string()))?;
+    Statement::query(&query)
+}
+
 pub(crate) fn count_all(table: &'static str) -> Result<Statement, StoreError> {
     let mut query = Query::select();
     query

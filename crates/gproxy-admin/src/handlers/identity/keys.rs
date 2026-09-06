@@ -61,6 +61,9 @@ pub(super) async fn update(
     id: i64,
     body: &Bytes,
 ) -> Result<Response<Bytes>, AdminError> {
+    if state.store().is_oauth_user_key(id).await? {
+        return Err(AdminError::NotFound);
+    }
     let request: UserKeyUpdateRequest = util::parse(body)?;
     let applied = state
         .store()

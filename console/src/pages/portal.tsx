@@ -14,6 +14,7 @@ import {
 import { AuthPanel } from "@/components/auth/auth-panel"
 import { PortalDashboard } from "@/components/portal/portal-dashboard"
 import { PortalShell } from "@/components/portal/portal-shell"
+import { OAuthConsent } from "@/components/portal/oauth-consent"
 import type { UsageDays } from "@/components/portal/usage-panel"
 
 type PortalSession = { context: PortalContextDto }
@@ -31,13 +32,17 @@ export function PortalPage() {
   const [loginPending, setLoginPending] = useState(false)
   const [loginFailed, setLoginFailed] = useState(false)
   const [usageDays, setUsageDays] = useState<UsageDays>(7)
+  const params = new URLSearchParams(window.location.search)
+  const authorization = params.get("oauth_authorize")
+  const deviceCode = params.get("oauth_device")
+  const authorizing = authorization != null || deviceCode != null
   const authenticated = session != null
   const recentEnabled = session?.context.recent_requests_enabled ?? false
   const [modelsQuery, usageQuery, quotaQuery, recentQuery] = useQueries({ queries: [
     {
       queryKey: ["portal", "models"],
       queryFn: ({ signal }) => portalModels(signal),
-      enabled: authenticated,
+      enabled: authenticated && !authorizing,
     },
     {
       queryKey: ["portal", "usage", usageDays],
@@ -45,17 +50,17 @@ export function PortalPage() {
         const to = Math.floor(Date.now() / 1_000) + 1
         return portalUsage({ from: to - usageDays * 86_400, to }, signal)
       },
-      enabled: authenticated,
+      enabled: authenticated && !authorizing,
     },
     {
       queryKey: ["portal", "quota-windows"],
       queryFn: ({ signal }) => portalQuotaWindows(signal),
-      enabled: authenticated,
+      enabled: authenticated && !authorizing,
     },
     {
       queryKey: ["portal", "recent-requests"],
       queryFn: ({ signal }) => portalRecentRequests({ limit: 20 }, signal),
-      enabled: authenticated && recentEnabled,
+      enabled: authenticated && !authorizing && recentEnabled,
     },
   ] })
 
@@ -110,7 +115,7 @@ export function PortalPage() {
 
   return (
       <PortalShell context={session.context} onLogout={() => void logout()}>
-      <PortalDashboard
+      {authorizing ? <OAuthConsent authorization={authorization} deviceCode={deviceCode} /> : <PortalDashboard
         context={session.context}
         apiKey={t("portal.connect.keyPlaceholder")}
         origin={window.location.origin}
@@ -128,7 +133,7 @@ export function PortalPage() {
         recentLoading={recentQuery.isLoading}
         recentError={recentQuery.isError}
         onUsageDaysChange={setUsageDays}
-      />
+      />}
     </PortalShell>
   )
 }

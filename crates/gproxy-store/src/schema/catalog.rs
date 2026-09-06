@@ -6,11 +6,17 @@ pub enum SchemaVersion {
     Initial = 1,
     QuotaObservations = 2,
     ModelMetadata = 3,
+    OAuthSessions = 4,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 3] = [Self::Initial, Self::QuotaObservations, Self::ModelMetadata];
-    pub const LATEST: Self = Self::ModelMetadata;
+    pub const ALL: [Self; 4] = [
+        Self::Initial,
+        Self::QuotaObservations,
+        Self::ModelMetadata,
+        Self::OAuthSessions,
+    ];
+    pub const LATEST: Self = Self::OAuthSessions;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -34,6 +40,7 @@ pub struct ColumnSpec {
     pub unique: bool,
     pub default: Option<&'static str>,
     pub added_in: Option<SchemaVersion>,
+    pub nullable_in: Option<SchemaVersion>,
 }
 
 impl ColumnSpec {
@@ -47,6 +54,7 @@ impl ColumnSpec {
             unique: false,
             default: None,
             added_in: None,
+            nullable_in: None,
         }
     }
 
@@ -60,6 +68,7 @@ impl ColumnSpec {
             unique: false,
             default: None,
             added_in: None,
+            nullable_in: None,
         }
     }
 
@@ -87,6 +96,12 @@ impl ColumnSpec {
 
     pub const fn since(mut self, version: SchemaVersion) -> Self {
         self.added_in = Some(version);
+        self
+    }
+
+    pub const fn nullable_since(mut self, version: SchemaVersion) -> Self {
+        self.nullable = true;
+        self.nullable_in = Some(version);
         self
     }
 }

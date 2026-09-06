@@ -31,6 +31,7 @@ pub(crate) struct SnapshotControl {
     credential_pressure: Arc<ArcSwap<CredentialPressureMap>>,
     credential_health: Arc<ArcSwap<CredentialHealthMap>>,
     rotation: Arc<balance::RotationCounters>,
+    oauth_keys: Arc<ArcSwap<std::collections::BTreeSet<i64>>>,
 }
 
 impl SnapshotControl {
@@ -46,6 +47,7 @@ impl SnapshotControl {
         let snapshot = CompiledSnapshot::build(stored, &runtime)?;
         let credential_pressure = load_pressure(&store).await?;
         let credential_health = load_health(&store).await?;
+        let oauth_keys = store.oauth_user_key_ids().await?.into_iter().collect();
         Ok(Self {
             store,
             runtime,
@@ -53,12 +55,16 @@ impl SnapshotControl {
             credential_pressure: Arc::new(ArcSwap::from_pointee(credential_pressure)),
             credential_health: Arc::new(ArcSwap::from_pointee(credential_health)),
             rotation: Arc::new(balance::RotationCounters::default()),
+            oauth_keys: Arc::new(ArcSwap::from_pointee(oauth_keys)),
         })
     }
 
     pub(crate) async fn reload(&self) -> Result<(), StoreError> {
         let stored = self.store.control_snapshot().await?;
         let health = load_health(&self.store).await?;
+        self.oauth_keys.store(Arc::new(
+            self.store.oauth_user_key_ids().await?.into_iter().collect(),
+        ));
         self.snapshot
             .store(Arc::new(CompiledSnapshot::build(stored, &self.runtime)?));
         self.credential_health.store(Arc::new(health));
@@ -145,6 +151,11 @@ impl SnapshotControl {
             .identities
             .get(&(version, digest.to_vec()))
             .cloned()
+            .filter(|identity| !self.is_oauth_key(identity.caller.user_key_id))
+    }
+
+    pub(crate) fn is_oauth_key(&self, id: i64) -> bool {
+        self.oauth_keys.load().contains(&id)
     }
 
     fn update_pressure(&self, cycle: &CredentialQuotaCycleRecord) {
@@ -217,6 +228,36 @@ impl ControlPlane for SnapshotControl {
             .values()
             .cloned()
             .collect()
+    }
+
+    fn catalogue_visible(
+        &self,
+        identity: &gproxy_channel_api::CallerIdentity,
+        model: Option<&str>,
+        mode: &RoutingMode,
+    ) -> bool {
+        let Ok(plan) = self.resolve(model, mode, Some(identity.user_key_id)) else {
+            return false;
+        };
+        !plan.targets.is_empty()
+            && [
+                gproxy_protocol::OperationKey::content(
+                    gproxy_protocol::Operation::GenerateContent,
+                    gproxy_protocol::ContentGenerationKind::OpenAiResponses,
+                ),
+                gproxy_protocol::OperationKey::family(
+                    gproxy_protocol::Operation::ListModels,
+                    gproxy_protocol::WireFamily::OpenAi,
+                ),
+            ]
+            .into_iter()
+            .filter(|operation| {
+                !self.is_oauth_key(identity.user_key_id)
+                    || operation.operation() == gproxy_protocol::Operation::GenerateContent
+            })
+            .any(|operation| {
+                crate::host::authorize(&self.current(), identity, Some(operation), &plan).is_ok()
+            })
     }
 
     fn detached(&self) -> Box<dyn ControlPlane> {

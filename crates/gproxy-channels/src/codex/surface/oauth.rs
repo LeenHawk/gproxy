@@ -94,7 +94,7 @@ async fn authorize_post(
         .authorize(
             &user,
             OAuthAuthorizeInput {
-                provider_id,
+                provider_id: Some(provider_id),
                 client_id: form.query.client_id.clone(),
                 redirect_uri: form.query.redirect_uri.clone(),
                 scopes,
@@ -181,7 +181,7 @@ async fn device_start(
     }
     let issuer = issuer(ctx.headers, ctx.route_name);
     let started = oauth
-        .device_start(provider_id, client_id, &issuer)
+        .device_start(Some(provider_id), client_id, &issuer)
         .await
         .map_err(map)?;
     Ok(json_reply(

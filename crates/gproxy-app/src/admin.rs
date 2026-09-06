@@ -85,6 +85,9 @@ impl State for AppHandle {
 
     fn reveal_user_key(&self, id: i64) -> BoxFuture<'_, Result<String, AdminError>> {
         Box::pin(async move {
+            if self.inner.host.services.store.is_oauth_user_key(id).await? {
+                return Err(AdminError::NotFound);
+            }
             let secret = self
                 .inner
                 .host

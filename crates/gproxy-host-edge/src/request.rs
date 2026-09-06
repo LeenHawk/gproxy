@@ -30,6 +30,11 @@ pub(crate) async fn read(
     let method = Method::from_bytes(request.method().as_bytes())
         .map_err(|_| bad_request("invalid request method"))?;
     let mut headers = headers(request)?;
+    headers.insert(
+        http::HeaderName::from_static("x-forwarded-proto"),
+        HeaderValue::from_str(url.protocol().trim_end_matches(':'))
+            .map_err(|_| bad_request("invalid request scheme"))?,
+    );
     if !headers.contains_key(HOST) {
         headers.insert(
             HOST,

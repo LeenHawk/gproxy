@@ -1,6 +1,7 @@
 mod auth;
 mod context;
 mod keys;
+mod oauth_sessions;
 mod quota;
 mod recent;
 mod usage;
@@ -58,6 +59,16 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
             _ => {}
         }
         let identity = auth::identity(state, parts).await?;
+        if path == "/portal/api/oauth-sessions" && parts.method == Method::GET {
+            return oauth_sessions::list(state, &identity, parts).await;
+        }
+        if let Some(id) = path
+            .strip_prefix("/portal/api/oauth-sessions/")
+            .and_then(|id| id.parse::<i64>().ok())
+            && parts.method == Method::DELETE
+        {
+            return oauth_sessions::revoke(state, &identity, parts, id).await;
+        }
         if path == "/portal/api/keys" {
             return match parts.method {
                 Method::GET => keys::list(state, &identity).await,

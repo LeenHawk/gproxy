@@ -14,7 +14,7 @@ pub(super) async fn run<H: Host>(
     control: &dyn ControlPlane,
     request: &RequestCtx,
     plan: &Plan,
-    owner_user_id: i64,
+    identity: &gproxy_channel_api::CallerIdentity,
 ) -> Vec<ExposedModel> {
     let mut providers = BTreeMap::<i64, (String, Vec<Target>)>::new();
     for target in &plan.targets {
@@ -34,6 +34,9 @@ pub(super) async fn run<H: Host>(
                 provider: provider.clone(),
             };
             async move {
+                if !control.catalogue_visible(identity, None, &request.mode) {
+                    return None;
+                }
                 let classified = super::request::classify(&request).ok()?;
                 let OperationKind::Family(family) = classified.key.kind() else {
                     return None;
@@ -63,7 +66,7 @@ pub(super) async fn run<H: Host>(
                     Plan { targets, budget },
                     super::AdmittedRequest {
                         classified,
-                        owner_user_id,
+                        owner_user_id: identity.user_id,
                         session_affinity: None,
                         started: Instant::now(),
                     },
@@ -98,9 +101,9 @@ pub(super) async fn for_local_get<H: Host>(
     request: &RequestCtx,
     plan: &Plan,
     classified: &super::request::Classified,
-    owner_user_id: i64,
+    identity: &gproxy_channel_api::CallerIdentity,
 ) -> Vec<ExposedModel> {
-    let models = run(core, control, request, plan, owner_user_id).await;
+    let models = run(core, control, request, plan, identity).await;
     if !models.is_empty() {
         return models;
     }
@@ -118,7 +121,7 @@ pub(super) async fn for_local_get<H: Host>(
     list.path = path;
     list.query = None;
     list.body = bytes::Bytes::new();
-    run(core, control, &list, plan, owner_user_id).await
+    run(core, control, &list, plan, identity).await
 }
 
 fn parse(family: WireFamily, provider: &str, body: &[u8], namespace: bool) -> Vec<ExposedModel> {

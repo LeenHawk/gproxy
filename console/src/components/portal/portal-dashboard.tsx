@@ -12,6 +12,7 @@ import { QuotaWindows } from "@/components/portal/quota-windows"
 import { RecentRequests } from "@/components/portal/recent-requests"
 import { UsagePanel, type UsageDays } from "@/components/portal/usage-panel"
 import { QueryState } from "@/components/query-state"
+import { OAuthSessions } from "@/components/portal/oauth-sessions"
 
 export function PortalDashboard({
   context,
@@ -63,6 +64,7 @@ export function PortalDashboard({
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{t("portal.overview.description")}</p>
       </section>
       <AccountManagement />
+      <OAuthSessions />
       <QueryState loading={modelsLoading} error={modelsError ? t("portal.models.loadError") : ""}>
         <div className="flex flex-col gap-6">
           <ConnectionGuide

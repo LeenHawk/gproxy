@@ -20,31 +20,15 @@ pub(super) async fn run<H: Host>(
     request: &RequestCtx,
     plan: &Plan,
     classified: &Classified,
-    owner_user_id: i64,
+    identity: &gproxy_channel_api::CallerIdentity,
     started: Instant,
 ) -> Option<Result<ExecOutcome, CoreError>> {
     let operation = classified.key.operation();
-    let catalogue = matches!(operation, Operation::ListModels | Operation::GetModel)
-        && matches!(
-            &request.mode,
-            crate::boundary::RoutingMode::Aggregated
-                | crate::boundary::RoutingMode::Namespace { .. }
-        );
+    let catalogue = matches!(operation, Operation::ListModels | Operation::GetModel);
     if !catalogue && !local_route(core, plan, classified.key) {
         return None;
     }
-    Some(
-        serve(
-            core,
-            control,
-            request,
-            plan,
-            classified,
-            owner_user_id,
-            started,
-        )
-        .await,
-    )
+    Some(serve(core, control, request, plan, classified, identity, started).await)
 }
 
 fn local_route<H: Host>(core: &Core<H>, plan: &Plan, key: gproxy_protocol::OperationKey) -> bool {
@@ -62,7 +46,7 @@ async fn serve<H: Host>(
     request: &RequestCtx,
     plan: &Plan,
     classified: &Classified,
-    owner_user_id: i64,
+    identity: &gproxy_channel_api::CallerIdentity,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
     let target = plan
@@ -86,11 +70,12 @@ async fn serve<H: Host>(
             if !scoped {
                 models.extend(control.provider_catalogue());
             }
-            models.extend(
-                super::model_refresh::run(core, control, request, plan, owner_user_id).await,
-            );
+            models.extend(super::model_refresh::run(core, control, request, plan, identity).await);
             models.sort_by(|left, right| left.id.cmp(&right.id));
             models.dedup_by(|left, right| left.id == right.id);
+            models.retain(|model| {
+                control.catalogue_visible(identity, Some(&model.id), &request.mode)
+            });
             (
                 StatusCode::OK,
                 super::model_catalogue::render_list(family, models),
@@ -99,12 +84,7 @@ async fn serve<H: Host>(
         Operation::GetModel => {
             let models = if matches!(&request.mode, crate::boundary::RoutingMode::Scoped { .. }) {
                 super::model_refresh::for_local_get(
-                    core,
-                    control,
-                    request,
-                    plan,
-                    classified,
-                    owner_user_id,
+                    core, control, request, plan, classified, identity,
                 )
                 .await
             } else {
@@ -113,7 +93,10 @@ async fn serve<H: Host>(
             let found = classified
                 .model
                 .as_ref()
-                .and_then(|id| models.into_iter().find(|model| &model.id == id));
+                .and_then(|id| models.into_iter().find(|model| &model.id == id))
+                .filter(|model| {
+                    control.catalogue_visible(identity, Some(&model.id), &request.mode)
+                });
             match found {
                 Some(model) => (
                     StatusCode::OK,

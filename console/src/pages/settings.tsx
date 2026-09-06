@@ -8,6 +8,7 @@ import { INSTANCE_SETTINGS_FORM_ID, INSTANCE_SETTINGS_MUTATION_KEY, InstanceSett
 import { ConfigurationTransferCard } from "@/components/settings/configuration-transfer-card"
 import { AutostartCard } from "@/components/settings/autostart-card"
 import { PortalSettingsCard } from "@/components/settings/portal-settings-card"
+import { OAuthClientsCard } from "@/components/settings/oauth-clients-card"
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -25,6 +26,7 @@ export function SettingsPage() {
       </QueryState>
       <ConfigurationTransferCard />
       <PortalSettingsCard />
+      <OAuthClientsCard />
       <AutostartCard />
       </div>
     </PageLayout>

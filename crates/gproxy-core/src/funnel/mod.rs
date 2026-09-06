@@ -339,7 +339,7 @@ pub(crate) async fn local_buffered<H: Host>(
             status: Some(status),
             response_body: Some(body.clone()),
             estimated_output_chars: None,
-            record_usage: true,
+            record_usage: false,
             usage: Some(NormalizedUsage::default()),
             actual_service_tier: None,
             cost_override: Some(rust_decimal::Decimal::ZERO),

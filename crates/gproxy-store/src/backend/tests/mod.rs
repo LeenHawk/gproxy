@@ -1,4 +1,5 @@
 mod cache;
+mod oauth_migration;
 mod parity;
 mod scenario;
 mod sender;

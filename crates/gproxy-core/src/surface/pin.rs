@@ -182,7 +182,12 @@ pub(crate) fn token_key(provider_id: i64, namespace: &str, value: &str) -> Strin
 }
 
 pub(crate) fn decode_token(value: Vec<u8>) -> Option<TokenBinding> {
-    let (blocks, rest) = value.as_chunks::<8>();
+    let (encoded, oauth_access_digest) = match value.len() {
+        40 => (value.as_slice(), None),
+        72 => (&value[..40], Some(<[u8; 32]>::try_from(&value[40..]).ok()?)),
+        _ => return None,
+    };
+    let (blocks, rest) = encoded.as_chunks::<8>();
     if !rest.is_empty() {
         return None;
     }
@@ -192,6 +197,7 @@ pub(crate) fn decode_token(value: Vec<u8>) -> Option<TokenBinding> {
     Some(TokenBinding {
         credential: CredentialId(credential),
         identity: CallerIdentity {
+            oauth_access_digest,
             user_id,
             user_key_id,
             org_id: (org_id != i64::MIN).then_some(org_id),
@@ -201,7 +207,7 @@ pub(crate) fn decode_token(value: Vec<u8>) -> Option<TokenBinding> {
 }
 
 fn encode_token(credential: CredentialId, identity: &CallerIdentity) -> Vec<u8> {
-    [
+    let mut encoded: Vec<u8> = [
         credential.0,
         identity.user_id,
         identity.user_key_id,
@@ -210,7 +216,11 @@ fn encode_token(credential: CredentialId, identity: &CallerIdentity) -> Vec<u8> 
     ]
     .into_iter()
     .flat_map(i64::to_be_bytes)
-    .collect()
+    .collect();
+    if let Some(digest) = identity.oauth_access_digest {
+        encoded.extend_from_slice(&digest);
+    }
+    encoded
 }
 
 pub(crate) fn cache_key(

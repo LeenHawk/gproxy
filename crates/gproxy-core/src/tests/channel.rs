@@ -418,13 +418,7 @@ fn aggregated_model_list_refreshes_upstream_and_keeps_declared_metadata()
     assert_eq!(body["data"][1]["max_completion_tokens"], 32_000);
     let state = host.state.lock().expect("state lock");
     assert_eq!(state.upstream_requests.len(), 1);
-    assert_eq!(state.settlements.len(), 1);
-    assert!(
-        state
-            .settlements
-            .iter()
-            .all(|settlement| settlement.cost == rust_decimal::Decimal::ZERO)
-    );
+    assert!(state.settlements.is_empty());
     assert_eq!(state.admission_finishes, [true, true]);
     Ok(())
 }

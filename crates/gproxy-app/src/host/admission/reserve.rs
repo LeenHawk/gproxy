@@ -17,7 +17,14 @@ pub(in crate::host) fn admit<'a>(
 ) -> BoxFuture<'a, Result<(), CoreError>> {
     Box::pin(async move {
         let snapshot = host.services.control.current();
-        authorize(&snapshot, identity, operation, plan)?;
+        let oauth_identity = super::auth::oauth_admission(host, identity, operation).await?;
+        let identity = oauth_identity.as_ref().unwrap_or(identity);
+        if oauth_identity.is_none()
+            || operation.map(|key| key.operation().group())
+                != Some(gproxy_protocol::OperationGroup::Models)
+        {
+            authorize(&snapshot, identity, operation, plan)?;
+        }
         let now = unix_now();
         let mut charged = Vec::new();
         let reservations = match super::quota::reserve(

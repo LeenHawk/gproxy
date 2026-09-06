@@ -7,6 +7,30 @@ use crate::records::{
 use crate::{Store, StoreError};
 
 impl Store {
+    pub async fn cancel_oauth_device(&self, id: i64, now: i64) -> Result<(), StoreError> {
+        self.backend().batch(oauth::cancel_device(id, now)?).await?;
+        Ok(())
+    }
+
+    pub async fn create_oauth_authorization(
+        &self,
+        input: &crate::records::OAuthAuthorizationInput,
+    ) -> Result<bool, StoreError> {
+        let results = self
+            .backend()
+            .batch(crate::query::oauth_authorization::create(input)?)
+            .await?;
+        Ok(results[3].affected_rows == 1)
+    }
+
+    pub async fn start_oauth_device(&self, input: &OAuthDeviceInput) -> Result<bool, StoreError> {
+        let results = self
+            .backend()
+            .batch(crate::query::oauth_authorization::device(input)?)
+            .await?;
+        Ok(results[1].affected_rows == 1)
+    }
+
     pub async fn insert_oauth_grant(&self, input: &OAuthGrantInput) -> Result<i64, StoreError> {
         self.insert(oauth::insert_grant(input)?).await
     }
@@ -129,7 +153,7 @@ fn parse_grant(row: &Row) -> Result<OAuthGrantRecord, StoreError> {
         id: row.i64("id")?,
         user_id: row.i64("user_id")?,
         user_key_id: row.i64("user_key_id")?,
-        provider_id: row.i64("provider_id")?,
+        provider_id: row.optional_i64("provider_id")?,
         client_id: row.text("client_id")?.to_owned(),
         scopes: row.text("scopes")?.to_owned(),
         chatgpt_user_id: row.text("chatgpt_user_id")?.to_owned(),
@@ -167,6 +191,8 @@ fn parse_access_identity(row: Row) -> Result<OAuthAccessIdentity, StoreError> {
         organization_id: row.optional_i64("organization_id")?,
         team_id: row.optional_i64("team_id")?,
         expires_at: row.i64("expires_at")?,
+        scopes: row.text("scopes")?.into(),
+        client_id: row.text("client_id")?.into(),
     })
 }
 
@@ -201,11 +227,34 @@ fn parse_device(row: Row) -> Result<OAuthDeviceRecord, StoreError> {
         id: row.i64("id")?,
         user_code: row.text("user_code")?.to_owned(),
         client_id: row.text("client_id")?.to_owned(),
-        provider_id: row.i64("provider_id")?,
+        provider_id: row.optional_i64("provider_id")?,
         expires_at: row.i64("expires_at")?,
         grant_id: row.optional_i64("grant_id")?,
         approved_at: row.optional_i64("approved_at")?,
         consumed_at: row.optional_i64("consumed_at")?,
+        denied_at: row.optional_i64("denied_at")?,
         envelope,
     })
+}
+
+impl Store {
+    pub async fn exchange_oauth_tokens(
+        &self,
+        source: crate::records::OAuthExchangeSource,
+        client_id: &str,
+        access: &OAuthTokenInput,
+        refresh: &OAuthTokenInput,
+    ) -> Result<bool, StoreError> {
+        let results = self
+            .backend()
+            .batch(crate::query::oauth_exchange::exchange(
+                source, client_id, access, refresh,
+            )?)
+            .await?;
+        Ok(results[2].affected_rows == 1)
+    }
+
+    pub async fn deny_oauth_device(&self, id: i64, now: i64) -> Result<bool, StoreError> {
+        self.update(oauth::deny_device(id, now)?).await
+    }
 }

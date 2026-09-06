@@ -17,6 +17,7 @@ pub mod endpoint;
 pub mod login;
 pub mod model;
 pub mod oauth;
+mod oauth_redirect;
 pub mod operation;
 mod prepare;
 pub mod registry;
@@ -43,6 +44,7 @@ pub use login::{
 };
 pub use model::{ModelInfo, ModelMetadata, ModelReasoningLevel, ModelServiceTier};
 pub use oauth::*;
+pub use oauth_redirect::{oauth_redirect_allowed, valid_oauth_redirect};
 pub use operation::{
     DriverInput, OperationDriver, OperationStep, OperationStream, Pause, StepResponse, StreamOutput,
 };

@@ -1,5 +1,6 @@
 mod admin;
 mod cycle;
+mod oauth;
 mod seed;
 
 use rust_decimal::Decimal;
@@ -24,6 +25,7 @@ pub(super) struct Outcome {
     admin: admin::Outcome,
     rollup_requests: i64,
     wire_logs: i64,
+    oauth: OAuthSessionPage,
 }
 
 pub(super) async fn run(store: &Store) -> Outcome {
@@ -275,6 +277,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(log.upstream[0].input.response_status, Some(503));
     assert_eq!(log.upstream[1].input.response_status, Some(200));
 
+    let oauth = oauth::run(store).await?;
     Ok(Outcome {
         snapshot,
         credential,
@@ -289,5 +292,6 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         admin,
         rollup_requests,
         wire_logs,
+        oauth,
     })
 }

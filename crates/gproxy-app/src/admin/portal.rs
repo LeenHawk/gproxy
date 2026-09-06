@@ -83,6 +83,7 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
 
 fn caller(identity: &PortalIdentity) -> CallerIdentity {
     CallerIdentity {
+        oauth_access_digest: None,
         user_id: identity.user_id,
         user_key_id: -identity.user_id,
         org_id: identity.org_id,

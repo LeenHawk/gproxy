@@ -64,6 +64,7 @@ pub(crate) async fn resolved<H: Host>(
             session_affinity,
             started,
         },
+        identity,
     )
     .await
 }
@@ -74,6 +75,7 @@ async fn execute_admitted<H: Host>(
     ctx: RequestCtx,
     plan: Plan,
     request: AdmittedRequest,
+    identity: gproxy_channel_api::CallerIdentity,
 ) -> Result<ExecOutcome, CoreError> {
     let telemetry_ctx = ctx.clone();
     let key = request.classified.key;
@@ -83,7 +85,7 @@ async fn execute_admitted<H: Host>(
         &ctx,
         &plan,
         &request.classified,
-        request.owner_user_id,
+        &identity,
         request.started,
     )
     .await
