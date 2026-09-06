@@ -172,7 +172,7 @@ pub struct RateLimitRecord {
 pub struct QuotaInput {
     pub subject_kind: String,
     pub subject_id: i64,
-    pub quota_total: rust_decimal::Decimal,
+    pub quota_total: Option<rust_decimal::Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_daily: Option<rust_decimal::Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -191,7 +191,7 @@ pub struct QuotaRecord {
     pub id: i64,
     pub subject_kind: String,
     pub subject_id: i64,
-    pub quota_total: rust_decimal::Decimal,
+    pub quota_total: Option<rust_decimal::Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_daily: Option<rust_decimal::Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -203,4 +203,20 @@ pub struct QuotaRecord {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_7d: Option<rust_decimal::Decimal>,
     pub enabled: bool,
+}
+
+impl QuotaRecord {
+    pub fn limits(&self) -> impl Iterator<Item = (super::QuotaWindowKind, rust_decimal::Decimal)> {
+        use super::QuotaWindowKind;
+        [
+            (QuotaWindowKind::Total, self.quota_total),
+            (QuotaWindowKind::Daily, self.quota_daily),
+            (QuotaWindowKind::Weekly, self.quota_weekly),
+            (QuotaWindowKind::Monthly, self.quota_monthly),
+            (QuotaWindowKind::FiveHour, self.quota_5h),
+            (QuotaWindowKind::SevenDay, self.quota_7d),
+        ]
+        .into_iter()
+        .filter_map(|(kind, limit)| limit.map(|limit| (kind, limit)))
+    }
 }

@@ -2,6 +2,7 @@ mod bindings;
 mod channel;
 mod channel_session;
 mod channels;
+mod credential_budget;
 mod memory;
 mod model_metadata;
 mod models;
@@ -29,8 +30,7 @@ use serde_json::json;
 
 use self::memory::MemoryHost;
 use crate::boundary::{RequestCtx, ResponseBody, RoutingMode};
-use crate::control::{FailoverBudget, Plan};
-use crate::control::{ProviderRef, Target};
+use crate::control::{FailoverBudget, Plan, ProviderRef, Target};
 use crate::error::CoreError;
 use crate::host::{CredentialHealth, CredentialId};
 use crate::usage::{Ended, UsageSource};

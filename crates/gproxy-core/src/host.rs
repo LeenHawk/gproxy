@@ -224,6 +224,7 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         &'a self,
         target: &'a crate::control::Target,
         body: &'a bytes::Bytes,
+        settle: gproxy_protocol::SettleMode,
     ) -> BoxFuture<'a, Result<(), CoreError>>;
     /// Count the provider-native request with the host's local tokenizer
     /// ladder. The model and optional map have already been resolved.

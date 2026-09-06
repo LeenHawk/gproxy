@@ -145,7 +145,7 @@ pub struct QuotaDto {
     pub id: i64,
     pub subject_kind: String,
     pub subject_id: i64,
-    pub quota_total: String,
+    pub quota_total: Option<String>,
     pub quota_daily: Option<String>,
     pub quota_weekly: Option<String>,
     pub quota_monthly: Option<String>,
@@ -158,7 +158,7 @@ pub struct QuotaDto {
 pub struct QuotaWriteRequest {
     pub subject_kind: String,
     pub subject_id: i64,
-    pub quota_total: String,
+    pub quota_total: Option<String>,
     pub quota_daily: Option<String>,
     pub quota_weekly: Option<String>,
     pub quota_monthly: Option<String>,

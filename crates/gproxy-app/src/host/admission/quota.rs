@@ -3,7 +3,6 @@ use gproxy_core::{
     CacheBackend, ControlPlane, CoreError, NormalizedUsage, Plan, Pricing, RequestCtx,
 };
 use gproxy_protocol::{OperationKey, SettleMode};
-use gproxy_store::records::{QuotaRecord, QuotaWindowKind};
 
 use super::super::AppHost;
 use super::auth::subject_matches;
@@ -27,7 +26,7 @@ pub(super) async fn reserve(
     for quota in snapshot.quotas.iter().filter(|quota| {
         quota.enabled && subject_matches(&quota.subject_kind, quota.subject_id, identity)
     }) {
-        for (kind, limit) in limits(quota) {
+        for (kind, limit) in quota.limits() {
             let window = host
                 .services
                 .store
@@ -128,27 +127,4 @@ fn maximum_cost(
         })
         .max()
         .unwrap_or_default()
-}
-
-fn limits(quota: &QuotaRecord) -> impl Iterator<Item = (QuotaWindowKind, rust_decimal::Decimal)> {
-    [
-        Some((QuotaWindowKind::Total, quota.quota_total)),
-        quota
-            .quota_daily
-            .map(|limit| (QuotaWindowKind::Daily, limit)),
-        quota
-            .quota_weekly
-            .map(|limit| (QuotaWindowKind::Weekly, limit)),
-        quota
-            .quota_monthly
-            .map(|limit| (QuotaWindowKind::Monthly, limit)),
-        quota
-            .quota_5h
-            .map(|limit| (QuotaWindowKind::FiveHour, limit)),
-        quota
-            .quota_7d
-            .map(|limit| (QuotaWindowKind::SevenDay, limit)),
-    ]
-    .into_iter()
-    .flatten()
 }

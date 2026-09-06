@@ -98,7 +98,7 @@ pub(crate) async fn operational(
         .mutate(ControlMutation::Quota(gproxy_store::records::QuotaInput {
             subject_kind: "user_key".into(),
             subject_id: user_key,
-            quota_total: Decimal::from(1_000),
+            quota_total: Some(Decimal::from(1_000)),
             quota_daily: Some(Decimal::from(100)),
             quota_weekly: None,
             quota_monthly: None,

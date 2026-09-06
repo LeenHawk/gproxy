@@ -10,8 +10,10 @@ pub(in crate::host) fn admit<'a>(
     host: &'a AppHost,
     target: &'a Target,
     body: &'a bytes::Bytes,
+    settle: gproxy_protocol::SettleMode,
 ) -> BoxFuture<'a, Result<(), CoreError>> {
     Box::pin(async move {
+        super::credential_budget::check(host, target, settle).await?;
         let snapshot = host.services.control.current();
         let Some(credential) = snapshot
             .credentials

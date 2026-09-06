@@ -50,14 +50,6 @@ pub(super) async fn run<H: Host>(
         if attempts >= limit || dead.contains(&target.credential) {
             continue;
         }
-        if let Err(error) = core.host.admit_credential(target, &ctx.body).await {
-            if retryable && matches!(error, CoreError::RateLimited { .. }) {
-                admission_error = Some(error);
-                last = "credential rate limit reached";
-                continue;
-            }
-            return Err(error);
-        }
         let request = SurfaceRequest {
             label: spec.label,
             key: None,
@@ -105,6 +97,12 @@ pub(super) async fn run<H: Host>(
             Err(CoreError::Transport(_)) if retryable => {
                 attempts += 1;
                 last = "upstream transport failed";
+            }
+            Err(error @ (CoreError::RateLimited { .. } | CoreError::QuotaExceeded))
+                if retryable =>
+            {
+                admission_error = Some(error);
+                last = "credential admission limit reached";
             }
             Err(error) => return Err(error),
         }

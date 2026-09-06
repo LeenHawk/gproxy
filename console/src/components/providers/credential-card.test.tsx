@@ -111,9 +111,9 @@ describe("CredentialCard", () => {
   })
 
   it("omits the quota column without removing expandable quota details", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      windows: [], cycles: [], local_error: false, reset_credits: null, raw: "{}",
-    }), { status: 200, headers: { "content-type": "application/json" } }))
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (path) => new Response(JSON.stringify(
+      String(path).endsWith("/quota-probe") ? { windows: [], cycles: [], local_error: false, reset_credits: null, raw: "{}" } : [],
+    ), { status: 200, headers: { "content-type": "application/json" } }))
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -131,7 +131,7 @@ describe("CredentialCard", () => {
     expect(fetchMock).not.toHaveBeenCalled()
     await user.click(screen.getByRole("row", { name: /New credential/ }))
     expect(await within(screen.getByRole("table")).findByText("The usage endpoint reported no quota windows.")).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/admin/api/credentials/7/quota-probe")
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls.map(([path]) => path)).toContain("/admin/api/credentials/7/quota-probe")
   })
 })

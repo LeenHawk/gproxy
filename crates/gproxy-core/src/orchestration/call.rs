@@ -19,7 +19,7 @@ pub(super) async fn run<H: Host>(
     label: &'static str,
     mut prepared: PreparedRequest,
 ) -> Result<StepResponse, CoreError> {
-    host.admit_credential(&target, prepared.request.body())
+    host.admit_credential(&target, prepared.request.body(), SettleMode::Free)
         .await?;
     crate::fingerprint::apply_prepared(&mut prepared, &target.provider)?;
     let url = prepared.request.uri().to_string();

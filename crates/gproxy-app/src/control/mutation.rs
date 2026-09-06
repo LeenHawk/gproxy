@@ -193,14 +193,17 @@ fn nonzero(value: impl Into<u64>, field: &'static str) -> Result<(), AppError> {
 
 fn validate_quota(input: &gproxy_store::records::QuotaInput) -> Result<(), AppError> {
     for (field, value) in [
-        ("quota_total", Some(input.quota_total)),
+        ("quota_total", input.quota_total),
         ("quota_daily", input.quota_daily),
         ("quota_weekly", input.quota_weekly),
         ("quota_monthly", input.quota_monthly),
         ("quota_5h", input.quota_5h),
         ("quota_7d", input.quota_7d),
     ] {
-        if value.is_some_and(|value| value <= rust_decimal::Decimal::ZERO) {
+        if value.is_some_and(|value| {
+            value < rust_decimal::Decimal::ZERO
+                || (input.subject_kind != "credential" && value == rust_decimal::Decimal::ZERO)
+        }) {
             return Err(AppError::Control(format!("{field} must be positive")));
         }
     }

@@ -139,7 +139,7 @@ pub(super) async fn keys_and_quotas(
             Ok(QuotaInput {
                 subject_kind: kind.into(),
                 subject_id: id(map, value.value.scope_id)?,
-                quota_total: value.value.quota_total,
+                quota_total: Some(value.value.quota_total),
                 quota_daily: value.value.quota_daily,
                 quota_weekly: value.value.quota_weekly,
                 quota_monthly: value.value.quota_monthly,

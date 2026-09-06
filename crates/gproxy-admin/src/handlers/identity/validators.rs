@@ -53,6 +53,7 @@ pub(super) async fn user_scopes(
 pub(super) async fn subject(state: &impl State, kind: &str, id: i64) -> Result<(), AdminError> {
     let snapshot = state.store().control_snapshot().await?;
     let exists = match kind {
+        "credential" => snapshot.credentials.iter().any(|value| value.id == id),
         "user_key" => snapshot.user_keys.iter().any(|value| value.id == id),
         "user" => snapshot.users.iter().any(|value| value.id == id),
         "organization" => snapshot.organizations.iter().any(|value| value.id == id),

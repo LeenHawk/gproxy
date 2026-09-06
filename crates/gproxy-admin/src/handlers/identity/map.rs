@@ -70,7 +70,7 @@ pub(in crate::handlers) fn quota(value: &gproxy_store::records::QuotaRecord) -> 
         id: value.id,
         subject_kind: value.subject_kind.clone(),
         subject_id: value.subject_id,
-        quota_total: decimal(value.quota_total),
+        quota_total: value.quota_total.map(decimal),
         quota_daily: value.quota_daily.map(decimal),
         quota_weekly: value.quota_weekly.map(decimal),
         quota_monthly: value.quota_monthly.map(decimal),

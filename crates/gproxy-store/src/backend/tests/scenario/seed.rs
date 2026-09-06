@@ -62,7 +62,7 @@ pub(super) async fn seed_identity(store: &Store) -> Result<i64, StoreError> {
         .insert_quota(&QuotaInput {
             subject_kind: "user_key".into(),
             subject_id: key,
-            quota_total: Decimal::from(1_000),
+            quota_total: Some(Decimal::from(1_000)),
             quota_daily: Some(Decimal::from(100)),
             quota_weekly: None,
             quota_monthly: None,

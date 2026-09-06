@@ -26,6 +26,7 @@ impl UsageSink for AppHost {
 }
 
 async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement) {
+    super::admission::credential_budget::record(host, settlement).await;
     let settings = host.services.control.settings();
     let state = match super::admission::load(host, &settlement.request_id).await {
         Ok(state) => state,

@@ -58,9 +58,20 @@ pub(crate) async fn run<H: Host>(
             continue;
         }
         supported = true;
-        if let Err(error) = core.host.admit_credential(target, &ctx.body).await {
-            if matches!(error, CoreError::RateLimited { .. }) {
-                let reason = "credential rate limit reached";
+        if let Err(error) = core
+            .host
+            .admit_credential(
+                target,
+                &ctx.body,
+                request.classified.key.operation().spec().settle,
+            )
+            .await
+        {
+            if matches!(
+                error,
+                CoreError::RateLimited { .. } | CoreError::QuotaExceeded
+            ) {
+                let reason = "credential admission limit reached";
                 last_reason = Some(reason);
                 funnel_error::pre_send(&ctx, target, request.classified.key, reason);
                 pre_send_error = Some(error);

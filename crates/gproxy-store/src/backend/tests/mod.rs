@@ -1,4 +1,5 @@
 mod cache;
+mod credential_budget;
 mod oauth_migration;
 mod parity;
 mod scenario;

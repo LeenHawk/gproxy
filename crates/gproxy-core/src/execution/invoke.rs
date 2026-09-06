@@ -17,7 +17,9 @@ pub(crate) async fn run<H: Host>(
     let started = Instant::now();
     let classified = super::request::classify(&ctx)?;
     attempt::native_support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
-    core.host.admit_credential(target, &ctx.body).await?;
+    core.host
+        .admit_credential(target, &ctx.body, classified.key.operation().spec().settle)
+        .await?;
     let prepared = attempt::prepare(
         core,
         control,
