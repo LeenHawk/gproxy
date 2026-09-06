@@ -357,17 +357,21 @@ pub(crate) struct TokioSpawner {
     settlements: Arc<tokio::sync::Semaphore>,
 }
 
-/// Pending detached settlements before the response path starts waiting.
-/// Each one holds its request and response bodies, so this is a memory
-/// bound as much as a queue bound.
+/// Queued settlements beyond the in-flight cap before the response path
+/// starts waiting. Each one holds its request and response bodies, so this
+/// is a memory bound as much as a queue bound. Streams reserve their slot
+/// while still open, which is why the pool also covers every in-flight
+/// request: a full house of streams must not starve buffered settlement.
 #[cfg(not(target_arch = "wasm32"))]
 const SETTLEMENT_BACKLOG: usize = 2048;
 
 #[cfg(not(target_arch = "wasm32"))]
-impl Default for TokioSpawner {
-    fn default() -> Self {
+impl TokioSpawner {
+    pub(crate) fn new(max_in_flight: usize) -> Self {
         Self {
-            settlements: Arc::new(tokio::sync::Semaphore::new(SETTLEMENT_BACKLOG)),
+            settlements: Arc::new(tokio::sync::Semaphore::new(
+                max_in_flight + SETTLEMENT_BACKLOG,
+            )),
         }
     }
 }
