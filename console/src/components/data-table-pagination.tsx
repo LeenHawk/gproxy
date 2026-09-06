@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export const PAGE_SIZES = [10, 20, 50, 100] as const
+const PAGE_SIZES = [10, 20, 50, 100] as const
 export type PageSize = (typeof PAGE_SIZES)[number]
 
 type Props = {
