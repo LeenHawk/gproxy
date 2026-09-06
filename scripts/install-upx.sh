@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version=5.2.1
+# 5.x packs the x86_64 Linux executable into one that traps at startup;
+# 4.2.4 is the last release whose output runs.
+version=4.2.4
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
     platform=amd64_linux
-    checksum=402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657
+    checksum=75cab4e57ab72fb4585ee45ff36388d280c7afd72aa03e8d4b9c3cbddb474193
     extension=tar.xz
     executable=upx
     ;;
   Linux:aarch64)
     platform=arm64_linux
-    checksum=a72d112c5970a904a31da0b9c84f919bc16b9a311787c12245508544a78c7d36
+    checksum=6bfeae6714e34a82e63245289888719c41fd6af29f749a44ae3d3d166ba6a1c9
     extension=tar.xz
     executable=upx
     ;;
   MINGW*:x86_64 | MSYS*:x86_64)
     platform=win64
-    checksum=eabc6792a347d45e945be7748423e7868fd01b0d2bcaa2f4b1031fd71ff69bda
+    checksum=22e9ef20e4c72aad85e32c71cbc9c086436c179456382aa75c0c24868456a671
     extension=zip
     executable=upx.exe
     ;;
