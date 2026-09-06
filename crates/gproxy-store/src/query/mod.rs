@@ -3,7 +3,7 @@ pub(crate) mod admin_auth;
 pub(crate) mod admin_seed;
 pub(crate) mod binding;
 mod common;
-pub(crate) use common::{count_all, delete_by_id};
+pub(crate) use common::{count_all, delete_by_id, delete_where};
 pub(crate) mod control;
 pub(crate) mod identity;
 pub(crate) mod oauth;

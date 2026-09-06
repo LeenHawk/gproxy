@@ -16,8 +16,22 @@ impl Store {
         Ok(deleted)
     }
 
+    /// A route owns its members and the public names that map to it; the
+    /// schema has no foreign keys across backends, so the rows go together
+    /// here. A name left behind would keep the alias taken by nothing the
+    /// console can show.
     pub async fn delete_route(&self, id: i64) -> Result<bool, StoreError> {
-        self.delete(crate::query::delete_by_id("routes", id)?).await
+        let results = self
+            .backend()
+            .batch(vec![
+                crate::query::delete_where("route_members", "route_id", id)?,
+                crate::query::delete_where("exposed_models", "route_id", id)?,
+                crate::query::delete_by_id("routes", id)?,
+            ])
+            .await?;
+        Ok(results
+            .last()
+            .is_some_and(|result| result.affected_rows == 1))
     }
 
     pub async fn delete_route_member(&self, id: i64) -> Result<bool, StoreError> {

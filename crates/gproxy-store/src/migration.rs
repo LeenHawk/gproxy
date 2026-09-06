@@ -49,6 +49,9 @@ pub(crate) async fn migrate_to(
         if version == SchemaVersion::OAuthSessions {
             statements.extend(crate::oauth_migration::statements()?);
         }
+        if version == SchemaVersion::RouteOwnership {
+            statements.extend(orphaned_route_rows());
+        }
         statements.push(record_version(version)?);
         executor.batch(statements).await?;
     }
@@ -100,4 +103,13 @@ fn record_version(version: SchemaVersion) -> Result<Statement, StoreError> {
         .values_panic([Expr::value(version.number()), Expr::value(now)])
         .to_owned();
     Statement::query(&statement)
+}
+
+fn orphaned_route_rows() -> [Statement; 2] {
+    [
+        Statement::plain("DELETE FROM route_members WHERE route_id NOT IN (SELECT id FROM routes)"),
+        Statement::plain(
+            "DELETE FROM exposed_models WHERE route_id NOT IN (SELECT id FROM routes)",
+        ),
+    ]
 }
