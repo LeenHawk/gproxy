@@ -32,6 +32,10 @@ console and a user portal from one executable.
 - **Choose a deployment.** Native binaries and installers, containers, Android
   packages and prebuilt edge bundles are available. Rust applications can
   embed `gproxy-core` without an HTTP server or UI dependency.
+- **Forget the gateway is there.** Written in Rust with a zero-copy data
+  plane. The proxy adds about 0.2 ms to a request, settles more than 27,000
+  metered requests per second on one machine, and holds 20,000 concurrent
+  connections without dropping one. See [Performance](#performance).
 
 Channels include OpenAI, Claude API / Claude Code / Claude Web, Gemini CLI,
 Codex, Copilot, OpenRouter, AWS Bedrock, Vertex, Azure, Kimi and others.
@@ -103,6 +107,34 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 Your application only needs the gateway base URL, a GPROXY API key and a model
 ID. [First request](https://gproxy.leenhawk.com/getting-started/first-request/)
 covers the other API formats.
+
+## Performance
+
+GPROXY is built so that the gateway never becomes the bottleneck. The data
+plane moves bodies as reference-counted bytes, streams pass through untouched
+unless a transform has to rewrite them, and metering happens off the response
+path: usage is written after the reply has left, through a bounded backlog
+that coalesces settlements into grouped SQLite commits. Nothing is unmetered
+and nothing waits for the disk.
+
+Measured on a single laptop-class machine (AMD Ryzen 7 8745H, 16 threads,
+SQLite on NVMe) with a local mock upstream, every request fully authenticated,
+routed, priced and written to the usage ledger:
+
+| Scenario | Result |
+|---|---|
+| Added latency, one connection | 0.21 ms median |
+| Metered throughput, 32 connections | 27,000 requests/s, p99 4.4 ms |
+| Metered throughput, 2,000 connections | 23,000 requests/s |
+| Authentication and routing only | 108,000 requests/s |
+| 10,000 concurrent connections, 500 ms upstream | 18,600 requests/s, +1.4 ms median over the upstream itself |
+| 20,000 concurrent connections, 500 ms upstream | 18,500 requests/s, zero errors |
+| Memory at 10,000 open connections | about 1.2 GB |
+
+The client, the gateway and the mock upstream shared the same 16 cores, so
+a dedicated host does better. With a real model behind it, the time a
+request spends inside GPROXY is a rounding error next to the time the model
+spends thinking.
 
 ## CLI Clients and Pi
 

@@ -42,6 +42,33 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 	</Card>
 </CardGrid>
 
+## Built for Load
+
+<CardGrid>
+	<Card title="0.21 ms" icon="approve-check">
+		Median latency the gateway adds to a request, measured end to end with
+		authentication, routing, pricing and usage recording all switched on.
+	</Card>
+	<Card title="27,000 req/s" icon="rocket">
+		Fully metered throughput on one 16-thread machine with SQLite. Settlement
+		runs off the response path and batches into grouped commits.
+	</Card>
+	<Card title="20,000 connections" icon="random">
+		Concurrent connections held open against a 500 ms upstream with zero
+		errors and every request written to the ledger.
+	</Card>
+	<Card title="108,000 req/s" icon="star">
+		Authentication and routing alone. The control plane is an in-memory
+		snapshot; no request reads the database on its way to the provider.
+	</Card>
+</CardGrid>
+
+<LinkCard
+	title="Performance"
+	description="How the numbers were measured, what they mean for a real deployment, and which settings matter at scale."
+	href="/introduction/performance/"
+/>
+
 ## Primary Paths
 
 <LinkCard

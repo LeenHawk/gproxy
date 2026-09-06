@@ -38,6 +38,29 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 	</Card>
 </CardGrid>
 
+## 为高负载而生
+
+<CardGrid>
+	<Card title="0.21 ms" icon="approve-check">
+		网关为一个请求增加的中位延迟，端到端实测，鉴权、路由、计价和用量记录全部开启。
+	</Card>
+	<Card title="27,000 请求/秒" icon="rocket">
+		单台 16 线程机器、SQLite 存储下的完整计费吞吐。结算在响应之外进行，并合并成批量提交。
+	</Card>
+	<Card title="20,000 并发连接" icon="random">
+		面对 500 ms 的上游同时保持 2 万条连接，零错误，每个请求都写入账本。
+	</Card>
+	<Card title="108,000 请求/秒" icon="star">
+		仅鉴权与路由。控制面是内存快照，请求去往 Provider 的路上不读数据库。
+	</Card>
+</CardGrid>
+
+<LinkCard
+	title="性能"
+	description="这些数字如何测得、对真实部署意味着什么，以及规模化时哪些参数重要。"
+	href="/zh-cn/introduction/performance/"
+/>
+
 ## 主要入口
 
 <LinkCard
