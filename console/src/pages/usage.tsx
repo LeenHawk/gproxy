@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { keepPreviousData, useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { UsageRecordQueryDto } from "@/generated/UsageRecordQueryDto"
@@ -14,8 +14,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type UsageView = "records" | "quotas"
 
+const now = () => Math.floor(Date.now() / 1000)
+
 function initialQuery(): UsageRecordQueryDto {
-  const to = Math.floor(Date.now() / 1000)
+  const to = now()
   return { from: to - 7 * 86_400, to, user_key_id: null, user_id: null, provider_id: null, credential_id: null, model: null, request_id: null, operation: null, usage_source: null, ended: null, page: 1, page_size: 10 }
 }
 
@@ -24,6 +26,18 @@ export function UsagePage() {
   const [view, setView] = useState<UsageView>("records")
   const [draft, setDraft] = useState<UsageRecordQueryDto>(initialQuery)
   const [query, setQuery] = useState<UsageRecordQueryDto>(draft)
+  // Same rule as the request audit: an unpinned end of the range follows the clock.
+  const pinnedTo = useRef(false)
+  const editDraft: typeof setDraft = (update) => setDraft((previous) => {
+    const next = typeof update === "function" ? update(previous) : update
+    if (next.to !== previous.to) pinnedTo.current = true
+    return next
+  })
+  const apply = () => {
+    const to = pinnedTo.current ? draft.to : now()
+    setDraft((value) => ({ ...value, to }))
+    setQuery({ ...draft, to, page: 1, page_size: query.page_size })
+  }
   const filter = { ...query, page: null, page_size: null }
   const [records, summary, credentialQuery, providerQuery, userQuery, keyQuery, cycleQuery] = useQueries({ queries: [
     { queryKey: ["usage-records", query], queryFn: () => usageRecords(query), placeholderData: keepPreviousData, enabled: view === "records" },
@@ -46,9 +60,9 @@ export function UsagePage() {
       <QueryState loading={loading} error={error ? t("common.loadError") : ""}>
         <UsageExplorer
           view={view}
-          draft={draft} onDraft={setDraft}
-          onApply={() => setQuery({ ...draft, page: 1, page_size: query.page_size })}
-          onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next) }}
+          draft={draft} onDraft={editDraft}
+          onApply={apply}
+          onReset={() => { const next = initialQuery(); pinnedTo.current = false; setDraft(next); setQuery(next) }}
           page={records.data ?? { items: [], total: 0, page: 1, page_size: 10 }}
           summary={summary.data ?? null} summaryError={Boolean(summary.error)} pending={records.isFetching}
           onPage={(page) => setQuery((current) => ({ ...current, page }))}
