@@ -1,4 +1,7 @@
-import type { Dispatch, SetStateAction } from "react"
+import type { CSSProperties, Dispatch, SetStateAction } from "react"
+import { useTranslation } from "react-i18next"
+import { useWorkspacePaneWidth } from "@/components/workspace/use-workspace-pane-width"
+import { WorkspaceResizeHandle } from "@/components/workspace/workspace-resize-handle"
 import type { LogDetailDto } from "@/generated/LogDetailDto"
 import type { LogPageDto } from "@/generated/LogPageDto"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
@@ -27,12 +30,19 @@ type Props = {
 }
 
 export function LogExplorer(props: Props) {
+  const { t } = useTranslation()
+  const pane = useWorkspacePaneWidth("logs-pane-width", { defaultWidth: 480, minWidth: 320, maxWidth: 960 })
   return (
     <div className="flex flex-col gap-5">
       <LogFilters {...props} />
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(20rem,0.7fr)_minmax(0,1.3fr)]">
-        <LogList page={props.page} selected={props.selected} onSelect={props.onSelect} onNext={props.onNext} />
-        <LogDetail value={props.detail} loading={props.detailLoading} error={props.detailError} providers={props.providers} />
+      <div className="flex min-w-0 flex-col gap-5 xl:flex-row xl:gap-3">
+        <div style={{ "--workspace-pane-width": `${pane.width}px` } as CSSProperties} className="min-w-0 xl:w-[var(--workspace-pane-width)] xl:shrink-0">
+          <LogList page={props.page} selected={props.selected} onSelect={props.onSelect} onNext={props.onNext} />
+        </div>
+        <WorkspaceResizeHandle className="md:hidden xl:block" label={t("logs.resize")} width={pane.width} minWidth={pane.minWidth} maxWidth={pane.maxWidth} onWidthChange={pane.setWidth} onReset={pane.resetWidth} />
+        <div className="min-w-0 flex-1">
+          <LogDetail value={props.detail} loading={props.detailLoading} error={props.detailError} providers={props.providers} />
+        </div>
       </div>
     </div>
   )

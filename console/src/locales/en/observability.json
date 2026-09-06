@@ -60,6 +60,7 @@
     }
   },
   "logs": {
+    "resize": "Resize requests and details",
     "title": "Request audit",
     "description": "Inspect each client request and every upstream call it produced.",
     "pending": "Pending",
