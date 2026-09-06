@@ -11,11 +11,9 @@ import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { RuntimeSettingsCard } from "@/components/settings/runtime-settings-card"
 import { TrafficBlacklistSection } from "@/components/settings/traffic-blacklist-section"
+import { INSTANCE_SETTINGS_FORM_ID, INSTANCE_SETTINGS_MUTATION_KEY } from "./instance-settings-state"
 
 type BooleanKey = "enable_downstream_log" | "enable_downstream_log_body" | "enable_upstream_log" | "enable_upstream_log_body"
-
-export const INSTANCE_SETTINGS_FORM_ID = "instance-settings-form"
-export const INSTANCE_SETTINGS_MUTATION_KEY = ["instance-settings", "save"] as const
 
 export function InstanceSettingsForm({ settings }: { settings: InstanceSettingsDto }) {
   const { t } = useTranslation()
