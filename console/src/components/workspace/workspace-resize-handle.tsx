@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react"
 
+import { cn } from "@/lib/utils"
+
 type Props = {
+  className?: string
   label: string
   width: number
   minWidth: number
@@ -65,7 +68,7 @@ export function WorkspaceResizeHandle(props: Props) {
       aria-valuenow={props.width}
       tabIndex={0}
       data-dragging={dragging}
-      className="group relative -mx-1 hidden w-2 shrink-0 touch-none cursor-col-resize outline-none focus-visible:bg-primary/10 md:block"
+      className={cn("group relative -mx-1 hidden w-2 shrink-0 touch-none cursor-col-resize outline-none focus-visible:bg-primary/10 md:block", props.className)}
       onDoubleClick={props.onReset}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}

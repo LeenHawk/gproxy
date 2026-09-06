@@ -1,45 +1,43 @@
 import { useCallback, useEffect, useState } from "react"
 
-const DEFAULT_WIDTH = 384
-const MIN_WIDTH = 220
-const MAX_WIDTH = 480
+type Options = { defaultWidth?: number; minWidth?: number; maxWidth?: number }
 
 function viewportWidth() {
   return typeof window === "undefined" ? 1280 : window.innerWidth
 }
 
-function maxWidthForViewport(width: number) {
-  return width < 768 ? MAX_WIDTH : Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.floor(width * 0.45)))
+function maxWidthForViewport(width: number, minWidth: number, maxWidth: number) {
+  return width < 768 ? maxWidth : Math.max(minWidth, Math.min(maxWidth, Math.floor(width * 0.45)))
 }
 
-function clampWidth(width: number, maxWidth: number) {
-  return Math.min(maxWidth, Math.max(MIN_WIDTH, Math.round(width)))
+function clampWidth(width: number, minWidth: number, maxWidth: number) {
+  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
 }
 
-function storedWidth(storageKey: string, maxWidth: number) {
-  if (typeof window === "undefined") return clampWidth(DEFAULT_WIDTH, maxWidth)
+function storedWidth(storageKey: string, defaultWidth: number, minWidth: number, maxWidth: number) {
+  if (typeof window === "undefined") return clampWidth(defaultWidth, minWidth, maxWidth)
   try {
     const value = Number(window.localStorage.getItem(storageKey))
-    return clampWidth(Number.isFinite(value) && value > 0 ? value : DEFAULT_WIDTH, maxWidth)
+    return clampWidth(Number.isFinite(value) && value > 0 ? value : defaultWidth, minWidth, maxWidth)
   } catch {
-    return clampWidth(DEFAULT_WIDTH, maxWidth)
+    return clampWidth(defaultWidth, minWidth, maxWidth)
   }
 }
 
-export function useWorkspacePaneWidth(storageKey: string) {
+export function useWorkspacePaneWidth(storageKey: string, { defaultWidth = 384, minWidth = 220, maxWidth: widthLimit = 480 }: Options = {}) {
   const [windowWidth, setWindowWidth] = useState(viewportWidth)
-  const maxWidth = maxWidthForViewport(windowWidth)
-  const [width, setWidthState] = useState(() => storedWidth(storageKey, maxWidth))
+  const maxWidth = maxWidthForViewport(windowWidth, minWidth, widthLimit)
+  const [width, setWidthState] = useState(() => storedWidth(storageKey, defaultWidth, minWidth, maxWidth))
 
   useEffect(() => {
     const onResize = () => {
       const next = viewportWidth()
       setWindowWidth(next)
-      setWidthState((current) => clampWidth(current, maxWidthForViewport(next)))
+      setWidthState((current) => clampWidth(current, minWidth, maxWidthForViewport(next, minWidth, widthLimit)))
     }
     window.addEventListener("resize", onResize)
     return () => window.removeEventListener("resize", onResize)
-  }, [])
+  }, [minWidth, widthLimit])
 
   useEffect(() => {
     try {
@@ -49,7 +47,7 @@ export function useWorkspacePaneWidth(storageKey: string) {
     }
   }, [storageKey, width])
 
-  const setWidth = useCallback((next: number) => setWidthState(clampWidth(next, maxWidth)), [maxWidth])
-  const resetWidth = useCallback(() => setWidth(DEFAULT_WIDTH), [setWidth])
-  return { width, minWidth: MIN_WIDTH, maxWidth, setWidth, resetWidth }
+  const setWidth = useCallback((next: number) => setWidthState(clampWidth(next, minWidth, maxWidth)), [minWidth, maxWidth])
+  const resetWidth = useCallback(() => setWidth(defaultWidth), [defaultWidth, setWidth])
+  return { width, minWidth, maxWidth, setWidth, resetWidth }
 }
