@@ -71,6 +71,18 @@ impl SnapshotControl {
         Ok(())
     }
 
+    pub(crate) fn credential_health_state(
+        &self,
+        credential: gproxy_channel_api::CredentialId,
+        model: &str,
+    ) -> Option<(u64, gproxy_store::records::CredentialHealthState)> {
+        self.credential_health
+            .load()
+            .get(&credential)?
+            .get(model)
+            .copied()
+    }
+
     pub(crate) fn observe_credential_health(
         &self,
         input: &gproxy_store::records::CredentialHealthInput,

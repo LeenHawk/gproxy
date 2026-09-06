@@ -24,6 +24,7 @@ impl NativeSql {
                 connection.pragma_update(None, "journal_mode", "WAL")?;
                 connection.pragma_update(None, "synchronous", "NORMAL")?;
                 connection.pragma_update(None, "temp_store", "MEMORY")?;
+                connection.set_prepared_statement_cache_capacity(256);
                 Ok(())
             })
             .await
@@ -64,7 +65,7 @@ impl Executor for NativeSql {
 
 fn run(connection: &rusqlite::Connection, statement: Statement) -> rusqlite::Result<QueryResult> {
     let Statement { sql, args, .. } = statement;
-    let mut prepared = connection.prepare(&sql)?;
+    let mut prepared = connection.prepare_cached(&sql)?;
     let readonly = prepared.readonly();
     let column_names = (0..prepared.column_count())
         .map(|index| prepared.column_name(index).map(str::to_owned))
