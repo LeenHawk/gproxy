@@ -56,8 +56,24 @@
       "description": "使用管理员创建的用户账户登录。",
       "checking": "正在检查登录状态…"
     },
-    "keys": {"title":"API 密钥","description":"为 API 客户端或 Codex access-token 登录创建密钥。","label":"标签","create":"创建密钥","created":"请立即复制该密钥，之后不会再次显示。","unnamed":"未命名密钥","revoke":"撤销","empty":"暂无密钥"},
-    "password": {"title":"密码","description":"修改登录用户门户所使用的密码。","current":"当前密码","new":"新密码","action":"修改密码","saved":"密码已修改。"},
+    "keys": {
+      "title": "API 密钥",
+      "description": "为 API 客户端或 Codex access-token 登录创建密钥。",
+      "label": "标签",
+      "create": "创建密钥",
+      "created": "请立即复制该密钥，之后不会再次显示。",
+      "unnamed": "未命名密钥",
+      "revoke": "撤销",
+      "empty": "暂无密钥"
+    },
+    "password": {
+      "title": "密码",
+      "description": "修改登录用户门户所使用的密码。",
+      "current": "当前密码",
+      "new": "新密码",
+      "action": "修改密码",
+      "saved": "密码已修改。"
+    },
     "overview": {
       "title": "欢迎，{{name}}",
       "description": "管理你的密钥、连接工具，并跟踪已结算支出。"
@@ -187,7 +203,7 @@
       "description": "无论来自 SDK 还是官方 CLI，请求都会经过同一套路由、故障切换、配额、结算和遥测流程。没有隐藏旁路，也不会漏计费。",
       "pipelineLabel": "GPROXY 请求执行管线",
       "funnelLabel": "强制响应结算阶段",
-      "caption": "结算完成之前，响应无法离开 GPROXY。",
+      "caption": "每个响应离开 GPROXY 之前，结算都已排入账本队列。",
       "stages": {
         "ingress": "入口",
         "classify": "分类",
@@ -222,6 +238,33 @@
         "title": "部署在哪里，由你决定。",
         "body": "既可以作为原生服务器运行，也可以把同一套核心放到边缘 Worker 后面。"
       }
+    },
+    "performance": {
+      "title": "快到让你忘了它的存在。",
+      "description": "Rust 编写，零拷贝数据面，控制面常驻内存。计量在响应离开之后进行，经过一个有上界的队列，把多笔结算合并成批量提交。以下数字在一台 16 线程、使用 SQLite 的机器上端到端实测，鉴权、路由、计价和用量记录全部开启。",
+      "stats": {
+        "latency": {
+          "value": "0.21 ms",
+          "label": "附加延迟",
+          "body": "单连接下网关为一个请求增加的中位时间。"
+        },
+        "throughput": {
+          "value": "27,000 请求/秒",
+          "label": "计费吞吐",
+          "body": "32 条连接下，每秒完整计价并记录的请求数。"
+        },
+        "connections": {
+          "value": "20,000",
+          "label": "并发连接",
+          "body": "面对 500 ms 的上游同时保持在线，零错误，每个请求都进了账本。"
+        },
+        "routing": {
+          "value": "108,000 请求/秒",
+          "label": "鉴权与路由",
+          "body": "只做鉴权和路由解析、不经过上游时的吞吐。"
+        }
+      },
+      "caption": "压测客户端、网关和 mock 上游共用同一颗 CPU，独占一台机器只会更好。"
     },
     "connect": {
       "title": "用你手上的客户端，直接连。",

@@ -56,8 +56,24 @@
       "description": "Sign in with the account created by your administrator.",
       "checking": "Checking your session…"
     },
-    "keys": {"title":"API keys","description":"Create keys for API clients or Codex access-token login.","label":"Label","create":"Create key","created":"Copy this key now. It will not be shown again.","unnamed":"Unnamed key","revoke":"Revoke","empty":"No keys yet"},
-    "password": {"title":"Password","description":"Change the password used to sign in to this portal.","current":"Current password","new":"New password","action":"Change password","saved":"Password changed."},
+    "keys": {
+      "title": "API keys",
+      "description": "Create keys for API clients or Codex access-token login.",
+      "label": "Label",
+      "create": "Create key",
+      "created": "Copy this key now. It will not be shown again.",
+      "unnamed": "Unnamed key",
+      "revoke": "Revoke",
+      "empty": "No keys yet"
+    },
+    "password": {
+      "title": "Password",
+      "description": "Change the password used to sign in to this portal.",
+      "current": "Current password",
+      "new": "New password",
+      "action": "Change password",
+      "saved": "Password changed."
+    },
     "overview": {
       "title": "Welcome, {{name}}",
       "description": "Manage your keys, connect your tools, and track settled spend."
@@ -187,7 +203,7 @@
       "description": "Whether it comes from an SDK or a vendor CLI, every request goes through the same routing, failover, quota, settlement, and telemetry pipeline. No hidden shortcuts. No missed billing.",
       "pipelineLabel": "GPROXY request execution pipeline",
       "funnelLabel": "Mandatory response settlement stages",
-      "caption": "A response cannot leave GPROXY until settlement is complete.",
+      "caption": "Every response has its settlement queued before it leaves GPROXY.",
       "stages": {
         "ingress": "ingress",
         "classify": "classify",
@@ -222,6 +238,33 @@
         "title": "Deploy it where you need it.",
         "body": "Run GPROXY as a native server or put the same core behind an edge worker."
       }
+    },
+    "performance": {
+      "title": "Fast enough to forget it is there.",
+      "description": "Rust, a zero-copy data plane, and a control plane that lives in memory. Metering happens after the reply has left, through a bounded queue that batches settlements into grouped commits. Measured end to end on one 16-thread machine with SQLite, with authentication, routing, pricing, and usage recording all switched on.",
+      "stats": {
+        "latency": {
+          "value": "0.21 ms",
+          "label": "added latency",
+          "body": "Median time the gateway adds to a request on a single connection."
+        },
+        "throughput": {
+          "value": "27,000 req/s",
+          "label": "metered throughput",
+          "body": "Fully priced and recorded requests per second at 32 connections."
+        },
+        "connections": {
+          "value": "20,000",
+          "label": "concurrent connections",
+          "body": "Held open against a 500 ms upstream with zero errors and every request in the ledger."
+        },
+        "routing": {
+          "value": "108,000 req/s",
+          "label": "auth and routing",
+          "body": "Authentication and route resolution alone, with no upstream in the path."
+        }
+      },
+      "caption": "Client, gateway, and mock upstream shared the same cores. A dedicated host does better."
     },
     "connect": {
       "title": "Bring the client you already use.",

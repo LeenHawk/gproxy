@@ -56,8 +56,24 @@
       "description": "使用管理員建立的使用者帳戶登入。",
       "checking": "正在檢查登入狀態…"
     },
-    "keys": {"title":"API 金鑰","description":"為 API 用戶端或 Codex access-token 登入建立金鑰。","label":"標籤","create":"建立金鑰","created":"請立即複製此金鑰，之後不會再次顯示。","unnamed":"未命名金鑰","revoke":"撤銷","empty":"尚無金鑰"},
-    "password": {"title":"密碼","description":"變更登入使用者入口所使用的密碼。","current":"目前密碼","new":"新密碼","action":"變更密碼","saved":"密碼已變更。"},
+    "keys": {
+      "title": "API 金鑰",
+      "description": "為 API 用戶端或 Codex access-token 登入建立金鑰。",
+      "label": "標籤",
+      "create": "建立金鑰",
+      "created": "請立即複製此金鑰，之後不會再次顯示。",
+      "unnamed": "未命名金鑰",
+      "revoke": "撤銷",
+      "empty": "尚無金鑰"
+    },
+    "password": {
+      "title": "密碼",
+      "description": "變更登入使用者入口所使用的密碼。",
+      "current": "目前密碼",
+      "new": "新密碼",
+      "action": "變更密碼",
+      "saved": "密碼已變更。"
+    },
     "overview": {
       "title": "歡迎，{{name}}",
       "description": "管理你的金鑰、連接工具，並追蹤已結算支出。"
@@ -187,7 +203,7 @@
       "description": "無論來自 SDK 還是官方 CLI，請求都會經過同一套路由、容錯移轉、配額、結算與遙測流程。沒有隱藏旁路，也不會漏計費。",
       "pipelineLabel": "GPROXY 請求執行管線",
       "funnelLabel": "強制回應結算階段",
-      "caption": "結算完成之前，回應無法離開 GPROXY。",
+      "caption": "每個回應離開 GPROXY 之前，結算都已排入帳本佇列。",
       "stages": {
         "ingress": "入口",
         "classify": "分類",
@@ -222,6 +238,33 @@
         "title": "部署在哪裡，由你決定。",
         "body": "既可以作為原生伺服器執行，也可以把同一套核心放到邊緣 Worker 後面。"
       }
+    },
+    "performance": {
+      "title": "快到讓你忘了它的存在。",
+      "description": "Rust 編寫，零複製資料面，控制面常駐記憶體。計量在回應離開之後進行，經過一個有上限的佇列，把多筆結算合併成批次提交。以下數字在一台 16 執行緒、使用 SQLite 的機器上端到端實測，驗證、路由、計價與用量記錄全部開啟。",
+      "stats": {
+        "latency": {
+          "value": "0.21 ms",
+          "label": "附加延遲",
+          "body": "單一連線下閘道為一個請求增加的中位時間。"
+        },
+        "throughput": {
+          "value": "27,000 請求/秒",
+          "label": "計費吞吐",
+          "body": "32 條連線下，每秒完整計價並記錄的請求數。"
+        },
+        "connections": {
+          "value": "20,000",
+          "label": "並行連線",
+          "body": "面對 500 ms 的上游同時保持連線，零錯誤，每個請求都進了帳本。"
+        },
+        "routing": {
+          "value": "108,000 請求/秒",
+          "label": "驗證與路由",
+          "body": "只做驗證和路由解析、不經過上游時的吞吐。"
+        }
+      },
+      "caption": "壓測用戶端、閘道和 mock 上游共用同一顆 CPU，獨占一台機器只會更好。"
     },
     "connect": {
       "title": "用你手上的用戶端，直接連。",

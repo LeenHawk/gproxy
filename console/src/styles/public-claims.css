@@ -1,4 +1,5 @@
 .public-funnel,
+.public-performance,
 .public-connect {
   padding-block: clamp(3rem, 6vw, 5rem);
   border-top: 1px solid var(--border);
@@ -182,5 +183,64 @@
   .public-snippet-body pre {
     padding-right: 0.9rem;
     padding-top: 2.6rem;
+  }
+}
+
+.public-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(1.5rem, 4vw, 3rem);
+  margin: clamp(2.5rem, 5vw, 3.5rem) 0 0;
+}
+
+.public-stat {
+  margin: 0;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--primary);
+}
+
+.public-stat dt {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.public-stat dd {
+  margin: 0;
+}
+
+.public-stat-value {
+  margin-top: 0.4rem;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  color: var(--primary);
+  font-size: clamp(1.9rem, 3.4vw, 2.9rem);
+  font-weight: 720;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.public-stat-body {
+  max-width: 28ch;
+  margin-top: 0.6rem;
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.public-performance-caption {
+  margin: 1.5rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 64rem) {
+  .public-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-stat-value {
+    font-size: clamp(1.6rem, 5.5vw, 2.4rem);
   }
 }
