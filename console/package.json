@@ -22,7 +22,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "i18next": "^26.3.6",
-    "lucide-react": "^1.31.0",
+    "lucide-react": "^1.39.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
