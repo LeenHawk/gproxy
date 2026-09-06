@@ -3,6 +3,20 @@
     "title": "定價",
     "subtitle": "設定模型規則、維度費率和服務層級階梯。",
     "loadError": "無法載入定價，請重試。",
+    "defaults": {
+      "retry": "重試",
+      "title": "載入預設價格表",
+      "description": "從預設價格表中選擇模型。已有相同模型比對規則的價格會略過，保留目前設定。",
+      "search": "搜尋模型…",
+      "selectAll": "全選搜尋結果",
+      "count": "共 {{shown}} 個模型 · 已選 {{selected}} 個",
+      "existing": "已設定",
+      "empty": "沒有符合的預設價格模型。",
+      "apply": "載入 {{count}} 個模型",
+      "applied": "已新增 {{created}} 個，略過 {{skipped}} 個，未匹配 {{unmatched}} 個。",
+      "loadError": "預設價格表載入失敗，請重試。",
+      "saveError": "預設價格匯入失敗，請重試。"
+    },
     "rules": {
       "add": "新增定價規則",
       "edit": "編輯定價規則",

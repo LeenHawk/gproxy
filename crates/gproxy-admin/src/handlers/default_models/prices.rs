@@ -43,7 +43,9 @@ pub(crate) async fn apply(state: &impl State, body: &Bytes) -> Result<Response<B
             "default model price ids must not be empty".into(),
         ));
     }
-    super::super::control::validators::provider(state, request.provider_id).await?;
+    if let Some(provider_id) = request.provider_id {
+        super::super::control::validators::provider(state, provider_id).await?;
+    }
     let selected = request.model_ids.iter().collect::<BTreeSet<_>>();
     if selected.len() != request.model_ids.len()
         || selected.iter().any(|model| model.trim().is_empty())
@@ -53,11 +55,11 @@ pub(crate) async fn apply(state: &impl State, body: &Bytes) -> Result<Response<B
         ));
     }
     let snapshot = state.store().control_snapshot().await?;
-    let existing = snapshot
+    let mut existing = snapshot
         .price_rules
         .iter()
-        .filter(|rule| rule.provider_id == Some(request.provider_id))
-        .map(|rule| rule.model_pattern.as_str())
+        .filter(|rule| rule.provider_id == request.provider_id)
+        .map(|rule| rule.model_pattern.clone())
         .collect::<BTreeSet<_>>();
     let mut skipped = 0;
     let mut unmatched = 0;
@@ -65,12 +67,28 @@ pub(crate) async fn apply(state: &impl State, body: &Bytes) -> Result<Response<B
     for model in selected {
         if existing.contains(model.as_str()) {
             skipped += 1;
-        } else if let Some(source) = super::catalog::price(model) {
+            continue;
+        }
+        let source = if request.provider_id.is_none() {
+            super::catalog::model(model).and_then(|model| model.pricing.as_ref())
+        } else {
+            super::catalog::price(model)
+        };
+        if let Some(source) = source {
+            let (model_pattern, priority) = if request.provider_id.is_none() {
+                (source.model_pattern.clone(), source.priority)
+            } else {
+                (model.clone(), 0)
+            };
+            if !existing.insert(model_pattern.clone()) {
+                skipped += 1;
+                continue;
+            }
             pending.push(Pending {
                 source,
-                provider_id: Some(request.provider_id),
-                model_pattern: model.clone(),
-                priority: 0,
+                provider_id: request.provider_id,
+                model_pattern,
+                priority,
             });
         } else {
             unmatched += 1;

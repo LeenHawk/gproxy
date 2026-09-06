@@ -60,7 +60,7 @@ pub struct DefaultModelPriceRateDto {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct ApplyDefaultModelPricesRequest {
-    pub provider_id: i64,
+    pub provider_id: Option<i64>,
     pub model_ids: Vec<String>,
 }
 

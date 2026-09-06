@@ -3,6 +3,20 @@
     "title": "定价",
     "subtitle": "配置模型规则、维度费率和服务层级阶梯。",
     "loadError": "无法加载定价，请重试。",
+    "defaults": {
+      "retry": "重试",
+      "title": "加载默认价格表",
+      "description": "从默认价格表中选择模型。已有相同模型匹配规则的价格会跳过，保留当前设置。",
+      "search": "搜索模型…",
+      "selectAll": "全选搜索结果",
+      "count": "共 {{shown}} 个模型 · 已选 {{selected}} 个",
+      "existing": "已配置",
+      "empty": "没有匹配的默认价格模型。",
+      "apply": "加载 {{count}} 个模型",
+      "applied": "已新增 {{created}} 个，跳过 {{skipped}} 个，未匹配 {{unmatched}} 个。",
+      "loadError": "默认价格表加载失败，请重试。",
+      "saveError": "默认价格导入失败，请重试。"
+    },
     "rules": {
       "add": "添加定价规则",
       "edit": "编辑定价规则",

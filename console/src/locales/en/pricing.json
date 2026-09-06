@@ -3,6 +3,20 @@
     "title": "Pricing",
     "subtitle": "Configure model rules, dimensional rates, and service-tier ladders.",
     "loadError": "Could not load pricing. Retry.",
+    "defaults": {
+      "retry": "Retry",
+      "title": "Load default prices",
+      "description": "Select models from the default catalog. Existing rules with the same model pattern are skipped; their prices stay unchanged.",
+      "search": "Search models…",
+      "selectAll": "Select all results",
+      "count": "{{shown}} models · {{selected}} selected",
+      "existing": "Already configured",
+      "empty": "No models with default prices match.",
+      "apply": "Load {{count}} models",
+      "applied": "Created {{created}}, skipped {{skipped}}, unmatched {{unmatched}}.",
+      "loadError": "Could not load default prices. Retry.",
+      "saveError": "Could not import default prices. Retry."
+    },
     "rules": {
       "add": "Add price rule",
       "edit": "Edit price rule",
