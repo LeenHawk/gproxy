@@ -19,14 +19,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let address = config.listen_addr();
-    let host = gproxy_host_axum::HostConfig::from_config(&config);
     gproxy_host_axum::init_tracing(config.log_format());
+    let listener = reserve_listener(address, config.restart_parent().is_some()).await?;
+    let host = gproxy_host_axum::HostConfig::from_config(&config);
     let app = gproxy_app::App::start(config).await?;
     tracing::info!(instance_name = %app.instance_name(), %address, "GPROXY listening");
-    let server = gproxy_host_axum::AxumServer::bind_with_config(app, address, host).await?;
+    let server = gproxy_host_axum::AxumServer::from_listener(app, listener, host)?;
     shutdown_signal().await?;
     server.shutdown().await?;
     Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn reserve_listener(
+    address: std::net::SocketAddr,
+    restarting: bool,
+) -> std::io::Result<tokio::net::TcpListener> {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        match tokio::net::TcpListener::bind(address).await {
+            Err(error)
+                if restarting
+                    && error.kind() == std::io::ErrorKind::AddrInUse
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            result => return result,
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

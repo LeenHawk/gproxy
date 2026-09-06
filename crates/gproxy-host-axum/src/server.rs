@@ -29,6 +29,7 @@ impl HostConfig {
         let selfupdate = crate::selfupdate::Manager::new(
             config.data_dir().to_owned(),
             config.upstream_proxy_url(),
+            config.update_channel(),
         )
         .map(Arc::new)
         .map_err(|error| tracing::warn!(%error, "self-update initialization failed"))
@@ -164,6 +165,14 @@ impl AxumServer {
         let listener = tokio::net::TcpListener::bind(address)
             .await
             .map_err(HostError::Io)?;
+        Self::from_listener(app, listener, config)
+    }
+
+    pub fn from_listener(
+        app: gproxy_app::AppHandle,
+        listener: tokio::net::TcpListener,
+        config: HostConfig,
+    ) -> Result<Self, HostError> {
         let address = listener.local_addr().map_err(HostError::Io)?;
         let shutdown = app.clone();
         let state = HostState::new(app.clone(), config)?;

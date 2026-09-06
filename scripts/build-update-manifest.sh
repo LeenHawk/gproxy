@@ -10,6 +10,7 @@ output="${OUT:-dist/release/manifest.json}"
 notes_url="${NOTES_URL:-}"
 version="${VERSION:-${TAG#v}}"
 channel="${CHANNEL:-releases}"
+prefix="${ASSET_PREFIX:-}"
 
 case "$channel" in
   releases | dev)
@@ -44,7 +45,7 @@ printf '%s\n%s\n%s\n%s\n' "$channel" "$version" "$notes_url" "$minimum" > "$payl
 artifacts='[]'
 
 while IFS=$'\t' read -r target artifact os; do
-  package="$assets_dir/$artifact.zip"
+  package="$assets_dir/$prefix$artifact.zip"
   sidecar="$package.sha256"
   if [ ! -f "$package" ] || [ ! -f "$sidecar" ]; then
     echo "missing native release archive for $target" >&2
@@ -52,13 +53,13 @@ while IFS=$'\t' read -r target artifact os; do
   fi
   sha="$(awk '{print $1}' "$sidecar")"
   size="$(stat -c%s "$package")"
-  url="https://github.com/$REPO/releases/download/$TAG/$artifact.zip"
+  url="https://github.com/$REPO/releases/download/$TAG/$prefix$artifact.zip"
   printf '%s|%s|%s|%s\n' "$target" "$url" "$sha" "$size" >> "$payload"
   artifacts="$(jq -c --arg t "$target" --arg u "$url" --arg s "$sha" --argjson z "$size" \
     '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' <<<"$artifacts")"
 
   if [ "$os" = android ]; then
-    apk="$assets_dir/$artifact.apk"
+    apk="$assets_dir/$prefix$artifact.apk"
     apk_sidecar="$apk.sha256"
     if [ ! -f "$apk" ] || [ ! -f "$apk_sidecar" ]; then
       echo "missing signed Android APK for $target" >&2
@@ -67,7 +68,7 @@ while IFS=$'\t' read -r target artifact os; do
     apk_sha="$(awk '{print $1}' "$apk_sidecar")"
     apk_size="$(stat -c%s "$apk")"
     apk_target="$target-apk"
-    apk_url="https://github.com/$REPO/releases/download/$TAG/$artifact.apk"
+    apk_url="https://github.com/$REPO/releases/download/$TAG/$prefix$artifact.apk"
     printf '%s|%s|%s|%s\n' "$apk_target" "$apk_url" "$apk_sha" "$apk_size" >> "$payload"
     artifacts="$(jq -c --arg t "$apk_target" --arg u "$apk_url" --arg s "$apk_sha" \
       --argjson z "$apk_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \

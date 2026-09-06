@@ -5,6 +5,7 @@ mod plan;
 mod report;
 mod source;
 mod tombstone;
+pub(crate) mod upgrade;
 mod validate;
 
 use std::path::PathBuf;

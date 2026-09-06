@@ -75,7 +75,8 @@ mod tests {
             axum::serve(listener, router).await.expect("serve fixture");
         });
         let directory = tempfile::tempdir().expect("update directory");
-        let manager = Manager::new(directory.path().to_owned(), None).expect("update manager");
+        let manager =
+            Manager::new(directory.path().to_owned(), None, None).expect("update manager");
         let payload = b"verified update bytes";
         let mut artifact = Artifact {
             target_triple: "test".into(),

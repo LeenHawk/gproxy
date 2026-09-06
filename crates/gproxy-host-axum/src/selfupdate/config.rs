@@ -2,10 +2,14 @@ use http::StatusCode;
 
 use super::Result;
 
-pub(super) fn channel(selected: Option<&str>) -> Result<String> {
-    let value = std::env::var("GPROXY_UPDATE_CHANNEL_SERVE")
-        .or_else(|_| std::env::var("GPROXY_UPDATE_CHANNEL"))
-        .ok()
+pub(super) fn channel(selected: Option<&str>, configured: Option<&str>) -> Result<String> {
+    let value = configured
+        .map(str::to_owned)
+        .or_else(|| {
+            std::env::var("GPROXY_UPDATE_CHANNEL_SERVE")
+                .or_else(|_| std::env::var("GPROXY_UPDATE_CHANNEL"))
+                .ok()
+        })
         .or_else(|| selected.map(str::to_owned))
         .unwrap_or_else(|| crate::BUILD_CHANNEL.into());
     match value.to_ascii_lowercase().as_str() {

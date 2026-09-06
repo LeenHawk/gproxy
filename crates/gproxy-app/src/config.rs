@@ -26,6 +26,8 @@ pub struct Config {
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 pub(crate) struct NativeOptions {
+    pub update_channel: Option<String>,
+    pub restart_parent: Option<u32>,
     pub upstream_proxy_url: Option<String>,
     pub instance_id: u64,
     pub max_attempts: u32,
@@ -44,6 +46,8 @@ pub(crate) struct NativeOptions {
 impl Default for NativeOptions {
     fn default() -> Self {
         Self {
+            update_channel: None,
+            restart_parent: None,
             upstream_proxy_url: None,
             instance_id: 0,
             max_attempts: 6,
@@ -86,7 +90,9 @@ impl NativeCommand {
 #[derive(Clone)]
 enum StoreBackend {
     #[cfg(not(target_arch = "wasm32"))]
-    Sqlite,
+    Sqlite {
+        path: PathBuf,
+    },
     #[cfg(not(target_arch = "wasm32"))]
     Postgres {
         dsn: String,
@@ -192,8 +198,10 @@ impl Config {
     ) -> Self {
         Self {
             listen_addr,
-            data_dir,
-            backend: StoreBackend::Sqlite,
+            data_dir: data_dir.clone(),
+            backend: StoreBackend::Sqlite {
+                path: data_dir.join("gproxy.db"),
+            },
             cache: CacheConfig::InProcess,
             secret_keys,
             native: NativeOptions::default(),
@@ -253,12 +261,28 @@ impl Config {
         self.native.upstream_proxy_url.as_deref()
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn update_channel(&self) -> Option<&str> {
+        self.native.update_channel.as_deref()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn restart_parent(&self) -> Option<u32> {
+        self.native.restart_parent
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_sqlite_path(mut self, path: PathBuf) -> Self {
+        self.backend = StoreBackend::Sqlite { path };
+        self
+    }
+
     pub fn backend_config(&self) -> gproxy_store::BackendConfig {
         match &self.backend {
             #[cfg(not(target_arch = "wasm32"))]
-            StoreBackend::Sqlite => gproxy_store::BackendConfig::Sqlite {
-                path: self.data_dir.join("gproxy.db"),
-            },
+            StoreBackend::Sqlite { path } => {
+                gproxy_store::BackendConfig::Sqlite { path: path.clone() }
+            }
             #[cfg(not(target_arch = "wasm32"))]
             StoreBackend::Postgres { dsn } => {
                 gproxy_store::BackendConfig::Postgres { dsn: dsn.clone() }
@@ -350,7 +374,7 @@ impl std::fmt::Debug for Config {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let backend = match &self.backend {
             #[cfg(not(target_arch = "wasm32"))]
-            StoreBackend::Sqlite => "Sqlite".to_owned(),
+            StoreBackend::Sqlite { .. } => "Sqlite".to_owned(),
             #[cfg(not(target_arch = "wasm32"))]
             StoreBackend::Postgres { .. } => "Postgres { dsn: <redacted> }".to_owned(),
             #[cfg(not(target_arch = "wasm32"))]

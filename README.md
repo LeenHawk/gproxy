@@ -34,6 +34,12 @@ one database transaction; after success, move the target into
 The stored fingerprint is never a key, and startup refuses a sealed store when
 the required fingerprint is not supplied.
 
+## Upgrading from v2
+
+For the native v2-to-v3 staging upgrade, read [the upgrade and rollback guide](docs/v2-upgrade.md)
+before applying the update. Automatic migration currently accepts supported SQLite databases;
+unmapped data stops the upgrade rather than being discarded.
+
 ## Account OAuth and Pi
 
 Public clients can authorize a GPROXY user account with authorization-code +

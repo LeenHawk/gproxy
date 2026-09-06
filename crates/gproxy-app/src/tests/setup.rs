@@ -464,7 +464,7 @@ pub(super) fn v2_database(
     }
 }
 
-fn v2_seal(value: &serde_json::Value, key: [u8; 32]) -> serde_json::Value {
+pub(super) fn v2_seal(value: &serde_json::Value, key: [u8; 32]) -> serde_json::Value {
     use chacha20poly1305::aead::{Aead, KeyInit, Payload};
     use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
     let mut dek = [0_u8; 32];

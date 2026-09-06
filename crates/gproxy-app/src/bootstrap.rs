@@ -12,6 +12,8 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         std::fs::create_dir_all(config.data_dir())
             .map_err(|error| AppError::Bootstrap(error.to_string()))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let _upgrade_lock = crate::migrate_v2::upgrade::prepare(&config).await?;
         let store = gproxy_store::Store::open(config.backend_config()).await?;
         let fresh_store = store
             .entity_counts()

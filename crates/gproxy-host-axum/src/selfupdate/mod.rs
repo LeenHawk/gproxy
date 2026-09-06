@@ -23,10 +23,15 @@ pub(crate) struct Manager {
     data_dir: PathBuf,
     manifest_url: Option<String>,
     restart: Restart,
+    channel: Option<String>,
 }
 
 impl Manager {
-    pub(crate) fn new(data_dir: PathBuf, proxy: Option<&str>) -> Result<Self> {
+    pub(crate) fn new(
+        data_dir: PathBuf,
+        proxy: Option<&str>,
+        channel: Option<&str>,
+    ) -> Result<Self> {
         let manifest_url = std::env::var("GPROXY_UPDATE_SERVE").ok();
         let mut builder = wreq::Client::builder()
             .redirect(wreq::redirect::Policy::limited(10))
@@ -40,11 +45,12 @@ impl Manager {
             data_dir,
             manifest_url,
             restart: restart()?,
+            channel: channel.map(str::to_owned),
         })
     }
 
     async fn check(&self, selected_channel: Option<&str>) -> Result<UpdateStatusDto> {
-        let channel = channel(selected_channel)?;
+        let channel = channel(selected_channel, self.channel.as_deref())?;
         let manifest = download::manifest(&self.client, &self.manifest_url(&channel)).await?;
         if manifest.channel != channel {
             return Err(Error::Manifest);
@@ -70,7 +76,7 @@ impl Manager {
     }
 
     async fn apply(&self, selected_channel: Option<&str>) -> Result<(UpdateAppliedDto, bool)> {
-        let channel = channel(selected_channel)?;
+        let channel = channel(selected_channel, self.channel.as_deref())?;
         let manifest = download::manifest(&self.client, &self.manifest_url(&channel)).await?;
         if manifest.channel != channel {
             return Err(Error::Manifest);

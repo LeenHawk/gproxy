@@ -1,13 +1,18 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - "v*"
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'staging' }}
 
 permissions:
   contents: write
@@ -21,14 +26,22 @@ jobs:
       matrix: ${{ steps.metadata.outputs.matrix }}
       version: ${{ steps.metadata.outputs.version }}
       channel: ${{ steps.metadata.outputs.channel }}
+      manifest_version: ${{ steps.metadata.outputs.manifest_version }}
     steps:
       - uses: actions/checkout@v7
       - id: metadata
         run: |
-          scripts/release-metadata.sh verify-tag "$GITHUB_REF_NAME"
           version="$(scripts/release-metadata.sh version)"
-          channel=releases
-          if [[ "$version" == *-* ]]; then channel=dev; fi
+          manifest_version="$version"
+          channel=staging
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            scripts/release-metadata.sh verify-tag "$GITHUB_REF_NAME"
+            channel=releases
+            if [[ "$version" == *-* ]]; then channel=dev; fi
+          else
+            manifest_version="$GITHUB_SHA"
+          fi
+          echo "manifest_version=$manifest_version" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "matrix=$(jq -c . scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
@@ -242,7 +255,7 @@ jobs:
         id: metadata
         with:
           images: ghcr.io/${{ github.repository_owner }}/gproxy
-          tags: type=raw,value=${{ github.ref_name }}-${{ matrix.arch }}${{ matrix.suffix }}
+          tags: type=raw,value=${{ env.RELEASE_TAG }}-${{ matrix.arch }}${{ matrix.suffix }}
       - uses: docker/build-push-action@v7
         with:
           context: .
@@ -269,7 +282,7 @@ jobs:
       - name: Create GNU and musl manifests
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          tag="$image:$GITHUB_REF_NAME"
+          tag="$image:$RELEASE_TAG"
           docker buildx imagetools create -t "$tag" \
             "$tag-amd64" "$tag-arm64" "$tag-riscv64"
           docker buildx imagetools create -t "$tag-musl" \
@@ -290,12 +303,17 @@ jobs:
         env:
           UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
           UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
-          TAG: ${{ github.ref_name }}
-          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ env.RELEASE_TAG }}
+          VERSION: ${{ needs.prepare.outputs.manifest_version }}
           CHANNEL: ${{ needs.prepare.outputs.channel }}
           REPO: ${{ github.repository }}
-          NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
-        run: scripts/build-update-manifest.sh
+          NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
+          ASSET_PREFIX: ${{ needs.prepare.outputs.channel == 'staging' && format('{0}-', github.sha) || '' }}
+        run: |
+          if [ -n "$ASSET_PREFIX" ]; then
+            for file in dist/native/*; do mv "$file" "$(dirname "$file")/$ASSET_PREFIX$(basename "$file")"; done
+          fi
+          scripts/build-update-manifest.sh
       - uses: actions/upload-artifact@v7
         with:
           name: signed-update-manifest
@@ -303,6 +321,7 @@ jobs:
           retention-days: 1
 
   publish-crates:
+    if: github.ref_type == 'tag'
     name: Publish crates.io libraries
     needs: [prepare, native]
     runs-on: ubuntu-latest
@@ -381,6 +400,7 @@ jobs:
           retention-days: 1
 
   publish:
+    if: ${{ always() && !failure() && !cancelled() }}
     name: Publish release
     needs: [prepare, manifest, edge, container-manifest, publish-crates]
     runs-on: ubuntu-latest
@@ -404,36 +424,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISH_CHANNEL: ${{ needs.prepare.outputs.channel }}
           VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          mapfile -d '' files < <(find dist/publish -maxdepth 1 -type f -print0 | sort -z)
-          test "${#files[@]}" -gt 0
-          release_flags=()
-          if [[ "$VERSION" == *-* ]]; then release_flags+=(--prerelease); fi
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
-            if [[ "$VERSION" == *-* ]]; then gh release edit "$GITHUB_REF_NAME" --prerelease; fi
-          else
-            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
-              --verify-tag --title "gproxy $GITHUB_REF_NAME" --generate-notes "${release_flags[@]}"
-          fi
-          if [ "$PUBLISH_CHANNEL" = dev ]; then
-            latest_dev_version="$(gh release list --limit 100 \
-              --json tagName,isDraft,isPrerelease \
-              --jq '.[] | select(.isPrerelease and (.isDraft | not)) | .tagName' \
-              | sed -n 's/^v\(3\..*\)$/\1/p' | sort -V | tail -1)"
-            if [ -n "$latest_dev_version" ] && [ "$latest_dev_version" != "$VERSION" ]; then
-              echo "Skipping stale dev pointer update for $VERSION; latest prerelease is $latest_dev_version."
-              exit 0
-            fi
-            git tag -f dev "$GITHUB_SHA"
-            git push -f origin refs/tags/dev
-            notes="Latest signed manifest for the GPROXY v3 alpha channel ($GITHUB_REF_NAME)."
-            if gh release view dev >/dev/null 2>&1; then
-              gh release edit dev --target "$GITHUB_SHA" --title "gproxy v3 dev" \
-                --notes "$notes" --prerelease
-            else
-              gh release create dev --verify-tag --title "gproxy v3 dev" \
-                --notes "$notes" --prerelease
-            fi
-            gh release upload dev dist/publish/manifest.json --clobber
-          fi
+        run: scripts/publish-release.sh

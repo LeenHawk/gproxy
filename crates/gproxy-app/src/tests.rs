@@ -2,6 +2,7 @@ mod admin;
 mod fingerprint;
 mod lifecycle;
 mod migrate_v2;
+mod native_upgrade;
 mod oauth;
 mod pressure;
 mod quota;
