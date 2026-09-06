@@ -4,7 +4,7 @@ mod health;
 mod log;
 mod quota;
 
-pub(crate) use cleanup::{delete_before, delete_oldest_logs};
+pub(crate) use cleanup::{delete_before, delete_oldest_logs, delete_stale_quota_activity};
 
 pub(crate) use cycle::*;
 pub(crate) use health::{

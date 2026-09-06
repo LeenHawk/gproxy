@@ -61,6 +61,16 @@ JSON 是文本。
 | 分词器 | `tokenizer_vocabs`、`tokenizer_auth` | 缓存的词表和密封的 Hugging Face Token。 |
 | OAuth | `oauth_grants`、`oauth_codes`、`oauth_tokens`、`oauth_devices` | 模拟厂商认证面的签发方状态。 |
 
+## 归属关系
+
+schema 不声明数据库外键，因为四种后端对外键的支持并不一致。取而代之的是每张表
+声明自己拥有哪些行，所有删除都从这份声明生成，在一个事务里完成：删除 Provider
+会带走它的凭证、路由成员、别名、模型目录、价格规则、路由规则和规则集挂载；删除
+路由带走成员和公开模型；删除组织、团队、用户或密钥带走作用于它们的权限、限流和
+配额；删除团队只把用户的团队字段置空。历史数据从不跟随删除：用量行、汇总、配额
+周期、日志和审计事件保留已不存在主体的 ID。一个 schema 步骤会清理归属方已经
+消失的行，并有测试拒绝任何既未声明归属也未列为历史的引用列。
+
 ## 缓存后端
 
 | 后端 | 选择方式 | 范围 |
@@ -100,7 +110,8 @@ JSON 是文本。
 ## 保留与大小压力
 
 原生宿主每 5 分钟执行一次清理。它删除早于 `retention_days` 的
-`usage_rows`、`request_logs` 和 `wire_logs`（每表每次 5,000 行），测量数据
+`usage_rows`、`request_logs` 和 `wire_logs`（每表每次 5,000 行），连同这些
+用量行拥有的配额跟踪行和早于截止时间的配额活动记录，测量数据
 库大小（SQLite 和 libSQL 用 `page_count × page_size`，PostgreSQL 用
 `pg_database_size`，MySQL 用 `information_schema` 中的大小），当大小超过
 `max_database_size_mb` 时删除最旧的 5,000 行 `request_logs` 和 `wire_logs`

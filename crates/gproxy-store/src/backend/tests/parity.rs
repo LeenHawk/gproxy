@@ -312,6 +312,7 @@ async fn route_ownership_step_purges_orphaned_members_and_names() {
     .await
     .unwrap();
     for sql in [
+        "INSERT INTO providers (name, channel, settings_json, enabled) VALUES ('p', 'custom', '{}', 1)",
         "INSERT INTO routes (name, max_attempts, enabled) VALUES ('kept', 1, 1)",
         "INSERT INTO route_members (route_id, provider_id, credential_id, upstream_model, tier, priority, weight, enabled) VALUES (1, 1, NULL, 'kept', 0, 0, 100, 1)",
         "INSERT INTO route_members (route_id, provider_id, credential_id, upstream_model, tier, priority, weight, enabled) VALUES (99, 1, NULL, 'orphan', 0, 0, 100, 1)",
@@ -339,4 +340,108 @@ async fn route_ownership_step_purges_orphaned_members_and_names() {
         let values: Vec<&str> = rows.iter().map(|row| row.text("value").unwrap()).collect();
         assert_eq!(values, [expected], "{table}");
     }
+}
+
+/// Every integer reference column is owned by the table it names, or is
+/// listed here as history that deliberately outlives its subject.
+#[test]
+fn every_reference_column_is_owned_or_history() {
+    use crate::schema::{ColumnKind, Ownership, tables};
+    const HISTORY: &[(&str, &str)] = &[
+        ("usage_rows", "provider_id"),
+        ("usage_rows", "credential_id"),
+        ("usage_rows", "organization_id"),
+        ("usage_rows", "team_id"),
+        ("usage_rows", "user_id"),
+        ("usage_rows", "user_key_id"),
+        ("usage_rollups", "provider_id"),
+        ("usage_rollups", "organization_id"),
+        ("usage_rollups", "team_id"),
+        ("usage_rollups", "user_id"),
+        ("credential_quota_cycles", "credential_id"),
+        ("wire_logs", "provider_id"),
+        ("wire_logs", "credential_id"),
+        ("admin_audit_events", "actor_user_id"),
+        ("admin_audit_events", "target_id"),
+    ];
+    let owned: Vec<(&str, &str)> = tables()
+        .flat_map(|spec| spec.owns.iter())
+        .map(|ownership| match *ownership {
+            Ownership::Owns { table, column } | Ownership::Detaches { table, column } => {
+                (table, column)
+            }
+            Ownership::Scoped { table, .. } => (table, "subject_id"),
+        })
+        .collect();
+    let mut unowned = Vec::new();
+    for spec in tables() {
+        for column in spec.columns {
+            let reference = column.kind == ColumnKind::Integer
+                && column.name != "id"
+                && column.name.ends_with("_id");
+            if reference
+                && !HISTORY.contains(&(spec.name, column.name))
+                && !owned.contains(&(spec.name, column.name))
+            {
+                unowned.push(format!("{}.{}", spec.name, column.name));
+            }
+        }
+    }
+    assert!(
+        unowned.is_empty(),
+        "reference columns nobody owns: {unowned:?}"
+    );
+    for ownership in tables().flat_map(|spec| spec.owns.iter()) {
+        assert!(
+            tables().any(|spec| spec.name == ownership.table()),
+            "ownership names unknown table {}",
+            ownership.table()
+        );
+    }
+}
+
+#[tokio::test]
+async fn owned_rows_step_sweeps_every_declared_orphan() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let database = super::super::native::NativeSql::open(dir.path().join("owned.db"))
+        .await
+        .unwrap();
+    crate::migration::migrate_to(
+        &database,
+        Dialect::NativeSqlite,
+        crate::schema::SchemaVersion::RouteOwnership,
+    )
+    .await
+    .unwrap();
+    for sql in [
+        "INSERT INTO price_rules (provider_id, model_pattern, tiers_json, priority, enabled) VALUES (NULL, '*', NULL, 0, 1)",
+        "INSERT INTO price_rates (rule_id, metric, unit_size, price, conditions_json, priority) VALUES (1, 'input_tokens', 1, '1', NULL, 0)",
+        "INSERT INTO price_rates (rule_id, metric, unit_size, price, conditions_json, priority) VALUES (7, 'input_tokens', 1, '1', NULL, 0)",
+        "INSERT INTO organizations (name, enabled) VALUES ('org', 1)",
+        "INSERT INTO teams (organization_id, name, enabled) VALUES (1, 'kept', 1)",
+        "INSERT INTO users (name, organization_id, team_id, enabled, is_admin) VALUES ('u', 1, 42, 1, 0)",
+        "INSERT INTO permissions (subject_kind, subject_id, provider_id, operation_group, allowed) VALUES ('team', 1, NULL, NULL, 1)",
+        "INSERT INTO permissions (subject_kind, subject_id, provider_id, operation_group, allowed) VALUES ('team', 9, NULL, NULL, 1)",
+        "INSERT INTO quotas (subject_kind, subject_id, quota_total, enabled) VALUES ('user_key', 55, '1', 1)",
+        "INSERT INTO quota_windows (quota_id, window_kind, window_start, reset_at, cost_used, active_slot) VALUES (1, 'daily', 0, NULL, '0', 1)",
+    ] {
+        database.execute(Statement::plain(sql)).await.unwrap();
+    }
+    crate::migration::migrate(&database, Dialect::NativeSqlite)
+        .await
+        .unwrap();
+    let database = &database;
+    let count = |sql: &'static str| async move {
+        database
+            .execute(Statement::plain(sql))
+            .await
+            .unwrap()
+            .rows
+            .len()
+    };
+    assert_eq!(count("SELECT id FROM price_rates").await, 1);
+    assert_eq!(count("SELECT id FROM permissions").await, 1);
+    assert_eq!(count("SELECT id FROM quotas").await, 0);
+    assert_eq!(count("SELECT id FROM quota_windows").await, 0);
+    assert_eq!(count("SELECT id FROM users WHERE team_id IS NULL").await, 1);
 }

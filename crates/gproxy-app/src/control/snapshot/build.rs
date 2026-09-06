@@ -228,18 +228,23 @@ fn routes(
                         .cloned()
                         .unwrap_or_default(),
                 };
-                targets.extend(member_credentials.into_iter().map(|credential| TargetSeed {
-                    member_id: member.id,
-                    tier: member.tier,
-                    member_weight: member.weight,
-                    provider_id: member.provider_id,
-                    credential: credential.id,
-                    credential_version: credential.version,
-                    credential_weight: credential.weight,
-                    credential_strategy: strategies[&member.provider_id],
-                    proxy_url: credential.proxy_url,
-                    fingerprint: credential.fingerprint,
-                    upstream_model: member.upstream_model.clone(),
+                targets.extend(member_credentials.into_iter().map(|credential| {
+                    TargetSeed {
+                        member_id: member.id,
+                        tier: member.tier,
+                        member_weight: member.weight,
+                        provider_id: member.provider_id,
+                        credential: credential.id,
+                        credential_version: credential.version,
+                        credential_weight: credential.weight,
+                        credential_strategy: strategies
+                            .get(&member.provider_id)
+                            .copied()
+                            .unwrap_or(CredentialStrategy::RoundRobin),
+                        proxy_url: credential.proxy_url,
+                        fingerprint: credential.fingerprint,
+                        upstream_model: member.upstream_model.clone(),
+                    }
                 }));
             }
             (

@@ -18,10 +18,7 @@ impl Store {
     ) -> Result<CleanupResult, StoreError> {
         let retention_rows = match retention_cutoff {
             Some(cutoff) => {
-                let statements = ["wire_logs", "request_logs", "usage_rows"]
-                    .into_iter()
-                    .map(|table| runtime::delete_before(table, cutoff))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let statements = retention_statements(cutoff)?;
                 affected(self.backend().batch(statements).await?)
             }
             None => 0,
@@ -76,4 +73,20 @@ fn result_value(
 
 fn affected(results: Vec<crate::backend::QueryResult>) -> u64 {
     results.into_iter().map(|result| result.affected_rows).sum()
+}
+
+/// Expression values are not `Send`, so the retention batch is assembled
+/// outside the async body.
+fn retention_statements(cutoff: i64) -> Result<Vec<Statement>, StoreError> {
+    use sea_query::ExprTrait as _;
+    let expired = sea_query::Expr::col(sea_query::Alias::new("at")).lt(cutoff);
+    let mut statements = crate::query::cascade("usage_rows", &expired)?;
+    statements.extend(
+        ["wire_logs", "request_logs", "usage_rows"]
+            .into_iter()
+            .map(|table| runtime::delete_before(table, cutoff))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    statements.push(runtime::delete_stale_quota_activity(cutoff)?);
+    Ok(statements)
 }

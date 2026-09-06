@@ -14,6 +14,7 @@ async fn credential_budget_migration_preserves_costs_and_makes_total_optional() 
             .await
             .unwrap();
         old.batch(vec![
+            Statement::plain("INSERT INTO users(id,name,enabled,is_admin) VALUES(1,'budget-user',1,0)"),
             Statement::plain("INSERT INTO quotas(id,subject_kind,subject_id,quota_total,enabled) VALUES(7,'user',1,'100',1)"),
             Statement::plain("INSERT INTO quota_windows(id,quota_id,window_kind,window_start,cost_used,active_slot) VALUES(8,7,'total',0,'12.34',1)"),
             Statement::plain("INSERT INTO quota_settlements(request_id,window_id,cost) VALUES('before-upgrade',8,'12.34')"),

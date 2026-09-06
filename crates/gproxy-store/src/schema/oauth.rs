@@ -1,4 +1,4 @@
-use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, Ownership, SchemaVersion, TableSpec};
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
@@ -12,6 +12,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("enabled", Integer),
             Col::optional("deleted_at", Integer),
         ],
+        owns: &[],
         indexes: &[],
     },
     TableSpec {
@@ -32,6 +33,20 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("last_refreshed_at", Integer).since(SchemaVersion::OAuthSessions),
             Col::optional("refresh_count", Integer).since(SchemaVersion::OAuthSessions),
             Col::optional("refresh_expires_at", Integer).since(SchemaVersion::OAuthSessions),
+        ],
+        owns: &[
+            Ownership::Owns {
+                table: "oauth_codes",
+                column: "grant_id",
+            },
+            Ownership::Owns {
+                table: "oauth_tokens",
+                column: "grant_id",
+            },
+            Ownership::Owns {
+                table: "oauth_devices",
+                column: "grant_id",
+            },
         ],
         indexes: &[
             IndexSpec {
@@ -62,6 +77,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("consumed_at", Integer),
             Col::optional("consumed_by", Blob).since(SchemaVersion::OAuthSessions),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_oauth_codes_expiry",
             columns: &["expires_at", "id"],
@@ -83,6 +99,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("consumed_by", Blob).since(SchemaVersion::OAuthSessions),
             Col::optional("revoked_at", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "ix_oauth_tokens_grant",
@@ -118,6 +135,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("payload_nonce", Blob),
             Col::optional("key_nonce", Blob),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_oauth_devices_expiry",
             columns: &["expires_at", "id"],

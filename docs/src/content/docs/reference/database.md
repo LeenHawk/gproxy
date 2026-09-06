@@ -69,6 +69,21 @@ recreated; they were never a supported migration source.
 | Tokenizers | `tokenizer_vocabs`, `tokenizer_auth` | Cached vocabularies and the sealed Hugging Face token. |
 | OAuth | `oauth_grants`, `oauth_codes`, `oauth_tokens`, `oauth_devices` | Issuer state for the emulated vendor-auth surfaces. |
 
+## Ownership
+
+The schema declares no database foreign keys, because the four backends
+do not agree on them. Instead each table declares what it owns, and every
+delete is generated from that declaration in one transaction: deleting a
+provider takes its credentials, route members, aliases, catalogue entries,
+pricing rules, routing rules and rule-set attachments; deleting a route
+takes its members and exposed models; deleting an organization, team, user
+or key takes the permissions, rate limits and quotas scoped to it; deleting
+a team leaves its users in place with no team. History never follows a
+delete: usage rows, rollups, quota cycles, logs and audit events keep the
+ids of subjects that no longer exist. A schema step sweeps rows whose owner
+is already gone, and a test refuses any reference column that is neither
+owned nor listed as history.
+
 ## Cache Backends
 
 | Backend | Selected by | Scope |
@@ -115,7 +130,8 @@ reloading their snapshot when the version changes.
 
 A sweep runs every 5 minutes on native hosts. It deletes `usage_rows`,
 `request_logs` and `wire_logs` older than `retention_days` (5,000 rows
-per table per sweep), measures the database (`page_count × page_size` on
+per table per sweep) together with the quota-tracking rows those usage
+rows own and quota activity older than the cutoff, measures the database (`page_count × page_size` on
 SQLite and libSQL, `pg_database_size` on PostgreSQL, `information_schema`
 sizes on MySQL), and when the size exceeds `max_database_size_mb` deletes
 the 5,000 oldest `request_logs` and `wire_logs` rows — never usage. Unset

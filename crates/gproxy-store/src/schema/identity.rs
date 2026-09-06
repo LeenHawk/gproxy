@@ -1,4 +1,4 @@
-use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, Ownership, SchemaVersion, TableSpec};
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
@@ -8,6 +8,28 @@ pub const TABLES: &[TableSpec] = &[
             Col::id(),
             Col::required("name", Text).unique(),
             Col::required("enabled", Integer),
+        ],
+        owns: &[
+            Ownership::Owns {
+                table: "teams",
+                column: "organization_id",
+            },
+            Ownership::Owns {
+                table: "users",
+                column: "organization_id",
+            },
+            Ownership::Scoped {
+                table: "permissions",
+                kind: "organization",
+            },
+            Ownership::Scoped {
+                table: "rate_limits",
+                kind: "organization",
+            },
+            Ownership::Scoped {
+                table: "quotas",
+                kind: "organization",
+            },
         ],
         indexes: &[],
     },
@@ -19,6 +41,24 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("organization_id", Integer),
             Col::required("name", Text),
             Col::required("enabled", Integer),
+        ],
+        owns: &[
+            Ownership::Detaches {
+                table: "users",
+                column: "team_id",
+            },
+            Ownership::Scoped {
+                table: "permissions",
+                kind: "team",
+            },
+            Ownership::Scoped {
+                table: "rate_limits",
+                kind: "team",
+            },
+            Ownership::Scoped {
+                table: "quotas",
+                kind: "team",
+            },
         ],
         indexes: &[IndexSpec {
             name: "uq_teams_organization_name",
@@ -38,6 +78,36 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("password_hash", Text),
             Col::required("enabled", Integer),
             Col::required("is_admin", Integer).default("0"),
+        ],
+        owns: &[
+            Ownership::Owns {
+                table: "user_keys",
+                column: "user_id",
+            },
+            Ownership::Owns {
+                table: "user_sessions",
+                column: "user_id",
+            },
+            Ownership::Owns {
+                table: "oauth_grants",
+                column: "user_id",
+            },
+            Ownership::Owns {
+                table: "surface_bindings",
+                column: "owner_user_id",
+            },
+            Ownership::Scoped {
+                table: "permissions",
+                kind: "user",
+            },
+            Ownership::Scoped {
+                table: "rate_limits",
+                kind: "user",
+            },
+            Ownership::Scoped {
+                table: "quotas",
+                kind: "user",
+            },
         ],
         indexes: &[
             IndexSpec {
@@ -71,6 +141,24 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("payload_nonce", Blob),
             Col::optional("key_nonce", Blob),
         ],
+        owns: &[
+            Ownership::Owns {
+                table: "oauth_grants",
+                column: "user_key_id",
+            },
+            Ownership::Scoped {
+                table: "permissions",
+                kind: "user_key",
+            },
+            Ownership::Scoped {
+                table: "rate_limits",
+                kind: "user_key",
+            },
+            Ownership::Scoped {
+                table: "quotas",
+                kind: "user_key",
+            },
+        ],
         indexes: &[IndexSpec {
             name: "ix_user_keys_user_enabled",
             columns: &["user_id", "enabled"],
@@ -88,6 +176,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("expires_at", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_user_sessions_expiry",
             columns: &["expires_at", "id"],
@@ -106,6 +195,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("operation_group", Text),
             Col::required("allowed", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_permissions_subject",
             columns: &["subject_kind", "subject_id", "provider_id"],
@@ -123,6 +213,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("requests", Integer),
             Col::required("window_seconds", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "uq_rate_limits_subject_window",
             columns: &["subject_kind", "subject_id", "window_seconds"],
@@ -145,6 +236,10 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("quota_7d", Text),
             Col::required("enabled", Integer).default("1"),
         ],
+        owns: &[Ownership::Owns {
+            table: "quota_windows",
+            column: "quota_id",
+        }],
         indexes: &[IndexSpec {
             name: "uq_quotas_subject",
             columns: &["subject_kind", "subject_id"],
