@@ -465,12 +465,8 @@ impl ContinuationStore for MemoryHost {
 }
 
 impl Spawner for MemoryHost {
-    fn spawn_settlement(
-        &self,
-        task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>,
-    ) -> BoxFuture<'_, ()> {
-        self.spawn(task);
-        Box::pin(async {})
+    fn reserve_settlement(&self) -> BoxFuture<'_, crate::SettlementPermit> {
+        Box::pin(async { Box::new(()) as crate::SettlementPermit })
     }
 
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {

@@ -187,11 +187,9 @@ pub(crate) async fn request<H: Host>(
                         "upstream websocket connected",
                     )
                     .await;
-                Ok(ForwardAttempt::Outcome(funnel::websocket(
-                    core.host.clone(),
-                    facts,
-                    socket,
-                )))
+                Ok(ForwardAttempt::Outcome(
+                    funnel::websocket(core.host.clone(), facts, socket).await,
+                ))
             }
             Err(error) => {
                 crate::funnel::health::degraded(

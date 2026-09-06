@@ -13,7 +13,7 @@ use super::guard::Guard;
 
 mod drain;
 
-pub(crate) fn realtime<H: Host>(
+pub(crate) async fn realtime<H: Host>(
     host: Shared<H>,
     ctx: FunnelCtx,
     control: &dyn ControlPlane,
@@ -25,7 +25,7 @@ pub(crate) fn realtime<H: Host>(
         .as_ref()
         .is_some_and(|(kind, _)| *kind == "realtime_call")
     {
-        return super::super::websocket(host, ctx, socket);
+        return super::super::websocket(host, ctx, socket).await;
     }
     let meter = RealtimeMeter::new(&ctx.request_body, &ctx.target.upstream_model);
     super::super::bridged_websocket(Box::new(MeteredSocket {

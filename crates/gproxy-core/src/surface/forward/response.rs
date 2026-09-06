@@ -34,13 +34,7 @@ pub(super) async fn relay<H: Host>(
                 request_body: &facts.request_body,
                 response_headers: response.headers(),
             });
-            Ok(funnel::streaming(
-                core.host.clone(),
-                facts,
-                response,
-                disposition,
-                decoder,
-            ))
+            Ok(funnel::streaming(core.host.clone(), facts, response, disposition, decoder).await)
         } else {
             let (parts, body) = response.into_parts();
             Ok(funnel::free_streaming(
@@ -50,7 +44,8 @@ pub(super) async fn relay<H: Host>(
                 parts.headers,
                 body,
                 disposition,
-            ))
+            )
+            .await)
         };
     }
 

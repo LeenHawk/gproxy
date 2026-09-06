@@ -158,27 +158,26 @@ pub enum CredentialHealth {
 /// cannot await asynchronous sinks.
 /// This replaces a SettlePolicy enum: the policy *is* whether this
 /// capability exists.
-pub trait Spawner {
+pub trait Spawner: MaybeSync {
     #[cfg(not(target_arch = "wasm32"))]
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>);
     #[cfg(target_arch = "wasm32")]
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()>>>);
 
-    /// Detach a settlement, resolving only once the host has admitted it.
-    /// Settlement is slower than serving, so an unbounded backlog grows
-    /// without limit under load; a host bounds it and this future is the
-    /// backpressure the response path feels.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn spawn_settlement(
-        &self,
-        task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>,
-    ) -> BoxFuture<'_, ()>;
-    #[cfg(target_arch = "wasm32")]
-    fn spawn_settlement(
-        &self,
-        task: std::pin::Pin<Box<dyn Future<Output = ()>>>,
-    ) -> BoxFuture<'_, ()>;
+    /// Reserve room in the settlement backlog before a settlement is
+    /// detached. Settlement is slower than serving, so an unbounded backlog
+    /// grows without limit under load; the host bounds it and this future
+    /// is the backpressure the response path feels. A stream reserves when
+    /// it opens, because its settlement is spawned from `Drop`, which
+    /// cannot wait.
+    fn reserve_settlement(&self) -> BoxFuture<'_, SettlementPermit>;
 }
+
+/// Opaque room in a host's settlement backlog; dropping it releases the slot.
+#[cfg(not(target_arch = "wasm32"))]
+pub type SettlementPermit = Box<dyn std::any::Any + Send>;
+#[cfg(target_arch = "wasm32")]
+pub type SettlementPermit = Box<dyn std::any::Any>;
 
 /// Outbound HTTP and websockets. The trait lives here so the core never
 /// depends on a concrete client; `gproxy-upstream` provides the canonical

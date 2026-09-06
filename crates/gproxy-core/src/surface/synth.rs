@@ -184,13 +184,16 @@ async fn finish<H: Host>(
                 "sensitive public surfaces cannot stream".into(),
             ));
         }
-        SurfaceBody::Stream(body) => funnel::free_streaming(
-            core.host.clone(),
-            ctx,
-            reply.status,
-            reply.headers,
-            body,
-            disposition,
-        ),
+        SurfaceBody::Stream(body) => {
+            funnel::free_streaming(
+                core.host.clone(),
+                ctx,
+                reply.status,
+                reply.headers,
+                body,
+                disposition,
+            )
+            .await
+        }
     })
 }

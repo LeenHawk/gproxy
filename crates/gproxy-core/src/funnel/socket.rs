@@ -12,14 +12,21 @@ pub(crate) struct FunnelSocket<H: Host> {
     inner: Box<dyn WsDuplex>,
     host: Shared<H>,
     ctx: Option<FunnelCtx>,
+    permit: Option<crate::host::SettlementPermit>,
 }
 
 impl<H: Host> FunnelSocket<H> {
-    pub(crate) fn new(host: Shared<H>, ctx: FunnelCtx, inner: Box<dyn WsDuplex>) -> Self {
+    pub(crate) fn new(
+        host: Shared<H>,
+        ctx: FunnelCtx,
+        inner: Box<dyn WsDuplex>,
+        permit: Option<crate::host::SettlementPermit>,
+    ) -> Self {
         Self {
             inner,
             host,
             ctx: Some(ctx),
+            permit,
         }
     }
 
@@ -85,7 +92,7 @@ impl<H: Host> Drop for FunnelSocket<H> {
             return;
         };
         if let Some(spawner) = self.host.spawner() {
-            spawner.spawn(Box::pin(complete_stream(
+            let settle = complete_stream(
                 self.host.clone(),
                 ctx,
                 http::StatusCode::SWITCHING_PROTOCOLS,
@@ -93,7 +100,12 @@ impl<H: Host> Drop for FunnelSocket<H> {
                 None,
                 None,
                 Ended::Interrupted,
-            )));
+            );
+            let permit = self.permit.take();
+            spawner.spawn(Box::pin(async move {
+                settle.await;
+                drop(permit);
+            }));
         } else {
             tracing::warn!(
                 request_id = %ctx.request_id,
@@ -103,15 +115,19 @@ impl<H: Host> Drop for FunnelSocket<H> {
     }
 }
 
-pub(crate) fn websocket<H: Host>(
+pub(crate) async fn websocket<H: Host>(
     host: Shared<H>,
     ctx: FunnelCtx,
     socket: Box<dyn gproxy_channel_api::WsDuplex>,
 ) -> ExecOutcome {
+    let permit = match host.spawner() {
+        Some(spawner) => Some(spawner.reserve_settlement().await),
+        None => None,
+    };
     ExecOutcome {
         status: http::StatusCode::SWITCHING_PROTOCOLS,
         headers: http::HeaderMap::new(),
-        body: ResponseBody::WebSocket(Box::new(FunnelSocket::new(host, ctx, socket))),
+        body: ResponseBody::WebSocket(Box::new(FunnelSocket::new(host, ctx, socket, permit))),
         disposition: Disposition::Success,
         _settled: Settled(()),
     }

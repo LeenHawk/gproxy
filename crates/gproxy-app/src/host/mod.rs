@@ -389,10 +389,7 @@ impl Spawner for TokioSpawner {
         tokio::spawn(task);
     }
 
-    fn spawn_settlement(
-        &self,
-        task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>,
-    ) -> BoxFuture<'_, ()> {
+    fn reserve_settlement(&self) -> BoxFuture<'_, gproxy_core::SettlementPermit> {
         Box::pin(async move {
             let permit = self
                 .settlements
@@ -400,10 +397,7 @@ impl Spawner for TokioSpawner {
                 .acquire_owned()
                 .await
                 .expect("settlement semaphore is never closed");
-            tokio::spawn(async move {
-                let _permit = permit;
-                task.await;
-            });
+            Box::new(permit) as gproxy_core::SettlementPermit
         })
     }
 }

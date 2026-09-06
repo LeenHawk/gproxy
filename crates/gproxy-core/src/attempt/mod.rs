@@ -394,7 +394,7 @@ pub(crate) async fn finish<H: Host>(
         .expect("completed attempt channel remains registered");
     match completed.body {
         AttemptBody::WebSocket(socket) => {
-            funnel::realtime(core.host.clone(), completed.facts, control, socket)
+            funnel::realtime(core.host.clone(), completed.facts, control, socket).await
         }
         AttemptBody::Buffered(response) => {
             funnel::buffered(
@@ -408,13 +408,16 @@ pub(crate) async fn finish<H: Host>(
             )
             .await
         }
-        AttemptBody::Streaming(response, decoder) => funnel::streaming(
-            core.host.clone(),
-            completed.facts,
-            response,
-            completed.disposition,
-            decoder,
-        ),
+        AttemptBody::Streaming(response, decoder) => {
+            funnel::streaming(
+                core.host.clone(),
+                completed.facts,
+                response,
+                completed.disposition,
+                decoder,
+            )
+            .await
+        }
     }
 }
 
