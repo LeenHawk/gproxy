@@ -39,6 +39,7 @@ pub(crate) struct SnapshotControl {
     /// credential ends in `reload`, which drops the whole map; a rotation
     /// this instance performs forgets its own entry immediately.
     credential_records: Arc<Mutex<HashMap<i64, CredentialRecord>>>,
+    health_persisted_at: Arc<Mutex<HashMap<(gproxy_channel_api::CredentialId, String), i64>>>,
 }
 
 impl SnapshotControl {
@@ -64,6 +65,7 @@ impl SnapshotControl {
             rotation: Arc::new(balance::RotationCounters::default()),
             oauth_keys: Arc::new(ArcSwap::from_pointee(oauth_keys)),
             credential_records: Arc::default(),
+            health_persisted_at: Arc::default(),
         })
     }
 
@@ -103,6 +105,27 @@ impl SnapshotControl {
             .lock()
             .expect("credential cache")
             .remove(&id);
+    }
+
+    /// Whether an unchanged health observation is worth persisting again:
+    /// the row only carries `observed_at`, so refreshing it more than once per
+    /// interval buys nothing and costs a commit per request under load.
+    pub(crate) fn health_refresh_due(
+        &self,
+        credential: gproxy_channel_api::CredentialId,
+        model: &str,
+        now: i64,
+    ) -> bool {
+        const HEALTH_REFRESH_INTERVAL_SECS: i64 = 30;
+        let mut persisted = self.health_persisted_at.lock().expect("health cache");
+        let key = (credential, model.to_owned());
+        match persisted.get(&key) {
+            Some(at) if now - at < HEALTH_REFRESH_INTERVAL_SECS => false,
+            _ => {
+                persisted.insert(key, now);
+                true
+            }
+        }
     }
 
     pub(crate) fn credential_health_state(

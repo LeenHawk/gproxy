@@ -1,4 +1,5 @@
 use crate::backend::Row;
+use crate::query::runtime;
 use crate::query::usage;
 use crate::records::{
     UsageAggregateQuery, UsageAggregateRecord, UsageInput, UsageRecord, UsageTrendPoint,
@@ -120,6 +121,18 @@ impl Store {
         let inserted = results
             .first()
             .is_some_and(|result| result.affected_rows == 1);
+        // Attribution needs the stored row, but most credentials track no
+        // quota cycle at all; look for one before reading the row back.
+        let cycles = self
+            .backend()
+            .execute(runtime::cycles_for_usage(
+                input.credential_id,
+                input.upstream_started_at_ms.expect("checked above"),
+            )?)
+            .await?;
+        if cycles.rows.is_empty() {
+            return Ok(inserted);
+        }
         if let Some(record) = self.usage_by_request(&input.request_id).await? {
             self.attribute_usage(&record).await?;
         }
