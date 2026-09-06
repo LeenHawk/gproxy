@@ -138,14 +138,18 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
     Ok(())
 }
 
+#[cfg(unix)]
 fn private_directory(path: &Path) -> Result<(), AppError> {
-    let mut builder = std::fs::DirBuilder::new();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt as _;
-        builder.mode(0o700);
-    }
-    builder.create(path).map_err(error)
+    use std::os::unix::fs::DirBuilderExt as _;
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(path)
+        .map_err(error)
+}
+
+#[cfg(not(unix))]
+fn private_directory(path: &Path) -> Result<(), AppError> {
+    std::fs::DirBuilder::new().create(path).map_err(error)
 }
 
 fn sync_directory(path: &Path) -> Result<(), AppError> {
