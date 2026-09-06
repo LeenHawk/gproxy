@@ -9,6 +9,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("window_key", Text),
             Col::required("cycle_id", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "uq_cycle_usage_window",
@@ -33,6 +34,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("model", Text),
             Col::required("started_at_ms", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "uq_quota_activity",

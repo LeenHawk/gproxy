@@ -1,4 +1,6 @@
-use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+use super::super::{
+    ColumnKind::*, ColumnSpec as Col, IndexSpec, Ownership, SchemaVersion, TableSpec,
+};
 
 pub(super) const TABLES: &[TableSpec] = &[
     TableSpec {
@@ -11,6 +13,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("observed_at_ms", Integer),
             Col::required("snapshot_json", Text),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "uq_credential_quota_observation",
             columns: &["cycle_id", "observed_at_ms", "started_at_ms"],
@@ -30,6 +33,10 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("cost_used", Text),
             Col::optional("active_slot", Integer),
         ],
+        owns: &[Ownership::Owns {
+            table: "quota_settlements",
+            column: "window_id",
+        }],
         indexes: &[
             IndexSpec {
                 name: "uq_quota_windows_period",
@@ -71,6 +78,16 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("metrics_json", Text),
             Col::optional("label", Text),
         ],
+        owns: &[
+            Ownership::Owns {
+                table: "credential_quota_observations",
+                column: "cycle_id",
+            },
+            Ownership::Owns {
+                table: "credential_quota_cycle_usage",
+                column: "cycle_id",
+            },
+        ],
         indexes: &[
             IndexSpec {
                 name: "uq_credential_quota_cycles_open",
@@ -95,6 +112,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("window_id", Integer),
             Col::required("cost", Text),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "uq_quota_settlements_request_window",
             columns: &["request_id", "window_id"],

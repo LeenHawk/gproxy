@@ -14,6 +14,7 @@ pub(super) const TABLES: &[TableSpec] = &[TableSpec {
         Col::required("created_at", Integer),
         Col::required("updated_at", Integer),
     ],
+    owns: &[],
     indexes: &[
         IndexSpec {
             name: "uq_surface_bindings_resource",

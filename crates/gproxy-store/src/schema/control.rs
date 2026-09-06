@@ -1,4 +1,4 @@
-use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+use super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, Ownership, SchemaVersion, TableSpec};
 
 pub const TABLES: &[TableSpec] = &[
     TableSpec {
@@ -14,6 +14,72 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("label", Text),
             Col::required("credential_strategy", Text).default("'round_robin'"),
             Col::optional("proxy_url", Text),
+        ],
+        owns: &[
+            Ownership::Owns {
+                table: "credentials",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "route_members",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "aliases",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_models",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_model_modalities",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_model_parameters",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_model_reasoning_levels",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_model_service_tiers",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_model_methods",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "price_rules",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "routing_rules",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "provider_rule_sets",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "permissions",
+                column: "provider_id",
+            },
+            Ownership::Owns {
+                table: "surface_bindings",
+                column: "provider_id",
+            },
+            Ownership::Detaches {
+                table: "oauth_grants",
+                column: "provider_id",
+            },
+            Ownership::Detaches {
+                table: "oauth_devices",
+                column: "provider_id",
+            },
         ],
         indexes: &[],
     },
@@ -37,6 +103,28 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("tls_fingerprint", Text),
             Col::required("kind", Text).default("'api_key'"),
         ],
+        owns: &[
+            Ownership::Owns {
+                table: "credential_health",
+                column: "credential_id",
+            },
+            Ownership::Owns {
+                table: "credential_quota_activity",
+                column: "credential_id",
+            },
+            Ownership::Owns {
+                table: "surface_bindings",
+                column: "credential_id",
+            },
+            Ownership::Detaches {
+                table: "route_members",
+                column: "credential_id",
+            },
+            Ownership::Scoped {
+                table: "quotas",
+                kind: "credential",
+            },
+        ],
         indexes: &[IndexSpec {
             name: "ix_credentials_provider_enabled",
             columns: &["provider_id", "enabled", "id"],
@@ -52,6 +140,16 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("name", Text).unique(),
             Col::required("max_attempts", Integer),
             Col::required("enabled", Integer),
+        ],
+        owns: &[
+            Ownership::Owns {
+                table: "route_members",
+                column: "route_id",
+            },
+            Ownership::Owns {
+                table: "exposed_models",
+                column: "route_id",
+            },
         ],
         indexes: &[],
     },
@@ -69,6 +167,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("weight", Integer).default("100"),
             Col::required("enabled", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "ix_route_members_route_order",
@@ -101,6 +200,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("priority", Integer),
             Col::required("enabled", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_aliases_scope_order",
             columns: &["provider_id", "enabled", "priority", "id"],
@@ -177,6 +277,7 @@ pub const TABLES: &[TableSpec] = &[
                 .since(SchemaVersion::ModelMetadata),
             Col::required("enabled", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "uq_provider_models_pair",
             columns: &["provider_id", "model_id"],
@@ -196,6 +297,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("route_id", Integer),
             Col::required("enabled", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_exposed_models_route",
             columns: &["route_id", "enabled"],
@@ -214,6 +316,10 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("priority", Integer),
             Col::required("enabled", Integer),
         ],
+        owns: &[Ownership::Owns {
+            table: "price_rates",
+            column: "rule_id",
+        }],
         indexes: &[IndexSpec {
             name: "ix_price_rules_resolve",
             columns: &["provider_id", "enabled", "priority", "id"],
@@ -233,6 +339,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("conditions_json", Text),
             Col::required("priority", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_price_rates_rule_metric",
             columns: &["rule_id", "metric", "priority", "id"],
@@ -247,6 +354,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("key", Text).primary(),
             Col::required("value_json", Text),
         ],
+        owns: &[],
         indexes: &[],
     },
     TableSpec {
@@ -266,6 +374,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "uq_routing_rules_provider_key",
@@ -292,6 +401,16 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
+        owns: &[
+            Ownership::Owns {
+                table: "rules",
+                column: "rule_set_id",
+            },
+            Ownership::Owns {
+                table: "provider_rule_sets",
+                column: "rule_set_id",
+            },
+        ],
         indexes: &[],
     },
     TableSpec {
@@ -310,6 +429,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_rules_set_order",
             columns: &["rule_set_id", "enabled", "sort_order", "id"],
@@ -330,6 +450,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("created_at", Integer),
             Col::required("updated_at", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "uq_provider_rule_sets_pair",
@@ -344,95 +465,5 @@ pub const TABLES: &[TableSpec] = &[
                 added_in: None,
             },
         ],
-    },
-    TableSpec {
-        version: SchemaVersion::ModelMetadata,
-        name: "provider_model_modalities",
-        columns: &[
-            Col::id(),
-            Col::required("provider_id", Integer),
-            Col::required("model_id", Text),
-            Col::required("direction", Text),
-            Col::required("modality", Text),
-            Col::required("sort_order", Integer),
-        ],
-        indexes: &[IndexSpec {
-            name: "uq_provider_model_modalities",
-            columns: &["provider_id", "model_id", "direction", "modality"],
-            unique: true,
-            added_in: None,
-        }],
-    },
-    TableSpec {
-        version: SchemaVersion::ModelMetadata,
-        name: "provider_model_parameters",
-        columns: &[
-            Col::id(),
-            Col::required("provider_id", Integer),
-            Col::required("model_id", Text),
-            Col::required("parameter", Text),
-            Col::required("sort_order", Integer),
-        ],
-        indexes: &[IndexSpec {
-            name: "uq_provider_model_parameters",
-            columns: &["provider_id", "model_id", "parameter"],
-            unique: true,
-            added_in: None,
-        }],
-    },
-    TableSpec {
-        version: SchemaVersion::ModelMetadata,
-        name: "provider_model_reasoning_levels",
-        columns: &[
-            Col::id(),
-            Col::required("provider_id", Integer),
-            Col::required("model_id", Text),
-            Col::required("effort", Text),
-            Col::required("description", Text),
-            Col::required("sort_order", Integer),
-        ],
-        indexes: &[IndexSpec {
-            name: "uq_provider_model_reasoning_levels",
-            columns: &["provider_id", "model_id", "effort"],
-            unique: true,
-            added_in: None,
-        }],
-    },
-    TableSpec {
-        version: SchemaVersion::ModelMetadata,
-        name: "provider_model_service_tiers",
-        columns: &[
-            Col::id(),
-            Col::required("provider_id", Integer),
-            Col::required("model_id", Text),
-            Col::required("tier_id", Text),
-            Col::required("name", Text),
-            Col::required("description", Text),
-            Col::required("sort_order", Integer),
-        ],
-        indexes: &[IndexSpec {
-            name: "uq_provider_model_service_tiers",
-            columns: &["provider_id", "model_id", "tier_id"],
-            unique: true,
-            added_in: None,
-        }],
-    },
-    TableSpec {
-        version: SchemaVersion::ModelMetadata,
-        name: "provider_model_methods",
-        columns: &[
-            Col::id(),
-            Col::required("provider_id", Integer),
-            Col::required("model_id", Text),
-            Col::required("kind", Text),
-            Col::required("method", Text),
-            Col::required("sort_order", Integer),
-        ],
-        indexes: &[IndexSpec {
-            name: "uq_provider_model_methods",
-            columns: &["provider_id", "model_id", "kind", "method"],
-            unique: true,
-            added_in: None,
-        }],
     },
 ];

@@ -19,6 +19,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::optional("response_headers", Text),
             Col::optional("response_body", Blob),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_request_logs_at",
             columns: &["at", "id"],
@@ -43,6 +44,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::optional("request_body", Blob),
             Col::optional("response_body", Blob),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_wire_logs_request",
             columns: &["request_id", "id"],

@@ -19,6 +19,12 @@ async fn upgrading_preserves_legacy_tokens_and_does_not_reseed_deleted_clients()
         )
         .await
         .unwrap();
+        executor
+            .execute(Statement::plain(
+                "INSERT INTO providers (id, name, channel, settings_json, enabled) VALUES (7, 'legacy-provider', 'codex', '{}', 1)",
+            ))
+            .await
+            .unwrap();
         let old = super::store(executor.clone());
         let user = old
             .insert_user(&UserInput {

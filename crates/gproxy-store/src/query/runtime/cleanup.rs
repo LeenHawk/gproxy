@@ -32,3 +32,13 @@ fn delete_oldest(table: &'static str, cutoff: Option<i64>) -> Result<Statement, 
         .and_where(Expr::col(Alias::new("id")).in_subquery(ids));
     Statement::query(&delete)
 }
+
+/// Quota activity is live request state, not history; rows older than the
+/// retention cutoff belong to requests that can no longer settle.
+pub(crate) fn delete_stale_quota_activity(cutoff: i64) -> Result<Statement, StoreError> {
+    let mut query = Query::delete();
+    query
+        .from_table(Alias::new("credential_quota_activity"))
+        .and_where(Expr::col(Alias::new("started_at_ms")).lt(cutoff.saturating_mul(1_000)));
+    Statement::query(&query)
+}

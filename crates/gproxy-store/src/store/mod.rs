@@ -64,4 +64,16 @@ impl Store {
     async fn delete(&self, statement: Statement) -> Result<bool, StoreError> {
         Ok(self.backend().execute(statement).await?.affected_rows == 1)
     }
+
+    /// Delete one row and everything the schema declares it owns, in one
+    /// transaction. The row's own affected count is the last result.
+    async fn delete_owned(&self, table: &'static str, id: i64) -> Result<bool, StoreError> {
+        let results = self
+            .backend()
+            .batch(crate::query::delete_owned(table, id)?)
+            .await?;
+        Ok(results
+            .last()
+            .is_some_and(|result| result.affected_rows == 1))
+    }
 }

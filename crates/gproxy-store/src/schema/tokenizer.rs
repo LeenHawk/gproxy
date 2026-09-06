@@ -10,6 +10,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("bytes", Blob),
             Col::required("updated_at", Integer),
         ],
+        owns: &[],
         indexes: &[],
     },
     TableSpec {
@@ -23,6 +24,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("key_nonce", Blob),
             Col::required("updated_at", Integer),
         ],
+        owns: &[],
         indexes: &[],
     },
 ];

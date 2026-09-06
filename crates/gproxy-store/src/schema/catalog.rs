@@ -1,4 +1,4 @@
-use super::{admin, control, identity, runtime, tokenizer};
+use super::{admin, control, identity, model_metadata, runtime, tokenizer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i64)]
@@ -11,18 +11,22 @@ pub enum SchemaVersion {
     /// Data-only step: routes deleted before 3.0.2 left their members and
     /// public names behind, and an orphaned name blocked every later mapping.
     RouteOwnership = 6,
+    /// Data-only step: sweep every row whose declared owner is gone, once
+    /// ownership became a schema fact rather than per-method code.
+    OwnedRows = 7,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Initial,
         Self::QuotaObservations,
         Self::ModelMetadata,
         Self::OAuthSessions,
         Self::CredentialBudgets,
         Self::RouteOwnership,
+        Self::OwnedRows,
     ];
-    pub const LATEST: Self = Self::RouteOwnership;
+    pub const LATEST: Self = Self::OwnedRows;
 
     pub const fn number(self) -> i64 {
         self as i64
@@ -127,17 +131,54 @@ impl IndexSpec {
     }
 }
 
+/// What happens to a table that refers to this one when a row here is
+/// deleted. The schema carries no database foreign keys, because the four
+/// backends do not agree on them, so ownership is declared once here and
+/// every delete, orphan sweep and retention prune is generated from it.
+/// History tables (usage, rollups, logs, audit, quota cycles) deliberately
+/// keep their references and are not owned by anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ownership {
+    /// Rows of `table` whose `column` names the deleted row go with it.
+    Owns {
+        table: &'static str,
+        column: &'static str,
+    },
+    /// Rows of `table` survive with `column` set to NULL.
+    Detaches {
+        table: &'static str,
+        column: &'static str,
+    },
+    /// Rows of a polymorphic `table` keyed by `(subject_kind = kind, subject_id)`.
+    Scoped {
+        table: &'static str,
+        kind: &'static str,
+    },
+}
+
+impl Ownership {
+    pub const fn table(self) -> &'static str {
+        match self {
+            Self::Owns { table, .. }
+            | Self::Detaches { table, .. }
+            | Self::Scoped { table, .. } => table,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableSpec {
     pub version: SchemaVersion,
     pub name: &'static str,
     pub columns: &'static [ColumnSpec],
+    pub owns: &'static [Ownership],
     pub indexes: &'static [IndexSpec],
 }
 
 pub fn tables() -> impl Iterator<Item = &'static TableSpec> {
     control::TABLES
         .iter()
+        .chain(model_metadata::TABLES)
         .chain(identity::TABLES)
         .chain(runtime::tables())
         .chain(tokenizer::TABLES)

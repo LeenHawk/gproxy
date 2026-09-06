@@ -52,6 +52,12 @@ pub(crate) async fn migrate_to(
         if version == SchemaVersion::RouteOwnership {
             statements.extend(orphaned_route_rows());
         }
+        if version == SchemaVersion::OwnedRows {
+            // Orphans can own orphans: two passes settle any declared depth.
+            let sweep = crate::query::orphan_sweep()?;
+            statements.extend(sweep.iter().cloned());
+            statements.extend(sweep);
+        }
         statements.push(record_version(version)?);
         executor.batch(statements).await?;
     }

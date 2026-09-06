@@ -1,4 +1,6 @@
-use super::super::{ColumnKind::*, ColumnSpec as Col, IndexSpec, SchemaVersion, TableSpec};
+use super::super::{
+    ColumnKind::*, ColumnSpec as Col, IndexSpec, Ownership, SchemaVersion, TableSpec,
+};
 
 pub(super) const TABLES: &[TableSpec] = &[
     TableSpec {
@@ -27,6 +29,10 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("ended", Text),
             Col::required("latency_ms", Integer),
         ],
+        owns: &[Ownership::Owns {
+            table: "credential_quota_cycle_usage",
+            column: "usage_id",
+        }],
         indexes: &[
             IndexSpec {
                 name: "ix_usage_rows_credential_started",
@@ -99,6 +105,7 @@ pub(super) const TABLES: &[TableSpec] = &[
             Col::required("cost", Text),
             Col::required("version", Integer),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "uq_usage_rollups_bucket",

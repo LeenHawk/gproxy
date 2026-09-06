@@ -63,18 +63,6 @@ pub(crate) fn delete_by_id(table: &'static str, id: i64) -> Result<Statement, St
     Statement::query(&query)
 }
 
-pub(crate) fn delete_where(
-    table: &'static str,
-    column: &'static str,
-    id: i64,
-) -> Result<Statement, StoreError> {
-    let mut query = Query::delete();
-    query
-        .from_table(Alias::new(table))
-        .and_where(Expr::col(Alias::new(column)).eq(id));
-    Statement::query(&query)
-}
-
 pub(super) fn update(
     table: &'static str,
     id: i64,

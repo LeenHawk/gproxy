@@ -14,6 +14,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("details_json", Text),
             Col::optional("client_ip", Text),
         ],
+        owns: &[],
         indexes: &[IndexSpec {
             name: "ix_admin_audit_at",
             columns: &["at", "id"],
@@ -35,6 +36,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::optional("response_status", Integer),
             Col::optional("detail", Text),
         ],
+        owns: &[],
         indexes: &[
             IndexSpec {
                 name: "uq_credential_health_model",
