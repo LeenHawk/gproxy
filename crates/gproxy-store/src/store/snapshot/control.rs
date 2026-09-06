@@ -85,7 +85,6 @@ pub(super) fn route_members(result: QueryResult) -> Result<Vec<RouteMemberRecord
                 id: row.i64("id")?,
                 route_id: row.i64("route_id")?,
                 provider_id: row.i64("provider_id")?,
-                credential_id: row.optional_i64("credential_id")?,
                 upstream_model: row.text("upstream_model")?.to_owned(),
                 tier: unsigned32(row.i64("tier")?, "route member tier")?,
                 weight: unsigned32(row.i64("weight")?, "route member weight")?,

@@ -117,7 +117,6 @@ pub struct RouteMemberDto {
     pub id: i64,
     pub route_id: i64,
     pub provider_id: i64,
-    pub credential_id: Option<i64>,
     pub upstream_model: String,
     pub tier: u32,
     pub weight: u32,
@@ -128,7 +127,6 @@ pub struct RouteMemberDto {
 pub struct RouteMemberWriteRequest {
     pub route_id: i64,
     pub provider_id: i64,
-    pub credential_id: Option<i64>,
     pub upstream_model: String,
     pub tier: u32,
     pub weight: u32,

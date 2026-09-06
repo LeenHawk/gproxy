@@ -13,7 +13,6 @@ async fn near_limit_credential_is_deprioritized() {
         app,
         provider,
         credential,
-        route,
         client_key,
         ..
     } = setup::fixture().await;
@@ -27,20 +26,6 @@ async fn near_limit_credential_is_deprioritized() {
         .await
         .expect("second credential"),
     );
-    app.mutate(crate::ControlMutation::RouteMember(
-        gproxy_store::records::RouteMemberInput {
-            route_id: route,
-            provider_id: provider,
-            credential_id: Some(second),
-            upstream_model: "upstream-model".into(),
-            tier: 0,
-            weight: 100,
-            enabled: true,
-        },
-    ))
-    .await
-    .expect("second route member");
-
     let before = resolve_credentials(&app);
     assert_eq!(before, vec![credential, second]);
 

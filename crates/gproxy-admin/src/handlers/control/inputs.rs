@@ -88,7 +88,6 @@ pub(super) fn route_member(
     Ok(RouteMemberInput {
         route_id: request.route_id,
         provider_id: request.provider_id,
-        credential_id: request.credential_id,
         upstream_model: request.upstream_model,
         tier: request.tier,
         weight: request.weight,

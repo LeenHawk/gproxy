@@ -104,9 +104,6 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
     for mut value in data.route_members {
         value.route_id = mapped(&maps.routes, value.route_id)?;
         value.provider_id = mapped(&maps.providers, value.provider_id)?;
-        value.credential_id = value
-            .credential_id
-            .and_then(|id| maps.credentials.get(&id).copied());
         create(state, Entity::RouteMembers, &value).await?;
         imported += 1;
     }

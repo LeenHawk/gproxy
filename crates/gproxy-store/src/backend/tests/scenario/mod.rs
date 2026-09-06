@@ -72,7 +72,6 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .insert_route_member(&RouteMemberInput {
             route_id: route,
             provider_id: provider,
-            credential_id: Some(credential),
             upstream_model: "upstream-model".into(),
             tier: 0,
             weight: 100,
@@ -148,7 +147,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(model.metadata.generation_methods, Some(Vec::new()));
     assert_eq!(model.metadata.supported_actions, Some(Vec::new()));
     let admin = admin::run(store, user_key).await?;
-    delete_route_takes_its_rows(store, provider, credential).await?;
+    delete_route_takes_its_rows(store, provider).await?;
 
     store
         .persist_credential_rotation(credential, &envelope(2), 0)
@@ -299,11 +298,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
 
 /// Regression: a deleted route used to leave its members and public names
 /// behind, and the orphaned name blocked every later mapping with it.
-async fn delete_route_takes_its_rows(
-    store: &Store,
-    provider: i64,
-    credential: i64,
-) -> Result<(), StoreError> {
+async fn delete_route_takes_its_rows(store: &Store, provider: i64) -> Result<(), StoreError> {
     let route = store
         .insert_route(&RouteInput {
             name: "doomed-route".into(),
@@ -315,7 +310,6 @@ async fn delete_route_takes_its_rows(
         .insert_route_member(&RouteMemberInput {
             route_id: route,
             provider_id: provider,
-            credential_id: Some(credential),
             upstream_model: "doomed-upstream".into(),
             tier: 0,
             weight: 100,

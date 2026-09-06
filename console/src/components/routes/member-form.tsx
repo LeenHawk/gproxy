@@ -1,9 +1,8 @@
-import { useId, useMemo, useState } from "react"
+import { useId, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { saveRouteMember } from "@/api/control"
-import type { CredentialDto } from "@/generated/CredentialDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteMemberDto } from "@/generated/RouteMemberDto"
@@ -27,7 +26,6 @@ export function MemberForm({
   route,
   member,
   providers,
-  credentials,
   opener,
   onOpenChange,
   onChanged,
@@ -35,28 +33,21 @@ export function MemberForm({
   route: RouteDto
   member: RouteMemberDto | null
   providers: Array<ProviderDto>
-  credentials: Array<CredentialDto>
   opener: HTMLElement | null
   onOpenChange: (open: boolean) => void
   onChanged: () => void
 }) {
   const { t } = useTranslation()
   const providerIdField = useId()
-  const credentialIdField = useId()
   const modelId = useId()
   const tierId = useId()
   const weightId = useId()
   const enabledId = useId()
   const [providerId, setProviderId] = useState(member?.provider_id ?? providers[0]?.id ?? 0)
-  const [credentialId, setCredentialId] = useState(member?.credential_id == null ? "any" : String(member.credential_id))
   const [model, setModel] = useState(member?.upstream_model ?? "")
   const [tier, setTier] = useState(String(member?.tier ?? 0))
   const [weight, setWeight] = useState(String(member?.weight ?? 100))
   const [enabled, setEnabled] = useState(member?.enabled ?? true)
-  const providerCredentials = useMemo(
-    () => credentials.filter((credential) => credential.provider_id === providerId),
-    [credentials, providerId],
-  )
   const mutation = useMutation({
     mutationFn: (value: RouteMemberWriteRequest) => saveRouteMember(value, member?.id),
     onSuccess: () => {
@@ -72,7 +63,6 @@ export function MemberForm({
     mutation.mutate({
       route_id: route.id,
       provider_id: providerId,
-      credential_id: credentialId === "any" ? null : Number(credentialId),
       upstream_model: model.trim(),
       tier: Number(tier),
       weight: Number(weight),
@@ -98,26 +88,7 @@ export function MemberForm({
                 searchPlaceholder={t("common.search")}
                 emptyLabel={t("common.none")}
                 ariaLabel={t("routes.members.provider")}
-                onChange={(value) => {
-                  setProviderId(Number(value))
-                  setCredentialId("any")
-                }}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={credentialIdField}>{t("routes.members.credential")}</FieldLabel>
-              <SearchableSelect
-                value={credentialId}
-                id={credentialIdField}
-                options={[
-                  { value: "any", label: t("routes.members.anyCredential") },
-                  ...providerCredentials.map((credential) => ({ value: String(credential.id), label: credential.label ?? String(credential.id) })),
-                ]}
-                placeholder={t("common.none")}
-                searchPlaceholder={t("common.search")}
-                emptyLabel={t("common.none")}
-                ariaLabel={t("routes.members.credential")}
-                onChange={setCredentialId}
+                onChange={(value) => setProviderId(Number(value))}
               />
             </Field>
             <Field>

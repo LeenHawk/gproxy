@@ -65,7 +65,6 @@ pub(super) async fn fixture() -> Fixture {
         gproxy_store::records::RouteMemberInput {
             route_id: route,
             provider_id: provider,
-            credential_id: Some(credential),
             upstream_model: "upstream-model".into(),
             tier: 0,
             weight: 100,

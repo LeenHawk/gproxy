@@ -51,16 +51,6 @@ pub(crate) async fn route_member(
     {
         return Err(AdminError::BadRequest("unknown provider_id".into()));
     }
-    if let Some(credential_id) = input.credential_id {
-        let credentials = state.store().admin_credentials().await?;
-        if !credentials.iter().any(|credential| {
-            credential.id == credential_id && credential.provider_id == input.provider_id
-        }) {
-            return Err(AdminError::BadRequest(
-                "credential_id does not belong to provider_id".into(),
-            ));
-        }
-    }
     Ok(())
 }
 
