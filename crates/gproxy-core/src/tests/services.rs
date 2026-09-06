@@ -462,6 +462,14 @@ impl ContinuationStore for MemoryHost {
 }
 
 impl Spawner for MemoryHost {
+    fn spawn_settlement(
+        &self,
+        task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>,
+    ) -> BoxFuture<'_, ()> {
+        self.spawn(task);
+        Box::pin(async {})
+    }
+
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {
         let run = {
             let mut state = self.state.lock().expect("state lock");

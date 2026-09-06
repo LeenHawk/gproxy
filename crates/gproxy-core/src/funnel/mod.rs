@@ -191,9 +191,11 @@ async fn settle_buffered<H: Host>(
     match host.spawner() {
         Some(spawner) => {
             let task_host = host.clone();
-            spawner.spawn(Box::pin(async move {
-                settlement::complete(task_host.as_ref(), &ctx, completion).await;
-            }));
+            spawner
+                .spawn_settlement(Box::pin(async move {
+                    settlement::complete(task_host.as_ref(), &ctx, completion).await;
+                }))
+                .await;
         }
         None => settlement::complete(host.as_ref(), &ctx, completion).await,
     }

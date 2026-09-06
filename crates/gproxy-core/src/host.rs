@@ -163,6 +163,21 @@ pub trait Spawner {
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>);
     #[cfg(target_arch = "wasm32")]
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()>>>);
+
+    /// Detach a settlement, resolving only once the host has admitted it.
+    /// Settlement is slower than serving, so an unbounded backlog grows
+    /// without limit under load; a host bounds it and this future is the
+    /// backpressure the response path feels.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn spawn_settlement(
+        &self,
+        task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>,
+    ) -> BoxFuture<'_, ()>;
+    #[cfg(target_arch = "wasm32")]
+    fn spawn_settlement(
+        &self,
+        task: std::pin::Pin<Box<dyn Future<Output = ()>>>,
+    ) -> BoxFuture<'_, ()>;
 }
 
 /// Outbound HTTP and websockets. The trait lives here so the core never
