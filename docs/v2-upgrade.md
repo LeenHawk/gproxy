@@ -14,7 +14,8 @@ Do not combine this upgrade with a master-key rotation.
 - Stop other processes or instances using the database. The native entrypoint
   reserves its listening port before touching the database, and migration
   requires an exclusive SQLite lock.
-- Allow disk space for a complete source backup and a separate migrated database.
+- Allow disk space for a complete source backup, a migrated working database,
+  and its standalone cutover snapshot.
 - PostgreSQL, MySQL, remote libSQL, v1 databases and nonstandard SQLite DSNs are
   not automatic-upgrade inputs. Export/migrate them explicitly first.
 
@@ -30,8 +31,9 @@ Do not combine this upgrade with a master-key rotation.
 6. Flush and atomically replace the configured database only after validation.
    Preserve the backup and `report.txt`; restarting v3 does not reimport it.
 
+Universal (`*`) route grants are preserved for organizations, teams and users.
 Unknown populated tables and data the importer cannot represent stop automatic
-migration. In particular, unmapped route permissions, rate limits, usage
+migration. In particular, route-specific permissions, rate limits, usage
 rollups, credential quota history and custom tokenizer data are **not silently
 discarded**. Request an explicit migration review for such databases.
 Captured request/response logs and audit logs remain in the source backup;

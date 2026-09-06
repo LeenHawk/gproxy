@@ -121,6 +121,7 @@ fn prune(data: &mut SourceData, issues: &[ImportIssue]) -> bool {
     retain!(route_members, "route_members");
     retain!(aliases, "aliases");
     retain!(quotas, "quotas");
+    retain!(permissions, "route_permissions");
     retain!(price_rules, "price_rules");
     retain!(price_rates, "price_rates");
     retain!(routing_rules, "routing_rules");
@@ -144,6 +145,7 @@ fn counts(data: &SourceData) -> Vec<(&'static str, usize)> {
         ("route_members", data.route_members.len()),
         ("aliases", data.aliases.len()),
         ("quotas", data.quotas.len()),
+        ("route_permissions", data.permissions.len()),
         ("price_rules", data.price_rules.len()),
         ("price_rates", data.price_rates.len()),
         ("routing_rules", data.routing_rules.len()),

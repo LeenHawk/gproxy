@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use gproxy_core::ControlPlane as _;
 use serde_json::json;
 use tokio_rusqlite::rusqlite::Connection;
 
@@ -22,7 +23,7 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     let original = directory.path().join("gproxy.db");
     let connection = Connection::open(&original).unwrap();
     connection
-        .execute_batch("PRAGMA journal_mode=WAL; UPDATE usages SET cost='23.45';")
+        .execute_batch("PRAGMA journal_mode=WAL; UPDATE usages SET cost='23.45'; UPDATE users SET is_admin=0; INSERT INTO route_permissions VALUES(1,'user',1,'*',0,0);")
         .unwrap();
     drop(connection);
     let config = super::test_config(directory.path(), MasterKeyConfig::new(Some(master)));
@@ -46,7 +47,24 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
         http::header::AUTHORIZATION,
         format!("Bearer {key}").parse().unwrap(),
     );
-    assert!(crate::host::authenticate_headers(&app.inner.host, &headers).is_ok());
+    let identity = crate::host::authenticate_headers(&app.inner.host, &headers).unwrap();
+    let control = &app.inner.host.services.control;
+    let plan = control
+        .resolve(
+            Some("public-model"),
+            &gproxy_core::RoutingMode::Aggregated,
+            Some(identity.user_key_id),
+        )
+        .unwrap();
+    assert!(
+        crate::host::authorize(
+            &control.current(),
+            &identity,
+            Some(super::generation_operation()),
+            &plan
+        )
+        .is_ok()
+    );
     let archives = backups(directory.path());
     assert_eq!(archives.len(), 1);
     let backup = Connection::open(archives[0].join("gproxy-v2.db")).unwrap();
@@ -85,7 +103,8 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
 
 #[tokio::test]
 async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() {
-    for policy in [false, true] {
+    for failure in ["key", "rate_limits", "route_permissions"] {
+        let policy = failure != "key";
         let directory = tempfile::tempdir().unwrap();
         let key = format!("sk-{}", super::setup::random_key());
         let invalid =
@@ -99,8 +118,16 @@ async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() 
             true,
         );
         let path = directory.path().join("gproxy.db");
-        if policy {
+        if failure == "rate_limits" {
             Connection::open(&path).unwrap().execute_batch("CREATE TABLE rate_limits(id INTEGER PRIMARY KEY); INSERT INTO rate_limits VALUES(1);").unwrap();
+        }
+        if failure == "route_permissions" {
+            Connection::open(&path)
+                .unwrap()
+                .execute_batch(
+                    "INSERT INTO route_permissions VALUES(1,'user',1,'restricted/*',0,0);",
+                )
+                .unwrap();
         }
         let result = App::start(super::test_config(
             directory.path(),
@@ -112,7 +139,11 @@ async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() 
             Err(error) => error.to_string(),
         };
         assert!(
-            error.contains(if policy { "rate_limits" } else { "report.txt" }),
+            error.contains(if failure == "rate_limits" {
+                "rate_limits"
+            } else {
+                "report.txt"
+            }),
             "{error}"
         );
         let connection = Connection::open(&path).unwrap();
