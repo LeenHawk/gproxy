@@ -3,41 +3,38 @@ title: "Container"
 description: "Run the ghcr.io/leenhawk/gproxy image with a persistent volume, external databases, a shared cache, a reverse proxy, and JSON logs"
 ---
 
-The official image is `ghcr.io/leenhawk/gproxy:<tag>`, where `<tag>` is a
-release tag such as `v3.0.0-alpha.0`. The release workflow builds one
-`linux/amd64` image per tag and pushes nothing else: there is no `latest`
-tag and no `-musl` variant. Pin the tag you tested. Versions are listed on
-[Downloads](/getting-started/downloads/).
+The official image is `ghcr.io/leenhawk/gproxy:<tag>`, for example `v3.0.0`.
+Release tags provide amd64, arm64 and riscv64 images, plus a `-musl` variant.
+Use `staging` for rolling builds; pin a version tag for production.
 
-The multi-stage `deploy/container/Dockerfile` builds the console in a Node
-stage, embeds it and compiles `gproxy` in a Rust stage, and ships a
-`debian:trixie-slim` runtime with only `ca-certificates`. The binary is the
-native release binary compiled with installation kind `container`.
+Release images use prebuilt native binaries and
+`deploy/container/Dockerfile.release`, with a non-root distroless runtime.
+The separate `deploy/container/Dockerfile` builds from source.
 
 ## Image Defaults
 
 | Setting | Value |
 | --- | --- |
-| User | `gproxy` (system user, home `/var/lib/gproxy`) |
+| User | UID/GID `65532:65532` |
 | Port | `EXPOSE 8787` |
 | Entrypoint | `/usr/local/bin/gproxy`; extra arguments go to the binary |
 | `GPROXY_HOST` | `0.0.0.0` |
 | `GPROXY_PORT` | `8787` |
-| `GPROXY_DATA_DIR` | `/var/lib/gproxy` |
+| `GPROXY_DATA_DIR` | `/app/data` |
 | `GPROXY_PERSISTENCE` | `sqlite` |
 
-With the defaults the database is `/var/lib/gproxy/gproxy.db`. Mount
-`/var/lib/gproxy` or the data is lost with the container. A named volume
+With the defaults the database is `/app/data/gproxy.db`. Mount
+`/app/data` or the data is lost with the container. A named volume
 takes the directory's ownership from the image; a bind-mounted host
-directory must be writable by the `gproxy` user.
+directory must be writable by UID/GID `65532:65532`.
 
 ## Quick Run
 
 ```sh
 docker run -d --name gproxy \
   -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
-  ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+  -v gproxy-data:/app/data \
+  ghcr.io/leenhawk/gproxy:v3.0.0
 ```
 
 Open `http://127.0.0.1:8787/admin`. A fresh store shows the setup form that
@@ -47,10 +44,10 @@ page. To skip the form, pass the first-run variables:
 ```sh
 docker run -d --name gproxy \
   -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
+  -v gproxy-data:/app/data \
   -e GPROXY_ADMIN_USER=admin \
   -e GPROXY_ADMIN_PASSWORD='<choose-a-password>' \
-  ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+  ghcr.io/leenhawk/gproxy:v3.0.0
 ```
 
 On a fresh store this creates the administrator and a sealed admin API key
@@ -61,14 +58,14 @@ per channel id; both require `GPROXY_ADMIN_PASSWORD` on a fresh store. While
 reapplied on every start, so remove it once you have logged in.
 
 The binary also reads `GPROXY_*` keys from `<data-dir>/.env`, here
-`/var/lib/gproxy/.env` inside the volume; a variable set with `-e` wins.
+`/app/data/.env` inside the volume; a variable set with `-e` wins.
 
 ## Compose
 
 ```yaml
 services:
   gproxy:
-    image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+    image: ghcr.io/leenhawk/gproxy:v3.0.0
     restart: unless-stopped
     ports:
       - "8787:8787"
@@ -76,7 +73,7 @@ services:
       GPROXY_LOG_FORMAT: json
       # GPROXY_MASTER_KEY: "<standard base64, 32 bytes>"
     volumes:
-      - gproxy-data:/var/lib/gproxy
+      - gproxy-data:/app/data
 
 volumes:
   gproxy-data:
@@ -113,7 +110,7 @@ holds `.env`. See [Storage & Cache Backends](/reference/database/).
 ```yaml
 services:
   gproxy:
-    image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+    image: ghcr.io/leenhawk/gproxy:v3.0.0
     ports:
       - "8787:8787"
     environment:
@@ -190,9 +187,9 @@ the same entrypoint:
 
 ```sh
 docker run --rm \
-  -v gproxy-data:/var/lib/gproxy \
+  -v gproxy-data:/app/data \
   -v gproxy-v2-data:/v2:ro \
-  ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0 \
+  ghcr.io/leenhawk/gproxy:v3.0.0 \
   migrate --from-v2 /v2/gproxy.db
 ```
 

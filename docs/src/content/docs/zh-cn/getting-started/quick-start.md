@@ -35,7 +35,7 @@ GPROXY_MASTER_KEY=<标准 base64，32 字节>
 
 ```bash
 docker run -d --name gproxy -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
+  -v gproxy-data:/app/data \
   ghcr.io/leenhawk/gproxy:<tag>
 ```
 

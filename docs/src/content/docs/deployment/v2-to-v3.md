@@ -19,7 +19,7 @@ To v2".
 | First-boot import | `GPROXY_IMPORT_FILE` | Gone; use `gproxy migrate` or the console's config import |
 | Web surfaces | `/console` | `/admin` console, `/portal` user portal, `/` public site; APIs under `/admin/api/**` and `/portal/api/**` |
 | Container | `latest`, `-musl`, multi-arch; data in `/app/data` | `ghcr.io/leenhawk/gproxy:<tag>` only, linux/amd64; data in `/var/lib/gproxy`; runs as `gproxy` |
-| Update channels | `update_channel` instance setting | `releases`, `staging`, `dev`; alpha builds live on `dev`. The setting is imported |
+| Update channels | `update_channel` instance setting | `releases`, `staging`, `dev`; prerelease builds live on `dev`. The setting is imported |
 | Rules | Rewrite rules and message rewrite | One Rules workspace: rule sets attached to providers, routing rules per provider |
 
 See [Configuration](/reference/configuration/), [Container](/deployment/docker/),

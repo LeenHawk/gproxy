@@ -13,7 +13,7 @@ gproxy-core = { git = "https://github.com/LeenHawk/gproxy", branch = "3.0" }
 gproxy-channels = { git = "https://github.com/LeenHawk/gproxy", branch = "3.0" }
 ```
 
-工作区为 Rust 2024 edition，版本 `3.0.0-alpha.0`。公开接口尚未按 semver
+工作区为 Rust 2024 edition，版本 `3.0.0`。公开接口尚未按 semver
 稳定。
 
 ## Crate 依赖图

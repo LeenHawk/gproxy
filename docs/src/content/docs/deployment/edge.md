@@ -64,9 +64,8 @@ Every release publishes `gproxy-edge-cloudflare.zip`, `gproxy-edge-deno.zip`,
 `gproxy-edge-netlify.zip`, and the raw `gproxy-edge.wasm`, each with a
 `.sha256`, plus `gproxy-edge.provenance.json`. A zip unpacks to
 `<platform>/` with the entry file, its config, `pkg/` (wasm and
-wasm-bindgen glue), and `public/` (the console build). GitHub's
-`releases/latest` excludes prereleases, so while v3 is in alpha download
-from the versioned release page; see [Downloads](/getting-started/downloads/).
+wasm-bindgen glue), and `public/` (the console build). See
+[Downloads](/getting-started/downloads/).
 
 Both `wrangler.toml` and `netlify.toml` declare a
 `[build] command = "pnpm run build"` that compiles from source with

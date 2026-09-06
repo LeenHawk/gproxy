@@ -58,9 +58,8 @@ Cloudflare 的 `wrangler.toml` 设置了 `run_worker_first = true`，因此 Work
 每个 release 发布 `gproxy-edge-cloudflare.zip`、`gproxy-edge-deno.zip`、
 `gproxy-edge-netlify.zip` 和原始的 `gproxy-edge.wasm`，各带 `.sha256`，另有
 `gproxy-edge.provenance.json`。zip 解压为 `<platform>/`，内含入口文件、配置、
-`pkg/`（wasm 与 wasm-bindgen glue）和 `public/`（控制台构建产物）。GitHub 的
-`releases/latest` 不包含预发布版本，因此 v3 处于 alpha 期间请从带版本号的 release
-页面下载；见[下载](/zh-cn/getting-started/downloads/)。
+`pkg/`（wasm 与 wasm-bindgen glue）和 `public/`（控制台构建产物）。见
+[下载](/zh-cn/getting-started/downloads/)。
 
 `wrangler.toml` 与 `netlify.toml` 都声明了 `[build] command = "pnpm run build"`，它会
 用 `wasm-pack` 从源码编译。部署预构建 bundle 时，删除该段，避免平台尝试源码构建。

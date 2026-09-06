@@ -1,4 +1,4 @@
-# Upgrading v2 to v3 staging
+# Upgrading v2 to v3
 
 The native v3 server recognizes a v2 SQLite database before opening the v3
 store. The normal v2 launch command can keep `--persistence db`, `--data-dir`,

@@ -1,88 +1,197 @@
-# GPROXY v3
+# GPROXY
 
-The from-scratch 3.0 rewrite. The beta release pipeline builds the native
-gateway, embedded console, container image, installers, Android app, and edge
-bundles from one tagged commit.
+[English](README.md) | [简体中文](README.zh-CN.md) · [Documentation](https://gproxy.leenhawk.com) · [Downloads](https://github.com/LeenHawk/gproxy/releases) · [Discussions](https://github.com/LeenHawk/gproxy/discussions)
 
-- **v2 (current stable)** lives on the [`main`](https://github.com/LeenHawk/gproxy/tree/main)
-  branch and its `v2.x.y` tags — releases and maintenance continue there.
-- The v3 design goals: an embeddable `gproxy-core` (channels, credential
-  lifecycle, transforms, execution) consumed by interchangeable hosts
-  (axum server / edge wasm) and embeddable into other applications.
+[![CI](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/LeenHawk/gproxy)](LICENSE)
 
-## Run locally
+**One endpoint for your LLM providers, accounts and applications.**
+
+GPROXY is a self-hosted LLM API gateway. It pools upstream credentials, routes
+requests, translates API formats, enforces access and spending limits, and
+records usage and cost. A native installation serves the API, an operator
+console and a user portal from one executable.
+
+## What You Can Do
+
+- **Use the client you prefer.** Accept OpenAI Chat Completions, OpenAI
+  Responses, Claude Messages and Gemini GenerateContent, including streaming.
+  Cross-format conversion is direct; support for other operations depends on
+  the selected channel.
+- **Pool upstream accounts.** Manage API keys, OAuth credentials and cookies
+  where supported, with token refresh, health tracking, credential selection
+  and failover.
+- **Keep model names stable.** Map a public model name to a route and its
+  provider/upstream models. Change providers without changing every client.
+- **Control access and cost.** Manage users, organizations, teams, permissions,
+  rate limits, spending quotas and dimensional pricing. Inference goes through
+  the same admission and settlement pipeline, including CLI service surfaces.
+- **Operate without editing JSON files.** The console manages providers,
+  credentials, model catalogs, rule sets, usage, quota history and updates.
+  The user portal manages accounts, API keys and authorized OAuth sessions.
+- **Choose a deployment.** Native binaries and installers, containers, Android
+  packages and prebuilt edge bundles are available. Rust applications can
+  embed `gproxy-core` without an HTTP server or UI dependency.
+
+Channels include OpenAI, Claude API / Claude Code / Claude Web, Gemini CLI,
+Codex, Copilot, OpenRouter, AWS Bedrock, Vertex, Azure, Kimi and others.
+See [Providers](https://gproxy.leenhawk.com/guides/providers/) for their
+authentication methods and runtime-specific capabilities.
+
+## Quick Start
+
+### Native
+
+Download the archive or installer for your platform from
+[Releases](https://github.com/LeenHawk/gproxy/releases). After extracting a
+portable archive on Linux or macOS:
 
 ```sh
-cargo run -p gproxy-host-axum
+chmod +x ./gproxy
+./gproxy
 ```
 
-No configuration file or encryption key is required. The native host reads
-`GPROXY_*` variables from the real process environment, then optionally from
-`.env` in the current directory and the data directory. A real environment
-variable always wins. The defaults are `127.0.0.1:8787`, `./data`, SQLite, and
-plaintext secret storage. `GPROXY_LIBSQL_URL` and
-`GPROXY_LIBSQL_AUTH_TOKEN` are required only when
-`GPROXY_PERSISTENCE=libsql`.
+On Windows, run `gproxy.exe`. Open **http://127.0.0.1:8787/admin** and create
+the first administrator. The user portal is at **/portal**.
 
-Set `GPROXY_MASTER_KEY` to a standard-base64 32-byte key to encrypt stored
-credential and user-key material. To rotate, keep the current key in
-`GPROXY_MASTER_KEY`, set the target in `GPROXY_MASTER_KEY_NEXT`, and explicitly
-arm one restart with `GPROXY_MASTER_KEY_ROTATE=on`. An empty `NEXT` rotates to
-plaintext. Rotation re-seals every secret and updates the key fingerprint in
-one database transaction; after success, move the target into
-`GPROXY_MASTER_KEY` (or unset it for plaintext) and clear `NEXT` and `ROTATE`.
-The stored fingerprint is never a key, and startup refuses a sealed store when
-the required fingerprint is not supplied.
+The default native installation listens on loopback and stores its database
+at `./data/gproxy.db`. Keep that directory when updating the executable.
+
+### Container
+
+```sh
+docker run -d --name gproxy --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 \
+  -v gproxy-data:/app/data \
+  ghcr.io/leenhawk/gproxy:v3.0.0
+```
+
+The release image runs as UID/GID **65532:65532** and stores data at
+**/app/data**. A named volume preserves it; bind mounts must be writable by
+that user. Images cover amd64, arm64 and riscv64, with a `-musl` variant.
+Use `:staging` only when you want rolling development builds.
+
+See [Container deployment](https://gproxy.leenhawk.com/deployment/docker/)
+and [Edge deployment](https://gproxy.leenhawk.com/deployment/edge/) for other
+deployment options.
+
+### Send Your First Request
+
+1. Add a provider in the console and supply or authorize an upstream credential.
+2. Pull its model catalog, then configure the public model/route you want to use.
+3. Grant your user access and create an API key.
+4. Set `GPROXY_API_KEY` in your shell and replace `my-model` with an accessible
+   model ID shown by the console or `GET /v1/models`.
+
+```sh
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"my-model","messages":[{"role":"user","content":"Hello"}],"stream":true}'
+```
+
+Your application only needs the gateway base URL, a GPROXY API key and a model
+ID. [First request](https://gproxy.leenhawk.com/getting-started/first-request/)
+covers the other API formats.
+
+## CLI Clients and Pi
+
+Codex CLI and Claude Code can use GPROXY's compatible service surfaces.
+Follow the [client guides](https://gproxy.leenhawk.com/guides/cli-clients/)
+for the correct provider path and authentication mode.
+
+For Pi, install the independent, MIT-licensed
+[pi-gproxy](https://github.com/LeenHawk/pi-gproxy) extension:
+
+```sh
+pi install npm:pi-gproxy
+```
+
+Enable `pi-gproxy` in **Console → Settings → OAuth clients**, then run
+`/login` in Pi and select **GPROXY**. Browser PKCE and device-code login
+authorize your gateway account, not an upstream account. The extension
+discovers your allowed models and uses the normal inference pipeline.
+
+The Portal's **Authorized sessions** view shows successful logins, still-valid
+sessions and refresh counts. Revoking a session invalidates its tokens.
+Pi's local `/logout` alone does not revoke the server session.
+See [Account OAuth](docs/account-oauth.md) for the contract.
+
+## Configuration and Security
+
+Configuration comes from command-line flags, environment variables, then
+`.env` in the working directory and data directory. Run `gproxy --help` for
+the complete native option list.
+
+| Variable | Purpose |
+| --- | --- |
+| `GPROXY_HOST`, `GPROXY_PORT` | Listen address; native defaults to `127.0.0.1:8787`. |
+| `GPROXY_DATA_DIR` | Persistent local state; native default `./data`, release container `/app/data`. |
+| `GPROXY_PERSISTENCE` | `sqlite`, `libsql`, `postgres` or `mysql`. |
+| `GPROXY_DSN` | Database connection string where required. |
+| `GPROXY_MASTER_KEY` | Optional standard-base64 32-byte key for stored secret encryption. |
+| `GPROXY_UPSTREAM_PROXY_URL` | Default upstream proxy override. |
+
+Without a master key, stored credentials and API keys are plaintext. Protect
+the data directory and backups. If you enable encryption, keep the key safe
+and do not regenerate it on each restart; changing it requires the documented
+rotation procedure. Put remote access behind HTTPS and configure trusted
+proxies and allowed origins deliberately.
+
+[Configuration reference](https://gproxy.leenhawk.com/reference/configuration/)
+covers encryption, persistence, caching, bootstrap and proxy settings.
 
 ## Upgrading from v2
 
-For the native v2-to-v3 staging upgrade, read [the upgrade and rollback guide](docs/v2-upgrade.md)
-before applying the update. Automatic migration currently accepts supported SQLite databases;
-unmapped data stops the upgrade rather than being discarded.
+**Back up the v2 executable, database and launch configuration before updating.**
 
-## Account OAuth and Pi
+V3 uses a different data model. Native startup can back up and migrate supported
+v2 SQLite databases, preserving recoverable keys and supported configuration
+and usage. It verifies the migrated data before atomically switching databases.
 
-Public clients can authorize a GPROXY user account with authorization-code +
-PKCE or device-code login, then discover and call the user's allowed models
-through the ordinary gateway pipeline. Configure client IDs and redirect URLs
-under **Console → Settings → OAuth clients**. The migrated Codex client stays
-enabled; `pi-gproxy` starts disabled until an administrator enables it.
+Unmapped populated tables, route-specific permissions and other unsupported
+data stop automatic migration rather than being silently discarded. Existing
+v2 updaters do not retain the old executable, so binary rollback requires your
+saved executable or the corresponding official v2 package. Remote databases
+require an explicit migration plan.
 
-The Portal's **Authorized sessions** table shows successful logins, still-valid
-sessions and refresh counts, and revokes a session without exposing its tokens.
-Disabling or deleting a client revokes all its sessions and pending grants;
-re-enabling or explicitly re-registering it does not revive them.
+Read the [upgrade and rollback guide](docs/v2-upgrade.md) first.
+`main` now contains v3; v2 source remains available through its version tags
+and Git history.
 
-See [the OAuth contract](docs/account-oauth.md). The independent local
-`../pi-gproxy` project provides the Pi integration and its installation guide;
-it is not vendored into this repository or published automatically.
+## Development
 
-## Documentation
-
-The documentation site lives under `docs/` (Astro + Starlight) and is
-published to <https://gproxy.leenhawk.com> by CI. It also hosts the signed
-announcement feed the native binary polls. Run it locally with:
+The Rust workspace separates the embeddable core, channel implementations,
+pairwise transforms, shared persistence, application services and native/edge
+hosts. The React console is in `console/`; documentation is in `docs/`.
+Admin API TypeScript types are generated from Rust by `cargo test`.
 
 ```sh
-cd docs
-pnpm install --frozen-lockfile
-pnpm dev
+cargo run -p gproxy-host-axum
+pnpm --dir console install --frozen-lockfile
+pnpm --dir console dev
 ```
 
-## Release
-
-Configure the Android and update-signing CI secrets named in
-`.github/workflows/release.yml`, then run from a clean, versioned commit:
+Before submitting changes:
 
 ```sh
-scripts/release.sh
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo check --workspace --target wasm32-unknown-unknown
+pnpm --dir console lint
+pnpm --dir console test
+pnpm --dir console build
 ```
 
-The script derives `vX.Y.Z` from `[workspace.package].version`, creates the
-annotated tag if needed, and pushes only that tag. The tag workflow builds the
-console once and publishes the GHCR image plus checksummed native, installer,
-signed APK, signed manifest, and edge assets. Re-running the command is safe
-when the same tag already points at the same commit.
+See [Architecture](https://gproxy.leenhawk.com/introduction/architecture/) and
+[Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/).
+Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues);
+report vulnerabilities privately through
+[Security](https://github.com/LeenHawk/gproxy/security).
 
-3.0 的 beta 发布由同一个 tag 构建原生程序、控制台、容器、安装包、Android
-应用和 edge bundles。v2 稳定版仍在 `main` 分支与 `v2.x.y` tags 上维护。
+## License
+
+The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE).
+Some reusable protocol/transform crates use **MIT** as specified in their
+individual `Cargo.toml` files. The separate Pi extension is MIT-licensed.
