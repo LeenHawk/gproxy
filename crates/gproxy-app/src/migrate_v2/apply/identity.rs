@@ -58,6 +58,37 @@ pub(super) async fn base(
             .await?;
     }
     mark(counts, "users", data.users.len());
+    for value in &data.permissions {
+        if value.value.scope == "user"
+            && data
+                .users
+                .iter()
+                .any(|user| user.id == value.value.scope_id && user.value.is_admin)
+        {
+            continue;
+        }
+        let (kind, map) = match value.value.scope.as_str() {
+            "org" => ("organization", &context.organizations),
+            "team" => ("team", &context.teams),
+            "user" => ("user", &context.users),
+            _ => {
+                return Err(crate::AppError::Migration(
+                    "invalid permission scope after validation".into(),
+                ));
+            }
+        };
+        context
+            .store
+            .insert_permission(&PermissionInput {
+                subject_kind: kind.into(),
+                subject_id: id(map, value.value.scope_id)?,
+                provider_id: None,
+                operation_group: None,
+                allowed: true,
+            })
+            .await?;
+    }
+    mark(counts, "route_permissions", data.permissions.len());
     Ok(())
 }
 

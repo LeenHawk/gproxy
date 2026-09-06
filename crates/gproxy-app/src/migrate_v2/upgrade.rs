@@ -117,7 +117,8 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
         )
         .await?;
     }
-    let database = candidate.join("gproxy.db");
+    let database = attempt.join("ready.db");
+    sqlite::snapshot_target(&candidate.join("gproxy.db"), &database)?;
     sqlite::validate_target(&backup, &database)?;
     std::fs::set_permissions(
         &database,

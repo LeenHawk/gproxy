@@ -1,7 +1,7 @@
 use gproxy_store::records::{OrganizationInput, TeamInput, UserInput};
 use tokio_rusqlite::rusqlite::{Connection, Result};
 
-use super::super::model::{Legacy, Quota, SourceData, UserKey};
+use super::super::model::{Legacy, Permission, Quota, SourceData, UserKey};
 use super::{decimal, optional_decimal};
 
 pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()> {
@@ -10,7 +10,25 @@ pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()>
     data.users = users(connection)?;
     data.user_keys = user_keys(connection)?;
     data.quotas = quotas(connection)?;
+    data.permissions = permissions(connection)?;
     Ok(())
+}
+
+fn permissions(connection: &Connection) -> Result<Vec<Legacy<Permission>>> {
+    let mut query = connection
+        .prepare("SELECT id,scope,scope_id,route_pattern FROM route_permissions ORDER BY id")?;
+    query
+        .query_map([], |row| {
+            Ok(Legacy {
+                id: row.get(0)?,
+                value: Permission {
+                    scope: row.get(1)?,
+                    scope_id: row.get(2)?,
+                    route_pattern: row.get(3)?,
+                },
+            })
+        })?
+        .collect()
 }
 
 fn organizations(connection: &Connection) -> Result<Vec<Legacy<OrganizationInput>>> {

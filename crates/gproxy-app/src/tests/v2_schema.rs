@@ -12,6 +12,7 @@ CREATE TABLE users(id INTEGER PRIMARY KEY,name TEXT,org_id INTEGER,team_id INTEG
 CREATE TABLE user_keys(id INTEGER PRIMARY KEY,user_id INTEGER,api_key_ciphertext TEXT,api_key_digest TEXT,api_key_digest_version INTEGER,label TEXT,enabled INTEGER);
 CREATE TABLE provider_models(id INTEGER PRIMARY KEY,provider_id INTEGER,model_id TEXT,display_name TEXT,variants_json TEXT,context_window INTEGER,max_output_tokens INTEGER,thinking_supported INTEGER,thinking_adaptive_supported INTEGER,thinking_enabled_supported INTEGER,enabled INTEGER);
 CREATE TABLE quotas(id INTEGER PRIMARY KEY,scope TEXT,scope_id INTEGER,quota_total TEXT,quota_daily TEXT,quota_weekly TEXT,quota_monthly TEXT,quota_5h TEXT,quota_7d TEXT);
+CREATE TABLE route_permissions(id INTEGER PRIMARY KEY,scope TEXT,scope_id INTEGER,route_pattern TEXT,created_at INTEGER,updated_at INTEGER);
 CREATE TABLE routing_rules(id INTEGER PRIMARY KEY,provider_id INTEGER,operation TEXT,kind TEXT,implementation TEXT,dest_operation TEXT,dest_kind TEXT,sort_order INTEGER,enabled INTEGER);
 CREATE TABLE rule_sets(id INTEGER PRIMARY KEY,name TEXT,description TEXT,enabled INTEGER);
 CREATE TABLE rules(id INTEGER PRIMARY KEY,rule_set_id INTEGER,kind TEXT,config_json TEXT,filter_model_pattern TEXT,filter_operation_keys TEXT,filter_header_pattern TEXT,sort_order INTEGER,enabled INTEGER);

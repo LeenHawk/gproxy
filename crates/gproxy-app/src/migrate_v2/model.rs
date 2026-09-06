@@ -71,6 +71,12 @@ pub(super) struct Quota {
     pub quota_7d: Option<Decimal>,
 }
 
+pub(super) struct Permission {
+    pub scope: String,
+    pub scope_id: i64,
+    pub route_pattern: String,
+}
+
 pub(super) struct Usage {
     pub request_id: String,
     pub at: i64,
@@ -142,6 +148,7 @@ pub(super) struct SourceData {
     pub aliases: Vec<Legacy<Alias>>,
     pub provider_models: Vec<Legacy<ProviderModel>>,
     pub quotas: Vec<Legacy<Quota>>,
+    pub permissions: Vec<Legacy<Permission>>,
     pub price_rules: Vec<Legacy<PriceRule>>,
     pub price_rates: Vec<Legacy<PriceRate>>,
     pub routing_rules: Vec<Legacy<RoutingRuleInput>>,
