@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 
-use gproxy_store::records::CredentialEnvelope;
+use gproxy_store::records::{CredentialEnvelope, ProviderInput};
 use http::Method;
 use sha2::{Digest, Sha256};
 
@@ -102,4 +102,21 @@ fn random_secret() -> String {
     let mut bytes = [0; 32];
     getrandom::fill(&mut bytes).expect("secure random test credential");
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+pub(super) async fn provider(state: &TestState) -> i64 {
+    state
+        .store
+        .insert_provider(&ProviderInput {
+            name: "routing-provider".into(),
+            label: None,
+            channel: "test".into(),
+            settings: serde_json::json!({}),
+            credential_strategy: "round_robin".into(),
+            proxy_url: None,
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .expect("insert provider")
 }

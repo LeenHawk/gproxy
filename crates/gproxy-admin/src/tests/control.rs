@@ -30,23 +30,6 @@ fn route(implementation: RoutingImplementationDto) -> ChannelSupportDto {
     }
 }
 
-async fn provider(state: &TestState) -> i64 {
-    state
-        .store
-        .insert_provider(&ProviderInput {
-            name: "routing-provider".into(),
-            label: None,
-            channel: "test".into(),
-            settings: serde_json::json!({}),
-            credential_strategy: "round_robin".into(),
-            proxy_url: None,
-            tls_fingerprint: None,
-            enabled: true,
-        })
-        .await
-        .expect("insert provider")
-}
-
 #[tokio::test]
 async fn delete_provider_reaches_non_rule_entity_handler() {
     let state = state().await;
@@ -317,7 +300,7 @@ async fn embedded_default_prices_import_once_without_overwriting() {
 
     let body = Bytes::from(
         serde_json::to_vec(&crate::dto::ApplyDefaultModelPricesRequest {
-            provider_id,
+            provider_id: Some(provider_id),
             model_ids: vec!["gpt-5.6-sol".into(), "claude-opus-5-20260801".into()],
         })
         .unwrap(),

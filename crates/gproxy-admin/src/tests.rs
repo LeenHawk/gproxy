@@ -12,6 +12,7 @@ use crate::dto::{ChannelDto, PortalModelDto};
 use crate::{AdminError, PortalIdentity, State};
 
 mod control;
+mod default_prices;
 mod helpers;
 mod observability;
 
