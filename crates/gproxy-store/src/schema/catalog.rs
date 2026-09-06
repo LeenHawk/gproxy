@@ -7,16 +7,18 @@ pub enum SchemaVersion {
     QuotaObservations = 2,
     ModelMetadata = 3,
     OAuthSessions = 4,
+    CredentialBudgets = 5,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Initial,
         Self::QuotaObservations,
         Self::ModelMetadata,
         Self::OAuthSessions,
+        Self::CredentialBudgets,
     ];
-    pub const LATEST: Self = Self::OAuthSessions;
+    pub const LATEST: Self = Self::CredentialBudgets;
 
     pub const fn number(self) -> i64 {
         self as i64

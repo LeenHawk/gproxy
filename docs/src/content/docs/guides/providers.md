@@ -157,6 +157,25 @@ Two channels acquire their first credential through the console:
 
 Every other channel takes a pasted key or token.
 
+## Credential spending limits
+
+Open **Providers → Credentials → Spending limits** to set independent total,
+monthly, weekly, and daily USD caps. Leave a field blank for unlimited spend;
+zero immediately blocks paid requests. Reaching any cap excludes that credential
+from new paid attempts. Routing may select another credential; if every candidate
+is exhausted, the request returns HTTP 402. Free operations remain available.
+
+Limits use gateway model pricing and begin counting when configured. Missing
+model pricing blocks paid requests on a limited credential. Counters persist
+independently of usage logging; disabling enforcement keeps counting, and editing
+limits preserves existing spend. Total spend never resets automatically. Daily,
+weekly, and monthly caps reset at 00:00 UTC each day, Monday, and the first of the
+month respectively. The Console displays reset times in your local timezone.
+
+Spend is recorded at settlement. Concurrent requests and streams already sent
+upstream can exceed a cap before they finish. These counters do not include
+requests made outside this gateway or reconcile provider invoices.
+
 ## Tools
 
 - **Connectivity test**: probes `https://1.1.1.1/cdn-cgi/trace` (IPv4 and

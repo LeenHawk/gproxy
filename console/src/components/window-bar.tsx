@@ -12,6 +12,7 @@ export type WindowBarProps = {
   start?: number | null
   end?: number | null
   started?: boolean
+  resetLabel?: string
   boundary?: BoundarySourceDto
   confidence?: BoundaryConfidenceDto
   coverage?: QuotaCoverageDto
@@ -71,7 +72,7 @@ export function WindowBar(props: WindowBarProps) {
       </div>
       <div className="flex justify-between gap-3 text-xs text-muted-foreground">
         <span>{started ? `${formatPercent(ratio, i18n.language)}${start ? ` · ${t("window.started", { time: start })}` : ""}` : t("window.notStarted")}</span>
-        <span>{reset ? t("window.resets", { value: reset }) : t("window.noReset")}</span>
+        <span>{props.resetLabel ?? (reset ? t("window.resets", { value: reset }) : t("window.noReset"))}</span>
       </div>
     </section>
   )

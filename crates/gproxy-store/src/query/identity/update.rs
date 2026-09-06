@@ -115,7 +115,7 @@ pub(crate) fn update_quota(id: i64, input: &QuotaInput) -> Result<Statement, Sto
         vec![
             value(input.subject_kind.clone()),
             value(input.subject_id),
-            value(decimal(input.quota_total)),
+            value(input.quota_total.map(decimal)),
             value(input.quota_daily.map(decimal)),
             value(input.quota_weekly.map(decimal)),
             value(input.quota_monthly.map(decimal)),

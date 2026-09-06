@@ -71,6 +71,15 @@ pub(crate) async fn request<H: Host>(
     {
         return Err(CoreError::Unsupported);
     }
+    core.host
+        .admit_credential(
+            target,
+            &request.body,
+            request
+                .key
+                .map_or(SettleMode::Free, |key| key.operation().spec().settle),
+        )
+        .await?;
     let credential = crate::execution::credential::load_fresh(
         core.host.as_ref(),
         channel,

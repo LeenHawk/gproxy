@@ -200,6 +200,14 @@
       "presetError": "Could not load fingerprint presets. Retry."
     },
     "credentials": {
+      "budget": {
+        "noReset": "Does not reset automatically",
+        "title": "Spending limits",
+        "blocked": "Limit reached",
+        "enabled": "Enforce spending limits",
+        "unlimited": "Unlimited",
+        "description": "USD at gateway model prices, counted from configuration. Blank means unlimited; zero stops paid requests. Resets at 00:00 UTC daily, Monday weekly, and the first of each month. In-flight requests may exceed the limit."
+      },
       "title": "Credentials",
       "add": "Add credential",
       "empty": "No credentials yet. Add one before enabling traffic.",

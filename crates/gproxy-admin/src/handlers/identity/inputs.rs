@@ -80,14 +80,16 @@ pub(super) fn rate_limit(request: RateLimitWriteRequest) -> Result<RateLimitInpu
 }
 
 pub(super) fn quota(request: QuotaWriteRequest) -> Result<QuotaInput, AdminError> {
-    validate_subject(&request.subject_kind)?;
+    if request.subject_kind != "credential" {
+        validate_subject(&request.subject_kind)?;
+    }
     let parse = |value: Option<String>, field: &'static str| {
         value.map(|value| decimal(&value, field)).transpose()
     };
     let input = QuotaInput {
         subject_kind: request.subject_kind,
         subject_id: request.subject_id,
-        quota_total: decimal(&request.quota_total, "quota_total")?,
+        quota_total: parse(request.quota_total, "quota_total")?,
         quota_daily: parse(request.quota_daily, "quota_daily")?,
         quota_weekly: parse(request.quota_weekly, "quota_weekly")?,
         quota_monthly: parse(request.quota_monthly, "quota_monthly")?,
@@ -96,7 +98,7 @@ pub(super) fn quota(request: QuotaWriteRequest) -> Result<QuotaInput, AdminError
         enabled: request.enabled,
     };
     if [
-        Some(input.quota_total),
+        input.quota_total,
         input.quota_daily,
         input.quota_weekly,
         input.quota_monthly,
@@ -105,8 +107,10 @@ pub(super) fn quota(request: QuotaWriteRequest) -> Result<QuotaInput, AdminError
     ]
     .into_iter()
     .flatten()
-    .any(|value| value <= rust_decimal::Decimal::ZERO)
-    {
+    .any(|value| {
+        value < rust_decimal::Decimal::ZERO
+            || (input.subject_kind != "credential" && value == rust_decimal::Decimal::ZERO)
+    }) {
         return Err(AdminError::BadRequest(
             "quota values must be positive".into(),
         ));

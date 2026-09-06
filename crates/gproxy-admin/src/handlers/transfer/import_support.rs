@@ -162,6 +162,7 @@ pub(super) fn optional(
 
 pub(super) fn subject(maps: &IdMaps, kind: &str, id: i64) -> Result<Option<i64>, AdminError> {
     match kind {
+        "credential" => Ok(maps.credentials.get(&id).copied()),
         "organization" => mapped(&maps.organizations, id).map(Some),
         "team" => mapped(&maps.teams, id).map(Some),
         "user" => mapped(&maps.users, id).map(Some),

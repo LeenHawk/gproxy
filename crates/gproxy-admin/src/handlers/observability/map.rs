@@ -10,17 +10,7 @@ use crate::dto::{
 };
 
 pub(crate) fn configured_windows(quota: &QuotaRecord) -> Vec<QuotaWindowKind> {
-    [
-        (QuotaWindowKind::Total, Some(quota.quota_total)),
-        (QuotaWindowKind::Daily, quota.quota_daily),
-        (QuotaWindowKind::Weekly, quota.quota_weekly),
-        (QuotaWindowKind::Monthly, quota.quota_monthly),
-        (QuotaWindowKind::FiveHour, quota.quota_5h),
-        (QuotaWindowKind::SevenDay, quota.quota_7d),
-    ]
-    .into_iter()
-    .filter_map(|(kind, limit)| limit.map(|_| kind))
-    .collect()
+    quota.limits().map(|(kind, _)| kind).collect()
 }
 
 pub(crate) fn quota_window(
@@ -64,14 +54,9 @@ pub(crate) fn unstarted_window(
 }
 
 fn limit(quota: &QuotaRecord, kind: QuotaWindowKind) -> Option<rust_decimal::Decimal> {
-    match kind {
-        QuotaWindowKind::Total => Some(quota.quota_total),
-        QuotaWindowKind::Daily => quota.quota_daily,
-        QuotaWindowKind::Weekly => quota.quota_weekly,
-        QuotaWindowKind::Monthly => quota.quota_monthly,
-        QuotaWindowKind::FiveHour => quota.quota_5h,
-        QuotaWindowKind::SevenDay => quota.quota_7d,
-    }
+    quota
+        .limits()
+        .find_map(|(window, limit)| (window == kind).then_some(limit))
 }
 
 pub(super) fn credential_cycle(value: &CredentialQuotaCycleRecord) -> CredentialQuotaCycleDto {

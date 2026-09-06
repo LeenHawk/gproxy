@@ -1,5 +1,6 @@
 mod auth;
 mod credential;
+pub(super) mod credential_budget;
 mod finish;
 mod quota;
 mod reserve;

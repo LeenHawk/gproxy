@@ -137,8 +137,9 @@ impl Host for AppHost {
         &'a self,
         target: &'a gproxy_core::Target,
         body: &'a bytes::Bytes,
+        settle: gproxy_protocol::SettleMode,
     ) -> BoxFuture<'a, Result<(), gproxy_core::CoreError>> {
-        admission::admit_credential(self, target, body)
+        admission::admit_credential(self, target, body, settle)
     }
 
     fn count_tokens<'a>(

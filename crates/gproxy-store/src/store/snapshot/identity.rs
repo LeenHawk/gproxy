@@ -119,7 +119,7 @@ pub(super) fn quotas(result: QueryResult) -> Result<Vec<QuotaRecord>, StoreError
                 id: row.i64("id")?,
                 subject_kind: row.text("subject_kind")?.to_owned(),
                 subject_id: row.i64("subject_id")?,
-                quota_total: decimal(row.text("quota_total")?, "quota_total")?,
+                quota_total: optional_decimal(&row, "quota_total")?,
                 quota_daily: optional_decimal(&row, "quota_daily")?,
                 quota_weekly: optional_decimal(&row, "quota_weekly")?,
                 quota_monthly: optional_decimal(&row, "quota_monthly")?,

@@ -39,6 +39,7 @@ pub(super) struct State {
     pub(super) captures: Vec<Captured>,
     pub(super) auth_calls: usize,
     pub(super) admit_calls: usize,
+    pub(super) exhausted_credentials: Vec<CredentialId>,
     pub(super) plan: Option<Plan>,
     pub(super) statuses: VecDeque<StatusCode>,
     pub(super) resolved_models: Vec<Option<String>>,
@@ -99,6 +100,7 @@ impl MemoryHost {
                 captures: Vec::new(),
                 auth_calls: 0,
                 admit_calls: 0,
+                exhausted_credentials: Vec::new(),
                 plan: None,
                 statuses: VecDeque::new(),
                 resolved_models: Vec::new(),
@@ -224,10 +226,24 @@ impl Host for MemoryHost {
 
     fn admit_credential<'a>(
         &'a self,
-        _: &'a crate::Target,
+        target: &'a crate::Target,
         _: &'a Bytes,
+        settle: gproxy_protocol::SettleMode,
     ) -> BoxFuture<'a, Result<(), CoreError>> {
-        Box::pin(async { Ok(()) })
+        let exhausted = settle != gproxy_protocol::SettleMode::Free
+            && self
+                .state
+                .lock()
+                .expect("state lock")
+                .exhausted_credentials
+                .contains(&target.credential);
+        Box::pin(async move {
+            if exhausted {
+                Err(CoreError::QuotaExceeded)
+            } else {
+                Ok(())
+            }
+        })
     }
     fn count_tokens<'a>(
         &'a self,

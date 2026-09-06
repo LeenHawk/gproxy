@@ -1,4 +1,5 @@
 mod admin;
+mod credential_budget;
 mod fingerprint;
 mod lifecycle;
 mod migrate_v2;

@@ -119,7 +119,7 @@ pub(super) async fn fixture() -> Fixture {
         .mutate(ControlMutation::Quota(gproxy_store::records::QuotaInput {
             subject_kind: "user_key".into(),
             subject_id: user_key,
-            quota_total: Decimal::ONE,
+            quota_total: Some(Decimal::ONE),
             quota_daily: None,
             quota_weekly: None,
             quota_monthly: None,

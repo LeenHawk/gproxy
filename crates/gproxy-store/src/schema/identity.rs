@@ -137,7 +137,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::id(),
             Col::required("subject_kind", Text),
             Col::required("subject_id", Integer),
-            Col::required("quota_total", Text),
+            Col::required("quota_total", Text).nullable_since(SchemaVersion::CredentialBudgets),
             Col::optional("quota_daily", Text),
             Col::optional("quota_weekly", Text),
             Col::optional("quota_monthly", Text),
