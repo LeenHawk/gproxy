@@ -98,6 +98,11 @@ export default defineConfig({
               slug: 'introduction/architecture',
               translations: { 'zh-CN': '架构' },
             },
+            {
+              label: 'Performance',
+              slug: 'introduction/performance',
+              translations: { 'zh-CN': '性能' },
+            },
           ],
         },
         {
