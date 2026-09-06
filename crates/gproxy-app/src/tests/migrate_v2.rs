@@ -101,3 +101,65 @@ fn count(report: &crate::V2ImportReport, entity: &str) -> (usize, usize) {
         .unwrap();
     (count.found, count.imported)
 }
+
+#[tokio::test]
+async fn migration_unwraps_v2_dimensional_metrics() {
+    let source = tempfile::tempdir().unwrap();
+    let target = tempfile::tempdir().unwrap();
+    let api_key = format!("sk-{}", super::setup::random_key());
+    super::setup::v2_database(
+        source.path(),
+        &api_key,
+        &api_key,
+        &json!({"api_key":super::setup::random_key()}),
+        true,
+    );
+    let connection = Connection::open(source.path().join("gproxy.db")).unwrap();
+    connection
+        .execute(
+            "UPDATE usages SET metrics_json=?1 WHERE id=1",
+            [json!({
+                "dimensions": {"operation": "stream_generate_content"},
+                "quantities": {"audio_input_tokens": "0", "input_characters": "20276"},
+                "cache_creation_5m_tokens": "7"
+            })
+            .to_string()],
+        )
+        .unwrap();
+    drop(connection);
+
+    let config = super::test_config(target.path(), crate::MasterKeyConfig::new(None));
+    let report = crate::migrate_from_v2(
+        &config,
+        V2ImportOptions {
+            path: source.path().join("gproxy.db"),
+            source_master_key: None,
+            apply: true,
+            merge: false,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(report.applied && report.issues.is_empty(), "{report}");
+
+    let app = App::start(config).await.unwrap();
+    let record = app
+        .usage_by_request("v2-request")
+        .await
+        .unwrap()
+        .expect("migrated usage row");
+    let metrics: std::collections::BTreeMap<String, rust_decimal::Decimal> =
+        serde_json::from_value(record.usage.metrics.clone()).expect("v3 aggregates the metrics");
+    assert_eq!(
+        metrics["input_characters"],
+        rust_decimal::Decimal::from(20_276)
+    );
+    assert_eq!(
+        metrics["cache_creation_5m_tokens"],
+        rust_decimal::Decimal::from(7)
+    );
+    assert_eq!(
+        record.usage.dimensions["operation"],
+        "stream_generate_content"
+    );
+}
