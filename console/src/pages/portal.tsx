@@ -15,13 +15,15 @@ import { AuthPanel } from "@/components/auth/auth-panel"
 import { PortalDashboard } from "@/components/portal/portal-dashboard"
 import { PortalShell } from "@/components/portal/portal-shell"
 import { OAuthConsent } from "@/components/portal/oauth-consent"
+import { oauthReturnUrl } from "@/lib/oauth-callback"
 import type { UsageDays } from "@/components/portal/usage-panel"
 
 type PortalSession = { context: PortalContextDto }
 
 function continueOAuth() {
   const value = new URLSearchParams(window.location.search).get("oauth_return")
-  if (value?.startsWith("/") && !value.startsWith("//")) window.location.assign(value)
+  const target = oauthReturnUrl(value, window.location.origin)
+  if (target) window.location.assign(target)
 }
 
 export function PortalPage() {

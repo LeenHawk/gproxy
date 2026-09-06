@@ -15,3 +15,14 @@ export function validateCallbackUrl(pasted: string, authorizeUrl: string): boole
   if (state !== authorize.searchParams.get("state")) return false
   return url.origin !== authorize.origin || url.pathname !== authorize.pathname
 }
+
+export function oauthReturnUrl(value: string | null, origin: string): string | null {
+  if (!value?.startsWith("/")) return null
+  try {
+    const target = new URL(value, origin)
+    if (target.origin !== origin || target.username || target.password) return null
+    return target.href
+  } catch {
+    return null
+  }
+}

@@ -9,7 +9,10 @@ pub(crate) async fn prepare(
     store: &gproxy_store::Store,
     keys: &MasterKeyConfig,
 ) -> Result<EnvelopeCipher, AppError> {
-    let inventory = store.secret_inventory().await?;
+    let inventory = store
+        .secret_inventory()
+        .await
+        .map_err(|_| AppError::Encryption("could not read the stored secret inventory".into()))?;
     let current_fingerprint = fingerprint(keys.current.as_ref());
     require_mode(&inventory.fingerprint, current_fingerprint.as_deref())?;
     let current = EnvelopeCipher::new(keys.current);
@@ -30,7 +33,10 @@ pub(crate) async fn prepare(
         if matches!(inventory.fingerprint, MasterKeyFingerprint::Missing) {
             store
                 .replace_secret_inventory(&[], &[], &[], current_fingerprint.as_deref())
-                .await?;
+                .await
+                .map_err(|_| {
+                    AppError::Encryption("could not persist the secret-store fingerprint".into())
+                })?;
         }
         if keys.current.is_none() {
             tracing::warn!("secrets are stored in plaintext because GPROXY_MASTER_KEY is unset");
@@ -69,7 +75,8 @@ pub(crate) async fn prepare(
             &tokenizer_auth,
             next_fingerprint.as_deref(),
         )
-        .await?;
+        .await
+        .map_err(|_| AppError::Encryption("could not persist rotated secret material".into()))?;
     if next_key.is_some() {
         tracing::warn!(
             "secret-key rotation completed; copy GPROXY_MASTER_KEY_NEXT to GPROXY_MASTER_KEY, then clear GPROXY_MASTER_KEY_NEXT and GPROXY_MASTER_KEY_ROTATE"
@@ -86,9 +93,9 @@ fn require_mode(stored: &MasterKeyFingerprint, supplied: Option<&str>) -> Result
     match (stored, supplied) {
         (MasterKeyFingerprint::Missing, _) | (MasterKeyFingerprint::Plaintext, None) => Ok(()),
         (MasterKeyFingerprint::Sealed(required), Some(actual)) if required == actual => Ok(()),
-        (MasterKeyFingerprint::Sealed(required), _) => Err(AppError::Encryption(format!(
-            "store requires secret key fingerprint {required}"
-        ))),
+        (MasterKeyFingerprint::Sealed(_), _) => Err(AppError::Encryption(
+            "store requires a matching secret key fingerprint".into(),
+        )),
         (MasterKeyFingerprint::Plaintext, Some(_)) => Err(AppError::Encryption(
             "store requires plaintext mode, but GPROXY_MASTER_KEY is set".into(),
         )),

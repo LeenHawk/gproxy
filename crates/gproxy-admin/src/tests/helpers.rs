@@ -49,7 +49,10 @@ pub(super) fn admin_parts(method: Method, uri: &str) -> http::request::Parts {
     let mut parts = http::Request::builder()
         .method(method)
         .uri(uri)
-        .header(http::header::AUTHORIZATION, "Bearer admin-test-key")
+        .header(
+            http::header::AUTHORIZATION,
+            format!("Bearer {}", admin_key()),
+        )
         .body(())
         .expect("request")
         .into_parts()
@@ -61,7 +64,7 @@ pub(super) fn admin_parts(method: Method, uri: &str) -> http::request::Parts {
 }
 
 pub(super) async fn seed_admin_key(state: &TestState) {
-    let id = crate::seed_first_admin(&state.store, "batch-admin", "batch-password")
+    let id = crate::seed_first_admin(&state.store, "batch-admin", &random_secret())
         .await
         .unwrap()
         .unwrap();
@@ -69,7 +72,7 @@ pub(super) async fn seed_admin_key(state: &TestState) {
         .store
         .insert_user_key(&gproxy_store::records::UserKeyInput {
             user_id: id,
-            digest: Sha256::digest(b"admin-test-key").to_vec(),
+            digest: Sha256::digest(admin_key().as_bytes()).to_vec(),
             digest_version: 1,
             prefix: "admin-test-k".into(),
             envelope: envelope(),
@@ -88,4 +91,15 @@ pub(super) fn envelope() -> CredentialEnvelope {
         payload_nonce: vec![3],
         key_nonce: vec![4],
     }
+}
+
+fn admin_key() -> &'static str {
+    static KEY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    KEY.get_or_init(random_secret)
+}
+
+fn random_secret() -> String {
+    let mut bytes = [0; 32];
+    getrandom::fill(&mut bytes).expect("secure random test credential");
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
