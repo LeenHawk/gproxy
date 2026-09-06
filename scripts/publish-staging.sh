@@ -8,11 +8,7 @@ if [ "$latest" != "$GITHUB_SHA" ]; then
 fi
 test "$(jq -r .channel dist/publish/manifest.json)" = staging
 test "$(jq -r .version dist/publish/manifest.json)" = "$GITHUB_SHA"
-for file in dist/publish/*; do
-  if [ "$(basename "$file")" != manifest.json ]; then
-    mv "$file" "$(dirname "$file")/$GITHUB_SHA-$(basename "$file")"
-  fi
-done
+scripts/namespace-staging-assets.sh dist/publish "$GITHUB_SHA-"
 previous="$(mktemp -d)"
 trap 'rm -rf "$previous"' EXIT
 gh release download staging --pattern manifest.json --dir "$previous" >/dev/null 2>&1 || true

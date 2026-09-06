@@ -311,7 +311,7 @@ jobs:
           ASSET_PREFIX: ${{ needs.prepare.outputs.channel == 'staging' && format('{0}-', github.sha) || '' }}
         run: |
           if [ -n "$ASSET_PREFIX" ]; then
-            for file in dist/native/*; do mv "$file" "$(dirname "$file")/$ASSET_PREFIX$(basename "$file")"; done
+            scripts/namespace-staging-assets.sh dist/native "$ASSET_PREFIX"
           fi
           scripts/build-update-manifest.sh
       - uses: actions/upload-artifact@v7
