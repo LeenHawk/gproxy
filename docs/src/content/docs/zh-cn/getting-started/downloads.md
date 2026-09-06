@@ -7,10 +7,10 @@ description: "GPROXY 的发布产物：原生安装包、便携压缩包、容�
 
 <https://github.com/LeenHawk/gproxy/releases>
 
-:::caution[不要使用 "latest" Release 链接]
-GitHub 的 `releases/latest` 不包含预发布版本。v3 处于 alpha 期间，该链接以及所有
-`releases/latest/download/...` URL 都会解析到 `main` 分支上的 v2 稳定版。请打开
-Release 列表，选择需要的 `v3` 预发布版本，再从那里下载产物。
+:::note[稳定版与预发布版链接]
+`releases/latest` 以及所有 `releases/latest/download/...` URL 都解析到最新的 v3
+稳定版。该链接不包含预发布版本；如需预发布版本，请打开 Release 列表自行选择。
+v2 版本仍保留在各自的 `v2.x.y` tag 上。
 :::
 
 不要为了运行 GPROXY 而克隆仓库或自行编译。下面的产物已经包含优化后的二进制和内嵌
@@ -103,9 +103,9 @@ URL、最低兼容数据版本，以及每个目标一条记录（URL、SHA-256�
 
 | 通道 | 清单位置 | 内容 |
 | --- | --- | --- |
-| `releases` | `releases/latest/download/manifest.json` | 不带预发布后缀的稳定 tag。alpha 期间此通道上没有 v3 版本。 |
-| `staging` | `releases/download/staging/manifest.json` | 持续替换的预发布构建，按构建哈希而非版本号比较。目前没有任何发布流程向该通道发布。 |
-| `dev` | `releases/download/dev/manifest.json` | 最新的 `v3` 预发布版本。alpha 构建默认使用此通道。 |
+| `releases` | `releases/latest/download/manifest.json` | 不带预发布后缀的稳定 tag，`v3.0.0` 及之后。稳定版构建默认使用此通道。 |
+| `staging` | `releases/download/staging/manifest.json` | `main` 每次推送都会持续替换的构建，按构建哈希而非版本号比较。 |
+| `dev` | `releases/download/dev/manifest.json` | 最新的 `v3` 预发布版本。预发布构建默认使用此通道。 |
 
 由预发布 tag 构建的版本会作为 GitHub 预发布发布，并刷新保存最新签名清单的 `dev`
 Release。如何应用更新见[安装](/zh-cn/getting-started/installation/#更新)。
@@ -113,7 +113,7 @@ Release。如何应用更新见[安装](/zh-cn/getting-started/installation/#更
 `gproxy --version` 输出版本、通道、构建哈希和安装类型：
 
 ```text
-gproxy 3.0.0-alpha.0 (channel dev, build 4054fe4f94ea, installation standalone)
+gproxy 3.0.0 (channel releases, build 4054fe4f94ea, installation standalone)
 ```
 
 发布构建的通道为 `releases` 或 `dev`，安装类型为 `standalone`、`android-apk` 或

@@ -14,7 +14,7 @@ gproxy-core = { git = "https://github.com/LeenHawk/gproxy", branch = "3.0" }
 gproxy-channels = { git = "https://github.com/LeenHawk/gproxy", branch = "3.0" }
 ```
 
-The workspace is Rust edition 2024 at version `3.0.0-alpha.0`. The public
+The workspace is Rust edition 2024 at version `3.0.0`. The public
 surface is not semver-stable yet.
 
 ## Crate Graph

@@ -42,7 +42,7 @@ cargo build --release -p gproxy-host-axum
 （`127.0.0.1:8787`、`./data`、SQLite）运行 debug 构建。`--version` 打印构建标识：
 
 ```text
-gproxy 3.0.0-alpha.0 (channel development, build 4054fe4f94ea, installation source)
+gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
 ```
 
 构建标识在编译期由以下变量固定，`crates/gproxy-host-axum/src/lib.rs` 用
@@ -207,5 +207,5 @@ openssl pkey -in update.pem -pubout -outform DER \
 
 编译进去的 channel 是默认值；控制台的更新 channel 设置或 `GPROXY_UPDATE_CHANNEL`
 可覆盖它，`GPROXY_UPDATE_SERVE` 可指向自托管的 manifest。GitHub 的
-`releases/latest` 永远不会解析到预发布版本，因此 alpha 构建以 `dev` channel 编译，
+`releases/latest` 永远不会解析到预发布版本，因此预发布构建以 `dev` channel 编译，
 并跟随 `dev` manifest。其余仅原生可用的变量见[配置](/zh-cn/reference/configuration/)。

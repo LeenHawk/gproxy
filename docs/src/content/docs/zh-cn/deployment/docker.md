@@ -3,29 +3,26 @@ title: "容器部署"
 description: "使用 ghcr.io/leenhawk/gproxy 镜像运行，配置持久化 volume、外部数据库、共享缓存、反向代理与 JSON 日志"
 ---
 
-官方镜像是 `ghcr.io/leenhawk/gproxy:<tag>`，其中 `<tag>` 是 release tag，例如
-`v3.0.0-alpha.0`。release workflow 为每个 tag 构建一个 `linux/amd64` 镜像，不再
-推送其他内容：没有 `latest` tag，也没有 `-musl` 变体。固定使用你测试过的 tag。
-版本列表见[下载](/zh-cn/getting-started/downloads/)。
+官方镜像是 `ghcr.io/leenhawk/gproxy:<tag>`，例如 `v3.0.0`。
+版本标签提供 amd64、arm64、riscv64 镜像，并有 `-musl` 变体。
+`staging` 用于滚动开发版本，生产环境建议固定版本标签。
 
-镜像由多阶段 `deploy/container/Dockerfile` 从源码构建：Node 阶段构建控制台，Rust
-阶段嵌入控制台并编译 `gproxy`，运行阶段是只带 `ca-certificates` 的
-`debian:trixie-slim`。镜像内的二进制与原生 release 发布的是同一份，只是以安装类型
-`container` 编译。
+发布镜像通过 `deploy/container/Dockerfile.release` 装入预构建原生程序，
+使用非 root 的 distroless 运行环境；另有 `deploy/container/Dockerfile` 用于从源码构建。
 
 ## 镜像默认值
 
 | 设置 | 取值 |
 | --- | --- |
-| 用户 | `gproxy`（系统用户，home 为 `/var/lib/gproxy`） |
+| 用户 | UID/GID `65532:65532` |
 | 端口 | `EXPOSE 8787` |
 | 入口 | `/usr/local/bin/gproxy`；额外参数直接传给二进制 |
 | `GPROXY_HOST` | `0.0.0.0` |
 | `GPROXY_PORT` | `8787` |
-| `GPROXY_DATA_DIR` | `/var/lib/gproxy` |
+| `GPROXY_DATA_DIR` | `/app/data` |
 | `GPROXY_PERSISTENCE` | `sqlite` |
 
-默认情况下数据库位于 `/var/lib/gproxy/gproxy.db`。挂载 `/var/lib/gproxy`，否则
+默认情况下数据库位于 `/app/data/gproxy.db`。挂载 `/app/data`，否则
 数据会随容器一起丢失。命名 volume 会沿用镜像中该目录的所属权；bind 挂载的宿主机
 目录必须对 `gproxy` 用户可写。
 
@@ -34,8 +31,8 @@ description: "使用 ghcr.io/leenhawk/gproxy 镜像运行，配置持久化 volu
 ```sh
 docker run -d --name gproxy \
   -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
-  ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+  -v gproxy-data:/app/data \
+  ghcr.io/leenhawk/gproxy:v3.0.0
 ```
 
 打开 `http://127.0.0.1:8787/admin`。全新的 store 会显示初始化表单，用于创建第一个
@@ -44,10 +41,10 @@ docker run -d --name gproxy \
 ```sh
 docker run -d --name gproxy \
   -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
+  -v gproxy-data:/app/data \
   -e GPROXY_ADMIN_USER=admin \
   -e GPROXY_ADMIN_PASSWORD='<choose-a-password>' \
-  ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+  ghcr.io/leenhawk/gproxy:v3.0.0
 ```
 
 在全新 store 上，这会创建管理员和一个已加密保存的管理员 API 密钥，可在控制台中
@@ -57,14 +54,14 @@ docker run -d --name gproxy \
 应用该管理员的密码，因此登录成功后请移除它。
 
 二进制还会读取 `<data-dir>/.env` 中的 `GPROXY_*` 键，这里即 volume 内的
-`/var/lib/gproxy/.env`；用 `-e` 设置的变量优先。
+`/app/data/.env`；用 `-e` 设置的变量优先。
 
 ## Compose
 
 ```yaml
 services:
   gproxy:
-    image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+    image: ghcr.io/leenhawk/gproxy:v3.0.0
     restart: unless-stopped
     ports:
       - "8787:8787"
@@ -72,7 +69,7 @@ services:
       GPROXY_LOG_FORMAT: json
       # GPROXY_MASTER_KEY: "<standard base64, 32 bytes>"
     volumes:
-      - gproxy-data:/var/lib/gproxy
+      - gproxy-data:/app/data
 
 volumes:
   gproxy-data:
@@ -106,7 +103,7 @@ PostgreSQL 连接不使用 TLS，请把数据库放在私有网络内。libSQL U
 ```yaml
 services:
   gproxy:
-    image: ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0
+    image: ghcr.io/leenhawk/gproxy:v3.0.0
     ports:
       - "8787:8787"
     environment:
@@ -176,9 +173,9 @@ docker stop gproxy && docker rm gproxy
 
 ```sh
 docker run --rm \
-  -v gproxy-data:/var/lib/gproxy \
+  -v gproxy-data:/app/data \
   -v gproxy-v2-data:/v2:ro \
-  ghcr.io/leenhawk/gproxy:v3.0.0-alpha.0 \
+  ghcr.io/leenhawk/gproxy:v3.0.0 \
   migrate --from-v2 /v2/gproxy.db
 ```
 

@@ -166,7 +166,7 @@ DSN 格式与各后端行为见[存储与缓存后端](/zh-cn/reference/database
 
 ```text
 $ gproxy --version
-gproxy 3.0.0-alpha.0 (channel development, build 4054fe4f94ea, installation source)
+gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
 ```
 
 ## Edge 绑定

@@ -182,7 +182,7 @@ environment of `cargo build`. They are not runtime configuration.
 
 ```text
 $ gproxy --version
-gproxy 3.0.0-alpha.0 (channel development, build 4054fe4f94ea, installation source)
+gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
 ```
 
 ## Edge Bindings

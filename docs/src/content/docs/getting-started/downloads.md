@@ -7,11 +7,11 @@ Every release is published on the GitHub Releases page under a `v3.x.y` tag:
 
 <https://github.com/LeenHawk/gproxy/releases>
 
-:::caution[Do not use the "latest" release link]
-GitHub's `releases/latest` excludes prereleases. While v3 is in alpha, that
-link and every `releases/latest/download/...` URL resolve to the v2 stable
-line on the `main` branch. Open the releases list, pick the `v3` prerelease
-you want, and download its assets from there.
+:::note[Stable and prerelease links]
+`releases/latest` and every `releases/latest/download/...` URL resolve to
+the newest stable v3 release. Prereleases are excluded from that link: open
+the releases list and pick a `v3` prerelease if you want one. The v2 line
+remains available on its `v2.x.y` tags.
 :::
 
 Do not clone the repository or compile GPROXY to run it. The assets below
@@ -113,9 +113,9 @@ signed by its own release pipeline.
 
 | Channel | Manifest location | Content |
 | --- | --- | --- |
-| `releases` | `releases/latest/download/manifest.json` | Stable tags without a prerelease suffix. No v3 release is on this channel during the alpha. |
-| `staging` | `releases/download/staging/manifest.json` | Continuously replaced prerelease builds, compared by build hash rather than version. No release workflow publishes this channel today. |
-| `dev` | `releases/download/dev/manifest.json` | The newest `v3` prerelease. Alpha builds default to this channel. |
+| `releases` | `releases/latest/download/manifest.json` | Stable tags without a prerelease suffix, `v3.0.0` and later. Stable builds default to this channel. |
+| `staging` | `releases/download/staging/manifest.json` | Continuously replaced builds from every push to `main`, compared by build hash rather than version. |
+| `dev` | `releases/download/dev/manifest.json` | The newest `v3` prerelease. Prerelease builds default to this channel. |
 
 A release built from a prerelease tag is published as a GitHub prerelease and
 refreshes the `dev` release, which holds the latest signed manifest. How to
@@ -125,7 +125,7 @@ apply an update is on [Installation](/getting-started/installation/#updating).
 kind:
 
 ```text
-gproxy 3.0.0-alpha.0 (channel dev, build 4054fe4f94ea, installation standalone)
+gproxy 3.0.0 (channel releases, build 4054fe4f94ea, installation standalone)
 ```
 
 Release builds report channel `releases` or `dev` and installation

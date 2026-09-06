@@ -39,7 +39,7 @@ For a container:
 
 ```bash
 docker run -d --name gproxy -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
+  -v gproxy-data:/app/data \
   ghcr.io/leenhawk/gproxy:<tag>
 ```
 

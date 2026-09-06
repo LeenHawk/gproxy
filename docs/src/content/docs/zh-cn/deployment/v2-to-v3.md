@@ -18,7 +18,7 @@ store。v2 本身继续在 `main` 分支上以 `v2.x.y` tag 维护。本页取�
 | 首次启动导入 | `GPROXY_IMPORT_FILE` | 已移除；改用 `gproxy migrate` 或控制台的配置导入 |
 | Web 界面 | `/console` | `/admin` 控制台、`/portal` 用户门户、`/` 公开站点；API 位于 `/admin/api/**` 与 `/portal/api/**` |
 | 容器 | `latest`、`-musl`、多架构；数据在 `/app/data` | 仅 `ghcr.io/leenhawk/gproxy:<tag>`，linux/amd64；数据在 `/var/lib/gproxy`；以 `gproxy` 用户运行 |
-| 更新 channel | 实例设置 `update_channel` | `releases`、`staging`、`dev`；alpha 构建位于 `dev`。该设置会被导入 |
+| 更新 channel | 实例设置 `update_channel` | `releases`、`staging`、`dev`；预发布构建位于 `dev`。该设置会被导入 |
 | 规则 | 重写规则与消息重写 | 统一的规则工作区：附加到 Provider 的规则集，以及每个 Provider 的路由规则 |
 
 见[配置](/zh-cn/reference/configuration/)、[容器部署](/zh-cn/deployment/docker/)

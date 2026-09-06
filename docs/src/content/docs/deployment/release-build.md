@@ -45,7 +45,7 @@ a debug build with the defaults (`127.0.0.1:8787`, `./data`, SQLite).
 `--version` prints the build identity:
 
 ```text
-gproxy 3.0.0-alpha.0 (channel development, build 4054fe4f94ea, installation source)
+gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
 ```
 
 The identity is fixed at compile time from these variables, read with
@@ -228,6 +228,6 @@ A released binary checks for updates against a signed manifest:
 The compiled channel is the default; the console's update channel setting or
 `GPROXY_UPDATE_CHANNEL` overrides it, and `GPROXY_UPDATE_SERVE` points at a
 self-hosted manifest. GitHub's `releases/latest` never resolves to a
-prerelease, so alpha builds are compiled with channel `dev` and follow the
+prerelease, so prerelease builds are compiled with channel `dev` and follow the
 `dev` manifest. See [Configuration](/reference/configuration/) for the
 remaining native-only variables.
