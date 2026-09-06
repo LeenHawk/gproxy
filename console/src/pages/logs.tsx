@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
@@ -11,8 +11,10 @@ import { QueryState } from "@/components/query-state"
 import { ObservabilityTabs } from "@/components/observability-tabs"
 import { adminPath, navigateAdminPath, useAdminLocation } from "@/lib/admin-route"
 
+const now = () => Math.floor(Date.now() / 1000)
+
 function initialQuery(): LogQueryDto {
-  const end = Math.floor(Date.now() / 1000)
+  const end = now()
   return { start: end - 86_400, end, user_id: null, user_key_id: null, provider_id: null, status: null, request_id: null, cursor: null, limit: 50 }
 }
 
@@ -20,6 +22,20 @@ export function LogsPage() {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<LogQueryDto>(initialQuery)
   const [query, setQuery] = useState<LogQueryDto>(draft)
+  // The default window ends "now", and now keeps moving: a search that the
+  // operator has not pinned to an explicit end must not stop at the moment
+  // the page was opened.
+  const pinnedEnd = useRef(false)
+  const editDraft: typeof setDraft = (update) => setDraft((previous) => {
+    const next = typeof update === "function" ? update(previous) : update
+    if (next.end !== previous.end) pinnedEnd.current = true
+    return next
+  })
+  const search = () => {
+    const end = pinnedEnd.current ? draft.end : now()
+    setDraft((value) => ({ ...value, end }))
+    setQuery({ ...draft, end, cursor: null })
+  }
   const location = useAdminLocation()
   const selected = location.segments[0] ?? null
   const [logQuery, providerQuery, userQuery, keyQuery] = useQueries({ queries: [
@@ -37,9 +53,9 @@ export function LogsPage() {
       <QueryState loading={loading} error={error ? t("common.loadError") : ""}>
         <LogExplorer
           draft={draft}
-          onDraft={setDraft}
-          onSearch={() => { navigateAdminPath(adminPath("logs"), true); setQuery({ ...draft, cursor: null }) }}
-          onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next); navigateAdminPath(adminPath("logs"), true) }}
+          onDraft={editDraft}
+          onSearch={() => { navigateAdminPath(adminPath("logs"), true); search() }}
+          onReset={() => { const next = initialQuery(); pinnedEnd.current = false; setDraft(next); setQuery(next); navigateAdminPath(adminPath("logs"), true) }}
           page={logQuery.data!}
           providers={providerQuery.data ?? []}
           users={userQuery.data ?? []}
