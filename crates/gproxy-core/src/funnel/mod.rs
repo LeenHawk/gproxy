@@ -192,11 +192,11 @@ async fn settle_buffered<H: Host>(
     match host.spawner() {
         Some(spawner) => {
             let task_host = host.clone();
-            spawner
-                .spawn_settlement(Box::pin(async move {
-                    settlement::complete(task_host.as_ref(), &ctx, completion).await;
-                }))
-                .await;
+            let permit = spawner.reserve_settlement().await;
+            spawner.spawn(Box::pin(async move {
+                settlement::complete(task_host.as_ref(), &ctx, completion).await;
+                drop(permit);
+            }));
         }
         None => settlement::complete(host.as_ref(), &ctx, completion).await,
     }
@@ -252,7 +252,16 @@ fn transform_error(
     )
 }
 
-pub(crate) fn streaming<H: Host>(
+/// A detached settlement's backlog slot, reserved while the response is
+/// still being produced so `Drop` never has to wait for one.
+async fn reserve_settlement<H: Host>(host: &Shared<H>) -> Option<crate::host::SettlementPermit> {
+    match host.spawner() {
+        Some(spawner) => Some(spawner.reserve_settlement().await),
+        None => None,
+    }
+}
+
+pub(crate) async fn streaming<H: Host>(
     host: Shared<H>,
     ctx: FunnelCtx,
     response: http::Response<crate::boundary::ByteStream>,
@@ -264,7 +273,8 @@ pub(crate) fn streaming<H: Host>(
         frame_headers(&mut parts.headers, ctx.source_framing);
     }
     parts.headers = outward_headers(&ctx, parts.headers);
-    let body = FunnelStream::new(body, decoder, host, ctx, parts.status);
+    let permit = reserve_settlement(&host).await;
+    let body = FunnelStream::new(body, decoder, host, ctx, parts.status, permit);
     ExecOutcome {
         status: parts.status,
         headers: parts.headers,
@@ -374,7 +384,7 @@ pub(crate) async fn local_buffered<H: Host>(
     }
 }
 
-pub(crate) fn free_streaming<H: Host>(
+pub(crate) async fn free_streaming<H: Host>(
     host: Shared<H>,
     ctx: FunnelCtx,
     status: http::StatusCode,
@@ -383,7 +393,8 @@ pub(crate) fn free_streaming<H: Host>(
     disposition: Disposition,
 ) -> ExecOutcome {
     let headers = outward_headers(&ctx, headers);
-    let body = FunnelStream::new(body, None, host, ctx, status);
+    let permit = reserve_settlement(&host).await;
+    let body = FunnelStream::new(body, None, host, ctx, status, permit);
     ExecOutcome {
         status,
         headers,

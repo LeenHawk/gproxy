@@ -26,6 +26,9 @@ pub(crate) struct FunnelStream<H: Host> {
     actual_service_tier: Option<String>,
     output_chars: u64,
     terminal_error: Option<TransportError>,
+    /// Backlog room reserved when the stream opened; travels with the
+    /// settlement so the slot frees only once the usage row has landed.
+    permit: Option<crate::host::SettlementPermit>,
 }
 
 enum State {
@@ -42,6 +45,7 @@ impl<H: Host> FunnelStream<H> {
         host: Shared<H>,
         ctx: FunnelCtx,
         status: http::StatusCode,
+        permit: Option<crate::host::SettlementPermit>,
     ) -> Self {
         Self {
             upstream,
@@ -56,6 +60,7 @@ impl<H: Host> FunnelStream<H> {
             actual_service_tier: None,
             output_chars: 0,
             terminal_error: None,
+            permit,
         }
     }
 
@@ -103,7 +108,7 @@ impl<H: Host> FunnelStream<H> {
         let usage = matches!(ctx.settle, SettleMode::OnResponse)
             .then(|| self.tail_usage.take())
             .flatten();
-        let future: BoxFuture<'static, ()> = Box::pin(complete_stream(
+        let settle = complete_stream(
             host.clone(),
             ctx,
             self.status,
@@ -111,7 +116,12 @@ impl<H: Host> FunnelStream<H> {
             self.actual_service_tier.take(),
             Some(self.output_chars),
             ended,
-        ));
+        );
+        let permit = self.permit.take();
+        let future: BoxFuture<'static, ()> = Box::pin(async move {
+            settle.await;
+            drop(permit);
+        });
         if let Some(spawner) = host.spawner() {
             spawner.spawn(future);
             self.state = State::Done;
@@ -203,7 +213,7 @@ impl<H: Host> Drop for FunnelStream<H> {
             Ended::Interrupted
         };
         if let Some(spawner) = host.spawner() {
-            spawner.spawn(Box::pin(complete_stream(
+            let settle = complete_stream(
                 host.clone(),
                 ctx,
                 self.status,
@@ -211,7 +221,12 @@ impl<H: Host> Drop for FunnelStream<H> {
                 self.actual_service_tier.take(),
                 Some(self.output_chars),
                 ended,
-            )));
+            );
+            let permit = self.permit.take();
+            spawner.spawn(Box::pin(async move {
+                settle.await;
+                drop(permit);
+            }));
         } else {
             tracing::warn!(
                 request_id = %ctx.request_id,

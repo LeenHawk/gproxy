@@ -226,14 +226,17 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
             } else {
                 gproxy_channel_api::Disposition::Terminal
             };
-            super::reply::from_outcome(funnel::free_streaming(
-                self.core.host.clone(),
-                facts,
-                parts.status,
-                parts.headers,
-                body,
-                disposition,
-            ))
+            super::reply::from_outcome(
+                funnel::free_streaming(
+                    self.core.host.clone(),
+                    facts,
+                    parts.status,
+                    parts.headers,
+                    body,
+                    disposition,
+                )
+                .await,
+            )
         })
     }
 
