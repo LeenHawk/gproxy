@@ -40,9 +40,12 @@ pub(crate) async fn authenticate(
     parts: &Parts,
 ) -> Result<AdminIdentity, AdminError> {
     if let Some(token) = bearer(parts) {
+        // API keys are stored under the same digest ingress uses, which strips the
+        // presentation prefix; hashing the raw token would never match an `sk-` key.
+        let (_, key_digest) = state.digest_user_key(token);
         let account = state
             .store()
-            .admin_for_api_key(&digest(token), now()?)
+            .admin_for_api_key(&key_digest, now()?)
             .await?
             .ok_or(AdminError::Unauthorized)?;
         return Ok(identity(account, true));

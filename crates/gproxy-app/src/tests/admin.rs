@@ -8,7 +8,7 @@ async fn explicit_environment_admin_password_updates_existing_account() {
             crate::config::NativeOptions {
                 admin_user: "operator".into(),
                 admin_password: Some(password.into()),
-                bootstrap_admin_api_key: Some("ordinary-admin-key".into()),
+                bootstrap_admin_api_key: Some("sk-ordinary-admin-key".into()),
                 ..Default::default()
             },
         )
@@ -46,7 +46,7 @@ async fn explicit_environment_admin_password_updates_existing_account() {
     }));
     let headers = http::HeaderMap::from_iter([(
         http::header::AUTHORIZATION,
-        http::HeaderValue::from_static("Bearer ordinary-admin-key"),
+        http::HeaderValue::from_static("Bearer sk-ordinary-admin-key"),
     )]);
     assert_eq!(
         crate::host::authenticate_headers(&app.inner.host, &headers)
@@ -55,7 +55,7 @@ async fn explicit_environment_admin_password_updates_existing_account() {
         admin.id
     );
     let admin_request = http::Request::get("/admin/api/users")
-        .header(http::header::AUTHORIZATION, "Bearer ordinary-admin-key")
+        .header(http::header::AUTHORIZATION, "Bearer sk-ordinary-admin-key")
         .body(())
         .unwrap();
     assert_eq!(
@@ -66,7 +66,7 @@ async fn explicit_environment_admin_password_updates_existing_account() {
         http::StatusCode::OK
     );
     let portal_request = http::Request::get("/portal/api/context")
-        .header(http::header::AUTHORIZATION, "Bearer ordinary-admin-key")
+        .header(http::header::AUTHORIZATION, "Bearer sk-ordinary-admin-key")
         .body(())
         .unwrap();
     assert_eq!(
