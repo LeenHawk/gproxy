@@ -30,11 +30,24 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>, refs: Refere
         ]
         .into_iter()
         .all(|value| value >= 0);
-        if !references || !counters || !usage.metrics.is_object() {
+        if !references || !counters {
             issues.push(issue(
                 "usage",
                 value.id,
-                "has a missing provider or credential, negative counter, or invalid metrics object",
+                "has a missing provider or credential or a negative counter",
+            ));
+            continue;
+        }
+        let metrics = usage
+            .metrics
+            .as_object()
+            .ok_or_else(|| "metrics is not an object".to_owned())
+            .and_then(super::super::metrics::split_legacy);
+        if let Err(reason) = metrics {
+            issues.push(issue(
+                "usage",
+                value.id,
+                format!("has metrics v3 cannot aggregate: {reason}"),
             ));
         }
     }

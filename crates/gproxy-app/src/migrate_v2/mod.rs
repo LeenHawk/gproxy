@@ -1,5 +1,6 @@
 mod apply;
 mod cipher;
+mod metrics;
 mod model;
 mod plan;
 mod report;

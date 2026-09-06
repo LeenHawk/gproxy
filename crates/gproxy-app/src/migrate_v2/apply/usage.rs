@@ -105,10 +105,11 @@ fn history_row(
     tombstone_credentials: &BTreeSet<i64>,
 ) -> Result<UsageInput, crate::AppError> {
     let usage = &value.value;
-    let mut metrics = usage
+    let (mut metrics, legacy_dimensions) = usage
         .metrics
         .as_object()
-        .cloned()
+        .map(super::super::metrics::split_legacy)
+        .expect("usage metrics were validated")
         .expect("usage metrics were validated");
     metric(
         &mut metrics,
@@ -130,7 +131,8 @@ fn history_row(
         "cache_creation_1h_tokens",
         usage.cache_creation_1h_tokens,
     );
-    let mut dimensions = Map::from_iter([
+    let mut dimensions = legacy_dimensions;
+    dimensions.extend([
         ("v2_route".into(), Value::from(usage.route_name.clone())),
         ("v2_kind".into(), Value::from(usage.kind.clone())),
         ("v2_thread_id".into(), Value::from(usage.thread_id.clone())),
