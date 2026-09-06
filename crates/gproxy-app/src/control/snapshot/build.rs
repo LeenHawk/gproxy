@@ -78,14 +78,8 @@ impl CompiledSnapshot {
             .values()
             .map(|provider| (provider.name.clone(), provider.id))
             .collect();
-        let (credentials, credential_providers) = credentials(&stored, &providers);
-        let routes = routes(
-            &stored,
-            &providers,
-            &strategies,
-            &credentials,
-            &credential_providers,
-        );
+        let credentials = credentials(&stored, &providers);
+        let routes = routes(&stored, &providers, &strategies, &credentials);
         let route_names = stored
             .routes
             .iter()
@@ -160,12 +154,8 @@ fn validate_windows(stored: &ControlSnapshot) -> Result<(), StoreError> {
 fn credentials(
     stored: &ControlSnapshot,
     providers: &BTreeMap<i64, ProviderRef>,
-) -> (
-    BTreeMap<i64, Vec<super::types::CredentialSeed>>,
-    BTreeMap<i64, i64>,
-) {
+) -> BTreeMap<i64, Vec<super::types::CredentialSeed>> {
     let mut by_provider: BTreeMap<i64, Vec<super::types::CredentialSeed>> = BTreeMap::new();
-    let mut credential_providers = BTreeMap::new();
     for credential in stored
         .credentials
         .iter()
@@ -181,12 +171,11 @@ fn credentials(
                 proxy_url: credential.proxy_url.clone(),
                 fingerprint: super::super::fingerprint::parse(credential.tls_fingerprint.as_ref()),
             });
-        credential_providers.insert(credential.id, credential.provider_id);
     }
     for credentials in by_provider.values_mut() {
         credentials.sort_by_key(|credential| credential.id.0);
     }
-    (by_provider, credential_providers)
+    by_provider
 }
 
 fn routes(
@@ -194,7 +183,6 @@ fn routes(
     providers: &BTreeMap<i64, ProviderRef>,
     strategies: &BTreeMap<i64, CredentialStrategy>,
     credentials: &BTreeMap<i64, Vec<super::types::CredentialSeed>>,
-    credential_providers: &BTreeMap<i64, i64>,
 ) -> BTreeMap<i64, CompiledRoute> {
     stored
         .routes
@@ -212,22 +200,12 @@ fn routes(
                 if !providers.contains_key(&member.provider_id) {
                     continue;
                 }
-                let member_credentials: Vec<_> = match member.credential_id {
-                    Some(id) if credential_providers.get(&id) == Some(&member.provider_id) => {
-                        credentials
-                            .get(&member.provider_id)
-                            .into_iter()
-                            .flatten()
-                            .filter(|credential| credential.id == CredentialId(id))
-                            .cloned()
-                            .collect()
-                    }
-                    Some(_) => Vec::new(),
-                    None => credentials
-                        .get(&member.provider_id)
-                        .cloned()
-                        .unwrap_or_default(),
-                };
+                // A member names a provider; which of its credentials serves the
+                // request is the provider's own strategy, never the member's.
+                let member_credentials = credentials
+                    .get(&member.provider_id)
+                    .cloned()
+                    .unwrap_or_default();
                 targets.extend(member_credentials.into_iter().map(|credential| {
                     TargetSeed {
                         member_id: member.id,

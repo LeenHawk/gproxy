@@ -115,7 +115,6 @@ pub(crate) fn update_route_member(
         &[
             "route_id",
             "provider_id",
-            "credential_id",
             "upstream_model",
             "priority",
             "tier",
@@ -125,7 +124,6 @@ pub(crate) fn update_route_member(
         vec![
             value(input.route_id),
             value(input.provider_id),
-            value(input.credential_id),
             value(input.upstream_model.clone()),
             value(unsigned32(input.tier)),
             value(unsigned32(input.tier)),

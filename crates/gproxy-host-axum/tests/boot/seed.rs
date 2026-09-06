@@ -23,15 +23,14 @@ pub(crate) async fn operational(
         ))
         .await
         .expect("create provider"));
-    let credential = id(app
-        .mutate(ControlMutation::Credential {
-            provider_id: provider,
-            label: None,
-            secret: json!({"api_key": upstream_key}),
-            enabled: true,
-        })
-        .await
-        .expect("create credential"));
+    app.mutate(ControlMutation::Credential {
+        provider_id: provider,
+        label: None,
+        secret: json!({"api_key": upstream_key}),
+        enabled: true,
+    })
+    .await
+    .expect("create credential");
     let route = id(app
         .mutate(ControlMutation::Route(gproxy_store::records::RouteInput {
             name: "e2e-route".into(),
@@ -44,7 +43,6 @@ pub(crate) async fn operational(
         gproxy_store::records::RouteMemberInput {
             route_id: route,
             provider_id: provider,
-            credential_id: Some(credential),
             upstream_model: "upstream-model".into(),
             tier: 0,
             weight: 100,

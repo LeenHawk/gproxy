@@ -70,13 +70,7 @@ pub(super) async fn run(state: &impl State, body: &Bytes) -> Result<Response<Byt
         route_members: snapshot
             .route_members
             .iter()
-            .map(|value| {
-                let mut dto = control::map::route_member(value);
-                if !request.include_secrets {
-                    dto.credential_id = None;
-                }
-                dto
-            })
+            .map(control::map::route_member)
             .collect(),
         aliases: snapshot.aliases.iter().map(control::map::alias).collect(),
         model_aliases: snapshot

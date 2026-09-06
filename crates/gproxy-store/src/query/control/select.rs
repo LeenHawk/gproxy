@@ -67,7 +67,6 @@ pub(crate) fn select_route_members() -> Result<Statement, StoreError> {
             "id",
             "route_id",
             "provider_id",
-            "credential_id",
             "upstream_model",
             "tier",
             "weight",

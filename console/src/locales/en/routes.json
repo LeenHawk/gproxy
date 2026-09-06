@@ -31,8 +31,6 @@
       "add": "Add member",
       "empty": "No members. This route cannot send traffic upstream.",
       "provider": "Provider",
-      "credential": "Pinned credential",
-      "anyCredential": "Any enabled credential",
       "model": "Upstream model",
       "tier": "Failover tier",
       "tierHint": "Tier 0 is exhausted before tier 1 receives traffic.",

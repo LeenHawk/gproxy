@@ -1,7 +1,6 @@
 import { useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import {
-  credentials,
   modelAliases,
   providers,
   routeMembers,
@@ -13,16 +12,15 @@ import { RoutesWorkspace } from "@/components/routes/routes-workspace"
 
 export function RoutesPage() {
   const { t } = useTranslation()
-  const [routeQuery, memberQuery, providerQuery, credentialQuery, modelAliasQuery] = useQueries({
+  const [routeQuery, memberQuery, providerQuery, modelAliasQuery] = useQueries({
     queries: [
       { queryKey: ["routes"], queryFn: routes },
       { queryKey: ["route-members"], queryFn: routeMembers },
       { queryKey: ["providers"], queryFn: providers },
-      { queryKey: ["credentials"], queryFn: credentials },
       { queryKey: ["model-aliases"], queryFn: modelAliases },
     ],
   })
-  const queries = [routeQuery, memberQuery, providerQuery, credentialQuery, modelAliasQuery]
+  const queries = [routeQuery, memberQuery, providerQuery, modelAliasQuery]
 
   return (
     <PageLayout title={t("routes.title")} description={t("routes.subtitle")}>
@@ -34,7 +32,6 @@ export function RoutesPage() {
           routes={routeQuery.data ?? []}
           members={memberQuery.data ?? []}
           providers={providerQuery.data ?? []}
-          credentials={credentialQuery.data ?? []}
           modelAliases={modelAliasQuery.data ?? []}
           onRoutesChanged={() => void routeQuery.refetch()}
           onMembersChanged={() => void memberQuery.refetch()}

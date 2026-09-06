@@ -119,7 +119,6 @@ fn route_members(connection: &Connection) -> Result<Vec<Legacy<RouteMemberInput>
                 value: RouteMemberInput {
                     route_id: row.get(1)?,
                     provider_id: row.get(2)?,
-                    credential_id: None,
                     upstream_model: row.get(3)?,
                     tier: integer(row, 4)?,
                     weight: integer(row, 5)?,

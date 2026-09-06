@@ -116,10 +116,6 @@ pub const TABLES: &[TableSpec] = &[
                 table: "surface_bindings",
                 column: "credential_id",
             },
-            Ownership::Detaches {
-                table: "route_members",
-                column: "credential_id",
-            },
             Ownership::Scoped {
                 table: "quotas",
                 kind: "credential",

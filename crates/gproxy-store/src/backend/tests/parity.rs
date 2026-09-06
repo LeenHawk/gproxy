@@ -363,6 +363,9 @@ fn every_reference_column_is_owned_or_history() {
         ("wire_logs", "credential_id"),
         ("admin_audit_events", "actor_user_id"),
         ("admin_audit_events", "target_id"),
+        // A route member picks a provider, never a credential; the column
+        // stays in the schema unread because dropping columns is not portable.
+        ("route_members", "credential_id"),
     ];
     let owned: Vec<(&str, &str)> = tables()
         .flat_map(|spec| spec.owns.iter())

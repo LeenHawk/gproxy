@@ -1,7 +1,6 @@
 import { PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { saveRoute } from "@/api/control"
-import type { CredentialDto } from "@/generated/CredentialDto"
 import type { ModelAliasDto } from "@/generated/ModelAliasDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { RouteDto } from "@/generated/RouteDto"
@@ -24,7 +23,6 @@ type Props = {
   routes: Array<RouteDto>
   members: Array<RouteMemberDto>
   providers: Array<ProviderDto>
-  credentials: Array<CredentialDto>
   modelAliases: Array<ModelAliasDto>
   onRoutesChanged: () => void
   onMembersChanged: () => void
@@ -75,7 +73,7 @@ export function RoutesWorkspace(props: Props) {
           <TabsTrigger value="settings">{t("routes.tabs.settings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="members" className="pt-4">
-          <MembersPanel route={selected} members={props.members} providers={props.providers} credentials={props.credentials} onChanged={props.onMembersChanged} />
+          <MembersPanel route={selected} members={props.members} providers={props.providers} onChanged={props.onMembersChanged} />
         </TabsContent>
         <TabsContent value="models" className="pt-4">
           <ModelAliases aliases={props.modelAliases} routes={[selected]} routeId={selected.id} onChanged={props.onModelAliasesChanged} />

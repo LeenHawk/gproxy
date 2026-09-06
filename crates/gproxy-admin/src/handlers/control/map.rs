@@ -126,7 +126,6 @@ pub(in crate::handlers) fn route_member(
         id: value.id,
         route_id: value.route_id,
         provider_id: value.provider_id,
-        credential_id: value.credential_id,
         upstream_model: value.upstream_model.clone(),
         tier: value.tier,
         weight: value.weight,

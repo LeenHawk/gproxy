@@ -107,21 +107,18 @@ async fn admission_prices_each_alias_resolved_target_with_its_tokenizer() {
         .await
         .expect("second provider"),
     );
-    let credential = setup::id(
-        app.mutate(crate::ControlMutation::Credential {
-            provider_id: provider,
-            label: None,
-            secret: json!({"api_key": setup::random_key()}),
-            enabled: true,
-        })
-        .await
-        .expect("second credential"),
-    );
+    app.mutate(crate::ControlMutation::Credential {
+        provider_id: provider,
+        label: None,
+        secret: json!({"api_key": setup::random_key()}),
+        enabled: true,
+    })
+    .await
+    .expect("second credential");
     app.mutate(crate::ControlMutation::RouteMember(
         gproxy_store::records::RouteMemberInput {
             route_id: route,
             provider_id: provider,
-            credential_id: Some(credential),
             upstream_model: "gpt-4o-mini".into(),
             tier: 1,
             weight: 100,
