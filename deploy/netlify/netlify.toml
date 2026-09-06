@@ -3,6 +3,11 @@ command = "pnpm run build"
 publish = "public"
 edge_functions = "edge-functions"
 
+# Prompted by the Deploy to Netlify button; see /deployment/edge/ for the full binding list.
+[template.environment]
+GPROXY_LIBSQL_URL = "Required https:// URL of the libSQL (Turso) database, for example https://your-db-org.turso.io. libsql:// is rejected on edge."
+GPROXY_LIBSQL_AUTH_TOKEN = "Required auth token for the GPROXY_LIBSQL_URL database."
+
 [[edge_functions]]
 function = "gproxy"
 path = "/*"

@@ -71,6 +71,16 @@ The release image runs as UID/GID **65532:65532** and stores data at
 that user. Images cover amd64, arm64 and riscv64, with a `-musl` variant.
 Use `:staging` only when you want rolling development builds.
 
+### Edge
+
+Cloudflare Workers and Netlify Edge run the prebuilt wasm bundle from the
+[`deploy`](https://github.com/LeenHawk/gproxy/tree/deploy) branch. Both
+buttons ask for `GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN`, the HTTPS
+URL and token of a libSQL (Turso) database; everything else is optional.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
+
 See [Container deployment](https://gproxy.leenhawk.com/deployment/docker/)
 and [Edge deployment](https://gproxy.leenhawk.com/deployment/edge/) for other
 deployment options.
