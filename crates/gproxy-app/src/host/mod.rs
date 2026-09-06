@@ -345,7 +345,24 @@ fn health_version(sequence: &std::sync::atomic::AtomicU64) -> Option<i64> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) struct TokioSpawner;
+pub(crate) struct TokioSpawner {
+    settlements: Arc<tokio::sync::Semaphore>,
+}
+
+/// Pending detached settlements before the response path starts waiting.
+/// Each one holds its request and response bodies, so this is a memory
+/// bound as much as a queue bound.
+#[cfg(not(target_arch = "wasm32"))]
+const SETTLEMENT_BACKLOG: usize = 2048;
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Default for TokioSpawner {
+    fn default() -> Self {
+        Self {
+            settlements: Arc::new(tokio::sync::Semaphore::new(SETTLEMENT_BACKLOG)),
+        }
+    }
+}
 
 async fn persist_credential_health(
     host: &AppHost,
@@ -362,5 +379,23 @@ async fn persist_credential_health(
 impl Spawner for TokioSpawner {
     fn spawn(&self, task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {
         tokio::spawn(task);
+    }
+
+    fn spawn_settlement(
+        &self,
+        task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>,
+    ) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            let permit = self
+                .settlements
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("settlement semaphore is never closed");
+            tokio::spawn(async move {
+                let _permit = permit;
+                task.await;
+            });
+        })
     }
 }
