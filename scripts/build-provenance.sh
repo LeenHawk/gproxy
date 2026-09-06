@@ -34,10 +34,13 @@ jq -n \
   --arg rustc "$(version_of rustc --version)" \
   --arg node "$(version_of node --version)" \
   --arg pnpm "$(version_of pnpm --version)" \
+  --arg upx_version "$(if [ "${UPX_ENABLED:-false}" = true ]; then version_of upx --version; else echo unused; fi)" \
+  --argjson upx "${UPX_ENABLED:-false}" \
   --argjson images "$images" \
   '{version: $version, commit: $commit, tag: $tag, target: $target,
     builder: $builder,
     toolchain: {rustc: $rustc, node: $node, pnpm: $pnpm},
+    compression: {upx: $upx, upx_version: $upx_version},
     images: $images}' \
   > "dist/release/${ARTIFACT_NAME}.provenance.json"
 

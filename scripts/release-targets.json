@@ -1,16 +1,16 @@
 {
   "include": [
-    { "target": "x86_64-unknown-linux-gnu", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-x86_64", "builder": "cargo" },
-    { "target": "aarch64-unknown-linux-gnu", "runner": "ubuntu-24.04-arm", "os": "linux", "artifact": "gproxy-linux-aarch64", "builder": "cargo" },
-    { "target": "riscv64gc-unknown-linux-gnu", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-riscv64", "builder": "cross" },
-    { "target": "x86_64-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-x86_64-musl", "builder": "cross" },
-    { "target": "aarch64-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-aarch64-musl", "builder": "cross" },
-    { "target": "riscv64gc-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-riscv64-musl", "builder": "cross" },
-    { "target": "x86_64-apple-darwin", "runner": "macos-latest", "os": "macos", "artifact": "gproxy-macos-x86_64", "builder": "cargo" },
-    { "target": "aarch64-apple-darwin", "runner": "macos-latest", "os": "macos", "artifact": "gproxy-macos-aarch64", "builder": "cargo" },
-    { "target": "x86_64-pc-windows-msvc", "runner": "windows-latest", "os": "windows", "artifact": "gproxy-windows-x86_64", "builder": "cargo" },
-    { "target": "aarch64-pc-windows-msvc", "runner": "windows-latest", "os": "windows", "artifact": "gproxy-windows-aarch64", "builder": "cargo" },
-    { "target": "x86_64-linux-android", "runner": "ubuntu-latest", "os": "android", "artifact": "gproxy-android-x86_64", "builder": "cargo-ndk", "ndk_target": "x86_64" },
-    { "target": "aarch64-linux-android", "runner": "ubuntu-latest", "os": "android", "artifact": "gproxy-android-aarch64", "builder": "cargo-ndk", "ndk_target": "arm64-v8a" }
+    { "target": "x86_64-unknown-linux-gnu", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-x86_64", "builder": "cargo", "upx": true, "run_check": true },
+    { "target": "aarch64-unknown-linux-gnu", "runner": "ubuntu-24.04-arm", "os": "linux", "artifact": "gproxy-linux-aarch64", "builder": "cargo", "upx": true, "run_check": true },
+    { "target": "riscv64gc-unknown-linux-gnu", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-riscv64", "builder": "cross", "upx": false, "run_check": false },
+    { "target": "x86_64-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-x86_64-musl", "builder": "cross", "upx": true, "run_check": true },
+    { "target": "aarch64-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-aarch64-musl", "builder": "cross", "upx": true, "run_check": false },
+    { "target": "riscv64gc-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-riscv64-musl", "builder": "cross", "upx": false, "run_check": false },
+    { "target": "x86_64-apple-darwin", "runner": "macos-latest", "os": "macos", "artifact": "gproxy-macos-x86_64", "builder": "cargo", "upx": false, "run_check": false },
+    { "target": "aarch64-apple-darwin", "runner": "macos-latest", "os": "macos", "artifact": "gproxy-macos-aarch64", "builder": "cargo", "upx": false, "run_check": true },
+    { "target": "x86_64-pc-windows-msvc", "runner": "windows-latest", "os": "windows", "artifact": "gproxy-windows-x86_64", "builder": "cargo", "upx": true, "run_check": true },
+    { "target": "aarch64-pc-windows-msvc", "runner": "windows-latest", "os": "windows", "artifact": "gproxy-windows-aarch64", "builder": "cargo", "upx": false, "run_check": false },
+    { "target": "x86_64-linux-android", "runner": "ubuntu-latest", "os": "android", "artifact": "gproxy-android-x86_64", "builder": "cargo-ndk", "ndk_target": "x86_64", "upx": true, "run_check": false },
+    { "target": "aarch64-linux-android", "runner": "ubuntu-latest", "os": "android", "artifact": "gproxy-android-aarch64", "builder": "cargo-ndk", "ndk_target": "arm64-v8a", "upx": true, "run_check": false }
   ]
 }

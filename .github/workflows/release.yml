@@ -150,6 +150,21 @@ jobs:
       - name: Codesign binary
         if: ${{ matrix.os == 'macos' }}
         run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
+      - name: Install pinned UPX
+        if: ${{ matrix.upx }}
+        run: scripts/install-upx.sh
+      - name: Compress and verify executable
+        if: ${{ matrix.upx }}
+        run: |
+          binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
+          upx --best --lzma "$binary"
+          upx --test "$binary"
+      - name: Smoke check release executable
+        if: ${{ matrix.run_check }}
+        run: |
+          binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
+          "$binary" --version
+          "$binary" --help > "$RUNNER_TEMP/gproxy-release-help.txt"
       - name: Package Unix archive
         if: ${{ matrix.os != 'windows' }}
         env:
@@ -174,6 +189,7 @@ jobs:
           GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
           TARGET_TRIPLE: ${{ matrix.target }}
           BUILDER: ${{ matrix.builder }}
+          UPX_ENABLED: ${{ matrix.upx }}
         run: scripts/build-provenance.sh
       - uses: actions/upload-artifact@v7
         with:

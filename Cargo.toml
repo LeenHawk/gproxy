@@ -96,5 +96,8 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 zeroize = "1"
 
 [profile.release]
-lto = "thin"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
 strip = "symbols"
