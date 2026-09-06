@@ -17,6 +17,7 @@ import { UsageTable } from "@/components/usage/usage-table"
 
 type Props = {
   children?: ReactNode
+  view: "records" | "quotas"
   draft: UsageRecordQueryDto
   onDraft: (value: UsageRecordQueryDto) => void
   onApply: () => void
@@ -33,7 +34,7 @@ type Props = {
   keys: Array<UserKeyDto>
 }
 
-export function UsageExplorer({ children, draft, onDraft, onApply, onReset, page, summary, summaryError, pending, onPage, onPageSize, credentials, providers, users, keys }: Props) {
+export function UsageExplorer({ children, view, draft, onDraft, onApply, onReset, page, summary, summaryError, pending, onPage, onPageSize, credentials, providers, users, keys }: Props) {
   const { t, i18n } = useTranslation()
   const credentialOptions = useMemo(() => {
     const providerNames = new Map(providers.map((provider) => [provider.id, provider.name]))
@@ -53,18 +54,21 @@ export function UsageExplorer({ children, draft, onDraft, onApply, onReset, page
       >
         <Field><FieldLabel htmlFor="usage-provider">{t("usage.filters.provider")}</FieldLabel><SearchableSelect id="usage-provider" value={draft.provider_id == null ? "all" : String(draft.provider_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.provider")} onChange={(value) => update("provider_id", value === "all" ? null : Number(value))} /></Field>
         <Field><FieldLabel htmlFor="usage-credential">{t("usage.filters.credential")}</FieldLabel><SearchableSelect id="usage-credential" value={draft.credential_id == null ? "all" : String(draft.credential_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...credentialOptions]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.credential")} onChange={(value) => update("credential_id", value === "all" ? null : Number(value))} /></Field>
-        <Field><FieldLabel htmlFor="usage-user">{t("usage.filters.user")}</FieldLabel><SearchableSelect id="usage-user" value={draft.user_id == null ? "all" : String(draft.user_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...users.map((user) => ({ value: String(user.id), label: user.name }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.user")} onChange={(value) => update("user_id", value === "all" ? null : Number(value))} /></Field>
-        <Field><FieldLabel htmlFor="usage-key">{t("usage.filters.key")}</FieldLabel><SearchableSelect id="usage-key" value={draft.user_key_id == null ? "all" : String(draft.user_key_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...keys.map((key) => ({ value: String(key.id), label: key.label ?? key.prefix ?? String(key.id) }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.key")} onChange={(value) => update("user_key_id", value === "all" ? null : Number(value))} /></Field>
-        <Field><FieldLabel htmlFor="usage-model">{t("usage.filters.model")}</FieldLabel><Input id="usage-model" className="machine-text" value={draft.model ?? ""} onChange={(event) => update("model", event.target.value || null)} /></Field>
-        {(["request_id", "operation"] as const).map((key) => <Field key={key}><FieldLabel htmlFor={`usage-${key}`}>{t(key === "request_id" ? "usage.record.requestId" : "usage.record.operation")}</FieldLabel><Input id={`usage-${key}`} value={draft[key] ?? ""} onChange={(event) => update(key, event.target.value || null)} /></Field>)}
-        {(["usage_source", "ended"] as const).map((key) => <Field key={key}><FieldLabel htmlFor={`usage-${key}`}>{t(key === "ended" ? "usage.record.ended" : "usage.record.source")}</FieldLabel><SearchableSelect id={`usage-${key}`} value={draft[key] ?? "all"} options={[{ value: "all", label: t("usage.filters.all") }, ...(key === "ended" ? ["complete", "interrupted"] : ["upstream", "estimated"]).map((value) => ({ value, label: t(`usage.record.${value}`) }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t(key === "ended" ? "usage.record.ended" : "usage.record.source")} onChange={(value) => update(key, value === "all" ? null : value)} /></Field>)}
+        {view === "records" ? <>
+          <Field><FieldLabel htmlFor="usage-user">{t("usage.filters.user")}</FieldLabel><SearchableSelect id="usage-user" value={draft.user_id == null ? "all" : String(draft.user_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...users.map((user) => ({ value: String(user.id), label: user.name }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.user")} onChange={(value) => update("user_id", value === "all" ? null : Number(value))} /></Field>
+          <Field><FieldLabel htmlFor="usage-key">{t("usage.filters.key")}</FieldLabel><SearchableSelect id="usage-key" value={draft.user_key_id == null ? "all" : String(draft.user_key_id)} options={[{ value: "all", label: t("usage.filters.all") }, ...keys.map((key) => ({ value: String(key.id), label: key.label ?? key.prefix ?? String(key.id) }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("usage.filters.key")} onChange={(value) => update("user_key_id", value === "all" ? null : Number(value))} /></Field>
+          <Field><FieldLabel htmlFor="usage-model">{t("usage.filters.model")}</FieldLabel><Input id="usage-model" className="machine-text" value={draft.model ?? ""} onChange={(event) => update("model", event.target.value || null)} /></Field>
+          {(["request_id", "operation"] as const).map((key) => <Field key={key}><FieldLabel htmlFor={`usage-${key}`}>{t(key === "request_id" ? "usage.record.requestId" : "usage.record.operation")}</FieldLabel><Input id={`usage-${key}`} value={draft[key] ?? ""} onChange={(event) => update(key, event.target.value || null)} /></Field>)}
+          {(["usage_source", "ended"] as const).map((key) => <Field key={key}><FieldLabel htmlFor={`usage-${key}`}>{t(key === "ended" ? "usage.record.ended" : "usage.record.source")}</FieldLabel><SearchableSelect id={`usage-${key}`} value={draft[key] ?? "all"} options={[{ value: "all", label: t("usage.filters.all") }, ...(key === "ended" ? ["complete", "interrupted"] : ["upstream", "estimated"]).map((value) => ({ value, label: t(`usage.record.${value}`) }))]} placeholder={t("usage.filters.all")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t(key === "ended" ? "usage.record.ended" : "usage.record.source")} onChange={(value) => update(key, value === "all" ? null : value)} /></Field>)}
+        </> : null}
       </DateRangeFilterBar>
-      <dl className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-3" aria-label={t("usage.record.summary")}>
-        {[[t("usage.requests"), summary ? formatCount(summary.requests, i18n.language) : "—"], [t("usage.record.tokens"), summary ? formatCount(Number(summary.total_tokens), i18n.language) : "—"], [t("usage.cost.label"), summary ? formatCost(summary.cost, i18n.language) : "—"]].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>)}
-      </dl>
-      {summaryError ? <p role="alert" className="text-sm text-destructive">{t("common.loadError")}</p> : null}
-      {children}
-      <UsageTable page={page} providers={providers} credentials={credentials} users={users} keys={keys} pending={pending} onPage={onPage} onPageSize={onPageSize} />
+      {view === "records" ? <>
+        <dl className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-3" aria-label={t("usage.record.summary")}>
+          {[[t("usage.requests"), summary ? formatCount(summary.requests, i18n.language) : "—"], [t("usage.record.tokens"), summary ? formatCount(Number(summary.total_tokens), i18n.language) : "—"], [t("usage.cost.label"), summary ? formatCost(summary.cost, i18n.language) : "—"]].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>)}
+        </dl>
+        {summaryError ? <p role="alert" className="text-sm text-destructive">{t("common.loadError")}</p> : null}
+        <UsageTable page={page} providers={providers} credentials={credentials} users={users} keys={keys} pending={pending} onPage={onPage} onPageSize={onPageSize} />
+      </> : children}
     </div>
   )
 }

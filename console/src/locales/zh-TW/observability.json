@@ -104,6 +104,11 @@
   },
   "usage": {
     "description": "按時間範圍檢視請求、Token、快取讀寫和結算成本。",
+    "view": {
+      "label": "用量檢視",
+      "records": "用量列表",
+      "quotas": "配額列表"
+    },
     "overviewDescription": "檢視目前憑證健康狀態、成本和配額壓力。",
     "empty": "此期間沒有用量紀錄，請擴大時間範圍。",
     "filters": {

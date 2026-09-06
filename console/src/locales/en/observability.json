@@ -104,6 +104,11 @@
   },
   "usage": {
     "description": "Review requests, tokens, cache reads and writes, and settled cost across a time range.",
+    "view": {
+      "label": "Usage view",
+      "records": "Usage records",
+      "quotas": "Quota records"
+    },
     "overviewDescription": "Current credential health, cost, and quota pressure.",
     "empty": "No usage was recorded for this period. Widen the time range.",
     "filters": {

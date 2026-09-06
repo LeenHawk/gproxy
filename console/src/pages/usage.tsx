@@ -10,6 +10,9 @@ import { QueryState } from "@/components/query-state"
 import { UsageExplorer } from "@/components/usage/usage-explorer"
 import { QuotaHistory } from "@/components/usage/quota-history"
 import { ObservabilityTabs } from "@/components/observability-tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+
+type UsageView = "records" | "quotas"
 
 function initialQuery(): UsageRecordQueryDto {
   const to = Math.floor(Date.now() / 1000)
@@ -18,23 +21,31 @@ function initialQuery(): UsageRecordQueryDto {
 
 export function UsagePage() {
   const { t } = useTranslation()
+  const [view, setView] = useState<UsageView>("records")
   const [draft, setDraft] = useState<UsageRecordQueryDto>(initialQuery)
   const [query, setQuery] = useState<UsageRecordQueryDto>(draft)
   const filter = { ...query, page: null, page_size: null }
   const [records, summary, credentialQuery, providerQuery, userQuery, keyQuery, cycleQuery] = useQueries({ queries: [
-    { queryKey: ["usage-records", query], queryFn: () => usageRecords(query), placeholderData: keepPreviousData },
-    { queryKey: ["usage-summary", filter], queryFn: () => usageSummary(query) },
+    { queryKey: ["usage-records", query], queryFn: () => usageRecords(query), placeholderData: keepPreviousData, enabled: view === "records" },
+    { queryKey: ["usage-summary", filter], queryFn: () => usageSummary(query), enabled: view === "records" },
     { queryKey: ["credentials"], queryFn: fetchCredentials },
     { queryKey: ["providers"], queryFn: fetchProviders },
-    { queryKey: ["users"], queryFn: fetchUsers },
-    { queryKey: ["user-keys"], queryFn: fetchUserKeys },
-    { queryKey: ["credential-cycles", "history", query.from, query.to, query.credential_id], queryFn: () => credentialCycles(query.from, query.to, query.credential_id ?? undefined, true), refetchInterval: 60_000 },
+    { queryKey: ["users"], queryFn: fetchUsers, enabled: view === "records" },
+    { queryKey: ["user-keys"], queryFn: fetchUserKeys, enabled: view === "records" },
+    { queryKey: ["credential-cycles", "history", query.from, query.to, query.credential_id], queryFn: () => credentialCycles(query.from, query.to, query.credential_id ?? undefined, true), refetchInterval: view === "quotas" ? 60_000 : false, enabled: view === "quotas" },
   ] })
+  const loading = view === "records" ? records.isLoading : cycleQuery.isLoading
+  const error = view === "records" ? records.error : cycleQuery.error
   return (
     <PageLayout title={t("nav.usage")} description={t("usage.description")}>
       <ObservabilityTabs value="usage" />
-      <QueryState loading={records.isLoading} error={records.error ? t("common.loadError") : ""}>
+      <ToggleGroup type="single" variant="outline" size="sm" spacing={0} value={view} aria-label={t("usage.view.label")} onValueChange={(next) => { if (next) setView(next as UsageView) }}>
+        <ToggleGroupItem value="records">{t("usage.view.records")}</ToggleGroupItem>
+        <ToggleGroupItem value="quotas">{t("usage.view.quotas")}</ToggleGroupItem>
+      </ToggleGroup>
+      <QueryState loading={loading} error={error ? t("common.loadError") : ""}>
         <UsageExplorer
+          view={view}
           draft={draft} onDraft={setDraft}
           onApply={() => setQuery({ ...draft, page: 1, page_size: query.page_size })}
           onReset={() => { const next = initialQuery(); setDraft(next); setQuery(next) }}
