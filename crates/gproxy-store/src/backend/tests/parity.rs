@@ -297,3 +297,46 @@ fn expected_indexes() -> BTreeMap<String, (String, Vec<String>, bool)> {
         })
         .collect()
 }
+
+#[tokio::test]
+async fn route_ownership_step_purges_orphaned_members_and_names() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let database = super::super::native::NativeSql::open(dir.path().join("orphans.db"))
+        .await
+        .unwrap();
+    crate::migration::migrate_to(
+        &database,
+        Dialect::NativeSqlite,
+        crate::schema::SchemaVersion::CredentialBudgets,
+    )
+    .await
+    .unwrap();
+    for sql in [
+        "INSERT INTO routes (name, max_attempts, enabled) VALUES ('kept', 1, 1)",
+        "INSERT INTO route_members (route_id, provider_id, credential_id, upstream_model, tier, priority, weight, enabled) VALUES (1, 1, NULL, 'kept', 0, 0, 100, 1)",
+        "INSERT INTO route_members (route_id, provider_id, credential_id, upstream_model, tier, priority, weight, enabled) VALUES (99, 1, NULL, 'orphan', 0, 0, 100, 1)",
+        "INSERT INTO exposed_models (name, route_id, enabled) VALUES ('kept-model', 1, 1)",
+        "INSERT INTO exposed_models (name, route_id, enabled) VALUES ('orphan-model', 99, 1)",
+    ] {
+        database.execute(Statement::plain(sql)).await.unwrap();
+    }
+    crate::migration::migrate(&database, Dialect::NativeSqlite)
+        .await
+        .unwrap();
+    for (table, expected) in [("route_members", "kept"), ("exposed_models", "kept-model")] {
+        let column = if table == "route_members" {
+            "upstream_model"
+        } else {
+            "name"
+        };
+        let rows = database
+            .execute(Statement::plain(format!(
+                "SELECT {column} AS value FROM {table}"
+            )))
+            .await
+            .unwrap()
+            .rows;
+        let values: Vec<&str> = rows.iter().map(|row| row.text("value").unwrap()).collect();
+        assert_eq!(values, [expected], "{table}");
+    }
+}

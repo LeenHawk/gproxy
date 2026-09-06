@@ -8,17 +8,21 @@ pub enum SchemaVersion {
     ModelMetadata = 3,
     OAuthSessions = 4,
     CredentialBudgets = 5,
+    /// Data-only step: routes deleted before 3.0.2 left their members and
+    /// public names behind, and an orphaned name blocked every later mapping.
+    RouteOwnership = 6,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Initial,
         Self::QuotaObservations,
         Self::ModelMetadata,
         Self::OAuthSessions,
         Self::CredentialBudgets,
+        Self::RouteOwnership,
     ];
-    pub const LATEST: Self = Self::CredentialBudgets;
+    pub const LATEST: Self = Self::RouteOwnership;
 
     pub const fn number(self) -> i64 {
         self as i64

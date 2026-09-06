@@ -148,6 +148,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(model.metadata.generation_methods, Some(Vec::new()));
     assert_eq!(model.metadata.supported_actions, Some(Vec::new()));
     let admin = admin::run(store, user_key).await?;
+    delete_route_takes_its_rows(store, provider, credential).await?;
 
     store
         .persist_credential_rotation(credential, &envelope(2), 0)
@@ -294,4 +295,59 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         wire_logs,
         oauth,
     })
+}
+
+/// Regression: a deleted route used to leave its members and public names
+/// behind, and the orphaned name blocked every later mapping with it.
+async fn delete_route_takes_its_rows(
+    store: &Store,
+    provider: i64,
+    credential: i64,
+) -> Result<(), StoreError> {
+    let route = store
+        .insert_route(&RouteInput {
+            name: "doomed-route".into(),
+            max_attempts: 1,
+            enabled: true,
+        })
+        .await?;
+    store
+        .insert_route_member(&RouteMemberInput {
+            route_id: route,
+            provider_id: provider,
+            credential_id: Some(credential),
+            upstream_model: "doomed-upstream".into(),
+            tier: 0,
+            weight: 100,
+            enabled: true,
+        })
+        .await?;
+    store
+        .insert_exposed_model(&ExposedModelInput {
+            name: "doomed-model".into(),
+            route_id: route,
+            enabled: true,
+        })
+        .await?;
+    assert!(store.delete_route(route).await?);
+    assert!(!store.delete_route(route).await?);
+    let snapshot = store.control_snapshot().await?;
+    assert!(!snapshot.route_members.iter().any(|m| m.route_id == route));
+    assert!(!snapshot.exposed_models.iter().any(|m| m.route_id == route));
+    let replacement = store
+        .insert_route(&RouteInput {
+            name: "replacement-route".into(),
+            max_attempts: 1,
+            enabled: true,
+        })
+        .await?;
+    store
+        .insert_exposed_model(&ExposedModelInput {
+            name: "doomed-model".into(),
+            route_id: replacement,
+            enabled: true,
+        })
+        .await?;
+    assert!(store.delete_route(replacement).await?);
+    Ok(())
 }
