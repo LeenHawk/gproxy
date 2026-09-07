@@ -89,18 +89,21 @@
       }
     },
     "autostart": {
-      "title": "登录时启动",
-      "description": "当前桌面用户登录时启动此原生 GPROXY 安装。",
-      "enable": "登录时启动 GPROXY",
+      "title": "自动启动",
+      "description": "根据平台，在用户登录或设备开机时自动启动 GPROXY。",
+      "enable": "自动启动 GPROXY",
       "platform": "由 {{platform}} 为当前用户管理。保存的启动命令包含当前配置；如提供了主密钥，也会包含主密钥。",
-      "saved": "登录启动设置已更新。",
-      "saveError": "无法更新登录启动设置。",
-      "loadError": "无法读取登录启动状态。",
+      "saved": "自动启动设置已更新。",
+      "saveError": "无法更新自动启动设置。",
+      "loadError": "无法读取自动启动状态。",
       "detail": {
         "container": "容器内跳过登录启动。",
         "home": "当前用户的主目录不可用。",
         "desktop": "未检测到桌面登录会话。",
         "platform": "启动由当前平台的启动器管理。",
+        "app": "启动由 GPROXY 安卓应用管理，请使用应用主界面上的开关。",
+        "termux": "安卓上的开机启动需要 Termux 会话和 Termux:Boot 插件。",
+        "termux-boot": "通过 Termux:Boot 插件开机启动，该插件需先安装并打开一次。保存的脚本包含当前配置；如提供了主密钥，也会包含主密钥。",
         "unsupported": "此安装不支持登录启动。"
       }
     },

@@ -4,6 +4,10 @@ use std::path::PathBuf;
 use bytes::Bytes;
 use http::{Method, Response, StatusCode};
 
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+use android as platform;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
@@ -12,6 +16,9 @@ use linux as platform;
 mod macos;
 #[cfg(target_os = "macos")]
 use macos as platform;
+// Compiled off-target so the generated boot script stays under test.
+#[cfg(any(target_os = "android", test))]
+mod termux;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
@@ -137,7 +144,12 @@ pub(crate) enum Error {
     Io(#[from] std::io::Error),
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "linux",
+    target_os = "macos",
+    windows
+)))]
 mod platform {
     use super::*;
 

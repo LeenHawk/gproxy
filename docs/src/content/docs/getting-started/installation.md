@@ -169,9 +169,9 @@ to install unknown apps.
 The updater uses `GPROXY_UPSTREAM_PROXY_URL` when set. `releases` and `dev`
 compare semantic versions; `staging` compares build hashes.
 
-## Login Startup
+## Automatic Startup
 
-**Settings → Login startup** manages a per-user autostart entry written by the
+**Settings → Automatic startup** manages a per-user autostart entry written by the
 binary itself. On the first start in a data directory the entry is created
 unless `GPROXY_AUTOSTART=off`; the decision is recorded in
 `.autostart-initialized`. Linux needs a desktop session (`DISPLAY`,
@@ -182,6 +182,15 @@ unless `GPROXY_AUTOSTART=off`; the decision is recorded in
 | Linux | `~/.config/autostart/gproxy.desktop` (honours `XDG_CONFIG_HOME`) |
 | macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` |
 | Windows | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `GPROXY` |
+
+On Android, the APK home screen owns the startup switch and boot receiver.
+In Termux, run `./gproxy` with the usual command-line flags and manage startup
+from the Console. This writes `~/.termux/boot/gproxy.sh`; install Termux:Boot
+and open it once to enable boot execution. The script preserves the working
+directory and bundled library path, requests a wake lock, and writes output
+to `autostart.log` in the data directory. Other Android shells have no automatic
+startup integration. APK processes select APK updates; Termux processes select
+the Android binary archive.
 
 The entry records the executable, the flags it was started with, the working
 directory, and `--master-key` copied from `GPROXY_MASTER_KEY` when that

@@ -89,18 +89,21 @@
       }
     },
     "autostart": {
-      "title": "登入時啟動",
-      "description": "目前桌面使用者登入時啟動此原生 GPROXY 安裝。",
-      "enable": "登入時啟動 GPROXY",
+      "title": "自動啟動",
+      "description": "依平台，在使用者登入或裝置開機時自動啟動 GPROXY。",
+      "enable": "自動啟動 GPROXY",
       "platform": "由 {{platform}} 為目前使用者管理。儲存的啟動命令包含目前設定；如提供了主密鑰，也會包含主密鑰。",
-      "saved": "登入啟動設定已更新。",
-      "saveError": "無法更新登入啟動設定。",
-      "loadError": "無法讀取登入啟動狀態。",
+      "saved": "自動啟動設定已更新。",
+      "saveError": "無法更新自動啟動設定。",
+      "loadError": "無法讀取自動啟動狀態。",
       "detail": {
         "container": "容器內略過登入啟動。",
         "home": "目前使用者的主目錄不可用。",
         "desktop": "未偵測到桌面登入工作階段。",
         "platform": "啟動由目前平台的啟動器管理。",
+        "app": "啟動由 GPROXY 安卓應用管理，請使用應用主畫面上的開關。",
+        "termux": "安卓上的開機啟動需要 Termux 工作階段與 Termux:Boot 附加元件。",
+        "termux-boot": "透過 Termux:Boot 附加元件開機啟動，該附加元件需先安裝並開啟一次。儲存的指令碼包含目前設定；如提供了主密鑰，也會包含主密鑰。",
         "unsupported": "此安裝不支援登入啟動。"
       }
     },

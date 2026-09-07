@@ -6,6 +6,7 @@ import { Section } from "@/components/section"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import { QueryState } from "@/components/query-state"
+import type { AutostartStatusDto } from "@/generated/AutostartStatusDto"
 
 export function AutostartCard() {
   const { t } = useTranslation()
@@ -19,6 +20,12 @@ export function AutostartCard() {
     },
     onError: () => toast.error(t("settings.autostart.saveError")),
   })
+  const describe = (status: AutostartStatusDto) => {
+    if (status.detail) return t(`settings.autostart.detail.${status.detail}`)
+    return status.supported
+      ? t("settings.autostart.platform", { platform: status.platform })
+      : t("settings.autostart.detail.unsupported")
+  }
   return (
     <Section title={t("settings.autostart.title")} description={t("settings.autostart.description")}>
         <div>
@@ -27,11 +34,7 @@ export function AutostartCard() {
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldLabel htmlFor="native-autostart">{t("settings.autostart.enable")}</FieldLabel>
-                <FieldDescription>
-                  {query.data.supported
-                    ? t("settings.autostart.platform", { platform: query.data.platform })
-                    : t(`settings.autostart.detail.${query.data.detail ?? "unsupported"}`)}
-                </FieldDescription>
+                <FieldDescription>{describe(query.data)}</FieldDescription>
               </FieldContent>
               <Switch id="native-autostart" checked={query.data.enabled} disabled={!query.data.supported || mutation.isPending} onCheckedChange={(enabled) => mutation.mutate({ enabled })} />
             </Field>

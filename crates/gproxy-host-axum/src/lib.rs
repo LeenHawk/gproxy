@@ -1,5 +1,7 @@
 //! Native axum host for `gproxy-app`.
 
+#[cfg(target_os = "android")]
+mod android;
 #[cfg(not(target_arch = "wasm32"))]
 mod announce;
 #[cfg(not(target_arch = "wasm32"))]

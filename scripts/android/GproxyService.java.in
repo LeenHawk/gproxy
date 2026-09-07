@@ -92,6 +92,7 @@ public final class GproxyService extends Service {
             builder.directory(getFilesDir());
             Map<String, String> env = builder.environment();
             env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
+            env.put("GPROXY_ANDROID_APP", "1");
             builder.redirectErrorStream(true);
             process = builder.start();
             final Process child = process;

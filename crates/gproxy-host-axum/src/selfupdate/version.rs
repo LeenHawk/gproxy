@@ -48,11 +48,15 @@ pub(super) fn target() -> String {
         ("aarch64", "windows", "msvc") => "aarch64-pc-windows-msvc",
         _ => return format!("{arch}-{os}"),
     };
-    if os == "android" && crate::INSTALLATION_KIND == "android-apk" {
-        format!("{base}-apk")
-    } else {
-        base.into()
+    // The APK and the Termux archive come out of one Android build, so the
+    // artifact to update with follows the running process, not the build.
+    #[cfg(target_os = "android")]
+    {
+        if crate::android::runtime().is_app() {
+            return format!("{base}-apk");
+        }
     }
+    base.into()
 }
 
 #[cfg(test)]

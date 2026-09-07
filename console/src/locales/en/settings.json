@@ -89,18 +89,21 @@
       }
     },
     "autostart": {
-      "title": "Login startup",
-      "description": "Start this native GPROXY installation when the current desktop user signs in.",
-      "enable": "Start GPROXY at login",
+      "title": "Automatic startup",
+      "description": "Start GPROXY automatically at login or device boot, depending on the platform.",
+      "enable": "Start GPROXY automatically",
       "platform": "Managed by {{platform}} for the current user. The saved launch command includes the active configuration and master key when one was supplied.",
-      "saved": "Login startup updated.",
-      "saveError": "Could not update login startup.",
-      "loadError": "Could not read login startup status.",
+      "saved": "Automatic startup updated.",
+      "saveError": "Could not update automatic startup.",
+      "loadError": "Could not read automatic startup status.",
       "detail": {
         "container": "Login startup is skipped inside containers.",
         "home": "The current user home directory is unavailable.",
         "desktop": "No desktop login session was detected.",
         "platform": "Startup is managed by this platform launcher.",
+        "app": "Startup is managed by the GPROXY Android app; use the switch on its home screen.",
+        "termux": "Android startup needs a Termux session with the Termux:Boot add-on.",
+        "termux-boot": "Runs at boot through the Termux:Boot add-on, which has to be installed and opened once. The saved script includes the active configuration and master key when one was supplied.",
         "unsupported": "Login startup is unavailable on this installation."
       }
     },
