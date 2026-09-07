@@ -85,19 +85,42 @@ async fn estimated_cost_micros(
         .targets
         .iter()
         .filter(|target| seen.insert((target.provider.id, target.upstream_model.clone())))
-        .filter_map(|target| {
-            let pricing = host
-                .services
-                .control
-                .pricing(&target.provider, &target.upstream_model)?;
-            Some((
-                target.upstream_model.clone(),
-                target.provider.settings.get("tokenizer_map").cloned(),
-                pricing,
-            ))
-        })
+        .filter_map(|target| candidate(host, target))
         .collect::<Vec<_>>();
-    let body = request.body.clone();
+    estimate_micros(host, &request.body, candidates).await
+}
+
+/// The cost this request would settle at on one target, in micro-units.
+pub(super) async fn estimated_target_cost_micros(
+    host: &AppHost,
+    body: &bytes::Bytes,
+    target: &gproxy_core::Target,
+) -> Result<i64, CoreError> {
+    let candidates = candidate(host, target).into_iter().collect();
+    estimate_micros(host, body, candidates).await
+}
+
+fn candidate(
+    host: &AppHost,
+    target: &gproxy_core::Target,
+) -> Option<(String, Option<serde_json::Value>, Pricing)> {
+    let pricing = host
+        .services
+        .control
+        .pricing(&target.provider, &target.upstream_model)?;
+    Some((
+        target.upstream_model.clone(),
+        target.provider.settings.get("tokenizer_map").cloned(),
+        pricing,
+    ))
+}
+
+async fn estimate_micros(
+    host: &AppHost,
+    body: &bytes::Bytes,
+    candidates: Vec<(String, Option<serde_json::Value>, Pricing)>,
+) -> Result<i64, CoreError> {
+    let body = body.clone();
     #[cfg(not(target_arch = "wasm32"))]
     let cost = {
         let registry = host.services.tokenizers.clone();

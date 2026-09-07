@@ -226,6 +226,7 @@ impl Host for MemoryHost {
 
     fn admit_credential<'a>(
         &'a self,
+        _request_id: &'a str,
         target: &'a crate::Target,
         _: &'a Bytes,
         settle: gproxy_protocol::SettleMode,

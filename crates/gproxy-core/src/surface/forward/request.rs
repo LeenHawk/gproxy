@@ -73,6 +73,7 @@ pub(crate) async fn request<H: Host>(
     }
     core.host
         .admit_credential(
+            &request_id,
             target,
             &request.body,
             request

@@ -10,6 +10,7 @@ pub(in crate::host) fn finish<'a>(
     settlement: Option<&'a Settlement>,
 ) -> BoxFuture<'a, ()> {
     Box::pin(async move {
+        super::credential_budget::release(host, request_id).await;
         let key = reservation_key(request_id);
         let state = match load(host, request_id).await {
             Ok(state) => state,

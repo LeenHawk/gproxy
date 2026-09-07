@@ -8,12 +8,13 @@ use super::types::CounterCharge;
 
 pub(in crate::host) fn admit<'a>(
     host: &'a AppHost,
+    request_id: &'a str,
     target: &'a Target,
     body: &'a bytes::Bytes,
     settle: gproxy_protocol::SettleMode,
 ) -> BoxFuture<'a, Result<(), CoreError>> {
     Box::pin(async move {
-        super::credential_budget::check(host, target, settle).await?;
+        super::credential_budget::reserve(host, request_id, target, body, settle).await?;
         let snapshot = host.services.control.current();
         let Some(credential) = snapshot
             .credentials

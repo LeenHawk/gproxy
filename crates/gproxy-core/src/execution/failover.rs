@@ -61,6 +61,7 @@ pub(crate) async fn run<H: Host>(
         if let Err(error) = core
             .host
             .admit_credential(
+                &ctx.request_id,
                 target,
                 &ctx.body,
                 request.classified.key.operation().spec().settle,

@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_core::{ControlPlane, CoreError, Host, UsageSink};
+use gproxy_core::{CacheBackend as _, ControlPlane, CoreError, Host, UsageSink};
 use gproxy_protocol::SettleMode;
 use gproxy_store::records::{QuotaInput, QuotaWindowKind};
 use rust_decimal::Decimal;
@@ -48,9 +48,14 @@ async fn credential_budget_settles_without_usage_logs_and_blocks_each_limit() {
         )
         .unwrap();
     let target = &plan.targets[0];
-    host.admit_credential(target, &Bytes::new(), SettleMode::OnResponse)
-        .await
-        .unwrap();
+    host.admit_credential(
+        "budget-request",
+        target,
+        &Bytes::new(),
+        SettleMode::OnResponse,
+    )
+    .await
+    .unwrap();
     let settlement = gproxy_core::Settlement {
         upstream_started_at_ms: None,
         request_id: "credential-budget-spend".into(),
@@ -99,26 +104,41 @@ async fn credential_budget_settles_without_usage_logs_and_blocks_each_limit() {
         fixture.app.reload().await.unwrap();
         assert!(
             matches!(
-                host.admit_credential(target, &Bytes::new(), SettleMode::OnResponse)
-                    .await,
+                host.admit_credential(
+                    "budget-request",
+                    target,
+                    &Bytes::new(),
+                    SettleMode::OnResponse
+                )
+                .await,
                 Err(CoreError::QuotaExceeded)
             ),
             "{kind:?}"
         );
-        host.admit_credential(target, &Bytes::new(), SettleMode::Free)
+        host.admit_credential("budget-request", target, &Bytes::new(), SettleMode::Free)
             .await
             .unwrap();
         let mut other = target.clone();
         other.credential = gproxy_core::CredentialId(fixture.credential + 100);
-        host.admit_credential(&other, &Bytes::new(), SettleMode::OnResponse)
-            .await
-            .unwrap();
+        host.admit_credential(
+            "budget-request",
+            &other,
+            &Bytes::new(),
+            SettleMode::OnResponse,
+        )
+        .await
+        .unwrap();
         input.enabled = false;
         host.services.store.update_quota(id, &input).await.unwrap();
         fixture.app.reload().await.unwrap();
-        host.admit_credential(target, &Bytes::new(), SettleMode::OnResponse)
-            .await
-            .unwrap();
+        host.admit_credential(
+            "budget-request",
+            target,
+            &Bytes::new(),
+            SettleMode::OnResponse,
+        )
+        .await
+        .unwrap();
     }
     // Lifetime spend survives periodic rollovers and control-plane reloads.
     for window in windows {
@@ -167,8 +187,13 @@ async fn credential_budget_zero_and_missing_prices_cannot_send_paid_requests() {
         .unwrap();
     let mut target = plan.targets[0].clone();
     assert!(matches!(
-        host.admit_credential(&target, &Bytes::new(), SettleMode::OnResponse)
-            .await,
+        host.admit_credential(
+            "budget-request",
+            &target,
+            &Bytes::new(),
+            SettleMode::OnResponse
+        )
+        .await,
         Err(CoreError::QuotaExceeded)
     ));
     input.quota_daily = Some(Decimal::ONE);
@@ -176,9 +201,80 @@ async fn credential_budget_zero_and_missing_prices_cannot_send_paid_requests() {
     fixture.app.reload().await.unwrap();
     target.upstream_model = "no-price".into();
     assert!(
-        matches!(host.admit_credential(&target, &Bytes::new(), SettleMode::OnResponse).await, Err(CoreError::Internal(message)) if message.contains("requires model pricing"))
+        matches!(host.admit_credential("budget-request", &target, &Bytes::new(), SettleMode::OnResponse).await, Err(CoreError::Internal(message)) if message.contains("requires model pricing"))
     );
-    host.admit_credential(&target, &Bytes::new(), SettleMode::Free)
+    host.admit_credential("budget-request", &target, &Bytes::new(), SettleMode::Free)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn credential_budget_reserves_estimated_cost_until_the_request_settles() {
+    let fixture = setup::fixture().await;
+    let mut input = budget(fixture.credential);
+    input.quota_total = Some(Decimal::from(1_000));
+    let id = setup::id(
+        fixture
+            .app
+            .mutate(ControlMutation::Quota(input.clone()))
+            .await
+            .unwrap(),
+    );
+    let host = &fixture.app.inner.host;
+    let plan = host
+        .services
+        .control
+        .resolve(
+            Some("public-model"),
+            &gproxy_core::RoutingMode::Aggregated,
+            None,
+        )
+        .unwrap();
+    let target = &plan.targets[0];
+    let body = Bytes::from_static(
+        br#"{"model":"public-model","messages":[{"role":"user","content":"Summarise the quarterly report in three bullet points, then list the open risks."}]}"#,
+    );
+    host.admit_credential("reserve-1", target, &body, SettleMode::OnResponse)
+        .await
+        .unwrap();
+    let window = host
+        .services
+        .store
+        .quota_windows()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|window| window.quota_id == id)
+        .expect("total window");
+    let pending = host
+        .services
+        .cache
+        .get(&format!("gproxy:quota-pending:{}", window.id))
+        .await
+        .unwrap()
+        .expect("reservation counter");
+    let estimate = i64::from_be_bytes(pending.as_slice().try_into().unwrap());
+    assert!(estimate > 0, "estimate must charge the request's input");
+    // Room for one request and a half: a second reservation must not fit.
+    input.quota_total = Some(gproxy_core::usage::micros_to_cost(estimate * 3 / 2));
+    host.services.store.update_quota(id, &input).await.unwrap();
+    fixture.app.reload().await.unwrap();
+    assert!(matches!(
+        host.admit_credential("reserve-2", target, &body, SettleMode::OnResponse)
+            .await,
+        Err(CoreError::QuotaExceeded)
+    ));
+    host.finish_admission("reserve-1", None).await;
+    let released = host
+        .services
+        .cache
+        .get(&format!("gproxy:quota-pending:{}", window.id))
+        .await
+        .unwrap()
+        .map(|bytes| i64::from_be_bytes(bytes.as_slice().try_into().unwrap()))
+        .unwrap_or_default();
+    assert_eq!(released, 0);
+    host.admit_credential("reserve-2", target, &body, SettleMode::OnResponse)
         .await
         .unwrap();
 }

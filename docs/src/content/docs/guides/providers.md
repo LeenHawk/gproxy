@@ -172,9 +172,13 @@ limits preserves existing spend. Total spend never resets automatically. Daily,
 weekly, and monthly caps reset at 00:00 UTC each day, Monday, and the first of the
 month respectively. The Console displays reset times in your local timezone.
 
-Spend is recorded at settlement. Concurrent requests and streams already sent
-upstream can exceed a cap before they finish. These counters do not include
-requests made outside this gateway or reconcile provider invoices.
+Before a paid request is sent, its estimated cost (input tokens at the model's
+price) is reserved against the credential's windows, so concurrent requests
+see each other and cannot together overrun a cap by more than the difference
+between estimates and settled cost; the reservation is released when the
+request settles or is abandoned. Output tokens are only known at settlement,
+so a long response can still finish past the cap. These counters do not
+include requests made outside this gateway or reconcile provider invoices.
 
 ## Tools
 

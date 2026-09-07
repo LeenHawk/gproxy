@@ -234,8 +234,11 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         request_id: &'a str,
         settlement: Option<&'a Settlement>,
     ) -> BoxFuture<'a, ()>;
+    /// Admit one attempt against a credential's own limits. The request id
+    /// ties any reservation the host makes to the settlement that releases it.
     fn admit_credential<'a>(
         &'a self,
+        request_id: &'a str,
         target: &'a crate::control::Target,
         body: &'a bytes::Bytes,
         settle: gproxy_protocol::SettleMode,
