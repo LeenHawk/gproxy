@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useId, useState, type FormEvent } from "react"
+import { useId, useState, type FormEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import type { QuotaDto } from "@/generated/QuotaDto"
@@ -29,31 +29,23 @@ export function CredentialBudget({ credentialId }: { credentialId: number }) {
   const blocked = quota?.enabled && windows.data?.some((window) => Number(window.cost_used) >= Number(window.cost_limit))
   return (
     <Card size="sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {t("providers.credentials.budget.title")}
-          {blocked ? <Badge variant="destructive">{t("providers.credentials.budget.blocked")}</Badge> : null}
-        </CardTitle>
-        <CardDescription>{t("providers.credentials.budget.description")}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <QueryState loading={query.isPending} error={query.isError ? t("access.quotas.loadError") : ""}>
-          <BudgetForm key={JSON.stringify(quota) ?? credentialId} credentialId={credentialId} quota={quota} />
-        </QueryState>
-        <QueryState loading={windows.isPending} error={windows.isError ? t("access.quotas.loadError") : ""}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {windows.data?.map((window) => <WindowBar key={window.window_kind}
-              label={t(`access.quotas.${window.window_kind}`)} used={window.cost_used} limit={window.cost_limit}
-              end={window.reset_at} started={window.started}
-              resetLabel={window.window_kind === "total" ? t("providers.credentials.budget.noReset") : undefined} />)}
-          </div>
-        </QueryState>
-      </CardContent>
+      <QueryState loading={query.isPending} error={query.isError ? t("access.quotas.loadError") : ""}>
+        <BudgetForm key={JSON.stringify(quota) ?? credentialId} credentialId={credentialId} quota={quota} blocked={blocked}>
+          <QueryState loading={windows.isPending} error={windows.isError ? t("access.quotas.loadError") : ""}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {windows.data?.map((window) => <WindowBar key={window.window_kind}
+                label={t(`access.quotas.${window.window_kind}`)} used={window.cost_used} limit={window.cost_limit}
+                end={window.reset_at} started={window.started}
+                resetLabel={window.window_kind === "total" ? t("providers.credentials.budget.noReset") : undefined} />)}
+            </div>
+          </QueryState>
+        </BudgetForm>
+      </QueryState>
     </Card>
   )
 }
 
-function BudgetForm({ credentialId, quota }: { credentialId: number; quota?: QuotaDto }) {
+function BudgetForm({ credentialId, quota, blocked, children }: { credentialId: number; quota?: QuotaDto; blocked?: boolean; children: ReactNode }) {
   const { t } = useTranslation()
   const id = useId()
   const client = useQueryClient()
@@ -88,21 +80,31 @@ function BudgetForm({ credentialId, quota }: { credentialId: number; quota?: Quo
   }
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <FieldGroup className="grid sm:grid-cols-2 lg:grid-cols-4">
-        {periods.map((period) => <Field key={period}>
-          <FieldLabel htmlFor={`${id}-${period}`}>{t(`access.quotas.${period}`)}</FieldLabel>
-          <Input id={`${id}-${period}`} type="number" inputMode="decimal" min="0" step="any"
-            placeholder={t("providers.credentials.budget.unlimited")} value={values[period]}
-            onChange={(event) => setValues({ ...values, [period]: event.target.value })} />
-        </Field>)}
-      </FieldGroup>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Field orientation="horizontal">
-          <Switch id={`${id}-enabled`} checked={enabled} onCheckedChange={setEnabled} />
-          <FieldLabel htmlFor={`${id}-enabled`}>{t("providers.credentials.budget.enabled")}</FieldLabel>
-        </Field>
-        <Button type="submit" disabled={mutation.isPending}>{t("common.actions.save")}</Button>
-      </div>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2">
+            {t("providers.credentials.budget.title")}
+            {blocked ? <Badge variant="destructive">{t("providers.credentials.budget.blocked")}</Badge> : null}
+          </CardTitle>
+          <div className="flex shrink-0 items-center gap-2">
+            <Switch id={`${id}-enabled`} checked={enabled} onCheckedChange={setEnabled} aria-label={t("providers.credentials.budget.enabled")} />
+            <FieldLabel htmlFor={`${id}-enabled`}>{t("common.actions.enable")}</FieldLabel>
+            <Button type="submit" size="sm" disabled={mutation.isPending}>{t("common.actions.save")}</Button>
+          </div>
+        </div>
+        <CardDescription>{t("providers.credentials.budget.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <FieldGroup className="grid sm:grid-cols-2 lg:grid-cols-4">
+          {periods.map((period) => <Field key={period}>
+            <FieldLabel htmlFor={`${id}-${period}`}>{t(`access.quotas.${period}`)}</FieldLabel>
+            <Input id={`${id}-${period}`} type="number" inputMode="decimal" min="0" step="any"
+              placeholder={t("providers.credentials.budget.unlimited")} value={values[period]}
+              onChange={(event) => setValues({ ...values, [period]: event.target.value })} />
+          </Field>)}
+        </FieldGroup>
+        {children}
+      </CardContent>
     </form>
   )
 }
