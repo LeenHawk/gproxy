@@ -1,3 +1,4 @@
+import { useState } from "react"
 import type { ChannelFieldDto } from "@/generated/ChannelFieldDto"
 import { useTranslation } from "react-i18next"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -50,6 +51,15 @@ export function GenericSettingsFields({
         </Field>
       )
     }
+    if (field.control === "string_list") {
+      return (
+        <Field key={field.key}>
+          <FieldLabel htmlFor={id}>{text.label}</FieldLabel>
+          <StringListInput id={id} initial={inputValue(field, value)} onChange={(next) => onChange(updateSetting(values, field, next))} />
+          <FieldDescription>{text.description}</FieldDescription>
+        </Field>
+      )
+    }
     return (
       <Field key={field.key}>
         <FieldLabel htmlFor={id}>{text.label}</FieldLabel>
@@ -66,4 +76,21 @@ export function GenericSettingsFields({
       </Field>
     )
   })
+}
+
+// The stored value is a parsed list, so a controlled input re-rendered from it
+// would drop a trailing comma the moment it is typed. Keep the raw text local.
+function StringListInput({ id, initial, onChange }: { id: string; initial: string; onChange: (text: string) => void }) {
+  const [text, setText] = useState(initial)
+  return (
+    <Input
+      id={id}
+      className="font-mono"
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value)
+        onChange(event.target.value)
+      }}
+    />
+  )
 }
