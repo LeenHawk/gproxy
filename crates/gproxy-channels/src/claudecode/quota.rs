@@ -48,7 +48,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         let duration = match key.as_str() {
             "five_hour" => Some(FIVE_HOURS),
             key if key == "seven_day" || key.starts_with("seven_day_") => Some(SEVEN_DAYS),
-            _ if value.get("utilization").is_some() && value.get("resets_at").is_some() => None,
+            // An unrecognised top-level key is only a window when it carries
+            // both fields for real — `Map::get` also returns `Some` for an
+            // explicit JSON null, which would mint an empty perpetual window.
+            _ if present(value, "utilization") && present(value, "resets_at") => None,
             _ => continue,
         };
         let Ok(window) = serde_json::from_value::<ClaudeWindow>(value.clone()) else {
@@ -122,6 +125,10 @@ fn observation(
         upstream_used: None,
         upstream_limit: None,
     }
+}
+
+fn present(value: &Value, field: &str) -> bool {
+    value.get(field).is_some_and(|value| !value.is_null())
 }
 
 fn iso_to_unix(value: &str) -> Option<i64> {
@@ -209,6 +216,9 @@ mod tests {
             "five_hour": { "utilization": 34.5, "resets_at": "2026-08-31T15:00:00Z" },
             "seven_day": { "utilization": 61.0, "resets_at": "2026-09-03T00:00:00+00:00" },
             "seven_day_fable": { "utilization": 22.0, "resets_at": "2026-09-03T00:00:00Z" },
+            // An unknown key whose fields are explicitly null carries nothing;
+            // it used to become a perpetual window with no period or percent.
+            "nimbus_quill": { "utilization": null, "resets_at": null },
             "limits": [
                 { "kind": "weekly_all", "percent": 99.0, "resets_at": "2026-09-03T00:00:00Z" },
                 { "kind": "weekly_scoped", "percent": 12.0, "resets_at": "2026-09-03T00:00:00Z",
