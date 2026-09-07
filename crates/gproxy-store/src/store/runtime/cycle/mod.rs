@@ -21,7 +21,7 @@ impl Store {
         &self,
         observation: &CredentialQuotaObservation,
     ) -> Result<CredentialQuotaCycleRecord, StoreError> {
-        state::validate(observation)?;
+        let observation = &state::settle(observation)?;
         for _ in 0..8 {
             let mut input = observation.clone();
             let sample = state::sample(&input);
@@ -42,6 +42,7 @@ impl Store {
                     input.period_start = open.period_start;
                     input.period_end = open.period_end;
                 }
+                state::hold_boundary(&open, &mut input);
                 let changed = state::changed(&open, &input);
                 let decreased = state::decreased(&open, &input);
                 if (changed
@@ -150,6 +151,7 @@ impl Store {
                     .latest_credential_quota_cycle(input.credential_id, &input.window_key)
                     .await?;
                 if let Some(latest) = &latest {
+                    state::hold_boundary(latest, &mut input);
                     let cutoff = latest
                         .accounting_end_ms
                         .unwrap_or(latest.last_observed_at * 1000);

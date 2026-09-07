@@ -1,8 +1,71 @@
 use crate::StoreError;
-use crate::records::{CredentialQuotaCycleRecord, CredentialQuotaObservation, CycleTracking};
+use crate::records::{
+    CredentialQuotaCycleRecord, CredentialQuotaObservation, CycleTracking, QuotaBoundaryConfidence,
+    QuotaBoundarySource,
+};
 use rust_decimal::Decimal;
 
-pub(super) fn validate(input: &CredentialQuotaObservation) -> Result<(), StoreError> {
+/// Reset stamps wobble between observations: `…T06:59:59.999Z` and `…T07:00:00Z`
+/// truncate a second apart, and upstream clocks drift against ours. Anything
+/// inside this slack is the same boundary, not a new period.
+const BOUNDARY_SLACK_SECONDS: i64 = 5;
+
+/// Normalise, then check the store's input contract. Returns the observation
+/// that should actually be recorded.
+pub(super) fn settle(
+    input: &CredentialQuotaObservation,
+) -> Result<CredentialQuotaObservation, StoreError> {
+    let mut input = input.clone();
+    unstarted(&mut input);
+    validate(&input)?;
+    Ok(input)
+}
+
+/// A rolling window that has not been used yet reports its whole length as
+/// remaining, so `reset_at - window` lands on the observation instant and walks
+/// forward with every probe (Codex Spark does this on `/wham/usage` and in its
+/// `x-…-reset-at` headers). Recorded usage is what proves a period has begun —
+/// without it there is no boundary yet, only a window waiting to start.
+fn unstarted(input: &mut CredentialQuotaObservation) {
+    let unused = percent(
+        input.used_percent,
+        input.upstream_used,
+        input.upstream_limit,
+    )
+    .is_some_and(|used| used.is_zero());
+    let starts_now = input
+        .period_start
+        .is_some_and(|start| start >= input.observed_at - BOUNDARY_SLACK_SECONDS);
+    if unused && starts_now {
+        input.period_start = None;
+        input.period_end = None;
+        input.boundary_source = QuotaBoundarySource::Unknown;
+        input.boundary_confidence = QuotaBoundaryConfidence::Unknown;
+    }
+}
+
+/// Keep the boundary an open cycle already carries when the incoming one is the
+/// same instant reported differently, so a one-second wobble does not close the
+/// cycle and restart its accounting.
+pub(super) fn hold_boundary(
+    previous: &CredentialQuotaCycleRecord,
+    next: &mut CredentialQuotaObservation,
+) {
+    if slack(previous.period_start, next.period_start) {
+        next.period_start = previous.period_start;
+    }
+    if slack(previous.period_end, next.period_end) {
+        next.period_end = previous.period_end;
+    }
+}
+
+fn slack(previous: Option<i64>, next: Option<i64>) -> bool {
+    previous.zip(next).is_some_and(|(previous, next)| {
+        previous.abs_diff(next) <= BOUNDARY_SLACK_SECONDS.unsigned_abs()
+    })
+}
+
+fn validate(input: &CredentialQuotaObservation) -> Result<(), StoreError> {
     let invalid = input.window_key.trim().is_empty()
         || input
             .period_start

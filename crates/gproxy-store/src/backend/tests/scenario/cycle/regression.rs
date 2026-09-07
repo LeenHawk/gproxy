@@ -256,6 +256,87 @@ async fn exercise(store: &Store) {
     records(store).await;
 }
 
+/// Reset stamps wobble by a second between observations, and an unused rolling
+/// window reports `reset_at = now + window` so its start walks forward on every
+/// probe. Both read as boundary crossings and minted a fresh cycle each time,
+/// restarting accounting and crowding quieter windows out of the console page;
+/// a stamp landing a second ahead of our clock was rejected outright.
+#[tokio::test]
+async fn wobbling_boundaries_keep_one_cycle() {
+    let directory = tempfile::tempdir().unwrap();
+    let (store, _) = native_store(directory.path().join("wobble.db"))
+        .await
+        .unwrap();
+
+    for (index, end) in [18_000, 17_999, 18_000, 18_001].into_iter().enumerate() {
+        let at = 1_000 + index as i64;
+        store
+            .observe_credential_quota_cycle(&super::observation(
+                7,
+                "wobble",
+                end - 18_000,
+                end,
+                at,
+                40,
+            ))
+            .await
+            .unwrap();
+    }
+    let wobble = store
+        .credential_quota_cycle_history(7, "wobble")
+        .await
+        .unwrap();
+    assert_eq!(wobble.len(), 1);
+    assert_eq!(wobble[0].period_end, Some(18_000));
+
+    for at in [2_000, 2_010, 2_020] {
+        store
+            .observe_credential_quota_cycle(&super::observation(
+                7,
+                "unused",
+                at,
+                at + 18_000,
+                at,
+                0,
+            ))
+            .await
+            .unwrap();
+    }
+    let unused = store
+        .credential_quota_cycle_history(7, "unused")
+        .await
+        .unwrap();
+    assert_eq!(unused.len(), 1);
+    assert_eq!(unused[0].period_start, None);
+
+    // Usage proves the period began, so the same cycle adopts its boundary.
+    let started = store
+        .observe_credential_quota_cycle(&super::observation(
+            7,
+            "unused",
+            2_030,
+            2_030 + 18_000,
+            2_030,
+            12,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(started.id, unused[0].id);
+    assert_eq!(started.period_end, Some(2_030 + 18_000));
+
+    store
+        .observe_credential_quota_cycle(&super::observation(
+            7,
+            "ahead",
+            3_001,
+            3_001 + 18_000,
+            3_000,
+            0,
+        ))
+        .await
+        .unwrap();
+}
+
 async fn records(store: &Store) {
     for index in 0..21 {
         store
