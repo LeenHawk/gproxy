@@ -31,20 +31,6 @@ pub(super) fn quiesce(path: &Path) -> Result<Connection, AppError> {
     Ok(connection)
 }
 
-pub(super) fn validate_source(connection: &Connection) -> Result<(), AppError> {
-    let (_, issues) = super::super::tables::inspect(connection).map_err(error)?;
-    if !issues.is_empty() {
-        return Err(error(
-            issues
-                .iter()
-                .map(|issue| format!("table {}: {}", issue.row, issue.reason))
-                .collect::<Vec<_>>()
-                .join("; "),
-        ));
-    }
-    Ok(())
-}
-
 pub(super) fn snapshot_target(source: &Path, target: &Path) -> Result<(), AppError> {
     let connection =
         Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_WRITE).map_err(error)?;

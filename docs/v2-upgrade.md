@@ -23,8 +23,8 @@ Do not combine this upgrade with a master-key rotation.
 
 1. Lock migration so only one process can upgrade the database.
 2. Create a private `gproxy-v2-backup-TIMESTAMP-PID` directory beside the database.
-3. Exclusively lock SQLite, checkpoint WAL and check source table policies,
-   then copy the original database to `gproxy-v2.db` in that directory.
+3. Exclusively lock SQLite, checkpoint WAL, then copy the original database
+   to `gproxy-v2.db` in that directory.
 4. Import supported configuration, recoverable secrets, raw usage and upstream/
    downstream request logs into a new v3 database under `candidate/`.
 5. Verify import counts, SQLite integrity, references, runtime control state,
@@ -41,9 +41,11 @@ in v3 statistics. These source tables remain in the complete v2 backup.
 Credential health snapshots, tokenizer caches and Codex task bindings are also
 not imported. `report.txt` lists each populated skipped table, its row count
 and the reason it was excluded.
-Unknown populated tables and unsupported policy data still stop migration.
-In particular, route-specific permissions and rate-limit rules cannot be
-silently discarded or widened. Request an explicit migration review for them.
+Unknown tables, including populated ones, and v2 rate-limit rules are skipped
+and listed in the report. Unsupported route-specific grants, unknown permission
+scopes and grants whose subjects no longer exist are also skipped; supported
+universal grants are still imported. Skipped policies are not enforced in v3
+and can be configured again after the upgrade.
 `downstream_requests` and `upstream_requests` migrate to `request_logs` and
 `wire_logs`. Request IDs, timestamps, methods, paths/URLs, status, request
 headers and request/response bodies are preserved, including multiple upstream
@@ -58,8 +60,7 @@ sessions may need to be established again; recoverable API keys are preserved.
 ## Failure and rollback
 
 Failures before replacement leave the v2 database in place. Inspect the reported
-attempt directory and `.gproxy-v2-upgrade-blocked` beside the database. A source
-table-policy failure writes a report without making a full database copy.
+attempt directory and `.gproxy-v2-upgrade-blocked` beside the database.
 The marker prevents a process supervisor from repeatedly copying a failing database and
 filling the disk. Correct the cause, then remove **only that marker** to retry.
 Never delete the backup as a retry mechanism.

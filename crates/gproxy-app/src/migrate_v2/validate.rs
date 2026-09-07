@@ -8,36 +8,6 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>) {
     let organizations = ids(&data.organizations);
     let teams = ids(&data.teams);
     let users = ids(&data.users);
-    for value in &data.permissions {
-        let scope = match value.value.scope.as_str() {
-            "org" => &organizations,
-            "team" => &teams,
-            "user" => &users,
-            _ => {
-                issues.push(issue(
-                    "route_permissions",
-                    value.id,
-                    "unknown authorization scope",
-                ));
-                continue;
-            }
-        };
-        require(
-            issues,
-            "route_permissions",
-            value.id,
-            scope,
-            value.value.scope_id,
-            "subject",
-        );
-        if value.value.route_pattern != "*" {
-            issues.push(issue(
-                "route_permissions",
-                value.id,
-                "route-specific authorization cannot be widened to a v3 provider grant",
-            ));
-        }
-    }
     let mut providers = ids(&data.providers);
     providers.extend(ids(&data.usage_tombstone_providers));
     let mut credentials = ids(&data.credentials);

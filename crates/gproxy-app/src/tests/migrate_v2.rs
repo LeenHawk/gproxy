@@ -115,7 +115,7 @@ async fn migration_unwraps_v2_dimensional_metrics() {
         true,
     );
     let connection = Connection::open(source.path().join("gproxy.db")).unwrap();
-    connection.execute_batch("CREATE TABLE credential_statuses(id INTEGER PRIMARY KEY); INSERT INTO credential_statuses VALUES(1);").unwrap();
+    connection.execute_batch("CREATE TABLE credential_statuses(id INTEGER PRIMARY KEY); INSERT INTO credential_statuses VALUES(1); CREATE TABLE rate_limits(id INTEGER PRIMARY KEY); INSERT INTO rate_limits VALUES(1); CREATE TABLE unknown_table(id INTEGER PRIMARY KEY); INSERT INTO unknown_table VALUES(1); INSERT INTO route_permissions VALUES(1,'user',1,'restricted/*',0,0);").unwrap();
     connection
         .execute(
             "UPDATE usages SET metrics_json=?1 WHERE id=1",
@@ -143,6 +143,12 @@ async fn migration_unwraps_v2_dimensional_metrics() {
     .unwrap();
     assert!(report.applied && report.issues.is_empty(), "{report}");
     assert!(report.to_string().contains("credential_statuses: 1 rows;"));
+    for table in ["rate_limits", "unknown_table", "route_permissions"] {
+        assert!(
+            report.to_string().contains(&format!("{table}: 1 rows;")),
+            "{report}"
+        );
+    }
 
     let app = App::start(config).await.unwrap();
     let record = app

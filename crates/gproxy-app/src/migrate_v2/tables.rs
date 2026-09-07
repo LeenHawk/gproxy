@@ -1,11 +1,10 @@
 use tokio_rusqlite::rusqlite::{Connection, Result};
 
-use super::report::{ImportIssue, SkippedTable};
+use super::report::SkippedTable;
 
 enum Policy {
     Import,
     Skip(&'static str),
-    Review(&'static str),
 }
 
 fn policy(table: &str) -> Policy {
@@ -43,20 +42,17 @@ fn policy(table: &str) -> Policy {
         "codex_task_bindings" => Policy::Skip("v2 Codex task bindings are not migrated"),
         "audit_logs" => Policy::Skip("audit logs are not migrated"),
         "schema_migrations" => Policy::Skip("v3 maintains its own schema history"),
-        "rate_limits" => Policy::Review("v2 rate-limit policies cannot be silently discarded"),
-        _ => Policy::Review(
-            "data is not covered by migration; an explicit migration review is required",
-        ),
+        "rate_limits" => Policy::Skip("v2 rate-limit rules are not migrated"),
+        _ => Policy::Skip("unrecognized source table is not migrated"),
     }
 }
 
-pub(super) fn inspect(connection: &Connection) -> Result<(Vec<SkippedTable>, Vec<ImportIssue>)> {
+pub(super) fn inspect(connection: &Connection) -> Result<Vec<SkippedTable>> {
     let mut query = connection.prepare(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
     )?;
     let tables = query.query_map([], |row| row.get::<_, String>(0))?;
     let mut skipped = Vec::new();
-    let mut issues = Vec::new();
     for table in tables {
         let table = table?;
         let policy = policy(&table);
@@ -77,21 +73,7 @@ pub(super) fn inspect(connection: &Connection) -> Result<(Vec<SkippedTable>, Vec
                     });
                 }
             }
-            Policy::Review(reason) => {
-                let populated = connection.query_row(
-                    &format!("SELECT EXISTS(SELECT 1 FROM \"{quoted}\")"),
-                    [],
-                    |row| row.get::<_, bool>(0),
-                )?;
-                if populated {
-                    issues.push(ImportIssue {
-                        entity: "table",
-                        row: table,
-                        reason: reason.into(),
-                    });
-                }
-            }
         }
     }
-    Ok((skipped, issues))
+    Ok(skipped)
 }

@@ -35,6 +35,8 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
         "codex_task_bindings",
         "audit_logs",
         "schema_migrations",
+        "rate_limits",
+        "unknown_table",
     ];
     for table in skipped {
         connection
@@ -45,6 +47,7 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     }
     connection.execute_batch("CREATE TABLE usage_rollups(id INTEGER PRIMARY KEY, requests INTEGER, cost TEXT); INSERT INTO usage_rollups VALUES(1,999,'999.999'); CREATE TABLE unknown_empty(id INTEGER PRIMARY KEY);").unwrap();
     super::migrate_v2_logs::seed(&connection);
+    connection.execute_batch("ALTER TABLE usages ADD COLUMN irrelevant TEXT; INSERT INTO users VALUES(2,'limited-user',1,NULL,NULL,1,0); INSERT INTO route_permissions VALUES(2,'user',2,'restricted/*',0,0),(3,'unknown',1,'*',0,0),(4,'user',999,'*',0,0);").unwrap();
     drop(connection);
     let config = super::test_config(directory.path(), MasterKeyConfig::new(Some(master)));
     let app = App::start(config.clone()).await.unwrap();
@@ -70,6 +73,27 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     );
     let identity = crate::host::authenticate_headers(&app.inner.host, &headers).unwrap();
     let control = &app.inner.host.services.control;
+    let snapshot = control.current();
+    let limited = snapshot
+        .users
+        .iter()
+        .find(|user| user.name == "limited-user")
+        .unwrap();
+    let stored = app
+        .inner
+        .host
+        .services
+        .store
+        .control_snapshot()
+        .await
+        .unwrap();
+    assert!(
+        !stored
+            .permissions
+            .iter()
+            .any(|permission| permission.subject_kind == "user"
+                && permission.subject_id == limited.id)
+    );
     let plan = control
         .resolve(
             Some("public-model"),
@@ -89,6 +113,11 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     let archives = backups(directory.path());
     assert_eq!(archives.len(), 1);
     let report = std::fs::read_to_string(archives[0].join("report.txt")).unwrap();
+    assert!(
+        report.contains("route_permissions: 1 imported (4 found)"),
+        "{report}"
+    );
+    assert!(report.contains("route_permissions: 3 rows;"), "{report}");
     assert!(
         report.contains("downstream_requests: 130 imported (130 found)"),
         "{report}"
@@ -153,89 +182,44 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
 }
 
 #[tokio::test]
-async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() {
-    for failure in ["key", "rate_limits", "route_permissions", "unknown_table"] {
-        let policy = failure != "key";
-        let directory = tempfile::tempdir().unwrap();
-        let key = format!("sk-{}", super::setup::random_key());
-        let invalid =
-            json!({"kek_id":"local","wrapped_dek":"bad","nonce":"bad","ciphertext":"bad"})
-                .to_string();
-        super::setup::v2_database(
-            directory.path(),
-            &key,
-            if policy { &key } else { &invalid },
-            &json!({"api_key":super::setup::random_key()}),
-            true,
-        );
-        let path = directory.path().join("gproxy.db");
-        let table_failure = matches!(failure, "rate_limits" | "unknown_table");
-        if table_failure {
-            Connection::open(&path).unwrap().execute_batch(&format!("CREATE TABLE {failure}(id INTEGER PRIMARY KEY); INSERT INTO {failure} VALUES(1);")).unwrap();
-            let target = tempfile::tempdir().unwrap();
-            let report = crate::migrate_from_v2(
-                &super::test_config(target.path(), MasterKeyConfig::new(None)),
-                crate::V2ImportOptions {
-                    path: path.clone(),
-                    source_master_key: None,
-                    apply: true,
-                    merge: false,
-                },
-            )
-            .await
-            .unwrap();
-            assert!(report.has_blockers(), "{report}");
-            assert!(report.to_string().contains(failure), "{report}");
-            assert!(!target.path().join("gproxy.db").exists());
-        }
-        if failure == "route_permissions" {
-            Connection::open(&path)
-                .unwrap()
-                .execute_batch(
-                    "INSERT INTO route_permissions VALUES(1,'user',1,'restricted/*',0,0);",
-                )
-                .unwrap();
-        }
-        let result = App::start(super::test_config(
-            directory.path(),
-            MasterKeyConfig::new(None),
-        ))
-        .await;
-        let error = match result {
-            Ok(_) => panic!("unsafe migration succeeded"),
-            Err(error) => error.to_string(),
-        };
-        assert!(
-            error.contains(if table_failure { failure } else { "report.txt" }),
-            "{error}"
-        );
-        let connection = Connection::open(&path).unwrap();
-        assert_eq!(
-            connection
-                .query_row("SELECT COUNT(*) FROM usages", [], |row| row
-                    .get::<_, i64>(0))
-                .unwrap(),
-            1
-        );
-        assert!(
-            connection
-                .prepare("SELECT api_key_ciphertext FROM user_keys")
-                .is_ok()
-        );
-        assert_eq!(backups(directory.path()).len(), 1);
-        let attempt = &backups(directory.path())[0];
-        assert!(attempt.join("report.txt").is_file());
-        assert_eq!(attempt.join("gproxy-v2.db").exists(), !table_failure);
-        assert!(
-            App::start(super::test_config(
-                directory.path(),
-                MasterKeyConfig::new(None)
-            ))
-            .await
-            .is_err()
-        );
-        assert_eq!(backups(directory.path()).len(), 1);
-    }
+async fn native_upgrade_keeps_source_on_unrecoverable_keys() {
+    let directory = tempfile::tempdir().unwrap();
+    let key = format!("sk-{}", super::setup::random_key());
+    let invalid =
+        json!({"kek_id":"local","wrapped_dek":"bad","nonce":"bad","ciphertext":"bad"}).to_string();
+    super::setup::v2_database(
+        directory.path(),
+        &key,
+        &invalid,
+        &json!({"api_key":super::setup::random_key()}),
+        true,
+    );
+    let path = directory.path().join("gproxy.db");
+    let config = super::test_config(directory.path(), MasterKeyConfig::new(None));
+    let error = match App::start(config.clone()).await {
+        Ok(_) => panic!("migration with unrecoverable keys succeeded"),
+        Err(error) => error.to_string(),
+    };
+    assert!(error.contains("report.txt"), "{error}");
+    let connection = Connection::open(&path).unwrap();
+    assert_eq!(
+        connection
+            .query_row("SELECT COUNT(*) FROM usages", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    assert!(
+        connection
+            .prepare("SELECT api_key_ciphertext FROM user_keys")
+            .is_ok()
+    );
+    let attempts = backups(directory.path());
+    assert_eq!(attempts.len(), 1);
+    assert!(attempts[0].join("report.txt").is_file());
+    assert!(attempts[0].join("gproxy-v2.db").is_file());
+    assert!(App::start(config).await.is_err());
+    assert_eq!(backups(directory.path()).len(), 1);
 }
 
 fn backups(path: &Path) -> Vec<PathBuf> {

@@ -73,7 +73,6 @@ pub(crate) async fn prepare(config: &Config) -> Result<Option<File>, AppError> {
 
 async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(), AppError> {
     let source = sqlite::quiesce(original)?;
-    sqlite::validate_source(&source)?;
     let backup = attempt.join("gproxy-v2.db");
     std::fs::copy(original, &backup).map_err(error)?;
     File::open(&backup)
@@ -105,7 +104,7 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
         || report
             .counts
             .iter()
-            .any(|count| count.found != count.imported)
+            .any(|count| count.importable != count.imported)
     {
         return Err(error(
             "migration did not preserve every supported source row; inspect report.txt",

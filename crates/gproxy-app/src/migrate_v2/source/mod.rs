@@ -20,8 +20,10 @@ pub(super) async fn read(path: &Path) -> Result<SourceData, crate::AppError> {
     .map_err(error)?;
     connection
         .call(|connection| {
-            let mut data = SourceData::default();
-            (data.skipped, data.table_issues) = super::tables::inspect(connection)?;
+            let mut data = SourceData {
+                skipped: super::tables::inspect(connection)?,
+                ..SourceData::default()
+            };
             control::read(connection, &mut data)?;
             identity::read(connection, &mut data)?;
             process::read(connection, &mut data)?;
