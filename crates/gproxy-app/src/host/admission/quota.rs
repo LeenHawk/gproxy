@@ -120,18 +120,33 @@ async fn estimate_micros(
     body: &bytes::Bytes,
     candidates: Vec<(String, Option<serde_json::Value>, Pricing)>,
 ) -> Result<i64, CoreError> {
-    let body = body.clone();
-    #[cfg(not(target_arch = "wasm32"))]
-    let cost = {
-        let registry = host.services.tokenizers.clone();
-        tokio::task::spawn_blocking(move || maximum_cost(&body, &candidates, &registry))
-            .await
-            .map_err(|error| CoreError::Internal(format!("tokenizer task failed: {error}")))?
-    };
-    #[cfg(target_arch = "wasm32")]
-    let cost = maximum_cost(&body, &candidates, ());
+    let cost = host
+        .maximum_candidate_cost(body.clone(), candidates)
+        .await?;
     gproxy_core::usage::cost_to_micros(cost)
         .ok_or_else(|| CoreError::Internal("admission cost estimate exceeds counter".into()))
+}
+
+impl AppHost {
+    /// Tokenizing blocks, so a native host hands it to the blocking pool; the
+    /// edge host has no vocabularies and no pool to hand it to.
+    async fn maximum_candidate_cost(
+        &self,
+        body: bytes::Bytes,
+        candidates: Vec<(String, Option<serde_json::Value>, Pricing)>,
+    ) -> Result<rust_decimal::Decimal, CoreError> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let registry = self.services.tokenizers.clone();
+            tokio::task::spawn_blocking(move || maximum_cost(&body, &candidates, &registry))
+                .await
+                .map_err(|error| CoreError::Internal(format!("tokenizer task failed: {error}")))
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            Ok(maximum_cost(&body, &candidates, ()))
+        }
+    }
 }
 
 fn maximum_cost(
