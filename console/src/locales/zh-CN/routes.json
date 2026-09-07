@@ -39,7 +39,8 @@
       "enabled": "启用成员",
       "created": "已添加成员。",
       "updated": "已更新成员。",
-      "saveError": "无法保存路由成员，请重试。"
+      "saveError": "无法保存路由成员，请重试。",
+      "modelsFallback": "模型刷新失败，已使用保存的模型；仍可手动输入模型 ID。"
     },
     "routingAliases": {
       "title": "路由别名",

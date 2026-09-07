@@ -1,3 +1,4 @@
+import { MemberModelInput } from "./member-model-input"
 import { useId, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -93,7 +94,7 @@ export function MemberForm({
             </Field>
             <Field>
               <FieldLabel htmlFor={modelId}>{t("routes.members.model")}</FieldLabel>
-              <Input id={modelId} className="font-mono" value={model} required onChange={(event) => setModel(event.target.value)} />
+              <MemberModelInput provider={providers.find((provider) => provider.id === providerId)} id={modelId} value={model} onChange={setModel} />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>

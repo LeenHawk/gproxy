@@ -1,3 +1,4 @@
+import type { UserKeyRevealResponse } from "@/generated/UserKeyRevealResponse"
 import type { ErrorEnvelope } from "@/generated/ErrorEnvelope"
 import type { PortalContextDto } from "@/generated/PortalContextDto"
 import type { OAuthSessionPageDto } from "@/generated/OAuthSessionPageDto"
@@ -87,3 +88,6 @@ export const portalSettings = () =>
 
 export const savePortalSettings = (value: PortalSettingsDto) =>
   api<PortalSettingsDto>("/admin/api/portal-settings", json("PATCH", value))
+
+export const revealPortalKey = (id: number) =>
+  portalApi<UserKeyRevealResponse>(`/portal/api/keys/${id}/reveal`, undefined, json("POST", {}))

@@ -39,7 +39,8 @@
       "enabled": "Member enabled",
       "created": "Member added.",
       "updated": "Member updated.",
-      "saveError": "Could not save the route member. Retry."
+      "saveError": "Could not save the route member. Retry.",
+      "modelsFallback": "Could not refresh models. Using saved models; you can still enter any model ID."
     },
     "routingAliases": {
       "title": "Routing aliases",

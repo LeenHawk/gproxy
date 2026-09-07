@@ -1,3 +1,4 @@
+import { KeySecretCell } from "@/components/keys/key-secret-cell"
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -6,6 +7,7 @@ import {
   deletePortalKey,
   portalChangePassword,
   portalKeys,
+  revealPortalKey,
 } from "@/api/portal"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -68,8 +70,8 @@ export function AccountManagement() {
           </form>
           <div className="flex flex-col divide-y rounded-md border">
             {(keys.data ?? []).map((key) => (
-              <div key={key.id} className="flex items-center justify-between gap-3 p-3">
-                <div className="min-w-0"><p className="truncate text-sm font-medium">{key.label ?? t("portal.keys.unnamed")}</p><code className="text-xs text-muted-foreground">{key.prefix}…</code></div>
+              <div key={key.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="min-w-0"><p className="truncate text-sm font-medium">{key.label ?? t("portal.keys.unnamed")}</p><KeySecretCell record={key} reveal={() => revealPortalKey(key.id)} /></div>
                 <Button type="button" size="sm" variant="outline" disabled={removeKey.isPending} onClick={() => removeKey.mutate(key.id)}>{t("portal.keys.revoke")}</Button>
               </div>
             ))}

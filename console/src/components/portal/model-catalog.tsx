@@ -1,12 +1,12 @@
+import { ModelCapabilities } from "./model-capabilities"
 import { useTranslation } from "react-i18next"
 import type { PortalModelDto } from "@/generated/PortalModelDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function ModelCatalog({ models }: { models: Array<PortalModelDto> }) {
   const { t } = useTranslation()
-  const capabilities = (model: PortalModelDto) => <ul className="flex min-w-0 flex-col gap-2">{model.capabilities.map((capability) => <li key={`${capability.source}:${capability.operation}:${capability.group}`} className="flex flex-wrap items-center gap-2"><Badge variant="outline"><code className="font-mono">{capability.group}</code></Badge><code className="font-mono text-xs">{capability.source}</code><code className="font-mono text-xs text-muted-foreground">{capability.operation}</code></li>)}</ul>
+  const capabilities = (model: PortalModelDto) => <ModelCapabilities model={model} />
   const columns: Array<DataTableColumn<PortalModelDto>> = [
     { key: "model", label: t("portal.models.model"), header: t("portal.models.model"), cell: (model) => <span className="font-mono text-xs">{model.name}</span> },
     { key: "capabilities", label: t("portal.models.capabilities"), header: t("portal.models.capabilities"), cell: capabilities },

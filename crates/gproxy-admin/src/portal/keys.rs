@@ -7,7 +7,8 @@ use http::{Response, StatusCode};
 use super::PortalIdentity;
 use crate::auth::{now, verify_same_origin};
 use crate::dto::{
-    PortalKeyCreateRequest, UserKeyCreateResponse, UserKeyDto, UserKeyPrefix, UserKeyUpdateRequest,
+    PortalKeyCreateRequest, UserKeyCreateResponse, UserKeyDto, UserKeyPrefix,
+    UserKeyRevealResponse, UserKeyUpdateRequest,
 };
 use crate::{AdminError, State, response};
 
@@ -27,12 +28,31 @@ pub(super) async fn list(
             user_id: key.user_id,
             prefix: key.prefix.clone(),
             label: key.label.clone(),
-            revealable: false,
+            revealable: key.revealable,
             expires_at: key.expires_at,
             enabled: key.enabled,
         })
         .collect::<Vec<_>>();
     response::json(StatusCode::OK, &keys)
+}
+
+pub(super) async fn reveal(
+    state: &impl State,
+    parts: &Parts,
+    identity: &PortalIdentity,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    verify_same_origin(parts)?;
+    own_key(state, identity, id).await?;
+    let api_key = state.reveal_user_key(id).await?;
+    response::json(
+        StatusCode::OK,
+        &UserKeyRevealResponse {
+            id,
+            api_key,
+            revealed_at: now()?,
+        },
+    )
 }
 
 pub(super) async fn create(

@@ -78,6 +78,14 @@ pub async fn dispatch(state: &impl State, parts: &Parts, body: Bytes) -> Option<
         }
         if let Some(id) = path
             .strip_prefix("/portal/api/keys/")
+            .and_then(|value| value.strip_suffix("/reveal"))
+            .and_then(|value| value.parse::<i64>().ok())
+            && parts.method == Method::POST
+        {
+            return keys::reveal(state, parts, &identity, id).await;
+        }
+        if let Some(id) = path
+            .strip_prefix("/portal/api/keys/")
             .and_then(|value| value.parse::<i64>().ok())
         {
             return match parts.method {

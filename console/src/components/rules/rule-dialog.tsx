@@ -1,3 +1,4 @@
+import { FilterFields } from "./filter-fields"
 import type { ReactElement } from "react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -9,7 +10,7 @@ import { RuleKindPicker } from "./rule-kind-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 
@@ -71,9 +72,7 @@ export function RuleDialog({ ruleSetId, rule, trigger, saving, onSave }: {
             {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
             <FieldSet data-field-span="full"><FieldLegend variant="label">{t("rules.fields.kind")}</FieldLegend><RuleKindPicker value={draft.kind} onChange={(kind) => setDraft({ ...ruleDraft(), kind })} /></FieldSet>
             <RuleConfigFields draft={draft} onChange={setDraft} />
-            <Field><FieldLabel htmlFor="rule-model-filter">{t("rules.filters.model")}</FieldLabel><Input id="rule-model-filter" className="font-mono" value={model} placeholder={t("rules.placeholders.allModels")} onChange={(event) => setModel(event.target.value)} /><FieldDescription>{t("rules.filters.modelHelp")}</FieldDescription></Field>
-            <Field><FieldLabel htmlFor="rule-operation-filter">{t("rules.filters.operations")}</FieldLabel><Input id="rule-operation-filter" className="font-mono" value={operations} placeholder={t("rules.placeholders.allOperations")} onChange={(event) => setOperations(event.target.value)} /><FieldDescription>{t("rules.filters.operationsHelp")}</FieldDescription></Field>
-            <Field><FieldLabel htmlFor="rule-header-filter">{t("rules.filters.headers")}</FieldLabel><Input id="rule-header-filter" className="font-mono" value={headers} placeholder={t("rules.placeholders.allHeaders")} onChange={(event) => setHeaders(event.target.value)} /><FieldDescription>{t("rules.filters.headersHelp")}</FieldDescription></Field>
+            {open ? <FilterFields model={model} onModel={setModel} operations={operations} onOperations={setOperations} headers={headers} onHeaders={setHeaders} /> : null}
             <div className="grid gap-4 sm:grid-cols-2" data-field-span="full"><Field><FieldLabel htmlFor="rule-sort-order">{t("rules.fields.declaredOrder")}</FieldLabel><Input id="rule-sort-order" type="number" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} /></Field><Field orientation="horizontal"><FieldLabel htmlFor="rule-enabled">{t("rules.fields.enabled")}</FieldLabel><Switch id="rule-enabled" name="rule-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field></div>
           </FieldGroup></DialogBody>
           <DialogFooter><DialogClose asChild><Button type="button" variant="outline">{t("common.actions.cancel")}</Button></DialogClose><Button type="submit" disabled={saving}>{t(saving ? "common.actions.saving" : "common.actions.save")}</Button></DialogFooter>

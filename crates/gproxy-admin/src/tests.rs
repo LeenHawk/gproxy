@@ -15,6 +15,7 @@ mod control;
 mod default_prices;
 mod helpers;
 mod observability;
+mod portal_keys;
 
 use helpers::*;
 
