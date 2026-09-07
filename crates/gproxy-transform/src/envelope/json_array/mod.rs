@@ -83,7 +83,7 @@ impl JsonArrayDecoder {
                         }
                     };
                     cursor = separator + 1;
-                    frames.push(SseFrame { _event: None, data });
+                    frames.push(SseFrame { event: None, data });
                 }
                 DecodeState::End => {
                     if cursor == self.buffer.len() {

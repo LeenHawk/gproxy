@@ -1,6 +1,7 @@
 mod billing;
 mod credit;
 mod retry;
+mod streaming;
 
 use std::sync::{Arc, Mutex};
 
@@ -24,8 +25,11 @@ pub(super) fn scripted(
         .upstream_requests
         .push((request.headers().clone(), request.uri().to_string()));
     state.upstream_bodies.push(request.body().clone());
-    let stream =
+    let mut stream =
         Box::pin(futures_util::stream::iter(chunks.into_iter().map(Ok))) as crate::ByteStream;
+    if state.scripted_pending_at == Some(state.upstream_requests.len()) {
+        stream = Box::pin(stream.chain(futures_util::stream::pending()));
+    }
     let mut response = http::Response::new(stream);
     *response.status_mut() = status;
     Some(response)

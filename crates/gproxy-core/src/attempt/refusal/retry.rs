@@ -21,6 +21,17 @@ pub(super) struct Runner<H: Host> {
     pub wire_iterations: Vec<Value>,
 }
 
+pub(super) struct RetryPlan {
+    pub model: String,
+    pub exact: Value,
+    pub body: Value,
+    pub continuing: bool,
+    pub carrying_credit: bool,
+    pub tools: bool,
+    pub created: web_time::Instant,
+    pub from: String,
+}
+
 impl<H: Host> Runner<H> {
     pub(super) fn new(core: &Core<H>, facts: &FunnelCtx, replay: Replay) -> Self {
         Self {
@@ -35,10 +46,7 @@ impl<H: Host> Runner<H> {
         }
     }
 
-    pub(super) async fn next(
-        &mut self,
-        refused: &Value,
-    ) -> Result<Option<http::Response<ByteStream>>, CoreError> {
+    pub(super) fn plan(&mut self, refused: &Value) -> Result<Option<RetryPlan>, CoreError> {
         if self.sent >= self.replay.budget || self.replay.policy.tried.len() >= 4 {
             return Ok(None);
         }
@@ -85,21 +93,50 @@ impl<H: Host> Runner<H> {
         if let Some(token) = token {
             exact["fallback_credit_token"] = json!(token);
         }
-        let mut continuing = token.is_some()
+        let continuing = token.is_some()
             && refused.pointer("/stop_details/fallback_has_prefill_claim")
                 != Some(&Value::Bool(false));
-        let mut body = if continuing {
+        let body = if continuing {
             credit::continuation(&exact, refused)?
         } else {
             exact.clone()
         };
-        let mut carrying_credit = token.is_some();
+        let carrying_credit = token.is_some();
         let created = web_time::Instant::now();
         let from = refused
             .get("model")
             .and_then(Value::as_str)
             .unwrap_or(&self.facts.target.upstream_model)
             .to_owned();
+        Ok(Some(RetryPlan {
+            model,
+            exact,
+            body,
+            continuing,
+            carrying_credit,
+            tools,
+            created,
+            from,
+        }))
+    }
+
+    pub(super) async fn next_buffered(
+        &mut self,
+        refused: &Value,
+    ) -> Result<Option<http::Response<ByteStream>>, CoreError> {
+        let Some(RetryPlan {
+            model,
+            mut exact,
+            mut body,
+            mut continuing,
+            mut carrying_credit,
+            tools,
+            created,
+            from,
+        }) = self.plan(refused)?
+        else {
+            return Ok(None);
+        };
         loop {
             if carrying_credit && created.elapsed() >= std::time::Duration::from_secs(300) {
                 if tools {
@@ -178,7 +215,7 @@ impl<H: Host> Runner<H> {
         }
     }
 
-    async fn send(
+    pub(super) async fn send(
         &mut self,
         model: &str,
         body: &Value,

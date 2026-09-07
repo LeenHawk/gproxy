@@ -76,7 +76,13 @@ fn gateway(channel: impl gproxy_channel_api::Channel + 'static, streaming: bool)
     );
     enqueue(
         &host,
-        message("claude-fable-5", "refusal", "discarded partial", 10, 3),
+        message(
+            "claude-fable-5",
+            "refusal",
+            if streaming { "" } else { "discarded partial" },
+            10,
+            if streaming { 0 } else { 3 },
+        ),
         streaming,
     );
     enqueue(
@@ -92,11 +98,11 @@ fn gateway(channel: impl gproxy_channel_api::Channel + 'static, streaming: bool)
     let first: Value = serde_json::from_slice(&state.upstream_bodies[0]).unwrap();
     assert!(first.get("fallbacks").is_none());
     assert_eq!(state.settlements[0].attempts.len(), 2);
-    assert!(!state.settlements[0].attempts[0].cost.is_zero());
+    assert_eq!(state.settlements[0].attempts[0].cost.is_zero(), streaming);
 }
 
 #[test]
-fn cloud_gateway_fallback_discards_refused_partial_output_and_bills_both_attempts() {
+fn cloud_gateway_handles_early_stream_refusals_and_restarts_buffered_responses() {
     for streaming in [false, true] {
         gateway(gproxy_channels::AzureChannel, streaming);
         gateway(gproxy_channels::VercelChannel, streaming);

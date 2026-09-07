@@ -5,6 +5,8 @@ pub(crate) mod pin;
 mod policy;
 mod retry;
 mod stream;
+mod stream_events;
+mod stream_retry;
 
 use bytes::Bytes;
 use gproxy_channel_api::{Channel, PrepareCtx};

@@ -74,7 +74,7 @@ struct Passthrough;
 
 impl Converter for Passthrough {
     fn frame(&mut self, frame: SseFrame) -> Result<Vec<Bytes>, TransformError> {
-        Ok(vec![SseFrame::encode(frame._event.as_deref(), &frame.data)])
+        Ok(vec![SseFrame::encode(frame.event.as_deref(), &frame.data)])
     }
 
     fn finish(&mut self) -> Result<Vec<Bytes>, TransformError> {

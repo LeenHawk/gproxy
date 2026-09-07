@@ -3,20 +3,20 @@ use bytes::Bytes;
 use crate::TransformError;
 
 #[derive(Debug)]
-pub(crate) struct SseFrame {
-    pub(crate) _event: Option<String>,
-    pub(crate) data: String,
+pub struct SseFrame {
+    pub event: Option<String>,
+    pub data: String,
 }
 
 impl SseFrame {
-    pub(crate) fn typed<T: serde::Serialize>(
+    pub fn typed<T: serde::Serialize>(
         event: Option<&str>,
         value: &T,
     ) -> Result<Bytes, TransformError> {
         Ok(Self::encode(event, &serde_json::to_string(value)?))
     }
 
-    pub(crate) fn encode(event: Option<&str>, data: &str) -> Bytes {
+    pub fn encode(event: Option<&str>, data: &str) -> Bytes {
         let mut output = String::new();
         if let Some(event) = event {
             output.push_str("event: ");
@@ -34,12 +34,12 @@ impl SseFrame {
 }
 
 #[derive(Default)]
-pub(crate) struct SseDecoder {
+pub struct SseDecoder {
     buffer: Vec<u8>,
 }
 
 impl SseDecoder {
-    pub(crate) fn push(&mut self, chunk: &[u8]) -> Result<Vec<SseFrame>, TransformError> {
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<SseFrame>, TransformError> {
         self.buffer.extend_from_slice(chunk);
         if self.buffer.len() > 100 * 1024 * 1024 {
             return Err(TransformError::shape("SSE", "frame exceeds 100 MiB"));
@@ -54,7 +54,7 @@ impl SseDecoder {
         Ok(frames)
     }
 
-    pub(crate) fn finish(&mut self) -> Result<Option<SseFrame>, TransformError> {
+    pub fn finish(&mut self) -> Result<Option<SseFrame>, TransformError> {
         if self.buffer.is_empty() {
             return Ok(None);
         }
@@ -85,7 +85,7 @@ fn parse(raw: &[u8]) -> Result<Option<SseFrame>, TransformError> {
         }
     }
     Ok((!data.is_empty()).then(|| SseFrame {
-        _event: event,
+        event,
         data: data.join("\n"),
     }))
 }

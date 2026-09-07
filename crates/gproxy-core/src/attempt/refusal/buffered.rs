@@ -90,7 +90,7 @@ pub(super) async fn run<H: Host>(
         );
         runner.record_wire(&body);
         let (parts, _) = collected.into_parts();
-        match runner.next(&body).await {
+        match runner.next_buffered(&body).await {
             Ok(Some(next)) => {
                 previous = Some((parts, body));
                 response = next;
