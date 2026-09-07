@@ -58,6 +58,11 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
     /// Pricing for settlement. `None` settles at zero cost with a warning
     /// rather than refusing the request.
     fn pricing(&self, provider: &ProviderRef, upstream_model: &str) -> Option<Pricing>;
+    /// A handle that outlives the call, for upstream work a host detaches from
+    /// the response it has already opened. `None` keeps that work inline.
+    fn shared(&self) -> Option<std::sync::Arc<dyn ControlPlane>> {
+        None
+    }
 
     /// Gateway-visible model ids. Implementations answer from the same
     /// in-memory snapshot used by [`Self::resolve`].

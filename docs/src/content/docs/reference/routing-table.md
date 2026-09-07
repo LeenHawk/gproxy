@@ -58,6 +58,17 @@ upgrades). A `stream: true` body promotes `generate_content` to
 `stream_generate_content`. Gemini streams are an incremental JSON array
 unless the request carries `?alt=sse`.
 
+A routing rule may change stream-ness alone by targeting the sibling
+operation. `generate_content` → `stream_generate_content` forces a streaming
+upstream and collapses the events into one object for the non-stream client
+(how event-stream-only upstreams such as Kiro are served). `stream_generate_content` →
+`generate_content` fetches one object from the upstream and synthesizes the
+client's stream from it. On native hosts that stream opens immediately and
+carries a keepalive every 15 seconds while the upstream works (Claude
+`ping`, an SSE comment, or JSON whitespace for Gemini arrays); an upstream
+failure after that point arrives as the protocol's error event. Edge hosts
+buffer and synthesize at the end instead.
+
 ## Operations
 
 Settle modes: **response** is billed from the response or stream tail;

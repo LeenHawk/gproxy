@@ -49,6 +49,14 @@ guardian、WebSocket 升级）。`stream: true` 会把 `generate_content` 提升
 `stream_generate_content`。Gemini 流默认是增量 JSON 数组，除非请求带
 `?alt=sse`。
 
+路由规则可以只改变流式性：把目标指向兄弟操作即可。`generate_content` →
+`stream_generate_content` 强制上游流式，并把事件流折叠成一个完整对象返回给
+非流式客户端（Kiro 这类只会说事件流的上游就是这样服务的）。
+`stream_generate_content` → `generate_content` 则向上游取一个完整对象，再合成
+客户端协议的事件流。原生宿主会立即打开该流，在等待上游期间每 15 秒发一次
+keepalive（Claude 用 `ping` 事件，SSE 用注释，Gemini 数组流用 JSON 空白）；
+此后上游失败会以该协议的错误事件送达。边缘宿主则在结束时缓冲并合成。
+
 ## 操作
 
 结算模式：**response** 按响应或流尾部的用量计费；**free** 从不计费；

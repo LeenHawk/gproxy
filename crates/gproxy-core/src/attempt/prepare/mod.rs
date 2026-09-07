@@ -67,8 +67,7 @@ pub(crate) async fn prepare<H: Host>(
     if !admission.admitted && support.source != support.target {
         return Err(CoreError::Unsupported);
     }
-    let stream = classified.stream
-        || support.target.operation() == gproxy_protocol::Operation::StreamGenerateContent;
+    let stream = upstream_stream(classified.stream, support.source, support.target);
     let mut method = ctx.method.clone();
     let mut path = ctx.path.clone();
     let mut query = ctx.query.clone();
@@ -110,6 +109,9 @@ pub(crate) async fn prepare<H: Host>(
         body,
     );
     body = mutation.body;
+    if stream != classified.stream {
+        body = align_stream_flag(body, support.target, stream);
+    }
     // After the rules, not before: a rule that inserts text can carry a magic marker,
     // and v2 shaped at this point for exactly that reason. The provider switch stays
     // authoritative so operators can opt into this client-to-proxy protocol.
@@ -244,6 +246,47 @@ pub(crate) async fn prepare<H: Host>(
             Egress::Http(Box::new(prepared.request))
         },
     })
+}
+
+/// Stream-ness follows the routed target, not the client. A route onto the
+/// streaming sibling forces an event stream the funnel collapses for a
+/// non-stream client; a route onto the buffered sibling fetches one object the
+/// funnel synthesizes into the client's stream.
+fn upstream_stream(client_stream: bool, source: OperationKey, target: OperationKey) -> bool {
+    use gproxy_protocol::Operation::{GenerateContent, StreamGenerateContent};
+    match (source.operation(), target.operation()) {
+        (StreamGenerateContent, GenerateContent) => false,
+        (_, StreamGenerateContent) => true,
+        _ => client_stream,
+    }
+}
+
+/// A same-kind sibling route leaves the client's body untouched, so its wire
+/// flag still says what the client asked for; the target decides.
+fn align_stream_flag(body: bytes::Bytes, target: OperationKey, stream: bool) -> bytes::Bytes {
+    use gproxy_protocol::ContentGenerationKind::{
+        ClaudeMessages, OpenAiChat, OpenAiResponses, OpenAiResponsesWebSocket,
+    };
+    let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&body) else {
+        return body;
+    };
+    let Some(object) = value.as_object_mut() else {
+        return body;
+    };
+    let flagged = matches!(
+        target.kind(),
+        gproxy_protocol::OperationKind::ContentGeneration(
+            ClaudeMessages | OpenAiChat | OpenAiResponses | OpenAiResponsesWebSocket
+        )
+    );
+    if stream && flagged {
+        object.insert("stream".into(), serde_json::Value::Bool(true));
+    } else if !stream {
+        object.remove("stream");
+    } else {
+        return body;
+    }
+    bytes::Bytes::from(serde_json::to_vec(&value).expect("JSON serializes"))
 }
 
 pub(crate) fn executable(channel: &dyn Channel, selected: &ChannelSupport) -> bool {

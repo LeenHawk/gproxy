@@ -21,6 +21,7 @@ pub(crate) mod preprocess;
 pub(crate) mod request;
 pub(crate) mod resource;
 mod session;
+mod synthetic;
 mod websocket;
 
 use self::request::Classified;
@@ -73,6 +74,22 @@ pub(crate) async fn resolved<H: Host>(
 }
 
 async fn execute_admitted<H: Host>(
+    core: &Core<H>,
+    control: &dyn ControlPlane,
+    ctx: RequestCtx,
+    plan: Plan,
+    request: AdmittedRequest,
+    identity: gproxy_channel_api::CallerIdentity,
+) -> Result<ExecOutcome, CoreError> {
+    if let Some(synthetic) = synthetic::plan(core, control, &plan, &request.classified) {
+        return Ok(synthetic::run(
+            core, synthetic, ctx, plan, request, identity,
+        ));
+    }
+    upstream(core, control, ctx, plan, request, identity).await
+}
+
+async fn upstream<H: Host>(
     core: &Core<H>,
     control: &dyn ControlPlane,
     ctx: RequestCtx,

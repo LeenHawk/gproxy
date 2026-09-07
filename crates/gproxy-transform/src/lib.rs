@@ -41,7 +41,10 @@ mod videos;
 use bytes::Bytes;
 use gproxy_protocol::{OperationKey, StreamFraming};
 
-pub use envelope::{BufferedResponse, ResponseCollector, ResponseStream, synthesize_response};
+pub use envelope::{
+    BufferedResponse, ResponseCollector, ResponseStream, synthesize_error, synthesize_keepalive,
+    synthesize_response,
+};
 pub use error::TransformError;
 pub use gproxy_protocol as protocol;
 

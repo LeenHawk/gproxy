@@ -15,7 +15,7 @@ use bytes::Bytes;
 use gproxy_channel_api::{Channel, Disposition};
 
 use crate::Shared;
-use crate::boundary::{ExecOutcome, ResponseBody};
+use crate::boundary::ExecOutcome;
 use crate::control::ControlPlane;
 use crate::host::Host;
 
@@ -139,10 +139,12 @@ fn outward(
 }
 
 fn outcome_response(ctx: &FunnelCtx, (status, headers, body, disposition): Outward) -> ExecOutcome {
+    let (status, headers, body, disposition) =
+        super::synth::outward_body(ctx, status, headers, body, disposition);
     ExecOutcome {
         status,
         headers: super::outward_headers(ctx, headers),
-        body: ResponseBody::Full(body),
+        body,
         disposition,
         _settled: Settled(()),
     }

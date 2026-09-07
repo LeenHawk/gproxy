@@ -11,7 +11,7 @@ pub use collector::{BufferedResponse, ResponseCollector};
 pub(crate) use response::Converter;
 pub use response::ResponseStream;
 pub(crate) use sse::{SseDecoder, SseFrame};
-pub use synthesize::synthesize_response;
+pub use synthesize::{synthesize_error, synthesize_keepalive, synthesize_response};
 
 use crate::TransformError;
 

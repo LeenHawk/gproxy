@@ -351,6 +351,10 @@ impl ControlPlane for MemoryHost {
             .cloned()
     }
 
+    fn shared(&self) -> Option<Arc<dyn ControlPlane>> {
+        Some(Arc::new(self.clone()))
+    }
+
     fn pricing(&self, _: &ProviderRef, upstream_model: &str) -> Option<Pricing> {
         let mut pricing = Pricing {
             input_per_million: match upstream_model {

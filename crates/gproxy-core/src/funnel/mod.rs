@@ -17,6 +17,7 @@ pub(crate) use session::realtime;
 mod settlement;
 mod socket;
 mod stream;
+pub(crate) mod synth;
 
 pub(crate) use self::socket::{bridged_websocket, websocket};
 use self::stream::FunnelStream;
@@ -171,12 +172,14 @@ pub(crate) async fn buffered<H: Host>(
         capture_response: true,
         ended: Ended::Complete,
     };
+    let (status, headers, body, disposition) =
+        synth::outward_body(&ctx, status, headers, outward, disposition);
     let headers = outward_headers(&ctx, headers);
     settle_buffered(host, ctx, completion).await;
     ExecOutcome {
         status,
         headers,
-        body: ResponseBody::Full(outward),
+        body,
         disposition,
         _settled: Settled(()),
     }

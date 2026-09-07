@@ -286,6 +286,10 @@ impl ControlPlane for SnapshotControl {
         pricing::resolve(&self.snapshot.load().pricing, provider.id, upstream_model)
     }
 
+    fn shared(&self) -> Option<Arc<dyn ControlPlane>> {
+        Some(Arc::new(self.clone()))
+    }
+
     fn provider_catalogue(&self) -> Vec<gproxy_core::ExposedModel> {
         self.snapshot.load().provider_catalogue.clone()
     }

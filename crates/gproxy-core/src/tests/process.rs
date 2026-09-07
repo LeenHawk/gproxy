@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use futures_util::StreamExt;
 use gproxy_channel_api::{StreamDecoder, StreamEnd};
 use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, StreamFraming};
 use http::HeaderMap;
@@ -298,6 +299,101 @@ fn spec(id: i64, kind: &str, config: Value, sort_order: i64) -> RuleSpec {
         sort_order,
         enabled: true,
     }
+}
+
+#[test]
+fn streaming_client_routed_onto_the_buffered_sibling_gets_a_synthesized_stream() {
+    let host = MemoryHost::new(false);
+    let core = core(&host).expect("core");
+    let mut selected = target();
+    selected.rules.routing = synthesizing_routing();
+    host.state.lock().expect("state lock").plan = Some(plan(selected));
+
+    let outcome = block_on(core.execute(&host, rule_request(true, "synth"))).expect("execute");
+    let state = host.state.lock().expect("state lock");
+    let (_, url) = state.upstream_requests.last().expect("upstream request");
+    assert!(url.ends_with("/v1/messages"), "{url}");
+    let native: Value = serde_json::from_slice(state.upstream_bodies.last().expect("request body"))
+        .expect("native request json");
+    assert_ne!(native.get("stream").and_then(Value::as_bool), Some(true));
+    drop(state);
+
+    assert_eq!(
+        outcome
+            .headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()),
+        Some("text/event-stream")
+    );
+    let ResponseBody::Stream(mut stream) = outcome.body else {
+        panic!("synthesized stream expected")
+    };
+    let text = block_on(async {
+        let mut bytes = Vec::new();
+        while let Some(frame) = stream.next().await {
+            bytes.extend_from_slice(&frame.expect("synthesized frame"));
+        }
+        String::from_utf8(bytes).expect("utf8")
+    });
+    assert!(text.contains("event: response.completed"), "{text}");
+    assert!(text.contains("\"ok\""), "{text}");
+}
+
+#[test]
+fn detached_synthesized_stream_opens_before_the_upstream_answers_and_settles() {
+    for (status, expected) in [
+        (http::StatusCode::OK, "event: response.completed"),
+        (http::StatusCode::INTERNAL_SERVER_ERROR, "upstream_error"),
+    ] {
+        let host = MemoryHost::with_session_spawner();
+        let core = core(&host).expect("core");
+        let mut selected = target();
+        selected.rules.routing = synthesizing_routing();
+        {
+            let mut state = host.state.lock().expect("state lock");
+            state.plan = Some(plan(selected));
+            state.statuses.push_back(status);
+        }
+        let outcome =
+            block_on(core.execute(&host, rule_request(true, "detached"))).expect("execute");
+        assert_eq!(outcome.status, http::StatusCode::OK);
+        assert_eq!(
+            outcome
+                .headers
+                .get(http::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("text/event-stream")
+        );
+        let ResponseBody::Stream(mut stream) = outcome.body else {
+            panic!("detached stream expected")
+        };
+        let text = block_on(async {
+            let mut bytes = Vec::new();
+            while let Some(frame) = stream.next().await {
+                bytes.extend_from_slice(&frame.expect("synthesized frame"));
+            }
+            String::from_utf8(bytes).expect("utf8")
+        });
+        assert!(text.contains(expected), "{text}");
+        let state = host.state.lock().expect("state lock");
+        assert_eq!(state.settlements.len(), 1, "{text}");
+    }
+}
+
+fn synthesizing_routing() -> Arc<[crate::routing::CompiledRoutingRule]> {
+    Arc::from(
+        crate::routing::compile_all(&[RoutingRuleSpec {
+            id: 1,
+            operation: "stream_generate_content".into(),
+            kind: "openai_responses".into(),
+            implementation: "transform_to".into(),
+            dest_operation: Some("generate_content".into()),
+            dest_kind: Some("claude_messages".into()),
+            sort_order: 0,
+            enabled: true,
+        }])
+        .expect("compiled routing"),
+    )
 }
 
 fn rule_request(stream: bool, id: &str) -> crate::RequestCtx {
