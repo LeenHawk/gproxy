@@ -391,7 +391,7 @@ fn split_sse_frames_preserve_lifecycle_text_tools_and_usage() {
         .filter(|v| v["type"] == "response.output_item.done")
         .map(|v| v["output_index"].as_u64().unwrap())
         .collect::<Vec<_>>();
-    assert!(done.is_empty());
+    assert_eq!(done, [0, 1]);
     let terminal = custom_frames
         .iter()
         .find(|v| v["type"] == "response.completed")

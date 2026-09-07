@@ -7,8 +7,10 @@ use crate::TransformError;
 use crate::envelope::{Converter, SseFrame};
 
 mod chat;
+mod content;
 mod deltas;
 mod events;
+mod item_events;
 mod response;
 mod terminal;
 mod tool_stream;
@@ -23,8 +25,10 @@ pub(crate) struct State {
     id: Option<String>,
     created_at: Option<u64>,
     model: Option<openai::OpenAiModelId>,
-    text: Option<Item>,
-    reasoning: Option<Item>,
+    scalar: Option<Item>,
+    items: BTreeMap<u32, openai::ResponseItem>,
+    started: bool,
+    items_finished: bool,
     tools: BTreeMap<u32, Tool>,
     next_index: u32,
     usage: Option<openai::ResponseUsage>,
@@ -36,10 +40,18 @@ pub(crate) struct State {
 
 #[derive(Clone)]
 struct Item {
+    kind: Scalar,
     id: String,
     index: u32,
     text: String,
     logprobs: Vec<openai::TokenLogprob>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scalar {
+    Text,
+    Reasoning,
+    Refusal,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

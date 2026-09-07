@@ -10,7 +10,7 @@ impl State {
         if self.stopped {
             return Ok(Vec::new());
         }
-        if self.id.is_none() {
+        if self.id.is_none() || self.finish_reason.is_none() {
             return Err(TransformError::IncompleteStream);
         }
         let finish_reason = self
@@ -26,6 +26,7 @@ impl State {
             | openai::ChatFinishReason::FunctionCall
             | openai::ChatFinishReason::Unknown(_) => openai::ResponseStatus::Completed,
         };
+        let mut output = self.finish_items()?;
         let response = self.response(status.clone())?;
         let event = crate::wire!(openai::ResponseLifecycleEvent {
             response: Box::new(response),
@@ -33,7 +34,7 @@ impl State {
             rest: Default::default(),
         });
         self.stopped = true;
-        Ok(vec![emit(match status {
+        output.push(emit(match status {
             openai::ResponseStatus::Incomplete => {
                 openai::KnownResponseStreamEvent::ResponseIncomplete(event)
             }
@@ -47,6 +48,7 @@ impl State {
             | openai::ResponseStatus::Unknown(_) => {
                 openai::KnownResponseStreamEvent::ResponseCompleted(event)
             }
-        })?])
+        })?);
+        Ok(output)
     }
 }

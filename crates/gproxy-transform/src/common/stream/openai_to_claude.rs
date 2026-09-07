@@ -20,6 +20,8 @@ pub(crate) struct State {
     pub(super) stopped: bool,
     pub(super) message_delta: bool,
     pub(super) has_tool: bool,
+    usage: claude::Usage,
+    stop_reason: Option<claude::StopReason>,
     pub(super) next_index: u64,
     pub(super) scalar: Option<(String, u64)>,
     pub(super) item_indices: BTreeMap<String, u64>,
@@ -39,6 +41,21 @@ impl State {
             stopped: false,
             message_delta: false,
             has_tool: false,
+            usage: crate::wire!(claude::Usage {
+                input_tokens: Some(0),
+                output_tokens: Some(0),
+                cache_creation_input_tokens: None,
+                cache_read_input_tokens: None,
+                cache_creation: None,
+                output_tokens_details: None,
+                server_tool_use: None,
+                iterations: None,
+                inference_geo: None,
+                service_tier: None,
+                speed: None,
+                rest: Default::default(),
+            }),
+            stop_reason: None,
             next_index: 0,
             scalar: None,
             item_indices: BTreeMap::new(),
@@ -71,7 +88,7 @@ impl State {
                 model,
                 stop_reason: None,
                 stop_sequence: None,
-                usage: None,
+                usage: Some(self.usage.clone()),
                 input_transformations: None,
                 rest: Default::default(),
             })),
@@ -86,6 +103,9 @@ impl State {
         kind: Scalar,
         text: String,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        if text.is_empty() {
+            return Ok(Vec::new());
+        }
         let mut output = Vec::new();
         let index = if let Some((open_key, index)) = self.scalar.as_ref() {
             if open_key == key {
@@ -273,7 +293,7 @@ impl State {
     }
 
     pub(super) fn usage_delta(
-        &self,
+        &mut self,
         usage: claude::Usage,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
         self.message_delta(None, Some(usage))
@@ -300,21 +320,27 @@ impl State {
     }
 
     pub(super) fn message_delta(
-        &self,
+        &mut self,
         reason: Option<claude::StopReason>,
         usage: Option<claude::Usage>,
     ) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        if let Some(usage) = usage {
+            self.usage = usage;
+        }
+        if let Some(reason) = reason {
+            self.stop_reason = Some(reason);
+        }
         let event = claude::StreamEvent::Known(Box::new(claude::KnownStreamEvent::MessageDelta {
             context_management: None,
             delta: Box::new(crate::wire!(claude::MessageDelta {
                 container: None,
-                stop_reason: reason,
+                stop_reason: self.stop_reason.clone(),
                 stop_sequence: None,
                 stop_details: None,
                 rest: Default::default(),
             })),
             input_transformations: None,
-            usage: usage.map(Box::new),
+            usage: Some(Box::new(self.usage.clone())),
             rest: Default::default(),
         }));
         Ok(vec![typed_claude("message_delta", &event)?])

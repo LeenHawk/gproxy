@@ -28,11 +28,6 @@ fn frame_kind(frame: &Bytes) -> String {
             return "chat.finish".into();
         }
     }
-    if value.pointer("/candidates/0/content/parts/0/functionCall/name")
-        == Some(&Value::String("lookup".into()))
-    {
-        return "gemini.function_call".into();
-    }
     value["type"].as_str().unwrap_or("chat.empty").into()
 }
 
@@ -122,7 +117,7 @@ fn responses_sparse_tool_arguments_are_recovered_from_the_done_item() {
 }
 
 #[test]
-fn chat_to_responses_emits_deltas_and_terminal_on_the_source_frames() {
+fn chat_to_responses_emits_content_lifecycle_before_terminal() {
     let mut stream = ResponseStream::new(
         content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
         content(Operation::StreamGenerateContent, Kind::OpenAiChat),
@@ -143,8 +138,14 @@ fn chat_to_responses_emits_deltas_and_terminal_on_the_source_frames() {
     assert_eq!(
         actual,
         [
+            "response.created",
+            "response.output_item.added",
+            "response.content_part.added",
             "response.output_text.delta",
             "response.output_text.delta",
+            "response.output_text.done",
+            "response.content_part.done",
+            "response.output_item.done",
             "response.completed",
         ]
     );
@@ -167,19 +168,31 @@ fn chat_to_responses_keeps_refusal_and_legacy_function_order() {
         None,
         r#"{"id":"chat_2","object":"chat.completion.chunk","created":1,"model":"gpt","choices":[{"index":0,"delta":{"function_call":{"name":"lookup","arguments":"{}"}},"finish_reason":"function_call"}]}"#,
     ));
+    actual.extend(push(&mut stream, None, "[DONE]"));
+    assert!(stream.finish().unwrap().is_empty());
     assert_eq!(
         actual,
         [
+            "response.created",
+            "response.output_item.added",
+            "response.content_part.added",
             "response.refusal.delta",
+            "response.refusal.done",
+            "response.content_part.done",
+            "response.output_item.done",
             "response.output_item.added",
             "response.function_call_arguments.delta",
+            "response.function_call_arguments.done",
+            "response.output_item.done",
             "response.completed",
         ]
     );
 }
 
 #[test]
-fn chat_to_gemini_emits_tool_start_on_the_source_frame() {
+fn chat_to_gemini_waits_for_complete_tool_arguments() {
+    use serde_json::json;
+
     let mut stream = ResponseStream::new(
         content(
             Operation::StreamGenerateContent,
@@ -188,12 +201,50 @@ fn chat_to_gemini_emits_tool_start_on_the_source_frame() {
         content(Operation::StreamGenerateContent, Kind::OpenAiChat),
     )
     .unwrap();
-    let actual = push(
-        &mut stream,
-        None,
-        r#"{"id":"chat_tool","object":"chat.completion.chunk","created":1,"model":"gpt","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup"}}]},"finish_reason":null}]}"#,
+    let chunks = [
+        json!({"tool_calls":[
+            {"index":0,"id":"shell","type":"function","function":{"name":"run_shell_command","arguments":""}},
+            {"index":1,"id":"edit","type":"function","function":{"name":"replace","arguments":"{\"old_string\":"}}
+        ]}),
+        json!({"tool_calls":[
+            {"index":1,"function":{"arguments":"\"bad\",\"new_string\":\"good\"}"}},
+            {"index":0,"function":{"arguments":"{\"command\":\"python3 "}}
+        ]}),
+        json!({"tool_calls":[{"index":0,"function":{"arguments":"test_calc.py\"}"}}]}),
+        json!({}),
+    ];
+    let mut calls = Vec::new();
+    for (index, delta) in chunks.into_iter().enumerate() {
+        let chunk = json!({"id":"chat_tool","object":"chat.completion.chunk","created":1,
+            "model":"gpt","choices":[{"index":0,"delta":delta,
+                "finish_reason":(index == 3).then_some("tool_calls")}]});
+        let output = stream
+            .push(Bytes::from(format!("data: {chunk}\n\n")))
+            .unwrap();
+        for event in super::super::support::data_frames(&output.concat()) {
+            if let Some(parts) = event
+                .pointer("/candidates/0/content/parts")
+                .and_then(Value::as_array)
+            {
+                assert_eq!(index, 3, "Gemini calls must contain complete arguments");
+                calls.extend(parts.iter().map(|part| part["functionCall"].clone()));
+            }
+        }
+    }
+    assert_eq!(
+        calls,
+        vec![
+            json!({"id":"shell","name":"run_shell_command","args":{"command":"python3 test_calc.py"}}),
+            json!({"id":"edit","name":"replace","args":{"old_string":"bad","new_string":"good"}}),
+        ]
     );
-    assert_eq!(actual, ["gemini.function_call"]);
+    assert!(
+        stream
+            .push(Bytes::from_static(b"data: [DONE]\n\n"))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(stream.finish().unwrap().is_empty());
 }
 
 #[test]

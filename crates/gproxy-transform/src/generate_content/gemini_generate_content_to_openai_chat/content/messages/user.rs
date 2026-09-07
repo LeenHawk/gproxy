@@ -9,8 +9,15 @@ use super::model::tool_message;
 impl State {
     pub(super) fn user(
         &mut self,
-        content: gemini::Content,
+        mut content: gemini::Content,
     ) -> Result<Vec<openai::ChatCompletionMessageParam>, TransformError> {
+        // Gemini CLI session replay can repeat adjacent results with the same explicit id.
+        content.parts.dedup_by(|current, previous| {
+            matches!(current.data.as_ref(), Some(gemini::PartData::FunctionResponse {
+                function_response, ..
+            }) if function_response.id.is_some())
+                && current == previous
+        });
         let mut output = Vec::new();
         let mut ordinary = Vec::new();
         for part in content.parts {

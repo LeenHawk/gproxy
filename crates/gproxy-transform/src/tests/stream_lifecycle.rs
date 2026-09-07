@@ -10,8 +10,10 @@ use super::{
 };
 use crate::TransformError;
 
+mod anthropic;
 mod collector;
 mod order;
+mod responses;
 
 #[test]
 fn transformed_streams_emit_nonterminal_text_and_tool_deltas_immediately() {
@@ -113,10 +115,13 @@ fn gemini_pairs_register_streams_and_preserve_native_code_ids() {
             "contents":[
                 {"role":"model","parts":[
                     {"functionCall":{"id":"first","name":"lookup","args":{}}},
-                    {"functionCall":{"id":"second","name":"lookup","args":{}}}
+                    {"functionCall":{"id":"second","name":"lookup","args":{}}},
+                    {"functionCall":{"id":"third","name":"lookup","args":{}}}
                 ]},
                 {"role":"user","parts":[
                     {"functionResponse":{"id":"first","name":"lookup","response":{"ok":1}}},
+                    {"functionResponse":{"id":"first","name":"lookup","response":{"ok":1}}},
+                    {"functionResponse":{"name":"lookup","response":{"ok":2}}},
                     {"functionResponse":{"name":"lookup","response":{"ok":2}}}
                 ]}
             ]
@@ -124,6 +129,8 @@ fn gemini_pairs_register_streams_and_preserve_native_code_ids() {
     );
     assert_eq!(correlated["messages"][1]["tool_call_id"], "first");
     assert_eq!(correlated["messages"][2]["tool_call_id"], "second");
+    assert_eq!(correlated["messages"][3]["tool_call_id"], "third");
+    assert_eq!(correlated["messages"].as_array().unwrap().len(), 4);
     let orphan = request(
         gemini,
         chat,

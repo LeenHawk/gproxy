@@ -11,7 +11,7 @@ impl State {
         &mut self,
         call: openai::ChatToolCallDelta,
     ) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
-        let mut output = Vec::new();
+        let mut output = self.finish_scalar()?;
         let chat_index = call.index;
         if !self.tools.contains_key(&chat_index) {
             let id = call.id.clone().ok_or_else(|| {

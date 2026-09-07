@@ -45,7 +45,7 @@ impl State {
             moderation: None,
             multi_agent: None,
             object: openai::ResponseObjectType::Response,
-            output: Vec::new(),
+            output: self.items.values().cloned().collect(),
             output_text: None,
             parallel_tool_calls: None,
             prompt: None,

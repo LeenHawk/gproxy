@@ -10,21 +10,19 @@ pub(super) struct Pending {
     id: Option<String>,
     name: Option<String>,
     arguments: String,
-    emitted: bool,
 }
 
 pub(super) fn update(
     tools: &mut BTreeMap<(u32, u32), Pending>,
     choice: u32,
     call: openai::ChatToolCallDelta,
-) -> Result<Vec<gemini::Part>, TransformError> {
+) -> Result<(), TransformError> {
     let pending = tools
         .entry((choice, call.index))
         .or_insert_with(|| Pending {
             id: None,
             name: None,
             arguments: String::new(),
-            emitted: false,
         });
     if let Some(id) = call.id {
         set_once(&mut pending.id, id, "tool id")?;
@@ -46,25 +44,14 @@ pub(super) fn update(
     if let Some(arguments) = arguments {
         pending.arguments.push_str(&arguments);
     }
-    if !pending.emitted
-        && pending.name.as_deref() != Some(CODE_EXECUTION_NAME)
-        && let Some(name) = pending.name.clone()
-    {
-        pending.emitted = true;
-        return Ok(vec![content::lossy_function_call(
-            pending.id.clone(),
-            name,
-            &pending.arguments,
-        )]);
-    }
-    Ok(Vec::new())
+    Ok(())
 }
 
 pub(super) fn update_legacy(
     tools: &mut BTreeMap<(u32, u32), Pending>,
     choice: u32,
     call: openai::FunctionCallDelta,
-) -> Result<Vec<gemini::Part>, TransformError> {
+) -> Result<(), TransformError> {
     update(
         tools,
         choice,
@@ -93,9 +80,6 @@ pub(super) fn finish_choice(
         let pending = tools
             .remove(&key)
             .ok_or_else(|| TransformError::shape("Chat stream", "pending tool disappeared"))?;
-        if pending.emitted {
-            continue;
-        }
         let id = pending
             .id
             .ok_or_else(|| TransformError::shape("Chat stream", "tool id is missing"))?;
