@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { readPageSize } from "@/components/data-table-state"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { LogQueryDto } from "@/generated/LogQueryDto"
@@ -15,7 +16,7 @@ const now = () => Math.floor(Date.now() / 1000)
 
 function initialQuery(): LogQueryDto {
   const end = now()
-  return { start: end - 86_400, end, user_id: null, user_key_id: null, provider_id: null, status: null, request_id: null, cursor: null, limit: 50 }
+  return { start: end - 86_400, end, user_id: null, user_key_id: null, provider_id: null, status: null, request_id: null, cursor: null, limit: readPageSize("logs", 50) }
 }
 
 export function LogsPage() {
@@ -66,6 +67,7 @@ export function LogsPage() {
           detailLoading={detailQuery.isLoading}
           detailError={Boolean(detailQuery.error)}
           onNext={(cursor) => setQuery((value) => ({ ...value, cursor }))}
+          onPageSize={(limit) => { setDraft((value) => ({ ...value, limit })); setQuery((value) => ({ ...value, limit, cursor: null })) }}
         />
       </QueryState>
     </PageLayout>

@@ -32,6 +32,7 @@ export type DataTableProps<T> = {
   batchActions?: (selectedRows: Array<T>, onApplied: () => void) => ReactNode
   createAction?: ReactNode
   pageSize?: PageSize
+  onPageSizeChange?: (pageSize: PageSize) => void
   pagination?: {
     page: number
     pageSize: PageSize
@@ -62,6 +63,7 @@ export function DataTable<T>({
   batchActions,
   createAction,
   pageSize: initialPageSize = 10,
+  onPageSizeChange,
   pagination,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
@@ -170,7 +172,7 @@ export function DataTable<T>({
           })}</div>
         </>
       )}
-      {filtered.length > 0 || pagination ? <DataTablePagination page={currentPage} pages={pages} pageSize={effectiveSize} onPage={pagination?.onPage ?? setPage} onPageSize={pagination ? (size) => { storePageSize(storageKey, size); pagination.onPageSize(size) } : (size) => { setPageSize(size); setPage(1) }} /> : null}
+      {filtered.length > 0 || pagination ? <DataTablePagination page={currentPage} pages={pages} pageSize={effectiveSize} onPage={pagination?.onPage ?? setPage} onPageSize={pagination ? (size) => { storePageSize(storageKey, size); pagination.onPageSize(size) } : (size) => { setPageSize(size); setPage(1); onPageSizeChange?.(size) }} /> : null}
       {selecting ? (
         <div className="sticky bottom-3 flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
           <span className="px-2 text-sm text-muted-foreground">{t("common.dataTable.selected", { count: selectedRows.length })}</span>
