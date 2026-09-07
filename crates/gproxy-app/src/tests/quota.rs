@@ -109,6 +109,7 @@ async fn assert_reset_credits_need_full_probe(app: &crate::AppHandle, credential
             boundary_source: QuotaBoundarySource::Upstream,
             boundary_confidence: QuotaBoundaryConfidence::Exact,
             sample: gproxy_core::QuotaSample {
+                source: gproxy_core::QuotaSampleSource::Unknown,
                 started_at_ms: now * 1000,
                 received_at_ms: now * 1000,
             },

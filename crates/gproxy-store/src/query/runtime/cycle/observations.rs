@@ -1,11 +1,27 @@
-use crate::records::{CredentialQuotaCycleRecord, CycleObservationRecord};
+use crate::records::{
+    CredentialQuotaCycleRecord, CredentialQuotaObservation, CycleObservationRecord,
+};
 use crate::{StoreError, backend::Statement};
 use sea_query::{Alias, Expr, ExprTrait, OnConflict, Order, Query};
 
 pub(crate) fn insert_cycle_observation(
     cycle: &CredentialQuotaCycleRecord,
+    raw: &CredentialQuotaObservation,
+    rejected: bool,
 ) -> Result<Statement, StoreError> {
-    let sample = CycleObservationRecord::from(cycle);
+    let mut sample = CycleObservationRecord::from(cycle);
+    sample.raw = Some(raw.clone());
+    sample.rejected = rejected;
+    sample.started_at_ms = raw.sample.started_at_ms;
+    sample.observed_at_ms = raw.sample.received_at_ms;
+    if rejected {
+        sample.uncertain = true;
+        sample.unit = raw.unit.clone();
+        sample.scope = raw.scope.clone();
+        sample.upstream_used = raw.upstream_used;
+        sample.upstream_limit = raw.upstream_limit;
+        sample.used_percent = raw.used_percent;
+    }
     let snapshot =
         serde_json::to_string(&sample).map_err(|error| StoreError::Database(error.to_string()))?;
     let tracking = serde_json::to_string(&cycle.tracking)
@@ -20,8 +36,12 @@ pub(crate) fn insert_cycle_observation(
         .and_where(Expr::col(Alias::new("credential_id")).eq(cycle.credential_id))
         .and_where(Expr::col(Alias::new("window_key")).eq(&cycle.window_key))
         .and_where(Expr::col(Alias::new("version")).eq(cycle.version))
-        .and_where(Expr::col(Alias::new("status")).eq("open"))
         .and_where(Expr::col(Alias::new("tracking_json")).eq(tracking));
+    if cycle.id == 0 {
+        selected.and_where(Expr::col(Alias::new("status")).eq("open"));
+    } else {
+        selected.and_where(Expr::col(Alias::new("id")).eq(cycle.id));
+    }
     let mut query = Query::insert();
     query
         .into_table(Alias::new("credential_quota_observations"))

@@ -36,6 +36,7 @@ async fn near_limit_credential_is_deprioritized() {
             reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
             scope: gproxy_core::QuotaScope::All,
             sample: gproxy_core::QuotaSample {
+                source: gproxy_core::QuotaSampleSource::Unknown,
                 started_at_ms: now * 1000,
                 received_at_ms: now * 1000,
             },

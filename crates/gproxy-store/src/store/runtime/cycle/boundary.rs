@@ -19,7 +19,20 @@ pub(super) fn transition(
             return (end, false);
         }
     }
-    (observed, true)
+    let discovered = open
+        .tracking
+        .pending_observation
+        .as_ref()
+        .filter(|pending| {
+            !changed
+                && !super::state::changed(open, pending)
+                && !super::state::adjusted(open, pending)
+                && super::state::decreased(open, pending)
+        });
+    (
+        discovered.map_or(observed, |pending| pending.sample.received_at_ms),
+        true,
+    )
 }
 
 pub(super) fn trusted_reset(cycle: &CredentialQuotaCycleRecord) -> Option<i64> {

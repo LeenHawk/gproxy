@@ -179,6 +179,7 @@ async fn exercise(store: &Store) {
         .await
         .unwrap();
     assert_ne!(verified.id, again.id);
+    assert_eq!(verified.accounting_start_ms, 30_250);
 
     let mut expanded = reading(40_000, 1);
     expanded.upstream_limit = Some(Decimal::from(200));
@@ -216,9 +217,9 @@ async fn exercise(store: &Store) {
     assert_eq!(scope[0].metrics["requests"], json!("1"));
     assert_eq!(scope[0].models.len(), 1);
 
-    let mut next = reading(110_000, 0);
-    next.period_start = Some(100);
-    next.period_end = Some(200);
+    let mut next = reading(510_000, 0);
+    next.period_start = Some(500);
+    next.period_end = Some(600);
     let (left, right) = tokio::join!(
         store.observe_credential_quota_cycle(&next),
         store.observe_credential_quota_cycle(&next)
@@ -229,7 +230,7 @@ async fn exercise(store: &Store) {
         .await
         .unwrap();
     assert_eq!(history.len(), 5);
-    assert_eq!(history[0].accounting_start_ms, 100_000);
+    assert_eq!(history[0].accounting_start_ms, 500_000);
     assert_eq!(history[1].period_end, Some(100));
     let (first_write, duplicate_write) =
         tokio::join!(store.record_usage(&sample), store.record_usage(&sample));
@@ -244,6 +245,7 @@ async fn exercise(store: &Store) {
         .unwrap();
     recovering.upstream_used = Some(Decimal::from(30));
     recovering.sample = QuotaSample {
+        source: gproxy_core::QuotaSampleSource::Unknown,
         started_at_ms: 20_000,
         received_at_ms: 20_000,
     };
@@ -388,6 +390,7 @@ async fn records(store: &Store) {
 fn reading(at_ms: i64, used: i64) -> CredentialQuotaObservation {
     let mut value = super::observation(7, "primary", 0, 100, at_ms / 1000, used);
     value.sample = QuotaSample {
+        source: gproxy_core::QuotaSampleSource::Unknown,
         started_at_ms: at_ms,
         received_at_ms: at_ms,
     };

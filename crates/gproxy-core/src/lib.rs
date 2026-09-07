@@ -42,8 +42,8 @@ pub(crate) type Shared<T> = std::rc::Rc<T>;
 pub use gproxy_channel_api as channel_api;
 pub use gproxy_channel_api::{
     BindingStore, BoxFuture, CallerIdentity, QuotaResetBehavior, QuotaResetCredits,
-    QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaScope, QuotaWindow, UsageView, WsDuplex,
-    WsFrame,
+    QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaSampleSource, QuotaScope, QuotaWindow,
+    UsageView, WsDuplex, WsFrame,
 };
 pub use gproxy_channel_api::{ModelMetadata, ModelReasoningLevel, ModelServiceTier};
 pub use gproxy_channels as channels;

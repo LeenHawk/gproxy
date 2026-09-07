@@ -73,8 +73,19 @@ pub struct QuotaObservation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct QuotaSample {
+    #[serde(default)]
+    pub source: QuotaSampleSource,
     pub started_at_ms: i64,
     pub received_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuotaSampleSource {
+    Response,
+    Probe,
+    #[default]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

@@ -19,6 +19,7 @@ impl Store {
                     .map_err(|error| StoreError::Database(error.to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        samples.retain(|sample| !sample.rejected);
         if !calculate || samples.is_empty() {
             return Ok(samples);
         }

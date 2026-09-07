@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+mod ordering;
 mod regression;
 use serde_json::json;
 
@@ -49,7 +50,7 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     );
 
     let crossed = store
-        .observe_credential_quota_cycle(&observation(credential_id, "primary", 0, 200, 110, 5))
+        .observe_credential_quota_cycle(&observation(credential_id, "primary", 0, 500, 110, 5))
         .await?;
     assert_ne!(crossed.id, first.id);
     assert_eq!(crossed.period_start, Some(0));
@@ -87,7 +88,7 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     assert_eq!(stale.status, QuotaCycleStatus::Closed);
 
     let reopened = store
-        .observe_credential_quota_cycle(&observation(credential_id, "primary", 120, 220, 121, 95))
+        .observe_credential_quota_cycle(&observation(credential_id, "primary", 120, 820, 121, 95))
         .await?;
     assert_ne!(reopened.id, crossed.id);
     assert_eq!(reopened.coverage, QuotaCoverage::PartialLowerBound);
@@ -100,7 +101,7 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     assert_eq!(same_second.id, reopened.id);
     assert!(same_second.version > reopened.version);
     assert_eq!(same_second.upstream_used, Some(Decimal::from(95)));
-    assert_eq!(same_second.period_end, Some(220));
+    assert_eq!(same_second.period_end, Some(820));
     assert_eq!(same_second.boundary_source, QuotaBoundarySource::Upstream);
 
     let local = store
@@ -152,10 +153,10 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     );
 
     store
-        .observe_credential_quota_cycle(&observation(credential_id, "full", 0, 100, 10, 1))
+        .observe_credential_quota_cycle(&observation(credential_id, "full", 0, 500, 10, 1))
         .await?;
     let full = store
-        .observe_credential_quota_cycle(&observation(credential_id, "full", 100, 200, 110, 1))
+        .observe_credential_quota_cycle(&observation(credential_id, "full", 500, 1000, 510, 1))
         .await?;
     assert_eq!(full.coverage, QuotaCoverage::FullPeriodLowerBound);
     let gap = store
@@ -165,7 +166,7 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
         .close_credential_quota_cycle(gap.id, QuotaCycleCloseReason::BoundaryCrossed, 100)
         .await?;
     let resumed = store
-        .observe_credential_quota_cycle(&observation(credential_id, "gap", 0, 200, 110, 1))
+        .observe_credential_quota_cycle(&observation(credential_id, "gap", 0, 500, 110, 1))
         .await?;
     assert_eq!(resumed.period_start, Some(0));
     assert_eq!(resumed.accounting_start_ms, 100_000);
@@ -176,9 +177,9 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
         .close_credential_quota_cycle(skipped.id, QuotaCycleCloseReason::BoundaryCrossed, 100)
         .await?;
     let skipped = store
-        .observe_credential_quota_cycle(&observation(credential_id, "skip", 200, 300, 210, 1))
+        .observe_credential_quota_cycle(&observation(credential_id, "skip", 500, 600, 510, 1))
         .await?;
-    assert_eq!(skipped.period_start, Some(200));
+    assert_eq!(skipped.period_start, Some(500));
     let history = store
         .credential_quota_cycle_history(credential_id, "primary")
         .await?;
@@ -206,6 +207,7 @@ fn observation(
         reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
         scope: gproxy_core::QuotaScope::All,
         sample: gproxy_core::QuotaSample {
+            source: gproxy_core::QuotaSampleSource::Unknown,
             started_at_ms: observed_at * 1000,
             received_at_ms: observed_at * 1000,
         },

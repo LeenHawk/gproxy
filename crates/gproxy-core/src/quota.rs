@@ -72,6 +72,7 @@ impl<H: Host> Core<H> {
         let mut observations = channel.parse_quota_probe(status, &body);
         for observation in &mut observations {
             observation.sample = Some(gproxy_channel_api::QuotaSample {
+                source: gproxy_channel_api::QuotaSampleSource::Probe,
                 started_at_ms,
                 received_at_ms,
             });

@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleObservationRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw: Option<super::CredentialQuotaObservation>,
+    #[serde(default)]
+    pub rejected: bool,
     pub started_at_ms: i64,
     pub observed_at_ms: i64,
     pub unit: Option<String>,
@@ -21,6 +25,8 @@ pub struct CycleObservationRecord {
 impl From<&super::CredentialQuotaCycleRecord> for CycleObservationRecord {
     fn from(cycle: &super::CredentialQuotaCycleRecord) -> Self {
         Self {
+            raw: None,
+            rejected: false,
             started_at_ms: cycle.tracking.sample.started_at_ms,
             observed_at_ms: cycle.tracking.sample.received_at_ms,
             unit: cycle.tracking.unit.clone(),

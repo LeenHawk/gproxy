@@ -19,6 +19,7 @@ async fn cycle_history_is_opt_in_and_usage_disabled_keeps_only_upstream_readings
             boundary_source: QuotaBoundarySource::Upstream,
             boundary_confidence: QuotaBoundaryConfidence::Exact,
             sample: gproxy_core::QuotaSample {
+                source: gproxy_core::QuotaSampleSource::Unknown,
                 started_at_ms: 10_000,
                 received_at_ms: 10_000,
             },

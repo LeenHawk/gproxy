@@ -5,10 +5,8 @@ use crate::records::{
 };
 use rust_decimal::Decimal;
 
-/// Reset stamps wobble between observations: `…T06:59:59.999Z` and `…T07:00:00Z`
-/// truncate a second apart, and upstream clocks drift against ours. Anything
-/// inside this slack is the same boundary, not a new period.
-const BOUNDARY_SLACK_SECONDS: i64 = 5;
+/// Keep one canonical boundary for drift up to and including five minutes.
+const BOUNDARY_SLACK_SECONDS: i64 = 300;
 
 /// Normalise, then check the store's input contract. Returns the observation
 /// that should actually be recorded.
@@ -24,18 +22,14 @@ pub(super) fn settle(
 /// A rolling window that has not been used yet reports its whole length as
 /// remaining, so `reset_at - window` lands on the observation instant and walks
 /// forward with every probe (Codex Spark does this on `/wham/usage` and in its
-/// `x-…-reset-at` headers). Recorded usage is what proves a period has begun —
-/// without it there is no boundary yet, only a window waiting to start.
+/// `x-…-reset-at` headers). Only an absolute zero counter proves the window is
+/// unused; a rounded percentage cannot establish that fact.
 fn unstarted(input: &mut CredentialQuotaObservation) {
-    let unused = percent(
-        input.used_percent,
-        input.upstream_used,
-        input.upstream_limit,
-    )
-    .is_some_and(|used| used.is_zero());
+    // A rounded percentage of zero does not prove that the window is unused.
+    let unused = input.unit.is_some() && input.upstream_used == Some(Decimal::ZERO);
     let starts_now = input
         .period_start
-        .is_some_and(|start| start >= input.observed_at - BOUNDARY_SLACK_SECONDS);
+        .is_some_and(|start| start >= input.observed_at - 5);
     if unused && starts_now {
         input.period_start = None;
         input.period_end = None;
@@ -44,9 +38,8 @@ fn unstarted(input: &mut CredentialQuotaObservation) {
     }
 }
 
-/// Keep the boundary an open cycle already carries when the incoming one is the
-/// same instant reported differently, so a one-second wobble does not close the
-/// cycle and restart its accounting.
+/// Compare drift with the canonical stamp, so repeated small corrections cannot
+/// walk the boundary indefinitely without ever crossing the rollover threshold.
 pub(super) fn hold_boundary(
     previous: &CredentialQuotaCycleRecord,
     next: &mut CredentialQuotaObservation,
@@ -113,11 +106,11 @@ pub(super) fn changed(
 ) -> bool {
     open.period_start
         .zip(next.period_start)
-        .is_some_and(|(old, new)| old != new)
+        .is_some_and(|(old, new)| old.abs_diff(new) > BOUNDARY_SLACK_SECONDS as u64)
         || open
             .period_end
             .zip(next.period_end)
-            .is_some_and(|(old, new)| old != new)
+            .is_some_and(|(old, new)| old.abs_diff(new) > BOUNDARY_SLACK_SECONDS as u64)
 }
 
 pub(super) fn adjusted(
@@ -156,6 +149,7 @@ pub(super) fn decreased(
 pub(super) fn tracking(input: &CredentialQuotaObservation, local_boundary: bool) -> CycleTracking {
     let sample = sample(input);
     CycleTracking {
+        pending_observation: None,
         unit: input.unit.clone(),
         reset_behavior: input.reset_behavior,
         models: Default::default(),

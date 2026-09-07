@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleTracking {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_observation: Option<super::CredentialQuotaObservation>,
     pub unit: Option<String>,
     pub reset_behavior: gproxy_core::QuotaResetBehavior,
     pub models: std::collections::BTreeMap<String, serde_json::Value>,

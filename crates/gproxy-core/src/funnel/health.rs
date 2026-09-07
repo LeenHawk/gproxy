@@ -16,6 +16,7 @@ pub(crate) async fn response(
     let received_at_ms = crate::quota::now_ms();
     for observation in &mut observations {
         observation.sample = Some(gproxy_channel_api::QuotaSample {
+            source: gproxy_channel_api::QuotaSampleSource::Response,
             started_at_ms: facts
                 .upstream_started_at_ms
                 .expect("upstream response has a send time"),

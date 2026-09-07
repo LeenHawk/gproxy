@@ -6,6 +6,7 @@ mod metrics;
 mod models;
 mod observations;
 mod read;
+mod rejected;
 mod row;
 mod state;
 
@@ -21,7 +22,8 @@ impl Store {
         &self,
         observation: &CredentialQuotaObservation,
     ) -> Result<CredentialQuotaCycleRecord, StoreError> {
-        let observation = &state::settle(observation)?;
+        let raw = observation;
+        let observation = &state::settle(raw)?;
         for _ in 0..8 {
             let mut input = observation.clone();
             let sample = state::sample(&input);
@@ -30,8 +32,13 @@ impl Store {
                 .await?;
             if let Some(mut open) = open {
                 let previous_sample = open.tracking.sample;
-                if sample.received_at_ms < previous_sample.started_at_ms {
-                    return Ok(open);
+                let same_sample = sample.started_at_ms == previous_sample.started_at_ms
+                    && sample.received_at_ms == previous_sample.received_at_ms;
+                if sample.received_at_ms < previous_sample.received_at_ms {
+                    if self.record_rejected_quota(&mut open, raw).await? {
+                        return Ok(open);
+                    }
+                    continue;
                 }
                 input.label = input.label.or_else(|| open.label.clone());
                 input.period_start = input.period_start.or(open.period_start);
@@ -45,20 +52,22 @@ impl Store {
                 state::hold_boundary(&open, &mut input);
                 let changed = state::changed(&open, &input);
                 let decreased = state::decreased(&open, &input);
-                if (changed
-                    || decreased
-                    || sample.received_at_ms < previous_sample.received_at_ms
-                    || sample.started_at_ms < previous_sample.started_at_ms)
-                    && (sample == previous_sample
-                        || sample.started_at_ms < previous_sample.received_at_ms)
+                if (changed || decreased || state::adjusted(&open, &input))
+                    && (same_sample || sample.started_at_ms < previous_sample.received_at_ms)
                 {
                     open.tracking.uncertain = true;
+                    if open.tracking.pending_observation.is_none() {
+                        open.tracking.pending_observation = Some(input.clone());
+                    }
                     let expected = open.version;
                     open.version += 1;
                     if self
                         .backend()
-                        .execute(runtime::update_tracked_cycle(&open, expected)?)
-                        .await?
+                        .batch(vec![
+                            runtime::update_tracked_cycle(&open, expected)?,
+                            runtime::insert_cycle_observation(&open, raw, true)?,
+                        ])
+                        .await?[0]
                         .affected_rows
                         == 1
                     {
@@ -66,8 +75,19 @@ impl Store {
                     }
                     continue;
                 }
-                if sample == previous_sample {
+                if same_sample {
                     return Ok(open);
+                }
+                if open
+                    .tracking
+                    .pending_observation
+                    .as_ref()
+                    .is_some_and(|pending| sample.started_at_ms < pending.sample.received_at_ms)
+                {
+                    if self.record_rejected_quota(&mut open, raw).await? {
+                        return Ok(open);
+                    }
+                    continue;
                 }
                 if changed || decreased {
                     let (at, local) = boundary::transition(&open, &input, changed);
@@ -87,7 +107,7 @@ impl Store {
                         .batch(vec![
                             runtime::update_tracked_cycle(&open, expected)?,
                             runtime::insert_tracked_cycle(&next, Some(&open))?,
-                            runtime::insert_cycle_observation(&next)?,
+                            runtime::insert_cycle_observation(&next, raw, false)?,
                         ])
                         .await;
                     match result {
@@ -105,13 +125,14 @@ impl Store {
                 }
                 let expected = open.version;
                 let adjusted = state::adjusted(&open, &input);
-                let mut tracking = if adjusted || open.tracking.uncertain {
+                let mut tracking = if adjusted {
                     state::tracking(&input, open.tracking.local_boundary)
                 } else {
                     open.tracking.clone()
                 };
                 tracking.sample = sample;
                 tracking.uncertain = false;
+                tracking.pending_observation = None;
                 let start = open.accounting_start_ms;
                 let end = open
                     .accounting_end_ms
@@ -133,7 +154,7 @@ impl Store {
                     .backend()
                     .batch(vec![
                         runtime::update_tracked_cycle(&open, expected)?,
-                        runtime::insert_cycle_observation(&open)?,
+                        runtime::insert_cycle_observation(&open, raw, false)?,
                     ])
                     .await?[0]
                     .affected_rows
@@ -150,8 +171,10 @@ impl Store {
                 let latest = self
                     .latest_credential_quota_cycle(input.credential_id, &input.window_key)
                     .await?;
-                if let Some(latest) = &latest {
-                    state::hold_boundary(latest, &mut input);
+                if let Some(mut latest) = latest.clone() {
+                    if latest.close_reason != Some(QuotaCycleCloseReason::ManualReset) {
+                        state::hold_boundary(&latest, &mut input);
+                    }
                     let cutoff = latest
                         .accounting_end_ms
                         .unwrap_or(latest.last_observed_at * 1000);
@@ -159,13 +182,19 @@ impl Store {
                         || sample.received_at_ms < cutoff
                         || sample.started_at_ms < latest.tracking.sample.started_at_ms
                     {
-                        return Ok(latest.clone());
+                        if self.record_rejected_quota(&mut latest, raw).await? {
+                            return Ok(latest);
+                        }
+                        continue;
                     }
                     if latest.period_end == input.period_end
-                        && !state::decreased(latest, &input)
-                        && !state::changed(latest, &input)
+                        && !state::decreased(&latest, &input)
+                        && !state::changed(&latest, &input)
                     {
-                        return Ok(latest.clone());
+                        if self.record_rejected_quota(&mut latest, raw).await? {
+                            return Ok(latest);
+                        }
+                        continue;
                     }
                 }
                 let start = latest
@@ -183,7 +212,7 @@ impl Store {
                     .backend()
                     .batch(vec![
                         runtime::insert_tracked_cycle(&next, latest.as_ref())?,
-                        runtime::insert_cycle_observation(&next)?,
+                        runtime::insert_cycle_observation(&next, raw, false)?,
                     ])
                     .await
                 {
