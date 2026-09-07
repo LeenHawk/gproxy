@@ -3,6 +3,7 @@ mod credential_budget;
 mod fingerprint;
 mod lifecycle;
 mod migrate_v2;
+mod migrate_v2_logs;
 mod native_upgrade;
 mod oauth;
 mod pressure;

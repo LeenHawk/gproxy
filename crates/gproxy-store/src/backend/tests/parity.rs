@@ -64,7 +64,7 @@ async fn size_pressure_purges_logs_and_preserves_usage_history() {
             .await
             .expect("size-pressure sweep");
         assert!(result.over_size_limit);
-        assert_eq!(result.pressure_rows, 3);
+        assert_eq!(result.pressure_rows, 5);
         assert_eq!(row_count(&store, "request_logs").await, 0);
         assert_eq!(row_count(&store, "wire_logs").await, 0);
         assert_eq!(row_count(&store, "usage_rows").await, 2);

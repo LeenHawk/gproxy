@@ -12,7 +12,7 @@ pub(super) struct Plan {
 
 pub(super) fn prepare(mut data: SourceData, cipher: &V2Cipher) -> Plan {
     let mut found = counts(&data);
-    let mut issues = Vec::new();
+    let mut issues = std::mem::take(&mut data.table_issues);
     data.credentials.retain_mut(
         |credential| match cipher.open(&credential.value.stored_secret) {
             Ok(secret) => {
@@ -154,6 +154,8 @@ fn counts(data: &SourceData) -> Vec<(&'static str, usize)> {
         ("provider_rule_sets", data.provider_rule_sets.len()),
         ("instance_settings", data.settings.len()),
         ("usage", data.usage.len()),
+        ("downstream_requests", data.downstream_requests),
+        ("upstream_requests", data.upstream_requests),
     ]
 }
 

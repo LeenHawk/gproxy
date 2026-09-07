@@ -58,6 +58,9 @@ pub(crate) async fn prepare(config: &Config) -> Result<Option<File>, AppError> {
             Ok(Some(lock))
         }
         Err(failure) => {
+            if !attempt.join("report.txt").exists() {
+                std::fs::write(attempt.join("report.txt"), failure.to_string()).map_err(error)?;
+            }
             let message = format!("{failure}; upgrade files: {}", attempt.display());
             std::fs::write(&blocked, &message).map_err(error)?;
             Err(error(format!(
@@ -70,12 +73,12 @@ pub(crate) async fn prepare(config: &Config) -> Result<Option<File>, AppError> {
 
 async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(), AppError> {
     let source = sqlite::quiesce(original)?;
+    sqlite::validate_source(&source)?;
     let backup = attempt.join("gproxy-v2.db");
     std::fs::copy(original, &backup).map_err(error)?;
     File::open(&backup)
         .and_then(|file| file.sync_all())
         .map_err(error)?;
-    sqlite::validate_source(&source)?;
     let candidate = attempt.join("candidate");
     private_directory(&candidate)?;
     let target = Config::sqlite(

@@ -22,6 +22,7 @@ pub(super) fn prepare(data: &mut SourceData, issues: &mut Vec<ImportIssue>) {
         .usage
         .iter()
         .filter_map(|value| value.value.provider_id)
+        .chain(data.log_references.iter().filter_map(|value| value.0))
         .filter(|id| !provider_ids.contains(id))
         .collect::<BTreeSet<_>>();
     for id in missing_providers {
@@ -47,17 +48,20 @@ pub(super) fn prepare(data: &mut SourceData, issues: &mut Vec<ImportIssue>) {
         .map(|value| value.id)
         .collect::<BTreeSet<_>>();
     let mut missing_credentials = BTreeMap::<i64, BTreeSet<i64>>::new();
-    for usage in &data.usage {
-        let (Some(credential_id), Some(provider_id)) =
-            (usage.value.credential_id, usage.value.provider_id)
-        else {
+    for (provider_id, credential_id) in data
+        .usage
+        .iter()
+        .map(|row| (row.value.provider_id, row.value.credential_id))
+        .chain(data.log_references.iter().copied())
+    {
+        let Some(credential_id) = credential_id else {
             continue;
         };
         if !credential_ids.contains(&credential_id) {
             missing_credentials
                 .entry(credential_id)
                 .or_default()
-                .insert(provider_id);
+                .extend(provider_id);
         }
     }
     for (id, providers) in missing_credentials {
@@ -65,7 +69,7 @@ pub(super) fn prepare(data: &mut SourceData, issues: &mut Vec<ImportIssue>) {
             issues.push(issue(
                 "usage_credential_tombstones",
                 id,
-                "deleted credential is referenced with multiple provider ids",
+                "deleted credential has no unique provider reference",
             ));
             continue;
         }

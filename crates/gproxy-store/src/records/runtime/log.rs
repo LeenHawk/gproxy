@@ -55,6 +55,13 @@ pub struct RequestLogCompletion {
     pub response_body: Option<Vec<u8>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestLogImportInput {
+    pub request: RequestLogInput,
+    pub response_status: Option<u16>,
+    pub response_body: Option<Vec<u8>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogQuery {
     pub start: i64,

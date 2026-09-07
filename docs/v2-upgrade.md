@@ -21,30 +21,46 @@ Do not combine this upgrade with a master-key rotation.
 
 ## What startup does
 
-1. Lock migration and checkpoint SQLite WAL before taking a consistent backup.
+1. Lock migration so only one process can upgrade the database.
 2. Create a private `gproxy-v2-backup-TIMESTAMP-PID` directory beside the database.
-3. Copy the original database to `gproxy-v2.db` in that directory.
-4. Import supported configuration, recoverable secrets and raw usage into a new
-   v3 database under `candidate/`, using the existing migration implementation.
+3. Exclusively lock SQLite, checkpoint WAL and check source table policies,
+   then copy the original database to `gproxy-v2.db` in that directory.
+4. Import supported configuration, recoverable secrets, raw usage and upstream/
+   downstream request logs into a new v3 database under `candidate/`.
 5. Verify import counts, SQLite integrity, references, runtime control state,
    usage row count and the exact total settled cost.
 6. Flush and atomically replace the configured database only after validation.
    Preserve the backup and `report.txt`; restarting v3 does not reimport it.
 
 Universal (`*`) route grants are preserved for organizations, teams and users.
-Unknown populated tables and data the importer cannot represent stop automatic
-migration. In particular, route-specific permissions, rate limits, usage
-rollups, credential quota history and custom tokenizer data are **not silently
-discarded**. Request an explicit migration review for such databases.
-Captured request/response logs and audit logs remain in the source backup;
-they are not imported into the live v3 store. Browser and client login sessions
-may need to be established again; ordinary recoverable API keys are preserved.
+Historical usage migration preserves only the retained `usages` detail rows.
+v3 rebuilds its hourly aggregates from those rows; v2 usage rollups, daily
+credential statistics and historical quota cycles are not imported. History
+whose details were already deleted by v2 retention therefore does not appear
+in v3 statistics. These source tables remain in the complete v2 backup.
+Credential health snapshots, tokenizer caches and Codex task bindings are also
+not imported. `report.txt` lists each populated skipped table, its row count
+and the reason it was excluded.
+Unknown populated tables and unsupported policy data still stop migration.
+In particular, route-specific permissions and rate-limit rules cannot be
+silently discarded or widened. Request an explicit migration review for them.
+`downstream_requests` and `upstream_requests` migrate to `request_logs` and
+`wire_logs`. Request IDs, timestamps, methods, paths/URLs, status, request
+headers and request/response bodies are preserved, including multiple upstream
+attempts for one request. A v2 status of zero becomes an unknown response status.
+Provider and credential references are remapped; deleted entities get disabled
+historical placeholders. Logs are read and written in bounded batches.
+v2-only log creation/update timestamps and per-attempt `latency_ms` have no
+matching v3 log fields and remain in the backup; v3 derives request duration
+from usage details. Audit logs are not imported. Browser and client login
+sessions may need to be established again; recoverable API keys are preserved.
 
 ## Failure and rollback
 
 Failures before replacement leave the v2 database in place. Inspect the reported
-backup directory and `.gproxy-v2-upgrade-blocked` beside the database. The marker
-prevents a process supervisor from repeatedly copying a failing database and
+attempt directory and `.gproxy-v2-upgrade-blocked` beside the database. A source
+table-policy failure writes a report without making a full database copy.
+The marker prevents a process supervisor from repeatedly copying a failing database and
 filling the disk. Correct the cause, then remove **only that marker** to retry.
 Never delete the backup as a retry mechanism.
 

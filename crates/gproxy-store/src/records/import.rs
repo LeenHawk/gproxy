@@ -1,6 +1,8 @@
 use super::*;
 
 pub enum RecordBatch {
+    RequestLogs(Vec<RequestLogImportInput>),
+    Captures(Vec<CaptureInput>),
     Organizations(Vec<OrganizationInput>),
     Teams(Vec<TeamInput>),
     Users(Vec<UserInput>),

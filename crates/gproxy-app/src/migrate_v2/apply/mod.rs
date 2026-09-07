@@ -1,5 +1,6 @@
 mod control;
 mod identity;
+mod logs;
 mod process;
 mod usage;
 
@@ -30,6 +31,7 @@ pub(super) async fn run(
     cipher: &crate::secrets::EnvelopeCipher,
     data: SourceData,
     counts: &mut [ImportCount],
+    source: &std::path::Path,
 ) -> Result<(), crate::AppError> {
     let mut context = Context {
         store,
@@ -51,6 +53,7 @@ pub(super) async fn run(
     process::run(&mut context, &data, counts).await?;
     usage::settings(&context, &data, counts).await?;
     usage::history(&context, &data, counts).await?;
+    logs::run(&context, source, counts).await?;
     Ok(())
 }
 

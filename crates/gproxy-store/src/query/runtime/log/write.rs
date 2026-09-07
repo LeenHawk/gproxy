@@ -3,7 +3,44 @@ use sea_query::{Alias, Expr, ExprTrait, OnConflict, Query};
 use crate::StoreError;
 use crate::backend::Statement;
 use crate::query::common::{insert, json, value};
-use crate::records::{CaptureInput, RequestLogCompletion, RequestLogInput};
+use crate::records::{CaptureInput, RequestLogCompletion, RequestLogImportInput, RequestLogInput};
+
+pub(crate) fn import_request_log(input: &RequestLogImportInput) -> Result<Statement, StoreError> {
+    let request = &input.request;
+    insert(
+        "request_logs",
+        &[
+            "request_id",
+            "at",
+            "method",
+            "path",
+            "query",
+            "client_ip",
+            "request_headers",
+            "request_body",
+            "response_status",
+            "response_body",
+        ],
+        vec![
+            value(request.request_id.clone()),
+            value(request.at),
+            value(request.method.clone()),
+            value(request.path.clone()),
+            value(request.query.clone()),
+            value(request.client_ip.clone()),
+            value(
+                request
+                    .request_headers
+                    .as_ref()
+                    .map(|headers| json(headers, "request headers"))
+                    .transpose()?,
+            ),
+            value(request.request_body.clone()),
+            value(input.response_status.map(i64::from)),
+            value(input.response_body.clone()),
+        ],
+    )
+}
 
 pub(crate) fn begin_request_log(input: &RequestLogInput) -> Result<Statement, StoreError> {
     let mut query = Query::insert();

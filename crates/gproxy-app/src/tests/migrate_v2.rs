@@ -115,6 +115,7 @@ async fn migration_unwraps_v2_dimensional_metrics() {
         true,
     );
     let connection = Connection::open(source.path().join("gproxy.db")).unwrap();
+    connection.execute_batch("CREATE TABLE credential_statuses(id INTEGER PRIMARY KEY); INSERT INTO credential_statuses VALUES(1);").unwrap();
     connection
         .execute(
             "UPDATE usages SET metrics_json=?1 WHERE id=1",
@@ -141,6 +142,7 @@ async fn migration_unwraps_v2_dimensional_metrics() {
     .await
     .unwrap();
     assert!(report.applied && report.issues.is_empty(), "{report}");
+    assert!(report.to_string().contains("credential_statuses: 1 rows;"));
 
     let app = App::start(config).await.unwrap();
     let record = app

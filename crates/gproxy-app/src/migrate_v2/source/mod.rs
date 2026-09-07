@@ -1,5 +1,6 @@
 mod control;
 mod identity;
+pub(super) mod logs;
 mod pricing;
 mod process;
 mod usage;
@@ -20,10 +21,12 @@ pub(super) async fn read(path: &Path) -> Result<SourceData, crate::AppError> {
     connection
         .call(|connection| {
             let mut data = SourceData::default();
+            (data.skipped, data.table_issues) = super::tables::inspect(connection)?;
             control::read(connection, &mut data)?;
             identity::read(connection, &mut data)?;
             process::read(connection, &mut data)?;
             usage::read(connection, &mut data)?;
+            logs::inspect(connection, &mut data)?;
             Ok::<SourceData, rusqlite::Error>(data)
         })
         .await

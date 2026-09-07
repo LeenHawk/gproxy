@@ -1,5 +1,5 @@
 use crate::backend::Statement;
-use crate::query::{control, identity, usage};
+use crate::query::{control, identity, runtime, usage};
 use crate::records::RecordBatch;
 use crate::{Store, StoreError};
 
@@ -85,6 +85,8 @@ fn statements(batch: RecordBatch) -> Result<Vec<Statement>, StoreError> {
         };
     }
     match batch {
+        RecordBatch::RequestLogs(values) => build!(values, runtime::import_request_log),
+        RecordBatch::Captures(values) => build!(values, runtime::insert_capture),
         RecordBatch::Organizations(values) => build!(values, identity::insert_organization),
         RecordBatch::Teams(values) => build!(values, identity::insert_team),
         RecordBatch::Users(values) => build!(values, identity::insert_user),

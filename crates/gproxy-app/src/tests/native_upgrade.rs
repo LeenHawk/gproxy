@@ -25,9 +25,30 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     connection
         .execute_batch("PRAGMA journal_mode=WAL; UPDATE usages SET cost='23.45'; UPDATE users SET is_admin=0; INSERT INTO route_permissions VALUES(1,'user',1,'*',0,0);")
         .unwrap();
+    let skipped = [
+        "credential_statuses",
+        "credential_model_statuses",
+        "credential_usage_daily",
+        "credential_quota_cycles",
+        "credential_quota_cycle_models",
+        "tokenizer_vocabs",
+        "codex_task_bindings",
+        "audit_logs",
+        "schema_migrations",
+    ];
+    for table in skipped {
+        connection
+            .execute_batch(&format!(
+                "CREATE TABLE {table}(id INTEGER PRIMARY KEY); INSERT INTO {table} VALUES(1);"
+            ))
+            .unwrap();
+    }
+    connection.execute_batch("CREATE TABLE usage_rollups(id INTEGER PRIMARY KEY, requests INTEGER, cost TEXT); INSERT INTO usage_rollups VALUES(1,999,'999.999'); CREATE TABLE unknown_empty(id INTEGER PRIMARY KEY);").unwrap();
+    super::migrate_v2_logs::seed(&connection);
     drop(connection);
     let config = super::test_config(directory.path(), MasterKeyConfig::new(Some(master)));
     let app = App::start(config.clone()).await.unwrap();
+    super::migrate_v2_logs::verify(&app).await;
     assert_eq!(
         app.inner.host.services.store.usage_count().await.unwrap(),
         1
@@ -67,7 +88,37 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     );
     let archives = backups(directory.path());
     assert_eq!(archives.len(), 1);
+    let report = std::fs::read_to_string(archives[0].join("report.txt")).unwrap();
+    assert!(
+        report.contains("downstream_requests: 130 imported (130 found)"),
+        "{report}"
+    );
+    assert!(
+        report.contains("upstream_requests: 131 imported (131 found)"),
+        "{report}"
+    );
+    for table in skipped.into_iter().chain(["usage_rollups"]) {
+        assert!(report.contains(&format!("{table}: 1 rows;")), "{report}");
+    }
+    let trend = app
+        .inner
+        .host
+        .services
+        .store
+        .usage_trend(0, 3_600)
+        .await
+        .unwrap();
+    assert_eq!(trend.len(), 1);
+    assert_eq!(trend[0].requests, 1);
+    assert_eq!(trend[0].cost.to_string(), "23.45");
     let backup = Connection::open(archives[0].join("gproxy-v2.db")).unwrap();
+    assert_eq!(
+        backup
+            .query_row("SELECT cost FROM usage_rollups", [], |row| row
+                .get::<_, String>(0))
+            .unwrap(),
+        "999.999"
+    );
     assert_eq!(
         backup
             .query_row("SELECT cost FROM usages", [], |row| row.get::<_, String>(0))
@@ -103,7 +154,7 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
 
 #[tokio::test]
 async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() {
-    for failure in ["key", "rate_limits", "route_permissions"] {
+    for failure in ["key", "rate_limits", "route_permissions", "unknown_table"] {
         let policy = failure != "key";
         let directory = tempfile::tempdir().unwrap();
         let key = format!("sk-{}", super::setup::random_key());
@@ -118,8 +169,24 @@ async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() 
             true,
         );
         let path = directory.path().join("gproxy.db");
-        if failure == "rate_limits" {
-            Connection::open(&path).unwrap().execute_batch("CREATE TABLE rate_limits(id INTEGER PRIMARY KEY); INSERT INTO rate_limits VALUES(1);").unwrap();
+        let table_failure = matches!(failure, "rate_limits" | "unknown_table");
+        if table_failure {
+            Connection::open(&path).unwrap().execute_batch(&format!("CREATE TABLE {failure}(id INTEGER PRIMARY KEY); INSERT INTO {failure} VALUES(1);")).unwrap();
+            let target = tempfile::tempdir().unwrap();
+            let report = crate::migrate_from_v2(
+                &super::test_config(target.path(), MasterKeyConfig::new(None)),
+                crate::V2ImportOptions {
+                    path: path.clone(),
+                    source_master_key: None,
+                    apply: true,
+                    merge: false,
+                },
+            )
+            .await
+            .unwrap();
+            assert!(report.has_blockers(), "{report}");
+            assert!(report.to_string().contains(failure), "{report}");
+            assert!(!target.path().join("gproxy.db").exists());
         }
         if failure == "route_permissions" {
             Connection::open(&path)
@@ -139,11 +206,7 @@ async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() 
             Err(error) => error.to_string(),
         };
         assert!(
-            error.contains(if failure == "rate_limits" {
-                "rate_limits"
-            } else {
-                "report.txt"
-            }),
+            error.contains(if table_failure { failure } else { "report.txt" }),
             "{error}"
         );
         let connection = Connection::open(&path).unwrap();
@@ -160,6 +223,9 @@ async fn native_upgrade_keeps_source_on_unrecoverable_keys_or_unmapped_policy() 
                 .is_ok()
         );
         assert_eq!(backups(directory.path()).len(), 1);
+        let attempt = &backups(directory.path())[0];
+        assert!(attempt.join("report.txt").is_file());
+        assert_eq!(attempt.join("gproxy-v2.db").exists(), !table_failure);
         assert!(
             App::start(super::test_config(
                 directory.path(),

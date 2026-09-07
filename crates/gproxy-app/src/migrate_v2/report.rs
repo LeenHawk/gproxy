@@ -16,6 +16,13 @@ pub struct ImportIssue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkippedTable {
+    pub table: String,
+    pub rows: u64,
+    pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct V2ImportReport {
     pub dry_run: bool,
     pub applied: bool,
@@ -23,6 +30,7 @@ pub struct V2ImportReport {
     pub counts: Vec<ImportCount>,
     pub existing: Vec<(&'static str, usize)>,
     pub issues: Vec<ImportIssue>,
+    pub skipped: Vec<SkippedTable>,
 }
 
 impl V2ImportReport {
@@ -55,6 +63,17 @@ impl std::fmt::Display for V2ImportReport {
                     output,
                     "  {}: {} importable ({} found)",
                     count.entity, count.importable, count.found
+                )
+                .expect("write to string");
+            }
+        }
+        if !self.skipped.is_empty() {
+            output.push_str("source rows excluded from the v3 store:\n");
+            for skipped in &self.skipped {
+                writeln!(
+                    output,
+                    "  {}: {} rows; {}",
+                    skipped.table, skipped.rows, skipped.reason
                 )
                 .expect("write to string");
             }

@@ -5,6 +5,7 @@ mod model;
 mod plan;
 mod report;
 mod source;
+mod tables;
 mod tombstone;
 pub(crate) mod upgrade;
 mod validate;
@@ -64,6 +65,7 @@ pub async fn migrate_from_v2(
         counts: plan.counts.clone(),
         existing: Vec::new(),
         issues: plan.issues.clone(),
+        skipped: plan.data.skipped.clone(),
     };
     if !options.apply || !report.issues.is_empty() {
         return Ok(report);
@@ -96,7 +98,14 @@ pub async fn migrate_from_v2(
     }
 
     let target_cipher = crate::key_rotation::prepare(&store, config.secret_keys()).await?;
-    apply::run(&store, &target_cipher, plan.data, &mut plan.counts).await?;
+    apply::run(
+        &store,
+        &target_cipher,
+        plan.data,
+        &mut plan.counts,
+        &options.path,
+    )
+    .await?;
     store
         .import_settings(&[SettingInput {
             key: marker,

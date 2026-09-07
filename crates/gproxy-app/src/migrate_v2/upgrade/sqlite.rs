@@ -32,55 +32,15 @@ pub(super) fn quiesce(path: &Path) -> Result<Connection, AppError> {
 }
 
 pub(super) fn validate_source(connection: &Connection) -> Result<(), AppError> {
-    let supported = [
-        "providers",
-        "credentials",
-        "routes",
-        "route_members",
-        "aliases",
-        "price_rules",
-        "price_rule_rates",
-        "orgs",
-        "teams",
-        "users",
-        "user_keys",
-        "provider_models",
-        "quotas",
-        "route_permissions",
-        "routing_rules",
-        "rule_sets",
-        "rules",
-        "provider_rule_sets",
-        "instance_settings",
-        "usages",
-        "schema_migrations",
-        "downstream_requests",
-        "upstream_requests",
-        "audit_logs",
-    ];
-    let mut query = connection
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-        .map_err(error)?;
-    let tables = query
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(error)?;
-    for table in tables {
-        let table = table.map_err(error)?;
-        if supported.contains(&table.as_str()) {
-            continue;
-        }
-        let sql = format!(
-            "SELECT EXISTS(SELECT 1 FROM \"{}\")",
-            table.replace('"', "\"\"")
-        );
-        let populated: bool = connection
-            .query_row(&sql, [], |row| row.get(0))
-            .map_err(error)?;
-        if populated {
-            return Err(error(format!(
-                "table {table} contains data not covered by automatic migration; an explicit migration review is required"
-            )));
-        }
+    let (_, issues) = super::super::tables::inspect(connection).map_err(error)?;
+    if !issues.is_empty() {
+        return Err(error(
+            issues
+                .iter()
+                .map(|issue| format!("table {}: {}", issue.row, issue.reason))
+                .collect::<Vec<_>>()
+                .join("; "),
+        ));
     }
     Ok(())
 }

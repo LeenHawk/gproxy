@@ -137,6 +137,11 @@ pub(super) struct Settings {
 
 #[derive(Default)]
 pub(super) struct SourceData {
+    pub downstream_requests: usize,
+    pub upstream_requests: usize,
+    pub log_references: std::collections::BTreeSet<(Option<i64>, Option<i64>)>,
+    pub skipped: Vec<super::report::SkippedTable>,
+    pub table_issues: Vec<super::report::ImportIssue>,
     pub organizations: Vec<Legacy<OrganizationInput>>,
     pub teams: Vec<Legacy<TeamInput>>,
     pub users: Vec<Legacy<UserInput>>,

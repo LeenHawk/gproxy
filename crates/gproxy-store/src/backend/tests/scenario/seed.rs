@@ -182,7 +182,39 @@ pub(super) async fn seed_capture(
             response_headers: None,
             response_body: Some(b"response".to_vec()),
         })
-        .await
+        .await?;
+    let archived = RequestLogImportInput {
+        request: RequestLogInput {
+            request_id: "imported-request".into(),
+            at: 0,
+            method: "POST".into(),
+            path: "/v1/messages".into(),
+            query: Some("stream=true".into()),
+            client_ip: None,
+            request_headers: Some(json!({"content-type":"application/json"})),
+            request_body: Some(b"request\0body".to_vec()),
+        },
+        response_status: None,
+        response_body: Some("响应".as_bytes().to_vec()),
+    };
+    store
+        .insert_record_batch(RecordBatch::RequestLogs(vec![archived.clone()]))
+        .await?;
+    let mut wire = capture(provider_id, credential_id, 0, 503);
+    wire.request_id = archived.request.request_id.clone();
+    store
+        .insert_record_batch(RecordBatch::Captures(vec![wire.clone()]))
+        .await?;
+    let detail = store
+        .log_detail(&archived.request.request_id)
+        .await?
+        .expect("imported log");
+    assert_eq!(detail.downstream.input, archived.request);
+    assert_eq!(detail.downstream.response_status, archived.response_status);
+    assert_eq!(detail.downstream.response_body, archived.response_body);
+    assert_eq!(detail.upstream.len(), 1);
+    assert_eq!(detail.upstream[0].input, wire);
+    Ok(())
 }
 
 fn capture(provider_id: i64, credential_id: i64, at: i64, status: u16) -> CaptureInput {
