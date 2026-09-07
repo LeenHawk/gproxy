@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { readPageSize } from "@/components/data-table-state"
 import { keepPreviousData, useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { UsageRecordQueryDto } from "@/generated/UsageRecordQueryDto"
@@ -18,7 +19,7 @@ const now = () => Math.floor(Date.now() / 1000)
 
 function initialQuery(): UsageRecordQueryDto {
   const to = now()
-  return { from: to - 7 * 86_400, to, user_key_id: null, user_id: null, provider_id: null, credential_id: null, model: null, request_id: null, operation: null, usage_source: null, ended: null, page: 1, page_size: 10 }
+  return { from: to - 7 * 86_400, to, user_key_id: null, user_id: null, provider_id: null, credential_id: null, model: null, request_id: null, operation: null, usage_source: null, ended: null, page: 1, page_size: readPageSize("usage-records", 10) }
 }
 
 export function UsagePage() {

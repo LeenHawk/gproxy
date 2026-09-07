@@ -6,7 +6,7 @@ import { portalOAuthSessions, revokePortalOAuthSession } from "@/api/portal"
 import type { OAuthSessionDto } from "@/generated/OAuthSessionDto"
 import { ConfirmDangerous } from "@/components/confirm-dangerous"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
-import type { PageSize } from "@/components/data-table-pagination"
+import { usePageSize } from "@/components/data-table-state"
 import { QueryState } from "@/components/query-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,7 @@ export function OAuthSessions() {
   const queryClient = useQueryClient()
   const [activeOnly, setActiveOnly] = useState(true)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<PageSize>(20)
+  const [pageSize, setPageSize] = usePageSize("portal-oauth-sessions", 20)
   const [selected, setSelected] = useState<OAuthSessionDto | null>(null)
   const query = useQuery({
     queryKey: ["portal", "oauth-sessions", activeOnly, page, pageSize],

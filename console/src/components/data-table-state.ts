@@ -1,5 +1,8 @@
 import { useState } from "react"
 
+export const PAGE_SIZES = [10, 20, 50, 100] as const
+export type PageSize = (typeof PAGE_SIZES)[number]
+
 type StoredColumns = { version: 1; hidden: Array<string> }
 
 function readHidden(storageKey: string) {
@@ -27,4 +30,36 @@ export function useColumnVisibility(storageKey: string) {
     })
   }
   return { hidden, toggle }
+}
+
+// The page size an operator last chose for a list, or the list's default.
+// A stored value outside the current choices falls back to the default.
+export function readPageSize(storageKey: string, fallback: PageSize): PageSize {
+  try {
+    const value = Number(window.localStorage.getItem(pageSizeKey(storageKey)))
+    return (PAGE_SIZES as ReadonlyArray<number>).includes(value) ? (value as PageSize) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+export function storePageSize(storageKey: string, pageSize: PageSize) {
+  try {
+    window.localStorage.setItem(pageSizeKey(storageKey), String(pageSize))
+  } catch {
+    // The choice still applies for this session when storage is unavailable.
+  }
+}
+
+export function usePageSize(storageKey: string, fallback: PageSize) {
+  const [pageSize, setState] = useState(() => readPageSize(storageKey, fallback))
+  const setPageSize = (next: PageSize) => {
+    storePageSize(storageKey, next)
+    setState(next)
+  }
+  return [pageSize, setPageSize] as const
+}
+
+function pageSizeKey(storageKey: string) {
+  return `gproxy.table.${storageKey}.page-size`
 }

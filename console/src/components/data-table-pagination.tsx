@@ -2,11 +2,12 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
+import { PAGE_SIZES, type PageSize } from "@/components/data-table-state"
+
+export type { PageSize }
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-const PAGE_SIZES = [10, 20, 50, 100] as const
-export type PageSize = (typeof PAGE_SIZES)[number]
 
 type Props = {
   page: number

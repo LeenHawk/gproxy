@@ -1,7 +1,7 @@
 import { Fragment, useDeferredValue, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { DataTablePagination, type PageSize } from "@/components/data-table-pagination"
-import { useColumnVisibility } from "@/components/data-table-state"
+import { storePageSize, useColumnVisibility, usePageSize } from "@/components/data-table-state"
 import { DataTableToolbar } from "@/components/data-table-toolbar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -68,7 +68,7 @@ export function DataTable<T>({
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase())
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<PageSize>(initialPageSize)
+  const [pageSize, setPageSize] = usePageSize(storageKey, initialPageSize)
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<Set<string | number>>(() => new Set())
   const { hidden, toggle } = useColumnVisibility(`gproxy.table.${storageKey}.columns`)
@@ -170,7 +170,7 @@ export function DataTable<T>({
           })}</div>
         </>
       )}
-      {filtered.length > 0 || pagination ? <DataTablePagination page={currentPage} pages={pages} pageSize={effectiveSize} onPage={pagination?.onPage ?? setPage} onPageSize={pagination?.onPageSize ?? ((size) => { setPageSize(size); setPage(1) })} /> : null}
+      {filtered.length > 0 || pagination ? <DataTablePagination page={currentPage} pages={pages} pageSize={effectiveSize} onPage={pagination?.onPage ?? setPage} onPageSize={pagination ? (size) => { storePageSize(storageKey, size); pagination.onPageSize(size) } : (size) => { setPageSize(size); setPage(1) }} /> : null}
       {selecting ? (
         <div className="sticky bottom-3 flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
           <span className="px-2 text-sm text-muted-foreground">{t("common.dataTable.selected", { count: selectedRows.length })}</span>

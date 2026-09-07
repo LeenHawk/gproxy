@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { DataTablePagination, type PageSize } from "@/components/data-table-pagination"
+import { DataTablePagination } from "@/components/data-table-pagination"
+import { usePageSize } from "@/components/data-table-state"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -37,7 +38,7 @@ export function WorkspaceLayout<T extends { id: number }>(props: Props<T>) {
   const { t } = useTranslation()
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<PageSize>(10)
+  const [pageSize, setPageSize] = usePageSize(props.storageKey.replace(/^gproxy\./, "").replace(/\.width$/, ""), 10)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const pane = useWorkspacePaneWidth(props.storageKey)

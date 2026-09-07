@@ -117,3 +117,16 @@ describe("DataTable", () => {
     expect(screen.queryByText("Item 11")).not.toBeInTheDocument()
   })
 })
+
+describe("page size preference", () => {
+  it("remembers the last choice per list and ignores sizes no longer offered", async () => {
+    const { readPageSize, storePageSize } = await import("@/components/data-table-state")
+    window.localStorage.clear()
+    expect(readPageSize("providers", 10)).toBe(10)
+    storePageSize("providers", 50)
+    expect(readPageSize("providers", 10)).toBe(50)
+    expect(readPageSize("credentials", 20)).toBe(20)
+    window.localStorage.setItem("gproxy.table.credentials.page-size", "7")
+    expect(readPageSize("credentials", 20)).toBe(20)
+  })
+})
