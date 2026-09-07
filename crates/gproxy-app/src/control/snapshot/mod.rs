@@ -312,25 +312,11 @@ impl ControlPlane for SnapshotControl {
         let Ok(plan) = self.resolve(model, mode, Some(identity.user_key_id)) else {
             return false;
         };
-        !plan.targets.is_empty()
-            && [
-                gproxy_protocol::OperationKey::content(
-                    gproxy_protocol::Operation::GenerateContent,
-                    gproxy_protocol::ContentGenerationKind::OpenAiResponses,
-                ),
-                gproxy_protocol::OperationKey::family(
-                    gproxy_protocol::Operation::ListModels,
-                    gproxy_protocol::WireFamily::OpenAi,
-                ),
-            ]
-            .into_iter()
-            .filter(|operation| {
-                !self.is_oauth_key(identity.user_key_id)
-                    || operation.operation() == gproxy_protocol::Operation::GenerateContent
-            })
-            .any(|operation| {
-                crate::host::authorize(&self.current(), identity, Some(operation), &plan).is_ok()
-            })
+        let snapshot = self.current();
+        let oauth = self.is_oauth_key(identity.user_key_id);
+        plan.targets.iter().any(|target| {
+            crate::host::catalogue_permitted(&snapshot, identity, target.provider.id, oauth)
+        })
     }
 
     fn detached(&self) -> Box<dyn ControlPlane> {

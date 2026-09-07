@@ -7,6 +7,7 @@ mod migrate_v2;
 mod migrate_v2_logs;
 mod native_upgrade;
 mod oauth;
+mod permissions;
 mod pressure;
 mod quota;
 mod routing;

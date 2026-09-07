@@ -22,7 +22,9 @@ use crate::control::SnapshotControl;
 use crate::secrets::EnvelopeCipher;
 #[cfg(test)]
 pub(crate) use admission::authenticate_headers;
+#[cfg(test)]
 pub(crate) use admission::authorize;
+pub(crate) use admission::{catalogue_permitted, provider_permitted};
 
 pub(crate) struct Services {
     pub store: gproxy_store::Store,
@@ -104,7 +106,7 @@ impl Host for AppHost {
         request: &'a RequestCtx,
         operation: Option<gproxy_protocol::OperationKey>,
         plan: &'a Plan,
-    ) -> BoxFuture<'a, Result<(), gproxy_core::CoreError>> {
+    ) -> BoxFuture<'a, Result<Plan, gproxy_core::CoreError>> {
         admission::admit(self, identity, request, operation, plan)
     }
 

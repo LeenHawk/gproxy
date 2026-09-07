@@ -49,29 +49,77 @@ pub(crate) fn authorize(
     identity: &CallerIdentity,
     operation: Option<OperationKey>,
     plan: &Plan,
-) -> Result<(), CoreError> {
-    let group = operation.map(|key| key.operation().group().id());
-    for provider in plan.targets.iter().map(|target| target.provider.id) {
-        let applicable = snapshot.permissions.iter().filter(|permission| {
-            subject_matches(&permission.subject_kind, permission.subject_id, identity)
-                && permission.provider_id.is_none_or(|id| id == provider)
-                && permission
-                    .operation_group
-                    .as_deref()
-                    .is_none_or(|value| Some(value) == group)
-        });
-        let mut allowed = false;
-        for permission in applicable {
-            if !permission.allowed {
-                return Err(CoreError::Forbidden("permission denied".into()));
-            }
-            allowed = true;
-        }
-        if !allowed {
-            return Err(CoreError::Forbidden("permission denied".into()));
-        }
+) -> Result<Plan, CoreError> {
+    let mut plan = plan.clone();
+    plan.targets
+        .retain(|target| provider_permitted(snapshot, identity, operation, target.provider.id));
+    if plan.targets.is_empty() {
+        return Err(CoreError::Forbidden("permission denied".into()));
     }
-    Ok(())
+    Ok(plan)
+}
+
+pub(crate) fn catalogue_permitted(
+    snapshot: &gproxy_store::records::ControlSnapshot,
+    identity: &CallerIdentity,
+    provider: i64,
+    oauth: bool,
+) -> bool {
+    [
+        gproxy_protocol::OperationGroup::GenerateContent,
+        gproxy_protocol::OperationGroup::Models,
+    ]
+    .into_iter()
+    .filter(|group| !oauth || *group == gproxy_protocol::OperationGroup::GenerateContent)
+    .any(|group| group_permitted(snapshot, identity, Some(group.id()), provider))
+}
+
+pub(crate) fn provider_permitted(
+    snapshot: &gproxy_store::records::ControlSnapshot,
+    identity: &CallerIdentity,
+    operation: Option<OperationKey>,
+    provider: i64,
+) -> bool {
+    if operation
+        .is_some_and(|key| key.operation().group() == gproxy_protocol::OperationGroup::Models)
+    {
+        return catalogue_permitted(
+            snapshot,
+            identity,
+            provider,
+            identity.oauth_access_digest.is_some(),
+        );
+    }
+    group_permitted(
+        snapshot,
+        identity,
+        operation.map(|key| key.operation().group().id()),
+        provider,
+    )
+}
+
+fn group_permitted(
+    snapshot: &gproxy_store::records::ControlSnapshot,
+    identity: &CallerIdentity,
+    group: Option<&str>,
+    provider: i64,
+) -> bool {
+    let applicable = snapshot.permissions.iter().filter(|permission| {
+        subject_matches(&permission.subject_kind, permission.subject_id, identity)
+            && permission.provider_id.is_none_or(|id| id == provider)
+            && permission
+                .operation_group
+                .as_deref()
+                .is_none_or(|value| Some(value) == group)
+    });
+    let mut allowed = false;
+    for permission in applicable {
+        if !permission.allowed {
+            return false;
+        }
+        allowed = true;
+    }
+    allowed
 }
 
 pub(super) fn subject_matches(kind: &str, id: i64, identity: &CallerIdentity) -> bool {

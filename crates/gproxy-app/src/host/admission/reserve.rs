@@ -14,17 +14,12 @@ pub(in crate::host) fn admit<'a>(
     request: &'a RequestCtx,
     operation: Option<OperationKey>,
     plan: &'a Plan,
-) -> BoxFuture<'a, Result<(), CoreError>> {
+) -> BoxFuture<'a, Result<Plan, CoreError>> {
     Box::pin(async move {
         let snapshot = host.services.control.current();
         let oauth_identity = super::auth::oauth_admission(host, identity, operation).await?;
         let identity = oauth_identity.as_ref().unwrap_or(identity);
-        if oauth_identity.is_none()
-            || operation.map(|key| key.operation().group())
-                != Some(gproxy_protocol::OperationGroup::Models)
-        {
-            authorize(&snapshot, identity, operation, plan)?;
-        }
+        let plan = authorize(&snapshot, identity, operation, plan)?;
         let now = unix_now();
         let mut charged = Vec::new();
         let reservations = match super::quota::reserve(
@@ -32,7 +27,7 @@ pub(in crate::host) fn admit<'a>(
             identity,
             request,
             operation,
-            plan,
+            &plan,
             now,
             &mut charged,
         )
@@ -87,7 +82,7 @@ pub(in crate::host) fn admit<'a>(
             let _ = host.services.cache.delete(&key).await;
             return rollback_error(host, charged, error.into()).await;
         }
-        Ok(())
+        Ok(plan)
     })
 }
 
@@ -109,11 +104,11 @@ pub(super) async fn increment_window(
         .await?)
 }
 
-pub(super) async fn rollback_error(
+pub(super) async fn rollback_error<T>(
     host: &AppHost,
     charges: Vec<CounterCharge>,
     error: CoreError,
-) -> Result<(), CoreError> {
+) -> Result<T, CoreError> {
     for charge in charges.into_iter().rev() {
         if let Err(rollback) = host
             .services

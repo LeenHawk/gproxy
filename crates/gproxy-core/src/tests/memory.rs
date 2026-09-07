@@ -212,10 +212,10 @@ impl Host for MemoryHost {
         _: &'a CallerIdentity,
         _: &'a crate::boundary::RequestCtx,
         _: Option<OperationKey>,
-        _: &'a Plan,
-    ) -> BoxFuture<'a, Result<(), CoreError>> {
+        plan: &'a Plan,
+    ) -> BoxFuture<'a, Result<Plan, CoreError>> {
         self.state.lock().expect("state lock").admit_calls += 1;
-        Box::pin(async { Ok(()) })
+        Box::pin(async { Ok(plan.clone()) })
     }
     fn finish_admission<'a>(
         &'a self,

@@ -92,10 +92,14 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 funnel_error::request_failed_surface(&ctx, key, Some(label), &error);
                 return Ok(super::reply::error(error));
             };
+            let plan = Plan {
+                targets: vec![target.clone()],
+                budget: crate::control::FailoverBudget { max_attempts: 1 },
+            };
             if let Err(error) = self
                 .core
                 .host
-                .admit(&self.identity, &ctx, request.key, &self.plan)
+                .admit(&self.identity, &ctx, request.key, &plan)
                 .await
             {
                 funnel_error::request_failed_surface(&ctx, request.key, Some(label), &error);
@@ -162,10 +166,14 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                     provider: self.target.provider.name.clone(),
                 },
             };
+            let plan = Plan {
+                targets: vec![self.target.clone()],
+                budget: crate::control::FailoverBudget { max_attempts: 1 },
+            };
             if let Err(error) = self
                 .core
                 .host
-                .admit(&self.identity, &ctx, None, &self.plan)
+                .admit(&self.identity, &ctx, None, &plan)
                 .await
             {
                 funnel_error::request_failed_surface(&ctx, None, Some("presigned"), &error);

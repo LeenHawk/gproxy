@@ -50,13 +50,14 @@ pub(crate) async fn resolved<H: Host>(
     }
     let session_affinity =
         session::apply(core, &ctx, &classified, identity.user_key_id, &mut plan).await;
-    if let Err(error) = core
+    let plan = match core
         .host
         .admit(&identity, &ctx, Some(classified.key), &plan)
         .await
     {
-        return reject(&ctx, Some(classified.key), error);
-    }
+        Ok(plan) => plan,
+        Err(error) => return reject(&ctx, Some(classified.key), error),
+    };
     execute_admitted(
         core,
         control,

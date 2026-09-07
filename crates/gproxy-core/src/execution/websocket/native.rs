@@ -13,30 +13,33 @@ impl<H: Host> ResponsesBridge<H> {
         plan: &Plan,
         classified: &Classified,
     ) -> Result<bool, TransportError> {
-        let candidates = plan
-            .targets
-            .iter()
-            .filter(|target| {
-                attempt::support(&self.core, target, classified.key)
-                    .ok()
-                    .flatten()
-                    .is_some_and(|support| {
-                        support.target.kind()
-                            == OperationKind::ContentGeneration(
-                                ContentGenerationKind::OpenAiResponsesWebSocket,
-                            )
-                    })
-            })
-            .take(plan.budget.max_attempts as usize)
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
+        let mut native_plan = plan.clone();
+        native_plan.targets.retain(|target| {
+            attempt::support(&self.core, target, classified.key)
+                .ok()
+                .flatten()
+                .is_some_and(|support| {
+                    support.target.kind()
+                        == OperationKind::ContentGeneration(
+                            ContentGenerationKind::OpenAiResponsesWebSocket,
+                        )
+                })
+        });
+        if native_plan.targets.is_empty() {
             return Ok(false);
         }
-        self.core
+        let plan = match self
+            .core
             .host
-            .admit(&self.identity, request, Some(classified.key), plan)
+            .admit(&self.identity, request, Some(classified.key), &native_plan)
             .await
-            .map_err(super::transport)?;
+        {
+            Ok(plan) => plan,
+            // HTTP fallback may still have authorized providers.
+            Err(crate::error::CoreError::Forbidden(_)) => return Ok(false),
+            Err(error) => return Err(super::transport(error)),
+        };
+        let candidates = plan.targets.iter().take(plan.budget.max_attempts as usize);
         for target in candidates {
             let Ok(attempt::Prepared {
                 egress: Egress::WebSocket(upstream_request),
@@ -92,7 +95,8 @@ impl<H: Host> ResponsesBridge<H> {
         plan: &Plan,
         classified: &Classified,
     ) -> Result<(), TransportError> {
-        self.core
+        let plan = self
+            .core
             .host
             .admit(&self.identity, request, Some(classified.key), plan)
             .await

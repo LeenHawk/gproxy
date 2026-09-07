@@ -55,9 +55,12 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
             for target in &plan.targets {
                 let descriptor = descriptors.get(target.provider.channel.as_str())?;
                 for support in descriptor.supports {
-                    if crate::host::authorize(&snapshot, &caller, Some(support.source), &plan)
-                        .is_ok()
-                    {
+                    if crate::host::provider_permitted(
+                        &snapshot,
+                        &caller,
+                        Some(support.source),
+                        target.provider.id,
+                    ) {
                         let capability = PortalModelCapabilityDto {
                             source: support.source.kind().id().into(),
                             operation: support.source.operation().id().into(),

@@ -219,14 +219,15 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
     ) -> BoxFuture<'a, Result<CallerIdentity, CoreError>>;
     /// Apply permissions, rate limits, and quota pre-charge. `operation` is
     /// `None` for a matched service-surface route. Returning an error must
-    /// leave no reservation behind.
+    /// leave no reservation behind. Returns only authorized candidates; all
+    /// subsequent selection and egress must use this plan.
     fn admit<'a>(
         &'a self,
         identity: &'a CallerIdentity,
         request: &'a RequestCtx,
         operation: Option<OperationKey>,
         plan: &'a Plan,
-    ) -> BoxFuture<'a, Result<(), CoreError>>;
+    ) -> BoxFuture<'a, Result<Plan, CoreError>>;
     /// Reconcile a successful exchange or refund a failed admitted request.
     /// `None` means no upstream answer reached settlement.
     fn finish_admission<'a>(

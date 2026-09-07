@@ -94,7 +94,7 @@ async fn run<H: Host>(
             Ok,
         )
     };
-    let (identity, plan) = if public {
+    let (identity, mut plan) = if public {
         let plan = match resolve(None) {
             Ok(plan) => plan,
             Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
@@ -175,8 +175,11 @@ async fn run<H: Host>(
             },
         )
     } else {
-        if !public && let Err(error) = core.host.admit(&identity, &ctx, None, &plan).await {
-            return Dispatch::Outcome(reject(&ctx, matched_label, error));
+        if !public {
+            plan = match core.host.admit(&identity, &ctx, None, &plan).await {
+                Ok(plan) => plan,
+                Err(error) => return Dispatch::Outcome(reject(&ctx, matched_label, error)),
+            };
         }
         let mut selected = match affinity::select(core, &ctx, &identity, &plan, matches).await {
             Ok(selected) => selected,
