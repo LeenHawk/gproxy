@@ -39,7 +39,7 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
     let mut dimensions = settlement.usage.dimensions.clone();
     dimensions.insert("instance_name".into(), settings.instance_name.clone());
     dimensions.insert("instance_id".into(), settings.instance_id.to_string());
-    let input = gproxy_store::records::UsageInput {
+    let mut input = gproxy_store::records::UsageInput {
         upstream_started_at_ms: settlement.upstream_started_at_ms,
         request_id: settlement.request_id.clone(),
         at: unix_now(),
@@ -73,8 +73,41 @@ async fn record_settlement(host: &AppHost, settlement: &gproxy_core::Settlement)
     if !settings.enable_usage {
         return;
     }
-    if let Err(error) = host.services.store.record_usage(&input).await {
-        tracing::error!(request_id = %settlement.request_id, error = %error, "persist usage failed");
+    if settlement.attempts.is_empty() {
+        if let Err(error) = host.services.store.record_usage(&input).await {
+            tracing::error!(request_id = %settlement.request_id, error = %error, "persist usage failed");
+        }
+    } else {
+        for (index, attempt) in settlement.attempts.iter().enumerate() {
+            input.request_id = if index == 0 {
+                settlement.request_id.clone()
+            } else {
+                format!("{}:attempt:{index}", settlement.request_id)
+            };
+            input.upstream_model.clone_from(&attempt.upstream_model);
+            input.upstream_started_at_ms = attempt.started_at_ms;
+            input.input_tokens = attempt.usage.input_tokens;
+            input.output_tokens = attempt.usage.output_tokens;
+            input.cached_input_tokens = attempt.usage.cached_input_tokens;
+            input.metrics =
+                serde_json::to_value(&attempt.usage.metrics).expect("decimal metrics serialize");
+            let mut dimensions = attempt.usage.dimensions.clone();
+            dimensions.insert("instance_name".into(), settings.instance_name.clone());
+            dimensions.insert("instance_id".into(), settings.instance_id.to_string());
+            dimensions.insert("parent_request_id".into(), settlement.request_id.clone());
+            dimensions.insert("billable".into(), attempt.billable.to_string());
+            input.dimensions =
+                serde_json::to_value(dimensions).expect("string dimensions serialize");
+            input.cost = attempt.cost;
+            input.usage_source = match attempt.source {
+                UsageSource::Upstream => "upstream",
+                UsageSource::Estimated => "estimated",
+            }
+            .into();
+            if let Err(error) = host.services.store.record_usage(&input).await {
+                tracing::error!(request_id = %input.request_id, error = %error, "persist fallback usage failed");
+            }
+        }
     }
 }
 

@@ -46,6 +46,28 @@ pub(crate) async fn prepare<H: Host>(
     started: Instant,
 ) -> Result<Prepared, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
+    let (pin_key, pinned_model) = super::refusal::pin::lookup(
+        core,
+        channel,
+        target,
+        classified.session_id(admission.owner_user_id).as_deref(),
+        &ctx.body,
+    )
+    .await;
+    let mut pinned_target = target.clone();
+    let pinned = pinned_model.is_some();
+    if let Some(model) = pinned_model {
+        pinned_target.upstream_model = model;
+        core.host
+            .admit_retry(
+                &ctx.request_id,
+                &pinned_target,
+                &ctx.body,
+                classified.key.operation().spec().settle,
+            )
+            .await?;
+    }
+    let target = &pinned_target;
     support(core, target, classified.key)?.ok_or(CoreError::Unsupported)?;
     if classified.key.operation().spec().settle == gproxy_protocol::SettleMode::OnSessionEnd
         && core.host.spawner().is_none()
@@ -155,7 +177,7 @@ pub(crate) async fn prepare<H: Host>(
         &target.provider.traffic_blacklist,
     );
     let session_id = classified.session_id(admission.owner_user_id);
-    let context = || PrepareCtx {
+    let context = PrepareCtx {
         key: support.target,
         session_id: session_id.as_deref(),
         stream,
@@ -168,15 +190,39 @@ pub(crate) async fn prepare<H: Host>(
         provider_settings: &target.provider.settings,
         secret: &credential.secret,
     };
+    let mut refusal = super::refusal::Replay::read(channel, &context)?;
+    if let Some(replay) = refusal.as_mut() {
+        replay.pin_key = pin_key;
+        replay.pinned = pinned;
+    }
+    let mut fallback_headers = request_headers.clone();
+    let fallback_body = if let Some(replay) = refusal.as_ref() {
+        replay.prepare_headers(&mut fallback_headers);
+        replay.prepare_body(&body)
+    } else {
+        body.clone()
+    };
+    let mut channel_settings = target.provider.settings.clone();
+    if pinned {
+        channel_settings["claude_fallback_mode"] = serde_json::json!("off");
+    }
+    let context = PrepareCtx {
+        body: &fallback_body,
+        headers: &fallback_headers,
+        provider_settings: &channel_settings,
+        ..context
+    };
     let driver = health::result(
         core,
         target,
         credential.version,
-        channel.operation_driver(context()),
+        channel.operation_driver(context),
     )
     .await?;
     let target_framing = gproxy_protocol::default_framing(support.target.kind(), false);
     let facts = FunnelCtx {
+        pricing_control: Some(std::sync::Arc::from(control.detached())),
+        usage_channel: core.channels.shared(channel.descriptor().id),
         upstream_started_at_ms: None,
         request_id: ctx.request_id.clone(),
         target: target.clone(),
@@ -219,10 +265,11 @@ pub(crate) async fn prepare<H: Host>(
             downstream_stream: classified.stream,
             facts,
             egress: Egress::Orchestrated(driver),
+            refusal: None,
         });
     }
     let mut prepared =
-        health::result(core, target, credential.version, channel.prepare(context())).await?;
+        health::result(core, target, credential.version, channel.prepare(context)).await?;
     crate::fingerprint::apply_prepared(&mut prepared, &target.provider)?;
     let target_framing = prepared
         .framing
@@ -231,6 +278,9 @@ pub(crate) async fn prepare<H: Host>(
     facts.target_framing = target_framing;
     facts.upstream_url = Some(prepared.request.uri().to_string());
     facts.request_method = Some(prepared.request.method().clone());
+    if let Some(replay) = refusal.as_mut() {
+        replay.capture(&prepared.request);
+    }
     facts.request_body = prepared.request.body().clone();
     facts.request_headers = Some(prepared.request.headers().clone());
     Ok(Prepared {
@@ -239,6 +289,7 @@ pub(crate) async fn prepare<H: Host>(
         channel: channel.descriptor().id,
         stream,
         downstream_stream: classified.stream,
+        refusal,
         facts,
         egress: if prepared.websocket {
             Egress::WebSocket(Box::new(prepared.request))

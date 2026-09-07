@@ -134,6 +134,8 @@ pub(crate) async fn request<H: Host>(
         });
     let target_framing = prepared.framing.unwrap_or(source_framing);
     let mut facts = FunnelCtx {
+        pricing_control: None,
+        usage_channel: None,
         upstream_started_at_ms: Some(crate::quota::now_ms()),
         request_id,
         target: target.clone(),

@@ -65,4 +65,4 @@ pub use host::{
     Host, SettlementPermit, Spawner, UpstreamTransport, UsageSink,
 };
 pub use quota::QuotaProbeResult;
-pub use usage::{Ended, NormalizedUsage, Settlement, UsageSource};
+pub use usage::{Ended, NormalizedUsage, SettledAttempt, Settlement, UsageSource};

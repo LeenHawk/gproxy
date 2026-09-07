@@ -1,7 +1,7 @@
 mod delta;
 mod usage;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use gproxy_protocol::claude;
 
@@ -12,6 +12,7 @@ use usage::merge_usage;
 
 #[derive(Default)]
 pub(super) struct ClaudeCollector {
+    pub(super) open_tools: BTreeSet<u64>,
     message: Option<claude::CreateMessageStartBody>,
     blocks: BTreeMap<u64, claude::ContentBlock>,
     json: BTreeMap<u64, String>,
@@ -34,12 +35,27 @@ impl ClaudeCollector {
                     content_block,
                     ..
                 } => {
+                    if matches!(
+                        content_block.as_ref(),
+                        claude::ResponseContentBlock::ToolUse(_)
+                            | claude::ResponseContentBlock::ServerToolUse(_)
+                            | claude::ResponseContentBlock::McpToolUse(_)
+                    ) {
+                        self.open_tools.insert(index);
+                    }
+                    if let Some(model) =
+                        crate::common::content::claude_fallback_model(&content_block)
+                        && let Some(message) = self.message.as_mut()
+                    {
+                        message.model = model;
+                    }
                     self.blocks.insert(index, *content_block);
                 }
                 claude::KnownStreamEvent::ContentBlockDelta { index, delta, .. } => {
                     self.apply_delta(index, *delta)?;
                 }
                 claude::KnownStreamEvent::ContentBlockStop { index, .. } => {
+                    self.open_tools.remove(&index);
                     if let Some(json) = self.json.remove(&index)
                         && let Some(claude::ResponseContentBlock::ToolUse(block)) =
                             self.blocks.get_mut(&index)
@@ -129,5 +145,17 @@ impl ClaudeCollector {
             stop_details: delta.stop_details,
             rest: Default::default(),
         }))
+    }
+
+    pub(super) fn has_output(&self) -> bool {
+        self.blocks.values().any(|block| match block {
+            claude::ResponseContentBlock::Text(block) => !block.text.is_empty(),
+            claude::ResponseContentBlock::Thinking(block) => !block.thinking.is_empty(),
+            claude::ResponseContentBlock::Fallback(_) => false,
+            claude::ResponseContentBlock::Raw(raw) => {
+                raw.get("type").and_then(serde_json::Value::as_str) != Some("fallback")
+            }
+            _ => true,
+        })
     }
 }

@@ -143,6 +143,18 @@ impl Host for AppHost {
         admission::admit_credential(self, request_id, target, body, settle)
     }
 
+    fn admit_retry<'a>(
+        &'a self,
+        request_id: &'a str,
+        target: &'a gproxy_core::Target,
+        body: &'a bytes::Bytes,
+        settle: gproxy_protocol::SettleMode,
+    ) -> BoxFuture<'a, Result<(), gproxy_core::CoreError>> {
+        Box::pin(admission::retry::admit(
+            self, request_id, target, body, settle,
+        ))
+    }
+
     fn count_tokens<'a>(
         &'a self,
         model: &'a str,

@@ -14,6 +14,8 @@
 pub mod channel;
 pub mod disposition;
 pub mod endpoint;
+mod fallback;
+pub use fallback::{ClaudeFallbackCapabilities, claude_fallback_setting, has_fallback_credit};
 pub mod login;
 pub mod model;
 pub mod oauth;
@@ -63,7 +65,7 @@ pub use surface::{
 pub use traffic::{TrafficBlacklistConfig, TrafficPolicyConfig};
 pub use usage::{
     NormalizedUsage, QuotaCapabilities, QuotaObservation, QuotaResetBehavior, QuotaResetCredits,
-    QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaSampleSource, QuotaScope,
+    QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaSampleSource, QuotaScope, UsageAttempt,
 };
 pub use wire::{
     Alpn, ByteStream, ClientProfile, ClientProfilePreset, CredentialId, Http2Profile, Http2Setting,

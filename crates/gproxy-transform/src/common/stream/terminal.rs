@@ -17,6 +17,7 @@ impl State {
         if let Some(reason) = delta.stop_reason {
             self.stop_reason = reason;
         }
+        let refusal = stop::refusal_text(&self.stop_reason, delta.stop_details.as_ref());
         if let Some(usage) = usage_delta {
             if let Some(current) = self.usage.as_mut() {
                 merge_usage(current, usage);
@@ -26,13 +27,34 @@ impl State {
         }
         Ok(match self.output {
             Output::Chat => {
+                let mut delta = empty_delta();
+                delta.refusal = refusal;
                 vec![self.chat_chunk(
-                    empty_delta(),
+                    delta,
                     Some(stop::claude_to_chat(&self.stop_reason)),
                     self.usage.clone().and_then(usage::claude_to_chat),
                 )?]
             }
-            Output::Responses => Vec::new(),
+            Output::Responses => {
+                if let Some(refusal) = refusal {
+                    let index = self.completed.len() as u32;
+                    let item = stop::refusal_item(
+                        format!(
+                            "msg_{}_refusal",
+                            self.id.as_deref().expect("started message")
+                        ),
+                        refusal,
+                    );
+                    let output = vec![
+                        self.response_output_item_added(item.clone(), index)?,
+                        self.response_output_item_done(item.clone(), index)?,
+                    ];
+                    self.completed.push(item);
+                    output
+                } else {
+                    Vec::new()
+                }
+            }
         })
     }
 

@@ -30,6 +30,10 @@
         "label": "Claude magic-string cache",
         "description": "Recognizes supported trigger strings and writes explicit Claude cache breakpoints."
       },
+      "claude_gateway_fallback_mode": {
+        "label": "Claude refusal fallback",
+        "description": "Retry a refused Claude request on the recommended model or your ordered model list."
+      },
       "claude_fallback_mode": {
         "label": "Claude fallback mode",
         "description": "Turns fallback off, uses the upstream default, or applies an explicit model chain."
@@ -128,6 +132,11 @@
       }
     },
     "channelFieldOptions": {
+      "claude_gateway_fallback_mode": {
+        "off": "Off",
+        "default": "Recommended model",
+        "models": "Models"
+      },
       "claude_fallback_mode": {
         "off": "Off",
         "default": "Upstream default",

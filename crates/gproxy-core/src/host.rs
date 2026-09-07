@@ -243,6 +243,17 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         body: &'a bytes::Bytes,
         settle: gproxy_protocol::SettleMode,
     ) -> BoxFuture<'a, Result<(), CoreError>>;
+
+    /// Reserve additional paid work within an already admitted request.
+    fn admit_retry<'a>(
+        &'a self,
+        request_id: &'a str,
+        target: &'a crate::control::Target,
+        body: &'a bytes::Bytes,
+        settle: gproxy_protocol::SettleMode,
+    ) -> BoxFuture<'a, Result<(), CoreError>> {
+        self.admit_credential(request_id, target, body, settle)
+    }
     /// Count the provider-native request with the host's local tokenizer
     /// ladder. The model and optional map have already been resolved.
     fn count_tokens<'a>(

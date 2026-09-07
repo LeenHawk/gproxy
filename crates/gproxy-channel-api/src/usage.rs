@@ -49,6 +49,17 @@ pub struct NormalizedUsage {
     pub metrics: BTreeMap<String, Decimal>,
     /// Qualifiers that select pricing variants: `"resolution"`, `"tier"`...
     pub dimensions: BTreeMap<String, String>,
+    /// Per-model attempts replace top-level counts for billing, never add to them.
+    pub attempts: Vec<UsageAttempt>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UsageAttempt {
+    pub model: String,
+    pub usage: Box<NormalizedUsage>,
+    pub billable: bool,
+    pub estimated: bool,
+    pub started_at_ms: Option<i64>,
 }
 
 /// One upstream quota-window reading riding a response. A channel reports

@@ -12,6 +12,7 @@ use crate::host::{Host, UpstreamTransport};
 pub(crate) mod body;
 mod media;
 mod prepare;
+mod refusal;
 mod transform;
 
 #[cfg(test)]
@@ -31,6 +32,7 @@ pub(crate) struct Prepared {
     pub(crate) stream: bool,
     pub(crate) downstream_stream: bool,
     pub(crate) facts: FunnelCtx,
+    pub(crate) refusal: Option<refusal::Replay>,
 }
 
 pub(crate) struct Completed {
@@ -81,6 +83,7 @@ pub(crate) async fn send<H: Host>(
         stream,
         downstream_stream,
         mut facts,
+        refusal,
     } = prepared;
     if matches!(&egress, Egress::WebSocket(_))
         && !facts
@@ -91,7 +94,7 @@ pub(crate) async fn send<H: Host>(
             error: CoreError::Unsupported,
         }));
     }
-    let committed = matches!(&egress, Egress::Orchestrated(_));
+    let mut committed = matches!(&egress, Egress::Orchestrated(_));
     facts.upstream_started_at_ms = Some(crate::quota::now_ms());
     if quota_accounted
         && let Err(error) = core
@@ -193,7 +196,23 @@ pub(crate) async fn send<H: Host>(
             }
         }
     };
+    let captured = !stream && refusal.is_some() && response.status().is_success();
     facts.response_headers = Some(response.headers().clone());
+    let (response, decoder_override, usage_override) = if response.status().is_success() {
+        if let Some(replay) = refusal {
+            committed = true;
+            let wrapped = refusal::wrap(core, &facts, response, replay, stream).await;
+            if wrapped.decoder.is_some() {
+                facts.target_framing = gproxy_protocol::StreamFraming::Sse;
+            }
+            (wrapped.response, wrapped.decoder, wrapped.usage)
+        } else {
+            (response, None, None)
+        }
+    } else {
+        (response, None, None)
+    };
+
     let channel = core
         .channels
         .get(channel)
@@ -210,11 +229,13 @@ pub(crate) async fn send<H: Host>(
         )
         .await;
         let key = facts.key.expect("operation attempt has an upstream key");
-        let mut decoder = channel.stream_decoder(StreamCtx {
-            key,
-            framing: facts.target_framing,
-            request_body: &facts.request_body,
-            response_headers: response.headers(),
+        let mut decoder = decoder_override.or_else(|| {
+            channel.stream_decoder(StreamCtx {
+                key,
+                framing: facts.target_framing,
+                request_body: &facts.request_body,
+                response_headers: response.headers(),
+            })
         });
         let requested_model = facts
             .requested_model
@@ -296,6 +317,7 @@ pub(crate) async fn send<H: Host>(
                             actual_service_tier: collected.actual_service_tier,
                             capture_body: Some(collected.capture_body),
                             outward_ready: true,
+                            captured,
                         }),
                     })
                 }
@@ -371,7 +393,12 @@ pub(crate) async fn send<H: Host>(
         channel: channel.descriptor().id,
         facts,
         disposition,
-        body: AttemptBody::Buffered(funnel::BufferedRelay::native(response)),
+        body: AttemptBody::Buffered({
+            let mut relay = funnel::BufferedRelay::native(response);
+            relay.usage = usage_override;
+            relay.captured = captured;
+            relay
+        }),
     })
 }
 

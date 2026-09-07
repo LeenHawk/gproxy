@@ -57,6 +57,7 @@ async fn credential_budget_settles_without_usage_logs_and_blocks_each_limit() {
     .await
     .unwrap();
     let settlement = gproxy_core::Settlement {
+        attempts: Vec::new(),
         upstream_started_at_ms: None,
         request_id: "credential-budget-spend".into(),
         provider_id: fixture.provider,

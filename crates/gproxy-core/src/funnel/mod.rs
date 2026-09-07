@@ -25,6 +25,7 @@ use self::stream::FunnelStream;
 #[derive(Debug)]
 pub(crate) struct Settled(());
 
+#[derive(Clone)]
 pub(crate) struct FunnelCtx {
     pub upstream_started_at_ms: Option<i64>,
     pub request_id: String,
@@ -38,6 +39,8 @@ pub(crate) struct FunnelCtx {
     pub target_framing: StreamFraming,
     pub settle: SettleMode,
     pub pricing: Option<Pricing>,
+    pub pricing_control: Option<std::sync::Arc<dyn crate::control::ControlPlane>>,
+    pub usage_channel: Option<std::sync::Arc<dyn Channel>>,
     pub started: Instant,
     pub upstream_url: Option<String>,
     pub request_method: Option<http::Method>,
@@ -69,6 +72,7 @@ pub(crate) struct BufferedRelay {
     pub actual_service_tier: Option<String>,
     pub capture_body: Option<Bytes>,
     pub outward_ready: bool,
+    pub captured: bool,
 }
 
 impl BufferedRelay {
@@ -79,6 +83,7 @@ impl BufferedRelay {
             actual_service_tier: None,
             capture_body: None,
             outward_ready: false,
+            captured: false,
         }
     }
 }
@@ -109,6 +114,7 @@ pub(crate) async fn buffered<H: Host>(
         actual_service_tier,
         capture_body,
         outward_ready,
+        captured,
     } = relay;
     let (parts, body) = response.into_parts();
     let actual_service_tier = actual_service_tier
@@ -169,7 +175,7 @@ pub(crate) async fn buffered<H: Host>(
         usage,
         actual_service_tier,
         cost_override: None,
-        capture_response: true,
+        capture_response: !captured,
         ended: Ended::Complete,
     };
     let (status, headers, body, disposition) =

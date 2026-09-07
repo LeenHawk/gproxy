@@ -4,6 +4,7 @@ pub(super) mod credential_budget;
 mod finish;
 mod quota;
 mod reserve;
+pub(super) mod retry;
 mod types;
 
 pub(super) use auth::authenticate;

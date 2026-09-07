@@ -90,6 +90,18 @@ impl Channel for OpenRouterChannel {
         prepare::request(ctx)
     }
 
+    fn claude_fallback(&self) -> Option<gproxy_channel_api::ClaudeFallbackCapabilities> {
+        Some(gproxy_channel_api::ClaudeFallbackCapabilities {
+            server_side: true,
+            credit: false,
+            recommended_model: Some(crate::shared::claude::fallback::RECOMMENDED_MODEL),
+        })
+    }
+
+    fn fallback_model(&self, primary: &str, model: &str) -> String {
+        crate::shared::claude::fallback::namespaced(primary, model)
+    }
+
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
         match response.status.as_u16() {
             200..=299 => Disposition::Success,

@@ -12,6 +12,12 @@ use gproxy_channel_api::{ChannelError, StateError};
 /// here so `CoreError::Transport` and host code share one type.
 pub use gproxy_channel_api::TransportError;
 
+impl From<gproxy_transform::TransformError> for CoreError {
+    fn from(error: gproxy_transform::TransformError) -> Self {
+        Self::Transform(error.to_string())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum CoreError {
     #[error("unauthorized")]

@@ -84,7 +84,7 @@ pub(crate) async fn run<H: Host>(
             admitted: true,
             owner_user_id: Some(request.owner_user_id),
         };
-        let prepared = match attempt::prepare(
+        let mut prepared = match attempt::prepare(
             core,
             control,
             target,
@@ -120,6 +120,9 @@ pub(crate) async fn run<H: Host>(
             Err(CoreError::Unsupported) => continue,
             Err(error) => return Err(error),
         };
+        if let Some(refusal) = prepared.refusal.as_mut() {
+            refusal.budget = plan.budget.max_attempts - attempts;
+        }
         selected = true;
         attempts += 1;
         match attempt::send(core, prepared).await {

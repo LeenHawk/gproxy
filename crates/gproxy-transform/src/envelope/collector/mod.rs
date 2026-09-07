@@ -79,6 +79,14 @@ impl ResponseCollector {
         self.state.is_complete()
     }
 
+    pub fn claude_has_output(&self) -> bool {
+        matches!(&self.state, Collector::Claude(state) if state.has_output())
+    }
+
+    pub fn claude_has_open_tool(&self) -> bool {
+        matches!(&self.state, Collector::Claude(state) if !state.open_tools.is_empty())
+    }
+
     pub fn finish(mut self) -> Result<BufferedResponse, TransformError> {
         if let Some(frame) = self.decoder.finish()? {
             self.state.frame(frame)?;

@@ -8,6 +8,8 @@ use crate::usage::{Ended, Settlement, UsageSource, estimate_input_tokens, utf8_c
 
 use super::FunnelCtx;
 
+mod attempts;
+
 pub(super) struct Completion {
     pub status: Option<http::StatusCode>,
     pub response_body: Option<Bytes>,
@@ -85,24 +87,32 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
             .dimensions
             .insert("quota_attribution".into(), "session".into());
     }
+    let attempts = attempts::price(ctx, std::mem::take(&mut usage.attempts));
     let settlement = Settlement {
         upstream_started_at_ms: ctx.upstream_started_at_ms,
         request_id: ctx.request_id.clone(),
         provider_id: ctx.target.provider.id,
         credential_id: ctx.target.credential,
-        upstream_model: ctx.target.upstream_model.clone(),
+        upstream_model: attempts
+            .last()
+            .map(|attempt| attempt.upstream_model.clone())
+            .unwrap_or_else(|| ctx.target.upstream_model.clone()),
         cost: if unique {
-            cost_override.unwrap_or_else(|| {
-                ctx.pricing
-                    .as_ref()
-                    .map_or(
-                        rust_decimal::Decimal::ZERO,
-                        |pricing| match actual_service_tier.as_deref() {
-                            Some(tier) => pricing.clone().with_service_tier(tier).cost(&usage),
-                            None => pricing.cost(&usage),
-                        },
-                    )
-            })
+            if !attempts.is_empty() {
+                attempts.iter().map(|attempt| attempt.cost).sum()
+            } else {
+                cost_override.unwrap_or_else(|| {
+                    ctx.pricing
+                        .as_ref()
+                        .map_or(
+                            rust_decimal::Decimal::ZERO,
+                            |pricing| match actual_service_tier.as_deref() {
+                                Some(tier) => pricing.clone().with_service_tier(tier).cost(&usage),
+                                None => pricing.cost(&usage),
+                            },
+                        )
+                })
+            }
         } else {
             rust_decimal::Decimal::ZERO
         },
@@ -110,6 +120,7 @@ pub(crate) async fn complete<H: Host>(host: &H, ctx: &FunnelCtx, completion: Com
         source,
         ended,
         latency_ms,
+        attempts,
     };
     if unique {
         host.usage().record(&settlement).await;

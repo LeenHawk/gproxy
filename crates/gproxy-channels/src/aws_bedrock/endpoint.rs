@@ -43,6 +43,25 @@ pub(super) fn resolve(ctx: &PrepareCtx<'_>) -> Result<Target, ChannelError> {
             false,
             None,
         ),
+        Operation::GenerateContent | Operation::StreamGenerateContent
+            if super::messages::enabled(ctx) =>
+        {
+            (
+                Method::POST,
+                format!(
+                    "/model/{}/{}",
+                    model(ctx.upstream_model)?,
+                    if ctx.stream {
+                        "invoke-with-response-stream"
+                    } else {
+                        "invoke"
+                    }
+                ),
+                "claude_messages",
+                false,
+                ctx.stream.then_some(StreamFraming::Sse),
+            )
+        }
         Operation::GenerateContent => (
             Method::POST,
             format!("/model/{}/converse", model(ctx.upstream_model)?),

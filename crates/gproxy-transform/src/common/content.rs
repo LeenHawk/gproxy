@@ -2,6 +2,20 @@ use gproxy_protocol::{claude, openai};
 
 use crate::TransformError;
 
+pub(crate) fn claude_fallback_model(
+    block: &claude::ResponseContentBlock,
+) -> Option<claude::ClaudeModel> {
+    match block {
+        claude::ResponseContentBlock::Fallback(block) => Some(block.to.model.clone()),
+        // The fallback guide also shows boundary blocks without the API schema's trigger.
+        claude::ResponseContentBlock::Raw(raw) if raw.get("type")?.as_str()? == "fallback" => raw
+            .pointer("/to/model")?
+            .as_str()
+            .map(|model| model.to_owned().into()),
+        _ => None,
+    }
+}
+
 pub(crate) fn chat_text_blocks(
     content: openai::ChatTextContent,
 ) -> Result<Vec<claude::ContentBlockParam>, TransformError> {

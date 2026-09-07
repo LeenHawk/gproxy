@@ -121,6 +121,14 @@ impl Channel for AzureChannel {
         prepare::request(ctx)
     }
 
+    fn claude_fallback(&self) -> Option<gproxy_channel_api::ClaudeFallbackCapabilities> {
+        Some(gproxy_channel_api::ClaudeFallbackCapabilities {
+            server_side: false,
+            credit: true,
+            recommended_model: Some(crate::shared::claude::fallback::RECOMMENDED_MODEL),
+        })
+    }
+
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
         match response.status.as_u16() {
             200..=299 => Disposition::Success,

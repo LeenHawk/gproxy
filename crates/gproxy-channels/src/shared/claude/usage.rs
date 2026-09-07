@@ -2,9 +2,22 @@ use gproxy_channel_api::NormalizedUsage;
 use rust_decimal::Decimal;
 use serde_json::Value;
 
+mod attempts;
+pub(super) use attempts::attach;
+
 pub(crate) fn from_body(body: &[u8]) -> Option<NormalizedUsage> {
     let body = serde_json::from_slice::<Value>(body).ok()?;
-    from_usage(body.get("usage")?)
+    let wire = body.get("usage")?;
+    let mut usage = from_usage(wire)?;
+    attach(
+        &mut usage,
+        wire,
+        body.get("model")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+        body["stop_reason"] == "refusal",
+    );
+    Some(usage)
 }
 
 pub(crate) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
@@ -87,6 +100,7 @@ pub(crate) fn merge_stream(
         "speed",
         "service_tier",
         "inference_geo",
+        "iterations",
     ] {
         if let Some(value) = delta.get(name) {
             merged.insert(name.into(), value.clone());

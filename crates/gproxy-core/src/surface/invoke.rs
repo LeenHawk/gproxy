@@ -194,6 +194,8 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
                 target_framing: gproxy_protocol::StreamFraming::Sse,
                 settle: SettleMode::Free,
                 pricing: None,
+                pricing_control: None,
+                usage_channel: None,
                 started,
                 upstream_url: Some(parts.uri.to_string()),
                 request_method: Some(parts.method.clone()),

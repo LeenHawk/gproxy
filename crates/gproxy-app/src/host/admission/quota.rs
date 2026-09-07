@@ -21,6 +21,27 @@ pub(super) async fn reserve(
         return Ok(Vec::new());
     }
     let estimate = estimated_cost_micros(host, request, plan).await?;
+    reserve_cost(host, identity, estimate, now, charged).await
+}
+
+pub(super) async fn reserve_retry(
+    host: &AppHost,
+    identity: &CallerIdentity,
+    body: &bytes::Bytes,
+    target: &gproxy_core::Target,
+    charged: &mut Vec<CounterCharge>,
+) -> Result<Vec<QuotaReservation>, CoreError> {
+    let estimate = estimated_target_cost_micros(host, body, target).await?;
+    reserve_cost(host, identity, estimate, super::auth::unix_now(), charged).await
+}
+
+async fn reserve_cost(
+    host: &AppHost,
+    identity: &CallerIdentity,
+    estimate: i64,
+    now: i64,
+    charged: &mut Vec<CounterCharge>,
+) -> Result<Vec<QuotaReservation>, CoreError> {
     let mut reservations = Vec::new();
     let snapshot = host.services.control.current();
     for quota in snapshot.quotas.iter().filter(|quota| {

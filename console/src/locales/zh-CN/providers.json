@@ -30,6 +30,10 @@
         "label": "Claude 魔法字符串缓存",
         "description": "识别支持的触发字符串，并写入明确的 Claude 缓存断点。"
       },
+      "claude_gateway_fallback_mode": {
+        "label": "Claude 拒绝回退",
+        "description": "请求被拒绝时，尝试渠道推荐模型或指定的模型链。"
+      },
       "claude_fallback_mode": {
         "label": "Claude 回退模式",
         "description": "可关闭回退、使用上游默认路由，或应用明确的模型链。"
@@ -128,6 +132,11 @@
       }
     },
     "channelFieldOptions": {
+      "claude_gateway_fallback_mode": {
+        "off": "关闭",
+        "default": "推荐模型",
+        "models": "模型"
+      },
       "claude_fallback_mode": {
         "off": "关闭",
         "default": "上游默认",

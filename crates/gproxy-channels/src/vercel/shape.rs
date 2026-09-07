@@ -33,7 +33,6 @@ pub(super) fn request(
         } else {
             crate::shared::claude::hygiene::messages(&mut value, headers);
         }
-        crate::shared::claude::fallback::apply(&mut value, headers, ctx.provider_settings);
     }
     serde_json::to_vec(&value)
         .map(Bytes::from)

@@ -7,6 +7,7 @@ use crate::wire::ClientProfile;
 
 /// Everything `prepare` may read. Borrowed views: preparation copies
 /// nothing it does not rewrite.
+#[derive(Clone, Copy)]
 pub struct PrepareCtx<'a> {
     pub key: OperationKey,
     /// Caller-scoped conversation identity, stable across turns and retry targets.

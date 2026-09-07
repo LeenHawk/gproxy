@@ -5,10 +5,29 @@ use serde_json::json;
 
 use super::block_on;
 use super::memory::MemoryHost;
-use crate::Core;
 use crate::boundary::{RequestCtx, ResponseBody, RoutingMode};
 use crate::control::{FailoverBudget, Plan, ProviderRef, Target};
 use crate::host::CredentialId;
+use crate::{Core, InitError};
+
+#[test]
+fn continuation_channels_fail_loudly_without_host_state() {
+    let registry =
+        gproxy_channel_api::ChannelRegistry::new([
+            Box::new(super::channel::NeedsContinuation) as Box<dyn Channel>
+        ])
+        .expect("registry");
+    let error = match Core::new(MemoryHost::new(false), registry) {
+        Ok(_) => panic!("missing continuation store was accepted"),
+        Err(error) => error,
+    };
+    assert!(matches!(
+        error,
+        InitError::ContinuationsUnavailable {
+            channel: "continuation-test"
+        }
+    ));
+}
 
 #[test]
 fn claudeweb_new_and_resume_turns_transfer_one_scoped_stream() {

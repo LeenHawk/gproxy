@@ -197,6 +197,9 @@ impl UpstreamTransport for MemoryHost {
     ) -> BoxFuture<'a, Result<http::Response<crate::ByteStream>, TransportError>> {
         let state = self.state.clone();
         Box::pin(async move {
+            if let Some(response) = super::refusal::scripted(&state, &request) {
+                return Ok(response);
+            }
             let realtime_call = request.uri().path() == "/v1/realtime/calls";
             let (status, bodies) = if request.uri().path() == "/refresh" {
                 (

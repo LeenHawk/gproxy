@@ -42,6 +42,8 @@ pub(super) struct State {
     pub(super) exhausted_credentials: Vec<CredentialId>,
     pub(super) plan: Option<Plan>,
     pub(super) statuses: VecDeque<StatusCode>,
+    pub(super) scripted: VecDeque<(StatusCode, Vec<Bytes>)>,
+    pub(super) model_prices: BTreeMap<String, Pricing>,
     pub(super) resolved_models: Vec<Option<String>>,
     pub(super) resolved_affinities: Vec<Option<i64>>,
     pub(super) aliases: BTreeMap<String, String>,
@@ -103,6 +105,8 @@ impl MemoryHost {
                 exhausted_credentials: Vec::new(),
                 plan: None,
                 statuses: VecDeque::new(),
+                scripted: VecDeque::new(),
+                model_prices: BTreeMap::new(),
                 resolved_models: Vec::new(),
                 resolved_affinities: Vec::new(),
                 aliases: BTreeMap::new(),
@@ -356,6 +360,15 @@ impl ControlPlane for MemoryHost {
     }
 
     fn pricing(&self, _: &ProviderRef, upstream_model: &str) -> Option<Pricing> {
+        if let Some(price) = self
+            .state
+            .lock()
+            .expect("state")
+            .model_prices
+            .get(upstream_model)
+        {
+            return Some(price.clone());
+        }
         let mut pricing = Pricing {
             input_per_million: match upstream_model {
                 "transcription-model" => Decimal::from(3),

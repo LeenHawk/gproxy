@@ -14,6 +14,7 @@ pub(crate) fn transform_typed(
     input: claude::CreateMessageResponseBody,
 ) -> Result<openai::ChatCompletionResponse, TransformError> {
     let service_tier = claude_service_tier(&input.usage)?;
+    let refusal = stop::refusal_text(&input.stop_reason, input.stop_details.as_ref());
     let mut rendered = Vec::new();
     let mut calls = Vec::new();
     for block in input.content {
@@ -60,7 +61,7 @@ pub(crate) fn transform_typed(
             message: openai::ChatMessage {
                 role: openai::ChatCompletionMessageRole::Assistant,
                 content: (!rendered.is_empty()).then(|| rendered.join("\n")),
-                refusal: None,
+                refusal,
                 annotations: None,
                 audio: None,
                 function_call: None,

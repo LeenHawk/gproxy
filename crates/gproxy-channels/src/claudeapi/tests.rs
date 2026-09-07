@@ -187,7 +187,7 @@ fn shapes_configured_and_existing_fallbacks_with_required_beta() {
     );
 
     let body = Bytes::from_static(
-        br#"{"model":"route","max_tokens":32,"messages":[{"role":"user","content":"hello"}]}"#,
+        br#"{"model":"route","fallbacks":null,"fallback_credit_token":null,"max_tokens":32,"messages":[{"role":"user","content":"hello"}]}"#,
     );
     let defaulted = ClaudeApiChannel
         .prepare(PrepareCtx {

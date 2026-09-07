@@ -2,6 +2,7 @@ mod blocks;
 mod decode;
 mod events;
 mod finish;
+pub(super) mod invoke;
 mod wire;
 
 use bytes::Bytes;

@@ -7,6 +7,8 @@ pub(crate) struct ClaudeSseDecoder {
     buffer: Vec<u8>,
     start: Option<Value>,
     delta: Option<Value>,
+    model: String,
+    refused: bool,
 }
 
 impl ClaudeSseDecoder {
@@ -22,6 +24,8 @@ impl ClaudeSseDecoder {
             buffer: Vec::new(),
             start: None,
             delta: None,
+            model: String::new(),
+            refused: false,
         })
     }
 
@@ -42,6 +46,22 @@ impl ClaudeSseDecoder {
         match event.get("type").and_then(Value::as_str) {
             Some("message_start") if self.start.is_none() => {
                 self.start = event.pointer("/message/usage").cloned();
+                self.model = event
+                    .pointer("/message/model")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .into();
+            }
+            Some("content_block_start")
+                if event.pointer("/content_block/type").and_then(Value::as_str)
+                    == Some("fallback") =>
+            {
+                if let Some(model) = event
+                    .pointer("/content_block/to/model")
+                    .and_then(Value::as_str)
+                {
+                    self.model = model.into();
+                }
             }
             Some("message_delta")
                 if event
@@ -50,6 +70,8 @@ impl ClaudeSseDecoder {
                     .is_some_and(Value::is_u64) =>
             {
                 self.delta = event.get("usage").cloned();
+                self.refused =
+                    event.pointer("/delta/stop_reason").and_then(Value::as_str) == Some("refusal");
             }
             _ => {}
         }
@@ -79,9 +101,18 @@ impl StreamDecoder for ClaudeSseDecoder {
         } else {
             self.buffer.clear();
         }
+        let mut usage = super::usage::merge_stream(self.start.as_ref(), self.delta.as_ref());
+        if let Some(usage) = usage.as_mut() {
+            super::usage::attach(
+                usage,
+                self.delta.as_ref().unwrap_or(&Value::Null),
+                &self.model,
+                self.refused,
+            );
+        }
         Ok(StreamTail {
             frames: Vec::new(),
-            usage: super::usage::merge_stream(self.start.as_ref(), self.delta.as_ref()),
+            usage,
             actual_service_tier: None,
         })
     }

@@ -3,7 +3,11 @@ use http::header::{ACCEPT, CONTENT_TYPE, HeaderValue};
 
 pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let target = super::endpoint::resolve(&ctx)?;
-    let body = super::shape::request(&ctx, target.compact)?;
+    let body = if super::messages::enabled(&ctx) {
+        super::messages::body(&ctx)?
+    } else {
+        super::shape::request(&ctx, target.compact)?
+    };
     let mut headers = crate::policy::request_headers(crate::policy::AWS_BEDROCK, &ctx)?;
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));

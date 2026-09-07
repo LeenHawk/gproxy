@@ -42,6 +42,8 @@ pub(super) async fn run<H: Host>(
         target_framing: StreamFraming::Sse,
         settle: SettleMode::Free,
         pricing: None,
+        pricing_control: None,
+        usage_channel: None,
         started: Instant::now(),
         upstream_url: Some(url),
         request_method: Some(method),

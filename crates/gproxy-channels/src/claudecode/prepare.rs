@@ -106,7 +106,9 @@ fn shape_body(
     if is_messages(ctx.key) {
         super::hygiene::messages(&mut body, headers);
         crate::shared::claude::fallback::apply(&mut body, headers, ctx.provider_settings);
-        super::cch::inject(&mut body, ctx.secret, session_id);
+        if !gproxy_channel_api::has_fallback_credit(&body) {
+            super::cch::inject(&mut body, ctx.secret, session_id);
+        }
     } else {
         super::hygiene::count_tokens(&body, headers);
     }

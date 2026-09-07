@@ -30,6 +30,10 @@
         "label": "Claude 魔法字串快取",
         "description": "辨識支援的觸發字串，並寫入明確的 Claude 快取斷點。"
       },
+      "claude_gateway_fallback_mode": {
+        "label": "Claude 拒絕回退",
+        "description": "請求被拒絕時，嘗試渠道推薦模型或指定的模型鏈。"
+      },
       "claude_fallback_mode": {
         "label": "Claude 回退模式",
         "description": "可關閉回退、使用上游預設路由，或套用明確的模型鏈。"
@@ -128,6 +132,11 @@
       }
     },
     "channelFieldOptions": {
+      "claude_gateway_fallback_mode": {
+        "off": "關閉",
+        "default": "推薦模型",
+        "models": "模型"
+      },
       "claude_fallback_mode": {
         "off": "關閉",
         "default": "上游預設",

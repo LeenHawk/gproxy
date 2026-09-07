@@ -237,6 +237,44 @@ fn shapes_converse_and_strictly_decodes_fragmented_eventstream() {
     assert!(decoder.finish(StreamEnd::Complete).is_err());
 }
 
+#[test]
+fn invoke_messages_stream_decodes_chunk_envelopes_and_reports_free_refusals() {
+    use base64::Engine;
+    use gproxy_channel_api::StreamCtx;
+    for output in [0, 2] {
+        let events = [
+            json!({"type":"message_start","message":{"id":"msg_invoke","type":"message","role":"assistant","model":"claude-fable-5","content":[],"stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}),
+            json!({"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"type":"refusal","category":null,"explanation":null}},"usage":{"output_tokens":output}}),
+            json!({"type":"message_stop"}),
+        ];
+        let wire = events.iter().flat_map(|event| smithy("chunk", json!({"bytes":base64::engine::general_purpose::STANDARD.encode(event.to_string())}))).collect::<Vec<_>>();
+        let request = Bytes::from_static(br#"{"anthropic_version":"bedrock-2023-05-31"}"#);
+        let mut decoder = AwsBedrockChannel
+            .stream_decoder(StreamCtx {
+                key: STREAM,
+                framing: gproxy_protocol::StreamFraming::Sse,
+                request_body: &request,
+                response_headers: &HeaderMap::new(),
+            })
+            .unwrap();
+        let mut frames = Vec::new();
+        for chunk in wire.chunks(13) {
+            frames.extend(decoder.push(Bytes::copy_from_slice(chunk)).unwrap());
+        }
+        let tail = decoder.finish(StreamEnd::Complete).unwrap();
+        let usage = tail.usage.unwrap();
+        assert_eq!(usage.input_tokens, 10);
+        assert_eq!(usage.output_tokens, output);
+        assert_eq!(usage.attempts[0].billable, output > 0);
+        let text = frames
+            .iter()
+            .map(|frame| String::from_utf8_lossy(&frame.0))
+            .collect::<String>();
+        assert!(text.contains("message_stop"));
+        assert!(text.contains("stop_details"));
+    }
+}
+
 fn smithy(event: &str, payload: Value) -> Vec<u8> {
     let mut headers = Vec::new();
     for (name, value) in [

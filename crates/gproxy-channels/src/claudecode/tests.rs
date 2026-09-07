@@ -222,27 +222,43 @@ fn prepare_applies_configured_fallback_and_merges_oauth_beta() {
     let body = Bytes::from_static(
         br#"{"model":"route","max_tokens":32,"messages":[{"role":"user","content":"hello"}]}"#,
     );
-    let prepared = ClaudeCodeChannel
-        .prepare(PrepareCtx {
-            session_id: None,
-            key: MESSAGES,
-            stream: false,
-            method: &Method::POST,
-            path: "/v1/messages",
-            query: None,
-            headers: &HeaderMap::new(),
-            body: &body,
-            upstream_model: "claude-fable-5",
-            provider_settings: &json!({"claude_fallback_mode":"default"}),
-            secret: &secret,
-        })
-        .unwrap();
-    let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
-    assert_eq!(shaped["fallbacks"], "default");
-    assert_eq!(
-        prepared.request.headers()["anthropic-beta"],
-        "oauth-2025-04-20,server-side-fallback-2026-07-01"
-    );
+    for (settings, expected, beta) in [
+        (
+            json!({"claude_fallback_mode":"default"}),
+            json!("default"),
+            ",server-side-fallback-2026-07-01",
+        ),
+        (
+            json!({"claude_fallback_mode":"models","claude_fallback_models":["claude-opus-4-8"]}),
+            json!([{"model":"claude-opus-4-8"}]),
+            ",server-side-fallback-2026-06-01",
+        ),
+        (json!({"claude_fallback_mode":"off"}), Value::Null, ""),
+    ] {
+        let mut headers = HeaderMap::new();
+        headers.insert("anthropic-beta", "output-128k-2025-02-19".parse().unwrap());
+        let prepared = ClaudeCodeChannel
+            .prepare(PrepareCtx {
+                session_id: None,
+                key: STREAM,
+                stream: true,
+                method: &Method::POST,
+                path: "/v1/messages",
+                query: None,
+                headers: &headers,
+                body: &body,
+                upstream_model: "claude-fable-5",
+                provider_settings: &settings,
+                secret: &secret,
+            })
+            .unwrap();
+        let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+        assert_eq!(shaped["fallbacks"], expected);
+        assert_eq!(
+            prepared.request.headers()["anthropic-beta"],
+            format!("oauth-2025-04-20,output-128k-2025-02-19{beta}")
+        );
+    }
 }
 
 #[test]
@@ -353,6 +369,8 @@ fn buffered_and_fragmented_stream_usage_merge_claude_fields() {
         .unwrap();
     let stream = concat!(
         "event: message_start\r\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":25,\"output_tokens\":1,\"cache_read_input_tokens\":10,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":20}}}}\r\n\r\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"fallback\",\"from\":{\"model\":\"claude-fable-5\"},\"to\":{\"model\":\"claude-opus-4-8\"}}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
         "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\n",
         "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":12,\"cache_creation_input_tokens\":20}}\n\n"
     );

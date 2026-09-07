@@ -19,6 +19,9 @@ impl State {
                 "invalid block start",
             ));
         }
+        if let Some(model) = crate::common::content::claude_fallback_model(&block) {
+            self.model = Some(crate::models::common::wire_string(&model)?.into());
+        }
         let (state, output) = match block {
             claude::ResponseContentBlock::Text(block) => {
                 let id = format!(

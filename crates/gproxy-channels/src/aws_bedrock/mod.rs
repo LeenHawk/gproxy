@@ -2,6 +2,7 @@ mod routes;
 
 mod auth;
 mod endpoint;
+mod messages;
 mod model;
 mod prepare;
 mod resource;
@@ -124,6 +125,18 @@ impl Channel for AwsBedrockChannel {
         prepare::request(ctx)
     }
 
+    fn claude_fallback(&self) -> Option<gproxy_channel_api::ClaudeFallbackCapabilities> {
+        Some(gproxy_channel_api::ClaudeFallbackCapabilities {
+            server_side: false,
+            credit: true,
+            recommended_model: Some(crate::shared::claude::fallback::RECOMMENDED_MODEL),
+        })
+    }
+
+    fn fallback_model(&self, primary: &str, model: &str) -> String {
+        crate::shared::claude::fallback::namespaced(primary, model)
+    }
+
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
         match response.status.as_u16() {
             200..=299 => Disposition::Success,
@@ -134,6 +147,9 @@ impl Channel for AwsBedrockChannel {
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
+        if messages::native(ctx.request_body) {
+            return Some(Box::new(sse::invoke::InvokeDecoder::new(ctx)));
+        }
         (ctx.key == claude(Operation::StreamGenerateContent))
             .then(|| Box::new(sse::BedrockStreamDecoder::new()) as Box<dyn StreamDecoder>)
     }

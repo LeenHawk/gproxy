@@ -63,4 +63,15 @@ pub struct Settlement {
     pub source: UsageSource,
     pub ended: Ended,
     pub latency_ms: u64,
+    pub attempts: Vec<SettledAttempt>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SettledAttempt {
+    pub upstream_model: String,
+    pub usage: NormalizedUsage,
+    pub cost: Decimal,
+    pub billable: bool,
+    pub source: UsageSource,
+    pub started_at_ms: Option<i64>,
 }

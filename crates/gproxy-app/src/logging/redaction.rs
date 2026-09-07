@@ -19,6 +19,7 @@ const SECRET_FIELDS: &[&str] = &[
     "token",
     "access_token",
     "refresh_token",
+    "fallback_credit_token",
     "id_token",
     "client_secret",
     "secret",

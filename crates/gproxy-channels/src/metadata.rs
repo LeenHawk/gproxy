@@ -33,6 +33,13 @@ const fn select(
     }
 }
 
+const fn gateway_fallback() -> ChannelField {
+    ChannelField {
+        i18n_key: "claude_gateway_fallback_mode",
+        ..select("claude_fallback_mode", &["off", "default", "models"], "off")
+    }
+}
+
 pub(crate) const BASE_URL: &[ChannelField] = &[field("base_url", Url, false, false)];
 pub(crate) const OPENAI_CACHE: &[ChannelField] = &[
     field("base_url", Url, false, false),
@@ -48,6 +55,8 @@ pub(crate) const AZURE: &[ChannelField] = &[
     field("base_url", Url, false, false),
     field("enable_openai_magic_cache", Boolean, false, true),
     field("enable_claude_magic_cache", Boolean, false, true),
+    gateway_fallback(),
+    field("claude_fallback_models", StringList, false, true),
 ];
 pub(crate) const CUSTOM: &[ChannelField] = &[
     field("base_url", Url, false, false),
@@ -61,6 +70,8 @@ pub(crate) const BEDROCK: &[ChannelField] = &[
     field("region", Text, false, false),
     field("video_output_s3_uri", Text, false, true),
     field("enable_claude_magic_cache", Boolean, false, true),
+    gateway_fallback(),
+    field("claude_fallback_models", StringList, false, true),
 ];
 pub(crate) const VERTEX: &[ChannelField] = &[
     field("base_url", Url, false, false),
@@ -68,6 +79,8 @@ pub(crate) const VERTEX: &[ChannelField] = &[
     field("oauth_client_id", Text, false, true),
     field("oauth_client_secret", Secret, false, true),
     field("oauth_token_url", Url, false, true),
+    gateway_fallback(),
+    field("claude_fallback_models", StringList, false, true),
 ];
 pub(crate) const KIRO: &[ChannelField] = &[
     field("base_url", Url, false, false),
@@ -86,8 +99,14 @@ pub(crate) const OPENCODE: &[ChannelField] = &[
     field("enable_openai_magic_cache", Boolean, false, true),
     field("enable_claude_magic_cache", Boolean, false, true),
 ];
-pub(crate) const OPENROUTER: &[ChannelField] = CUSTOM;
-pub(crate) const VERCEL: &[ChannelField] = CUSTOM;
+pub(crate) const OPENROUTER: &[ChannelField] = &[
+    field("base_url", Url, false, false),
+    field("enable_openai_magic_cache", Boolean, false, true),
+    field("enable_claude_magic_cache", Boolean, false, true),
+    gateway_fallback(),
+    field("claude_fallback_models", StringList, false, true),
+];
+pub(crate) const VERCEL: &[ChannelField] = OPENROUTER;
 pub(crate) const OAUTH: &[ChannelField] = &[
     field("access_token", Secret, true, false),
     field("refresh_token", Secret, false, true),

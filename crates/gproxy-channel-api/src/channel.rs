@@ -306,6 +306,14 @@ pub trait Channel: Send + Sync {
     /// body shaping. Must not perform I/O.
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError>;
 
+    fn claude_fallback(&self) -> Option<crate::ClaudeFallbackCapabilities> {
+        None
+    }
+
+    fn fallback_model(&self, _primary: &str, model: &str) -> String {
+        model.to_owned()
+    }
+
     /// A transform-after driver for a multi-call operation. The driver is a
     /// pure state machine; the core performs and funnels every emitted call.
     fn operation_driver(

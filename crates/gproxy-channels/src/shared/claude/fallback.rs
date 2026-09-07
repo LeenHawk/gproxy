@@ -1,6 +1,8 @@
 use http::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
+pub(crate) const RECOMMENDED_MODEL: &str = "claude-opus-4-8";
+
 const FALLBACK_BETA: &str = "server-side-fallback-2026-06-01";
 const DEFAULT_FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 
@@ -24,21 +26,22 @@ pub(crate) fn apply_without_beta(body: &mut Value, settings: &Value) {
 }
 
 fn configured(settings: &Value) -> Option<Value> {
-    match settings.get("claude_fallback_mode").and_then(Value::as_str) {
-        Some("default") => Some(json!("default")),
-        Some("models") => settings.get("claude_fallback_models").cloned(),
-        Some("off") => None,
-        _ => settings.get("claude_fable_fallbacks").cloned(),
-    }
+    gproxy_channel_api::claude_fallback_setting(settings)
 }
 
 fn insert(body: &mut Value, configured: &Value, anthropic_policy: bool) -> Option<&'static str> {
     let root = body.as_object_mut()?;
+    if root
+        .get("fallback_credit_token")
+        .is_some_and(|value| !value.is_null())
+    {
+        return None;
+    }
     let model = root.get("model").and_then(Value::as_str)?.to_owned();
     if anthropic_policy && unsupported(&model) {
         return None;
     }
-    if root.contains_key("fallbacks") {
+    if root.get("fallbacks").is_some_and(|value| !value.is_null()) {
         return Some(beta_for(root));
     }
     let (fallbacks, beta) = if configured.as_str() == Some("default") {
@@ -75,7 +78,7 @@ fn default_chain(model: &str, anthropic_policy: bool) -> Option<(Value, &'static
     if anthropic_policy {
         return Some((json!("default"), DEFAULT_FALLBACK_BETA));
     }
-    let fallback = namespaced(model, "claude-opus-4-8");
+    let fallback = namespaced(model, RECOMMENDED_MODEL);
     (fallback != model).then(|| (json!([{"model":fallback}]), FALLBACK_BETA))
 }
 
@@ -99,7 +102,7 @@ fn unsupported(model: &str) -> bool {
     .any(|unsupported| model.contains(unsupported))
 }
 
-fn namespaced(model: &str, fallback: &str) -> String {
+pub(crate) fn namespaced(model: &str, fallback: &str) -> String {
     if !fallback.starts_with("claude-") {
         fallback.into()
     } else {

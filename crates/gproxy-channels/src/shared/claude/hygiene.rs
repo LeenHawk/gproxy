@@ -29,6 +29,9 @@ const PREFILL_TOLERANT: &[&str] = &[
 ];
 
 pub(crate) fn messages(body: &mut Value, headers: &mut HeaderMap) {
+    if gproxy_channel_api::has_fallback_credit(body) {
+        return;
+    }
     super::cache::sanitize(body);
     strip_sampling(body);
     coerce_prefill(body);

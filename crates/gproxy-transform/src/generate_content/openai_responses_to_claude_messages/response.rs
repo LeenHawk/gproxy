@@ -22,6 +22,8 @@ pub(crate) fn transform_typed(
 ) -> Result<openai::ResponseObject, TransformError> {
     let id = input.id;
     let service_tier = claude_service_tier(&input.usage)?;
+    let refusal =
+        crate::common::stop::refusal_text(&input.stop_reason, input.stop_details.as_ref());
     let mut output = Vec::new();
     let mut text = Vec::new();
     let mut parts = Vec::new();
@@ -74,6 +76,15 @@ pub(crate) fn transform_typed(
             claude::ResponseContentBlock::Raw(_) => {}
             _ => {}
         }
+    }
+    if let Some(refusal) = refusal {
+        parts.push(openai::ResponseMessageOutputContentPart::Refusal(
+            crate::wire!(openai::ResponseRefusal {
+                type_: openai::ResponseRefusalType::Refusal,
+                refusal,
+                rest: Default::default(),
+            }),
+        ));
     }
     flush_message(
         &mut output,

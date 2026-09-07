@@ -65,6 +65,12 @@ impl Store {
     }
 
     pub async fn log_detail(&self, request_id: &str) -> Result<Option<LogDetail>, StoreError> {
+        let usage = self.usage_by_request(request_id).await?;
+        let request_id = usage
+            .as_ref()
+            .and_then(|row| row.usage.dimensions.get("parent_request_id"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(request_id);
         let mut results = self
             .backend()
             .batch(vec![

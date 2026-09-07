@@ -17,6 +17,45 @@ const fn content(operation: Operation, kind: Kind) -> OperationKey {
 }
 
 #[test]
+fn gateway_fallback_is_not_injected_as_an_anthropic_parameter() {
+    for (key, _) in [
+        (family(Operation::CountTokens, WireFamily::Claude), false),
+        (
+            content(Operation::GenerateContent, Kind::ClaudeMessages),
+            true,
+        ),
+        (
+            content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
+            true,
+        ),
+    ] {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from_static(br#"{"model":"anthropic/claude-fable-5","messages":[]}"#);
+        let shaped = super::shape::request(
+            &PrepareCtx {
+                session_id: None,
+                key,
+                stream: key.operation() == Operation::StreamGenerateContent,
+                method: &Method::POST,
+                path: "/v1/messages",
+                query: None,
+                headers: &HeaderMap::new(),
+                body: &body,
+                upstream_model: "anthropic/claude-fable-5",
+                provider_settings: &json!({"claude_fallback_mode":"default"}),
+                secret: &Value::Null,
+            },
+            &mut headers,
+            body.clone(),
+        )
+        .unwrap();
+        let shaped: Value = serde_json::from_slice(&shaped).unwrap();
+        assert!(shaped.get("fallbacks").is_none());
+        assert!(!headers.contains_key("anthropic-beta"));
+    }
+}
+
+#[test]
 fn declares_truthful_operations() {
     let supports = VercelChannel.descriptor().supports;
     assert_eq!(supports.len(), 15);

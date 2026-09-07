@@ -6,6 +6,117 @@ use crate::{BufferedResponse, ResponseCollector, ResponseStream, TransformError}
 use super::super::content;
 
 #[test]
+fn empty_claude_streams_preserve_refusal_and_distinguish_incomplete_streams() {
+    use serde_json::json;
+    for reason in ["refusal", "end_turn"] {
+        let details = if reason == "refusal" {
+            json!({"type":"refusal","category":null,"explanation":null})
+        } else {
+            serde_json::Value::Null
+        };
+        let events = [
+            json!({"type":"message_start","message":{"id":"msg_empty","type":"message","role":"assistant","model":"claude-fable-5","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":0}}}),
+            json!({"type":"message_delta","delta":{"stop_reason":reason,"stop_sequence":null,"stop_details":details},"usage":{"output_tokens":0}}),
+            json!({"type":"message_stop"}),
+        ];
+        let wire = events
+            .iter()
+            .map(|event| format!("data: {event}\n\n"))
+            .collect::<String>();
+        let mut collector = ResponseCollector::new(Kind::ClaudeMessages).unwrap();
+        for chunk in wire.as_bytes().chunks(3) {
+            collector.push(Bytes::copy_from_slice(chunk)).unwrap();
+        }
+        let response: serde_json::Value =
+            serde_json::from_slice(&collector.finish().unwrap().into_bytes().unwrap()).unwrap();
+        assert_eq!(response["stop_reason"], reason);
+        assert_eq!(response["stop_details"], details);
+        assert_eq!(response["content"], json!([]));
+        let mut incomplete = ResponseCollector::new(Kind::ClaudeMessages).unwrap();
+        incomplete
+            .push(Bytes::from(format!("data: {}\n\n", events[0])))
+            .unwrap();
+        assert!(matches!(
+            incomplete.finish(),
+            Err(TransformError::IncompleteStream)
+        ));
+        let mut failed = ResponseCollector::new(Kind::ClaudeMessages).unwrap();
+        assert!(failed.push(Bytes::from_static(b"data: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"busy\"}}\n\n")).is_err());
+    }
+}
+
+#[test]
+fn fallback_stream_preserves_content_usage_and_updates_serving_model() {
+    use super::super::support::{data_frames, drive};
+    use serde_json::json;
+
+    for with_trigger in [true, false] {
+        let mut events = [
+            json!({"type":"message_start","message":{"id":"msg_fallback","type":"message","role":"assistant","model":"claude-fable-5","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":0}}}),
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Before "}}),
+            json!({"type":"content_block_stop","index":0}),
+            json!({"type":"content_block_start","index":1,"content_block":{"type":"fallback","from":{"model":"claude-fable-5"},"to":{"model":"claude-opus-4-8"},"trigger":{"type":"refusal","category":"cyber"}}}),
+            json!({"type":"content_block_stop","index":1}),
+            json!({"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}),
+            json!({"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"after"}}),
+            json!({"type":"content_block_stop","index":2}),
+            json!({"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":8,"output_tokens":2,"iterations":[{"type":"message","model":"claude-fable-5","input_tokens":10,"output_tokens":1},{"type":"fallback_message","model":"claude-opus-4-8","input_tokens":8,"output_tokens":2}]}}),
+            json!({"type":"message_stop"}),
+        ];
+        if !with_trigger {
+            events[4]["content_block"]
+                .as_object_mut()
+                .unwrap()
+                .remove("trigger");
+        }
+        let wire = events
+            .iter()
+            .map(|event| format!("data: {event}\n\n"))
+            .collect::<String>();
+        let mut collector = ResponseCollector::new(Kind::ClaudeMessages).unwrap();
+        for chunk in wire.as_bytes().chunks(7) {
+            collector.push(Bytes::copy_from_slice(chunk)).unwrap();
+        }
+        let BufferedResponse::Claude(response) = collector.finish().unwrap() else {
+            panic!("wrong buffered family");
+        };
+        let response = serde_json::to_value(response).unwrap();
+        assert_eq!(response["model"], "claude-opus-4-8");
+        assert_eq!(response["content"][0]["text"], "Before ");
+        assert_eq!(response["content"][1], events[4]["content_block"]);
+        assert_eq!(response["content"][2]["text"], "after");
+        assert_eq!(
+            response["usage"]["iterations"],
+            events[9]["usage"]["iterations"]
+        );
+        for kind in [Kind::OpenAiChat, Kind::OpenAiResponses] {
+            let stream = ResponseStream::new(
+                content(Operation::StreamGenerateContent, kind),
+                content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
+            )
+            .unwrap();
+            let frames = data_frames(&drive(stream, &wire, 7));
+            if kind == Kind::OpenAiChat {
+                assert!(
+                    frames
+                        .iter()
+                        .any(|frame| frame["choices"][0]["delta"]["content"] == "after"
+                            && frame["model"] == "claude-opus-4-8")
+                );
+                assert_eq!(frames.last().unwrap()["model"], "claude-opus-4-8");
+            } else {
+                assert_eq!(
+                    frames.last().unwrap()["response"]["model"],
+                    "claude-opus-4-8"
+                );
+                assert!(frames.iter().any(|frame| frame["delta"] == "after"));
+            }
+        }
+    }
+}
+
+#[test]
 fn public_collector_handles_split_tool_stream_and_rejects_incomplete_lifecycle() {
     let wire = concat!(
         "data: {\"id\":\"chat_tool\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"gpt\",\"trace\":\"a\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\"}}]},\"finish_reason\":null}]}\n\n",

@@ -132,6 +132,8 @@ async fn finish<H: Host>(
         target_framing: gproxy_protocol::StreamFraming::Sse,
         settle: SettleMode::Free,
         pricing: None,
+        pricing_control: None,
+        usage_channel: None,
         started,
         upstream_url: None,
         request_method: None,
