@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "3.0.2"
+version = "3.0.3"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/LeenHawk/gproxy"
@@ -31,17 +31,17 @@ base64 = "0.23"
 blake3 = "1"
 clap = { version = "4", features = ["derive", "env"] }
 chacha20poly1305 = "0.11"
-gproxy-app = { path = "crates/gproxy-app", version = "=3.0.2" }
-gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.2" }
-gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.2" }
-gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.2" }
-gproxy-core = { path = "crates/gproxy-core", version = "=3.0.2" }
-gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.2" }
-gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.2" }
-gproxy-store = { path = "crates/gproxy-store", version = "=3.0.2" }
-gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.2" }
-gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.2", features = ["exhaustive"] }
-gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.2" }
+gproxy-app = { path = "crates/gproxy-app", version = "=3.0.3" }
+gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.3" }
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.3" }
+gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.3" }
+gproxy-core = { path = "crates/gproxy-core", version = "=3.0.3" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.3" }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.3" }
+gproxy-store = { path = "crates/gproxy-store", version = "=3.0.3" }
+gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.3" }
+gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.3", features = ["exhaustive"] }
+gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.3" }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
 getrandom_v02 = { package = "getrandom", version = "0.2", features = ["js"] }
