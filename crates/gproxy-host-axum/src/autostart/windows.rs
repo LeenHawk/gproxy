@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use super::*;
 
@@ -10,6 +10,8 @@ pub(super) fn status(_manager: &Manager) -> Status {
         supported: true,
         enabled: Command::new("reg.exe")
             .args(["query", KEY, "/v", VALUE])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .is_ok_and(|status| status.success()),
         platform: "windows".into(),
@@ -38,7 +40,12 @@ pub(super) fn set_enabled(manager: &Manager, enabled: bool) -> Result<(), Error>
         }
         command.args(["delete", KEY, "/v", VALUE, "/f"]);
     }
-    if command.status()?.success() {
+    if command
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?
+        .success()
+    {
         Ok(())
     } else {
         Err(Error::Unsupported)

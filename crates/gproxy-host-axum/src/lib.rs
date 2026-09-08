@@ -28,11 +28,20 @@ pub use server::{AxumServer, HostConfig, HostError};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn init_tracing(format: gproxy_app::LogFormat) {
+    use std::io::IsTerminal;
+
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     match format {
         gproxy_app::LogFormat::Text => {
-            let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
+            let ansi = !cfg!(windows)
+                && std::io::stdout().is_terminal()
+                && std::env::var_os("NO_COLOR").is_none()
+                && std::env::var("TERM").as_deref() != Ok("dumb");
+            let _ = tracing_subscriber::fmt()
+                .with_ansi(ansi)
+                .with_env_filter(filter)
+                .try_init();
         }
         gproxy_app::LogFormat::Json => {
             let _ = tracing_subscriber::fmt()
