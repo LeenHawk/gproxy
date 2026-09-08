@@ -8,6 +8,7 @@ mod quota_capabilities;
 pub(crate) mod quota_probe;
 mod quota_reset;
 mod tokenizer_auth;
+mod tokenizer_vocab;
 
 use std::time::Duration;
 
@@ -20,9 +21,9 @@ use gproxy_core::CacheBackend;
 use gproxy_store::records::CredentialEnvelope;
 
 use crate::AppHandle;
-use helpers::{auth_limit_key, cache_error, login_error, operator_key};
 #[cfg(not(target_arch = "wasm32"))]
-use helpers::{tokenizer_dto, tokenizer_progress_dto};
+use helpers::tokenizer_progress_dto;
+use helpers::{auth_limit_key, cache_error, login_error, operator_key};
 
 impl State for AppHandle {
     fn credential_quota_capabilities(
@@ -172,6 +173,17 @@ impl State for AppHandle {
         })
     }
 
+    fn runtime_settings_status(
+        &self,
+        configured: gproxy_admin::dto::RuntimeSettingsDto,
+    ) -> gproxy_admin::dto::RuntimeSettingsStatusDto {
+        self.inner
+            .host
+            .services
+            .control
+            .runtime_settings_status(configured)
+    }
+
     fn reload(&self) -> BoxFuture<'_, Result<(), AdminError>> {
         Box::pin(async move {
             AppHandle::reload(self)
@@ -237,41 +249,7 @@ impl State for AppHandle {
         name: &'a str,
         repository: &'a str,
     ) -> BoxFuture<'a, Result<gproxy_admin::dto::TokenizerVocabDto, AdminError>> {
-        Box::pin(async move {
-            #[cfg(target_arch = "wasm32")]
-            {
-                let _ = (name, repository);
-                Err(AdminError::Forbidden)
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                if name.is_empty() {
-                    return Err(AdminError::BadRequest(
-                        "tokenizer vocabulary name must not be blank".into(),
-                    ));
-                }
-                if repository.is_empty() {
-                    return Err(AdminError::BadRequest(
-                        "tokenizer repository must not be blank".into(),
-                    ));
-                }
-                let registry = &self.inner.host.services.tokenizers;
-                registry.fetch(name, repository).await.map_err(|error| {
-                    tracing::warn!(name, repository, %error, "manual tokenizer fetch failed");
-                    AdminError::BadRequest("tokenizer vocabulary could not be fetched".into())
-                })?;
-                self.inner
-                    .host
-                    .services
-                    .store
-                    .tokenizer_vocabs()
-                    .await?
-                    .into_iter()
-                    .find(|vocab| vocab.name == name)
-                    .map(tokenizer_dto)
-                    .ok_or(AdminError::NotFound)
-            }
-        })
+        Box::pin(tokenizer_vocab::fetch(self, name, repository))
     }
 
     fn tokenizer_vocab_progress(

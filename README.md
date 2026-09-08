@@ -183,6 +183,20 @@ the complete native option list.
 | `GPROXY_MASTER_KEY` | Optional standard-base64 32-byte key for stored secret encryption. |
 | `GPROXY_UPSTREAM_PROXY_URL` | Default upstream proxy override. |
 
+Console settings are grouped into Runtime, Network, Logs, Access, and Maintenance.
+Switching sections keeps unsaved edits. CORS origins, trusted proxy IPs, request
+and upload concurrency, upstream attempt limits, outbound proxies, and process
+log level/format apply without restarting. Lowering concurrency lets active
+requests finish; the admin interface remains accessible. Updates and announcements
+follow the effective outbound proxy too.
+
+Explicit startup flags/environment values override saved settings; Console shows
+both the saved and effective values with the override source. Remove an override
+and restart to use the saved value. Listener, database, cache, and encryption
+configuration still require a restart or the dedicated migration/rotation flow.
+CORS entries are origins such as `https://example.com`, not URLs with paths;
+trailing slashes and default ports are normalized.
+
 Without a master key, stored credentials and API keys are plaintext. Protect
 the data directory and backups. If you enable encryption, keep the key safe
 and do not regenerate it on each restart; changing it requires the documented

@@ -1,3 +1,4 @@
+use std::future::IntoFuture;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -7,13 +8,9 @@ use axum::extract::DefaultBodyLimit;
 
 pub(crate) const MAX_BODY_BYTES: usize = 100 * 1024 * 1024;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct HostConfig {
-    max_in_flight: usize,
     instance_id: u64,
-    trusted_proxies: Arc<[std::net::IpAddr]>,
-    cors_origins: Arc<[String]>,
-    upstream_proxy_url: Option<String>,
     autostart: Option<Arc<crate::autostart::Manager>>,
     selfupdate: Option<Arc<crate::selfupdate::Manager>>,
 }
@@ -26,36 +23,15 @@ impl HostConfig {
         if let Err(error) = autostart.initialize_default() {
             tracing::warn!(%error, "automatic startup initialization failed");
         }
-        let selfupdate = crate::selfupdate::Manager::new(
-            config.data_dir().to_owned(),
-            config.upstream_proxy_url(),
-            config.update_channel(),
-        )
-        .map(Arc::new)
-        .map_err(|error| tracing::warn!(%error, "self-update initialization failed"))
-        .ok();
+        let selfupdate =
+            crate::selfupdate::Manager::new(config.data_dir().to_owned(), config.update_channel())
+                .map(Arc::new)
+                .map_err(|error| tracing::warn!(%error, "self-update initialization failed"))
+                .ok();
         Self {
-            max_in_flight: config.max_in_flight(),
             instance_id: config.instance_id(),
-            trusted_proxies: config.trusted_proxies().into(),
-            cors_origins: config.cors_origins().into(),
-            upstream_proxy_url: config.upstream_proxy_url().map(str::to_owned),
             autostart: Some(autostart),
             selfupdate,
-        }
-    }
-}
-
-impl Default for HostConfig {
-    fn default() -> Self {
-        Self {
-            max_in_flight: 1024,
-            instance_id: 0,
-            trusted_proxies: Arc::new([]),
-            cors_origins: Arc::new([]),
-            upstream_proxy_url: None,
-            autostart: None,
-            selfupdate: None,
         }
     }
 }
@@ -63,10 +39,9 @@ impl Default for HostConfig {
 #[derive(Clone)]
 pub(crate) struct HostState {
     pub app: gproxy_app::AppHandle,
-    pub semaphore: Arc<tokio::sync::Semaphore>,
-    pub trusted_proxies: Arc<[std::net::IpAddr]>,
-    pub cors_origins: Arc<[String]>,
-    pub uploads: Arc<UploadState>,
+    pub requests: Arc<gproxy_app::ConcurrencyLimit>,
+    pub uploads: Arc<gproxy_app::ConcurrencyLimit>,
+    runtime_lock: Arc<std::sync::Mutex<()>>,
     pub announcements: crate::announce::Announcements,
     pub autostart: Option<Arc<crate::autostart::Manager>>,
     pub selfupdate: Option<Arc<crate::selfupdate::Manager>>,
@@ -81,14 +56,10 @@ impl HostState {
         getrandom::fill(&mut prefix).map_err(|_| HostError::Randomness)?;
         Ok(Self {
             app,
-            semaphore: Arc::new(tokio::sync::Semaphore::new(config.max_in_flight)),
-            trusted_proxies: config.trusted_proxies,
-            cors_origins: config.cors_origins,
-            uploads: Arc::new(UploadState::default()),
-            announcements: crate::announce::Announcements::new(
-                config.upstream_proxy_url.as_deref(),
-            )
-            .map_err(|_| HostError::AnnouncementClient)?,
+            requests: gproxy_app::ConcurrencyLimit::new(1024),
+            uploads: gproxy_app::ConcurrencyLimit::new(0),
+            runtime_lock: Arc::new(std::sync::Mutex::new(())),
+            announcements: crate::announce::Announcements::new(),
             autostart: config.autostart,
             selfupdate: config.selfupdate,
             instance_id: config.instance_id,
@@ -97,52 +68,26 @@ impl HostState {
         })
     }
 
+    pub(crate) fn sync_runtime(&self) -> Arc<gproxy_admin::dto::RuntimeSettingsStatusDto> {
+        let _guard = self
+            .runtime_lock
+            .lock()
+            .expect("runtime configuration poisoned");
+        let runtime = self.app.runtime_settings();
+        self.requests
+            .set_limit(runtime.effective.max_in_flight as usize);
+        self.uploads
+            .set_limit(runtime.effective.file_upload_max_in_flight as usize);
+        crate::logging::apply(&runtime);
+        runtime
+    }
+
     pub(crate) fn request_id(&self) -> String {
         let sequence = self.request_counter.fetch_add(1, Ordering::Relaxed);
         format!(
             "{}-{:016x}-{sequence:016x}",
             self.instance_id, self.request_prefix
         )
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct UploadState {
-    in_flight: std::sync::atomic::AtomicUsize,
-    changed: tokio::sync::Notify,
-}
-
-impl UploadState {
-    pub(crate) async fn acquire(self: &Arc<Self>, limit: usize) -> Option<UploadPermit> {
-        if limit == 0 {
-            return None;
-        }
-        loop {
-            let current = self.in_flight.load(Ordering::Acquire);
-            if current < limit
-                && self
-                    .in_flight
-                    .compare_exchange_weak(
-                        current,
-                        current + 1,
-                        Ordering::AcqRel,
-                        Ordering::Acquire,
-                    )
-                    .is_ok()
-            {
-                return Some(UploadPermit(Arc::clone(self)));
-            }
-            self.changed.notified().await;
-        }
-    }
-}
-
-pub(crate) struct UploadPermit(Arc<UploadState>);
-
-impl Drop for UploadPermit {
-    fn drop(&mut self) {
-        self.0.in_flight.fetch_sub(1, Ordering::AcqRel);
-        self.0.changed.notify_one();
     }
 }
 
@@ -176,17 +121,29 @@ impl AxumServer {
         let address = listener.local_addr().map_err(HostError::Io)?;
         let shutdown = app.clone();
         let state = HostState::new(app.clone(), config)?;
+        state.sync_runtime();
         let router = Router::new()
             .fallback(crate::ingress::handle)
             .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
-            .with_state(state);
+            .with_state(state.clone());
+        let mut updates = app.subscribe_runtime_settings();
         let task = tokio::spawn(async move {
-            axum::serve(
+            let serving = axum::serve(
                 listener,
                 router.into_make_service_with_connect_info::<SocketAddr>(),
             )
             .with_graceful_shutdown(async move { shutdown.wait_shutdown().await })
-            .await
+            .into_future();
+            tokio::pin!(serving);
+            loop {
+                tokio::select! {
+                    result = &mut serving => return result,
+                    changed = updates.changed() => {
+                        if changed.is_err() { return serving.await; }
+                        state.sync_runtime();
+                    }
+                }
+            }
         });
         Ok(Self { address, app, task })
     }
@@ -219,6 +176,4 @@ pub enum HostError {
     Join(#[source] tokio::task::JoinError),
     #[error("secure request-id randomness unavailable")]
     Randomness,
-    #[error("announcement client initialization failed")]
-    AnnouncementClient,
 }

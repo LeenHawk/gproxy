@@ -19,7 +19,7 @@ use config::{Restart, channel, restart};
 type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) struct Manager {
-    client: wreq::Client,
+    client: crate::outbound::OutboundClient,
     data_dir: PathBuf,
     manifest_url: Option<String>,
     restart: Restart,
@@ -27,21 +27,13 @@ pub(crate) struct Manager {
 }
 
 impl Manager {
-    pub(crate) fn new(
-        data_dir: PathBuf,
-        proxy: Option<&str>,
-        channel: Option<&str>,
-    ) -> Result<Self> {
+    pub(crate) fn new(data_dir: PathBuf, channel: Option<&str>) -> Result<Self> {
         let manifest_url = std::env::var("GPROXY_UPDATE_SERVE").ok();
-        let mut builder = wreq::Client::builder()
-            .redirect(wreq::redirect::Policy::limited(10))
-            .user_agent(concat!("gproxy-selfupdate/", env!("CARGO_PKG_VERSION")));
-        builder = match proxy {
-            Some(url) => builder.proxy(wreq::Proxy::all(url).map_err(|_| Error::Configuration)?),
-            None => builder.no_proxy(),
-        };
         Ok(Self {
-            client: builder.build().map_err(|_| Error::Configuration)?,
+            client: crate::outbound::OutboundClient::new(concat!(
+                "gproxy-selfupdate/",
+                env!("CARGO_PKG_VERSION")
+            )),
             data_dir,
             manifest_url,
             restart: restart()?,
@@ -49,9 +41,17 @@ impl Manager {
         })
     }
 
-    async fn check(&self, selected_channel: Option<&str>) -> Result<UpdateStatusDto> {
+    async fn check(
+        &self,
+        selected_channel: Option<&str>,
+        settings: &gproxy_admin::dto::RuntimeSettingsDto,
+    ) -> Result<UpdateStatusDto> {
+        let client = self
+            .client
+            .get(settings)
+            .map_err(|_| Error::Configuration)?;
         let channel = channel(selected_channel, self.channel.as_deref())?;
-        let manifest = download::manifest(&self.client, &self.manifest_url(&channel)).await?;
+        let manifest = download::manifest(&client, &self.manifest_url(&channel)).await?;
         if manifest.channel != channel {
             return Err(Error::Manifest);
         }
@@ -59,7 +59,7 @@ impl Manager {
         let _artifact = manifest.artifact(&target)?;
         let (current, available) = version::available(&channel, &manifest.version)?;
         let notes = if available && channel != "staging" && manifest.notes_url.is_some() {
-            notes::fetch(&self.client, &manifest.version).await
+            notes::fetch(&client, &manifest.version).await
         } else {
             None
         };
@@ -75,9 +75,17 @@ impl Manager {
         })
     }
 
-    async fn apply(&self, selected_channel: Option<&str>) -> Result<(UpdateAppliedDto, bool)> {
+    async fn apply(
+        &self,
+        selected_channel: Option<&str>,
+        settings: &gproxy_admin::dto::RuntimeSettingsDto,
+    ) -> Result<(UpdateAppliedDto, bool)> {
+        let client = self
+            .client
+            .get(settings)
+            .map_err(|_| Error::Configuration)?;
         let channel = channel(selected_channel, self.channel.as_deref())?;
-        let manifest = download::manifest(&self.client, &self.manifest_url(&channel)).await?;
+        let manifest = download::manifest(&client, &self.manifest_url(&channel)).await?;
         if manifest.channel != channel {
             return Err(Error::Manifest);
         }
@@ -88,7 +96,7 @@ impl Manager {
         let (_, available) = version::available(&channel, &manifest.version)?;
         if available {
             let target = version::target();
-            let bytes = download::artifact(&self.client, manifest.artifact(&target)?).await?;
+            let bytes = download::artifact(&client, manifest.artifact(&target)?).await?;
             if target.ends_with("-apk") {
                 android_apk::stage(&self.data_dir, &bytes)?;
             } else {
@@ -110,12 +118,13 @@ impl Manager {
         method: &Method,
         path: &str,
         selected_channel: Option<&str>,
+        settings: &gproxy_admin::dto::RuntimeSettingsDto,
     ) -> Response<Bytes> {
         let (result, restart_after) = match (method, path) {
             (&Method::GET | &Method::HEAD, "/admin/api/native/update") => {
-                (self.check(selected_channel).await.and_then(to_value), false)
+                (self.check(selected_channel, settings).await.and_then(to_value), false)
             }
-            (&Method::POST, "/admin/api/native/update/apply") => match self.apply(selected_channel).await {
+            (&Method::POST, "/admin/api/native/update/apply") => match self.apply(selected_channel, settings).await {
                 Ok((applied, changed)) => (to_value(applied), changed),
                 Err(error) => (Err(error), false),
             },

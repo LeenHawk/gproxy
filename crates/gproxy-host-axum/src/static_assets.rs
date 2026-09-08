@@ -8,31 +8,35 @@ use rust_embed::RustEmbed;
 #[exclude = ".gitkeep"]
 struct WebAssets;
 
-pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
+pub(crate) fn asset_path(parts: &Parts) -> Option<&str> {
     if parts.method != Method::GET && parts.method != Method::HEAD {
         return None;
     }
-    let request_path = parts.uri.path();
-    if request_path == "/build-info.js" {
+    let path = parts.uri.path();
+    if path == "/build-info.js" {
+        Some("build-info.js")
+    } else if path == "/"
+        || path == "/admin"
+        || path.starts_with("/admin/")
+        || matches!(path, "/portal" | "/portal/")
+    {
+        Some("index.html")
+    } else {
+        path.strip_prefix('/').filter(|path| {
+            path.starts_with("assets/")
+                || matches!(
+                    *path,
+                    "favicon.ico" | "favicon-96x96.png" | "apple-touch-icon.png"
+                )
+        })
+    }
+}
+
+pub(crate) fn serve(parts: &Parts) -> Option<Response<Bytes>> {
+    let asset = asset_path(parts)?;
+    if asset == "build-info.js" {
         return Some(build_info(parts.method == Method::HEAD));
     }
-    let asset = if request_path == "/"
-        || request_path == "/admin"
-        || request_path.starts_with("/admin/")
-        || matches!(request_path, "/portal" | "/portal/")
-    {
-        "index.html"
-    } else if let Some(path) = request_path.strip_prefix('/')
-        && (path.starts_with("assets/")
-            || matches!(
-                path,
-                "favicon.ico" | "favicon-96x96.png" | "apple-touch-icon.png"
-            ))
-    {
-        path
-    } else {
-        return None;
-    };
     if WebAssets::get("index.html").is_none() {
         return Some(text(
             StatusCode::NOT_FOUND,

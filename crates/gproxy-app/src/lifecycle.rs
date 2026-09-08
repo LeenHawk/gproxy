@@ -16,6 +16,9 @@ pub(crate) struct AppInner {
     pub invalidation_version: std::sync::atomic::AtomicI64,
     #[cfg(not(target_arch = "wasm32"))]
     pub shutdown: tokio::sync::watch::Sender<bool>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub runtime_updates:
+        tokio::sync::watch::Sender<std::sync::Arc<gproxy_admin::dto::RuntimeSettingsStatusDto>>,
     #[cfg(target_arch = "wasm32")]
     pub shutdown: std::sync::atomic::AtomicBool,
 }
@@ -114,12 +117,17 @@ impl AppHandle {
                 .host
                 .services
                 .transport
-                .set_inherit_system_proxy(settings.inherit_system_proxy);
+                .set_inherit_system_proxy(settings.runtime.effective.inherit_system_proxy);
             self.inner
                 .host
                 .services
                 .transport
-                .set_default_proxy(settings.proxy.clone());
+                .set_default_proxy(settings.runtime.effective.proxy.clone());
+            self.inner
+                .host
+                .services
+                .spawner
+                .set_max_in_flight(settings.runtime.effective.max_in_flight as usize);
             let tokenizers = &self.inner.host.services.tokenizers;
             tokenizers.set_vocabs_enabled(settings.enable_tokenizer_vocabs);
             tokenizers.set_download_enabled(settings.enable_tokenizer_download);
@@ -131,8 +139,17 @@ impl AppHandle {
                 )
                 .await?,
             );
+            self.inner.runtime_updates.send_replace(settings.runtime);
         }
         Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn subscribe_runtime_settings(
+        &self,
+    ) -> tokio::sync::watch::Receiver<std::sync::Arc<gproxy_admin::dto::RuntimeSettingsStatusDto>>
+    {
+        self.inner.runtime_updates.subscribe()
     }
 
     pub fn file_upload_max_in_flight(&self) -> usize {
@@ -141,7 +158,13 @@ impl AppHandle {
             .services
             .control
             .settings()
-            .file_upload_max_in_flight
+            .runtime
+            .effective
+            .file_upload_max_in_flight as usize
+    }
+
+    pub fn runtime_settings(&self) -> std::sync::Arc<gproxy_admin::dto::RuntimeSettingsStatusDto> {
+        self.inner.host.services.control.runtime_settings()
     }
 
     pub fn instance_name(&self) -> String {

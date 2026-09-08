@@ -10,6 +10,7 @@ mod handlers;
 mod portal;
 mod response;
 mod route;
+pub mod runtime_settings;
 mod state;
 
 pub use auth::AuthSource;

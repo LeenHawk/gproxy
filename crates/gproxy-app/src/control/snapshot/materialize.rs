@@ -53,7 +53,7 @@ impl CompiledSnapshot {
         }
         let max_attempts =
             max_attempts.unwrap_or_else(|| u32::try_from(targets.len()).unwrap_or(u32::MAX));
-        let max_attempts = max_attempts.min(self.settings.max_attempts);
+        let max_attempts = max_attempts.min(self.settings.runtime.effective.max_attempts);
         Ok(Plan {
             targets,
             budget: FailoverBudget { max_attempts },

@@ -118,3 +118,58 @@ async fn boots_relays_settles_and_reconciles_quota() {
     );
     fixture.shutdown().await;
 }
+
+#[tokio::test]
+async fn cors_changes_apply_without_rebinding_the_listener() {
+    let fixture = fixture::Fixture::start().await;
+    let client = wreq::Client::builder().no_proxy().build().unwrap();
+    let preflight = || {
+        client
+            .request(http::Method::OPTIONS, fixture.gateway_url())
+            .header(http::header::ORIGIN, "https://example.test")
+            .header("access-control-request-method", "POST")
+    };
+    assert!(
+        !preflight()
+            .send()
+            .await
+            .unwrap()
+            .headers()
+            .contains_key("access-control-allow-origin")
+    );
+    fixture
+        .app
+        .mutate(gproxy_app::ControlMutation::Setting(
+            gproxy_store::records::SettingInput {
+                key: "cors_origins".into(),
+                value: json!(["https://EXAMPLE.test:443/"]),
+            },
+        ))
+        .await
+        .unwrap();
+    let response = preflight().send().await.unwrap();
+    assert_eq!(response.status(), http::StatusCode::NO_CONTENT);
+    assert_eq!(
+        response.headers()["access-control-allow-origin"],
+        "https://example.test"
+    );
+    fixture
+        .app
+        .mutate(gproxy_app::ControlMutation::Setting(
+            gproxy_store::records::SettingInput {
+                key: "cors_origins".into(),
+                value: json!([]),
+            },
+        ))
+        .await
+        .unwrap();
+    assert!(
+        !preflight()
+            .send()
+            .await
+            .unwrap()
+            .headers()
+            .contains_key("access-control-allow-origin")
+    );
+    fixture.shutdown().await;
+}

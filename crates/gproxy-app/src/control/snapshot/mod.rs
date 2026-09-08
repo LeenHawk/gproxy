@@ -206,6 +206,17 @@ impl SnapshotControl {
         self.snapshot.load().stored.clone()
     }
 
+    pub(crate) fn runtime_settings(&self) -> Arc<gproxy_admin::dto::RuntimeSettingsStatusDto> {
+        self.snapshot.load().settings.runtime.clone()
+    }
+
+    pub(crate) fn runtime_settings_status(
+        &self,
+        configured: gproxy_admin::dto::RuntimeSettingsDto,
+    ) -> gproxy_admin::dto::RuntimeSettingsStatusDto {
+        self.runtime.status(configured)
+    }
+
     pub(crate) fn settings(&self) -> super::settings::EffectiveSettings {
         self.snapshot.load().settings.clone()
     }

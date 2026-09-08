@@ -15,11 +15,14 @@ pub(crate) async fn handle(
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     request: Request,
 ) -> Response {
+    let runtime = state.sync_runtime();
     let origin = request
         .headers()
         .get(http::header::ORIGIN)
         .cloned()
-        .filter(|origin| crate::request_policy::allowed_origin(&state, origin));
+        .filter(|origin| {
+            crate::request_policy::allowed_origin(&runtime.effective.cors_origins, origin)
+        });
     if request.method() == Method::OPTIONS
         && request
             .headers()
@@ -28,7 +31,8 @@ pub(crate) async fn handle(
         let response = StatusCode::NO_CONTENT.into_response();
         return crate::request_policy::apply_cors(response, origin.as_ref());
     }
-    let response = handle_request(state, peer, request).await;
+    let response = handle_request(state.clone(), peer, request, &runtime.effective).await;
+    state.sync_runtime();
     crate::request_policy::apply_cors(response, origin.as_ref())
 }
 
@@ -36,6 +40,7 @@ async fn handle_request(
     state: HostState,
     peer: std::net::SocketAddr,
     request: Request,
+    runtime: &gproxy_admin::dto::RuntimeSettingsDto,
 ) -> Response {
     let request_id = state.request_id();
     tracing::debug!(
@@ -45,7 +50,7 @@ async fn handle_request(
     );
     let (mut parts, body) = request.into_parts();
     let client_ip =
-        crate::request_policy::client_ip(peer.ip(), &parts.headers, &state.trusted_proxies);
+        crate::request_policy::client_ip(peer.ip(), &parts.headers, &runtime.trusted_proxies);
     parts
         .extensions
         .insert(gproxy_admin::AuthSource(client_ip.to_string()));
@@ -53,12 +58,16 @@ async fn handle_request(
     let path = parts.uri.path().to_owned();
     let query = parts.uri.query().map(str::to_owned);
     let mut headers = parts.headers.clone();
-    let permit = state
-        .semaphore
-        .clone()
-        .acquire_owned()
-        .await
-        .expect("host semaphore remains open");
+    // Management stays available even while inference has filled the limit.
+    let permit = if path == "/admin"
+        || path.starts_with("/admin/")
+        || path == "/announcements.js"
+        || crate::static_assets::asset_path(&parts).is_some()
+    {
+        None
+    } else {
+        Some(state.requests.acquire().await)
+    };
     let body = match to_bytes(body, MAX_BODY_BYTES).await {
         Ok(body) => body,
         Err(_) => {
@@ -66,7 +75,7 @@ async fn handle_request(
         }
     };
     if path == "/announcements.js" {
-        let response = state.announcements.serve(&method).await;
+        let response = state.announcements.serve(&method, runtime).await;
         return crate::response::buffered_response(response, permit, &request_id);
     }
     if path == "/admin/api/native/autostart" {
@@ -95,7 +104,9 @@ async fn handle_request(
         let response = match state.selfupdate.as_deref() {
             Some(manager) => {
                 let channel = state.app.update_channel();
-                manager.dispatch(&method, &path, channel.as_deref()).await
+                manager
+                    .dispatch(&method, &path, channel.as_deref(), runtime)
+                    .await
             }
             None => crate::selfupdate::unavailable(),
         };
@@ -140,10 +151,7 @@ async fn handle_request(
         mode,
     };
     let _upload = if crate::request_policy::is_upload(&request) {
-        state
-            .uploads
-            .acquire(state.app.file_upload_max_in_flight())
-            .await
+        Some(state.uploads.acquire().await)
     } else {
         None
     };

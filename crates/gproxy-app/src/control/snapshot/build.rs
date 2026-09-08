@@ -16,7 +16,7 @@ impl CompiledSnapshot {
         runtime: &super::super::settings::RuntimeOverrides,
     ) -> Result<Self, StoreError> {
         validate_windows(&stored)?;
-        let effective = super::super::settings::EffectiveSettings::read(&stored.settings, runtime);
+        let effective = super::super::settings::EffectiveSettings::read(&stored.settings, runtime)?;
         let stored = Arc::new(stored);
         let provider_catalogue = super::capability::provider_catalogue(stored.as_ref());
         let providers = stored
@@ -57,7 +57,7 @@ impl CompiledSnapshot {
                             proxy_url: super::super::settings::effective_proxy(
                                 None,
                                 provider.proxy_url.as_deref(),
-                                effective.proxy.as_deref(),
+                                effective.runtime.effective.proxy.as_deref(),
                             ),
                             traffic_blacklist: effective.traffic_blacklist.clone(),
                         },

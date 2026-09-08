@@ -32,13 +32,15 @@ impl UpdateChannelDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct InstanceSettingsDto {
     pub instance_name: String,
-    pub proxy: Option<String>,
+    #[serde(flatten)]
+    #[ts(flatten)]
+    pub runtime: super::RuntimeSettingsDto,
+    #[serde(default)]
+    pub runtime_status: Option<super::RuntimeSettingsStatusDto>,
     pub enable_usage: bool,
     pub enable_tokenizer_vocabs: bool,
     pub enable_tokenizer_download: bool,
     pub default_tokenizer_vocab: Option<String>,
-    pub file_upload_max_in_flight: u64,
-    pub inherit_system_proxy: bool,
     pub retention_days: Option<u64>,
     pub max_database_size_mb: Option<u64>,
     pub enable_downstream_log: bool,

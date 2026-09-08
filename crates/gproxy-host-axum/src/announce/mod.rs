@@ -15,34 +15,36 @@ const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
 #[derive(Clone)]
 pub(crate) struct Announcements {
-    client: wreq::Client,
+    client: Arc<crate::outbound::OutboundClient>,
     cached: Arc<tokio::sync::Mutex<Option<Cached>>>,
 }
 
 struct Cached {
+    proxy: crate::outbound::ProxySettings,
     fetched_at: Instant,
     notifications: Vec<Notification>,
 }
 
 impl Announcements {
-    pub(crate) fn new(proxy: Option<&str>) -> Result<Self, ()> {
-        let mut builder = wreq::Client::builder()
-            .user_agent(concat!("gproxy-announcements/", env!("CARGO_PKG_VERSION")));
-        builder = match proxy {
-            Some(url) => builder.proxy(wreq::Proxy::all(url).map_err(|_| ())?),
-            None => builder.no_proxy(),
-        };
-        Ok(Self {
-            client: builder.build().map_err(|_| ())?,
+    pub(crate) fn new() -> Self {
+        Self {
+            client: Arc::new(crate::outbound::OutboundClient::new(concat!(
+                "gproxy-announcements/",
+                env!("CARGO_PKG_VERSION")
+            ))),
             cached: Arc::new(tokio::sync::Mutex::new(None)),
-        })
+        }
     }
 
-    pub(crate) async fn serve(&self, method: &Method) -> Response<Bytes> {
+    pub(crate) async fn serve(
+        &self,
+        method: &Method,
+        settings: &gproxy_admin::dto::RuntimeSettingsDto,
+    ) -> Response<Bytes> {
         if method != Method::GET && method != Method::HEAD {
             return response(StatusCode::METHOD_NOT_ALLOWED, Bytes::new());
         }
-        let notifications = self.list().await;
+        let notifications = self.list(settings).await;
         let value = serde_json::to_string(&notifications).unwrap_or_else(|_| "[]".into());
         let body = if method == Method::HEAD {
             Bytes::new()
@@ -52,23 +54,32 @@ impl Announcements {
         response(StatusCode::OK, body)
     }
 
-    async fn list(&self) -> Vec<Notification> {
+    async fn list(&self, settings: &gproxy_admin::dto::RuntimeSettingsDto) -> Vec<Notification> {
+        let proxy = crate::outbound::ProxySettings::from(settings);
         let mut cache = self.cached.lock().await;
         if let Some(cached) = cache.as_ref()
             && cached.fetched_at.elapsed() < CACHE_TTL
+            && cached.proxy == proxy
         {
             return cached.notifications.clone();
         }
-        let notifications = self.fetch_verified().await;
+        let notifications = self.fetch_verified(settings).await;
         *cache = Some(Cached {
+            proxy,
             fetched_at: Instant::now(),
             notifications: notifications.clone(),
         });
         notifications
     }
 
-    async fn fetch_verified(&self) -> Vec<Notification> {
-        let Some((bytes, signature)) = fetch::fetch(&self.client).await else {
+    async fn fetch_verified(
+        &self,
+        settings: &gproxy_admin::dto::RuntimeSettingsDto,
+    ) -> Vec<Notification> {
+        let Ok(client) = self.client.get(settings) else {
+            return Vec::new();
+        };
+        let Some((bytes, signature)) = fetch::fetch(&client).await else {
             return Vec::new();
         };
         let Some(feed) = fetch::verified(&bytes, &signature) else {
