@@ -232,6 +232,7 @@ fn resolve(mut cli: Cli, cwd: &Path) -> Result<NativeCommand, ConfigError> {
             "json" => LogFormat::Json,
             _ => return Err(invalid(LOG_FORMAT, "expected `text` or `json`")),
         },
+        generate_initial_admin: true,
         admin_user: layered(cli.admin_user, ADMIN_USER).unwrap_or_else(|| "admin".into()),
         admin_password: layered(cli.admin_password, ADMIN_PASSWORD),
         bootstrap_admin_api_key: layered(cli.bootstrap_admin_api_key, BOOTSTRAP_ADMIN_API_KEY),

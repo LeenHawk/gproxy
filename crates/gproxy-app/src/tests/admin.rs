@@ -213,3 +213,40 @@ async fn portal_admin_sees_enabled_provider_models_without_exposed_routes() {
         model.name == "openai-route/upstream-model" && !model.capabilities.is_empty()
     }));
 }
+
+#[tokio::test]
+async fn native_first_run_generates_credentials_without_rotating_them_on_restart() {
+    let directory = tempfile::tempdir().unwrap();
+    let config = || {
+        super::test_config(directory.path(), crate::MasterKeyConfig::new(None)).with_native_options(
+            crate::config::NativeOptions {
+                generate_initial_admin: true,
+                ..Default::default()
+            },
+        )
+    };
+    let app = crate::App::start(config()).await.unwrap();
+    let store = &app.inner.host.services.store;
+    let account = store.admin_by_username("admin").await.unwrap().unwrap();
+    assert!(!account.password_hash.is_empty());
+    let keys = app.inner.host.services.control.current().user_keys.clone();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].user_id, account.id);
+    drop(app);
+
+    let restarted = crate::App::start(config()).await.unwrap();
+    let account_after = restarted
+        .inner
+        .host
+        .services
+        .store
+        .admin_by_username("admin")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(account_after.id, account.id);
+    assert_eq!(account_after.password_hash, account.password_hash);
+    let snapshot = restarted.inner.host.services.control.current();
+    assert_eq!(snapshot.user_keys.len(), 1);
+    assert_eq!(snapshot.user_keys[0].digest, keys[0].digest);
+}

@@ -37,7 +37,22 @@ public final class GproxyService extends Service {
     private static volatile boolean starting;
     private Process process;
 
+    public static boolean needsSetup(Context context) {
+        android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
+        return prefs.getBoolean("setup_pending", false)
+            || (!prefs.getBoolean("setup_complete", false)
+                && !new File(context.getFilesDir(), "data/gproxy.db").isFile());
+    }
+
+    public static void start(Context context, String username, String password) {
+        Intent intent = new Intent(context, GproxyService.class).setAction(ACTION_START);
+        intent.putExtra("admin_user", username);
+        intent.putExtra("admin_password", password);
+        context.startForegroundService(intent);
+    }
+
     public static void start(Context context) {
+        if (needsSetup(context)) { return; }
         Intent intent = new Intent(context, GproxyService.class).setAction(ACTION_START);
         context.startForegroundService(intent);
     }
@@ -68,14 +83,22 @@ public final class GproxyService extends Service {
             return START_NOT_STICKY;
         }
         if (running || starting) { return START_STICKY; }
+        final String username = intent == null ? null : intent.getStringExtra("admin_user");
+        final String password = intent == null ? null : intent.getStringExtra("admin_password");
+        if (needsSetup(this) && (password == null || password.trim().isEmpty())) {
+            appendLog("Open GPROXY to set your administrator username and password.");
+            finishService();
+            return START_NOT_STICKY;
+        }
+        if (intent != null) { intent.removeExtra("admin_password"); }
         starting = true;
         new Thread(new Runnable() {
-            @Override public void run() { launch(); }
+            @Override public void run() { launch(username, password); }
         }, "gproxy-start").start();
         return START_STICKY;
     }
 
-    private void launch() {
+    private void launch(String username, String password) {
         try {
             File binDir = new File(getFilesDir(), "bin");
             File dataDir = new File(getFilesDir(), "data");
@@ -93,14 +116,26 @@ public final class GproxyService extends Service {
             Map<String, String> env = builder.environment();
             env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
             env.put("GPROXY_ANDROID_APP", "1");
+            if (password != null) {
+                if (!getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putBoolean("setup_pending", true).commit()) {
+                    throw new IOException("persist setup state");
+                }
+                env.put("GPROXY_ADMIN_USER", username);
+                env.put("GPROXY_ADMIN_PASSWORD", password);
+            }
             builder.redirectErrorStream(true);
             process = builder.start();
+            env.remove("GPROXY_ADMIN_PASSWORD");
+            password = null;
             final Process child = process;
             readOutput(child);
             if (!waitUntilHealthy(child)) {
                 child.destroy();
                 throw new IOException("server did not become healthy within 15 seconds");
             }
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putBoolean("setup_complete", true).putBoolean("setup_pending", false).apply();
             running = true;
             starting = false;
             updateNotification("Running on 127.0.0.1:8787");
