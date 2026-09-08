@@ -133,7 +133,17 @@ async fn seed_first_run(
     options: &crate::config::NativeOptions,
 ) -> Result<(), AppError> {
     let seeded = store.has_admin_users().await?;
-    let Some(password) = options.admin_password.as_deref() else {
+    let generated_password =
+        if !seeded && options.generate_initial_admin && options.admin_password.is_none() {
+            Some(crate::secrets::random_password()?)
+        } else {
+            None
+        };
+    let Some(password) = options
+        .admin_password
+        .as_deref()
+        .or(generated_password.as_deref())
+    else {
         if !seeded
             && (options.bootstrap_admin_api_key.is_some() || !options.bootstrap_channels.is_empty())
         {
@@ -174,9 +184,19 @@ async fn seed_first_run(
         );
         return Ok(());
     }
-    let admin_id = gproxy_admin::apply_admin_password(store, &options.admin_user, password)
-        .await
-        .map_err(|error| AppError::Bootstrap(error.to_string()))?;
+    let admin_id = if generated_password.is_some() {
+        let Some(id) = gproxy_admin::seed_first_admin(store, &options.admin_user, password)
+            .await
+            .map_err(|error| AppError::Bootstrap(error.to_string()))?
+        else {
+            return Ok(());
+        };
+        id
+    } else {
+        gproxy_admin::apply_admin_password(store, &options.admin_user, password)
+            .await
+            .map_err(|error| AppError::Bootstrap(error.to_string()))?
+    };
     if seeded {
         tracing::info!(
             user = options.admin_user.as_str(),
@@ -184,8 +204,6 @@ async fn seed_first_run(
         );
         return Ok(());
     }
-    // A fresh instance gets a usable key without being asked. It is sealed like any
-    // other and never logged; the operator reads it from the console when they need it.
     let generated;
     let api_key = match options.bootstrap_admin_api_key.as_deref() {
         Some(key) => Some(key),
@@ -228,6 +246,15 @@ async fn seed_first_run(
         gproxy_admin::seed_provider_rule_set(store, provider_id, channel)
             .await
             .map_err(|error| AppError::Bootstrap(error.to_string()))?;
+    }
+    if let Some(password) = generated_password {
+        // Only the native entrypoint opts into a one-time terminal disclosure.
+        println!(
+            "GPROXY first-run administrator (shown once)\nUsername: {}\nPassword: {}\nAPI key: {}\nSave these credentials before closing this terminal.",
+            options.admin_user,
+            password,
+            api_key.expect("fresh administrator key")
+        );
     }
     Ok(())
 }

@@ -55,8 +55,17 @@ chmod +x ./gproxy
 ./gproxy
 ```
 
-On Windows, run `gproxy.exe`. Open **http://127.0.0.1:8787/admin** and create
-the first administrator. The user portal is at **/portal**.
+On Windows, run `gproxy.exe`. On a fresh database, the executable generates an
+administrator password and API key and displays them in the terminal **once**
+(default username: `admin`). Save them, then sign in at
+**http://127.0.0.1:8787/admin**. The user portal is at **/portal**.
+
+MSI, DMG, DEB, and APK installations ask you to choose an administrator username
+and password before the first server start, with an automatic startup choice.
+Launchers do not save the plaintext password. Existing installations keep their
+accounts. You can also supply `GPROXY_ADMIN_USER` and `GPROXY_ADMIN_PASSWORD`;
+a configured password resets that administrator on every start, so remove it
+after recovery.
 
 The default native installation listens on loopback and stores its database
 at `./data/gproxy.db`. Keep that directory when updating the executable.

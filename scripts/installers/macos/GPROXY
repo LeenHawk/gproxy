@@ -30,7 +30,20 @@ is_healthy() {
   curl -fsS "$console_url" >/dev/null 2>&1
 }
 
-if [ ! -f "$launch_agent" ]; then
+admin_password=""
+admin_user=""
+enable_autostart=false
+if ! is_healthy && { [ ! -f "$data_dir/gproxy.db" ] || [ -f "$data_dir/.setup-pending" ]; }; then
+  [ "$background" = "false" ] || exit 0
+  admin_user="$(osascript -e 'text returned of (display dialog "Choose your administrator username." default answer "admin" with title "Set up GPROXY")')" || exit 0
+  [ -n "$(printf '%s' "$admin_user" | tr -d '[:space:]')" ] || exit 0
+  admin_password="$(osascript -e 'text returned of (display dialog "Choose your administrator password. The password is not saved in plaintext." default answer "" with hidden answer with title "Set up GPROXY")')" || exit 0
+  [ -n "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ] || exit 0
+  choice="$(osascript -e 'button returned of (display dialog "Start GPROXY automatically when you sign in?" with title "Set up GPROXY" buttons {"No", "Yes"} default button "Yes")')" || exit 0
+  [ "$choice" != "Yes" ] || enable_autostart=true
+fi
+
+if [ "$enable_autostart" = "true" ] && [ ! -f "$launch_agent" ]; then
   mkdir -p "$(dirname "$launch_agent")"
   escaped="$(printf '%s' "$contents/MacOS/GPROXY" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')"
   temporary="$launch_agent.tmp.$$"
@@ -47,9 +60,18 @@ if [ ! -f "$launch_agent" ]; then
   mv "$temporary" "$launch_agent"
 fi
 
+if [ -n "$admin_password" ]; then touch "$data_dir/.autostart-initialized" "$data_dir/.setup-pending"; fi
+
 if ! is_healthy; then
-  (cd "$data_dir" && exec "$binary" >>"$log_dir/gproxy.log" 2>&1) &
+  (
+    cd "$data_dir"
+    if [ -n "$admin_password" ]; then
+      export GPROXY_ADMIN_USER="$admin_user" GPROXY_ADMIN_PASSWORD="$admin_password"
+    fi
+    exec "$binary" >>"$log_dir/gproxy.log" 2>&1
+  ) &
   server_pid=$!
+  unset admin_password
   healthy=false
   attempt=0
   while [ "$attempt" -lt 75 ]; do
@@ -63,6 +85,8 @@ if ! is_healthy; then
     exit 1
   fi
 fi
+
+rm -f "$data_dir/.setup-pending"
 
 if [ "$background" = "false" ]; then
   open "$console_url"

@@ -21,7 +21,28 @@ if [ ! -f "$environment" ]; then
 fi
 
 if ! curl -fsS "$console_url" >/dev/null 2>&1; then
-  (cd "$data_dir" && nohup /usr/bin/gproxy >>"$log_dir/gproxy.log" 2>&1 &)
+  if [ ! -f "$data_dir/gproxy.db" ] || [ -f "$data_dir/.setup-pending" ]; then
+    admin_user="$(zenity --entry --title="Set up GPROXY" \
+      --text="Choose your administrator username." --entry-text=admin)" || exit 0
+    [ -n "$(printf '%s' "$admin_user" | tr -d '[:space:]')" ] || exit 0
+    admin_password="$(zenity --password --title="Set up GPROXY" \
+      --text="Choose your administrator password. The password is not saved in plaintext.")" || exit 0
+    [ -n "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ] || exit 0
+    user_autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/gproxy.desktop"
+    if zenity --question --title="Set up GPROXY" \
+      --text="Start GPROXY automatically when you sign in?"; then
+      rm -f "$user_autostart"
+    else
+      mkdir -p "$(dirname "$user_autostart")"
+      printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=GPROXY' 'Hidden=true' > "$user_autostart"
+    fi
+    touch "$data_dir/.autostart-initialized" "$data_dir/.setup-pending"
+    (cd "$data_dir" && GPROXY_ADMIN_USER="$admin_user" GPROXY_ADMIN_PASSWORD="$admin_password" \
+      nohup /usr/bin/gproxy >>"$log_dir/gproxy.log" 2>&1 &)
+    unset admin_password
+  else
+    (cd "$data_dir" && nohup /usr/bin/gproxy >>"$log_dir/gproxy.log" 2>&1 &)
+  fi
   healthy=false
   attempt=0
   while [ "$attempt" -lt 75 ]; do
@@ -38,6 +59,8 @@ if ! curl -fsS "$console_url" >/dev/null 2>&1; then
     exit 1
   fi
 fi
+
+rm -f "$data_dir/.setup-pending"
 
 if [ "${1:-}" = "--open-console" ]; then
   xdg-open "$console_url" >/dev/null 2>&1 || true

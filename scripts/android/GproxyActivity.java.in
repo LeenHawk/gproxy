@@ -14,6 +14,9 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Toast;
+import android.text.InputType;
 import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -22,6 +25,8 @@ import android.widget.TextView;
 
 public final class GproxyActivity extends Activity {
     private TextView logView;
+    private EditText usernameInput;
+    private EditText passwordInput;
     private boolean receiverRegistered;
 
     private final BroadcastReceiver events = new BroadcastReceiver() {
@@ -41,6 +46,24 @@ public final class GproxyActivity extends Activity {
         int padding = dp(16);
         root.setPadding(padding, padding, padding, padding);
 
+        if (GproxyService.needsSetup(this)) {
+            TextView title = new TextView(this);
+            title.setText("Set up GPROXY");
+            title.setTextSize(24);
+            root.addView(title);
+            usernameInput = new EditText(this);
+            usernameInput.setSingleLine(true);
+            usernameInput.setHint("Administrator username");
+            usernameInput.setText("admin");
+            root.addView(usernameInput);
+            passwordInput = new EditText(this);
+            passwordInput.setSingleLine(true);
+            passwordInput.setHint("Administrator password");
+            passwordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            passwordInput.setSaveEnabled(false);
+            root.addView(passwordInput);
+        }
+
         Switch autoStart = new Switch(this);
         autoStart.setText("Start automatically on app launch and device boot");
         autoStart.setChecked(prefs.getBoolean(GproxyService.PREF_AUTO_START, true));
@@ -53,7 +76,7 @@ public final class GproxyActivity extends Activity {
         });
         root.addView(autoStart);
         root.addView(button("Start GPROXY", new View.OnClickListener() {
-            @Override public void onClick(View view) { GproxyService.start(GproxyActivity.this); }
+            @Override public void onClick(View view) { startServer(); }
         }));
         root.addView(button("Open management console", new View.OnClickListener() {
             @Override public void onClick(View view) {
@@ -72,9 +95,25 @@ public final class GproxyActivity extends Activity {
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
         setContentView(root);
 
-        if (autoStart.isChecked()) {
+        if (autoStart.isChecked() && !GproxyService.needsSetup(this)) {
             GproxyService.start(this);
             offerBackgroundPermission();
+        }
+    }
+
+    private void startServer() {
+        if (GproxyService.needsSetup(this)) {
+            String username = usernameInput.getText().toString().trim();
+            String password = passwordInput.getText().toString();
+            if (username.isEmpty() || password.trim().isEmpty()) {
+                Toast.makeText(this, "Enter an administrator username and password.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            GproxyService.start(this, username, password);
+            passwordInput.setText("");
+            offerBackgroundPermission();
+        } else {
+            GproxyService.start(this);
         }
     }
 
