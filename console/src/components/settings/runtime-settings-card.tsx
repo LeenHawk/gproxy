@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { ConnectivityTest } from "@/components/connectivity-test"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { RuntimeSettingStatus } from "./runtime-setting-status"
 import { proxyProbe } from "@/lib/connectivity-probe"
 
 type Props = {
@@ -38,8 +39,22 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
           <FieldLabel htmlFor="upload-limit">{t("settings.runtime.uploadLimit")}</FieldLabel>
           <Input id="upload-limit" type="number" min={0} step={1} value={draft.file_upload_max_in_flight} onChange={(event) => set("file_upload_max_in_flight", Number(event.target.value || 0))} />
           <FieldDescription>{t("settings.runtime.uploadLimitHint")}</FieldDescription>
+          <RuntimeSettingStatus draft={draft} field="file_upload_max_in_flight" />
         </Field>
-        {/* The probe belongs on the field it probes, not in a box of its own below it. */}
+        {draft.runtime_status?.native_controls !== false ? (
+          <Field>
+            <FieldLabel htmlFor="request-limit">{t("settings.runtime.requestLimit")}</FieldLabel>
+            <Input id="request-limit" type="number" min={1} step={1} required value={draft.max_in_flight} onChange={(event) => set("max_in_flight", Number(event.target.value))} />
+            <FieldDescription>{t("settings.runtime.requestLimitHint")}</FieldDescription>
+            <RuntimeSettingStatus draft={draft} field="max_in_flight" />
+          </Field>
+        ) : null}
+        <Field>
+          <FieldLabel htmlFor="max-attempts">{t("settings.runtime.maxAttempts")}</FieldLabel>
+          <Input id="max-attempts" type="number" min={1} max={4294967295} step={1} required value={draft.max_attempts} onChange={(event) => set("max_attempts", Number(event.target.value))} />
+          <FieldDescription>{t("settings.runtime.maxAttemptsHint")}</FieldDescription>
+          <RuntimeSettingStatus draft={draft} field="max_attempts" />
+        </Field>
         <Field data-field-span="full">
           <FieldLabel htmlFor="global-proxy">{t("settings.runtime.proxy")}</FieldLabel>
           <InputGroup>
@@ -49,6 +64,7 @@ export function RuntimeSettingsCard({ draft, setDraft }: Props) {
             </InputGroupAddon>
           </InputGroup>
           <FieldDescription>{t("settings.runtime.proxyHint")}</FieldDescription>
+          <RuntimeSettingStatus draft={draft} field="proxy" />
         </Field>
         <div data-field-span="full" className="flex flex-col gap-3">
           {toggles.map((key) => (

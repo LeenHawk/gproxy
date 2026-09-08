@@ -75,9 +75,12 @@ mod tests {
             axum::serve(listener, router).await.expect("serve fixture");
         });
         let directory = tempfile::tempdir().expect("update directory");
-        let manager =
-            Manager::new(directory.path().to_owned(), None, None).expect("update manager");
+        let manager = Manager::new(directory.path().to_owned(), None).expect("update manager");
         let payload = b"verified update bytes";
+        let client = manager
+            .client
+            .get(&gproxy_admin::dto::RuntimeSettingsDto::default())
+            .unwrap();
         let mut artifact = Artifact {
             target_triple: "test".into(),
             url: format!("http://{address}/release"),
@@ -85,22 +88,22 @@ mod tests {
             size: payload.len() as u64,
         };
         assert_eq!(
-            super::artifact(&manager.client, &artifact)
+            super::artifact(&client, &artifact)
                 .await
                 .expect("redirected archive"),
             payload,
         );
         artifact.sha256 = "invalid".into();
         assert!(matches!(
-            super::artifact(&manager.client, &artifact).await,
+            super::artifact(&client, &artifact).await,
             Err(Error::Integrity)
         ));
         assert!(matches!(
-            super::manifest(&manager.client, &format!("http://{address}/manifest")).await,
+            super::manifest(&client, &format!("http://{address}/manifest")).await,
             Err(Error::Manifest)
         ));
         assert!(matches!(
-            super::manifest(&manager.client, &format!("http://{address}/loop")).await,
+            super::manifest(&client, &format!("http://{address}/loop")).await,
             Err(Error::Download)
         ));
         server.abort();

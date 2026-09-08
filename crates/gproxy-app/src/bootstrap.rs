@@ -45,9 +45,10 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         let transport = {
             let settings = control.settings();
-            let transport =
-                gproxy_upstream::Transport::with_system_proxy(settings.inherit_system_proxy);
-            transport.set_default_proxy(settings.proxy.clone());
+            let transport = gproxy_upstream::Transport::with_system_proxy(
+                settings.runtime.effective.inherit_system_proxy,
+            );
+            transport.set_default_proxy(settings.runtime.effective.proxy.clone());
             transport
         };
         #[cfg(target_arch = "wasm32")]
@@ -67,6 +68,12 @@ impl App {
             tokenizers.set_vocabs_enabled(control.settings().enable_tokenizer_vocabs);
             tokenizers.set_default_vocab(control.settings().default_tokenizer_vocab.clone());
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        let spawner = crate::host::TokioSpawner::new(
+            control.settings().runtime.effective.max_in_flight as usize,
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime_updates = tokio::sync::watch::channel(control.settings().runtime).0;
         let services = Shared::new(Services {
             store,
             cache,
@@ -77,7 +84,7 @@ impl App {
             #[cfg(not(target_arch = "wasm32"))]
             tokenizers,
             #[cfg(not(target_arch = "wasm32"))]
-            spawner: crate::host::TokioSpawner::new(config.max_in_flight()),
+            spawner,
             #[cfg(not(target_arch = "wasm32"))]
             continuations: Default::default(),
         });
@@ -94,6 +101,8 @@ impl App {
                 host,
                 invalidation_version: std::sync::atomic::AtomicI64::new(invalidation_version),
                 shutdown,
+                #[cfg(not(target_arch = "wasm32"))]
+                runtime_updates,
             }),
         };
         handle.sync_invalidation().await?;

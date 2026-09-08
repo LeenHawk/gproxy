@@ -2,6 +2,10 @@
 
 mod admin;
 mod bootstrap;
+#[cfg(not(target_arch = "wasm32"))]
+mod concurrency;
+#[cfg(not(target_arch = "wasm32"))]
+pub use concurrency::{ConcurrencyLimit, ConcurrencyPermit};
 mod cache;
 mod cleanup;
 mod config;

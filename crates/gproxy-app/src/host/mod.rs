@@ -369,7 +369,7 @@ fn health_version(sequence: &std::sync::atomic::AtomicU64) -> Option<i64> {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct TokioSpawner {
-    settlements: Arc<tokio::sync::Semaphore>,
+    settlements: Arc<crate::ConcurrencyLimit>,
 }
 
 /// Queued settlements beyond the in-flight cap before the response path
@@ -382,11 +382,16 @@ const SETTLEMENT_BACKLOG: usize = 2048;
 
 #[cfg(not(target_arch = "wasm32"))]
 impl TokioSpawner {
+    pub(crate) fn set_max_in_flight(&self, limit: usize) {
+        self.settlements
+            .set_limit(limit.saturating_add(SETTLEMENT_BACKLOG));
+    }
+
     pub(crate) fn new(max_in_flight: usize) -> Self {
         Self {
-            settlements: Arc::new(tokio::sync::Semaphore::new(
-                max_in_flight + SETTLEMENT_BACKLOG,
-            )),
+            settlements: crate::ConcurrencyLimit::new(
+                max_in_flight.saturating_add(SETTLEMENT_BACKLOG),
+            ),
         }
     }
 }
@@ -410,12 +415,7 @@ impl Spawner for TokioSpawner {
 
     fn reserve_settlement(&self) -> BoxFuture<'_, gproxy_core::SettlementPermit> {
         Box::pin(async move {
-            let permit = self
-                .settlements
-                .clone()
-                .acquire_owned()
-                .await
-                .expect("settlement semaphore is never closed");
+            let permit = self.settlements.acquire().await;
             Box::new(permit) as gproxy_core::SettlementPermit
         })
     }

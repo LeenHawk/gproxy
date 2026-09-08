@@ -30,12 +30,13 @@ pub(crate) struct NativeOptions {
     pub restart_parent: Option<u32>,
     pub upstream_proxy_url: Option<String>,
     pub instance_id: u64,
-    pub max_attempts: u32,
-    pub max_in_flight: usize,
+    pub max_attempts: Option<u32>,
+    pub max_in_flight: Option<usize>,
     pub file_upload_max_in_flight: Option<usize>,
-    pub trusted_proxies: Vec<std::net::IpAddr>,
-    pub cors_origins: Vec<String>,
-    pub log_format: LogFormat,
+    pub trusted_proxies: Option<Vec<std::net::IpAddr>>,
+    pub cors_origins: Option<Vec<String>>,
+    pub log_format: Option<LogFormat>,
+    pub log_filter: Option<String>,
     pub generate_initial_admin: bool,
     pub admin_user: String,
     pub admin_password: Option<String>,
@@ -51,12 +52,13 @@ impl Default for NativeOptions {
             restart_parent: None,
             upstream_proxy_url: None,
             instance_id: 0,
-            max_attempts: 6,
-            max_in_flight: 1024,
+            max_attempts: None,
+            max_in_flight: None,
             file_upload_max_in_flight: None,
-            trusted_proxies: Vec::new(),
-            cors_origins: Vec::new(),
-            log_format: LogFormat::Text,
+            trusted_proxies: None,
+            cors_origins: None,
+            log_format: None,
+            log_filter: None,
             generate_initial_admin: false,
             admin_user: "admin".into(),
             admin_password: None,
@@ -67,11 +69,7 @@ impl Default for NativeOptions {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LogFormat {
-    Text,
-    Json,
-}
+pub use gproxy_admin::dto::LogFormatDto as LogFormat;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub enum NativeCommand {
@@ -348,22 +346,27 @@ impl Config {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn max_in_flight(&self) -> usize {
-        self.native.max_in_flight
+        self.native.max_in_flight.unwrap_or(1024)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn trusted_proxies(&self) -> &[std::net::IpAddr] {
-        &self.native.trusted_proxies
+        self.native.trusted_proxies.as_deref().unwrap_or_default()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn cors_origins(&self) -> &[String] {
-        &self.native.cors_origins
+        self.native.cors_origins.as_deref().unwrap_or_default()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn log_format(&self) -> LogFormat {
-        self.native.log_format
+        self.native.log_format.unwrap_or_default()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn log_filter(&self) -> Option<&str> {
+        self.native.log_filter.as_deref()
     }
 
     #[cfg(not(target_arch = "wasm32"))]

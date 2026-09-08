@@ -1,11 +1,11 @@
+use crate::response::RequestPermit;
 use axum::extract::ws::{CloseFrame, Message, WebSocket};
 use gproxy_channel_api::{WsDuplex, WsFrame};
-use tokio::sync::OwnedSemaphorePermit;
 
 pub(crate) async fn pump(
     mut downstream: WebSocket,
     mut upstream: Box<dyn WsDuplex>,
-    permit: OwnedSemaphorePermit,
+    permit: RequestPermit,
 ) {
     let _permit = permit;
     loop {

@@ -58,6 +58,13 @@ pub trait State: MaybeSend + MaybeSync {
 
     fn reload(&self) -> BoxFuture<'_, Result<(), AdminError>>;
 
+    fn runtime_settings_status(
+        &self,
+        configured: crate::dto::RuntimeSettingsDto,
+    ) -> crate::dto::RuntimeSettingsStatusDto {
+        crate::dto::RuntimeSettingsStatusDto::configured(configured)
+    }
+
     fn connectivity_test<'a>(
         &'a self,
         request: &'a ConnectivityTestRequest,

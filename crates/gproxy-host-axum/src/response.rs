@@ -8,14 +8,14 @@ use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use futures_core::Stream;
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
-use tokio::sync::OwnedSemaphorePermit;
+pub(crate) type RequestPermit = Option<gproxy_app::ConcurrencyPermit>;
 
 use gproxy_core::{CoreError, ExecOutcome, ResponseBody};
 
 pub(crate) struct HostResponse(
     Result<ExecOutcome, CoreError>,
     Option<WebSocketUpgrade>,
-    OwnedSemaphorePermit,
+    RequestPermit,
     String,
 );
 
@@ -23,7 +23,7 @@ impl HostResponse {
     pub(crate) fn new(
         result: Result<ExecOutcome, CoreError>,
         upgrade: Option<WebSocketUpgrade>,
-        permit: OwnedSemaphorePermit,
+        permit: RequestPermit,
         request_id: String,
     ) -> Self {
         Self(result, upgrade, permit, request_id)
@@ -82,7 +82,7 @@ impl IntoResponse for HostResponse {
 
 pub(crate) fn buffered_response(
     buffered: http::Response<Bytes>,
-    permit: OwnedSemaphorePermit,
+    permit: RequestPermit,
     request_id: &str,
 ) -> Response {
     let (parts, body) = buffered.into_parts();
@@ -100,7 +100,7 @@ fn response(status: StatusCode, headers: HeaderMap, body: Body) -> Response {
     response
 }
 
-fn core_error(error: CoreError, permit: OwnedSemaphorePermit, request_id: &str) -> Response {
+fn core_error(error: CoreError, permit: RequestPermit, request_id: &str) -> Response {
     let status = error.status();
     json_response(
         status,
@@ -113,7 +113,7 @@ fn core_error(error: CoreError, permit: OwnedSemaphorePermit, request_id: &str) 
 fn local_error(
     status: StatusCode,
     message: &'static str,
-    permit: OwnedSemaphorePermit,
+    permit: RequestPermit,
     request_id: &str,
 ) -> Response {
     let body = format!(r#"{{"error":{{"message":"{message}"}}}}"#);
@@ -123,7 +123,7 @@ fn local_error(
 fn json_response(
     status: StatusCode,
     body: Bytes,
-    permit: OwnedSemaphorePermit,
+    permit: RequestPermit,
     request_id: &str,
 ) -> Response {
     let mut headers = HeaderMap::new();
@@ -135,7 +135,7 @@ fn json_response(
     response(status, headers, full_body(body, permit))
 }
 
-fn full_body(bytes: Bytes, permit: OwnedSemaphorePermit) -> Body {
+fn full_body(bytes: Bytes, permit: RequestPermit) -> Body {
     let stream = Box::pin(futures_util::stream::once(async move {
         Ok::<Bytes, Infallible>(bytes)
     }));
@@ -187,15 +187,12 @@ fn request_id_value(request_id: &str) -> HeaderValue {
 
 struct PermitStream<S> {
     inner: S,
-    permit: Option<OwnedSemaphorePermit>,
+    permit: RequestPermit,
 }
 
 impl<S> PermitStream<S> {
-    fn new(inner: S, permit: OwnedSemaphorePermit) -> Self {
-        Self {
-            inner,
-            permit: Some(permit),
-        }
+    fn new(inner: S, permit: RequestPermit) -> Self {
+        Self { inner, permit }
     }
 }
 

@@ -20,7 +20,7 @@
       "confirm": "Confirm and revoke"
     },
     "title": "Instance settings",
-    "subtitle": "Bound log storage and choose exactly what this instance records.",
+    "subtitle": "Manage network access, concurrency, outbound proxies, and logging.",
     "loadError": "Could not load instance settings. Retry.",
     "saved": "Instance settings saved.",
     "saveError": "Could not save instance settings. Retry.",
@@ -49,13 +49,13 @@
     },
     "runtime": {
       "title": "Runtime behavior",
-      "description": "Name this instance and control shared upstream, accounting, and upload behavior.",
+      "description": "Changes apply after saving. Active requests finish normally.",
       "instanceName": "Instance name",
       "instanceNameHint": "Shown with this instance's operational data.",
       "uploadLimit": "Concurrent file uploads",
-      "uploadLimitHint": "Zero allows unlimited concurrent uploads. The environment override wins when set.",
+      "uploadLimitHint": "Zero means unlimited. A lower limit waits for active uploads to finish.",
       "proxy": "Default upstream proxy",
-      "proxyHint": "Used after credential and provider proxy overrides. Leave empty for direct egress.",
+      "proxyHint": "Used when neither the credential nor provider specifies a proxy. Also applies to updates and announcements. Leave empty for a direct connection, or enable system proxy inheritance.",
       "connectivity": "Global egress",
       "connectivityHint": "Test the saved global and system proxy configuration.",
       "enable_usage": "Usage recording",
@@ -67,7 +67,18 @@
       "enable_tokenizer_vocabs": "Use vocabularies",
       "enable_tokenizer_vocabsHint": "Count tokens with a real vocabulary. Off, counting falls back to a character estimate.",
       "default_tokenizer_vocab": "Default vocabulary",
-      "default_tokenizer_vocabHint": "Used when a model matches no pattern in the provider's tokenizer map."
+      "default_tokenizer_vocabHint": "Used when a model matches no pattern in the provider's tokenizer map.",
+      "requestLimit": "Concurrent requests",
+      "requestLimitHint": "Maximum active gateway requests. Lowering this waits for existing requests to finish; management stays available.",
+      "maxAttempts": "Maximum upstream attempts",
+      "maxAttemptsHint": "Caps the upstream candidates tried per request, including the first attempt. Each route may set a lower limit.",
+      "overrideTitle": "Startup overrides are active",
+      "overrideHint": "The controls show saved values. Fields with startup overrides show their effective value below. Saved changes to those fields take effect after removing the corresponding startup setting and restarting.",
+      "overridden": "Effective: {{value}} · Startup override: {{source}}",
+      "pending": "Effective: {{value}} · Changes apply after saving.",
+      "none": "None",
+      "direct": "Direct connection",
+      "systemProxy": "System proxy"
     },
     "trafficBlacklist": {
       "title": "Global metadata blacklist",
@@ -174,6 +185,46 @@
       "disable": "Disable log redaction",
       "enabledMeaning": "Redaction is on. Credentials, cookies, authorization headers, and known secret fields are removed before logs are stored.",
       "disabledMeaning": "Redaction is off. Credentials, cookies, user content, and other sensitive values may be written to the database in clear text. Use this only temporarily on an instance you control."
+    },
+    "network": {
+      "title": "Browser and reverse-proxy access",
+      "description": "Changes apply to new requests immediately after saving.",
+      "cors_origins": "Allowed browser origins",
+      "cors_originsHint": "Allow these websites to call the gateway from a browser. Empty means same-origin only. Use an HTTP or HTTPS origin without a path; trailing slashes and default ports are normalized.",
+      "add_cors_origins": "Add origin",
+      "trusted_proxies": "Trusted reverse-proxy IPs",
+      "trusted_proxiesHint": "Forwarded client IP headers are trusted only from these IPs. Loopback addresses are always trusted.",
+      "add_trusted_proxies": "Add proxy IP",
+      "entry": "{{label}} {{number}}",
+      "remove": "Remove {{label}} {{number}}"
+    },
+    "processLogs": {
+      "title": "Process logs",
+      "description": "Control terminal and redirected process logs. Request capture settings are separate below.",
+      "level": "Log level",
+      "levelHint": "Change the level temporarily when troubleshooting, then restore it when finished.",
+      "format": "Log format",
+      "formatHint": "Applies to new log entries immediately. Existing log lines are unchanged.",
+      "levels": {
+        "off": "Off",
+        "error": "Error",
+        "warn": "Warning",
+        "info": "Info",
+        "debug": "Debug",
+        "trace": "Trace"
+      },
+      "formats": {
+        "text": "Text",
+        "json": "JSON"
+      }
+    },
+    "sections": {
+      "label": "Settings section",
+      "runtime": "Runtime",
+      "network": "Network",
+      "logs": "Logs",
+      "access": "Access",
+      "maintenance": "Maintenance"
     }
   }
 }

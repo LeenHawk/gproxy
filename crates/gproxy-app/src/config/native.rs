@@ -200,38 +200,35 @@ fn resolve(mut cli: Cli, cwd: &Path) -> Result<NativeCommand, ConfigError> {
         restart_parent: cli.restart_parent,
         upstream_proxy_url: nonempty(layered(cli.upstream_proxy_url, UPSTREAM_PROXY_URL)),
         instance_id: parse_number(layered(cli.instance_id, INSTANCE_ID), INSTANCE_ID, 0, true)?,
-        max_attempts: parse_number(
-            layered(cli.max_attempts, MAX_ATTEMPTS),
-            MAX_ATTEMPTS,
-            6,
-            false,
-        )?,
-        max_in_flight: parse_number(
-            layered(cli.max_in_flight, MAX_IN_FLIGHT),
-            MAX_IN_FLIGHT,
-            1024,
-            false,
-        )?,
+        max_attempts: layered(cli.max_attempts, MAX_ATTEMPTS)
+            .map(|value| parse_value(&value, MAX_ATTEMPTS, false))
+            .transpose()?,
+        max_in_flight: layered(cli.max_in_flight, MAX_IN_FLIGHT)
+            .map(|value| parse_value(&value, MAX_IN_FLIGHT, false))
+            .transpose()?,
         file_upload_max_in_flight: layered(
             cli.file_upload_max_in_flight,
             FILE_UPLOAD_MAX_IN_FLIGHT,
         )
         .map(|value| parse_value(&value, FILE_UPLOAD_MAX_IN_FLIGHT, true))
         .transpose()?,
-        trusted_proxies: parse_list(
-            layered(cli.trusted_proxies, TRUSTED_PROXIES),
-            TRUSTED_PROXIES,
-        )?,
-        cors_origins: split_list(layered(cli.cors_origins, CORS_ORIGINS)),
-        log_format: match layered(cli.log_format, LOG_FORMAT)
-            .unwrap_or_else(|| "text".into())
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "text" => LogFormat::Text,
-            "json" => LogFormat::Json,
-            _ => return Err(invalid(LOG_FORMAT, "expected `text` or `json`")),
-        },
+        trusted_proxies: layered(cli.trusted_proxies, TRUSTED_PROXIES)
+            .map(|value| parse_list(Some(value), TRUSTED_PROXIES))
+            .transpose()?,
+        cors_origins: layered(cli.cors_origins, CORS_ORIGINS)
+            .map(|value| {
+                gproxy_admin::runtime_settings::normalize_origins(&split_list(Some(value)))
+                    .map_err(|error| invalid(CORS_ORIGINS, error))
+            })
+            .transpose()?,
+        log_format: layered(cli.log_format, LOG_FORMAT)
+            .map(|value| match value.to_ascii_lowercase().as_str() {
+                "text" => Ok(LogFormat::Text),
+                "json" => Ok(LogFormat::Json),
+                _ => Err(invalid(LOG_FORMAT, "expected `text` or `json`")),
+            })
+            .transpose()?,
+        log_filter: nonempty(std::env::var("RUST_LOG").ok()),
         generate_initial_admin: true,
         admin_user: layered(cli.admin_user, ADMIN_USER).unwrap_or_else(|| "admin".into()),
         admin_password: layered(cli.admin_password, ADMIN_PASSWORD),

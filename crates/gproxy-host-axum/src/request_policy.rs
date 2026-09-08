@@ -1,14 +1,12 @@
 use axum::http::{HeaderMap, HeaderValue, Method};
 use axum::response::Response;
 
-use crate::server::HostState;
-
 pub(crate) fn client_ip(
     peer: std::net::IpAddr,
     headers: &HeaderMap,
-    trusted: &[std::net::IpAddr],
+    trusted: &[String],
 ) -> std::net::IpAddr {
-    if !peer.is_loopback() && !trusted.contains(&peer) {
+    if !peer.is_loopback() && !trusted.contains(&peer.to_string()) {
         return peer;
     }
     headers
@@ -31,10 +29,10 @@ pub(crate) fn is_upload(request: &gproxy_core::RequestCtx) -> bool {
         && matches!(request.path.as_str(), "/v1/files" | "/upload/v1beta/files")
 }
 
-pub(crate) fn allowed_origin(state: &HostState, origin: &HeaderValue) -> bool {
+pub(crate) fn allowed_origin(allowed: &[String], origin: &HeaderValue) -> bool {
     origin
         .to_str()
-        .is_ok_and(|origin| state.cors_origins.iter().any(|allowed| allowed == origin))
+        .is_ok_and(|origin| allowed.iter().any(|allowed| allowed == origin))
 }
 
 pub(crate) fn apply_cors(mut response: Response, origin: Option<&HeaderValue>) -> Response {
@@ -70,6 +68,10 @@ mod tests {
         headers.insert("x-forwarded-for", claimed.parse().unwrap());
         let untrusted = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7));
         assert_eq!(super::client_ip(untrusted, &headers, &[]), untrusted);
+        assert_eq!(
+            super::client_ip(untrusted, &headers, &[untrusted.to_string()]),
+            claimed.parse::<IpAddr>().unwrap()
+        );
 
         let loopback = IpAddr::V4(Ipv4Addr::LOCALHOST);
         assert_eq!(

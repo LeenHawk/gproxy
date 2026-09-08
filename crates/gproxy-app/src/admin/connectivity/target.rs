@@ -32,7 +32,10 @@ pub(in crate::admin) fn resolve(
         ));
     }
     if request.scope == ConnectivityScopeDto::Global {
-        let source = fallback(settings.proxy.as_ref(), settings.inherit_system_proxy());
+        let source = fallback(
+            settings.runtime.effective.proxy.as_ref(),
+            settings.inherit_system_proxy(),
+        );
         return Ok((
             ProviderRef {
                 id: 0,
@@ -40,7 +43,7 @@ pub(in crate::admin) fn resolve(
                 channel: String::new(),
                 settings: serde_json::json!({}),
                 fingerprint: None,
-                proxy_url: settings.proxy,
+                proxy_url: settings.runtime.effective.proxy.clone(),
                 traffic_blacklist: settings.traffic_blacklist.clone(),
             },
             source,
@@ -70,14 +73,17 @@ pub(in crate::admin) fn resolve(
     let proxy_url = crate::control::settings::effective_proxy(
         credential_proxy.as_deref(),
         provider_proxy.as_deref(),
-        settings.proxy.as_deref(),
+        settings.runtime.effective.proxy.as_deref(),
     );
     let source = if credential_proxy.is_some() {
         ConnectivityProxySourceDto::Credential
     } else if provider_proxy.is_some() {
         ConnectivityProxySourceDto::Provider
     } else {
-        fallback(settings.proxy.as_ref(), settings.inherit_system_proxy())
+        fallback(
+            settings.runtime.effective.proxy.as_ref(),
+            settings.inherit_system_proxy(),
+        )
     };
     let fingerprint = credential
         .and_then(|value| value.tls_fingerprint.as_ref())
