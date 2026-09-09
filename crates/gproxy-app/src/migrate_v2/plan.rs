@@ -12,7 +12,7 @@ pub(super) struct Plan {
 
 pub(super) fn prepare(mut data: SourceData, cipher: &V2Cipher) -> Plan {
     let mut found = counts(&data);
-    let skipped_permissions = skip_permissions(&mut data);
+    let skipped_permissions = super::compat::normalize(&mut data);
     let mut issues = std::mem::take(&mut data.table_issues);
     data.credentials.retain_mut(
         |credential| match cipher.open(&credential.value.stored_secret) {
@@ -95,36 +95,6 @@ pub(super) fn prepare(mut data: SourceData, cipher: &V2Cipher) -> Plan {
         counts,
         issues,
     }
-}
-
-fn skip_permissions(data: &mut SourceData) -> usize {
-    let organizations = data
-        .organizations
-        .iter()
-        .map(|row| row.id)
-        .collect::<BTreeSet<_>>();
-    let teams = data.teams.iter().map(|row| row.id).collect::<BTreeSet<_>>();
-    let users = data.users.iter().map(|row| row.id).collect::<BTreeSet<_>>();
-    let found = data.permissions.len();
-    data.permissions.retain(|row| {
-        let permission = &row.value;
-        permission.route_pattern == "*"
-            && match permission.scope.as_str() {
-                "org" => organizations.contains(&permission.scope_id),
-                "team" => teams.contains(&permission.scope_id),
-                "user" => users.contains(&permission.scope_id),
-                _ => false,
-            }
-    });
-    let skipped = found - data.permissions.len();
-    if skipped > 0 {
-        data.skipped.push(super::report::SkippedTable {
-            table: "route_permissions".into(),
-            rows: skipped as u64,
-            reason: "unsupported route grants or grants with missing subjects are not migrated",
-        });
-    }
-    skipped
 }
 
 fn prune(data: &mut SourceData, issues: &[ImportIssue]) -> bool {

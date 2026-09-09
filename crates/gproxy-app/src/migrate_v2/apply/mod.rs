@@ -32,7 +32,21 @@ pub(super) async fn run(
     data: SourceData,
     counts: &mut [ImportCount],
     source: &std::path::Path,
+    runtime: crate::control::RuntimeOverrides,
 ) -> Result<(), crate::AppError> {
+    let context = configuration(store, cipher, &data, counts).await?;
+    crate::control::SnapshotControl::new(store.clone(), runtime).await?;
+    usage::history(&context, &data, counts).await?;
+    logs::run(&context, source, counts).await?;
+    Ok(())
+}
+
+pub(super) async fn configuration<'a>(
+    store: &'a Store,
+    cipher: &'a crate::secrets::EnvelopeCipher,
+    data: &SourceData,
+    counts: &mut [ImportCount],
+) -> Result<Context<'a>, crate::AppError> {
     let mut context = Context {
         store,
         cipher,
@@ -46,15 +60,13 @@ pub(super) async fn run(
         price_rules: BTreeMap::new(),
         rule_sets: BTreeMap::new(),
     };
-    identity::base(&mut context, &data, counts).await?;
-    control::base(&mut context, &data, counts).await?;
-    identity::keys_and_quotas(&mut context, &data, counts).await?;
-    control::pricing(&mut context, &data, counts).await?;
-    process::run(&mut context, &data, counts).await?;
-    usage::settings(&context, &data, counts).await?;
-    usage::history(&context, &data, counts).await?;
-    logs::run(&context, source, counts).await?;
-    Ok(())
+    identity::base(&mut context, data, counts).await?;
+    control::base(&mut context, data, counts).await?;
+    identity::keys_and_quotas(&mut context, data, counts).await?;
+    control::pricing(&mut context, data, counts).await?;
+    process::run(&mut context, data, counts).await?;
+    usage::settings(&context, data, counts).await?;
+    Ok(context)
 }
 
 pub(super) async fn mapped<T>(

@@ -20,6 +20,12 @@ async fn native_and_libsql_share_schema_and_query_behavior() {
         )
         .await
         .unwrap();
+        database
+            .execute(Statement::plain(
+                "INSERT INTO routes(name,max_attempts,enabled) VALUES('legacy-route',3,1)",
+            ))
+            .await
+            .unwrap();
     }
     let (native, native_db) = native_store(native_dir.path().join("native.db"))
         .await
@@ -43,6 +49,13 @@ async fn native_and_libsql_share_schema_and_query_behavior() {
         index_shape(native_db.as_ref()).await,
         index_shape(remote_db.as_ref()).await
     );
+    for store in [&native, &libsql] {
+        let snapshot = store.control_snapshot().await.unwrap();
+        assert_eq!(
+            snapshot.routes[0].strategy,
+            crate::records::RouteStrategy::Weighted
+        );
+    }
     assert_eq!(scenario::run(&native).await, scenario::run(&libsql).await);
 }
 

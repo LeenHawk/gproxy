@@ -13,18 +13,21 @@ describe("RouteEditor", () => {
     vi.stubGlobal("fetch", fetchMock)
     const changed = vi.fn()
     const client = new QueryClient()
-    render(<QueryClientProvider client={client}><RouteEditor route={{ id: 4, name: "Primary", max_attempts: 3, enabled: true }} onChanged={changed} /></QueryClientProvider>)
+    render(<QueryClientProvider client={client}><RouteEditor route={{ id: 4, name: "Primary", max_attempts: 3, strategy: "weighted", enabled: true }} onChanged={changed} /></QueryClientProvider>)
 
     const user = userEvent.setup()
     await user.clear(screen.getByRole("textbox", { name: "Route name" }))
     await user.type(screen.getByRole("textbox", { name: "Route name" }), "Primary Route")
     await user.clear(screen.getByRole("spinbutton", { name: "Maximum attempts" }))
     await user.type(screen.getByRole("spinbutton", { name: "Maximum attempts" }), "5")
+    screen.getByRole("combobox", { name: "Balancing strategy" }).focus()
+    await user.keyboard("{ArrowDown}")
+    await user.click(screen.getByRole("option", { name: "Failover" }))
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/admin/api/routes/4")
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ name: "Primary Route", max_attempts: 5, enabled: true })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ name: "Primary Route", max_attempts: 5, strategy: "failover", enabled: true })
     expect(changed).toHaveBeenCalledOnce()
   })
 

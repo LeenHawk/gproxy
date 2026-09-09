@@ -68,6 +68,7 @@ pub(super) fn route(request: RouteWriteRequest) -> Result<RouteInput, AdminError
     Ok(RouteInput {
         name: request.name,
         max_attempts: request.max_attempts,
+        strategy: request.strategy,
         enabled: request.enabled,
     })
 }

@@ -7,7 +7,7 @@ use super::{json, optional_json};
 pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()> {
     data.providers = providers(connection)?;
     data.credentials = credentials(connection)?;
-    data.routes = routes(connection)?;
+    data.routes = routes(connection, &mut data.notices)?;
     data.route_members = route_members(connection)?;
     data.aliases = aliases(connection)?;
     data.provider_models = provider_models(connection)?;
@@ -46,14 +46,18 @@ fn providers(connection: &Connection) -> Result<Vec<Legacy<ProviderInput>>> {
     )?;
     query
         .query_map([], |row| {
+            let id: i64 = row.get(0)?;
+            let name: String = row.get(1)?;
             let channel: String = row.get(2)?;
             let settings = json(row, 4)?;
             let settings = gproxy_channels::canonical_provider_settings(&channel, &settings)
-                .map_err(|message| conversion(4, message))?;
+                .map_err(|message| {
+                    conversion(4, format!("providers id={id} name={name:?}: {message}"))
+                })?;
             Ok(Legacy {
-                id: row.get(0)?,
+                id,
                 value: ProviderInput {
-                    name: row.get(1)?,
+                    name,
                     label: row.get(3)?,
                     channel: gproxy_channels::canonical_channel_id(&channel).into(),
                     settings,
@@ -92,14 +96,35 @@ fn credentials(connection: &Connection) -> Result<Vec<Legacy<Credential>>> {
         .collect()
 }
 
-fn routes(connection: &Connection) -> Result<Vec<Legacy<RouteInput>>> {
-    let mut query = connection.prepare("SELECT id,name,enabled FROM routes ORDER BY id")?;
+fn routes(
+    connection: &Connection,
+    notices: &mut Vec<super::super::report::ImportIssue>,
+) -> Result<Vec<Legacy<RouteInput>>> {
+    let has_strategy: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('routes') WHERE name='strategy')",
+        [],
+        |row| row.get(0),
+    )?;
+    let strategy = if has_strategy {
+        "strategy"
+    } else {
+        "'round_robin'"
+    };
+    let mut query = connection.prepare(&format!(
+        "SELECT id,name,enabled,{strategy} FROM routes ORDER BY id"
+    ))?;
     query
         .query_map([], |row| {
             Ok(Legacy {
                 id: row.get(0)?,
                 value: RouteInput {
                     name: row.get(1)?,
+                    strategy: super::super::compat::route_strategy(
+                        &row.get::<_, String>(3)?,
+                        row.get(0)?,
+                        &row.get::<_, String>(1)?,
+                        notices,
+                    ),
                     max_attempts: 6,
                     enabled: row.get(2)?,
                 },

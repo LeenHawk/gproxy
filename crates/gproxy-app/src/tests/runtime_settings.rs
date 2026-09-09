@@ -115,6 +115,7 @@ async fn saved_attempt_limit_changes_the_actual_route_budget() {
         .update_route(
             fixture.route,
             &gproxy_store::records::RouteInput {
+                strategy: Default::default(),
                 name: "test-route".into(),
                 max_attempts: 10,
                 enabled: true,

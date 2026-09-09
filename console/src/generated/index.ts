@@ -149,6 +149,7 @@ export * from "./RewriteActionDto";
 export * from "./RouteDto";
 export * from "./RouteMemberDto";
 export * from "./RouteMemberWriteRequest";
+export * from "./RouteStrategy";
 export * from "./RouteWriteRequest";
 export * from "./RoutingImplementationDto";
 export * from "./RoutingRuleDto";

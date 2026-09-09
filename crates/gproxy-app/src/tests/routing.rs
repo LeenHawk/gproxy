@@ -184,3 +184,81 @@ fn assert_target(
     assert_eq!(plan.targets[0].provider.id, provider_id);
     assert_eq!(plan.targets[0].upstream_model, upstream_model);
 }
+
+#[tokio::test]
+async fn route_strategy_survives_reload_and_catalogue_reads_do_not_consume_rotation() {
+    use gproxy_core::Host as _;
+    use gproxy_store::records::{RouteInput, RouteMemberInput, RouteStrategy};
+    let fixture = setup::fixture().await;
+    let app = &fixture.app;
+    let host = &app.inner.host;
+    let control = &host.services.control;
+    app.mutate(crate::ControlMutation::RouteMember(RouteMemberInput {
+        route_id: fixture.route,
+        provider_id: fixture.provider,
+        upstream_model: "second-model".into(),
+        tier: 0,
+        weight: 100,
+        enabled: true,
+    }))
+    .await
+    .unwrap();
+    let request = setup::request("route-strategy", "hi", &fixture.client_key);
+    let identity = host.authenticate(&request).await.unwrap();
+    for strategy in [
+        RouteStrategy::RoundRobin,
+        RouteStrategy::Weighted,
+        RouteStrategy::Failover,
+    ] {
+        host.services
+            .store
+            .update_route(
+                fixture.route,
+                &RouteInput {
+                    name: "route".into(),
+                    strategy,
+                    max_attempts: 2,
+                    enabled: true,
+                },
+            )
+            .await
+            .unwrap();
+        app.reload().await.unwrap();
+        assert_eq!(control.current().routes[0].strategy, strategy);
+        let picks = (0..6)
+            .map(|_| {
+                assert!(control.catalogue_visible(
+                    &identity,
+                    Some("public-model"),
+                    &RoutingMode::Aggregated
+                ));
+                let plan = control
+                    .resolve(Some("public-model"), &RoutingMode::Aggregated, None)
+                    .unwrap();
+                assert_eq!(plan.budget.max_attempts, 2);
+                assert!(
+                    plan.targets
+                        .iter()
+                        .all(|target| !target.rules.session_affinity)
+                );
+                plan.targets[0].upstream_model.clone()
+            })
+            .collect::<Vec<_>>();
+        if strategy == RouteStrategy::Failover {
+            assert!(picks.iter().all(|model| model == "upstream-model"));
+        } else {
+            assert_eq!(
+                picks,
+                [
+                    "upstream-model",
+                    "second-model",
+                    "upstream-model",
+                    "second-model",
+                    "upstream-model",
+                    "second-model"
+                ]
+            );
+        }
+    }
+    app.shutdown();
+}

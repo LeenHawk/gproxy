@@ -78,17 +78,21 @@ pub(super) async fn base(
                 ));
             }
         };
-        context
-            .store
-            .insert_permission(&PermissionInput {
-                subject_kind: kind.into(),
-                subject_id: id(map, value.value.scope_id)?,
-                provider_id: None,
-                operation_group: None,
-                model_pattern: None,
-                allowed: true,
-            })
-            .await?;
+        for model_pattern in
+            super::super::compat::permission_patterns(&value.value, &data.providers)
+        {
+            context
+                .store
+                .insert_permission(&PermissionInput {
+                    subject_kind: kind.into(),
+                    subject_id: id(map, value.value.scope_id)?,
+                    provider_id: None,
+                    operation_group: None,
+                    model_pattern,
+                    allowed: true,
+                })
+                .await?;
+        }
     }
     mark(counts, "route_permissions", data.permissions.len());
     Ok(())

@@ -6,6 +6,7 @@ mod model;
 mod oauth;
 mod pricing;
 mod process;
+mod route;
 mod runtime;
 mod tokenizer;
 
@@ -17,5 +18,6 @@ pub use model::*;
 pub use oauth::*;
 pub use pricing::*;
 pub use process::*;
+pub use route::*;
 pub use runtime::*;
 pub use tokenizer::*;

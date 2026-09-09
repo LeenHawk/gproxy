@@ -63,6 +63,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .await?;
     let route = store
         .insert_route(&RouteInput {
+            strategy: Default::default(),
             name: "route".into(),
             max_attempts: 2,
             enabled: true,
@@ -301,6 +302,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
 async fn delete_route_takes_its_rows(store: &Store, provider: i64) -> Result<(), StoreError> {
     let route = store
         .insert_route(&RouteInput {
+            strategy: Default::default(),
             name: "doomed-route".into(),
             max_attempts: 1,
             enabled: true,
@@ -330,6 +332,7 @@ async fn delete_route_takes_its_rows(store: &Store, provider: i64) -> Result<(),
     assert!(!snapshot.exposed_models.iter().any(|m| m.route_id == route));
     let replacement = store
         .insert_route(&RouteInput {
+            strategy: Default::default(),
             name: "replacement-route".into(),
             max_attempts: 1,
             enabled: true,

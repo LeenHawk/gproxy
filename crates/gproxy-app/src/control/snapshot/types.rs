@@ -56,6 +56,7 @@ impl CompiledSnapshot {
 }
 
 pub(super) struct CompiledRoute {
+    pub strategy: gproxy_store::records::RouteStrategy,
     pub max_attempts: u32,
     pub targets: Vec<TargetSeed>,
 }

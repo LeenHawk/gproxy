@@ -14,7 +14,14 @@ impl CompiledSnapshot {
         health: &CredentialHealthMap,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
-        let targets = balance::order(seeds, balance_key, affinity, health, counters)
+        let strategy = self
+            .routes
+            .get(&balance_key)
+            .filter(|_| balance_key > 0)
+            .map_or(gproxy_store::records::RouteStrategy::RoundRobin, |route| {
+                route.strategy
+            });
+        let targets = balance::order(seeds, strategy, balance_key, affinity, health, counters)
             .into_iter()
             .filter_map(|seed| {
                 self.providers.get(&seed.provider_id).map(|stored| {
@@ -33,6 +40,8 @@ impl CompiledSnapshot {
                         upstream_model: seed.upstream_model,
                         tier: seed.tier,
                         rules: gproxy_core::TargetRules {
+                            session_affinity: seed.credential_strategy
+                                == super::types::CredentialStrategy::Sticky,
                             routing: self
                                 .routing_rules
                                 .get(&seed.provider_id)

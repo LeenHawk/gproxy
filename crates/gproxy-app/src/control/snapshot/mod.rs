@@ -1,3 +1,4 @@
+mod authorization;
 mod balance;
 mod build;
 mod capability;
@@ -320,13 +321,20 @@ impl ControlPlane for SnapshotControl {
         model: Option<&str>,
         mode: &RoutingMode,
     ) -> bool {
-        let Ok(plan) = self.resolve(model, mode, Some(identity.user_key_id)) else {
+        let Ok(plan) = self.catalogue_plan(model, mode, Some(identity.user_key_id)) else {
             return false;
         };
         let snapshot = self.current();
         let oauth = self.is_oauth_key(identity.user_key_id);
+        let model = self.authorization_model(model, mode);
         plan.targets.iter().any(|target| {
-            crate::host::catalogue_permitted(&snapshot, identity, target.provider.id, oauth, model)
+            crate::host::catalogue_permitted(
+                &snapshot,
+                identity,
+                target.provider.id,
+                oauth,
+                model.as_deref(),
+            )
         })
     }
 

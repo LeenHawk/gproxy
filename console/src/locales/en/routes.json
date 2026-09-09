@@ -13,7 +13,10 @@
     "tabs": {
       "settings": "Settings"
     },
+    "strategies": {"round_robin": "Round robin", "weighted": "Weighted", "failover": "Failover"},
+    "strategyHints": {"round_robin": "Alternate between healthy members in the same tier on each request. Member weights do not affect traffic share.", "weighted": "Spread requests smoothly in proportion to member weights within the same tier.", "failover": "Use a fixed order within each tier: higher weight first, then member ID. Try the next candidate on failure."},
     "fields": {
+      "strategy": "Balancing strategy",
       "name": "Route name",
       "maxAttempts": "Maximum attempts",
       "enabled": "Route enabled"
@@ -35,7 +38,7 @@
       "tier": "Failover tier",
       "tierHint": "Tier 0 is exhausted before tier 1 receives traffic.",
       "weight": "Weight",
-      "weightHint": "Splits traffic among healthy members in this tier.",
+      "weightHint": "For weighted traffic shares, or primary ordering in failover mode. Round robin ignores weights for traffic share.",
       "enabled": "Member enabled",
       "created": "Member added.",
       "updated": "Member updated.",

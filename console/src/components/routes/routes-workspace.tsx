@@ -47,8 +47,8 @@ export function RoutesWorkspace(props: Props) {
       selectedId={selected?.id ?? null}
       getSearchText={(route) => route.name}
       renderTitle={(route) => route.name}
-      renderSummary={(route) => t("routes.summary", { attempts: route.max_attempts })}
-      renderAction={(route) => <EnabledSwitch checked={route.enabled} label={`${route.name}: ${t("routes.fields.enabled")}`} errorMessage={t("routes.form.updateError")} onChange={(enabled) => saveRoute({ name: route.name, max_attempts: route.max_attempts, enabled }, route.id)} onChanged={props.onRoutesChanged} />}
+      renderSummary={(route) => `${t(`routes.strategies.${route.strategy}`)} · ${t("routes.summary", { attempts: route.max_attempts })}`}
+      renderAction={(route) => <EnabledSwitch checked={route.enabled} label={`${route.name}: ${t("routes.fields.enabled")}`} errorMessage={t("routes.form.updateError")} onChange={(enabled) => saveRoute({ name: route.name, max_attempts: route.max_attempts, strategy: route.strategy, enabled }, route.id)} onChanged={props.onRoutesChanged} />}
       onSelect={(route) => navigateAdminPath(`/admin/routes/${route.id}/members`)}
       onBack={back}
       searchPlaceholder={t("routes.search")}
@@ -65,7 +65,7 @@ export function RoutesWorkspace(props: Props) {
     >
       {creating ? <Card><CardHeader><CardTitle>{t("routes.form.createTitle")}</CardTitle></CardHeader><CardContent><RouteEditor route={null} onChanged={props.onRoutesChanged} onSaved={(result) => { if (result) navigateAdminPath(`/admin/routes/${result.id}/settings`) }} /></CardContent></Card> : null}
       {selected ? <div className="flex flex-col gap-4">
-        <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">{selected.name}</h2><p className="mt-1 text-sm text-muted-foreground">{t("routes.summary", { attempts: selected.max_attempts })}</p></div><div className="flex items-center gap-2"><Badge variant={selected.enabled ? "success" : "outline"}>{t(`common.status.${selected.enabled ? "enabled" : "disabled"}`)}</Badge><EntityDeleteButton entity="routes" id={selected.id} label={selected.name} queryKeys={["routes", "route-members", "model-aliases"]} onDeleted={back} /></div></header>
+        <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">{selected.name}</h2><p className="mt-1 text-sm text-muted-foreground">{t(`routes.strategies.${selected.strategy}`)} · {t("routes.summary", { attempts: selected.max_attempts })}</p></div><div className="flex items-center gap-2"><Badge variant={selected.enabled ? "success" : "outline"}>{t(`common.status.${selected.enabled ? "enabled" : "disabled"}`)}</Badge><EntityDeleteButton entity="routes" id={selected.id} label={selected.name} queryKeys={["routes", "route-members", "model-aliases"]} onDeleted={back} /></div></header>
         <Tabs value={detailTab} onValueChange={(tab) => navigateAdminPath(`/admin/routes/${selected.id}/${tab}`, true)}>
         <TabsList variant="line">
           <TabsTrigger value="members">{t("routes.members.title")}</TabsTrigger>
@@ -81,7 +81,7 @@ export function RoutesWorkspace(props: Props) {
         <TabsContent value="settings" className="pt-4">
           <Card>
             <CardHeader><CardTitle>{t("routes.tabs.settings")}</CardTitle></CardHeader>
-            <CardContent><RouteEditor key={`${selected.id}-${selected.name}-${selected.max_attempts}-${selected.enabled}`} route={selected} onChanged={props.onRoutesChanged} /></CardContent>
+            <CardContent><RouteEditor key={`${selected.id}-${selected.name}-${selected.strategy}-${selected.max_attempts}-${selected.enabled}`} route={selected} onChanged={props.onRoutesChanged} /></CardContent>
           </Card>
         </TabsContent>
         </Tabs>

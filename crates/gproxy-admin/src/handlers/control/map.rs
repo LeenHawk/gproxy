@@ -115,6 +115,7 @@ pub(in crate::handlers) fn route(value: &gproxy_store::records::RouteRecord) -> 
         id: value.id,
         name: value.name.clone(),
         max_attempts: value.max_attempts,
+        strategy: value.strategy,
         enabled: value.enabled,
     }
 }

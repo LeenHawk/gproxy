@@ -4,6 +4,7 @@ mod fallback;
 mod fingerprint;
 mod lifecycle;
 mod migrate_v2;
+mod migrate_v2_access;
 mod migrate_v2_logs;
 mod native_upgrade;
 mod oauth;

@@ -33,6 +33,7 @@ pub(crate) async fn operational(
     .expect("create credential");
     let route = id(app
         .mutate(ControlMutation::Route(gproxy_store::records::RouteInput {
+            strategy: Default::default(),
             name: "e2e-route".into(),
             max_attempts: 1,
             enabled: true,

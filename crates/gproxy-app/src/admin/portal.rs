@@ -49,8 +49,9 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
                 None => (name.as_str(), RoutingMode::Aggregated),
             };
             let plan = control
-                .resolve(Some(model), &mode, Some(caller.user_key_id))
+                .catalogue_plan(Some(model), &mode, Some(caller.user_key_id))
                 .ok()?;
+            let permission_model = control.authorization_model(Some(model), &mode);
             let mut capabilities = BTreeMap::new();
             for target in &plan.targets {
                 let descriptor = descriptors.get(target.provider.channel.as_str())?;
@@ -60,7 +61,7 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
                         &caller,
                         Some(support.source),
                         target.provider.id,
-                        Some(model),
+                        permission_model.as_deref(),
                     ) {
                         let capability = PortalModelCapabilityDto {
                             source: support.source.kind().id().into(),

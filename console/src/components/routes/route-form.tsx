@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { saveRoute } from "@/api/control"
 import type { IdResponse } from "@/generated/IdResponse"
+import type { RouteStrategy } from "@/generated/RouteStrategy"
 import type { RouteDto } from "@/generated/RouteDto"
 import type { RouteWriteRequest } from "@/generated/RouteWriteRequest"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 
 export function RouteEditor({ route, onChanged, onSaved }: {
@@ -19,9 +21,11 @@ export function RouteEditor({ route, onChanged, onSaved }: {
   const { t } = useTranslation()
   const nameId = useId()
   const attemptsId = useId()
+  const strategyId = useId()
   const enabledId = useId()
   const [name, setName] = useState(route?.name ?? "")
   const [maxAttempts, setMaxAttempts] = useState(String(route?.max_attempts ?? 3))
+  const [strategy, setStrategy] = useState<RouteStrategy>(route?.strategy ?? "round_robin")
   const [enabled, setEnabled] = useState(route?.enabled ?? true)
   const mutation = useMutation({
     mutationFn: (value: RouteWriteRequest) => saveRoute(value, route?.id),
@@ -34,12 +38,24 @@ export function RouteEditor({ route, onChanged, onSaved }: {
   })
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    mutation.mutate({ name: name.trim(), max_attempts: Number(maxAttempts), enabled })
+    mutation.mutate({ name: name.trim(), max_attempts: Number(maxAttempts), strategy, enabled })
   }
 
   return <form className="flex max-w-xl flex-col gap-4" onSubmit={submit}>
     <FieldGroup>
       <Field><FieldLabel htmlFor={nameId}>{t("routes.fields.name")}</FieldLabel><Input id={nameId} value={name} required onChange={(event) => setName(event.target.value)} /></Field>
+      <Field>
+        <FieldLabel htmlFor={strategyId}>{t("routes.fields.strategy")}</FieldLabel>
+        <Select value={strategy} onValueChange={(value) => setStrategy(value as RouteStrategy)}>
+          <SelectTrigger id={strategyId}><SelectValue /></SelectTrigger>
+          <SelectContent><SelectGroup>
+            <SelectItem value="round_robin">{t("routes.strategies.round_robin")}</SelectItem>
+            <SelectItem value="weighted">{t("routes.strategies.weighted")}</SelectItem>
+            <SelectItem value="failover">{t("routes.strategies.failover")}</SelectItem>
+          </SelectGroup></SelectContent>
+        </Select>
+        <FieldDescription>{t(`routes.strategyHints.${strategy}`)}</FieldDescription>
+      </Field>
       <Field>
         <FieldLabel htmlFor={attemptsId}>{t("routes.fields.maxAttempts")}</FieldLabel>
         <Input id={attemptsId} type="number" min={1} step={1} value={maxAttempts} required onChange={(event) => setMaxAttempts(event.target.value)} />

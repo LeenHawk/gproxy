@@ -13,7 +13,10 @@
     "tabs": {
       "settings": "设置"
     },
+    "strategies": {"round_robin": "轮询", "weighted": "加权轮询", "failover": "故障转移"},
+    "strategyHints": {"round_robin": "同一优先层内的健康成员逐请求轮换，成员权重不影响流量占比。", "weighted": "同一优先层内按成员权重平滑分配请求，避免流量连续集中。", "failover": "同一优先层内保持固定顺序：权重高者优先，其次按成员 ID；失败后尝试下一候选。"},
     "fields": {
+      "strategy": "负载均衡策略",
       "name": "路由名称",
       "maxAttempts": "最大尝试次数",
       "enabled": "启用路由"
@@ -35,7 +38,7 @@
       "tier": "故障转移层级",
       "tierHint": "只有第 0 层全部不可用后，第 1 层才接收流量。",
       "weight": "权重",
-      "weightHint": "在同层健康成员间按此比例分配流量。",
+      "weightHint": "用于加权流量分配或故障转移的主备排序；轮询模式的流量占比不受权重影响。",
       "enabled": "启用成员",
       "created": "已添加成员。",
       "updated": "已更新成员。",

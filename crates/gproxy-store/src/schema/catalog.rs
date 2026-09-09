@@ -15,10 +15,11 @@ pub enum SchemaVersion {
     /// ownership became a schema fact rather than per-method code.
     OwnedRows = 7,
     ModelPermissions = 8,
+    RouteStrategies = 9,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Initial,
         Self::QuotaObservations,
         Self::ModelMetadata,
@@ -27,8 +28,9 @@ impl SchemaVersion {
         Self::RouteOwnership,
         Self::OwnedRows,
         Self::ModelPermissions,
+        Self::RouteStrategies,
     ];
-    pub const LATEST: Self = Self::ModelPermissions;
+    pub const LATEST: Self = Self::RouteStrategies;
 
     pub const fn number(self) -> i64 {
         self as i64

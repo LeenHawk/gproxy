@@ -7,6 +7,8 @@ use serde_json::json;
 
 use crate::{App, AppHandle, Config, ControlMutation, MutationResult};
 
+pub(super) use super::v2_schema::{v2_database, v2_seal};
+
 pub(super) struct Fixture {
     pub app: AppHandle,
     pub provider: i64,
@@ -55,6 +57,7 @@ pub(super) async fn fixture() -> Fixture {
         .expect("credential"));
     let route = id(app
         .mutate(ControlMutation::Route(gproxy_store::records::RouteInput {
+            strategy: Default::default(),
             name: "route".into(),
             max_attempts: 1,
             enabled: true,
@@ -412,89 +415,4 @@ async fn v2_reimport_is_idempotent_and_preserves_usage_cost() {
             .cost,
         "12.34".parse::<Decimal>().unwrap()
     );
-}
-
-pub(super) fn v2_database(
-    directory: &std::path::Path,
-    api_key: &str,
-    stored_key: &str,
-    credential: &serde_json::Value,
-    with_usage: bool,
-) {
-    use tokio_rusqlite::rusqlite::{Connection, params};
-    let connection = Connection::open(directory.join("gproxy.db")).unwrap();
-    connection
-        .execute_batch(super::v2_schema::V2_SCHEMA)
-        .unwrap();
-    connection
-        .execute("INSERT INTO orgs VALUES(1,'org',1)", [])
-        .unwrap();
-    connection
-        .execute("INSERT INTO users VALUES(1,'user',1,NULL,NULL,1,0)", [])
-        .unwrap();
-    connection.execute("INSERT INTO providers VALUES(1,'provider','openai',NULL,'{}','round_robin',NULL,NULL,1)", []).unwrap();
-    connection
-        .execute("INSERT INTO routes VALUES(1,'public-model',1)", [])
-        .unwrap();
-    connection
-        .execute(
-            "INSERT INTO route_members VALUES(1,1,1,'upstream-model',0,100,1)",
-            [],
-        )
-        .unwrap();
-    connection.execute("INSERT INTO provider_models VALUES(1,1,'upstream-model','Upstream model','[\"upstream-model-thinking-high\"]',128000,16384,1,1,1,1)", []).unwrap();
-    connection.execute("INSERT INTO routing_rules VALUES(1,1,'generate_content','open_ai_chat_completions','transform_to','generate_content','open_ai_responses',0,1)", []).unwrap();
-    connection.execute("INSERT INTO instance_settings(id,instance_name,proxy,spoof_emulation,enable_usage,enable_upstream_log,enable_upstream_log_body,enable_downstream_log,enable_downstream_log_body,disable_log_redaction,enable_tokenizer_download,update_channel,enable_auto_update_check,retention_days,max_database_size_mb,file_upload_max_in_flight) VALUES(1,'default',NULL,NULL,1,0,0,0,0,0,0,'staging',1,NULL,NULL,0)", []).unwrap();
-    connection
-        .execute(
-            "INSERT INTO credentials VALUES(1,1,NULL,'api_key',?,100,NULL,NULL,NULL,NULL,1)",
-            [credential.to_string()],
-        )
-        .unwrap();
-    let digest = blake3::hash(api_key.strip_prefix("sk-").unwrap_or(api_key).as_bytes())
-        .to_hex()
-        .to_string();
-    connection
-        .execute(
-            "INSERT INTO user_keys VALUES(1,1,?,?,2,NULL,1)",
-            params![stored_key, digest],
-        )
-        .unwrap();
-    if with_usage {
-        connection.execute("INSERT INTO usages VALUES(1,'v2-request',1,NULL,1,1,1,NULL,1,1,NULL,'generate_content','openai_chat','model',2,3,0,1,0,0,0,'{}','12.34',4,'upstream','complete')", []).unwrap();
-    }
-}
-
-pub(super) fn v2_seal(value: &serde_json::Value, key: [u8; 32]) -> serde_json::Value {
-    use chacha20poly1305::aead::{Aead, KeyInit, Payload};
-    use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
-    let mut dek = [0_u8; 32];
-    let mut key_nonce = [0_u8; 24];
-    let mut payload_nonce = [0_u8; 24];
-    getrandom::fill(&mut dek).unwrap();
-    getrandom::fill(&mut key_nonce).unwrap();
-    getrandom::fill(&mut payload_nonce).unwrap();
-    let kek_id = "local-test";
-    let cipher = XChaCha20Poly1305::new(&Key::from(key));
-    let mut wrapped = key_nonce.to_vec();
-    wrapped.extend(
-        cipher
-            .encrypt(&XNonce::from(key_nonce), dek.as_slice())
-            .unwrap(),
-    );
-    let ciphertext = XChaCha20Poly1305::new(&Key::from(dek))
-        .encrypt(
-            &XNonce::from(payload_nonce),
-            Payload {
-                msg: &serde_json::to_vec(value).unwrap(),
-                aad: kek_id.as_bytes(),
-            },
-        )
-        .unwrap();
-    json!({
-        "kek_id": kek_id,
-        "wrapped_dek": base64::engine::general_purpose::STANDARD.encode(wrapped),
-        "nonce": base64::engine::general_purpose::STANDARD.encode(payload_nonce),
-        "ciphertext": base64::engine::general_purpose::STANDARD.encode(ciphertext),
-    })
 }

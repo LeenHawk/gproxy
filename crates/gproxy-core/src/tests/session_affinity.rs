@@ -210,6 +210,43 @@ fn opencode_session_survives_turns_retry_targets_and_ingress_filtering() -> Resu
     Ok(())
 }
 
+#[test]
+fn round_robin_policy_ignores_existing_session_pins() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    let core = core(&host)?;
+    set_plan(&host, [target(7), target(8)]);
+    execute(&core, &host, request("same", "question", false));
+    assert_eq!(take_loaded(&host), [CredentialId(7)]);
+    let mut targets = [target(8), target(7)];
+    for target in &mut targets {
+        target.rules.session_affinity = false;
+    }
+    set_plan(&host, targets);
+    execute(&core, &host, request("same", "question", false));
+    assert_eq!(take_loaded(&host), [CredentialId(8)]);
+    Ok(())
+}
+
+#[test]
+fn sticky_credentials_cannot_override_the_selected_provider_or_model() -> Result<(), InitError> {
+    let host = MemoryHost::new(false);
+    let core = core(&host)?;
+    set_plan(&host, [target(7), target(8)]);
+    execute(&core, &host, request("same", "question", false));
+    assert_eq!(take_loaded(&host), [CredentialId(7)]);
+    let mut selected = target(8);
+    selected.provider.id = 4;
+    set_plan(&host, [selected, target(7)]);
+    execute(&core, &host, request("same", "question", true));
+    assert_eq!(take_loaded(&host), [CredentialId(8)]);
+    let mut selected = target(8);
+    selected.upstream_model = "another-model".into();
+    set_plan(&host, [selected, target(7)]);
+    execute(&core, &host, request("same", "question", true));
+    assert_eq!(take_loaded(&host), [CredentialId(8)]);
+    Ok(())
+}
+
 fn core(host: &MemoryHost) -> Result<Core<MemoryHost>, InitError> {
     let channels =
         gproxy_channel_api::ChannelRegistry::new([Box::new(host.clone()) as Box<dyn Channel>])

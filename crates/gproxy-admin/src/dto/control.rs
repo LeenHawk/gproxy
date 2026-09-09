@@ -101,13 +101,21 @@ pub struct CredentialWriteRequest {
 pub struct RouteDto {
     pub id: i64,
     pub name: String,
+    #[serde(default = "legacy_route_strategy")]
+    pub strategy: gproxy_store::records::RouteStrategy,
     pub max_attempts: u32,
     pub enabled: bool,
+}
+
+fn legacy_route_strategy() -> gproxy_store::records::RouteStrategy {
+    gproxy_store::records::RouteStrategy::Weighted
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct RouteWriteRequest {
     pub name: String,
+    #[serde(default)]
+    pub strategy: gproxy_store::records::RouteStrategy,
     pub max_attempts: u32,
     pub enabled: bool,
 }

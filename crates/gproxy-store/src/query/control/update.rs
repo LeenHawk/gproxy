@@ -96,10 +96,11 @@ pub(crate) fn update_route(id: i64, input: &RouteInput) -> Result<Statement, Sto
     update(
         "routes",
         id,
-        &["name", "max_attempts", "enabled"],
+        &["name", "max_attempts", "strategy", "enabled"],
         vec![
             value(input.name.clone()),
             value(unsigned32(input.max_attempts)),
+            value(input.strategy.as_str()),
             value(input.enabled),
         ],
     )

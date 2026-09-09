@@ -57,7 +57,10 @@ pub(crate) fn select_admin_credentials() -> Result<Statement, StoreError> {
 }
 
 pub(crate) fn select_routes() -> Result<Statement, StoreError> {
-    select_all("routes", &["id", "name", "max_attempts", "enabled"])
+    select_all(
+        "routes",
+        &["id", "name", "max_attempts", "strategy", "enabled"],
+    )
 }
 
 pub(crate) fn select_route_members() -> Result<Statement, StoreError> {
