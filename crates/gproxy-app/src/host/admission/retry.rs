@@ -35,6 +35,7 @@ pub(in crate::host) async fn admit(
             &host.services.control.current(),
             &identity,
             operation,
+            state.model.as_deref(),
             &gproxy_core::Plan {
                 targets: vec![target.clone()],
                 budget: gproxy_core::control::FailoverBudget { max_attempts: 1 },

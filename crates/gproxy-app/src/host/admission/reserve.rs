@@ -13,13 +13,14 @@ pub(in crate::host) fn admit<'a>(
     identity: &'a CallerIdentity,
     request: &'a RequestCtx,
     operation: Option<OperationKey>,
+    model: Option<&'a str>,
     plan: &'a Plan,
 ) -> BoxFuture<'a, Result<Plan, CoreError>> {
     Box::pin(async move {
         let snapshot = host.services.control.current();
         let oauth_identity = super::auth::oauth_admission(host, identity, operation).await?;
         let identity = oauth_identity.as_ref().unwrap_or(identity);
-        let plan = authorize(&snapshot, identity, operation, plan)?;
+        let plan = authorize(&snapshot, identity, operation, model, plan)?;
         let now = unix_now();
         let mut charged = Vec::new();
         let reservations = match super::quota::reserve(
@@ -63,6 +64,7 @@ pub(in crate::host) fn admit<'a>(
 
         let state = AdmissionState {
             identity: IdentityState::from(identity),
+            model: model.map(str::to_owned),
             operation: operation.map(|key| key.operation().id().to_owned()),
             reservations,
         };

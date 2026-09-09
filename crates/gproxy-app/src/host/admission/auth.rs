@@ -48,11 +48,13 @@ pub(crate) fn authorize(
     snapshot: &gproxy_store::records::ControlSnapshot,
     identity: &CallerIdentity,
     operation: Option<OperationKey>,
+    model: Option<&str>,
     plan: &Plan,
 ) -> Result<Plan, CoreError> {
     let mut plan = plan.clone();
-    plan.targets
-        .retain(|target| provider_permitted(snapshot, identity, operation, target.provider.id));
+    plan.targets.retain(|target| {
+        provider_permitted(snapshot, identity, operation, target.provider.id, model)
+    });
     if plan.targets.is_empty() {
         return Err(CoreError::Forbidden("permission denied".into()));
     }
@@ -64,6 +66,7 @@ pub(crate) fn catalogue_permitted(
     identity: &CallerIdentity,
     provider: i64,
     oauth: bool,
+    model: Option<&str>,
 ) -> bool {
     [
         gproxy_protocol::OperationGroup::GenerateContent,
@@ -71,7 +74,16 @@ pub(crate) fn catalogue_permitted(
     ]
     .into_iter()
     .filter(|group| !oauth || *group == gproxy_protocol::OperationGroup::GenerateContent)
-    .any(|group| group_permitted(snapshot, identity, Some(group.id()), provider))
+    .any(|group| {
+        group_permitted(
+            snapshot,
+            identity,
+            Some(group.id()),
+            provider,
+            model,
+            model.is_none(),
+        )
+    })
 }
 
 pub(crate) fn provider_permitted(
@@ -79,6 +91,7 @@ pub(crate) fn provider_permitted(
     identity: &CallerIdentity,
     operation: Option<OperationKey>,
     provider: i64,
+    model: Option<&str>,
 ) -> bool {
     if operation
         .is_some_and(|key| key.operation().group() == gproxy_protocol::OperationGroup::Models)
@@ -88,6 +101,7 @@ pub(crate) fn provider_permitted(
             identity,
             provider,
             identity.oauth_access_digest.is_some(),
+            model,
         );
     }
     group_permitted(
@@ -95,6 +109,8 @@ pub(crate) fn provider_permitted(
         identity,
         operation.map(|key| key.operation().group().id()),
         provider,
+        model,
+        false,
     )
 }
 
@@ -103,6 +119,8 @@ fn group_permitted(
     identity: &CallerIdentity,
     group: Option<&str>,
     provider: i64,
+    model: Option<&str>,
+    listing: bool,
 ) -> bool {
     let applicable = snapshot.permissions.iter().filter(|permission| {
         subject_matches(&permission.subject_kind, permission.subject_id, identity)
@@ -111,6 +129,11 @@ fn group_permitted(
                 .operation_group
                 .as_deref()
                 .is_none_or(|value| Some(value) == group)
+            && permission.model_pattern.as_deref().is_none_or(|pattern| {
+                model.map_or(listing && permission.allowed, |model| {
+                    crate::model_pattern::matches(pattern, model)
+                })
+            })
     });
     let mut allowed = false;
     for permission in applicable {

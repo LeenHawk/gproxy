@@ -88,6 +88,7 @@ pub(super) fn permissions(result: QueryResult) -> Result<Vec<PermissionRecord>, 
                 subject_id: row.i64("subject_id")?,
                 provider_id: row.optional_i64("provider_id")?,
                 operation_group: row.optional_text("operation_group")?.map(str::to_owned),
+                model_pattern: row.optional_text("model_pattern")?.map(str::to_owned),
                 allowed: row.i64("allowed")? != 0,
             })
         })

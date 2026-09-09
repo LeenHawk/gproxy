@@ -88,6 +88,7 @@ pub(crate) fn insert_permission(input: &PermissionInput) -> Result<Statement, St
             "subject_id",
             "provider_id",
             "operation_group",
+            "model_pattern",
             "allowed",
         ],
         vec![
@@ -95,6 +96,7 @@ pub(crate) fn insert_permission(input: &PermissionInput) -> Result<Statement, St
             value(input.subject_id),
             value(input.provider_id),
             value(input.operation_group.clone()),
+            value(input.model_pattern.clone()),
             value(input.allowed),
         ],
     )

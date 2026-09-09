@@ -111,6 +111,7 @@ pub struct PermissionDto {
     pub subject_id: i64,
     pub provider_id: Option<i64>,
     pub operation_group: Option<String>,
+    pub model_pattern: Option<String>,
     pub allowed: bool,
 }
 
@@ -120,6 +121,7 @@ pub struct PermissionWriteRequest {
     pub subject_id: i64,
     pub provider_id: Option<i64>,
     pub operation_group: Option<String>,
+    pub model_pattern: Option<String>,
     pub allowed: bool,
 }
 

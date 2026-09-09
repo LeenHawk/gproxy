@@ -60,6 +60,7 @@ async fn named_codex_oauth_issues_an_authenticating_access_token() {
             subject_id: user,
             provider_id: Some(provider),
             operation_group: Some("generate_content".into()),
+            model_pattern: None,
             allowed: true,
         },
     ))

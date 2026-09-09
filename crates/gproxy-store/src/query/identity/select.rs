@@ -53,6 +53,7 @@ pub(crate) fn select_permissions() -> Result<Statement, StoreError> {
             "subject_id",
             "provider_id",
             "operation_group",
+            "model_pattern",
             "allowed",
         ],
     )

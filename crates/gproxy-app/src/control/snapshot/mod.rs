@@ -326,7 +326,7 @@ impl ControlPlane for SnapshotControl {
         let snapshot = self.current();
         let oauth = self.is_oauth_key(identity.user_key_id);
         plan.targets.iter().any(|target| {
-            crate::host::catalogue_permitted(&snapshot, identity, target.provider.id, oauth)
+            crate::host::catalogue_permitted(&snapshot, identity, target.provider.id, oauth, model)
         })
     }
 

@@ -14,10 +14,11 @@ pub enum SchemaVersion {
     /// Data-only step: sweep every row whose declared owner is gone, once
     /// ownership became a schema fact rather than per-method code.
     OwnedRows = 7,
+    ModelPermissions = 8,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Initial,
         Self::QuotaObservations,
         Self::ModelMetadata,
@@ -25,8 +26,9 @@ impl SchemaVersion {
         Self::CredentialBudgets,
         Self::RouteOwnership,
         Self::OwnedRows,
+        Self::ModelPermissions,
     ];
-    pub const LATEST: Self = Self::OwnedRows;
+    pub const LATEST: Self = Self::ModelPermissions;
 
     pub const fn number(self) -> i64 {
         self as i64

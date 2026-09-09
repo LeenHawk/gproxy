@@ -55,11 +55,21 @@ pub(super) fn team(request: TeamWriteRequest) -> Result<TeamInput, AdminError> {
 
 pub(super) fn permission(request: PermissionWriteRequest) -> Result<PermissionInput, AdminError> {
     validate_subject(&request.subject_kind)?;
+    if request
+        .model_pattern
+        .as_ref()
+        .is_some_and(|pattern| pattern.trim().is_empty())
+    {
+        return Err(AdminError::BadRequest(
+            "model_pattern must not be blank; use null for all models".into(),
+        ));
+    }
     Ok(PermissionInput {
         subject_kind: request.subject_kind,
         subject_id: request.subject_id,
         provider_id: request.provider_id,
         operation_group: request.operation_group,
+        model_pattern: request.model_pattern,
         allowed: request.allowed,
     })
 }

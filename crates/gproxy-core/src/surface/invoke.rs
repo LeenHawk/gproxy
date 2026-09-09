@@ -99,7 +99,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
             if let Err(error) = self
                 .core
                 .host
-                .admit(&self.identity, &ctx, request.key, &plan)
+                .admit(&self.identity, &ctx, request.key, None, &plan)
                 .await
             {
                 funnel_error::request_failed_surface(&ctx, request.key, Some(label), &error);
@@ -173,7 +173,7 @@ impl<H: Host> SurfaceInvoke for SurfaceCaller<'_, H> {
             if let Err(error) = self
                 .core
                 .host
-                .admit(&self.identity, &ctx, None, &plan)
+                .admit(&self.identity, &ctx, None, None, &plan)
                 .await
             {
                 funnel_error::request_failed_surface(&ctx, None, Some("presigned"), &error);

@@ -95,7 +95,7 @@ function AccessManager(props: AccessManagerProps & { scope: AccessScope; scopeId
   const permissionRows = scoped(props.permissions).map((value) => ({
     id: value.id,
     subject: inheritedLabel(value.subject_kind, value.subject_id),
-    detail: [value.provider_id == null ? t("access.permissions.allProviders") : providerNames.get(value.provider_id) ?? value.provider_id, value.operation_group ?? t("access.permissions.allOperations"), t(value.allowed ? "access.permissions.allow" : "access.permissions.deny")].join(" · "),
+    detail: [value.provider_id == null ? t("access.permissions.allProviders") : providerNames.get(value.provider_id) ?? value.provider_id, value.operation_group ?? t("access.permissions.allOperations"), value.model_pattern ?? t("access.permissions.allModels"), t(value.allowed ? "access.permissions.allow" : "access.permissions.deny")].join(" · "),
   }))
   const rateRows = scoped(props.rateLimits).map((value) => ({ id: value.id, subject: inheritedLabel(value.subject_kind, value.subject_id), detail: t("access.rateLimits.summary", { requests: value.requests, seconds: value.window_seconds }) }))
   const quotaRows = scoped(props.quotas).map((value) => ({
@@ -110,7 +110,7 @@ function AccessManager(props: AccessManagerProps & { scope: AccessScope; scopeId
       <CardContent><Tabs defaultValue="permissions">
         <TabsList className="max-w-full overflow-x-auto overflow-y-hidden"><TabsTrigger value="permissions">{t("access.permissions.title")}</TabsTrigger><TabsTrigger value="rates">{t("access.rateLimits.title")}</TabsTrigger><TabsTrigger value="quotas">{t("access.quotas.title")}</TabsTrigger></TabsList>
         <TabsContent value="permissions" className="flex flex-col gap-6 pt-5"><PermissionForm {...shared} fixedSubject={fixedSubject} providers={props.providers} groups={props.groups} pending={permissionMutation.isPending} onSubmit={(value) => {
-          const stored = props.permissions.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.provider_id === value.provider_id && item.operation_group === value.operation_group)
+          const stored = props.permissions.find((item) => item.subject_kind === value.subject_kind && item.subject_id === value.subject_id && item.provider_id === value.provider_id && item.operation_group === value.operation_group && item.model_pattern === value.model_pattern)
           return permissionMutation.mutateAsync({ value, id: stored?.id }).then(() => undefined)
         }} /><RuleTable entity="permissions" rows={permissionRows} empty={t("access.permissions.empty")} removeLabel={t("access.permissions.delete")} removingId={removing("permissions")} remove={(id) => removeMutation.mutate({ kind: "permissions", id })} /></TabsContent>
         <TabsContent value="rates" className="flex flex-col gap-6 pt-5"><RateForm {...shared} fixedSubject={fixedSubject} pending={rateMutation.isPending} onSubmit={(value) => {

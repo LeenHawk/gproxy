@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub(in crate::host) struct AdmissionState {
     pub identity: IdentityState,
     pub operation: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
     pub(super) reservations: Vec<QuotaReservation>,
 }
 

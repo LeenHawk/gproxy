@@ -11,6 +11,7 @@ pub(crate) struct Classified {
     pub stream: bool,
     pub framing: StreamFraming,
     pub model: Option<String>,
+    pub requested_model: Option<String>,
     resource: Option<(&'static str, String)>,
     pub(super) session: Option<super::session::SessionSubject>,
 }
@@ -29,6 +30,7 @@ impl Classified {
             ),
             stream: true,
             framing: StreamFraming::WebSocket,
+            requested_model: model.clone(),
             model,
             resource: None,
             session: None,
@@ -136,6 +138,7 @@ pub(crate) fn classify(ctx: &RequestCtx) -> Result<Classified, CoreError> {
             .expect("operation registry keeps operation and kind consistent"),
         stream,
         framing,
+        requested_model: model.clone(),
         model,
         resource,
         session,

@@ -31,7 +31,13 @@ impl<H: Host> ResponsesBridge<H> {
         let plan = match self
             .core
             .host
-            .admit(&self.identity, request, Some(classified.key), &native_plan)
+            .admit(
+                &self.identity,
+                request,
+                Some(classified.key),
+                classified.requested_model.as_deref(),
+                &native_plan,
+            )
             .await
         {
             Ok(plan) => plan,
@@ -98,7 +104,13 @@ impl<H: Host> ResponsesBridge<H> {
         let plan = self
             .core
             .host
-            .admit(&self.identity, request, Some(classified.key), plan)
+            .admit(
+                &self.identity,
+                request,
+                Some(classified.key),
+                classified.requested_model.as_deref(),
+                plan,
+            )
             .await
             .map_err(super::transport)?;
         let prepared = match attempt::prepare(

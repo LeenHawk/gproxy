@@ -118,6 +118,7 @@ async fn account_oauth_enforces_consent_permissions_and_revocation() {
             subject_id: user,
             provider_id: Some(fixture.provider),
             operation_group: Some("generate_content".into()),
+            model_pattern: None,
             allowed: true,
         },
     ))
@@ -130,7 +131,7 @@ async fn account_oauth_enforces_consent_permissions_and_revocation() {
     let operation = crate::tests::generation_operation();
     app.inner
         .host
-        .admit(&identity, &request, Some(operation), &plan)
+        .admit(&identity, &request, Some(operation), None, &plan)
         .await
         .unwrap();
     app.inner
@@ -140,7 +141,7 @@ async fn account_oauth_enforces_consent_permissions_and_revocation() {
     assert!(
         app.inner
             .host
-            .admit(&identity, &request, None, &plan)
+            .admit(&identity, &request, None, None, &plan)
             .await
             .is_err()
     );
@@ -187,7 +188,7 @@ async fn account_oauth_enforces_consent_permissions_and_revocation() {
     assert!(
         app.inner
             .host
-            .admit(&identity, &request, Some(operation), &plan)
+            .admit(&identity, &request, Some(operation), None, &plan)
             .await
             .is_err()
     );
