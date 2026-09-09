@@ -12,6 +12,9 @@
       "userKey": "API 金鑰"
     },
     "permissions": {
+      "model": "模型比對",
+      "allModels": "所有模型",
+      "modelHint": "比對用戶端請求的模型名稱，支援 * 萬用字元；留空表示所有模型。",
       "title": "權限",
       "add": "新增權限",
       "empty": "此主體尚未設定權限。",

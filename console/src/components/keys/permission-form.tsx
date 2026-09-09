@@ -2,9 +2,10 @@ import { useId, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import type { PermissionWriteRequest } from "@/generated/PermissionWriteRequest"
 import type { ProviderDto } from "@/generated/ProviderDto"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { SearchableSelect } from "@/components/searchable-select"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
@@ -20,6 +21,7 @@ export function PermissionForm(props: PermissionFormProps) {
   const { t } = useTranslation()
   const id = useId()
   const [providerId, setProviderId] = useState("all")
+  const [modelPattern, setModelPattern] = useState("")
   const [group, setGroup] = useState("all")
   const [effect, setEffect] = useState("allow")
 
@@ -31,6 +33,7 @@ export function PermissionForm(props: PermissionFormProps) {
         subject_id: props.fixedSubject.id,
         provider_id: providerId === "all" ? null : Number(providerId),
         operation_group: group === "all" ? null : group,
+        model_pattern: modelPattern.trim() || null,
         allowed: effect === "allow",
       })
     } catch {
@@ -40,7 +43,7 @@ export function PermissionForm(props: PermissionFormProps) {
 
   return (
     <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
-      <FieldGroup className="grid sm:grid-cols-3">
+      <FieldGroup className="grid sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${id}-provider`}>{t("access.permissions.provider")}</FieldLabel>
           <SearchableSelect id={`${id}-provider`} value={providerId} options={[{ value: "all", label: t("access.permissions.allProviders") }, ...props.providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} placeholder={t("common.none")} searchPlaceholder={t("common.search")} emptyLabel={t("common.none")} ariaLabel={t("access.permissions.provider")} onChange={setProviderId} />
@@ -54,6 +57,11 @@ export function PermissionForm(props: PermissionFormProps) {
               {props.groups.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
             </SelectGroup></SelectContent>
           </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-model`}>{t("access.permissions.model")}</FieldLabel>
+          <Input id={`${id}-model`} value={modelPattern} onChange={(event) => setModelPattern(event.target.value)} placeholder={t("access.permissions.allModels")} aria-describedby={`${id}-model-help`} />
+          <FieldDescription id={`${id}-model-help`}>{t("access.permissions.modelHint")}</FieldDescription>
         </Field>
         <Field>
           <FieldLabel id={`${id}-effect-label`}>{t("access.permissions.effect")}</FieldLabel>

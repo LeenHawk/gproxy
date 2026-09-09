@@ -19,6 +19,7 @@ mod lifecycle;
 mod logging;
 #[cfg(not(target_arch = "wasm32"))]
 mod migrate_v2;
+mod model_pattern;
 mod oauth;
 mod quota_refresh;
 mod secrets;

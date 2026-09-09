@@ -38,7 +38,7 @@ pub(crate) async fn resolved<H: Host>(
     control: &dyn ControlPlane,
     ctx: RequestCtx,
     mut plan: Plan,
-    classified: Classified,
+    mut classified: Classified,
     identity: gproxy_channel_api::CallerIdentity,
     started: Instant,
 ) -> Result<ExecOutcome, CoreError> {
@@ -47,12 +47,22 @@ pub(crate) async fn resolved<H: Host>(
     }
     if classified.key.operation() == gproxy_protocol::Operation::ConnectRealtime {
         resource::restore_realtime_model(core, &mut plan, &classified, identity.user_id).await?;
+        if classified.resource().is_some() {
+            // A sideband query cannot rename the model of an existing call for authorization.
+            classified.requested_model = None;
+        }
     }
     let session_affinity =
         session::apply(core, &ctx, &classified, identity.user_key_id, &mut plan).await;
     let plan = match core
         .host
-        .admit(&identity, &ctx, Some(classified.key), &plan)
+        .admit(
+            &identity,
+            &ctx,
+            Some(classified.key),
+            classified.requested_model.as_deref(),
+            &plan,
+        )
         .await
     {
         Ok(plan) => plan,

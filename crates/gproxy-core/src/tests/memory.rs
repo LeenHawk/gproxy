@@ -212,6 +212,7 @@ impl Host for MemoryHost {
         _: &'a CallerIdentity,
         _: &'a crate::boundary::RequestCtx,
         _: Option<OperationKey>,
+        _: Option<&'a str>,
         plan: &'a Plan,
     ) -> BoxFuture<'a, Result<Plan, CoreError>> {
         self.state.lock().expect("state lock").admit_calls += 1;

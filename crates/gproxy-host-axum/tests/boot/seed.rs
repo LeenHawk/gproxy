@@ -87,6 +87,7 @@ pub(crate) async fn operational(
             subject_id: user_key,
             provider_id: None,
             operation_group: Some("generate_content".into()),
+            model_pattern: None,
             allowed: true,
         },
     ))

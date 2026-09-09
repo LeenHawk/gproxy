@@ -193,6 +193,7 @@ pub const TABLES: &[TableSpec] = &[
             Col::required("subject_id", Integer),
             Col::optional("provider_id", Integer),
             Col::optional("operation_group", Text),
+            Col::optional("model_pattern", Text).since(SchemaVersion::ModelPermissions),
             Col::required("allowed", Integer),
         ],
         owns: &[],

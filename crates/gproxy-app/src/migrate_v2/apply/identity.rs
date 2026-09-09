@@ -53,6 +53,7 @@ pub(super) async fn base(
                 subject_id: id(&context.users, value.id)?,
                 provider_id: None,
                 operation_group: None,
+                model_pattern: None,
                 allowed: true,
             })
             .await?;
@@ -84,6 +85,7 @@ pub(super) async fn base(
                 subject_id: id(map, value.value.scope_id)?,
                 provider_id: None,
                 operation_group: None,
+                model_pattern: None,
                 allowed: true,
             })
             .await?;

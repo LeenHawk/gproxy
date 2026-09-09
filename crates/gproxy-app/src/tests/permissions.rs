@@ -96,6 +96,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
                     subject_id: identity.user_id,
                     provider_id: Some(fixture.provider),
                     operation_group: group.map(str::to_owned),
+                    model_pattern: None,
                     allowed: true,
                 },
             )
@@ -112,6 +113,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
                 &identity,
                 &request,
                 Some(super::generation_operation()),
+                None,
                 &plan,
             )
             .await;
@@ -182,6 +184,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
                 subject_id: identity.user_id,
                 provider_id: None,
                 operation_group: None,
+                model_pattern: None,
                 allowed: true,
             },
         )
@@ -192,6 +195,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
         subject_id: identity.user_key_id,
         provider_id: Some(other),
         operation_group: Some("generate_content".into()),
+        model_pattern: None,
         allowed: false,
     }))
     .await
@@ -204,6 +208,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
             &identity,
             &request,
             Some(super::generation_operation()),
+            None,
             &plan,
         )
         .await
@@ -216,6 +221,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
         subject_id: identity.user_key_id,
         provider_id: None,
         operation_group: Some("generate_content".into()),
+        model_pattern: None,
         allowed: false,
     }))
     .await
@@ -225,6 +231,7 @@ async fn partial_permissions_filter_catalogues_and_route_candidates() {
             &identity,
             &request,
             Some(super::generation_operation()),
+            None,
             &plan
         )
         .await,
@@ -242,7 +249,7 @@ async fn execution_skips_unauthorized_first_candidate_without_spending_attempt_b
     let control = &host.services.control;
     let mut request = setup::request("authorized-egress", "hi", &fixture.client_key);
     request.body = Bytes::from(
-        json!({"model":"public-model","messages":[{"role":"user","content":"hi"}]}).to_string(),
+        json!({"model":"client-alias","messages":[{"role":"user","content":"hi"}]}).to_string(),
     );
     let identity = host.authenticate(&request).await.unwrap();
     let permission = control.current().permissions[0].id;
@@ -255,9 +262,21 @@ async fn execution_skips_unauthorized_first_candidate_without_spending_attempt_b
                 subject_id: identity.user_id,
                 provider_id: Some(fixture.provider),
                 operation_group: Some("generate_content".into()),
+                model_pattern: Some("client-*".into()),
                 allowed: true,
             },
         )
+        .await
+        .unwrap();
+    fixture
+        .app
+        .mutate(ControlMutation::Alias(gproxy_store::records::AliasInput {
+            alias: "client-alias".into(),
+            target: "public-model".into(),
+            provider_id: None,
+            priority: 0,
+            enabled: true,
+        }))
         .await
         .unwrap();
     fixture.app.reload().await.unwrap();
@@ -325,4 +344,101 @@ async fn execution_skips_unauthorized_first_candidate_without_spending_attempt_b
         ResponseBody::WebSocket(_) => panic!("HTTP response expected"),
     }
     upstream.await.unwrap();
+}
+
+#[tokio::test]
+async fn model_grants_filter_lists_calls_and_retries_with_deny_precedence() {
+    let fixture = setup::fixture().await;
+    let app = &fixture.app;
+    let host = &app.inner.host;
+    let control = &host.services.control;
+    let request = setup::request("model-permission", "hi", &fixture.client_key);
+    let identity = host.authenticate(&request).await.unwrap();
+    let permission = control.current().permissions[0].id;
+    let input = PermissionInput {
+        subject_kind: "user".into(),
+        subject_id: identity.user_id,
+        provider_id: None,
+        operation_group: Some("generate_content".into()),
+        model_pattern: Some("public-*".into()),
+        allowed: true,
+    };
+    host.services
+        .store
+        .update_permission(permission, &input)
+        .await
+        .unwrap();
+    app.mutate(ControlMutation::ExposedModel(
+        gproxy_store::records::ExposedModelInput {
+            name: "private-model".into(),
+            route_id: fixture.route,
+            enabled: true,
+        },
+    ))
+    .await
+    .unwrap();
+    assert_eq!(
+        control.current().permissions[0].model_pattern,
+        input.model_pattern
+    );
+    assert!(control.catalogue_visible(&identity, Some("public-model"), &request.mode));
+    assert!(!control.catalogue_visible(&identity, Some("private-model"), &request.mode));
+    let mut list = request.clone();
+    list.method = http::Method::GET;
+    list.path = "/v1/models".into();
+    list.body = Bytes::new();
+    let result = app.execute(list).await.unwrap();
+    let ResponseBody::Full(body) = result.body else {
+        panic!("buffered catalogue")
+    };
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["data"].as_array().unwrap().len(), 1);
+    assert_eq!(body["data"][0]["id"], "public-model");
+    let mut denied = request.clone();
+    denied.body = Bytes::from(json!({"model":"private-model","messages":[]}).to_string());
+    assert!(matches!(
+        app.execute(denied).await,
+        Err(CoreError::Forbidden(_))
+    ));
+    let plan = control
+        .resolve(Some("public-model"), &request.mode, None)
+        .unwrap();
+    host.admit(
+        &identity,
+        &request,
+        Some(super::generation_operation()),
+        Some("public-model"),
+        &plan,
+    )
+    .await
+    .unwrap();
+    host.admit_retry(
+        &request.request_id,
+        &plan.targets[0],
+        &request.body,
+        gproxy_protocol::SettleMode::OnResponse,
+    )
+    .await
+    .unwrap();
+    app.mutate(ControlMutation::Permission(PermissionInput {
+        subject_kind: "user_key".into(),
+        subject_id: identity.user_key_id,
+        model_pattern: Some("public-model".into()),
+        allowed: false,
+        ..input
+    }))
+    .await
+    .unwrap();
+    assert!(!control.catalogue_visible(&identity, Some("public-model"), &request.mode));
+    assert!(matches!(
+        host.admit_retry(
+            &request.request_id,
+            &plan.targets[0],
+            &request.body,
+            gproxy_protocol::SettleMode::OnResponse
+        )
+        .await,
+        Err(CoreError::Forbidden(_))
+    ));
+    host.finish_admission(&request.request_id, None).await;
 }

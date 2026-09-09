@@ -60,6 +60,7 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
                         &caller,
                         Some(support.source),
                         target.provider.id,
+                        Some(model),
                     ) {
                         let capability = PortalModelCapabilityDto {
                             source: support.source.kind().id().into(),

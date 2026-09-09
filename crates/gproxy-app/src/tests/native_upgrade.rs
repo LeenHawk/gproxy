@@ -106,6 +106,7 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
             &control.current(),
             &identity,
             Some(super::generation_operation()),
+            None,
             &plan
         )
         .is_ok()

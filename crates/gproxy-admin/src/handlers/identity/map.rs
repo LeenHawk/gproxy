@@ -51,6 +51,7 @@ pub(super) fn permission(value: &gproxy_store::records::PermissionRecord) -> Per
         subject_id: value.subject_id,
         provider_id: value.provider_id,
         operation_group: value.operation_group.clone(),
+        model_pattern: value.model_pattern.clone(),
         allowed: value.allowed,
     }
 }

@@ -47,6 +47,7 @@ pub(super) async fn seed_identity(store: &Store) -> Result<i64, StoreError> {
             subject_id: key,
             provider_id: None,
             operation_group: None,
+            model_pattern: Some("public-*".into()),
             allowed: true,
         })
         .await?;

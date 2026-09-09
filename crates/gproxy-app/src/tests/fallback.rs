@@ -24,7 +24,7 @@ async fn fallback_rows_keep_caller_identity_and_total_quota_cost_is_recorded_onc
             gproxy_protocol::Operation::GenerateContent,
             gproxy_protocol::ContentGenerationKind::OpenAiChat,
         );
-        host.admit(&identity, &request, Some(key), &plan)
+        host.admit(&identity, &request, Some(key), None, &plan)
             .await
             .unwrap();
         host.admit_retry(
@@ -185,7 +185,7 @@ async fn fallback_admission_rejects_extra_spend_and_rolls_back_its_reservation()
         gproxy_protocol::Operation::GenerateContent,
         gproxy_protocol::ContentGenerationKind::OpenAiChat,
     );
-    host.admit(&identity, &request, Some(key), &plan)
+    host.admit(&identity, &request, Some(key), None, &plan)
         .await
         .unwrap();
     let windows = fixture.app.quota_windows().await.unwrap();

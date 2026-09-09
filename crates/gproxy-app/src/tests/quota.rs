@@ -187,13 +187,13 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
     let first = setup::request("refund", QUOTA_INPUT, &client_key);
     let identity = host.authenticate(&first).await.expect("authenticate");
     let operation = super::generation_operation();
-    host.admit(&identity, &first, Some(operation), &plan)
+    host.admit(&identity, &first, Some(operation), None, &plan)
         .await
         .expect("first admission");
     assert!(app.admission_pending(&first.request_id).await.unwrap());
     let overlap = setup::request("overlap", QUOTA_INPUT, &client_key);
     assert!(matches!(
-        host.admit(&identity, &overlap, Some(operation), &plan)
+        host.admit(&identity, &overlap, Some(operation), None, &plan)
             .await,
         Err(gproxy_core::CoreError::QuotaExceeded)
     ));
@@ -202,7 +202,7 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
     assert!(!app.admission_pending(&first.request_id).await.unwrap());
 
     let second = setup::request("settle", QUOTA_INPUT, &client_key);
-    host.admit(&identity, &second, Some(operation), &plan)
+    host.admit(&identity, &second, Some(operation), None, &plan)
         .await
         .expect("second admission");
     let settlement = gproxy_core::Settlement {
@@ -245,7 +245,7 @@ async fn admission_refunds_reconciles_and_leaves_no_failed_reservation() {
 
     let rejected = setup::request("reject", QUOTA_INPUT, &client_key);
     assert!(matches!(
-        host.admit(&identity, &rejected, Some(operation), &plan)
+        host.admit(&identity, &rejected, Some(operation), None, &plan)
             .await,
         Err(gproxy_core::CoreError::QuotaExceeded)
     ));

@@ -94,8 +94,12 @@ async fn serve<H: Host>(
                 .model
                 .as_ref()
                 .and_then(|id| models.into_iter().find(|model| &model.id == id))
-                .filter(|model| {
-                    control.catalogue_visible(identity, Some(&model.id), &request.mode)
+                .filter(|_| {
+                    control.catalogue_visible(
+                        identity,
+                        classified.requested_model.as_deref(),
+                        &request.mode,
+                    )
                 });
             match found {
                 Some(model) => (

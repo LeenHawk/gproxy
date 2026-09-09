@@ -12,6 +12,9 @@
       "userKey": "API 密钥"
     },
     "permissions": {
+      "model": "模型匹配",
+      "allModels": "所有模型",
+      "modelHint": "匹配客户端请求的模型名，支持 * 通配符；留空表示所有模型。",
       "title": "权限",
       "add": "添加权限",
       "empty": "此主体尚未配置权限。",

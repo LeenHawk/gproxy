@@ -105,9 +105,10 @@ impl Host for AppHost {
         identity: &'a CallerIdentity,
         request: &'a RequestCtx,
         operation: Option<gproxy_protocol::OperationKey>,
+        model: Option<&'a str>,
         plan: &'a Plan,
     ) -> BoxFuture<'a, Result<Plan, gproxy_core::CoreError>> {
-        admission::admit(self, identity, request, operation, plan)
+        admission::admit(self, identity, request, operation, model, plan)
     }
 
     fn finish_admission<'a>(
