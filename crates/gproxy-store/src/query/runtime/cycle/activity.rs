@@ -26,17 +26,6 @@ pub(crate) fn begin_usage(
     Statement::query(&query)
 }
 
-pub(crate) fn incomplete_cycle_usage(
-    cycle: &CredentialQuotaCycleRecord,
-) -> Result<Statement, StoreError> {
-    let mut query = unsettled_cycle_usage(cycle);
-    query.limit(1);
-    if let gproxy_core::QuotaScope::Models(models) = &cycle.tracking.scope {
-        query.and_where(Expr::col(Alias::new("model")).is_in(models.iter().cloned()));
-    }
-    Statement::query(&query)
-}
-
 pub(crate) fn pending_cycle_usage(
     cycle: &CredentialQuotaCycleRecord,
 ) -> Result<Statement, StoreError> {

@@ -1,4 +1,3 @@
-use crate::query::runtime;
 use crate::records::{
     CredentialQuotaCycleModelRecord, CredentialQuotaCycleRecord, CycleEstimate,
     CycleObservationRecord, UsageTotals,
@@ -21,44 +20,6 @@ pub(super) async fn hydrate(
         ));
         return Ok(());
     }
-    let mut delta = UsageTotals::default();
-    let mut after = 0;
-    let pending = store
-        .backend()
-        .execute(runtime::incomplete_cycle_usage(cycle)?)
-        .await?
-        .rows;
-    let mut incomplete = tracking.needs_rebuild || !pending.is_empty();
-    loop {
-        let rows = store
-            .backend()
-            .execute(runtime::cycle_usage_rows(cycle, after, Some(false))?)
-            .await?
-            .rows;
-        if rows.is_empty() {
-            break;
-        }
-        for row in rows {
-            let record = crate::store::usage::parse_usage(row)?;
-            after = record.id;
-            let usage = record.usage;
-            if !tracking.scope.includes(&usage.upstream_model) {
-                continue;
-            }
-            let sent = usage
-                .upstream_started_at_ms
-                .expect("cycle query selects rows with an upstream send time");
-            if sent >= tracking.baseline_at_ms && sent < tracking.sample.received_at_ms {
-                delta.add(&usage)?;
-                incomplete |= usage.ended != "complete"
-                    || usage
-                        .dimensions
-                        .get("quota_attribution")
-                        .and_then(Value::as_str)
-                        == Some("session");
-            }
-        }
-    }
     cycle.models = tracking
         .models
         .iter()
@@ -67,11 +28,8 @@ pub(super) async fn hydrate(
             metrics: metrics.clone(),
         })
         .collect();
-    cycle.estimate = Some(calculate(
-        &CycleObservationRecord::from(&*cycle),
-        &delta,
-        incomplete,
-    ));
+    let samples = store.credential_quota_observations(cycle, true).await?;
+    cycle.estimate = samples.last().and_then(|sample| sample.estimate.clone());
     Ok(())
 }
 

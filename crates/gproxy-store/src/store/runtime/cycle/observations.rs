@@ -1,5 +1,5 @@
 use crate::query::runtime;
-use crate::records::{CredentialQuotaCycleRecord, CycleObservationRecord, UsageTotals};
+use crate::records::{CredentialQuotaCycleRecord, CycleObservationRecord};
 use crate::{Store, StoreError};
 
 impl Store {
@@ -31,16 +31,7 @@ impl Store {
             .into_iter()
             .map(|row| Ok((row.i64("started_at_ms")?, row.text("model")?.to_owned())))
             .collect::<Result<Vec<_>, StoreError>>()?;
-        let mut totals = vec![UsageTotals::default(); samples.len()];
-        let mut incomplete = samples
-            .iter()
-            .map(|sample| {
-                cycle.tracking.needs_rebuild
-                    || pending.iter().any(|(at, model)| {
-                        *at < sample.observed_at_ms && sample.scope.includes(model)
-                    })
-            })
-            .collect::<Vec<_>>();
+        let mut usages = Vec::new();
         let mut after = 0;
         loop {
             let rows = self
@@ -54,30 +45,10 @@ impl Store {
             for row in rows {
                 let record = crate::store::usage::parse_usage(row)?;
                 after = record.id;
-                let usage = record.usage;
-                let sent = usage
-                    .upstream_started_at_ms
-                    .expect("cycle query selects upstream send time");
-                for (index, sample) in samples.iter().enumerate() {
-                    if sent < sample.baseline_at_ms
-                        || sent >= sample.observed_at_ms
-                        || !sample.scope.includes(&usage.upstream_model)
-                    {
-                        continue;
-                    }
-                    totals[index].add(&usage)?;
-                    incomplete[index] |= usage.ended != "complete"
-                        || usage
-                            .dimensions
-                            .get("quota_attribution")
-                            .and_then(serde_json::Value::as_str)
-                            == Some("session");
-                }
+                usages.push(record.usage);
             }
         }
-        for ((sample, total), incomplete) in samples.iter_mut().zip(totals).zip(incomplete) {
-            sample.estimate = Some(super::metrics::calculate(sample, &total, incomplete));
-        }
+        super::estimation::calculate(cycle, &mut samples, &usages, &pending)?;
         Ok(samples)
     }
 }
