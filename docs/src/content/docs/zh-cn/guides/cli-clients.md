@@ -78,8 +78,14 @@ Provider 设置 JSON 可以影响本地回答：`codex_pat_plan_type`（`free`�
 ```sh
 export ANTHROPIC_BASE_URL='https://gproxy.example'
 export CLAUDE_CODE_OAUTH_TOKEN='sk-gp-...'
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY='1'
 claude --model 'claude-sonnet-4-6'
 ```
+
+启用 `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY` 后，Claude Code 会从
+`ANTHROPIC_BASE_URL` 指向的网关自动发现模型，并在 `/model` 菜单中额外列出
+模型 ID 包含 `claude` 或 `anthropic` 的模型（不区分大小写）。其他 ID 不会通过
+自动发现加入菜单；需要使用时，可用 `claude --model '<模型 ID>'` 显式指定。
 
 Claude Code 以 `Authorization: Bearer` 发送该 token，准入把它当作 GPROXY 密钥
 读取。Base URL 就是原始地址：Messages、统计 Token 和模型列表像任何聚合请求一

@@ -83,8 +83,15 @@ none through the CLI; the console can consume them.
 ```sh
 export ANTHROPIC_BASE_URL='https://gproxy.example'
 export CLAUDE_CODE_OAUTH_TOKEN='sk-gp-...'
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY='1'
 claude --model 'claude-sonnet-4-6'
 ```
+
+With `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY` enabled, Claude Code
+automatically discovers models from the gateway at `ANTHROPIC_BASE_URL`.
+It adds only models whose IDs contain `claude` or `anthropic` (case-insensitive)
+to the `/model` menu. Other IDs are not added through discovery; select them
+explicitly with `claude --model '<model ID>'` when needed.
 
 Claude Code sends the token as `Authorization: Bearer`, which admission reads
 as a GPROXY key. The base URL is the plain origin: Messages, count tokens, and
