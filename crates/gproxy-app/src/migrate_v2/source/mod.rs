@@ -12,6 +12,14 @@ use tokio_rusqlite::rusqlite::{self, OpenFlags};
 use super::model::SourceData;
 
 pub(super) async fn read(path: &Path) -> Result<SourceData, crate::AppError> {
+    read_source(path, true).await
+}
+
+pub(super) async fn read_control(path: &Path) -> Result<SourceData, crate::AppError> {
+    read_source(path, false).await
+}
+
+async fn read_source(path: &Path, history: bool) -> Result<SourceData, crate::AppError> {
     let connection = tokio_rusqlite::Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -19,16 +27,18 @@ pub(super) async fn read(path: &Path) -> Result<SourceData, crate::AppError> {
     .await
     .map_err(error)?;
     connection
-        .call(|connection| {
-            let mut data = SourceData {
-                skipped: super::tables::inspect(connection)?,
-                ..SourceData::default()
-            };
+        .call(move |connection| {
+            let mut data = SourceData::default();
             control::read(connection, &mut data)?;
             identity::read(connection, &mut data)?;
             process::read(connection, &mut data)?;
-            usage::read(connection, &mut data)?;
-            logs::inspect(connection, &mut data)?;
+            if history {
+                data.skipped = super::tables::inspect(connection)?;
+                usage::read(connection, &mut data)?;
+                logs::inspect(connection, &mut data)?;
+            } else {
+                data.settings = usage::settings(connection)?;
+            }
             Ok::<SourceData, rusqlite::Error>(data)
         })
         .await

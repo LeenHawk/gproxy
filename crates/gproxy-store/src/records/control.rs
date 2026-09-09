@@ -145,6 +145,8 @@ pub struct CredentialUpdateInput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RouteInput {
     pub name: String,
+    #[serde(default)]
+    pub strategy: super::RouteStrategy,
     pub max_attempts: u32,
     pub enabled: bool,
 }
@@ -153,6 +155,7 @@ pub struct RouteInput {
 pub struct RouteRecord {
     pub id: i64,
     pub name: String,
+    pub strategy: super::RouteStrategy,
     pub max_attempts: u32,
     pub enabled: bool,
 }

@@ -92,10 +92,11 @@ pub(crate) fn insert_credential(input: &CredentialInput) -> Result<Statement, St
 pub(crate) fn insert_route(input: &RouteInput) -> Result<Statement, StoreError> {
     insert(
         "routes",
-        &["name", "max_attempts", "enabled"],
+        &["name", "max_attempts", "strategy", "enabled"],
         vec![
             value(input.name.clone()),
             value(unsigned32(input.max_attempts)),
+            value(input.strategy.as_str()),
             value(input.enabled),
         ],
     )

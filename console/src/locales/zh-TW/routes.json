@@ -13,7 +13,10 @@
     "tabs": {
       "settings": "設定"
     },
+    "strategies": {"round_robin": "輪詢", "weighted": "加權輪詢", "failover": "容錯移轉"},
+    "strategyHints": {"round_robin": "同一優先層內的健康成員逐請求輪換，成員權重不影響流量占比。", "weighted": "同一優先層內按成員權重平滑分配請求，避免流量連續集中。", "failover": "同一優先層內保持固定順序：權重高者優先，其次按成員 ID；失敗後嘗試下一候選。"},
     "fields": {
+      "strategy": "負載平衡策略",
       "name": "路由名稱",
       "maxAttempts": "最大嘗試次數",
       "enabled": "啟用路由"
@@ -35,7 +38,7 @@
       "tier": "容錯移轉層級",
       "tierHint": "只有第 0 層全部不可用後，第 1 層才接收流量。",
       "weight": "權重",
-      "weightHint": "在同層健康成員間按此比例分配流量。",
+      "weightHint": "用於加權流量分配或容錯移轉的主備排序；輪詢模式的流量占比不受權重影響。",
       "enabled": "啟用成員",
       "created": "已新增成員。",
       "updated": "已更新成員。",

@@ -33,6 +33,7 @@ fn declared_unsupported_route_cannot_be_enabled() {
                 sort_order: 0,
             }]),
             process: Arc::from([]),
+            session_affinity: true,
         },
     };
 

@@ -70,6 +70,7 @@ pub(super) fn routes(result: QueryResult) -> Result<Vec<RouteRecord>, StoreError
                 id: row.i64("id")?,
                 name: row.text("name")?.to_owned(),
                 max_attempts: unsigned32(row.i64("max_attempts")?, "max_attempts")?,
+                strategy: row.text("strategy")?.parse()?,
                 enabled: row.i64("enabled")? != 0,
             })
         })

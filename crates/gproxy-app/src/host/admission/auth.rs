@@ -122,6 +122,14 @@ fn group_permitted(
     model: Option<&str>,
     listing: bool,
 ) -> bool {
+    let local_model = model.and_then(|model| {
+        let name = &snapshot
+            .providers
+            .iter()
+            .find(|row| row.id == provider)?
+            .name;
+        model.strip_prefix(name)?.strip_prefix('/')
+    });
     let applicable = snapshot.permissions.iter().filter(|permission| {
         subject_matches(&permission.subject_kind, permission.subject_id, identity)
             && permission.provider_id.is_none_or(|id| id == provider)
@@ -131,6 +139,11 @@ fn group_permitted(
                 .is_none_or(|value| Some(value) == group)
             && permission.model_pattern.as_deref().is_none_or(|pattern| {
                 model.map_or(listing && permission.allowed, |model| {
+                    let model = if permission.provider_id.is_some() {
+                        local_model.unwrap_or(model)
+                    } else {
+                        model
+                    };
                     crate::model_pattern::matches(pattern, model)
                 })
             })

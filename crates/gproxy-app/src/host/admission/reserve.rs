@@ -20,7 +20,11 @@ pub(in crate::host) fn admit<'a>(
         let snapshot = host.services.control.current();
         let oauth_identity = super::auth::oauth_admission(host, identity, operation).await?;
         let identity = oauth_identity.as_ref().unwrap_or(identity);
-        let plan = authorize(&snapshot, identity, operation, model, plan)?;
+        let model = host
+            .services
+            .control
+            .authorization_model(model, &request.mode);
+        let plan = authorize(&snapshot, identity, operation, model.as_deref(), plan)?;
         let now = unix_now();
         let mut charged = Vec::new();
         let reservations = match super::quota::reserve(
@@ -64,7 +68,7 @@ pub(in crate::host) fn admit<'a>(
 
         let state = AdmissionState {
             identity: IdentityState::from(identity),
-            model: model.map(str::to_owned),
+            model,
             operation: operation.map(|key| key.operation().id().to_owned()),
             reservations,
         };

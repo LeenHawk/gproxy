@@ -61,7 +61,7 @@ export function PermissionForm(props: PermissionFormProps) {
         <Field>
           <FieldLabel htmlFor={`${id}-model`}>{t("access.permissions.model")}</FieldLabel>
           <Input id={`${id}-model`} value={modelPattern} onChange={(event) => setModelPattern(event.target.value)} placeholder={t("access.permissions.allModels")} aria-describedby={`${id}-model-help`} />
-          <FieldDescription id={`${id}-model-help`}>{t("access.permissions.modelHint")}</FieldDescription>
+          <FieldDescription id={`${id}-model-help`}>{t(providerId === "all" ? "access.permissions.modelHint" : "access.permissions.modelScopedHint")}</FieldDescription>
         </Field>
         <Field>
           <FieldLabel id={`${id}-effect-label`}>{t("access.permissions.effect")}</FieldLabel>

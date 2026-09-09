@@ -228,6 +228,7 @@ fn routes(
             (
                 route.id,
                 CompiledRoute {
+                    strategy: route.strategy,
                     max_attempts: route.max_attempts,
                     targets,
                 },

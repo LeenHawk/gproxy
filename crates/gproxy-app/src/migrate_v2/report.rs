@@ -31,9 +31,23 @@ pub struct V2ImportReport {
     pub existing: Vec<(&'static str, usize)>,
     pub issues: Vec<ImportIssue>,
     pub skipped: Vec<SkippedTable>,
+    pub notices: Vec<ImportIssue>,
 }
 
 impl V2ImportReport {
+    pub(super) fn planned(plan: &super::plan::Plan, dry_run: bool) -> Self {
+        Self {
+            dry_run,
+            applied: false,
+            already_imported: false,
+            counts: plan.counts.clone(),
+            existing: Vec::new(),
+            issues: plan.issues.clone(),
+            skipped: plan.data.skipped.clone(),
+            notices: plan.data.notices.clone(),
+        }
+    }
+
     pub fn has_blockers(&self) -> bool {
         !self.issues.is_empty() || (!self.dry_run && !self.applied && !self.already_imported)
     }
@@ -74,6 +88,17 @@ impl std::fmt::Display for V2ImportReport {
                     output,
                     "  {}: {} rows; {}",
                     skipped.table, skipped.rows, skipped.reason
+                )
+                .expect("write to string");
+            }
+        }
+        if !self.notices.is_empty() {
+            output.push_str("compatibility changes and row details:\n");
+            for notice in &self.notices {
+                writeln!(
+                    output,
+                    "  {} {}: {}",
+                    notice.entity, notice.row, notice.reason
                 )
                 .expect("write to string");
             }

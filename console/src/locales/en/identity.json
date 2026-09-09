@@ -14,7 +14,8 @@
     "permissions": {
       "model": "Model pattern",
       "allModels": "All models",
-      "modelHint": "Match the model name requested by the client. Supports *; leave blank for all models.",
+      "modelHint": "Match a public model name, such as chat-* or provider/gpt-*. Supports *; leave blank for all models.",
+      "modelScopedHint": "Match a model within this provider or a public model served by it. Supports *; leave blank for all models.",
       "title": "Permissions",
       "add": "Add permission",
       "empty": "No permissions configured for this subject.",

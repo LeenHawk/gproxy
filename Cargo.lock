@@ -1660,6 +1660,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-rusqlite",
+ "ts-rs",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

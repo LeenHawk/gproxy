@@ -9,7 +9,7 @@ pub(super) fn read(connection: &Connection, data: &mut SourceData) -> Result<()>
     Ok(())
 }
 
-fn settings(connection: &Connection) -> Result<Vec<Legacy<Settings>>> {
+pub(super) fn settings(connection: &Connection) -> Result<Vec<Legacy<Settings>>> {
     let mut query = connection.prepare(
         "SELECT id,instance_name,proxy,enable_usage,enable_upstream_log,enable_upstream_log_body,enable_downstream_log,enable_downstream_log_body,disable_log_redaction,enable_tokenizer_download,update_channel,enable_auto_update_check,retention_days,max_database_size_mb,file_upload_max_in_flight FROM instance_settings ORDER BY id",
     )?;

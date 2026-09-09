@@ -135,6 +135,9 @@ pub const TABLES: &[TableSpec] = &[
             Col::id(),
             Col::required("name", Text).unique(),
             Col::required("max_attempts", Integer),
+            Col::required("strategy", Text)
+                .default("'weighted'")
+                .since(SchemaVersion::RouteStrategies),
             Col::required("enabled", Integer),
         ],
         owns: &[

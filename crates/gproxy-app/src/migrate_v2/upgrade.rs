@@ -1,6 +1,7 @@
 mod sqlite;
 
 use std::fs::{File, OpenOptions};
+use std::io::Write as _;
 use std::path::Path;
 
 use base64::Engine as _;
@@ -58,9 +59,12 @@ pub(crate) async fn prepare(config: &Config) -> Result<Option<File>, AppError> {
             Ok(Some(lock))
         }
         Err(failure) => {
-            if !attempt.join("report.txt").exists() {
-                std::fs::write(attempt.join("report.txt"), failure.to_string()).map_err(error)?;
-            }
+            let mut report = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(attempt.join("report.txt"))
+                .map_err(error)?;
+            writeln!(report, "\nmigration failed: {failure}").map_err(error)?;
             let message = format!("{failure}; upgrade files: {}", attempt.display());
             std::fs::write(&blocked, &message).map_err(error)?;
             Err(error(format!(
@@ -72,6 +76,24 @@ pub(crate) async fn prepare(config: &Config) -> Result<Option<File>, AppError> {
 }
 
 async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(), AppError> {
+    let source_key = config
+        .secret_keys()
+        .current
+        .as_ref()
+        .map(|key| base64::engine::general_purpose::STANDARD.encode(key));
+    tracing::info!("checking v2 configuration before database copy");
+    let preflight = super::preflight::run(config, original, source_key.as_deref(), true).await?;
+    std::fs::write(
+        attempt.join("report.txt"),
+        format!("Configuration preflight (history not scanned):\n{preflight}"),
+    )
+    .map_err(error)?;
+    if preflight.has_blockers() {
+        return Err(error(
+            "configuration preflight failed before database copy; inspect report.txt for row details",
+        ));
+    }
+    tracing::info!("configuration preflight passed; copying the v2 database");
     let source = sqlite::quiesce(original)?;
     let backup = attempt.join("gproxy-v2.db");
     std::fs::copy(original, &backup).map_err(error)?;
@@ -83,15 +105,12 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
         candidate.clone(),
         config.secret_keys().clone(),
     );
+    tracing::info!("importing v2 configuration, usage, and request logs");
     let report = super::migrate_from_v2(
         &target,
         V2ImportOptions {
             path: backup.clone(),
-            source_master_key: config
-                .secret_keys()
-                .current
-                .as_ref()
-                .map(|key| base64::engine::general_purpose::STANDARD.encode(key)),
+            source_master_key: source_key,
             apply: true,
             merge: false,
         },
@@ -117,6 +136,7 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
         )
         .await?;
     }
+    tracing::info!("validating the migrated database before cutover");
     let database = attempt.join("ready.db");
     sqlite::snapshot_target(&candidate.join("gproxy.db"), &database)?;
     sqlite::validate_target(&backup, &database)?;

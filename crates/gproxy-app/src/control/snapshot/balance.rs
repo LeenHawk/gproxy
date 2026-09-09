@@ -1,24 +1,18 @@
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
-use std::sync::Mutex;
 
 use super::types::{CredentialHealthMap, CredentialStrategy, TargetSeed};
 
-#[derive(Default)]
-pub(super) struct RotationCounters(Mutex<BTreeMap<(u8, i64, i64), u64>>);
+mod rotation;
+#[cfg(test)]
+mod tests;
 
-impl RotationCounters {
-    fn next(&self, key: (u8, i64, i64)) -> u64 {
-        let mut counters = self.0.lock().expect("rotation counter lock");
-        let value = counters.entry(key).or_default();
-        let current = *value;
-        *value = value.wrapping_add(1);
-        current
-    }
-}
+use gproxy_store::records::RouteStrategy;
+pub(super) use rotation::RotationCounters;
 
 pub(super) fn order(
     mut seeds: Vec<TargetSeed>,
+    strategy: RouteStrategy,
     balance_key: i64,
     affinity: Option<i64>,
     health: &CredentialHealthMap,
@@ -49,7 +43,29 @@ pub(super) fn order(
             members.push((seed.member_id, seed.member_weight));
         }
     }
-    let member_id = weighted_owner(&members, counters.next((0, balance_key, 0)));
+    match strategy {
+        RouteStrategy::RoundRobin => {
+            let start = (counters.next((0, balance_key, 0)) % members.len() as u64) as usize;
+            members.rotate_left(start);
+        }
+        RouteStrategy::Weighted => {
+            let member_id = counters.smooth((0, balance_key, 0), &members);
+            let index = members
+                .iter()
+                .position(|(id, _)| *id == member_id)
+                .expect("selected member");
+            let selected = members.remove(index);
+            members.insert(0, selected);
+        }
+        RouteStrategy::Failover => {}
+    }
+    let order = members
+        .iter()
+        .enumerate()
+        .map(|(index, (id, _))| (*id, index))
+        .collect::<BTreeMap<_, _>>();
+    seeds[..primary_end].sort_by_key(|seed| order[&seed.member_id]);
+    let member_id = members[0].0;
     let credentials = seeds[..primary_end]
         .iter()
         .filter(|seed| seed.member_id == member_id)
@@ -60,11 +76,15 @@ pub(super) fn order(
         .find(|seed| seed.member_id == member_id)
         .map(|seed| seed.credential_strategy)
         .unwrap_or(CredentialStrategy::RoundRobin);
-    let rotation = match strategy {
-        CredentialStrategy::RoundRobin => counters.next((1, balance_key, member_id)),
-        CredentialStrategy::Sticky => affinity.map_or(0, |key| stable_slot(key, member_id)),
+    let credential_id = match strategy {
+        CredentialStrategy::RoundRobin => {
+            counters.smooth((1, balance_key, member_id), &credentials)
+        }
+        CredentialStrategy::Sticky => weighted_owner(
+            &credentials,
+            affinity.map_or(0, |key| stable_slot(key, member_id)),
+        ),
     };
-    let credential_id = weighted_owner(&credentials, rotation);
     if let Some(index) = seeds
         .iter()
         .position(|seed| seed.member_id == member_id && seed.credential.0 == credential_id)
@@ -111,101 +131,4 @@ fn weighted_owner(entries: &[(i64, u32)], rotation: u64) -> i64 {
         slot -= u64::from(*weight);
     }
     entries[0].0
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn seed(member_id: i64, tier: u32, member_weight: u32, credential: i64) -> TargetSeed {
-        TargetSeed {
-            member_id,
-            tier,
-            member_weight,
-            provider_id: member_id,
-            credential: gproxy_channel_api::CredentialId(credential),
-            credential_version: 0,
-            credential_weight: 100,
-            credential_strategy: CredentialStrategy::RoundRobin,
-            proxy_url: None,
-            fingerprint: None,
-            upstream_model: "model".into(),
-        }
-    }
-
-    #[test]
-    fn round_robin_rotates_while_sticky_keeps_one_weighted_owner() {
-        let mut seeds = vec![seed(1, 0, 1, 11), seed(1, 0, 1, 22), seed(3, 1, 100, 33)];
-        for seed in &mut seeds[..2] {
-            seed.credential_weight = 1;
-        }
-        let picks = |counters: &RotationCounters| {
-            (0..4)
-                .map(|_| {
-                    order(seeds.clone(), 9, None, &BTreeMap::new(), counters)[0]
-                        .credential
-                        .0
-                })
-                .collect::<Vec<_>>()
-        };
-        let expected = vec![11, 22, 11, 22];
-        assert_eq!(picks(&RotationCounters::default()), expected);
-        assert_eq!(picks(&RotationCounters::default()), expected);
-
-        let mut sticky = seeds;
-        for seed in &mut sticky {
-            seed.credential_strategy = CredentialStrategy::Sticky;
-        }
-        let counters = RotationCounters::default();
-        let sticky = (0..4)
-            .map(|_| {
-                order(sticky.clone(), 9, Some(41), &BTreeMap::new(), &counters)[0]
-                    .credential
-                    .0
-            })
-            .collect::<Vec<_>>();
-        assert!(sticky.iter().all(|credential| *credential == sticky[0]));
-    }
-
-    #[test]
-    fn unhealthy_members_are_removed_before_the_rotation_slot_is_consumed() {
-        let mut blocked = seed(1, 0, 1, 11);
-        blocked.upstream_model = "model-a".into();
-        let mut isolated = seed(2, 0, 1, 11);
-        isolated.upstream_model = "model-b".into();
-        let seeds = vec![blocked, isolated, seed(3, 0, 1, 22)];
-        let health = BTreeMap::from([(
-            gproxy_channel_api::CredentialId(11),
-            BTreeMap::from([(
-                "model-a".into(),
-                (0, gproxy_store::records::CredentialHealthState::Dead),
-            )]),
-        )]);
-        let counters = RotationCounters::default();
-        let ordered = order(seeds, 4, None, &health, &counters);
-        assert!(
-            !ordered
-                .iter()
-                .any(|seed| { seed.credential.0 == 11 && seed.upstream_model == "model-a" })
-        );
-        assert!(
-            ordered
-                .iter()
-                .any(|seed| { seed.credential.0 == 11 && seed.upstream_model == "model-b" })
-        );
-
-        let mut degraded = seed(1, 0, 1, 11);
-        degraded.upstream_model = "model-a".into();
-        let healthy = seed(2, 0, 1, 22);
-        let health = BTreeMap::from([(
-            gproxy_channel_api::CredentialId(11),
-            BTreeMap::from([(
-                "model-a".into(),
-                (0, gproxy_store::records::CredentialHealthState::Degraded),
-            )]),
-        )]);
-        let ordered = order(vec![degraded, healthy], 4, None, &health, &counters);
-        assert_eq!(ordered[0].credential.0, 22);
-        assert_eq!(ordered[1].credential.0, 11);
-    }
 }

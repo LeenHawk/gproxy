@@ -1,8 +1,10 @@
 mod apply;
 mod cipher;
+mod compat;
 mod metrics;
 mod model;
 mod plan;
+mod preflight;
 mod report;
 mod source;
 mod tables;
@@ -55,18 +57,20 @@ pub async fn migrate_from_v2(
         ));
     }
     let marker = source_marker(&options.path)?;
+    let report = preflight::run(
+        config,
+        &options.path,
+        options.source_master_key.as_deref(),
+        !options.apply,
+    )
+    .await?;
+    if !report.issues.is_empty() {
+        return Ok(report);
+    }
     let data = source::read(&options.path).await?;
     let source_cipher = cipher::V2Cipher::new(options.source_master_key.as_deref())?;
     let mut plan = plan::prepare(data, &source_cipher);
-    let mut report = V2ImportReport {
-        dry_run: !options.apply,
-        applied: false,
-        already_imported: false,
-        counts: plan.counts.clone(),
-        existing: Vec::new(),
-        issues: plan.issues.clone(),
-        skipped: plan.data.skipped.clone(),
-    };
+    let mut report = V2ImportReport::planned(&plan, !options.apply);
     if !options.apply || !report.issues.is_empty() {
         return Ok(report);
     }
@@ -104,6 +108,7 @@ pub async fn migrate_from_v2(
         plan.data,
         &mut plan.counts,
         &options.path,
+        crate::control::RuntimeOverrides::from_config(config),
     )
     .await?;
     store

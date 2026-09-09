@@ -23,7 +23,7 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     let original = directory.path().join("gproxy.db");
     let connection = Connection::open(&original).unwrap();
     connection
-        .execute_batch("PRAGMA journal_mode=WAL; UPDATE usages SET cost='23.45'; UPDATE users SET is_admin=0; INSERT INTO route_permissions VALUES(1,'user',1,'*',0,0);")
+        .execute_batch("PRAGMA journal_mode=WAL; UPDATE providers SET credential_strategy='api_key'; UPDATE routes SET strategy='failover'; UPDATE usages SET cost='23.45'; UPDATE users SET is_admin=0; INSERT INTO route_permissions VALUES(1,'user',1,'*',0,0);")
         .unwrap();
     let skipped = [
         "credential_statuses",
@@ -88,11 +88,12 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
         .await
         .unwrap();
     assert!(
-        !stored
+        stored
             .permissions
             .iter()
             .any(|permission| permission.subject_kind == "user"
-                && permission.subject_id == limited.id)
+                && permission.subject_id == limited.id
+                && permission.model_pattern.as_deref() == Some("restricted/*"))
     );
     let plan = control
         .resolve(
@@ -115,10 +116,10 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     assert_eq!(archives.len(), 1);
     let report = std::fs::read_to_string(archives[0].join("report.txt")).unwrap();
     assert!(
-        report.contains("route_permissions: 1 imported (4 found)"),
+        report.contains("route_permissions: 2 imported (4 found)"),
         "{report}"
     );
-    assert!(report.contains("route_permissions: 3 rows;"), "{report}");
+    assert!(report.contains("route_permissions: 2 rows;"), "{report}");
     assert!(
         report.contains("downstream_requests: 130 imported (130 found)"),
         "{report}"
@@ -141,6 +142,17 @@ async fn native_upgrade_preserves_wal_secrets_usage_and_restarts_without_reimpor
     assert_eq!(trend.len(), 1);
     assert_eq!(trend[0].requests, 1);
     assert_eq!(trend[0].cost.to_string(), "23.45");
+    assert!(
+        report.contains("credential_strategy \"api_key\" mapped to round_robin"),
+        "{report}"
+    );
+    assert!(report.contains("scope=unknown scope_id=1"), "{report}");
+    assert!(report.contains("scope=user scope_id=999"), "{report}");
+    assert_eq!(snapshot.providers[0].credential_strategy, "round_robin");
+    assert_eq!(
+        snapshot.routes[0].strategy,
+        gproxy_store::records::RouteStrategy::Failover
+    );
     let backup = Connection::open(archives[0].join("gproxy-v2.db")).unwrap();
     assert_eq!(
         backup
@@ -218,9 +230,32 @@ async fn native_upgrade_keeps_source_on_unrecoverable_keys() {
     let attempts = backups(directory.path());
     assert_eq!(attempts.len(), 1);
     assert!(attempts[0].join("report.txt").is_file());
-    assert!(attempts[0].join("gproxy-v2.db").is_file());
-    assert!(App::start(config).await.is_err());
+    assert!(!attempts[0].join("gproxy-v2.db").exists());
+    assert!(!attempts[0].join("candidate").exists());
+    assert!(App::start(config.clone()).await.is_err());
     assert_eq!(backups(directory.path()).len(), 1);
+    connection
+        .execute("UPDATE user_keys SET api_key_ciphertext=?1", [&key])
+        .unwrap();
+    connection
+        .execute_batch("UPDATE usages SET metrics_json='not-json'")
+        .unwrap();
+    drop(connection);
+    std::fs::remove_file(directory.path().join(".gproxy-v2-upgrade-blocked")).unwrap();
+    assert!(App::start(config).await.is_err());
+    let attempts = backups(directory.path());
+    assert_eq!(attempts.len(), 2);
+    let copied = attempts
+        .iter()
+        .find(|path| path.join("gproxy-v2.db").is_file())
+        .unwrap();
+    let report = std::fs::read_to_string(copied.join("report.txt")).unwrap();
+    assert!(report.contains("Configuration preflight"), "{report}");
+    assert!(report.contains("migration failed:"), "{report}");
+    assert!(
+        report.contains("could not read the v2 database"),
+        "{report}"
+    );
 }
 
 fn backups(path: &Path) -> Vec<PathBuf> {

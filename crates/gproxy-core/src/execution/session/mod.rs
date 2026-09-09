@@ -101,7 +101,11 @@ pub(super) async fn apply<H: Host>(
     if classified.key.operation().spec().affinity != Affinity::Session {
         return None;
     }
-    let key = cache_key(ctx, classified.session, user_key_id);
+    let selected = plan.targets.first()?;
+    if !selected.rules.session_affinity {
+        return None;
+    }
+    let key = cache_key(ctx, classified.session, user_key_id, selected);
     let pinned = match core.host.cache().get(&key).await {
         Ok(value) => value.and_then(|value| decode_target(&value)),
         Err(error) => {
@@ -110,10 +114,14 @@ pub(super) async fn apply<H: Host>(
         }
     };
     if let Some((provider, credential)) = pinned
-        && let Some(index) = plan
-            .targets
-            .iter()
-            .position(|target| target.provider.id == provider && target.credential.0 == credential)
+        && let Some(index) = plan.targets.iter().position(|target| {
+            target.provider.id == provider
+                && target.credential.0 == credential
+                && target.provider.id == selected.provider.id
+                && target.upstream_model == selected.upstream_model
+                && target.tier == selected.tier
+                && target.rules.session_affinity
+        })
         && index > 0
     {
         let target = plan.targets.remove(index);
@@ -131,10 +139,17 @@ impl SessionAffinity {
     }
 }
 
-fn cache_key(ctx: &RequestCtx, subject: Option<SessionSubject>, user_key_id: i64) -> String {
+fn cache_key(
+    ctx: &RequestCtx,
+    subject: Option<SessionSubject>,
+    user_key_id: i64,
+    selected: &Target,
+) -> String {
     let mut hasher = Sha256::new();
     field(&mut hasher, KEY_DOMAIN);
     field(&mut hasher, &user_key_id.to_be_bytes());
+    field(&mut hasher, &selected.provider.id.to_be_bytes());
+    field(&mut hasher, selected.upstream_model.as_bytes());
     match &ctx.mode {
         RoutingMode::Aggregated => field(&mut hasher, b"aggregated"),
         RoutingMode::Namespace { namespace } => {

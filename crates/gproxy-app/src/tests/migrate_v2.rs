@@ -143,7 +143,7 @@ async fn migration_unwraps_v2_dimensional_metrics() {
     .unwrap();
     assert!(report.applied && report.issues.is_empty(), "{report}");
     assert!(report.to_string().contains("credential_statuses: 1 rows;"));
-    for table in ["rate_limits", "unknown_table", "route_permissions"] {
+    for table in ["rate_limits", "unknown_table"] {
         assert!(
             report.to_string().contains(&format!("{table}: 1 rows;")),
             "{report}"
