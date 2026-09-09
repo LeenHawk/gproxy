@@ -75,9 +75,7 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
     let source = sqlite::quiesce(original)?;
     let backup = attempt.join("gproxy-v2.db");
     std::fs::copy(original, &backup).map_err(error)?;
-    File::open(&backup)
-        .and_then(|file| file.sync_all())
-        .map_err(error)?;
+    sync_file(&backup)?;
     let candidate = attempt.join("candidate");
     private_directory(&candidate)?;
     let target = Config::sqlite(
@@ -127,9 +125,7 @@ async fn migrate(config: &Config, original: &Path, attempt: &Path) -> Result<(),
         std::fs::metadata(original).map_err(error)?.permissions(),
     )
     .map_err(error)?;
-    File::open(&database)
-        .and_then(|file| file.sync_all())
-        .map_err(error)?;
+    sync_file(&database)?;
     sync_directory(attempt)?;
     source.execute_batch("ROLLBACK").map_err(error)?;
     drop(source);
@@ -152,6 +148,15 @@ fn private_directory(path: &Path) -> Result<(), AppError> {
 #[cfg(not(unix))]
 fn private_directory(path: &Path) -> Result<(), AppError> {
     std::fs::DirBuilder::new().create(path).map_err(error)
+}
+
+fn sync_file(path: &Path) -> Result<(), AppError> {
+    // Windows FlushFileBuffers requires a handle opened with write access.
+    OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.sync_all())
+        .map_err(error)
 }
 
 fn sync_directory(path: &Path) -> Result<(), AppError> {
